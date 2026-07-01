@@ -1,0 +1,91 @@
+{
+  "name": "evend-dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "proxy": "http://localhost:5000",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1009.0",
+    "@aws-sdk/client-ses": "^3.1005.0",
+    "@shopify/polaris": "^12.0.0",
+    "@shopify/polaris-icons": "^8.0.0",
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^13.5.0",
+    "@types/jest": "^27.5.2",
+    "@types/node": "^16.18.126",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^18.3.1",
+    "@types/react-dom": "^18.3.1",
+    "ajv": "^8.18.0",
+    "axios": "^1.13.6",
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.5.2",
+    "i18next": "^25.8.18",
+    "i18next-browser-languagedetector": "^8.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "multer-s3": "^3.0.1",
+    "papaparse": "^5.5.3",
+    "pg": "^8.20.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-easy-crop": "^5.5.6",
+    "react-i18next": "^16.5.8",
+    "react-is": "^19.2.4",
+    "react-router-dom": "^7.13.0",
+    "react-scripts": "5.0.1",
+    "recharts": "^3.7.0",
+    "stripe": "^21.0.1",
+    "typescript": "^4.9.5",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "SET PORT=3000 && react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "server": "node server.js",
+    "server:dev": "nodemon server.js",
+    "server:kill": "npx kill-port 5000",
+    "server:restart": "npx kill-port 5000 && node server.js"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ],
+    "rules": {
+      "import/first": "off"
+    }
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "devDependencies": {
+    "@craco/craco": "^7.1.0",
+    "browserify-zlib": "^0.2.0",
+    "clone-deep": "^4.0.1",
+    "crypto-browserify": "^3.12.1",
+    "https-browserify": "^1.0.0",
+    "nodemon": "^3.0.0",
+    "path-browserify": "^1.0.1",
+    "querystring-es3": "^0.2.1",
+    "stream-browserify": "^3.0.0",
+    "stream-http": "^3.2.0",
+    "url": "^0.11.4",
+    "util": "^0.12.5"
+  }
+}

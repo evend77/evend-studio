@@ -1,0 +1,56 @@
+/* ===== BOUTIQUE PUBLIQUE - STYLES ULTRA-FORCÉS ===== */
+
+/* FORCER LE FOND DE PAGE - VERSION NUCLÉAIRE */
+html, body, #root, .boutique-container {
+    background-color: #DCD7C9 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 100vh !important;
+}
+
+/* Ajouter un fond de secours directement sur le body en cas d'échec */
+body {
+    background-color: #DCD7C9 !important;
+}
+
+/* Animation spinner */
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Bouton signaler WOW - FORCÉ */
+.bouton-signaler-wow {
+    background: linear-gradient(135deg, #e74c3c, #c0392b) !important;
+    border: none !important;
+    border-radius: 50px !important;
+    padding: 14px 28px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    cursor: pointer !important;
+    box-shadow: 0 10px 25px rgba(231, 76, 60, 0.4) !important;
+    transition: all 0.3s ease !important;
+    color: white !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.5px !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.bouton-signaler-wow:hover {
+    transform: translateY(-3px) scale(1.05) !important;
+    box-shadow: 0 15px 35px rgba(231, 76, 60, 0.6) !important;
+}
+
+.bouton-signaler-wow span:first-child {
+    animation: pulse 2s infinite !important;
+    font-size: 20px !important;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}

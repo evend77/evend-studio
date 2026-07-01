@@ -1,0 +1,738 @@
+// =====================================================================
+// e-Vend Studio API — server.js
+// Port: 5000
+// =====================================================================
+
+require('dotenv').config();
+const express = require('express');
+const cors    = require('cors');
+const path    = require('path');
+const pool    = require('./db');
+const bcrypt  = require('bcrypt');
+const jwt     = require('jsonwebtoken');
+const studioContactRoutes = require('./routes/studio_contact');
+const studioPage404       = require('./routes/studio_page404');
+const studioPolitiques    = require('./routes/studio_politiques');
+const studioPages         = require('./routes/studio_pages');
+const studioSeoSite       = require('./routes/studio_seo_site');
+const studioCookiesSite   = require('./routes/studio_cookies_site');
+const studioPhotosVendeur = require('./routes/studio_photos_gestionnaire');
+const studioMonCompte     = require('./routes/studio_mon_compte');
+const studioCollaborateurs  = require('./routes/studio_collaborateurs');
+const studioBadges        = require('./routes/studio_badges');
+const guidesAddons        = require('./routes/guides_addons');
+const blogsCollaborateur    = require('./routes/blogs_collaborateur');
+const faqsCollaborateur     = require('./routes/faqs_collaborateur');
+const studioSites = require('./routes/studio_sites');
+
+const app  = express();
+const port = process.env.PORT || 5000;
+
+// ── MIDDLEWARE ────────────────────────────────────────────────────────
+
+// ✅ IMPORTANT : Webhook Stripe DOIT être avant express.json()
+// Sinon, Stripe ne peut pas lire le body raw
+app.post('/api/dynadot/stripe-webhook', express.raw({ type: 'application/json' }));
+
+// ✅ Webhook Dynadot (NOUVEAU)
+app.post('/api/webhooks/dynadot', express.raw({ type: 'application/json' }));
+
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:5001',
+    'http://localhost:3001',
+    process.env.FRONTEND_URL,
+  ].filter(Boolean),
+  credentials: true,
+}));
+
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// ✅ BLOG PLATEFORME
+app.use('/api/blogPlateforme', require('./routes/blogPlateforme'));
+app.use('/api/faqPlateforme',  require('./routes/faqPlateforme'));
+app.use('/api/contactPlateforme', require('./routes/contactPlateforme'));
+
+// ✅ ADMIN CONFIGURATION
+app.use('/api/admin/configuration', require('./routes/configuration_admin'));
+
+// ✅ WEBHOOK DYNADOT (route)
+app.use('/api/webhooks/dynadot', require('./routes/webhooks-dynadot'));
+
+// ✅ ADD-ONS (NOUVEAU) 
+app.use('/api/addons', require('./routes/addons'));
+
+// ── MIDDLEWARE AUTH ───────────────────────────────────────────────────
+const { authenticateToken } = require('./middleware/auth');
+
+// =====================================================================
+// 🔐 AUTHENTIFICATION
+// =====================================================================
+
+// =====================================================================
+// 📝 INSCRIPTION GESTIONNAIRE STUDIO
+// =====================================================================
+app.post('/api/auth/inscription-studio', async (req, res) => {
+  const { nom, nom_boutique, email, mot_de_passe, type_entreprise, template_id } = req.body;
+
+  if (!nom || !email || !mot_de_passe || !nom_boutique) {
+    return res.status(400).json({ message: 'Tous les champs obligatoires doivent être remplis.' });
+  }
+  if (mot_de_passe.length < 8) {
+    return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 8 caractères.' });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Vérifier si l'email existe déjà
+    const existe = await client.query('SELECT id FROM gestionnaires WHERE email = $1', [email.toLowerCase()]);
+    if (existe.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ message: 'Cette adresse courriel est déjà utilisée.' });
+    }
+
+    // Hasher le mot de passe
+    const hash = await bcrypt.hash(mot_de_passe, 12);
+
+    // Créer le vendeur
+    const vendeurRes = await client.query(
+      `INSERT INTO gestionnaires (nom, nom_boutique, email, mot_de_passe, plan, statut, created_at)
+       VALUES ($1, $2, $3, $4, 'gratuit', 'actif', NOW())
+       RETURNING id, nom, email, plan, statut`,
+      [nom.trim(), nom_boutique.trim(), email.toLowerCase().trim(), hash]
+    );
+    const gestionnaire = vendeurRes.rows[0];
+
+    // Créer la ligne "sites" vide pour ce vendeur
+    await client.query(
+      `INSERT INTO sites (gestionnaire_id, slug, template_id, publie, config, updated_at)
+       VALUES ($1, $2, $3, false, '{}', NOW())
+       ON CONFLICT (gestionnaire_id) DO NOTHING`,
+      [gestionnaire.id, `boutique-${gestionnaire.id}`, template_id || null]
+    );
+
+    await client.query('COMMIT');
+
+    // Générer JWT
+    const token = jwt.sign(
+      { id: gestionnaire.id, email: gestionnaire.email, role: 'gestionnaire' },
+      process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
+      { expiresIn: process.env.JWT_EXPIRES || '7d' }
+    );
+
+    const userData = {
+      id:           gestionnaire.id,
+      nom:          gestionnaire.nom,
+      email:        gestionnaire.email,
+      nom_boutique: nom_boutique.trim(),
+      plan:         gestionnaire.plan,
+      statut:       gestionnaire.statut,
+      role:         'gestionnaire',
+      site_template_id: template_id || null,
+    };
+
+    console.log(`✅ Nouveau gestionnaire Studio inscrit: ${email} (ID: ${gestionnaire.id})`);
+    res.status(201).json({ success: true, token, vendeur: userData });
+
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('POST /api/auth/inscription-studio', err);
+    res.status(500).json({ message: "Erreur serveur lors de l'inscription." });
+  } finally {
+    client.release();
+  }
+});
+
+app.use('/api/auth', require('./routes/authStudio'));
+
+// =====================================================================
+// 🛒 BOUTIQUE STUDIO (mono-produit)
+// =====================================================================
+app.use('/api/boutique-studio', require('./routes/boutique-studio'));
+
+// =====================================================================
+// 👥 ACHETEURS STUDIO
+// =====================================================================
+app.use('/api/acheteurs-studio', require('./routes/acheteurs-studio'));
+
+// =====================================================================
+// 💝 DONS — CAGNOTTEPRO
+// =====================================================================
+app.use('/api/dons', require('./routes/dons'));
+
+// =====================================================================
+// 🎭 SIÈGES SPECTACLE
+// =====================================================================
+app.use('/api/sieges', require('./routes/sieges'));
+
+// =====================================================================
+// 📅 RÉSERVATIONS STUDIO
+// =====================================================================
+app.use('/api/reservations', require('./routes/reservations'));
+
+// =====================================================================
+// 🌐 DYNADOT (ACHAT DE DOMAINES)
+// =====================================================================
+app.use('/api/dynadot', require('./routes/dynadot'));
+
+// =====================================================================
+// 🎨 SITES STUDIO (config du site du vendeur)
+// =====================================================================
+
+// GET — Config du site par vendeur ID (dashboard ET preview public)
+app.get('/api/studio/sites/:gestionnaireId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT * FROM sites WHERE gestionnaire_id = $1`,
+      [req.params.gestionnaireId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Site non trouvé.' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('GET /api/studio/sites/:vendeurId', err);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// GET — Preview HTML du site
+app.get('/api/studio/public/preview/:gestionnaireId', async (req, res) => {
+  try {
+    res.redirect(`/site-preview?vendeurId=${req.params.gestionnaireId}`);
+  } catch (err) {
+    res.status(500).send('<h1>Erreur serveur</h1>');
+  }
+});
+
+// GET — Config du site par SLUG (rendu public — pas d'auth)
+app.get('/api/studio/public/:slug', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT s.*, v.nom as vendeur_nom, v.email as vendeur_email
+       FROM sites s
+       JOIN gestionnaires v ON v.id = s.gestionnaire_id
+       WHERE s.slug = $1 AND s.publie = true`,
+      [req.params.slug]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Site non trouvé ou non publié.' });
+    }
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('GET /api/studio/public/:slug', err);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// PUT — Sauvegarder la config du site
+app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (req, res) => {
+  const { config, sous_type, template_id, slug, domaine_custom, publie } = req.body;
+
+  if (req.user.role !== 'admin' && req.user.id !== parseInt(req.params.gestionnaireId)) {
+    return res.status(403).json({ message: 'Accès non autorisé.' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO sites (gestionnaire_id, config, sous_type, template_id, slug, domaine_custom, publie, updated_at)
+       VALUES (
+         $7,
+         COALESCE($1::jsonb, '{}'),
+         $2, $3, $4, $5,
+         COALESCE($6, false),
+         NOW()
+       )
+       ON CONFLICT (gestionnaire_id) DO UPDATE SET
+         config         = COALESCE($1::jsonb, sites.config),
+         sous_type      = COALESCE($2, sites.sous_type),
+         template_id    = COALESCE($3, sites.template_id),
+         slug           = COALESCE($4, sites.slug),
+         domaine_custom = COALESCE($5, sites.domaine_custom),
+         publie         = COALESCE($6, sites.publie),
+         updated_at     = NOW()
+       RETURNING *`,
+      [
+        config ? JSON.stringify(config) : null,
+        sous_type || null,
+        template_id || null,
+        slug || null,
+        domaine_custom || null,
+        publie !== undefined ? publie : null,
+        req.params.gestionnaireId,
+      ]
+    );
+
+    res.json({ success: true, site: result.rows[0] });
+  } catch (err) {
+    console.error('PUT /api/studio/sites/:vendeurId/config', err);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+
+// DELETE — Réinitialiser la config du site (repart de zéro pour ce vendeur)
+app.delete('/api/studio/sites/:gestionnaireId/reset', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.id !== parseInt(req.params.gestionnaireId)) {
+    return res.status(403).json({ message: 'Accès non autorisé.' });
+  }
+  try {
+    const result = await pool.query(
+      `UPDATE sites SET
+        config      = '{}',
+        template_id = NULL,
+        sous_type   = NULL,
+        publie      = false,
+        updated_at  = NOW()
+       WHERE gestionnaire_id = $1
+       RETURNING id, gestionnaire_id, template_id, publie`,
+      [req.params.gestionnaireId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Site non trouvé.' });
+    }
+    res.json({ success: true, message: 'Config réinitialisée avec succès.', site: result.rows[0] });
+  } catch (err) {
+    console.error('DELETE /api/studio/sites/:vendeurId/reset', err);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// PUT — Publier / dépublier le site
+app.put('/api/studio/sites/:gestionnaireId/publier', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin' && req.user.id !== parseInt(req.params.gestionnaireId)) {
+    return res.status(403).json({ message: 'Accès non autorisé.' });
+  }
+  try {
+    const { publie } = req.body;
+    const result = await pool.query(
+      `UPDATE sites SET publie = $1, updated_at = NOW()
+       WHERE gestionnaire_id = $2 RETURNING publie`,
+      [publie, req.params.gestionnaireId]
+    );
+    res.json({ success: true, publie: result.rows[0]?.publie });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// =====================================================================
+// 📬 CONTACT TEMPLATES STUDIO
+// =====================================================================
+// POST /api/studio/contact — visiteur envoie un message au propriétaire du site
+app.use('/api/studio', studioContactRoutes);
+
+// =====================================================================
+// 📧 MODÈLES COURRIEL VENDEUR (studio)
+// =====================================================================
+
+// GET — charger les modèles courriel
+app.get('/api/studio/modeles-courriel/:gestionnaireId', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT config FROM sites WHERE gestionnaire_id = $1`,
+      [req.params.gestionnaireId]
+    );
+    const config = result.rows[0]?.config || {};
+    res.json({ modeles: config.modeles_courriel || {} });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// PUT — sauvegarder les modèles courriel
+app.put('/api/studio/modeles-courriel/:gestionnaireId', authenticateToken, async (req, res) => {
+  if (req.user.id !== parseInt(req.params.gestionnaireId) && req.user.role !== 'admin') {
+    return res.status(403).json({ message: 'Accès non autorisé.' });
+  }
+  try {
+    await pool.query(
+      `UPDATE sites SET config = jsonb_set(
+        COALESCE(config, '{}'),
+        '{modeles_courriel}',
+        $1::jsonb
+      ), updated_at = NOW()
+      WHERE gestionnaire_id = $2`,
+      [JSON.stringify(req.body), req.params.gestionnaireId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// =====================================================================
+// 🔍 PAGE 404 VENDEUR STUDIO
+// =====================================================================
+// GET  /api/studio/page-404/:vendeurId/public  — lecture publique (site du vendeur)
+// GET  /api/studio/page-404/:vendeurId         — lecture dashboard (auth)
+// PUT  /api/studio/page-404/:vendeurId         — sauvegarder (auth)
+// POST /api/studio/page-404/:vendeurId/image   — upload image S3 (auth)
+app.use('/api/studio/pages/:gestionnaireId', studioPages);
+app.use('/api/studio/politiques/:gestionnaireId', studioPolitiques);
+app.use('/api/studio/page-404/:gestionnaireId', studioPage404);
+
+// =====================================================================
+// 🔍 SEO SITE VENDEUR STUDIO
+// =====================================================================
+// GET  /api/studio/seo-site/:vendeurId/public  — lecture publique
+// GET  /api/studio/seo-site/:vendeurId         — lecture dashboard (auth)
+// POST /api/studio/seo-site/:vendeurId         — sauvegarder + upload S3 (auth)
+app.use('/api/studio/seo-site/:gestionnaireId', studioSeoSite);
+
+// =====================================================================
+// 🍪 COOKIES SITE VENDEUR STUDIO
+// =====================================================================
+// GET /api/studio/cookies-site/:vendeurId/public  — config publique
+// GET /api/studio/cookies-site/:vendeurId         — lecture dashboard (auth)
+// PUT /api/studio/cookies-site/:vendeurId         — sauvegarder (auth)
+app.use('/api/studio/cookies-site/:gestionnaireId', studioCookiesSite);
+
+// =====================================================================
+// 🖼️ PHOTOS SITE VENDEUR STUDIO (max 25 par site, AWS S3)
+// =====================================================================
+// GET    /api/studio/photos-vendeur/:vendeurId          — liste
+// POST   /api/studio/photos-vendeur/:vendeurId/upload   — uploader
+// DELETE /api/studio/photos-vendeur/:vendeurId/:id      — supprimer
+app.use('/api/studio/photos/:gestionnaireId', studioPhotosVendeur);
+
+// =====================================================================
+// 👤 MON COMPTE VENDEUR STUDIO
+// =====================================================================
+// GET    /api/studio/mon-compte/:vendeurId              — profil complet
+// PUT    /api/studio/mon-compte/:vendeurId              — sauvegarder
+// PUT    /api/studio/mon-compte/:vendeurId/mot-de-passe — changer mdp
+// POST   /api/studio/mon-compte/:vendeurId/logo         — upload logo S3
+// POST   /api/studio/mon-compte/:vendeurId/banniere     — upload bannière S3
+// DELETE /api/studio/mon-compte/:vendeurId/logo         — supprimer logo
+// DELETE /api/studio/mon-compte/:vendeurId/banniere     — supprimer bannière
+app.use('/api/studio/mon-compte/:gestionnaireId', studioMonCompte);
+
+// =====================================================================
+// 👥 COLLABORATEURS STUDIO (marketplace multivendeur)
+// =====================================================================
+app.use('/api/studio/collaborateurs/:gestionnaireId', studioCollaborateurs);
+
+// =====================================================================
+// 🏅 BADGES VENDEUR STUDIO
+// =====================================================================
+app.use('/api/studio/badges/:gestionnaireId', studioBadges);
+
+// =====================================================================
+// 📖 GUIDES ADD-ONS
+// =====================================================================
+app.use('/api/guides-addons', guidesAddons);
+
+// =====================================================================
+// 📝 BLOGS SOUS-VENDEURS
+// =====================================================================
+app.use('/api/studio/blogs-collab/:gestionnaireId', blogsCollaborateur);
+app.use('/api/studio/faqs-collab/:gestionnaireId', faqsCollaborateur);
+app.use('/api/chat-collab/:gestionnaireId',          require('./routes/chat_collab'));
+app.use('/api/chat-admin-collab/:gestionnaireId',    require('./routes/chat_admin_collab'));
+
+app.use('/api/politiquesPlateforme', require('./routes/politiquesPlateforme'));
+app.use('/api/pagesPlateforme',      require('./routes/pagesPlateforme'));
+app.use('/api/studio/sites', studioSites);
+app.use('/api/produits/gestionnaire', require('./routes/produits_gestionnaire'));
+app.use('/api/marketplace', require('./routes/marketplace-auth'));
+app.use('/api/marketplace', require('./routes/marketplace-panier'));
+
+// =====================================================================
+// 📦 CRÉER / MODIFIER ANNONCE
+// =====================================================================
+app.use('/api/creer-annonce', require('./routes/creer_annonce'));
+
+
+// =====================================================================
+// 📜 POLITIQUES VENDEUR STUDIO
+// =====================================================================
+// GET  /api/studio/politiques/:vendeurId/public        — lecture publique
+// GET  /api/studio/politiques/:vendeurId/public/:slug  — une politique publique
+// GET  /api/studio/politiques/:vendeurId               — lecture dashboard (auth)
+// PUT  /api/studio/politiques/:vendeurId/:slug         — sauvegarder (auth)
+
+
+// =====================================================================
+// 📄 PAGES VENDEUR STUDIO (guides, FAQ, documents)
+// =====================================================================
+// GET    /api/studio/pages/:vendeurId/public        — lecture publique
+// GET    /api/studio/pages/:vendeurId               — lecture dashboard (auth)
+// POST   /api/studio/pages/:vendeurId               — créer (auth)
+// PATCH  /api/studio/pages/:vendeurId/:slug         — modifier (auth)
+// DELETE /api/studio/pages/:vendeurId/:slug         — supprimer (auth)
+
+
+// POST — envoyer un email de test (studio)
+app.post('/api/studio/test-email', authenticateToken, async (req, res) => {
+  const { type, destinataire, template } = req.body;
+  if (!destinataire || !template?.html) {
+    return res.status(400).json({ message: 'Destinataire et template requis.' });
+  }
+  try {
+    const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+    const ses = new SESClient({
+      region: process.env.AWS_REGION || 'us-east-2',
+      credentials: {
+        accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      }
+    });
+
+    let html  = template.html;
+    let sujet = template.sujet || 'Test e-Vend Studio';
+
+    const vars = {
+      '{$nomClient}':            'Marie Dupont (TEST)',
+      '{$emailClient}':          destinataire,
+      '{$dateReservation}':      'Vendredi 14 juin 2026 à 19h30',
+      '{$nbPersonnes}':          '4',
+      '{$idReservation}':        '9999',
+      '{$nomSite}':              'Mon Site Studio',
+      '{$couleur}':              '#c9a96e',
+      '{$notesSupplementaires}': 'Table près de la fenêtre svp.',
+    };
+    for (const [cle, val] of Object.entries(vars)) {
+      html  = html.split(cle).join(val);
+      sujet = sujet.split(cle).join(val);
+    }
+
+    await ses.send(new SendEmailCommand({
+      Destination: { ToAddresses: [destinataire] },
+      Message: {
+        Subject: { Data: `[TEST] ${sujet}`, Charset: 'UTF-8' },
+        Body: { Html: { Data: html, Charset: 'UTF-8' } }
+      },
+      Source: process.env.FROM_EMAIL || 'contact@e-vend.ca',
+    }));
+
+    res.json({ success: true, message: `Email test envoyé à ${destinataire}` });
+  } catch (err) {
+    console.error('test-email:', err.message);
+    res.status(500).json({ message: 'Erreur envoi email: ' + err.message });
+  }
+});
+
+// =====================================================================
+// 👤 GESTIONNAIRES
+// =====================================================================
+
+// GET — Stats du gestionnaire
+app.get('/api/gestionnaires/:id/stats', authenticateToken, async (req, res) => {
+  try {
+    const gestionnaireId = req.params.id;
+    const [sites, reservations, dons] = await Promise.all([
+      pool.query('SELECT id, publie, template_id FROM sites WHERE gestionnaire_id = $1', [gestionnaireId]),
+      pool.query(`SELECT COUNT(*) as total,
+        COUNT(*) FILTER (WHERE statut = 'confirmee') as confirmees,
+        COUNT(*) FILTER (WHERE statut = 'en_attente') as en_attente
+        FROM reservations WHERE gestionnaire_id = $1`, [gestionnaireId]),
+      pool.query(`SELECT COALESCE(SUM(montant),0) as total_dons,
+        COUNT(*) as nb_dons
+        FROM dons WHERE gestionnaire_id = $1 AND statut = 'complete'`, [gestionnaireId]),
+    ]);
+    res.json({
+      revenus:    { mois: 0, total: parseFloat(dons.rows[0]?.total_dons || 0), croissance: 0 },
+      commandes:  { total: parseInt(reservations.rows[0]?.total || 0), enAttente: parseInt(reservations.rows[0]?.en_attente || 0), croissance: 0 },
+      sites:      { total: sites.rows.length, publies: sites.rows.filter(s => s.publie).length },
+      dons:       { total: parseFloat(dons.rows[0]?.total_dons || 0), nb: parseInt(dons.rows[0]?.nb_dons || 0) },
+      graphiques: { ventes30j: [] },
+    });
+  } catch (err) {
+    console.error('GET stats vendeur:', err);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// GET — Profil du gestionnaire connecté
+app.get('/api/gestionnaires/moi', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT v.id, v.email, v.nom, v.plan, v.statut, v.created_at,
+              s.id as site_id, s.slug, s.sous_type, s.publie, s.template_id
+       FROM gestionnaires v
+       LEFT JOIN sites s ON s.gestionnaire_id = v.id
+       WHERE v.id = $1`,
+      [req.user.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Gestionnaire non trouvé.' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// GET — Liste tous les gestionnaires (admin)
+app.get('/api/admin/gestionnaires', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Accès admin requis.' });
+  try {
+    const result = await pool.query(
+      `SELECT v.id, v.email, v.nom, v.plan, v.statut, v.created_at,
+              s.slug, s.publie, s.sous_type, s.template_id
+       FROM gestionnaires v
+       LEFT JOIN sites s ON s.gestionnaire_id = v.id
+       ORDER BY v.created_at DESC`
+    );
+    res.json({ gestionnaires: result.rows, total: result.rows.length });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// PUT — Modifier statut d'un gestionnaire (admin)
+app.put('/api/admin/gestionnaires/:id/statut', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Accès admin requis.' });
+  const { statut } = req.body;
+  const statutsValides = ['actif', 'suspendu', 'banni', 'en_attente'];
+  if (!statutsValides.includes(statut)) return res.status(400).json({ message: 'Statut invalide.' });
+  try {
+    await pool.query('UPDATE gestionnaires SET statut = $1 WHERE id = $2', [statut, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// PUT — Modifier plan d'un gestionnaire (admin)
+app.put('/api/admin/gestionnaires/:id/plan', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Accès admin requis.' });
+  const { plan } = req.body;
+  try {
+    await pool.query('UPDATE gestionnaires SET plan = $1 WHERE id = $2', [plan, req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// DELETE — Supprimer un gestionnaire (admin)
+app.delete('/api/admin/gestionnaires/:id', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Accès admin requis.' });
+  try {
+    await pool.query('DELETE FROM gestionnaires WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// =====================================================================
+// 👤 GESTIONNAIRES — GET /:id, options, plan, branding, vérificateur
+// (monté APRÈS /moi et /stats pour éviter les conflits de routing)
+// =====================================================================
+app.use('/api/gestionnaires', require('./routes/gestionnaires'));
+
+// =====================================================================
+// 📦 CRÉER / MODIFIER ANNONCE
+// =====================================================================
+app.use('/api/creer-annonce', require('./routes/creer_annonce'));
+
+// =====================================================================
+// 📊 STATS ADMINISTRATEUR
+// =====================================================================
+
+app.get('/api/admin/stats', authenticateToken, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Accès admin requis.' });
+  try {
+    const [totalVendeurs, sitesPublies, vendeursActifs, vendeursAttente] = await Promise.all([
+      pool.query('SELECT COUNT(*) FROM gestionnaires'),
+      pool.query('SELECT COUNT(*) FROM sites WHERE publie = true'),
+      pool.query("SELECT COUNT(*) FROM gestionnaires WHERE statut = 'actif'"),
+      pool.query("SELECT COUNT(*) FROM gestionnaires WHERE statut = 'en_attente'"),
+    ]);
+    res.json({
+      total_gestionnaires:   parseInt(totalVendeurs.rows[0].count),
+      sites_publies:    parseInt(sitesPublies.rows[0].count),
+      gestionnaires_actifs:  parseInt(vendeursActifs.rows[0].count),
+      gestionnaires_attente: parseInt(vendeursAttente.rows[0].count),
+    });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// =====================================================================
+// 🧪 TEST BD
+// =====================================================================
+
+app.get('/api/test', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT NOW() as time, current_database() as db');
+    res.json({ status: 'OK', db: r.rows[0].db, time: r.rows[0].time, version: 'e-Vend Studio 1.0' });
+  } catch (err) {
+    res.status(500).json({ status: 'ERROR', error: err.message });
+  }
+});
+
+// =====================================================================
+// 🌐 FRONTEND (PRODUCTION)
+// =====================================================================
+
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, 'build')));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api/')) return next();
+    res.sendFile(path.join(__dirname, 'build', 'index.html'));
+  });
+} else {
+  app.get('/', (req, res) => res.send('🚀 e-Vend Studio API — Port ' + port));
+}
+
+// =====================================================================
+// 🚀 DÉMARRAGE
+// =====================================================================
+
+app.listen(port, () => {
+  console.log('\n🚀 ' + '='.repeat(50));
+  console.log('🚀   e-Vend Studio API — Port ' + port + ' (proxy depuis React)');
+  console.log('🚀 ' + '='.repeat(50));
+  console.log(`🔐 Auth:         POST /api/auth/login-studio`);
+  console.log(`🎨 Config site:  PUT  /api/studio/sites/:id/config`);
+  console.log(`🌐 Site public:  GET  /api/studio/public/:slug`);
+  console.log(`👤 Mon profil:   GET  /api/gestionnaires/moi`);
+  console.log(`📊 Stats:        GET  /api/gestionnaires/:id/stats`);
+  console.log(`⚙️  Options:      GET  /api/gestionnaires/:id/options`);
+  console.log(`⚙️  Options:      PUT  /api/gestionnaires/:id/options`);
+  console.log(`📋 Plan:         PUT  /api/gestionnaires/:id/plan`);
+  console.log(`🔞 Vér. âge:     GET  /api/gestionnaires/:id/verificateur-age`);
+  console.log(`🔞 Vér. âge:     PUT  /api/gestionnaires/:id/verificateur-age`);
+  console.log(`📦 Annonces:     POST /api/creer-annonce`);
+  console.log(`📅 Réservations: GET  /api/reservations/vendeur`);
+  console.log(`🎭 Sièges:       GET  /api/sieges/public/:siteId`);
+  console.log(`💝 Dons:         GET  /api/dons/vendeur`);
+  console.log(`👑 Admin:        GET  /api/admin/gestionnaires`);
+  console.log(`🧪 Test BD:      GET  /api/test`);
+  console.log(`🔗 Dynadot:      POST /api/dynadot/check-availability`);
+  console.log(`💳 Dynadot:      POST /api/dynadot/create-checkout`);
+  console.log(`✅ Dynadot:      GET  /api/dynadot/verify-payment`);
+  console.log(`🔗 Webhook:      POST /api/webhooks/dynadot`);
+  console.log(`💳 Webhook Stripe: POST /api/dynadot/stripe-webhook`);
+  console.log(`🧩 Add-ons:      GET  /api/addons/admin/addons`);
+  console.log(`🧩 Add-ons:      GET  /api/addons/gestionnaire/addons`);
+  console.log(`🧩 Add-ons:      POST /api/addons/admin/addons`);
+  console.log(`🧩 Add-ons:      PUT  /api/addons/admin/addons/:id`);
+  console.log(`🧩 Add-ons:      POST /api/addons/admin/addons/:id/toggle`);
+  console.log(`📬 Contact:      POST /api/studio/contact  (formulaires templates)`);
+  console.log(`🔍 Page 404:     GET  /api/studio/page-404/:vendeurId/public`);
+  console.log(`🔍 Page 404:     PUT  /api/studio/page-404/:vendeurId`);
+  console.log(`📜 Politiques:   GET  /api/studio/politiques/:vendeurId`);
+  console.log(`📜 Politiques:   PUT  /api/studio/politiques/:vendeurId/:slug`);
+  console.log(`📄 Pages:        GET  /api/studio/pages/:vendeurId`);
+  console.log(`📄 Pages:        POST /api/studio/pages/:vendeurId`);
+  console.log(`🔍 SEO Site:     GET  /api/studio/seo-site/:vendeurId`);
+  console.log(`🔍 SEO Site:     POST /api/studio/seo-site/:vendeurId`);
+  console.log(`🍪 Cookies Site: GET  /api/studio/cookies-site/:vendeurId`);
+  console.log(`🍪 Cookies Site: PUT  /api/studio/cookies-site/:vendeurId`);
+  console.log(`🖼️  Photos Site:  GET  /api/studio/photos-vendeur/:vendeurId`);
+  console.log(`🖼️  Photos Site:  POST /api/studio/photos-vendeur/:vendeurId/upload`);
+  console.log(`👤 Mon Compte:   GET  /api/studio/mon-compte/:vendeurId`);
+  console.log(`👤 Mon Compte:   PUT  /api/studio/mon-compte/:vendeurId`);
+  console.log(`👥 Collaborateurs:GET  /api/studio/collaborateurs/:gestionnaireId`);
+  console.log(`👥 Collaborateurs:POST /api/studio/collaborateurs/:gestionnaireId`);
+  console.log('🚀 ' + '='.repeat(50) + '\n');
+});

@@ -1,0 +1,47 @@
+# robots.txt — e-Vend.ca
+# https://e-vend.ca/robots.txt
+
+# Règles générales
+User-agent: *
+Allow: /
+
+# Bloquer les pages privées (dashboard, admin, login)
+Disallow: /login
+Disallow: /admin
+Disallow: /acheteur
+Disallow: /vendeur
+Disallow: /api/
+Disallow: /reset-password
+
+# --- Règles spécifiques pour les IA ---
+
+# ChatGPT (recherche en temps réel) - À autoriser impérativement
+User-agent: OAI-SearchBot
+Allow: /
+
+# ChatGPT (entraînement) - Vous pouvez le bloquer si vous voulez
+# (Décommentez les lignes suivantes si vous voulez le bloquer)
+# User-agent: GPTBot
+# Disallow: /
+
+# Claude (recherche en temps réel) - À autoriser
+User-agent: Claude-SearchBot
+Allow: /
+
+# Claude (entraînement) - Vous pouvez le bloquer
+# (Décommentez si vous voulez le bloquer)
+# User-agent: ClaudeBot
+# Disallow: /
+
+# Perplexity - À autoriser
+User-agent: PerplexityBot
+Allow: /
+
+# Autres robots d'IA utiles
+User-agent: Applebot-Extended
+Allow: /
+User-agent: Amazonbot
+Allow: /
+
+# Sitemap
+Sitemap: https://e-vend.ca/sitemap.xml
