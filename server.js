@@ -37,6 +37,37 @@ app.post('/api/dynadot/stripe-webhook', express.raw({ type: 'application/json' }
 // ✅ Webhook Dynadot (NOUVEAU)
 app.post('/api/webhooks/dynadot', express.raw({ type: 'application/json' }));
 
+// 🔒 Protection par mot de passe (temporaire, le temps du développement)
+// Les webhooks Stripe/Dynadot ci-dessus restent exclus (Stripe n'envoie pas d'auth)
+const AUTH_USER = process.env.SITE_AUTH_USER;
+const AUTH_PASS = process.env.SITE_AUTH_PASS;
+
+app.use((req, res, next) => {
+  // Pas de protection configurée → on laisse passer (utile en dev local)
+  if (!AUTH_USER || !AUTH_PASS) return next();
+
+  // Ne jamais bloquer les webhooks externes
+  if (
+    req.path === '/api/dynadot/stripe-webhook' ||
+    req.path === '/api/webhooks/dynadot'
+  ) {
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    res.set('WWW-Authenticate', 'Basic realm="Acces restreint"');
+    return res.status(401).send('Authentification requise');
+  }
+  const [, credentials] = authHeader.split(' ');
+  const [user, pass] = Buffer.from(credentials, 'base64').toString().split(':');
+  if (user === AUTH_USER && pass === AUTH_PASS) {
+    return next();
+  }
+  res.set('WWW-Authenticate', 'Basic realm="Acces restreint"');
+  return res.status(401).send('Identifiants invalides');
+});
+
 app.use(cors({
   origin: [
     'http://localhost:3000',
