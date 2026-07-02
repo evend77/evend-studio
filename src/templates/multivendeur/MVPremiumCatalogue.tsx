@@ -4,7 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 const DEMO_PRODUITS_CAT = [
   { id:1, nom:'iPhone 15 Pro Max 256Go', prix:1449.99, prix_original:1599.99, stock:8, categorie_nom:'Électronique', nom_boutique:'TechPro Montréal', vendeur_id:1, image:'https://images.unsplash.com/photo-1695048133142-1a20484bce71?w=600&q=80', created_at:new Date().toISOString() },

@@ -7,7 +7,7 @@ import { useState, useEffect, useRef } from 'react';
 import Panier   from './templates/shared/Panier';
 import Checkout from './templates/shared/Checkout';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CompteAcheteur {

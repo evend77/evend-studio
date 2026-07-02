@@ -17,7 +17,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const API_BASE = (window as any).API_BASE || 'http://localhost:5000/api';
+const API_BASE = (window as any).API_BASE || '/api';
 const HERE_API_KEY = 'K3Hf5kk3yyKiMLty8ptK9YKiKla9t_mUj_JVObLwXtk';
 
 // ─── Palette Studio ───────────────────────────────────────────────────────────

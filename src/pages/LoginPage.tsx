@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-const API_URL = 'http://localhost:5000';
+const API_URL = '';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type TabType = 'gestionnaire' | 'administration';

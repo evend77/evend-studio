@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../hooks/usePageSeo';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 interface FormData {
   nom: string;

@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../hooks/usePageSeo';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 interface Politique {
   slug: string;

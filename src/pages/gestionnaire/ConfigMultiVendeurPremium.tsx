@@ -4,7 +4,7 @@
 
 import { useState, useEffect } from 'react';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 const TXT  = '#1a1a2e';
 const DORE = '#fbbf24';
 

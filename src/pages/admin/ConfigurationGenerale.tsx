@@ -726,7 +726,7 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
       setChargement(true);
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch('http://localhost:5000/api/admin/configuration', {
+        const response = await fetch('/api/admin/configuration', {
           headers: {
             Authorization: `Bearer ${token}`
           }
@@ -1000,7 +1000,7 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
       formData.append('type', type);
       formData.append('folder', 'default');
       
-      const uploadRes = await fetch('http://localhost:5000/api/upload', {
+      const uploadRes = await fetch('/api/upload', {
         method: 'POST',
         headers: { 
           Authorization: `Bearer ${token}`
@@ -1316,7 +1316,7 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
             commissionsVendeur
         };
 
-        const response = await fetch('http://localhost:5000/api/admin/configuration', {
+        const response = await fetch('/api/admin/configuration', {
             method: 'POST',  // ← POST au lieu de PATCH
             headers: {
                 'Content-Type': 'application/json',

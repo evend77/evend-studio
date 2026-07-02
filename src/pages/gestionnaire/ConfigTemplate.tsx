@@ -34,7 +34,7 @@ import ConfigTemplateFoodTruck          from '../studio/ConfigTemplateFoodTruck'
 import ConfigTemplateBoulangerie        from '../studio/ConfigTemplateBoulangerie';
 import ConfigTemplateCoachVie          from '../studio/ConfigTemplateCoachVie';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 interface Props {
   vendeurId: number;

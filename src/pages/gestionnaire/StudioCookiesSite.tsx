@@ -12,7 +12,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = (window as any).API_BASE || 'http://localhost:5000/api';
+const API_BASE = (window as any).API_BASE || '/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface CookieConfig {

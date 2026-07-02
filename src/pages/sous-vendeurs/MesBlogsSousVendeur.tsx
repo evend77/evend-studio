@@ -14,7 +14,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const API_BASE = (window as any).API_BASE || 'http://localhost:5000/api';
+const API_BASE = (window as any).API_BASE || '/api';
 
 const T = {
   accent: '#c9a96e', accentLight: 'rgba(201,169,110,0.12)',

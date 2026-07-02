@@ -13,7 +13,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const API_BASE = (window as any).API_BASE || 'http://localhost:5000/api';
+const API_BASE = (window as any).API_BASE || '/api';
 
 // ─── Palette Studio ───────────────────────────────────────────────────────────
 const C = {

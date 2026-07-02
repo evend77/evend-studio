@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 const FUCH = '#ec4899';
 const LAV  = '#c084fc';
 

@@ -22,7 +22,7 @@ import DomaineAnnule         from './pages/DomaineAnnule';
 const AnyLoginPage = LoginPage        as any;
 const AnyGestionnaire = AppGestionnaireStudio as any;
 const AnyAdmin     = AppAdminStudio   as any;
-const API_BASE     = 'http://localhost:5000/api';
+const API_BASE     = '/api';
 
 export default function Main() {
   const [user, setUser]       = useState<any>(null);

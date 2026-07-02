@@ -4,7 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 interface FormData {

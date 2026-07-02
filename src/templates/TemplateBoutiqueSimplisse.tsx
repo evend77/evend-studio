@@ -95,7 +95,7 @@ const CFG_DEF: ConfigSimplisse = {
   },
 };
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 const FICHE_DEF: ConfigFicheProduit = {
   layout: 'image-gauche', photosMiniatures: 'dessous', descriptionPosition: 'droite',

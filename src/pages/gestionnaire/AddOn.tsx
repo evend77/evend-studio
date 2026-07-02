@@ -64,7 +64,7 @@ interface ToastState {
 }
 
 // ── API URL ────────────────────────────────────────────────────────────
-const API_URL = 'http://localhost:5000';
+const API_URL = '';
 
 // ── EMOJI MAPPING EN DUR ──────────────────────────────────────────────
 const EMOJI_MAP: Record<string, string> = {

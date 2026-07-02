@@ -181,7 +181,7 @@ type TriOption =
 // ─────────────────────────────────────────────────────────────────────────────
 // API
 // ─────────────────────────────────────────────────────────────────────────────
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 const API_PRODUITS = `${API_BASE}/produits/gestionnaire`;
 // Enchères non utilisées en Studio — constantes gardées pour éviter les erreurs TS
 const API_ENCHERES  = `${API_BASE}/encheres`;
@@ -481,7 +481,7 @@ function Pagination({ page, totalPages, onPageChange }: { page: number; totalPag
 // ─────────────────────────────────────────────────────────────────────────────
 // POPUP CRÉER ENCHÈRE — DYNAMIQUE (selon config admin)
 // ─────────────────────────────────────────────────────────────────────────────
-const API_BASE_ENCHERE = 'http://localhost:5000/api'; // enchères non utilisées en Studio
+const API_BASE_ENCHERE = '/api'; // enchères non utilisées en Studio
 
 // Tooltip "Non autorisé" affiché au survol d'une section grisée
 function TooltipNonAutorise({ children, message }: { children: React.ReactNode; message: string }) {

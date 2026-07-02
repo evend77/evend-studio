@@ -44,7 +44,7 @@ import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 // ─── Configs démo 100% hardcodées — zéro API ─────────────────────────────────
 const DEMO_PRODUITS_PREMIUM = [

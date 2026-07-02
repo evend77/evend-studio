@@ -18,6 +18,14 @@ export default function MonDomaine({ gestionnaireId }: Props) {
   const [sousDomaine, setSousDomaine] = useState('');
   const [domainePerso, setDomainePerso] = useState('');
   const [sauvegarde, setSauvegarde] = useState<'idle' | 'ok' | 'err'>('idle');
+  const [messageErreur, setMessageErreur] = useState<string | null>(null);
+
+  // ── Vérification en temps réel du sous-domaine ─────────────────────────────
+  const [verifSousDomaine, setVerifSousDomaine] = useState<'idle' | 'checking' | 'dispo' | 'pris' | 'invalide'>('idle');
+  const [messageVerifSousDomaine, setMessageVerifSousDomaine] = useState('');
+
+  // ── Statut Cloudflare du domaine perso (après sauvegarde) ──────────────────
+  const [statutDomainePerso, setStatutDomainePerso] = useState<{ statut: string; message: string } | null>(null);
 
   // ── État pour l'achat de domaine ──────────────────────────────────────────
   const [domaineRecherche, setDomaineRecherche] = useState('');
@@ -58,6 +66,61 @@ export default function MonDomaine({ gestionnaireId }: Props) {
 
     chargerDomaines();
   }, [gestionnaireId]);
+
+  // ── Vérification en temps réel du sous-domaine (debounced 500ms) ───────────
+  useEffect(() => {
+    const slug = sousDomaine.trim();
+    if (!slug) {
+      setVerifSousDomaine('idle');
+      setMessageVerifSousDomaine('');
+      return;
+    }
+
+    setVerifSousDomaine('checking');
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `/api/studio/sites/sousdomaine/verifier/${encodeURIComponent(slug)}?exclude=${gestionnaireId}`
+        );
+        const data = await res.json();
+        if (data.disponible) {
+          setVerifSousDomaine('dispo');
+          setMessageVerifSousDomaine(`✓ ${slug}.e-vendstudio.ca est disponible !`);
+        } else {
+          setVerifSousDomaine(data.raison?.includes('réservé') || data.raison?.includes('déjà') ? 'pris' : 'invalide');
+          setMessageVerifSousDomaine(data.raison || 'Sous-domaine indisponible.');
+        }
+      } catch {
+        setVerifSousDomaine('idle');
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [sousDomaine, gestionnaireId]);
+
+  // ── Polling du statut Cloudflare pour le domaine perso ──────────────────────
+  useEffect(() => {
+    if (!domainePerso || statutDomainePerso?.statut === 'actif') return;
+
+    const verifierStatut = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/studio/sites/${gestionnaireId}/domaine/statut`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setStatutDomainePerso({ statut: data.statut, message: data.message });
+        }
+      } catch {
+        // silencieux — on réessaiera au prochain intervalle
+      }
+    };
+
+    verifierStatut();
+    const interval = setInterval(verifierStatut, 15000); // toutes les 15s
+    return () => clearInterval(interval);
+  }, [domainePerso, gestionnaireId, statutDomainePerso?.statut]);
 
   // ── Vérifier la disponibilité du domaine via Dynadot ──────────────────────
   const verifierDisponibilite = async () => {
@@ -150,6 +213,16 @@ export default function MonDomaine({ gestionnaireId }: Props) {
 
   // ── Sauvegarder les domaines existants ─────────────────────────────────────
   const handleSave = async () => {
+    setMessageErreur(null);
+
+    // Bloquer localement si on sait déjà que le sous-domaine est pris/invalide
+    if (sousDomaine && verifSousDomaine !== 'dispo' && verifSousDomaine !== 'idle') {
+      setMessageErreur(messageVerifSousDomaine || 'Corrigez le sous-domaine avant de sauvegarder.');
+      setSauvegarde('err');
+      setTimeout(() => setSauvegarde('idle'), 3000);
+      return;
+    }
+
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`/api/studio/sites/${gestionnaireId}/domaine`, {
@@ -158,10 +231,21 @@ export default function MonDomaine({ gestionnaireId }: Props) {
         credentials: 'include',
         body: JSON.stringify({ sous_domaine: sousDomaine, domaine_perso: domainePerso }),
       });
-      setSauvegarde(res.ok ? 'ok' : 'err');
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessageErreur(data.message || 'Erreur lors de la sauvegarde.');
+        setSauvegarde('err');
+      } else {
+        setSauvegarde('ok');
+        setStatutDomainePerso(null); // relance le polling avec le nouveau statut
+        if (data.avertissement) setMessageErreur(data.avertissement);
+      }
       setTimeout(() => setSauvegarde('idle'), 3000);
     } catch {
       setSauvegarde('err');
+      setMessageErreur('Erreur de connexion. Veuillez réessayer.');
       setTimeout(() => setSauvegarde('idle'), 3000);
     }
   };
@@ -369,21 +453,34 @@ export default function MonDomaine({ gestionnaireId }: Props) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', border: '1.5px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
+        <div style={{
+          display: 'flex', alignItems: 'center', borderRadius: 8, overflow: 'hidden',
+          border: `1.5px solid ${
+            verifSousDomaine === 'dispo' ? '#10b981' :
+            (verifSousDomaine === 'pris' || verifSousDomaine === 'invalide') ? '#ef4444' :
+            '#e5e7eb'
+          }`,
+        }}>
           <input
             value={sousDomaine}
             onChange={e => setSousDomaine(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
             placeholder="mon-nom"
+            maxLength={30}
             style={{ flex: 1, padding: '10px 14px', border: 'none', outline: 'none', fontSize: 14 }}
           />
           <span style={{ padding: '10px 14px', background: '#f5f5f5', fontSize: 14, color: '#888', borderLeft: '1px solid #e5e7eb', whiteSpace: 'nowrap' }}>
             .e-vendstudio.ca
           </span>
         </div>
-        {sousDomaine && (
-          <p style={{ fontSize: 12, color: '#10b981', marginTop: 6 }}>
-            ✓ Votre site sera accessible à : <strong>{sousDomaine}.e-vendstudio.ca</strong>
-          </p>
+
+        {verifSousDomaine === 'checking' && (
+          <p style={{ fontSize: 12, color: '#888', marginTop: 6 }}>⏳ Vérification...</p>
+        )}
+        {verifSousDomaine === 'dispo' && (
+          <p style={{ fontSize: 12, color: '#10b981', marginTop: 6 }}>{messageVerifSousDomaine}</p>
+        )}
+        {(verifSousDomaine === 'pris' || verifSousDomaine === 'invalide') && (
+          <p style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>✗ {messageVerifSousDomaine}</p>
         )}
       </div>
 
@@ -410,7 +507,31 @@ export default function MonDomaine({ gestionnaireId }: Props) {
         <p style={{ fontSize: 11, color: '#999', marginTop: 8 }}>
           ⏱️ La propagation DNS peut prendre jusqu'à 48h.
         </p>
+
+        {statutDomainePerso && (
+          <div style={{
+            marginTop: 12,
+            padding: '10px 14px',
+            borderRadius: 8,
+            fontSize: 13,
+            background: statutDomainePerso.statut === 'actif' ? '#ecfdf5' :
+                        statutDomainePerso.statut === 'erreur' || statutDomainePerso.statut === 'bloque' ? '#fef2f2' : '#fffbeb',
+            color: statutDomainePerso.statut === 'actif' ? '#065f46' :
+                   statutDomainePerso.statut === 'erreur' || statutDomainePerso.statut === 'bloque' ? '#991b1b' : '#92400e',
+          }}>
+            {statutDomainePerso.message}
+          </div>
+        )}
       </div>
+
+      {messageErreur && (
+        <div style={{
+          background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8,
+          padding: '12px 16px', marginBottom: 24, fontSize: 13, color: '#991b1b',
+        }}>
+          ⚠️ {messageErreur}
+        </div>
+      )}
 
       {/* ── SECTION 4 : MES DOMAINES ACHETÉS ── */}
       <div style={{ 

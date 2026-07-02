@@ -6,7 +6,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const API_BASE = (window as any).API_BASE || 'http://localhost:5000/api';
+const API_BASE = (window as any).API_BASE || '/api';
 
 const C = {
   accent: '#8b5cf6', accentDark: '#7c3aed', accentLight: 'rgba(139,92,246,0.1)',

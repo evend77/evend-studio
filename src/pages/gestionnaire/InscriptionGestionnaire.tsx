@@ -14,7 +14,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { log } from '../../services/logger';
 
-const API_BASE = 'http://localhost:5000';
+const API_BASE = '';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface FormData {

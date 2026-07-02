@@ -11,7 +11,7 @@ import ImportEvend          from './pages/gestionnaire/ImportEvend';
 // SUPPRIMER les lignes des fichiers qui n'existent pas dans ton projet
 // et garder seulement ce que tu as réellement copié.
 // Liste minimale pour que ça compile sans erreur :
-const API_BASE = 'http://localhost:5000/api'; // e-Vend Studio API
+const API_BASE = '/api'; // e-Vend Studio API
 
 // ── e-Vend Studio ──
 import MaCagnotte                   from './pages/studio/MaCagnotte';

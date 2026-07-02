@@ -6,7 +6,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const API_BASE = (window as any).API_BASE || 'http://localhost:5000/api';
+const API_BASE = (window as any).API_BASE || '/api';
 
 const T = {
   bg: '#f4f6f8', card: '#fff', border: '#e1e4e8',

@@ -13,7 +13,7 @@ const NOIR2 = '#111111';
 const SURF  = '#1e1e1e';
 const SURF2 = '#252525';
 const BORD  = 'rgba(201,169,110,0.2)';
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 interface Produit {
   id: number; titre: string; prix: number; prix_promo?: number;

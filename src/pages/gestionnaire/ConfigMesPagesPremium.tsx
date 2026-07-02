@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 const CP = '#c9a96e';
 const OR2 = '#e8c87a';
 

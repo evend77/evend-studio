@@ -15,7 +15,7 @@ const FOND  = '#fdf4ff';   // fond très pâle
 const FOND2 = '#fce7f3';   // rose pâle sections alternées
 const TXT   = '#2d1b3d';   // violet foncé pour le texte
 const TXT2  = '#6b21a8';   // violet moyen
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Produit {

@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 const CP = '#722f37';
 
 interface Props { gestionnaireId: number; }

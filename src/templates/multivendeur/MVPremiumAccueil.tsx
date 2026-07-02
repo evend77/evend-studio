@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = '/api';
 
 // ─── PRODUITS DÉMO (mode preview) ────────────────────────────────────────────
 const DEMO_PRODUITS = [
