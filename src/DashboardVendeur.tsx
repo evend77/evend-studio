@@ -905,7 +905,7 @@ function AppVendeur({ onLogout, vendeurUser }: AppVendeurProps) {
       return <ModifierAnnonce />;
     }
     
-    if (pageActive === 'profil-compte') return <MonCompte gestionnaireId={vendeur.id} />;
+    if (pageActive === 'profil-compte') return <MonCompte vendeurId={vendeur.id} />;
     
     if (pageActive === 'commandes-liste') {
       return (

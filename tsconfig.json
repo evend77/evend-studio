@@ -21,8 +21,7 @@
     "jsx": "react-jsx",
     "noImplicitAny": false,
     "typeRoots": [
-      "./node_modules/@types",
-      "./src"
+      "./node_modules/@types"
     ]
   },
   "include": [
