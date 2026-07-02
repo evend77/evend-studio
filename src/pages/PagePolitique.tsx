@@ -89,10 +89,10 @@ export default function PagePolitique() {
   };
 
   const fallbackPolitiques = [
-    { slug: 'privacy-policy',   titre: 'Politique de confidentialité' },
-    { slug: 'terms-of-service', titre: "Conditions d'utilisation" },
-    { slug: 'refund-policy',    titre: 'Politique de remboursement' },
-    { slug: 'shipping-policy',  titre: "Politique d'expédition" },
+    { slug: 'confidentialite',   titre: 'Politique de confidentialité' },
+    { slug: 'conditions-service', titre: "Conditions d'utilisation" },
+    { slug: 'retour-remboursement',    titre: 'Politique de remboursement' },
+    { slug: 'expedition',  titre: "Politique d'expédition" },
   ];
 
   const listePolitiques = autres.length > 0 ? autres : fallbackPolitiques;

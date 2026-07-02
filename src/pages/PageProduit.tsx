@@ -1254,10 +1254,10 @@ function Footer() {
             {dropdownOuvert && (
               <div style={{ position: 'absolute', bottom: 'calc(100% + 10px)', left: 0, background: '#111827', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', minWidth: '220px', boxShadow: '0 -8px 32px rgba(0,0,0,0.5)', overflow: 'hidden', zIndex: 100 }}>
                 {[
-                  { slug: 'privacy-policy',   titre: 'Politique de confidentialité' },
-                  { slug: 'terms-of-service', titre: "Conditions d'utilisation" },
-                  { slug: 'refund-policy',    titre: 'Politique de remboursement' },
-                  { slug: 'shipping-policy',  titre: "Politique d'expédition" },
+                  { slug: 'confidentialite',   titre: 'Politique de confidentialité' },
+                  { slug: 'conditions-service', titre: "Conditions d'utilisation" },
+                  { slug: 'retour-remboursement',    titre: 'Politique de remboursement' },
+                  { slug: 'expedition',  titre: "Politique d'expédition" },
                 ].map((p, i) => (
                   <a
                     key={p.slug}
