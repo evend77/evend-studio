@@ -886,7 +886,7 @@ function AppVendeur({ onLogout, vendeurUser }: AppVendeurProps) {
         <CreerAnnonce
           dupliquerDeId={dupliquerDeId}
           onRetour={() => setPageActive('annonces-liste')}
-          vendeurId={vendeur.id}
+          gestionnaireId={vendeur.id}
         />
       );
     }
@@ -905,13 +905,13 @@ function AppVendeur({ onLogout, vendeurUser }: AppVendeurProps) {
       return <ModifierAnnonce />;
     }
     
-    if (pageActive === 'profil-compte') return <MonCompte vendeurId={vendeur.id} />;
+    if (pageActive === 'profil-compte') return <MonCompte gestionnaireId={vendeur.id} />;
     
     if (pageActive === 'commandes-liste') {
       return (
         <ListeCommandes 
           naviguerVers={(page: string) => setPageActive(page)} 
-          vendeurId={vendeur.id} 
+          gestionnaireId={vendeur.id} 
           onVoirCommande={(id: number) => { 
             setCommandeSelectionnee(id); 
             setPageActive('commande-detail'); 
@@ -934,9 +934,9 @@ function AppVendeur({ onLogout, vendeurUser }: AppVendeurProps) {
     if (pageActive === 'commandes-documents') return <DocumentsVendeur />;
     
     if (pageActive === 'config-generale') return <ConfigurationGenerale />;
-    if (pageActive === 'config-expedition') return <MethodesExpedition vendeurId={vendeur.id} onRetour={() => setPageActive('dashboard')} />;
+    if (pageActive === 'config-expedition') return <MethodesExpedition gestionnaireId={vendeur.id} onRetour={() => setPageActive('dashboard')} />;
     
-    if (pageActive === 'annonces-liste') return <ListeProduits naviguerVers={setPageActive} vendeurId={vendeur.id} />;
+    if (pageActive === 'annonces-liste') return <ListeProduits naviguerVers={setPageActive} gestionnaireId={vendeur.id} />;
     if (pageActive === 'annonces-encheres') return <MesEncheres />;
     if (pageActive === 'annonces-make-offer') return <MesOffres />;
     if (pageActive === 'annonces-categories') return <Categories />;
