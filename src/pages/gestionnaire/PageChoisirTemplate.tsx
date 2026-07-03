@@ -443,8 +443,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
 
   const groupes = [
     {
-      titre: '🛍 Transactionnel multi-produit — 1 seul vendeur',
-      desc: "Votre boutique complète hébergée sur e-Vend Studio. Gérez vos produits, commandes et apparence depuis votre tableau de bord — sans toucher au code.",
+      titre: '🛍 Boutique en ligne — Générique',
+      desc: "Votre boutique complète hébergée sur e-Vend Studio, entièrement personnalisable à votre image. Gérez vos produits, commandes et apparence depuis votre tableau de bord — sans toucher au code.",
       couleurGroupe: '#2563eb',
       nouveau: true,
       templates: [
@@ -470,6 +470,17 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           badgeCouleur: '#c9a96e',
           pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'À propos', 'Contact', 'Panier', 'Wishlist', 'Compte'],
         },
+        { id: 'boutique-simple',    titre: 'Mono-produit',      desc: 'Une page, checkout intégré, parfait pour lancer un seul produit.',             icone: '🎯', couleur: '#a855f7', disponible: true  },
+        { id: 'boutique-complete',  titre: 'Boutique Complète', desc: 'Catalogue, panier, compte acheteur et historique des achats.',                  icone: '🏪', couleur: '#16a34a', disponible: true  },
+        { id: 'boutique-catalogue', titre: 'Catalogue Avancé',  desc: 'Grille produits avec filtres avancés et pages produit. Bientôt.',                icone: '🗂️', couleur: '#0ea5e9', disponible: false },
+      ]
+    },
+    {
+      titre: '🎨 Boutique en ligne — Par industrie',
+      desc: "Boutiques prêtes-à-l'emploi, avec thème visuel et sections dédiées à votre secteur d'activité.",
+      couleurGroupe: '#d97706',
+      nouveau: true,
+      templates: [
         {
           id: 'boutique-simplisse-mode',
           titre: 'Simplisse Mode',
@@ -495,6 +506,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           desc: "Produits numériques — PDF, guides, presets, musique, cours en ligne. Livraison instantanée par courriel. Bientôt.",
           icone: '💾', couleur: '#0891b2', disponible: false, badge: 'Bientôt', badgeCouleur: '#0891b2', pages: [],
         },
+        { id: 'agricole', titre: 'Boutique Agricole', desc: 'Ferme maraîchère avec panier intégré, catalogue produits, page Notre Ferme. Style terroir sombre doré.', icone: '🌱', couleur: '#c9854a', disponible: true },
       ]
     },
     {
@@ -538,6 +550,21 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
       ]
     },
     {
+      titre: '✉️ Sites vitrine (avec formulaire de contact)',
+      desc: 'Portfolio, CV, pages pro avec formulaire de contact ou devis intégré.',
+      couleurGroupe: '#0ea5e9',
+      templates: [
+        { id: 'vitrine-portfolio',        titre: 'Portfolio',               desc: 'Artistes, photographes, architectes. Galerie + bio + formulaire contact.',                                                     icone: '🖼',  couleur: '#c9a96e', disponible: true },
+        { id: 'vitrine-cv',               titre: 'CV Professionnel',        desc: 'Coachs, consultants, avocats. Services + témoignages + prise de RDV.',                                                          icone: '💼',  couleur: '#0ea5e9', disponible: true },
+        { id: 'vitrine-pro-entrepreneur', titre: 'Pro Entrepreneur ⭐',     desc: 'Badge rotatif, stats animées, équipe, blog, témoignages, formulaire devis. 25$.',                                               icone: '🏗️', couleur: '#f59e0b', disponible: true, prix: '25$' },
+        { id: 'vitrine-pro-tech',         titre: 'Pro Tech / SaaS ⭐',      desc: 'Ticker défilant, hero vidéo/photo, solutions, tarifs, partenaires. 25$.',                                                        icone: '💻',  couleur: '#c026d3', disponible: true, prix: '25$' },
+        { id: 'vitrine-pro-sante',        titre: 'Pro Santé / Clinique ⭐', desc: 'Carte Google Maps, formulaire contact, équipe médicale, FAQ, scroll reveal. 25$.',                                              icone: '🏥',  couleur: '#1e6fa8', disponible: true, prix: '25$' },
+        { id: 'vitrine-pro-mariage',      titre: 'Pro Mariage ⭐',          desc: 'RSVP modal, compte à rebours, galerie lightbox, scroll reveal, timeline. 25$.',                                                  icone: '💍',  couleur: '#8b6914', disponible: true, prix: '25$' },
+        { id: 'vitrine-pro-beaute',       titre: 'Pro Beauté ⭐',           desc: 'Pétales animés, papillons, fleur rotative configurable. Beauté, cosmétique. 25$.',                                               icone: '🌸',  couleur: '#f4a5a0', disponible: true, prix: '25$' },
+        { id: 'vitrine-paysager',         titre: 'Entretien Paysager',      desc: 'Style sombre vert citron bold. Formulaire devis, galerie masonry, avis défilement auto, compteurs animés. Gratuit.',             icone: '🌿',  couleur: '#b5e24a', disponible: true },
+      ]
+    },
+    {
       titre: '🎹 Cours & Formation',
       desc: 'Portfolio artistique et page de cours pour musiciens, coachs et formateurs.',
       couleurGroupe: '#e8a87c',
@@ -554,14 +581,6 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
       ]
     },
     {
-      titre: '☕ Bistro & Café',
-      desc: 'Site bistro et café élégant fond noir avec menu filtrable, galerie et réservation.',
-      couleurGroupe: '#8b6914',
-      templates: [
-        { id: 'vitrine-bistro', titre: 'Bistro & Café', desc: 'Fond noir & brun doré. Galerie plein format, menu filtrable par catégorie, réservation, carte Google Maps, sections réordonnables. Gratuit.', icone: '☕', couleur: '#8b6914', disponible: true },
-      ]
-    },
-    {
       titre: '🍔 Restaurant & Fast Food',
       desc: 'Site restaurant sombre & vibrant avec menu, réservation de table, avis et Google Maps.',
       couleurGroupe: '#e8820a',
@@ -569,37 +588,16 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         { id: 'vitrine-boulangerie', titre: 'Boulangerie & Pâtisserie', desc: "Croissant SVG 3D tournant, farine qui tombe, badge sortie du four live, galerie flip 3D, commandes spéciales. Brun chaud & or. Gratuit.", icone: '🥐', couleur: '#8b4513', disponible: true },
         { id: 'vitrine-foodtruck',   titre: 'Food Truck',               desc: "Camion SVG animé + flammes, emplacement GPS du jour, badge Ouvert/Fermé auto, menu flip 3D. Orange & noir. Gratuit.",                      icone: '🚚', couleur: '#ff6b00', disponible: true },
         { id: 'vitrine-resto',       titre: 'Restaurant & Fast Food',   desc: 'Fond noir & orange. Menu burgers, accompagnements, réservation table, avis carrousel, carte Google Maps. Sections réordonnables. Gratuit.', icone: '🍔', couleur: '#e8820a', disponible: true },
+        { id: 'vitrine-bistro',      titre: 'Bistro & Café',            desc: 'Fond noir & brun doré. Galerie plein format, menu filtrable par catégorie, réservation, carte Google Maps, sections réordonnables. Gratuit.', icone: '☕', couleur: '#8b6914', disponible: true },
       ]
     },
     {
-      titre: "⚖️ Bureau d'Avocat",
-      desc: "Site juridique élégant avec domaines, équipe, FAQ, consultation et carte.",
+      titre: '💼 Profession',
+      desc: "Sites professionnels dédiés aux services : bureau d'avocat, salon de coiffure et plus.",
       couleurGroupe: '#c9a84c',
       templates: [
         { id: 'vitrine-avocat', titre: "Bureau d'Avocat", desc: 'Marine & or, FAQ accordéon, formulaire consultation, Google Maps, sections réordonnables. Gratuit.', icone: '⚖️', couleur: '#c9a84c', disponible: true },
-      ]
-    },
-    {
-      titre: '✂️ Salon & Beauté',
-      desc: 'Site élégant avec réservation en ligne, galerie transformations, équipe et formulaire contact.',
-      couleurGroupe: '#7b7cb6',
-      templates: [
         { id: 'salon-coiffure', titre: 'Salon de Coiffure ⭐', desc: 'Réservation en ligne, galerie transformations, équipe stylistes, formulaire contact. Effet page de livre + photos twist 3D. 25$.', icone: '✂️', couleur: '#7b7cb6', disponible: true, prix: '25$' },
-      ]
-    },
-    {
-      titre: '✉️ Sites vitrine (avec formulaire de contact)',
-      desc: 'Portfolio, CV, pages pro avec formulaire de contact ou devis intégré.',
-      couleurGroupe: '#0ea5e9',
-      templates: [
-        { id: 'vitrine-portfolio',        titre: 'Portfolio',               desc: 'Artistes, photographes, architectes. Galerie + bio + formulaire contact.',                                                     icone: '🖼',  couleur: '#c9a96e', disponible: true },
-        { id: 'vitrine-cv',               titre: 'CV Professionnel',        desc: 'Coachs, consultants, avocats. Services + témoignages + prise de RDV.',                                                          icone: '💼',  couleur: '#0ea5e9', disponible: true },
-        { id: 'vitrine-pro-entrepreneur', titre: 'Pro Entrepreneur ⭐',     desc: 'Badge rotatif, stats animées, équipe, blog, témoignages, formulaire devis. 25$.',                                               icone: '🏗️', couleur: '#f59e0b', disponible: true, prix: '25$' },
-        { id: 'vitrine-pro-tech',         titre: 'Pro Tech / SaaS ⭐',      desc: 'Ticker défilant, hero vidéo/photo, solutions, tarifs, partenaires. 25$.',                                                        icone: '💻',  couleur: '#c026d3', disponible: true, prix: '25$' },
-        { id: 'vitrine-pro-sante',        titre: 'Pro Santé / Clinique ⭐', desc: 'Carte Google Maps, formulaire contact, équipe médicale, FAQ, scroll reveal. 25$.',                                              icone: '🏥',  couleur: '#1e6fa8', disponible: true, prix: '25$' },
-        { id: 'vitrine-pro-mariage',      titre: 'Pro Mariage ⭐',          desc: 'RSVP modal, compte à rebours, galerie lightbox, scroll reveal, timeline. 25$.',                                                  icone: '💍',  couleur: '#8b6914', disponible: true, prix: '25$' },
-        { id: 'vitrine-pro-beaute',       titre: 'Pro Beauté ⭐',           desc: 'Pétales animés, papillons, fleur rotative configurable. Beauté, cosmétique. 25$.',                                               icone: '🌸',  couleur: '#f4a5a0', disponible: true, prix: '25$' },
-        { id: 'vitrine-paysager',         titre: 'Entretien Paysager',      desc: 'Style sombre vert citron bold. Formulaire devis, galerie masonry, avis défilement auto, compteurs animés. Gratuit.',             icone: '🌿',  couleur: '#b5e24a', disponible: true },
       ]
     },
     {
@@ -623,17 +621,6 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         { id: 'cagnotte-communaute',    titre: 'Communauté',    desc: 'Cause collective, association, équipe sportive, école.',               icone: '🤝', couleur: '#0ea5e9', disponible: true },
         { id: 'cagnotte-environnement', titre: 'Environnement', desc: 'Cause verte, protection des animaux, nature.',                         icone: '🌿', couleur: '#16a34a', disponible: true },
         { id: 'cagnotte-urgence',       titre: 'Urgence',       desc: 'Catastrophe naturelle, sinistre, crise humanitaire.',                  icone: '🆘', couleur: '#dc2626', disponible: true },
-      ]
-    },
-    {
-      titre: '🛒 Boutique en ligne',
-      desc: 'Sites transactionnels avec panier et paiement Stripe intégré.',
-      couleurGroupe: '#16a34a',
-      templates: [
-        { id: 'agricole',           titre: 'Boutique Agricole',  desc: 'Ferme maraîchère avec panier intégré, catalogue produits, page Notre Ferme. Style terroir sombre doré.', icone: '🌱', couleur: '#c9854a', disponible: true  },
-        { id: 'boutique-simple',    titre: 'Mono-produit',       desc: 'Une page, checkout intégré, parfait pour lancer un seul produit.',                                        icone: '🎯', couleur: '#a855f7', disponible: true  },
-        { id: 'boutique-complete',  titre: 'Boutique Complète',  desc: 'Catalogue, panier, compte acheteur et historique des achats.',                                             icone: '🏪', couleur: '#16a34a', disponible: true  },
-        { id: 'boutique-catalogue', titre: 'Catalogue Avancé',   desc: 'Grille produits avec filtres avancés et pages produit. Bientôt.',                                         icone: '🗂️', couleur: '#0ea5e9', disponible: false },
       ]
     },
     {

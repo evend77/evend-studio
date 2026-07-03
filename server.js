@@ -54,6 +54,13 @@ app.use((req, res, next) => {
     return next();
   }
 
+  // ✅ Ne pas confondre les tokens JWT (Bearer) avec du Basic Auth.
+  // Les appels API authentifiés portent "Authorization: Bearer <jwt>" —
+  // ce n'est pas la même chose que les identifiants Basic Auth du site.
+  if (req.headers.authorization?.startsWith('Bearer ')) {
+    return next();
+  }
+
   const authHeader = req.headers.authorization;
   if (!authHeader) {
     res.set('WWW-Authenticate', 'Basic realm="Acces restreint"');

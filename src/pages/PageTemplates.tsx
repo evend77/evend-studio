@@ -7,6 +7,21 @@ import { useNavigate } from 'react-router-dom';
 // ─── PHOTOS par catégorie (Pexels libre de droits) ───────────────────────────
 const PHOTOS: Record<string, string> = {
   hero:                   'https://images.pexels.com/photos/5632402/pexels-photo-5632402.jpeg?auto=compress&cs=tinysrgb&w=1600',
+  // Boutique — Générique
+  'boutique-simplisse':    'https://images.pexels.com/photos/230544/pexels-photo-230544.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-premium':      'https://images.pexels.com/photos/1029243/pexels-photo-1029243.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-simple':       'https://images.pexels.com/photos/5632399/pexels-photo-5632399.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-complete':     'https://images.pexels.com/photos/5632371/pexels-photo-5632371.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-catalogue':    'https://images.pexels.com/photos/5709661/pexels-photo-5709661.jpeg?auto=compress&cs=tinysrgb&w=800',
+  // Boutique — Par industrie
+  'boutique-simplisse-mode':      'https://images.pexels.com/photos/934070/pexels-photo-934070.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-simplisse-artisan':   'https://images.pexels.com/photos/4207892/pexels-photo-4207892.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-simplisse-aliments':  'https://images.pexels.com/photos/264636/pexels-photo-264636.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-simplisse-numerique': 'https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
+  // Multi-vendeur
+  'multi-vendeur-premium': 'https://images.pexels.com/photos/4483610/pexels-photo-4483610.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'multi-vendeur-local':   'https://images.pexels.com/photos/375880/pexels-photo-375880.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Vitrine
   'vitrine-portfolio':    'https://images.pexels.com/photos/4974914/pexels-photo-4974914.jpeg?auto=compress&cs=tinysrgb&w=800',
   'vitrine-carte':        'https://images.pexels.com/photos/6347888/pexels-photo-6347888.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -23,21 +38,22 @@ const PHOTOS: Record<string, string> = {
   'cagnotte-communaute':  'https://images.pexels.com/photos/6646914/pexels-photo-6646914.jpeg?auto=compress&cs=tinysrgb&w=800',
   'cagnotte-environnement':'https://images.pexels.com/photos/1072824/pexels-photo-1072824.jpeg?auto=compress&cs=tinysrgb&w=800',
   'cagnotte-urgence':     'https://images.pexels.com/photos/5699516/pexels-photo-5699516.jpeg?auto=compress&cs=tinysrgb&w=800',
-  // Boutique
-  'boutique-simple':      'https://images.pexels.com/photos/5632399/pexels-photo-5632399.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'boutique-complete':    'https://images.pexels.com/photos/5632371/pexels-photo-5632371.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'boutique-catalogue':   'https://images.pexels.com/photos/5709661/pexels-photo-5709661.jpeg?auto=compress&cs=tinysrgb&w=800',
-  // Premium
+  // Profession
+  'vitrine-avocat':           'https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'salon-coiffure':           'https://images.pexels.com/photos/3065209/pexels-photo-3065209.jpeg?auto=compress&cs=tinysrgb&w=800',
+  // Vitrine avec formulaire
   'vitrine-pro-entrepreneur': 'https://images.pexels.com/photos/1105766/pexels-photo-1105766.jpeg?auto=compress&cs=tinysrgb&w=800',
   'vitrine-pro-tech':         'https://images.pexels.com/photos/3861969/pexels-photo-3861969.jpeg?auto=compress&cs=tinysrgb&w=800',
   'vitrine-pro-beaute':       'https://images.pexels.com/photos/3685530/pexels-photo-3685530.jpeg?auto=compress&cs=tinysrgb&w=800',
   'vitrine-pro-mariage':      'https://images.pexels.com/photos/1024993/pexels-photo-1024993.jpeg?auto=compress&cs=tinysrgb&w=800',
   'vitrine-pro-sante':        'https://images.pexels.com/photos/5327585/pexels-photo-5327585.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'salon-coiffure':           'https://images.pexels.com/photos/3065209/pexels-photo-3065209.jpeg?auto=compress&cs=tinysrgb&w=800',
   'vitrine-paysager':         'https://images.pexels.com/photos/1453499/pexels-photo-1453499.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'vitrine-avocat':           'https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800',
+  // Restaurant & Fast Food
   'vitrine-resto':            'https://images.pexels.com/photos/1639557/pexels-photo-1639557.jpeg?auto=compress&cs=tinysrgb&w=800',
   'vitrine-bistro':           'https://images.pexels.com/photos/302899/pexels-photo-302899.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'vitrine-foodtruck':        'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'vitrine-boulangerie':      'https://images.pexels.com/photos/1775043/pexels-photo-1775043.jpeg?auto=compress&cs=tinysrgb&w=800',
+  // Cours & Formation
   'cours-piano':              'https://images.pexels.com/photos/1246437/pexels-photo-1246437.jpeg?auto=compress&cs=tinysrgb&w=800',
   'cours-langues':            'https://images.pexels.com/photos/3184418/pexels-photo-3184418.jpeg?auto=compress&cs=tinysrgb&w=800',
   'cours-web':                'https://images.pexels.com/photos/574073/pexels-photo-574073.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -47,8 +63,6 @@ const PHOTOS: Record<string, string> = {
   'cours-peinture':           'https://images.pexels.com/photos/1646953/pexels-photo-1646953.jpeg?auto=compress&cs=tinysrgb&w=800',
   'cours-danse':              'https://images.pexels.com/photos/1701202/pexels-photo-1701202.jpeg?auto=compress&cs=tinysrgb&w=800',
   'cours-coach':              'https://images.pexels.com/photos/3822622/pexels-photo-3822622.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'vitrine-foodtruck':        'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'vitrine-boulangerie':      'https://images.pexels.com/photos/1775043/pexels-photo-1775043.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Enchères
   'enchere-flash':        'https://images.pexels.com/photos/3943716/pexels-photo-3943716.jpeg?auto=compress&cs=tinysrgb&w=800',
   'enchere-galerie':      'https://images.pexels.com/photos/1021876/pexels-photo-1021876.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -56,8 +70,20 @@ const PHOTOS: Record<string, string> = {
 };
 
 // ─── DONNÉES VRAIS TEMPLATES ──────────────────────────────────────────────────
+// Synchronisé avec les groupes de PageChoisirTemplate.tsx
 
-type Groupe = 'vitrine' | 'vitrine-contact' | 'reservation' | 'cagnotte' | 'boutique' | 'enchere' | 'salon' | 'avocat' | 'resto' | 'bistro' | 'cours';
+type Groupe =
+  | 'boutique-generique'
+  | 'boutique-industrie'
+  | 'multi-vendeur'
+  | 'vitrine'
+  | 'vitrine-contact'
+  | 'cours'
+  | 'resto'
+  | 'profession'
+  | 'reservation'
+  | 'cagnotte'
+  | 'enchere';
 
 interface Template {
   id: string;
@@ -72,6 +98,105 @@ interface Template {
 }
 
 const TEMPLATES: Template[] = [
+  // ── BOUTIQUE EN LIGNE — GÉNÉRIQUE ──
+  {
+    id: 'boutique-simplisse',
+    nom: 'Simplisse',
+    groupe: 'boutique-generique',
+    description: "La boutique complète, propre et professionnelle. Page d'accueil, catalogue avec filtres, page produit, blog, FAQ, contact et footer configurable. L'équivalent d'un Shopify sans le code.",
+    fonctionnalites: ['Catalogue avec filtres', 'Fiche produit détaillée', 'Blog & FAQ intégrés', 'Footer configurable'],
+    disponible: true, nouveau: true, couleur: '#2563eb',
+  },
+  {
+    id: 'boutique-premium',
+    nom: 'Premium',
+    groupe: 'boutique-generique',
+    description: 'La boutique haut de gamme — style sombre luxueux avec accents dorés. Zoom image, wishlist, avis clients, ticker défilant, popup promo, compte acheteur intégré.',
+    fonctionnalites: ['Zoom image & wishlist', 'Avis clients & ticker défilant', 'Popup promo & notif. dernière vente', 'Compte acheteur intégré'],
+    disponible: true, nouveau: true, couleur: '#c9a96e',
+  },
+  {
+    id: 'boutique-simple',
+    nom: 'Mono-produit',
+    groupe: 'boutique-generique',
+    description: 'Une page complète pour un seul produit. Galerie, variantes, checkout Stripe intégré.',
+    fonctionnalites: ['Galerie photos + vidéo', 'Variantes (couleur/taille)', 'Checkout Stripe', 'Taxes TPS+TVQ auto'],
+    disponible: true, nouveau: false, couleur: '#a855f7',
+  },
+  {
+    id: 'boutique-complete',
+    nom: 'Boutique Complète',
+    groupe: 'boutique-generique',
+    description: 'Navigation, catalogue multi-produits, panier et compte acheteur avec historique.',
+    fonctionnalites: ['Catalogue multi-produits', 'Panier persistant', 'Compte acheteur', 'Historique commandes'],
+    disponible: true, nouveau: true, couleur: '#16a34a',
+  },
+  {
+    id: 'boutique-catalogue',
+    nom: 'Catalogue Avancé',
+    groupe: 'boutique-generique',
+    description: 'Grille de produits avec filtres avancés, pages produit individuelles. Bientôt disponible.',
+    fonctionnalites: ['Filtres avancés', 'Pages produit', 'Comparateur', 'Recherche'],
+    disponible: false, nouveau: false, couleur: '#0ea5e9',
+  },
+  // ── BOUTIQUE EN LIGNE — PAR INDUSTRIE ──
+  {
+    id: 'boutique-simplisse-mode',
+    nom: 'Simplisse Mode',
+    groupe: 'boutique-industrie',
+    description: 'Boutique mode & vêtements haut de gamme. Lookbook, filtres taille/couleur visuels, guide des tailles, zoom image, wishlist. Style éditorial ivoire & bordeaux.',
+    fonctionnalites: ['Lookbook & filtres taille/couleur', 'Guide des tailles', 'Zoom image & wishlist', 'Compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#722f37',
+  },
+  {
+    id: 'boutique-simplisse-artisan',
+    nom: 'Simplisse Artisan',
+    groupe: 'boutique-industrie',
+    description: 'Pour les artisans et créateurs. Mise en avant du savoir-faire, atelier, matériaux. Tons chauds & naturels. Bientôt.',
+    fonctionnalites: ['Mise en avant savoir-faire', 'Section atelier & matériaux', 'Tons chauds & naturels', 'Bientôt disponible'],
+    disponible: false, nouveau: false, couleur: '#b45309',
+  },
+  {
+    id: 'boutique-simplisse-aliments',
+    nom: 'Simplisse Épicerie',
+    groupe: 'boutique-industrie',
+    description: 'Épicerie fine, produits locaux ou fermiers. Sections origines, producteurs, fraîcheur du jour. Tons verts & terroir. Bientôt.',
+    fonctionnalites: ['Sections origines & producteurs', 'Fraîcheur du jour', 'Tons verts & terroir', 'Bientôt disponible'],
+    disponible: false, nouveau: false, couleur: '#16a34a',
+  },
+  {
+    id: 'boutique-simplisse-numerique',
+    nom: 'Simplisse Numérique',
+    groupe: 'boutique-industrie',
+    description: 'Produits numériques — PDF, guides, presets, musique, cours en ligne. Livraison instantanée par courriel. Bientôt.',
+    fonctionnalites: ['Livraison instantanée par courriel', 'PDF, guides, presets, musique', 'Cours en ligne', 'Bientôt disponible'],
+    disponible: false, nouveau: false, couleur: '#0891b2',
+  },
+  {
+    id: 'agricole',
+    nom: 'Boutique Agricole',
+    groupe: 'boutique-industrie',
+    description: 'Ferme maraîchère avec panier drawer intégré, catalogue produits, page Notre Ferme, style sombre terroir doré. Idéal pour producteurs locaux.',
+    fonctionnalites: ['Panier drawer latéral', 'Modal produit + quantité', 'Catalogue avec filtres', 'Page Notre Ferme'],
+    disponible: true, nouveau: true, couleur: '#c9854a',
+  },
+  // ── TRANSACTIONNEL MULTI-VENDEUR ──
+  {
+    id: 'multi-vendeur-premium',
+    nom: 'Multi-Vendeur Premium',
+    groupe: 'multi-vendeur',
+    description: 'Marketplace multi-vendeur complète. Accueil avec catégories, catalogue avec filtres avancés, boutiques vendeurs, fiche produit, enchères, documents et politiques. Style sombre & doré.',
+    fonctionnalites: ['Boutiques vendeurs indépendantes', 'Catalogue unifié + filtres avancés', "Système d'enchères intégré", 'Documents & politiques'],
+    disponible: true, nouveau: true, couleur: '#fbbf24',
+  },
+  {
+    id: 'multi-vendeur-local',
+    nom: 'Marché Local',
+    groupe: 'multi-vendeur',
+    description: 'Marketplace axée produits locaux et artisans régionaux. Bientôt.',
+    fonctionnalites: ['Produits locaux & artisans', 'Marketplace régionale', 'Catalogue unifié', 'Bientôt disponible'],
+    disponible: false, nouveau: false, couleur: '#78350f',
+  },
   // ── VITRINE SANS FORMULAIRE ──
   {
     id: 'vitrine-carte',
@@ -119,7 +244,7 @@ const TEMPLATES: Template[] = [
     nom: 'Pro Tech / SaaS ⭐',
     groupe: 'vitrine-contact',
     description: 'Ticker défilant, hero vidéo/photo, stats, solutions, tarifs, partenaires. Tech, SaaS et agences.',
-    fonctionnalites: ["Ticker défilant (taille/vitesse)", 'Hero vidéo ou photo', 'Section tarifs', 'Témoignages plein écran'],
+    fonctionnalites: ['Ticker défilant (taille/vitesse)', 'Hero vidéo ou photo', 'Section tarifs', 'Témoignages plein écran'],
     disponible: true, nouveau: true, couleur: '#c026d3', prix: '25$ / achat unique',
   },
   {
@@ -147,70 +272,135 @@ const TEMPLATES: Template[] = [
     disponible: true, nouveau: true, couleur: '#1e6fa8', prix: '25$ / achat unique',
   },
   {
+    id: 'vitrine-paysager',
+    nom: 'Entretien Paysager',
+    groupe: 'vitrine-contact',
+    description: "Entreprise d'entretien de pelouse et aménagement paysager. Style sombre bold, formulaire devis, galerie portfolio, avis défilement auto, processus 4 étapes.",
+    fonctionnalites: ['Formulaire de soumission gratuite', 'Galerie portfolio masonry', 'Avis défilement automatique', 'Compteurs animés au scroll'],
+    disponible: true, nouveau: true, couleur: '#b5e24a',
+  },
+  // ── COURS & FORMATION ──
+  {
+    id: 'cours-danse',
+    nom: 'École de Danse',
+    groupe: 'cours',
+    description: 'Studio de danse sombre & glamour. Rideau théâtre, silhouettes SVG, spotlight, ondes sonores, paillettes au clic. Magenta & or.',
+    fonctionnalites: ['Rideau théâtre animé', 'Silhouettes SVG & spotlight', 'Ondes sonores', 'Paillettes au clic'],
+    disponible: true, nouveau: true, couleur: '#e91e8c',
+  },
+  {
+    id: 'cours-peinture',
+    nom: 'École de Peinture',
+    groupe: 'cours',
+    description: 'Atelier artistique vivant. Cube 3D CSS, éclaboussures SVG au clic, galerie 3D, pinceau animé, palette multicolore.',
+    fonctionnalites: ['Cube 3D CSS', 'Éclaboussures SVG au clic', 'Galerie 3D', 'Palette multicolore'],
+    disponible: true, nouveau: true, couleur: '#e63946',
+  },
+  {
+    id: 'cours-equitation',
+    nom: "Centre d'Équitation",
+    groupe: 'cours',
+    description: 'Centre équestre noble. Cheval SVG au galop, herbe animée, carrousel 3D chevaux, palmarès, cours, instructeurs, événements. Bordeaux & or.',
+    fonctionnalites: ['Cheval SVG au galop', 'Herbe animée', 'Carrousel 3D chevaux', 'Palmarès & instructeurs'],
+    disponible: true, nouveau: true, couleur: '#8b2635',
+  },
+  {
+    id: 'cours-yoga',
+    nom: 'Studio Yoga & Pilates',
+    groupe: 'cours',
+    description: 'Studio yoga fond ivoire & terracotta. Vague respirante, lotus animé, silhouettes poses, minuteur 4-7-8, horaires, abonnements.',
+    fonctionnalites: ['Vague respirante animée', 'Lotus animé', 'Minuteur 4-7-8', 'Horaires & abonnements'],
+    disponible: true, nouveau: true, couleur: '#c17f5a',
+  },
+  {
+    id: 'cours-cuisine',
+    nom: 'École de Cuisine',
+    groupe: 'cours',
+    description: 'École culinaire élégante. Vapeur animée, galerie plats plein écran, chefs, ateliers, thermomètre niveau. Ivoire & brique.',
+    fonctionnalites: ['Vapeur animée', 'Galerie plats plein écran', 'Chefs & ateliers', 'Thermomètre niveau'],
+    disponible: true, nouveau: true, couleur: '#c0392b',
+  },
+  {
+    id: 'cours-web',
+    nom: 'Formation Web & Dev',
+    groupe: 'cours',
+    description: 'École de dev fond sombre ultra-moderne. Engrenages 360° animés, modules, formateurs, tarifs, FAQ. Cyan & violet.',
+    fonctionnalites: ['Engrenages 360° animés', 'Modules & formateurs', 'Tarifs & FAQ', 'Style sombre ultra-moderne'],
+    disponible: true, nouveau: true, couleur: '#00d4ff',
+  },
+  {
+    id: 'cours-langues',
+    nom: 'École de Langues',
+    groupe: 'cours',
+    description: 'École de langues complète. 10 langues, formules, professeurs, FAQ, événements, blog, newsletter. Sections réordonnables.',
+    fonctionnalites: ['10 langues, formules', 'Professeurs & FAQ', 'Événements & blog', 'Sections réordonnables'],
+    disponible: true, nouveau: true, couleur: '#4F46E5',
+  },
+  {
+    id: 'cours-piano',
+    nom: 'Cours de Piano',
+    groupe: 'cours',
+    description: 'Portfolio pianiste / musicien. Hero plein écran, grille diagonale, récompenses, tarifs cours & prestations, galerie. Menu hamburger fullscreen.',
+    fonctionnalites: ['Hero plein écran', 'Grille diagonale', 'Récompenses & tarifs', 'Menu hamburger fullscreen'],
+    disponible: true, nouveau: true, couleur: '#e8a87c',
+  },
+  {
+    id: 'cours-coach',
+    nom: 'Coach de Vie',
+    groupe: 'cours',
+    description: "Site de coaching premium. Roue 4 piliers animée, titre morphing, programmes flip 3D, spotlight souris, étoiles ascendantes, formulaire appel découverte. Sable & forêt.",
+    fonctionnalites: ['Sections ON/OFF + réordonnables', 'Roue 4 piliers animée', 'Programmes flip 3D', 'Formulaire appel découverte gratuit'],
+    disponible: true, nouveau: true, couleur: '#C9A96E',
+  },
+  // ── RESTAURANT & FAST FOOD ──
+  {
     id: 'vitrine-boulangerie',
     nom: 'Boulangerie & Pâtisserie',
-    groupe: 'resto' as Groupe,
-    description: "Site boulangerie artisanale. Croissant SVG 3D tournant, particules de farine, galerie produits flip 3D, badge sortie du four dynamique, formulaire commandes spéciales avec calendrier.",
-    fonctionnalites: ['Sections ON/OFF + réordonnables','Croissant SVG 3D','Particules farine','Badge sortie four dynamique','Galerie flip 3D','Formulaire commande spéciale'],
+    groupe: 'resto',
+    description: 'Site boulangerie artisanale. Croissant SVG 3D tournant, particules de farine, galerie produits flip 3D, badge sortie du four dynamique, formulaire commandes spéciales avec calendrier.',
+    fonctionnalites: ['Croissant SVG 3D tournant', 'Particules de farine', 'Badge sortie du four live', 'Galerie flip 3D'],
     disponible: true, nouveau: true, couleur: '#8b4513',
   },
   {
     id: 'vitrine-foodtruck',
     nom: 'Food Truck',
-    groupe: 'resto' as Groupe,
-    description: "Site food truck dynamique. Camion SVG animé avec flammes et fumée, map GPS du jour, badge Ouvert/Fermé automatique, menu flip 3D, horaires configurables.",
-    fonctionnalites: ['Sections ON/OFF + réordonnables','Camion SVG animé','Emplacement du jour (map)','Badge Ouvert/Fermé auto','Menu flip 3D','Horaires configurables'],
+    groupe: 'resto',
+    description: 'Site food truck dynamique. Camion SVG animé avec flammes et fumée, map GPS du jour, badge Ouvert/Fermé automatique, menu flip 3D, horaires configurables.',
+    fonctionnalites: ['Camion SVG animé + flammes', 'Emplacement GPS du jour', 'Badge Ouvert/Fermé auto', 'Menu flip 3D'],
     disponible: true, nouveau: true, couleur: '#ff6b00',
   },
   {
     id: 'vitrine-resto',
     nom: 'Restaurant & Fast Food',
-    groupe: 'resto' as Groupe,
-    description: "Site restaurant fond noir & orange. Menu burgers, accompagnements, réservation de table, avis carrousel, Google Maps. Sections réordonnables.",
-    fonctionnalites: ['Sections ON/OFF + réordonnables', 'Menu burgers animé', 'Réservation de table', 'Avis carrousel', 'Ticker défilant', '6 palettes'],
+    groupe: 'resto',
+    description: 'Site restaurant fond noir & orange. Menu burgers, accompagnements, réservation de table, avis carrousel, Google Maps. Sections réordonnables.',
+    fonctionnalites: ['Menu burgers animé', 'Réservation de table', 'Avis carrousel', 'Ticker défilant'],
     disponible: true, nouveau: true, couleur: '#e8820a',
   },
   {
+    id: 'vitrine-bistro',
+    nom: 'Bistro & Café',
+    groupe: 'resto',
+    description: 'Fond noir & brun doré. Galerie plein format, menu filtrable par catégorie, réservation, carte Google Maps, sections réordonnables.',
+    fonctionnalites: ['Galerie plein format', 'Menu filtrable par catégorie', 'Réservation intégrée', 'Carte Google Maps'],
+    disponible: true, nouveau: true, couleur: '#8b6914',
+  },
+  // ── PROFESSION ──
+  {
     id: 'vitrine-avocat',
     nom: "Bureau d'Avocat",
-    groupe: 'avocat' as Groupe,
+    groupe: 'profession',
     description: "Cabinet juridique élégant marine & or. Domaines expertise, équipe, FAQ accordéon, consultation, Google Maps. Sections réordonnables.",
-    fonctionnalites: ['Sections ON/OFF + réordonnables', 'FAQ accordéon', 'Formulaire consultation', 'Carte Google Maps', 'Compteurs animés', '6 palettes'],
+    fonctionnalites: ['FAQ accordéon', 'Formulaire consultation', 'Carte Google Maps', 'Compteurs animés'],
     disponible: true, nouveau: true, couleur: '#c9a84c',
   },
   {
-    id: 'vitrine-paysager',
-    nom: 'Entretien Paysager',
-    groupe: 'vitrine-contact',
-    description: 'Entreprise d\'entretien de pelouse et aménagement paysager. Style sombre bold, formulaire devis, galerie portfolio, avis défilement auto, processus 4 étapes.',
-    fonctionnalites: ['Formulaire de soumission gratuite', 'Galerie portfolio masonry', 'Avis défilement automatique', 'Compteurs animés au scroll'],
-    disponible: true, nouveau: true, couleur: '#b5e24a',
-  },
-  // ── SALON ──
-  {
     id: 'salon-coiffure',
     nom: 'Salon de Coiffure ⭐',
-    groupe: 'salon' as Groupe,
+    groupe: 'profession',
     description: 'Salon de coiffure & beauté avec réservation en ligne, galerie transformations, équipe, formulaire contact. Effet page de livre + photos twist 3D.',
     fonctionnalites: ['Réservation en ligne (créneaux)', 'Galerie transformations', 'Effet page de livre animé', 'Photos twist 3D + scroll reveal'],
     disponible: true, nouveau: true, couleur: '#7b7cb6', prix: '25$ / achat unique',
-  },
-  {
-    id: 'agricole',
-    nom: 'Boutique Agricole',
-    groupe: 'boutique',
-    description: 'Ferme maraîchère avec panier drawer intégré, 3 pages (Accueil / Produits / Notre Ferme), style sombre terroir doré. Idéal pour producteurs locaux.',
-    fonctionnalites: ['Panier drawer latéral', 'Modal produit + quantité', 'Catalogue avec filtres', 'Page Notre Ferme'],
-    disponible: true, nouveau: true, couleur: '#c9854a',
-  },
-  // ── COURS & FORMATION ──
-  {
-    id: 'cours-coach',
-    nom: 'Coach de Vie',
-    groupe: 'cours' as Groupe,
-    description: "Site de coaching premium. Roue 4 piliers animée, titre morphing, programmes flip 3D, spotlight souris, étoiles ascendantes, formulaire appel découverte. Sable & forêt.",
-    fonctionnalites: ['Sections ON/OFF + réordonnables', 'Roue 4 piliers animée', 'Programmes flip 3D', 'Formulaire appel découverte gratuit'],
-    disponible: true, nouveau: true, couleur: '#C9A96E',
   },
   // ── RÉSERVATIONS ──
   {
@@ -286,31 +476,6 @@ const TEMPLATES: Template[] = [
     fonctionnalites: ['Mise en ligne rapide', 'Dons instantanés', 'Compteur temps réel', 'Partage viral'],
     disponible: true, nouveau: false, couleur: '#dc2626',
   },
-  // ── BOUTIQUE ──
-  {
-    id: 'boutique-simple',
-    nom: 'Mono-produit',
-    groupe: 'boutique',
-    description: 'Une page complète pour un seul produit. Galerie, variantes, checkout Stripe intégré.',
-    fonctionnalites: ['Galerie photos + vidéo', 'Variantes (couleur/taille)', 'Checkout Stripe', 'Taxes TPS+TVQ auto'],
-    disponible: true, nouveau: false, couleur: '#a855f7',
-  },
-  {
-    id: 'boutique-complete',
-    nom: 'Boutique Complète',
-    groupe: 'boutique',
-    description: 'Navigation, catalogue multi-produits, panier et compte acheteur avec historique.',
-    fonctionnalites: ['Catalogue multi-produits', 'Panier persistant', 'Compte acheteur', 'Historique commandes'],
-    disponible: true, nouveau: true, couleur: '#16a34a',
-  },
-  {
-    id: 'boutique-catalogue',
-    nom: 'Catalogue avancé',
-    groupe: 'boutique',
-    description: 'Grille de produits avec filtres avancés, pages produit individuelles. Bientôt disponible.',
-    fonctionnalites: ['Filtres avancés', 'Pages produit', 'Comparateur', 'Recherche'],
-    disponible: false, nouveau: false, couleur: '#0ea5e9',
-  },
   // ── ENCHÈRES ──
   {
     id: 'enchere-flash',
@@ -338,18 +503,25 @@ const TEMPLATES: Template[] = [
   },
 ];
 
-
 const GROUPES: { id: Groupe; label: string; icone: string; couleur: string; desc: string }[] = [
-  { id: 'vitrine',        label: 'Sites vitrine (sans formulaire)',  icone: '🖼',  couleur: '#c9a96e', desc: 'Présence en ligne simple — carte de visite, événement, horaires' },
-  { id: 'vitrine-contact',label: 'Sites vitrine (avec formulaire)',  icone: '✉️',  couleur: '#0ea5e9', desc: 'Portfolio, CV, Pro Entrepreneur, Pro Tech — avec formulaire contact' },
-  { id: 'salon',          label: 'Salon & Beauté',                   icone: '✂️',  couleur: '#7b7cb6', desc: 'Salon de coiffure avec réservation en ligne, galerie et équipe' },
-  { id: 'avocat',         label: 'Bureau d\'Avocat',                  icone: '⚖️',  couleur: '#c9a84c', desc: 'Cabinet juridique avec FAQ, consultation, équipe et Google Maps' },
-  { id: 'reservation',    label: 'Réservations',                     icone: '📅',  couleur: '#6366f1', desc: 'Système de réservation intégré — restaurant, location, RDV, spectacle' },
-  { id: 'cagnotte',       label: 'CagnottePro',                      icone: '💝',  couleur: '#ec4899', desc: 'Collecte de fonds en ligne — recevez des dons via Stripe' },
-  { id: 'boutique',       label: 'Boutique en ligne',                icone: '🛒',  couleur: '#16a34a', desc: 'Ventes avec panier et paiement Stripe intégré' },
-  { id: 'enchere',        label: 'Enchères en ligne',                icone: '🔨',  couleur: '#dc2626', desc: "Sites d'enchères en temps réel — Flash, Galerie ou Live" },
-  { id: 'cours',          label: 'Cours & Formation',                icone: '🎓',  couleur: '#C9A96E', desc: 'Écoles, studios et coachs — cours, programmes, horaires et réservations' },
+  { id: 'boutique-generique', label: 'Boutique en ligne — Générique',       icone: '🛍', couleur: '#2563eb', desc: 'Votre boutique complète, personnalisable, gérée depuis votre tableau de bord' },
+  { id: 'boutique-industrie', label: 'Boutique en ligne — Par industrie',   icone: '🎨', couleur: '#d97706', desc: "Boutiques prêtes-à-l'emploi avec thème visuel dédié à votre secteur" },
+  { id: 'multi-vendeur',      label: 'Transactionnel multi-produit — multi-vendeur', icone: '🏪', couleur: '#fbbf24', desc: 'Marketplace complète avec plusieurs vendeurs indépendants' },
+  { id: 'vitrine',            label: 'Sites vitrine (sans formulaire)',     icone: '🖼', couleur: '#c9a96e', desc: 'Présence en ligne simple — carte de visite, événement, horaires' },
+  { id: 'vitrine-contact',    label: 'Sites vitrine (avec formulaire)',     icone: '✉️', couleur: '#0ea5e9', desc: 'Portfolio, CV, pages pro avec formulaire de contact ou devis' },
+  { id: 'cours',              label: 'Cours & Formation',                  icone: '🎹', couleur: '#e8a87c', desc: 'Portfolio artistique et page de cours pour musiciens, coachs et formateurs' },
+  { id: 'resto',              label: 'Restaurant & Fast Food',             icone: '🍔', couleur: '#e8820a', desc: 'Menu, réservation de table, avis et carte Google Maps' },
+  { id: 'profession',         label: 'Profession',                        icone: '💼', couleur: '#c9a84c', desc: "Sites professionnels dédiés aux services : avocat, coiffure et plus" },
+  { id: 'reservation',        label: 'Formulaires & Réservations',         icone: '📅', couleur: '#6366f1', desc: 'Système de réservation intégré — sans paiement en ligne' },
+  { id: 'cagnotte',           label: 'CagnottePro',                       icone: '💝', couleur: '#ec4899', desc: 'Collecte de fonds en ligne — recevez des dons via Stripe' },
+  { id: 'enchere',            label: 'Enchères en ligne',                  icone: '🔨', couleur: '#dc2626', desc: "Sites d'enchères en temps réel — du mono-produit au méga site multi-lots" },
 ];
+
+// ─── APERÇU (ouvre la démo dans un nouvel onglet) ─────────────────────────────
+function ouvrirApercu(templateId: string) {
+  const url = `/site-preview?forceTemplate=${templateId}&demo=true`;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
 
 // ─── COMPOSANT CARTE TEMPLATE ─────────────────────────────────────────────────
 
@@ -422,23 +594,37 @@ function CarteTemplate({ t, onCommencer }: { t: Template; onCommencer: (id: stri
           )}
         </div>
 
-        {/* Bouton */}
-        <button
-          onClick={() => t.disponible && onCommencer(t.id)}
-          disabled={!t.disponible}
-          style={{
-            width: '100%', padding: '11px', borderRadius: 10, border: 'none',
-            background: t.disponible
-              ? survol ? t.couleur : `${t.couleur}25`
-              : 'rgba(255,255,255,0.05)',
-            color: t.disponible
-              ? survol ? '#fff' : t.couleur
-              : 'rgba(255,255,255,0.25)',
-            fontSize: 13, fontWeight: 700, cursor: t.disponible ? 'pointer' : 'not-allowed',
-            transition: 'all 0.25s',
-          }}>
-          {!t.disponible ? 'Bientôt disponible' : 'Commencer avec ce template →'}
-        </button>
+        {/* Boutons */}
+        {t.disponible ? (
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={e => { e.stopPropagation(); ouvrirApercu(t.id); }}
+              style={{ padding: '11px 14px', background: '#fff', border: `2px solid ${t.couleur}`, borderRadius: 10, color: t.couleur, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+              👁 Aperçu
+            </button>
+            <button
+              onClick={() => onCommencer(t.id)}
+              style={{
+                flex: 1, padding: '11px', borderRadius: 10, border: 'none',
+                background: survol ? t.couleur : `${t.couleur}25`,
+                color: survol ? '#fff' : t.couleur,
+                fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                transition: 'all 0.25s',
+              }}>
+              Commencer →
+            </button>
+          </div>
+        ) : (
+          <button
+            disabled
+            style={{
+              width: '100%', padding: '11px', borderRadius: 10, border: 'none',
+              background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.25)',
+              fontSize: 13, fontWeight: 700, cursor: 'not-allowed',
+            }}>
+            Bientôt disponible
+          </button>
+        )}
       </div>
     </div>
   );
