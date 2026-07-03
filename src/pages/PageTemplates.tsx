@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 // ─── PHOTOS par catégorie (Pexels libre de droits) ───────────────────────────
-const PHOTOS: Record<string, string> = {
+export const PHOTOS: Record<string, string> = {
   hero:                   'https://images.pexels.com/photos/5632402/pexels-photo-5632402.jpeg?auto=compress&cs=tinysrgb&w=1600',
   // Boutique — Générique
   'boutique-simplisse':    'https://images.pexels.com/photos/230544/pexels-photo-230544.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -72,7 +72,7 @@ const PHOTOS: Record<string, string> = {
 // ─── DONNÉES VRAIS TEMPLATES ──────────────────────────────────────────────────
 // Synchronisé avec les groupes de PageChoisirTemplate.tsx
 
-type Groupe =
+export type Groupe =
   | 'boutique-generique'
   | 'boutique-industrie'
   | 'multi-vendeur'
@@ -85,7 +85,7 @@ type Groupe =
   | 'cagnotte'
   | 'enchere';
 
-interface Template {
+export interface Template {
   id: string;
   nom: string;
   groupe: Groupe;
@@ -97,7 +97,7 @@ interface Template {
   prix?: string;  // ex: '25$ / achat unique' — vide = gratuit
 }
 
-const TEMPLATES: Template[] = [
+export const TEMPLATES: Template[] = [
   // ── BOUTIQUE EN LIGNE — GÉNÉRIQUE ──
   {
     id: 'boutique-simplisse',
@@ -503,7 +503,7 @@ const TEMPLATES: Template[] = [
   },
 ];
 
-const GROUPES: { id: Groupe; label: string; icone: string; couleur: string; desc: string }[] = [
+export const GROUPES: { id: Groupe; label: string; icone: string; couleur: string; desc: string }[] = [
   { id: 'boutique-generique', label: 'Boutique en ligne — Générique',       icone: '🛍', couleur: '#2563eb', desc: 'Votre boutique complète, personnalisable, gérée depuis votre tableau de bord' },
   { id: 'boutique-industrie', label: 'Boutique en ligne — Par industrie',   icone: '🎨', couleur: '#d97706', desc: "Boutiques prêtes-à-l'emploi avec thème visuel dédié à votre secteur" },
   { id: 'multi-vendeur',      label: 'Transactionnel multi-produit — multi-vendeur', icone: '🏪', couleur: '#fbbf24', desc: 'Marketplace complète avec plusieurs vendeurs indépendants' },
@@ -567,20 +567,20 @@ function CarteTemplate({ t, onCommencer }: { t: Template; onCommencer: (id: stri
       </div>
 
       {/* Contenu */}
-      <div style={{ padding: '18px 20px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
+      <div className="template-card-content" style={{ padding: '18px 20px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-          <h3 style={{ fontSize: 17, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>{t.nom}</h3>
-          <span style={{ background: t.prix ? '#f59e0b22' : t.couleur + '20', color: t.prix ? '#b45309' : t.couleur, padding: '3px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap', marginLeft: 8 }}>
+          <h3 className="template-card-title" style={{ fontSize: 17, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>{t.nom}</h3>
+          <span className="template-card-price" style={{ background: t.prix ? '#f59e0b22' : t.couleur + '20', color: t.prix ? '#b45309' : t.couleur, padding: '3px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap', marginLeft: 8 }}>
             {t.prix || 'Gratuit'}
           </span>
         </div>
 
-        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 14, flex: 1 }}>
+        <p className="template-card-desc" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 14, flex: 1 }}>
           {t.description}
         </p>
 
         {/* Fonctionnalités */}
-        <div style={{ marginBottom: 16 }}>
+        <div className="template-card-features" style={{ marginBottom: 16 }}>
           {t.fonctionnalites.slice(0, 3).map((f, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <div style={{ width: 5, height: 5, borderRadius: '50%', background: t.couleur, flexShrink: 0 }} />
@@ -596,13 +596,15 @@ function CarteTemplate({ t, onCommencer }: { t: Template; onCommencer: (id: stri
 
         {/* Boutons */}
         {t.disponible ? (
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="template-card-buttons" style={{ display: 'flex', gap: 8 }}>
             <button
+              className="template-card-btn-apercu"
               onClick={e => { e.stopPropagation(); ouvrirApercu(t.id); }}
               style={{ padding: '11px 14px', background: '#fff', border: `2px solid ${t.couleur}`, borderRadius: 10, color: t.couleur, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
               👁 Aperçu
             </button>
             <button
+              className="template-card-btn-main"
               onClick={() => onCommencer(t.id)}
               style={{
                 flex: 1, padding: '11px', borderRadius: 10, border: 'none',
@@ -616,6 +618,7 @@ function CarteTemplate({ t, onCommencer }: { t: Template; onCommencer: (id: stri
           </div>
         ) : (
           <button
+            className="template-card-btn-main"
             disabled
             style={{
               width: '100%', padding: '11px', borderRadius: 10, border: 'none',
@@ -667,6 +670,27 @@ export default function PageTemplates() {
           .sidebar-desktop { display: none !important; }
           .main-with-sidebar { margin-left: 0 !important; }
           .nav-links-desktop { display: none !important; }
+        }
+        @media (max-width: 640px) {
+          .templates-mobile-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 10px !important;
+          }
+          .template-card-content { padding: 10px 10px 12px !important; }
+          .template-card-title { font-size: 13px !important; }
+          .template-card-price { font-size: 9px !important; padding: 2px 7px !important; margin-left: 4px !important; }
+          .template-card-desc { display: none !important; }
+          .template-card-features { display: none !important; }
+          .template-card-buttons { flex-direction: column !important; gap: 6px !important; }
+          .template-card-btn-apercu {
+            width: 100% !important;
+            padding: 7px !important;
+            font-size: 11px !important;
+          }
+          .template-card-btn-main {
+            padding: 8px !important;
+            font-size: 11px !important;
+          }
         }
       `}</style>
 
@@ -805,7 +829,7 @@ export default function PageTemplates() {
                   </div>
 
                   {/* Grille templates */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
+                  <div className="templates-mobile-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
                     {tempsGroupe.map((t, i) => (
                       <div key={t.id} className="fade-up" style={{ animationDelay: `${i * 0.06}s` }}>
                         <CarteTemplate t={t} onCommencer={onCommencer} />

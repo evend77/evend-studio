@@ -3,14 +3,11 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { TEMPLATES as TOUS_LES_TEMPLATES, PHOTOS as PHOTOS_TEMPLATES, GROUPES as GROUPES_TEMPLATES } from './PageTemplates';
 
 // Photothèque libre de droits (Unsplash + Pexels via CDN)
 const PHOTOS = {
   hero: 'https://images.pexels.com/photos/5632402/pexels-photo-5632402.jpeg?auto=compress&cs=tinysrgb&w=1600',
-  template1: 'https://images.pexels.com/photos/4974914/pexels-photo-4974914.jpeg?auto=compress&cs=tinysrgb&w=800',
-  template2: 'https://images.pexels.com/photos/5632397/pexels-photo-5632397.jpeg?auto=compress&cs=tinysrgb&w=800',
-  template3: 'https://images.pexels.com/photos/6991226/pexels-photo-6991226.jpeg?auto=compress&cs=tinysrgb&w=800',
-  template4: 'https://images.pexels.com/photos/4381392/pexels-photo-4381392.jpeg?auto=compress&cs=tinysrgb&w=800',
   dashboard: 'https://images.pexels.com/photos/669615/pexels-photo-669615.jpeg?auto=compress&cs=tinysrgb&w=1200',
   seller: 'https://images.pexels.com/photos/5647688/pexels-photo-5647688.jpeg?auto=compress&cs=tinysrgb&w=800',
   stripe: 'https://images.pexels.com/photos/4491459/pexels-photo-4491459.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -18,7 +15,7 @@ const PHOTOS = {
 };
 
 interface Template {
-  id: number;
+  id: string;
   nom: string;
   image: string;
   categorie: string;
@@ -47,12 +44,18 @@ export default function PageAccueil() {
     window.open('/documents', '_blank', 'noopener,noreferrer');
   };
 
-  const templates: Template[] = [
-    { id: 1, nom: 'Minimalist Studio', image: PHOTOS.template1, categorie: 'Mode & Accessoires' },
-    { id: 2, nom: 'Nature & Co', image: PHOTOS.template2, categorie: 'Artisanat / Maison' },
-    { id: 3, nom: 'Tech Store', image: PHOTOS.template3, categorie: 'Électronique' },
-    { id: 4, nom: 'Boutique Chic', image: PHOTOS.template4, categorie: 'Tendances' },
-  ];
+  // Sélection vedette tirée directement des vrais templates (PageTemplates.tsx)
+  // — reste automatiquement synchronisée si un template change de nom/photo.
+  const IDS_VEDETTE = ['boutique-simplisse', 'salon-coiffure', 'multi-vendeur-premium', 'vitrine-resto'];
+  const templates: Template[] = IDS_VEDETTE
+    .map(id => TOUS_LES_TEMPLATES.find(t => t.id === id))
+    .filter((t): t is NonNullable<typeof t> => !!t)
+    .map(t => ({
+      id: t.id,
+      nom: t.nom,
+      image: PHOTOS_TEMPLATES[t.id] || PHOTOS_TEMPLATES.hero,
+      categorie: GROUPES_TEMPLATES.find(g => g.id === t.groupe)?.label || '',
+    }));
 
   useEffect(() => {
     const onScroll = () => {
@@ -112,6 +115,12 @@ export default function PageAccueil() {
           box-shadow: 0 12px 28px rgba(0,0,0,0.3);
         }
         .nav-link:hover { color: #f5a623 !important; }
+
+        /* Inversion réelle texte/image (le container est en display:grid, */
+        /* flexDirection n'a donc aucun effet — on utilise order à la place) */
+        .two-columns-reverse > div:first-child { order: 2; }
+        .two-columns-reverse > div:last-child { order: 1; }
+
         
         @media (max-width: 768px) {
           .hamburger { display: flex !important; }
@@ -120,6 +129,37 @@ export default function PageAccueil() {
           .templates-grid { grid-template-columns: 1fr !important; }
           .features-grid { grid-template-columns: 1fr !important; }
           .hero-title { font-size: 36px !important; }
+
+          /* Sections génériques : moins de padding vertical sur mobile */
+          .home-slide { padding: 56px 0 !important; }
+
+          /* Colonnes texte+image (Personnalisation / Domaine+Stripe) : empiler */
+          .two-columns {
+            grid-template-columns: 1fr !important;
+            gap: 32px !important;
+          }
+          .two-columns > div:first-child { order: 1 !important; }
+          .two-columns > div:last-child { order: 2 !important; }
+
+          /* Témoignage : empiler verticalement, réduire le padding */
+          .testimonial-box {
+            flex-direction: column !important;
+            text-align: center !important;
+            padding: 28px 20px !important;
+            gap: 16px !important;
+          }
+          .testimonial-section { padding: 40px 0 !important; }
+
+          /* Stats hero : permettre le retour à la ligne */
+          .hero-stats {
+            flex-wrap: wrap !important;
+            gap: 10px 18px !important;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .home-slide { padding: 40px 0 !important; }
+          .testimonial-section { padding: 32px 0 !important; }
         }
         
         ::-webkit-scrollbar { width: 6px; }
@@ -139,7 +179,6 @@ export default function PageAccueil() {
           <div className="nav-desktop" style={s.navLinks}>
             <a href="#templates" style={s.navLink} onClick={(e) => { e.preventDefault(); document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }); }}>Templates</a>
             <a href="#features" style={s.navLink} onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); }}>Fonctionnalités</a>
-            <a href="#prix" style={s.navLink} onClick={(e) => { e.preventDefault(); document.getElementById('prix')?.scrollIntoView({ behavior: 'smooth' }); }}>Tarifs</a>
             {/* ✅ MODIFICATION ICI - Blog s'ouvre dans un nouvel onglet */}
             <button onClick={ouvrirBlog} style={{ ...s.navLink, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px' }}>Blog</button>
             <button onClick={ouvrirFaq} style={{ ...s.navLink, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px' }}>FAQ</button>
@@ -164,7 +203,6 @@ export default function PageAccueil() {
           <div style={s.mobileMenu}>
             <a href="#templates" style={s.mobileLink} onClick={(e) => { e.preventDefault(); document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }); setMenuMobileOuvert(false); }}>Templates</a>
             <a href="#features" style={s.mobileLink} onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); setMenuMobileOuvert(false); }}>Fonctionnalités</a>
-            <a href="#prix" style={s.mobileLink} onClick={(e) => { e.preventDefault(); document.getElementById('prix')?.scrollIntoView({ behavior: 'smooth' }); setMenuMobileOuvert(false); }}>Tarifs</a>
             {/* ✅ MODIFICATION ICI - Blog s'ouvre dans un nouvel onglet dans menu mobile */}
             <button onClick={() => { ouvrirBlog(); setMenuMobileOuvert(false); }} style={{ ...s.mobileLink, background: 'none', border: 'none', textAlign: 'left', fontSize: '16px', cursor: 'pointer' }}>Blog</button>
             <button onClick={() => { ouvrirFaq(); setMenuMobileOuvert(false); }} style={{ ...s.mobileLink, background: 'none', border: 'none', textAlign: 'left', fontSize: '16px', cursor: 'pointer' }}>FAQ</button>
@@ -179,24 +217,45 @@ export default function PageAccueil() {
       <section ref={heroRef} style={s.hero}>
         <div style={s.heroOverlay} />
         <div style={s.heroContent}>
-          <div className="fade-up" style={s.heroBadge}>✨ Lancez votre boutique en 5 minutes</div>
+          <div className="fade-up" style={s.heroBadge}>
+            ✨ Lancez votre boutique en 10 minutes
+            <sup>
+              <a
+                href="#notes"
+                style={s.noteLink}
+                onClick={(e) => { e.preventDefault(); document.getElementById('notes')?.scrollIntoView({ behavior: 'smooth' }); }}
+              >
+                1
+              </a>
+            </sup>
+          </div>
           <h1 className="fade-up-1" style={s.heroTitle}>
             Créez votre<br />
             <span style={s.heroAccent}>boutique en ligne</span>
           </h1>
           <p className="fade-up-2" style={s.heroSubtitle}>
-            e-Vend Studio est la plateforme la plus simple pour vendre en ligne.<br />
-            Choisissez un template, personnalisez-le, et commencez à vendre.
+            e-Vend Studio est la plateforme la plus simple pour créer votre présence en ligne —<br />
+            boutique avec paiement intégré ou site vitrine pour présenter vos services.<br />
+            Choisissez un template, personnalisez-le, et lancez votre site.
           </p>
           <div className="fade-up-3" style={s.heroButtons}>
             <button style={s.btnPrimaryLarge} onClick={ouvrirLogin}>
-              Commencer gratuitement →
+              Essai gratuit 14 jours →
+              <sup>
+                <a
+                  href="#note-2"
+                  style={s.noteLinkOnDark}
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); document.getElementById('notes')?.scrollIntoView({ behavior: 'smooth' }); }}
+                >
+                  2
+                </a>
+              </sup>
             </button>
             <button style={s.btnOutlineLarge} onClick={() => document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' })}>
               Voir les templates
             </button>
           </div>
-          <div className="fade-up-3" style={s.heroStats}>
+          <div className="fade-up-3 hero-stats" style={s.heroStats}>
             <span>⭐ 4.9/5</span>
             <span>🔥 +10k boutiques</span>
             <span>🇨🇦 100% canadien</span>
@@ -205,12 +264,12 @@ export default function PageAccueil() {
       </section>
 
       {/* ═══════════════ SLIDE 3: TEMPLATES (comme Shopify) ═══════════════ */}
-      <section id="templates" style={s.slide}>
+      <section id="templates" className="home-slide" style={s.slide}>
         <div style={s.container}>
           <div style={s.slideHeader}>
             <span style={s.slideBadge}>Templates</span>
             <h2 style={s.slideTitle}>Des designs <span style={s.accent}>professionnels</span></h2>
-            <p style={s.slideSubtitle}>Choisissez parmi nos templates modernes et personnalisez-les</p>
+            <p style={s.slideSubtitle}>Boutiques, sites vitrine, réservations, enchères — un template pour chaque projet</p>
           </div>
 
           <div className="templates-grid" style={s.templatesGrid}>
@@ -239,16 +298,16 @@ export default function PageAccueil() {
               onClick={() => window.open('/templates', '_blank', 'noopener,noreferrer')}
               title="Ouvrir dans un nouvel onglet"
             >
-              Voir tous les templates (24) ↗
+              Voir tous les templates ({TOUS_LES_TEMPLATES.filter(t => t.disponible).length}) ↗
             </button>
           </div>
         </div>
       </section>
 
       {/* ═══════════════ SLIDE 4: PERSONNALISATION (couleurs + photos) ═══════════════ */}
-      <section id="features" style={{ ...s.slide, background: 'linear-gradient(135deg, #0a0a0a 0%, #111 100%)' }}>
+      <section id="features" className="home-slide" style={{ ...s.slide, background: 'linear-gradient(135deg, #0a0a0a 0%, #111 100%)' }}>
         <div style={s.container}>
-          <div style={s.twoColumns}>
+          <div className="two-columns" style={s.twoColumns}>
             <div className="slide-left" style={s.featureText}>
               <span style={s.slideBadge}>Personnalisation</span>
               <h2 style={s.slideTitle}>Modifiez <span style={s.accent}>couleurs et photos</span></h2>
@@ -271,9 +330,9 @@ export default function PageAccueil() {
       </section>
 
       {/* ═══════════════ SLIDE 5: DOMAINE + STRIPE ═══════════════ */}
-      <section style={s.slide}>
+      <section className="home-slide" style={s.slide}>
         <div style={s.container}>
-          <div style={{ ...s.twoColumns, flexDirection: 'row-reverse' }}>
+          <div className="two-columns two-columns-reverse" style={s.twoColumns}>
             <div className="slide-left" style={s.featureText}>
               <span style={s.slideBadge}>Professionnel</span>
               <h2 style={s.slideTitle}>Votre <span style={s.accent}>domaine</span> + <span style={s.accent}>Stripe</span></h2>
@@ -299,7 +358,7 @@ export default function PageAccueil() {
       </section>
 
       {/* ═══════════════ SLIDE 6: FONCTIONNALITÉS CLÉS ═══════════════ */}
-      <section style={{ ...s.slide, background: '#0a0a0a' }}>
+      <section className="home-slide" style={{ ...s.slide, background: '#0a0a0a' }}>
         <div style={s.container}>
           <div style={s.slideHeader}>
             <span style={s.slideBadge}>Tout compris</span>
@@ -329,9 +388,9 @@ export default function PageAccueil() {
       </section>
 
       {/* ═══════════════ SLIDE 7: TÉMOIGNAGE VENDEUR ═══════════════ */}
-      <section style={s.slide}>
+      <section className="home-slide testimonial-section" style={s.slide}>
         <div style={s.container}>
-          <div style={s.testimonial}>
+          <div className="testimonial-box" style={s.testimonial}>
             <div style={s.testimonialImage}>
               <img src={PHOTOS.seller} alt="Vendeur" style={s.testimonialImg} />
             </div>
@@ -347,45 +406,6 @@ export default function PageAccueil() {
         </div>
       </section>
 
-      {/* ═══════════════ SLIDE 8: TARIFS (optionnel / style PowerPoint) ═══════════════ */}
-      <section id="prix" style={{ ...s.slide, background: '#0a0a0a' }}>
-        <div style={s.container}>
-          <div style={s.slideHeader}>
-            <span style={s.slideBadge}>Tarifs</span>
-            <h2 style={s.slideTitle}>Des prix <span style={s.accent}>simples</span></h2>
-            <p style={s.slideSubtitle}>Sans frais cachés. Annulable à tout moment.</p>
-          </div>
-
-          <div style={s.pricingGrid}>
-            <div style={s.pricingCard}>
-              <h3 style={s.pricingName}>Gratuit</h3>
-              <div style={s.pricingPrice}>0<small style={s.pricingPeriod}>$/mois</small></div>
-              <ul style={s.pricingList}>
-                <li>✓ 1 boutique</li>
-                <li>✓ Template de base</li>
-                <li>✓ 10 produits max</li>
-                <li>✓ Domaine e-vend.studio</li>
-              </ul>
-              <button style={s.btnOutline} onClick={ouvrirLogin}>Commencer</button>
-            </div>
-            <div style={{ ...s.pricingCard, ...s.pricingCardFeatured }}>
-              <span style={s.popularBadge}>Populaire</span>
-              <h3 style={s.pricingName}>Pro</h3>
-              <div style={s.pricingPrice}>19<small style={s.pricingPeriod}>$/mois</small></div>
-              <ul style={s.pricingList}>
-                <li>✓ Boutiques illimitées</li>
-                <li>✓ Tous les templates</li>
-                <li>✓ Produits illimités</li>
-                <li>✓ Domaine personnalisé</li>
-                <li>✓ Stripe connecté</li>
-                <li>✓ Support prioritaire</li>
-              </ul>
-              <button style={s.btnPrimary} onClick={ouvrirLogin}>Commencer l'essai 14j →</button>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ═══════════════ SLIDE 9: CTA FINAL ═══════════════ */}
       <section style={s.ctaSlide}>
         <div style={s.ctaOverlay} />
@@ -393,9 +413,37 @@ export default function PageAccueil() {
           <h2 style={s.ctaTitle}>Prêt à lancer votre boutique ?</h2>
           <p style={s.ctaSubtitle}>Rejoignez des milliers de vendeurs canadiens sur e-Vend Studio</p>
           <button style={s.btnPrimaryCta} onClick={ouvrirLogin}>
-            Créer ma boutique gratuitement →
+            Démarrer mon essai gratuit de 14 jours →
           </button>
-          <p style={s.ctaNote}>Aucune carte de crédit requise pour l'essai</p>
+          <p style={s.ctaNote}>
+            Aucune carte de crédit requise pour démarrer
+            <sup>
+              <a
+                href="#note-2"
+                style={s.noteLink}
+                onClick={(e) => { e.preventDefault(); document.getElementById('notes')?.scrollIntoView({ behavior: 'smooth' }); }}
+              >
+                2
+              </a>
+            </sup>
+          </p>
+        </div>
+      </section>
+
+      {/* ═══════════════ NOTES DE BAS DE PAGE ═══════════════ */}
+      <section id="notes" style={s.notesSection}>
+        <div style={s.notesInner}>
+          <ol style={s.notesList}>
+            <li id="note-1" style={s.noteItem}>
+              <span>1.</span>
+              <span>Le temps de 10 minutes peut varier selon le modèle et la configuration choisis.</span>
+            </li>
+            <li id="note-2" style={s.noteItem}>
+              <span>2.</span>
+              <span>Aucune carte de crédit n'est requise pour démarrer l'essai gratuit de 14 jours. Un moyen de paiement Stripe doit toutefois être configuré avant la fin de cette période — autrement, le site créé durant l'essai sera perdu.</span>
+            </li>
+            {/* D'autres notes numérotées pourront être ajoutées ici (note-3, etc.) */}
+          </ol>
         </div>
       </section>
 
@@ -410,7 +458,6 @@ export default function PageAccueil() {
           <div style={s.footerLinks}>
             <a href="#templates" onClick={(e) => { e.preventDefault(); document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }); }}>Templates</a>
             <a href="#features" onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); }}>Fonctionnalités</a>
-            <a href="#prix" onClick={(e) => { e.preventDefault(); document.getElementById('prix')?.scrollIntoView({ behavior: 'smooth' }); }}>Tarifs</a>
             {/* ✅ MODIFICATION ICI - Blog s'ouvre dans un nouvel onglet dans le footer */}
             <button onClick={ouvrirBlog} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>Blog</button>
             <button onClick={ouvrirFaq} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>FAQ</button>
@@ -454,6 +501,8 @@ const s: Record<string, React.CSSProperties> = {
   heroOverlay: { position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.7) 100%)' },
   heroContent: { position: 'relative', zIndex: 2, maxWidth: '800px', padding: '0 24px' },
   heroBadge: { display: 'inline-block', padding: '6px 16px', background: 'rgba(245,166,35,0.15)', border: '1px solid rgba(245,166,35,0.3)', borderRadius: '30px', fontSize: '13px', color: '#f5a623', marginBottom: '24px' },
+  noteLink: { color: '#f5a623', textDecoration: 'underline', cursor: 'pointer', fontSize: '10px', marginLeft: '1px' },
+  noteLinkOnDark: { color: '#000', opacity: 0.6, textDecoration: 'underline', cursor: 'pointer', fontSize: '10px', marginLeft: '1px' },
   heroTitle: { fontSize: 'clamp(40px, 8vw, 72px)', fontWeight: 800, lineHeight: 1.1, marginBottom: '20px', letterSpacing: '-0.02em' },
   heroAccent: { color: '#f5a623' },
   heroSubtitle: { fontSize: '18px', color: 'rgba(255,255,255,0.6)', lineHeight: 1.6, marginBottom: '32px' },
@@ -537,4 +586,9 @@ const s: Record<string, React.CSSProperties> = {
   footerLinks: { display: 'flex', justifyContent: 'center', gap: '24px', marginBottom: '24px', flexWrap: 'wrap' },
   socialIcons: { display: 'flex', justifyContent: 'center', gap: '20px', fontSize: '20px', marginBottom: '24px' },
   footerCopy: { fontSize: '12px', color: 'rgba(255,255,255,0.3)' },
+  // Notes de bas de page
+  notesSection: { padding: '32px 0', borderTop: '1px solid rgba(255,255,255,0.06)', background: '#000' },
+  notesInner: { maxWidth: '1200px', margin: '0 auto', padding: '0 24px' },
+  notesList: { listStyle: 'none', counterReset: 'notes-counter', margin: 0, padding: 0 },
+  noteItem: { fontSize: '12px', color: 'rgba(255,255,255,0.35)', lineHeight: 1.6, marginBottom: '6px', display: 'flex', gap: '6px' },
 };
