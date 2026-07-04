@@ -15,6 +15,8 @@ export default function DomaineSucces({ gestionnaireId }: Props) {
   
   const domain = searchParams.get('domain');
   const sessionId = searchParams.get('session_id');
+  const type = searchParams.get('type'); // 'renouvellement-auto' ou null (achat/renouvellement normal)
+  const domaineId = searchParams.get('domaine_id');
   
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
@@ -22,6 +24,8 @@ export default function DomaineSucces({ gestionnaireId }: Props) {
   const [countdown, setCountdown] = useState(10);
 
   useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | undefined;
+
     if (!domain || !sessionId) {
       setStatus('error');
       setMessage('Paramètres manquants. Veuillez contacter le support.');
@@ -32,6 +36,26 @@ export default function DomaineSucces({ gestionnaireId }: Props) {
     const verifierPaiement = async () => {
       try {
         const token = localStorage.getItem('token');
+
+        // ── Cas spécial : confirmation de la carte pour le renouvellement auto ──
+        if (type === 'renouvellement-auto' && domaineId) {
+          const resAuto = await fetch(
+            `/api/dynadot/domaines/${domaineId}/confirmer-setup-carte?session_id=${sessionId}`,
+            { headers: { Authorization: `Bearer ${token}` } }
+          );
+          const dataAuto = await resAuto.json();
+
+          if (dataAuto.success) {
+            setStatus('success');
+            setMessage('✅ Renouvellement automatique activé ! Votre carte a été enregistrée en toute sécurité.');
+            setDnsInstructions(null);
+          } else {
+            setStatus('error');
+            setMessage(dataAuto.message || 'Erreur lors de l\'activation du renouvellement automatique.');
+          }
+          return;
+        }
+
         const res = await fetch(`/api/dynadot/verify-payment?session_id=${sessionId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -41,22 +65,20 @@ export default function DomaineSucces({ gestionnaireId }: Props) {
           setStatus('success');
           setMessage(`✅ Félicitations ! Le domaine ${domain} vous appartient maintenant.`);
           setDnsInstructions(data.dns_instructions || 
-            `CNAME → sites.e-vendstudio.ca\nou\nA → 192.0.2.1`
+            `CNAME www → evend-studio.onrender.com\nA @ → 216.24.57.1`
           );
           
           // Démarrer le compte à rebours vers le dashboard
-          const timer = setInterval(() => {
+          timer = setInterval(() => {
             setCountdown(prev => {
               if (prev <= 1) {
-                clearInterval(timer);
+                if (timer) clearInterval(timer);
                 navigate('/dashboard');
                 return 0;
               }
               return prev - 1;
             });
           }, 1000);
-          
-          return () => clearInterval(timer);
         } else {
           setStatus('error');
           setMessage(data.message || 'Erreur lors de la vérification du paiement.');
@@ -68,6 +90,11 @@ export default function DomaineSucces({ gestionnaireId }: Props) {
     };
 
     verifierPaiement();
+
+    // Vrai nettoyage React : s'exécute si le composant se démonte
+    return () => {
+      if (timer) clearInterval(timer);
+    };
   }, [domain, sessionId, navigate]);
 
   // ── Affichage ───────────────────────────────────────────────────────────────
@@ -261,9 +288,11 @@ export default function DomaineSucces({ gestionnaireId }: Props) {
       </div>
 
       {/* Redirection automatique */}
-      <p style={{ fontSize: 12, color: '#aaa', marginTop: 24 }}>
-        Redirection vers le tableau de bord dans {countdown} seconde{countdown > 1 ? 's' : ''}...
-      </p>
+      {type !== 'renouvellement-auto' && (
+        <p style={{ fontSize: 12, color: '#aaa', marginTop: 24 }}>
+          Redirection vers le tableau de bord dans {countdown} seconde{countdown > 1 ? 's' : ''}...
+        </p>
+      )}
     </div>
   );
 }

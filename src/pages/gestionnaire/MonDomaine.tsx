@@ -9,9 +9,18 @@ interface DomaineAchete {
   id: number;
   domaine: string;
   dynadot_order_id: string | null;
-  expiration_date: string | null;
+  expiration_date: string | number | null;
   statut: 'actif' | 'expire' | 'en_attente';
   created_at: string;
+  renouvellement_auto: boolean;
+  prix_client: number | null;
+}
+
+interface ResultatExtension {
+  domaine: string;
+  disponible: boolean;
+  prix_wholesale: number | null;
+  prix_client: number | null;
 }
 
 export default function MonDomaine({ gestionnaireId }: Props) {
@@ -27,22 +36,22 @@ export default function MonDomaine({ gestionnaireId }: Props) {
   // ── Statut Cloudflare du domaine perso (après sauvegarde) ──────────────────
   const [statutDomainePerso, setStatutDomainePerso] = useState<{ statut: string; message: string } | null>(null);
 
-  // ── État pour l'achat de domaine ──────────────────────────────────────────
-  const [domaineRecherche, setDomaineRecherche] = useState('');
+  // ── État pour l'achat de domaine (recherche multi-extensions) ─────────────
+  const [nomBaseRecherche, setNomBaseRecherche] = useState('');
   const [rechercheEnCours, setRechercheEnCours] = useState(false);
-  const [domaineDisponible, setDomaineDisponible] = useState<boolean | null>(null);
-  const [prixDomaine, setPrixDomaine] = useState<number | null>(null);
+  const [resultatsMulti, setResultatsMulti] = useState<ResultatExtension[]>([]);
   const [messageAchat, setMessageAchat] = useState<{ type: 'success' | 'error' | 'info'; texte: string } | null>(null);
-  const [achatEnCours, setAchatEnCours] = useState(false);
+  const [domaineEnAchat, setDomaineEnAchat] = useState<string | null>(null); // pour désactiver le bon bouton pendant l'achat
+
+  // ── État pour les actions de renouvellement ────────────────────────────────
+  const [actionEnCours, setActionEnCours] = useState<number | null>(null); // id du domaine en cours d'action
 
   // ── État pour les domaines achetés ─────────────────────────────────────────
   const [domainesAchetes, setDomainesAchetes] = useState<DomaineAchete[]>([]);
   const [chargementDomaines, setChargementDomaines] = useState(true);
 
-  const PRIX_DOMAINE = 19.99;
-  const TAUX_TPS = 0.05;
-  const TAUX_TVQ = 0.09975;
-  const PRIX_TOTAL = PRIX_DOMAINE * (1 + TAUX_TPS + TAUX_TVQ);
+  // ── Extensions offertes (doit correspondre à EXTENSIONS_AUTORISEES du backend) ──
+  const EXTENSIONS = ['com', 'ca', 'net', 'org'];
 
   // ── Charger les données existantes du site (sous-domaine, domaine perso) ───
   useEffect(() => {
@@ -144,61 +153,47 @@ export default function MonDomaine({ gestionnaireId }: Props) {
     return () => clearInterval(interval);
   }, [domainePerso, gestionnaireId, statutDomainePerso?.statut]);
 
-  // ── Vérifier la disponibilité du domaine via Dynadot ──────────────────────
+  // ── Vérifier la disponibilité sur toutes les extensions sûres à la fois ────
   const verifierDisponibilite = async () => {
-    if (!domaineRecherche) {
+    const nom = nomBaseRecherche.trim().toLowerCase().replace(/\.[a-z]+$/, ''); // au cas où l'utilisateur tape avec une extension
+    if (!nom) {
       setMessageAchat({ type: 'info', texte: 'Veuillez entrer un nom de domaine.' });
       return;
     }
 
     setRechercheEnCours(true);
-    setDomaineDisponible(null);
+    setResultatsMulti([]);
     setMessageAchat(null);
 
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch('/api/dynadot/check-availability', {
+      const res = await fetch('/api/dynadot/check-availability-multi', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ domain: domaineRecherche })
+        body: JSON.stringify({ nomBase: nom })
       });
 
       const data = await res.json();
 
-      if (data.disponible === true) {
-        setDomaineDisponible(true);
-        setPrixDomaine(PRIX_TOTAL);
-        setMessageAchat({ 
-          type: 'success', 
-          texte: `✅ ${domaineRecherche} est disponible ! Prix : ${PRIX_TOTAL.toFixed(2)}$ CAD taxes incluses.` 
-        });
-      } else if (data.disponible === false) {
-        setDomaineDisponible(false);
-        setMessageAchat({ 
-          type: 'error', 
-          texte: `❌ ${domaineRecherche} n'est pas disponible. Essayez une autre extension ou un autre nom.` 
-        });
+      if (data.resultats && data.resultats.length) {
+        setResultatsMulti(data.resultats);
+        const auMoinsUnDisponible = data.resultats.some((r: ResultatExtension) => r.disponible);
+        if (!auMoinsUnDisponible) {
+          setMessageAchat({ type: 'error', texte: `❌ "${nom}" n'est disponible sur aucune extension. Essayez un autre nom.` });
+        }
       } else {
-        setMessageAchat({ 
-          type: 'error', 
-          texte: 'Erreur lors de la vérification. Veuillez réessayer.' 
-        });
+        setMessageAchat({ type: 'error', texte: data.error || 'Erreur lors de la vérification.' });
       }
     } catch (error) {
-      setMessageAchat({ 
-        type: 'error', 
-        texte: 'Erreur de connexion au service de vérification.' 
-      });
+      setMessageAchat({ type: 'error', texte: 'Erreur de connexion au service de vérification.' });
     }
 
     setRechercheEnCours(false);
   };
 
-  // ── Acheter le domaine via Stripe ──────────────────────────────────────────
-  const acheterDomaine = async () => {
-    if (!domaineRecherche || !domaineDisponible) return;
-
-    setAchatEnCours(true);
+  // ── Acheter un domaine précis (choisi parmi les résultats multi-extensions) ──
+  const acheterDomaine = async (domainComplet: string) => {
+    setDomaineEnAchat(domainComplet);
     setMessageAchat(null);
 
     try {
@@ -207,7 +202,7 @@ export default function MonDomaine({ gestionnaireId }: Props) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ 
-          domain: domaineRecherche, 
+          domain: domainComplet, 
           years: 1,
           gestionnaireId: gestionnaireId
         })
@@ -222,14 +217,14 @@ export default function MonDomaine({ gestionnaireId }: Props) {
           type: 'error', 
           texte: data.error || 'Erreur lors de la création du paiement.' 
         });
-        setAchatEnCours(false);
+        setDomaineEnAchat(null);
       }
     } catch (error) {
       setMessageAchat({ 
         type: 'error', 
         texte: 'Erreur de connexion. Veuillez réessayer.' 
       });
-      setAchatEnCours(false);
+      setDomaineEnAchat(null);
     }
   };
 
@@ -272,15 +267,97 @@ export default function MonDomaine({ gestionnaireId }: Props) {
     }
   };
 
-  // ── Formater la date ───────────────────────────────────────────────────────
-  const formatDate = (dateStr: string | null) => {
-    if (!dateStr) return 'N/A';
-    const date = new Date(dateStr);
+  // ── Formater la date (gère les timestamps Unix en millisecondes de Dynadot) ──
+  const formatDate = (dateVal: string | number | null) => {
+    if (!dateVal) return 'N/A';
+    const timestamp = typeof dateVal === 'string' ? Number(dateVal) : dateVal;
+    const date = isNaN(timestamp) ? new Date(dateVal as string) : new Date(timestamp);
+    if (isNaN(date.getTime())) return 'N/A';
     return date.toLocaleDateString('fr-CA', { 
       year: 'numeric', 
       month: 'long', 
       day: 'numeric' 
     });
+  };
+
+  // ── Calculer l'urgence d'expiration (pour le code couleur) ─────────────────
+  const getUrgenceExpiration = (dateVal: string | number | null) => {
+    if (!dateVal) return { jours: null, couleur: '#888', label: '' };
+    const timestamp = typeof dateVal === 'string' ? Number(dateVal) : dateVal;
+    const dateExpiration = isNaN(timestamp) ? new Date(dateVal as string) : new Date(timestamp);
+    if (isNaN(dateExpiration.getTime())) return { jours: null, couleur: '#888', label: '' };
+
+    const maintenant = new Date();
+    const joursRestants = Math.ceil((dateExpiration.getTime() - maintenant.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (joursRestants < 0) return { jours: joursRestants, couleur: '#dc2626', label: 'Expiré' };
+    if (joursRestants <= 7) return { jours: joursRestants, couleur: '#dc2626', label: `${joursRestants}j restants` };
+    if (joursRestants <= 30) return { jours: joursRestants, couleur: '#f59e0b', label: `${joursRestants}j restants` };
+    return { jours: joursRestants, couleur: '#10b981', label: `${joursRestants}j restants` };
+  };
+
+  // ── Renouveler maintenant (paiement manuel via Stripe Checkout) ────────────
+  const renouvelerMaintenant = async (domaineId: number) => {
+    setActionEnCours(domaineId);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/dynadot/domaines/${domaineId}/renouveler-maintenant`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setMessageErreur(data.error || 'Erreur lors du renouvellement.');
+        setActionEnCours(null);
+      }
+    } catch {
+      setMessageErreur('Erreur de connexion.');
+      setActionEnCours(null);
+    }
+  };
+
+  // ── Activer le renouvellement automatique (redirige vers Stripe pour sauvegarder la carte) ──
+  const activerRenouvellementAuto = async (domaineId: number) => {
+    setActionEnCours(domaineId);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/dynadot/domaines/${domaineId}/setup-renouvellement-auto`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      } else {
+        setMessageErreur(data.error || 'Erreur lors de la configuration.');
+        setActionEnCours(null);
+      }
+    } catch {
+      setMessageErreur('Erreur de connexion.');
+      setActionEnCours(null);
+    }
+  };
+
+  // ── Désactiver le renouvellement automatique ───────────────────────────────
+  const desactiverRenouvellementAuto = async (domaineId: number) => {
+    setActionEnCours(domaineId);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`/api/dynadot/domaines/${domaineId}/renouvellement-auto`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ actif: false }),
+      });
+      if (res.ok) {
+        setDomainesAchetes(prev => prev.map(d => d.id === domaineId ? { ...d, renouvellement_auto: false } : d));
+      }
+    } catch {
+      // silencieux
+    } finally {
+      setActionEnCours(null);
+    }
   };
 
   // ── Obtenir le statut en français ─────────────────────────────────────────
@@ -327,11 +404,11 @@ export default function MonDomaine({ gestionnaireId }: Props) {
         }}>
           <p style={{ fontSize: 13, color: '#334155', margin: 0, lineHeight: 1.6 }}>
             <strong>📋 Comment ça fonctionne :</strong><br />
-            1️⃣ Entrez le nom de domaine que vous souhaitez (ex: monentreprise)<br />
-            2️⃣ Cliquez sur "Vérifier" pour voir s'il est disponible<br />
-            3️⃣ Si disponible, cliquez sur "Acheter maintenant"<br />
+            1️⃣ Entrez un nom (sans extension), ex: monentreprise<br />
+            2️⃣ On vérifie la disponibilité sur {EXTENSIONS.map(e => '.' + e).join(', ')} en même temps<br />
+            3️⃣ Choisissez l'extension qui vous convient et cliquez "Acheter"<br />
             4️⃣ Vous serez redirigé vers Stripe pour le paiement sécurisé<br />
-            5️⃣ Une fois payé, le domaine est enregistré et configuré automatiquement
+            5️⃣ Une fois payé, le domaine est enregistré et connecté automatiquement à votre site
           </p>
         </div>
 
@@ -339,17 +416,18 @@ export default function MonDomaine({ gestionnaireId }: Props) {
           <div style={{ flex: 1, minWidth: 200 }}>
             <input
               type="text"
-              placeholder="monentreprise.com"
-              value={domaineRecherche}
+              placeholder="monentreprise (sans extension)"
+              value={nomBaseRecherche}
               onChange={e => {
-                setDomaineRecherche(e.target.value);
-                setDomaineDisponible(null);
+                setNomBaseRecherche(e.target.value);
+                setResultatsMulti([]);
                 setMessageAchat(null);
               }}
+              onKeyDown={e => { if (e.key === 'Enter') verifierDisponibilite(); }}
               style={{
                 width: '100%',
                 padding: '12px 16px',
-                border: `2px solid ${domaineDisponible === true ? '#10b981' : domaineDisponible === false ? '#ef4444' : '#e5e7eb'}`,
+                border: '2px solid #e5e7eb',
                 borderRadius: 8,
                 fontSize: 14,
                 outline: 'none',
@@ -372,35 +450,13 @@ export default function MonDomaine({ gestionnaireId }: Props) {
               opacity: rechercheEnCours ? 0.7 : 1
             }}
           >
-            {rechercheEnCours ? '⏳ Vérification...' : '🔍 Vérifier'}
+            {rechercheEnCours ? '⏳ Vérification...' : '🔍 Vérifier les extensions'}
           </button>
         </div>
 
-        <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, color: '#888' }}>Extensions populaires :</span>
-          {['.com', '.ca', '.org', '.net', '.shop'].map(ext => (
-            <button
-              key={ext}
-              onClick={() => {
-                const base = domaineRecherche.replace(/\.[a-z]+$/, '');
-                setDomaineRecherche(base + ext);
-                setDomaineDisponible(null);
-                setMessageAchat(null);
-              }}
-              style={{
-                padding: '2px 10px',
-                background: '#f1f5f9',
-                border: 'none',
-                borderRadius: 4,
-                fontSize: 12,
-                color: '#475569',
-                cursor: 'pointer'
-              }}
-            >
-              {ext}
-            </button>
-          ))}
-        </div>
+        <p style={{ fontSize: 11, color: '#999', marginTop: 8 }}>
+          Extensions offertes : {EXTENSIONS.map(e => '.' + e).join(', ')} — choisies pour des prix stables et prévisibles à long terme.
+        </p>
 
         {messageAchat && (
           <div style={{
@@ -410,57 +466,73 @@ export default function MonDomaine({ gestionnaireId }: Props) {
             background: messageAchat.type === 'success' ? '#ecfdf5' : 
                        messageAchat.type === 'error' ? '#fef2f2' : '#eff6ff',
             border: `1px solid ${messageAchat.type === 'success' ? '#10b981' : messageAchat.type === 'error' ? '#ef4444' : '#3b82f6'}`,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: 12
           }}>
-            <div>
-              <p style={{ 
-                fontSize: 14, 
-                color: messageAchat.type === 'success' ? '#065f46' : 
-                       messageAchat.type === 'error' ? '#991b1b' : '#1e40af',
-                margin: 0
-              }}>
-                {messageAchat.texte}
-              </p>
-              {domaineDisponible && (
-                <p style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
-                  💳 Paiement sécurisé par Stripe. Aucune carte enregistrée.
-                </p>
-              )}
-            </div>
-            
-            {domaineDisponible && (
-              <button
-                onClick={acheterDomaine}
-                disabled={achatEnCours}
-                style={{
-                  padding: '10px 24px',
-                  background: '#10b981',
-                  border: 'none',
-                  borderRadius: 8,
-                  color: '#fff',
-                  fontWeight: 700,
-                  fontSize: 14,
-                  cursor: achatEnCours ? 'not-allowed' : 'pointer',
-                  opacity: achatEnCours ? 0.7 : 1,
-                  whiteSpace: 'nowrap'
-                }}
-              >
-                {achatEnCours ? '⏳...' : '🛒 Acheter maintenant'}
-              </button>
-            )}
+            <p style={{ 
+              fontSize: 14, 
+              color: messageAchat.type === 'success' ? '#065f46' : 
+                     messageAchat.type === 'error' ? '#991b1b' : '#1e40af',
+              margin: 0
+            }}>
+              {messageAchat.texte}
+            </p>
           </div>
         )}
 
-        {domaineDisponible && (
-          <div style={{ marginTop: 12, fontSize: 13, color: '#555' }}>
-            <strong>Prix :</strong> {PRIX_TOTAL.toFixed(2)}$ CAD (incluant TPS/TVQ)
-            <span style={{ fontSize: 11, color: '#999', marginLeft: 12 }}>
-              (Renouvellement annuel au même prix)
-            </span>
+        {/* ── Résultats multi-extensions ── */}
+        {resultatsMulti.length > 0 && (
+          <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {resultatsMulti.map(r => (
+              <div
+                key={r.domaine}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '14px 18px',
+                  background: '#fff',
+                  borderRadius: 10,
+                  border: `1.5px solid ${r.disponible ? '#10b981' : '#e5e7eb'}`,
+                  opacity: r.disponible ? 1 : 0.6,
+                  flexWrap: 'wrap',
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>
+                    {r.domaine}
+                  </p>
+                  <p style={{ fontSize: 12, color: r.disponible ? '#10b981' : '#999', margin: '2px 0 0' }}>
+                    {r.disponible
+                      ? `✓ Disponible — ${r.prix_client != null ? r.prix_client.toFixed(2) : '?'}$ CAD/an`
+                      : '✗ Non disponible'}
+                  </p>
+                </div>
+
+                {r.disponible && (
+                  <button
+                    onClick={() => acheterDomaine(r.domaine)}
+                    disabled={domaineEnAchat !== null}
+                    style={{
+                      padding: '10px 22px',
+                      background: '#10b981',
+                      border: 'none',
+                      borderRadius: 8,
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: domaineEnAchat !== null ? 'not-allowed' : 'pointer',
+                      opacity: domaineEnAchat !== null && domaineEnAchat !== r.domaine ? 0.5 : 1,
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {domaineEnAchat === r.domaine ? '⏳...' : '🛒 Acheter'}
+                  </button>
+                )}
+              </div>
+            ))}
+            <p style={{ fontSize: 11, color: '#999', marginTop: 4 }}>
+              💳 Paiement sécurisé par Stripe. Renouvellement annuel au prix courant de Dynadot + 10$ CAD de service.
+            </p>
           </div>
         )}
       </div>
@@ -670,7 +742,7 @@ export default function MonDomaine({ gestionnaireId }: Props) {
                     Expiration
                   </th>
                   <th style={{ padding: '12px 8px', textAlign: 'left', color: '#888', fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Acheté le
+                    Renouvellement auto
                   </th>
                   <th style={{ padding: '12px 8px', textAlign: 'center', color: '#888', fontWeight: 600, fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     Action
@@ -680,10 +752,17 @@ export default function MonDomaine({ gestionnaireId }: Props) {
               <tbody>
                 {domainesAchetes.map((d) => {
                   const statut = getStatutFr(d.statut);
+                  const urgence = getUrgenceExpiration(d.expiration_date);
+                  const enCours = actionEnCours === d.id;
                   return (
                     <tr key={d.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                       <td style={{ padding: '12px 8px', fontWeight: 600, color: '#1a1a1a' }}>
                         {d.domaine}
+                        {d.prix_client != null && (
+                          <div style={{ fontSize: 11, color: '#999', fontWeight: 400 }}>
+                            {d.prix_client.toFixed(2)}$ CAD/an
+                          </div>
+                        )}
                       </td>
                       <td style={{ padding: '12px 8px' }}>
                         <span style={{
@@ -698,27 +777,75 @@ export default function MonDomaine({ gestionnaireId }: Props) {
                           {statut.emoji} {statut.label}
                         </span>
                       </td>
-                      <td style={{ padding: '12px 8px', color: '#666', fontSize: 13 }}>
-                        {formatDate(d.expiration_date)}
+                      <td style={{ padding: '12px 8px', fontSize: 13 }}>
+                        <div style={{ color: '#666' }}>{formatDate(d.expiration_date)}</div>
+                        {urgence.label && (
+                          <div style={{ fontSize: 11, fontWeight: 700, color: urgence.couleur, marginTop: 2 }}>
+                            {urgence.label}
+                          </div>
+                        )}
                       </td>
-                      <td style={{ padding: '12px 8px', color: '#666', fontSize: 13 }}>
-                        {formatDate(d.created_at)}
+                      <td style={{ padding: '12px 8px' }}>
+                        {d.renouvellement_auto ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: '#10b981' }}>✅ Activé</span>
+                            <button
+                              onClick={() => desactiverRenouvellementAuto(d.id)}
+                              disabled={enCours}
+                              style={{
+                                padding: '3px 10px', background: 'transparent', border: '1px solid #d1d5db',
+                                borderRadius: 4, fontSize: 11, color: '#888', cursor: enCours ? 'not-allowed' : 'pointer',
+                              }}
+                            >
+                              {enCours ? '...' : 'Désactiver'}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => activerRenouvellementAuto(d.id)}
+                            disabled={enCours}
+                            style={{
+                              padding: '4px 12px', background: '#eff6ff', border: '1px solid #93c5fd',
+                              borderRadius: 4, fontSize: 12, color: '#1e40af', cursor: enCours ? 'not-allowed' : 'pointer',
+                            }}
+                          >
+                            {enCours ? '⏳...' : '🔁 Activer'}
+                          </button>
+                        )}
                       </td>
                       <td style={{ padding: '12px 8px', textAlign: 'center' }}>
-                        <button
-                          onClick={() => window.open(`https://www.dynadot.com/account/domain/${d.domaine}`, '_blank')}
-                          style={{
-                            padding: '4px 12px',
-                            background: 'transparent',
-                            border: '1px solid #d1d5db',
-                            borderRadius: 4,
-                            fontSize: 12,
-                            color: '#666',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Gérer
-                        </button>
+                        <div style={{ display: 'flex', gap: 6, justifyContent: 'center', flexWrap: 'wrap' }}>
+                          <button
+                            onClick={() => renouvelerMaintenant(d.id)}
+                            disabled={enCours}
+                            style={{
+                              padding: '4px 12px',
+                              background: '#4F46E5',
+                              border: 'none',
+                              borderRadius: 4,
+                              fontSize: 12,
+                              color: '#fff',
+                              cursor: enCours ? 'not-allowed' : 'pointer',
+                              opacity: enCours ? 0.6 : 1,
+                            }}
+                          >
+                            {enCours ? '⏳' : 'Renouveler'}
+                          </button>
+                          <button
+                            onClick={() => window.open(`https://www.dynadot.com/account/domain/${d.domaine}`, '_blank')}
+                            style={{
+                              padding: '4px 12px',
+                              background: 'transparent',
+                              border: '1px solid #d1d5db',
+                              borderRadius: 4,
+                              fontSize: 12,
+                              color: '#666',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Gérer
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
