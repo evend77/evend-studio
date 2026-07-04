@@ -32,6 +32,38 @@ function calculerPrixClient(prixDynadot) {
   return (prixDynadot || 0) + MARGE_FIXE;
 }
 
+// ── Vérifier un domaine chez Dynadot (commande officielle : "search") ──────
+// Centralise l'appel + le parsing pour éviter de dupliquer cette logique
+// fragile à plusieurs endroits. Retourne { disponible, prix } où prix est en
+// CAD (nombre) ou null si le domaine n'est pas disponible / erreur.
+async function verifierDomaineDynadot(domainComplet) {
+  try {
+    const url = `${DYNADOT_API_URL}?key=${DYNADOT_API_KEY}&command=search&domain0=${domainComplet}&show_price=1&currency=CAD`;
+    const response = await fetch(url);
+    const data = await response.json();
+
+    // Structure Dynadot : { "SearchResponse": [ { "SearchHeader": {...} } ] }
+    // (peut être un objet seul plutôt qu'un tableau pour une recherche à 1 domaine)
+    const reponses = Array.isArray(data.SearchResponse)
+      ? data.SearchResponse
+      : (data.SearchResponse ? [data.SearchResponse] : []);
+
+    if (!reponses.length) {
+      console.error('Réponse Dynadot inattendue pour', domainComplet, JSON.stringify(data));
+      return { disponible: false, prix: null };
+    }
+
+    const header = reponses[0].SearchHeader || reponses[0];
+    const disponible = header.Available === 'yes';
+    const prix = header.Price != null ? parseFloat(header.Price) || null : null;
+
+    return { disponible, prix };
+  } catch (err) {
+    console.error(`Erreur vérification Dynadot pour ${domainComplet}:`, err);
+    return { disponible: false, prix: null };
+  }
+}
+
 // =====================================================================
 // 🔍 Vérifier la disponibilité d'un nom de base sur toutes les extensions
 // sûres en même temps (ex: monsite.com, monsite.ca, monsite.net, monsite.org)
@@ -54,22 +86,13 @@ router.post('/check-availability-multi', authenticateToken, async (req, res) => 
 
     for (const ext of EXTENSIONS_AUTORISEES) {
       const domaineComplet = `${nomBase}.${ext}`;
-      try {
-        const url = `${DYNADOT_API_URL}?key=${DYNADOT_API_KEY}&command=check&domain=${domaineComplet}`;
-        const response = await fetch(url);
-        const data = await response.json();
-
-        const prixDynadot = data.Price != null ? parseFloat(data.Price) || null : null;
-        resultats.push({
-          domaine: domaineComplet,
-          disponible: Number(data.IsAvailable) === 1,
-          prix_wholesale: prixDynadot,
-          prix_client: prixDynadot != null ? calculerPrixClient(prixDynadot) : null,
-        });
-      } catch (errUnique) {
-        console.error(`Erreur vérification ${domaineComplet}:`, errUnique);
-        resultats.push({ domaine: domaineComplet, disponible: false, prix_wholesale: null, prix_client: null });
-      }
+      const { disponible, prix } = await verifierDomaineDynadot(domaineComplet);
+      resultats.push({
+        domaine: domaineComplet,
+        disponible,
+        prix_wholesale: prix,
+        prix_client: prix != null ? calculerPrixClient(prix) : null,
+      });
     }
 
     res.json({ resultats });
@@ -96,15 +119,12 @@ router.post('/check-availability', authenticateToken, async (req, res) => {
   }
 
   try {
-    const url = `${DYNADOT_API_URL}?key=${DYNADOT_API_KEY}&command=check&domain=${domain}`;
-    const response = await fetch(url);
-    const data = await response.json();
-
-    const prixDynadot = data.Price != null ? (parseFloat(data.Price) || 12.99) : 12.99;
+    const { disponible, prix } = await verifierDomaineDynadot(domain);
+    const prixDynadot = prix != null ? prix : 12.99;
     const prixClient = calculerPrixClient(prixDynadot);
 
     res.json({
-      disponible: Number(data.IsAvailable) === 1,
+      disponible,
       prix_wholesale: prixDynadot,
       prix_client: prixClient,
     });
@@ -133,18 +153,16 @@ router.post('/create-checkout', authenticateToken, async (req, res) => {
 
   try {
     // Vérifier que le domaine est toujours disponible ET récupérer son prix réel
-    const checkUrl = `${DYNADOT_API_URL}?key=${DYNADOT_API_KEY}&command=check&domain=${domain}`;
-    const checkResponse = await fetch(checkUrl);
-    const checkData = await checkResponse.json();
-    
-    if (Number(checkData.IsAvailable) !== 1) {
+    const { disponible, prix } = await verifierDomaineDynadot(domain);
+
+    if (!disponible) {
       return res.status(409).json({ 
         error: 'Domaine plus disponible', 
         domaine: domain 
       });
     }
 
-    const prixDynadot = checkData.Price != null ? (parseFloat(checkData.Price) || 12.99) : 12.99;
+    const prixDynadot = prix != null ? prix : 12.99;
     const prixClient = calculerPrixClient(prixDynadot);
     const prixClientCents = Math.round(prixClient * 100);
 
@@ -395,10 +413,8 @@ router.post('/domaines/:id/renouveler-maintenant', authenticateToken, async (req
     }
 
     // Prix réel actuel chez Dynadot (peut avoir changé depuis l'achat initial)
-    const checkUrl = `${DYNADOT_API_URL}?key=${DYNADOT_API_KEY}&command=check&domain=${domaineRow.domaine}`;
-    const checkResponse = await fetch(checkUrl);
-    const checkData = await checkResponse.json();
-    const prixDynadot = checkData.Price != null ? (parseFloat(checkData.Price) || domaineRow.prix_dynadot || 12.99) : (domaineRow.prix_dynadot || 12.99);
+    const { prix } = await verifierDomaineDynadot(domaineRow.domaine);
+    const prixDynadot = prix != null ? prix : (domaineRow.prix_dynadot || 12.99);
     const prixClient = calculerPrixClient(prixDynadot);
 
     const session = await stripe.checkout.sessions.create({
@@ -492,10 +508,7 @@ router.post('/stripe-webhook', express.raw({ type: 'application/json' }), async 
 
       if (registerResult.success) {
         // Récupérer le prix réel Dynadot pour référence (utile au renouvellement)
-        const checkUrl = `${DYNADOT_API_URL}?key=${DYNADOT_API_KEY}&command=check&domain=${domain}`;
-        const checkResponse = await fetch(checkUrl);
-        const checkData = await checkResponse.json();
-        const prixDynadot = checkData.Price != null ? (parseFloat(checkData.Price) || null) : null;
+        const { prix: prixDynadot } = await verifierDomaineDynadot(domain);
         const prixClient = session.amount_total ? session.amount_total / 100 : calculerPrixClient(prixDynadot);
 
         // ✅ Sauvegarder dans l'historique d'achats
