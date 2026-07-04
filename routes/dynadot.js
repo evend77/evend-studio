@@ -59,14 +59,19 @@ router.post('/check-availability-multi', authenticateToken, async (req, res) => 
     const response = await fetch(`${DYNADOT_API_URL}?${params.toString()}`);
     const data = await response.json();
 
-    // La forme exacte de la réponse peut varier selon la version de l'API —
-    // on normalise en un tableau simple pour le frontend.
-    const resultatsBruts = data.SearchResponse?.SearchResults || data.SearchResults || [];
-    const resultats = (Array.isArray(resultatsBruts) ? resultatsBruts : [resultatsBruts]).map(r => {
-      const prixDynadot = parseFloat(r.Price) || null;
+    // Structure réelle Dynadot (confirmée par la doc officielle) :
+    // { "SearchResponse": [ { "SearchHeader": { DomainName, Available, Price } }, ... ] }
+    // (peut être un objet seul, pas un tableau, si un seul domaine est cherché — donc on normalise)
+    const reponses = Array.isArray(data.SearchResponse)
+      ? data.SearchResponse
+      : (data.SearchResponse ? [data.SearchResponse] : []);
+
+    const resultats = reponses.map(r => {
+      const header = r.SearchHeader || r;
+      const prixDynadot = parseFloat(header.Price) || null; // "77.00 in USD" → 77
       return {
-        domaine: r.DomainName || r.Domain,
-        disponible: r.Available === 'yes' || r.IsAvailable === 1,
+        domaine: header.DomainName,
+        disponible: header.Available === 'yes',
         prix_wholesale: prixDynadot,
         prix_client: prixDynadot != null ? calculerPrixClient(prixDynadot) : null,
       };
