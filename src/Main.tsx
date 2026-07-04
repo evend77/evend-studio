@@ -43,29 +43,52 @@ export default function Main() {
     const hostname = window.location.hostname;
     const parties = hostname.split('.');
 
-    // On ne détecte un sous-domaine client que sur un hostname du type
-    // xxx.e-vendstudio.ca (3 segments), en excluant www et le domaine nu.
-    const estCandidat =
+    // Cas A — sous-domaine gratuit du type xxx.e-vendstudio.ca (3 segments),
+    // en excluant www et le domaine nu.
+    const estSousDomaineClient =
       parties.length === 3 &&
       hostname.endsWith('.e-vendstudio.ca') &&
       !SOUS_DOMAINES_NON_CLIENTS.includes(parties[0]);
 
-    if (!estCandidat) {
-      setSousDomaineCheck({ verifie: true, gestionnaireId: null });
+    if (estSousDomaineClient) {
+      const slug = parties[0];
+      fetch(`${API_BASE}/studio/sites/sous-domaine/public/${encodeURIComponent(slug)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.success && data?.gestionnaire_id) {
+            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id });
+          } else {
+            setSousDomaineCheck({ verifie: true, gestionnaireId: null });
+          }
+        })
+        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null }));
       return;
     }
 
-    const slug = parties[0];
-    fetch(`${API_BASE}/studio/sites/sous-domaine/public/${encodeURIComponent(slug)}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.success && data?.gestionnaire_id) {
-          setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id });
-        } else {
-          setSousDomaineCheck({ verifie: true, gestionnaireId: null });
-        }
-      })
-      .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null }));
+    // Cas B — domaine personnalisé externe d'un gestionnaire (ex: www.idee-cadeau.ca).
+    // On exclut nos propres domaines (e-vendstudio.ca et localhost/dev).
+    const estNotreDomaine =
+      hostname.endsWith('e-vendstudio.ca') ||
+      hostname === 'localhost' ||
+      hostname.endsWith('.onrender.com');
+
+    if (!estNotreDomaine) {
+      fetch(`${API_BASE}/studio/sites/domaine-perso/public/${encodeURIComponent(hostname)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.success && data?.gestionnaire_id) {
+            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id });
+          } else {
+            setSousDomaineCheck({ verifie: true, gestionnaireId: null });
+          }
+        })
+        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null }));
+      return;
+    }
+
+    // Sinon (e-vendstudio.ca, www.e-vendstudio.ca, localhost, etc.) : rien à faire,
+    // on affiche la plateforme normalement.
+    setSousDomaineCheck({ verifie: true, gestionnaireId: null });
   }, []);
 
   useEffect(() => {

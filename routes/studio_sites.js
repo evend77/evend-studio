@@ -97,6 +97,37 @@ router.get('/sousdomaine/verifier/:slug', async (req, res) => {
 });
 
 // =====================================================================
+// GET /api/studio/sites/domaine-perso/public/:domaine
+// Route PUBLIQUE (aucune auth) — utilisée par le frontend pour afficher
+// le site correspondant quand un visiteur arrive sur un domaine personnalisé
+// externe (ex: www.idee-cadeau.ca), en plus de la route sous-domaine.
+// =====================================================================
+router.get('/domaine-perso/public/:domaine', async (req, res) => {
+  try {
+    const domaine = decodeURIComponent(req.params.domaine || '').toLowerCase().trim();
+
+    const result = await pool.query(
+      `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie,
+              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description
+       FROM sites s
+       JOIN gestionnaires g ON g.id = s.gestionnaire_id
+       WHERE s.domaine_perso = $1
+       LIMIT 1`,
+      [domaine]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ success: false, message: 'Aucun site trouvé pour ce domaine.' });
+    }
+
+    return res.json({ success: true, ...result.rows[0] });
+  } catch (err) {
+    console.error('GET /studio/sites/domaine-perso/public/:domaine', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================================
 // GET /api/studio/sites/sous-domaine/public/:slug
 // Route PUBLIQUE (aucune auth) — utilisée par le frontend pour afficher
 // le site correspondant quand un visiteur arrive sur xxx.e-vendstudio.ca
