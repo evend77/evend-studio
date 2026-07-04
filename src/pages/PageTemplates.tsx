@@ -95,6 +95,7 @@ export interface Template {
   nouveau: boolean;
   couleur: string;
   prix?: string;  // ex: '25$ / achat unique' — vide = gratuit
+  icone?: string; // emoji optionnel, sinon 📄 par défaut (utilisé dans PageAdminTemplatesPrix)
 }
 
 export const TEMPLATES: Template[] = [
