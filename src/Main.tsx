@@ -28,6 +28,46 @@ export default function Main() {
   const [user, setUser]       = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // ── Détection d'un sous-domaine client (xxx.e-vendstudio.ca) ───────────────
+  // Si le visiteur arrive sur un sous-domaine gratuit, on affiche directement
+  // le site du gestionnaire correspondant au lieu de la page marketing.
+  const [sousDomaineCheck, setSousDomaineCheck] = useState<{
+    verifie: boolean;
+    gestionnaireId: number | null;
+  }>({ verifie: false, gestionnaireId: null });
+
+  // Sous-domaines qui NE sont PAS des sites clients (domaine racine, www, outils dev)
+  const SOUS_DOMAINES_NON_CLIENTS = ['www', 'e-vendstudio', 'localhost'];
+
+  useEffect(() => {
+    const hostname = window.location.hostname;
+    const parties = hostname.split('.');
+
+    // On ne détecte un sous-domaine client que sur un hostname du type
+    // xxx.e-vendstudio.ca (3 segments), en excluant www et le domaine nu.
+    const estCandidat =
+      parties.length === 3 &&
+      hostname.endsWith('.e-vendstudio.ca') &&
+      !SOUS_DOMAINES_NON_CLIENTS.includes(parties[0]);
+
+    if (!estCandidat) {
+      setSousDomaineCheck({ verifie: true, gestionnaireId: null });
+      return;
+    }
+
+    const slug = parties[0];
+    fetch(`${API_BASE}/studio/sites/sous-domaine/public/${encodeURIComponent(slug)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.success && data?.gestionnaire_id) {
+          setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id });
+        } else {
+          setSousDomaineCheck({ verifie: true, gestionnaireId: null });
+        }
+      })
+      .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null }));
+  }, []);
+
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) { setLoading(false); return; }
@@ -55,7 +95,7 @@ export default function Main() {
     setUser(null);
   };
 
-  if (loading) {
+  if (!sousDomaineCheck.verifie || loading) {
     return (
       <div style={{ minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ textAlign: 'center' }}>
@@ -65,6 +105,17 @@ export default function Main() {
           <div style={{ color: 'rgba(255,255,255,0.3)', fontSize: 14 }}>Chargement...</div>
         </div>
       </div>
+    );
+  }
+
+  // ── Sous-domaine client détecté : on affiche directement son site ──────────
+  // (peu importe le chemin visité — /, /catalogue, etc. — puisque le site du
+  // gestionnaire gère lui-même sa navigation interne via son template)
+  if (sousDomaineCheck.gestionnaireId) {
+    return (
+      <BrowserRouter>
+        <SitePreview vendeurIdProp={sousDomaineCheck.gestionnaireId} hidePreviewBar />
+      </BrowserRouter>
     );
   }
 

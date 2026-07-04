@@ -46,6 +46,11 @@ import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMu
 
 const API_BASE = '/api';
 
+interface SitePreviewProps {
+  vendeurIdProp?: number | string;
+  hidePreviewBar?: boolean;
+}
+
 // ─── Configs démo 100% hardcodées — zéro API ─────────────────────────────────
 const DEMO_PRODUITS_PREMIUM = [
   { id:1, titre:'Montre Édition Limitée', prix:299.99, prix_promo:249.99, stock:5, categorie:'Accessoires', note_moyenne:4.8, nb_avis:124, description:'Montre de luxe avec boîtier en acier inoxydable et cadran saphir. Étanche 50m. Garantie 2 ans.', photo_principale:'' },
@@ -136,9 +141,9 @@ const DEMO_CONFIG_GENERIQUE = {
   description: 'Ceci est un aperçu démo du template.',
 };
 
-export default function SitePreview() {
+export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePreviewProps = {}) {
   const [params]  = useSearchParams();
-  const vendeurId = params.get('vendeurId');
+  const vendeurId = vendeurIdProp != null ? String(vendeurIdProp) : params.get('vendeurId');
   const forceTemplate = params.get('forceTemplate');
   const isDemo    = params.get('demo') === 'true';
 
@@ -282,8 +287,8 @@ export default function SitePreview() {
         </div>
       )}
 
-      {/* Barre d'aperçu normale (non démo) */}
-      {!isDemo && (
+      {/* Barre d'aperçu normale (non démo, non site public live) */}
+      {!isDemo && !hidePreviewBar && (
         <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, height: 36, background: 'rgba(10,10,10,0.88)', backdropFilter: 'blur(8px)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 20px', fontFamily: 'sans-serif', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#c9a96e', letterSpacing: '1px' }}>e-VEND STUDIO</span>

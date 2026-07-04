@@ -88,6 +88,40 @@ router.get('/sousdomaine/verifier/:slug', async (req, res) => {
 });
 
 // =====================================================================
+// GET /api/studio/sites/sous-domaine/public/:slug
+// Route PUBLIQUE (aucune auth) — utilisée par le frontend pour afficher
+// le site correspondant quand un visiteur arrive sur xxx.e-vendstudio.ca
+//
+// ⚠️ IMPORTANT : cette route DOIT rester déclarée AVANT la route générique
+// GET /:gestionnaireId ci-dessous, sinon Express interprète "sous-domaine"
+// comme une valeur de :gestionnaireId.
+// =====================================================================
+router.get('/sous-domaine/public/:slug', async (req, res) => {
+  try {
+    const slug = (req.params.slug || '').toLowerCase().trim();
+
+    const result = await pool.query(
+      `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie,
+              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description
+       FROM sites s
+       JOIN gestionnaires g ON g.id = s.gestionnaire_id
+       WHERE s.sous_domaine = $1
+       LIMIT 1`,
+      [slug]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ success: false, message: 'Aucun site trouvé pour ce sous-domaine.' });
+    }
+
+    return res.json({ success: true, ...result.rows[0] });
+  } catch (err) {
+    console.error('GET /studio/sites/sous-domaine/public/:slug', err);
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// =====================================================================
 // GET /api/studio/sites/:gestionnaireId
 // =====================================================================
 router.get('/:gestionnaireId', async (req, res) => {
