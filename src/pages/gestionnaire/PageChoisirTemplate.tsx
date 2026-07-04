@@ -1,7 +1,8 @@
 // src/pages/gestionnaire/PageChoisirTemplate.tsx
 // e-Vend Studio — Choix de template au premier login ou depuis le menu
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { TEMPLATES as CATALOGUE_TEMPLATES } from '../PageTemplates';
 
 const API_BASE = '/api';
 
@@ -389,6 +390,26 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [modalSimplisseOuvert, setModalSimplisseOuvert] = useState(false);
   const [enregistrementPlan, setEnregistrementPlan] = useState(false);
   const [modalResetOuvert, setModalResetOuvert] = useState(false);
+  const [prixParTemplate, setPrixParTemplate] = useState<Record<string, string>>({});
+
+  // Prix configurés dans le dashboard admin — si l'appel échoue, on retombe
+  // simplement sur le prix codé en dur (ou "Gratuit") comme avant.
+  // Résolution : surcharge du template > défaut de sa catégorie > "Gratuit".
+  useEffect(() => {
+    fetch('/api/templates/prix')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success) return;
+        const map: Record<string, string> = {};
+        for (const t of CATALOGUE_TEMPLATES) {
+          const surcharge = data.templates[t.id]?.prix_texte;
+          const defautCategorie = data.groupes[t.groupe]?.prix_texte;
+          map[t.id] = surcharge || defautCategorie || 'Gratuit';
+        }
+        setPrixParTemplate(map);
+      })
+      .catch(() => { /* silencieux — fallback sur les prix codés en dur */ });
+  }, []);
 
   const handleChoisirSimplisse = () => setModalSimplisseOuvert(true);
   const [modalPremiumOuvert, setModalPremiumOuvert] = useState(false);
@@ -784,8 +805,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                             ? <span style={{ fontSize: 10, background: '#e5e7eb', color: '#888', padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>Bientôt</span>
                             : t.badge
                             ? <span style={{ fontSize: 10, background: `${t.badgeCouleur || t.couleur}18`, color: t.badgeCouleur || t.couleur, padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{t.badge}</span>
-                            : (t as any).prix
-                            ? <span style={{ fontSize: 10, background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{(t as any).prix}</span>
+                            : (prixParTemplate[t.id] || (t as any).prix) && (prixParTemplate[t.id] || (t as any).prix) !== 'Gratuit'
+                            ? <span style={{ fontSize: 10, background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{prixParTemplate[t.id] || (t as any).prix}</span>
                             : <span style={{ fontSize: 10, background: `${t.couleur}18`, color: t.couleur, padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>Gratuit</span>
                           }
                         </div>

@@ -44,6 +44,28 @@ export default function MonDomaine({ gestionnaireId }: Props) {
   const TAUX_TVQ = 0.09975;
   const PRIX_TOTAL = PRIX_DOMAINE * (1 + TAUX_TPS + TAUX_TVQ);
 
+  // ── Charger les données existantes du site (sous-domaine, domaine perso) ───
+  useEffect(() => {
+    const chargerSite = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`/api/studio/sites/${gestionnaireId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setSousDomaine(data.sous_domaine || '');
+          setDomainePerso(data.domaine_perso || '');
+        }
+      } catch (error) {
+        console.error('Erreur chargement site:', error);
+      }
+    };
+
+    chargerSite();
+  }, [gestionnaireId]);
+
   // ── Charger les domaines achetés ───────────────────────────────────────────
   useEffect(() => {
     const chargerDomaines = async () => {

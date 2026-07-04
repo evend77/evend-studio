@@ -1,7 +1,7 @@
 // src/pages/PageTemplates.tsx
 // e-Vend Studio — Galerie publique des templates disponibles
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 // ─── PHOTOS par catégorie (Pexels libre de droits) ───────────────────────────
@@ -525,8 +525,10 @@ function ouvrirApercu(templateId: string) {
 
 // ─── COMPOSANT CARTE TEMPLATE ─────────────────────────────────────────────────
 
-function CarteTemplate({ t, onCommencer }: { t: Template; onCommencer: (id: string) => void }) {
+function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommencer: (id: string) => void; prixAffiche?: string }) {
   const [survol, setSurvol] = useState(false);
+  const prixFinal = prixAffiche || t.prix || 'Gratuit';
+  const estGratuit = prixFinal === 'Gratuit';
 
   return (
     <div
@@ -570,8 +572,8 @@ function CarteTemplate({ t, onCommencer }: { t: Template; onCommencer: (id: stri
       <div className="template-card-content" style={{ padding: '18px 20px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <h3 className="template-card-title" style={{ fontSize: 17, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>{t.nom}</h3>
-          <span className="template-card-price" style={{ background: t.prix ? '#f59e0b22' : t.couleur + '20', color: t.prix ? '#b45309' : t.couleur, padding: '3px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap', marginLeft: 8 }}>
-            {t.prix || 'Gratuit'}
+          <span className="template-card-price" style={{ background: estGratuit ? t.couleur + '20' : '#f59e0b22', color: estGratuit ? t.couleur : '#b45309', padding: '3px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap', marginLeft: 8 }}>
+            {prixFinal}
           </span>
         </div>
 
@@ -640,6 +642,26 @@ export default function PageTemplates() {
   const [filtreGroupe, setFiltreGroupe] = useState<Groupe | 'tous'>('tous');
   const [recherche, setRecherche] = useState('');
   const [menuMobile, setMenuMobile] = useState(false);
+  const [prixParTemplate, setPrixParTemplate] = useState<Record<string, string>>({});
+
+  // Prix réels configurés dans le dashboard admin — si l'appel échoue,
+  // les cartes retombent simplement sur t.prix codé en dur (ou "Gratuit").
+  // Résolution : surcharge du template > défaut de sa catégorie > "Gratuit".
+  useEffect(() => {
+    fetch('/api/templates/prix')
+      .then(res => res.json())
+      .then(data => {
+        if (!data.success) return;
+        const map: Record<string, string> = {};
+        for (const t of TEMPLATES) {
+          const surcharge = data.templates[t.id]?.prix_texte;
+          const defautCategorie = data.groupes[t.groupe]?.prix_texte;
+          map[t.id] = surcharge || defautCategorie || 'Gratuit';
+        }
+        setPrixParTemplate(map);
+      })
+      .catch(() => { /* silencieux — fallback sur les prix codés en dur */ });
+  }, []);
 
   const templatesFiltres = TEMPLATES.filter(t => {
     if (filtreGroupe !== 'tous' && t.groupe !== filtreGroupe) return false;
@@ -671,7 +693,21 @@ export default function PageTemplates() {
           .main-with-sidebar { margin-left: 0 !important; }
           .nav-links-desktop { display: none !important; }
         }
+        @media (max-width: 480px) {
+          .nav-logo-text { display: none !important; }
+          .nav-btn-login, .nav-btn-signup {
+            padding: 7px 12px !important;
+            font-size: 12px !important;
+          }
+        }
         @media (max-width: 640px) {
+          .hero-chip {
+            font-size: 12px !important;
+            padding: 7px 14px !important;
+            max-width: calc(100vw - 48px) !important;
+            white-space: normal !important;
+            text-align: center !important;
+          }
           .templates-mobile-grid {
             grid-template-columns: repeat(2, 1fr) !important;
             gap: 10px !important;
@@ -699,7 +735,7 @@ export default function PageTemplates() {
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 24px', height: 68, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigate('/')}>
             <span style={{ fontSize: 22, fontWeight: 800, background: 'linear-gradient(135deg,#c9a96e,#e8c87a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>e</span>
-            <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '2px', color: '#fff' }}>VEND STUDIO</span>
+            <span className="nav-logo-text" style={{ fontSize: 13, fontWeight: 700, letterSpacing: '2px', color: '#fff' }}>VEND STUDIO</span>
           </div>
 
           <div className="nav-links-desktop" style={{ display: 'flex', gap: 32 }}>
@@ -710,12 +746,12 @@ export default function PageTemplates() {
             ))}
           </div>
 
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={() => navigate('/login')}
+          <div className="nav-cta-buttons" style={{ display: 'flex', gap: 10 }}>
+            <button className="nav-btn-login" onClick={() => navigate('/login')}
               style={{ padding: '8px 20px', background: 'transparent', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 30, color: '#fff', fontSize: 14, cursor: 'pointer' }}>
               Connexion
             </button>
-            <button onClick={() => navigate('/inscription')}
+            <button className="nav-btn-signup" onClick={() => navigate('/inscription')}
               style={{ padding: '8px 20px', background: '#c9a96e', border: 'none', borderRadius: 30, color: '#000', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
               Démarrer →
             </button>
@@ -739,14 +775,14 @@ export default function PageTemplates() {
           </p>
           {/* Chips groupes */}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button onClick={() => setFiltreGroupe('tous')}
+            <button className="hero-chip" onClick={() => setFiltreGroupe('tous')}
               style={{ padding: '8px 20px', borderRadius: 30, border: `1.5px solid ${filtreGroupe === 'tous' ? '#c9a96e' : 'rgba(255,255,255,0.15)'}`, background: filtreGroupe === 'tous' ? '#c9a96e' : 'transparent', color: filtreGroupe === 'tous' ? '#000' : 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               Tous ({TEMPLATES.filter(t => t.disponible).length})
             </button>
             {GROUPES.map(g => {
               const count = TEMPLATES.filter(t => t.groupe === g.id && t.disponible).length;
               return (
-                <button key={g.id} onClick={() => setFiltreGroupe(g.id)}
+                <button key={g.id} className="hero-chip" onClick={() => setFiltreGroupe(g.id)}
                   style={{ padding: '8px 20px', borderRadius: 30, border: `1.5px solid ${filtreGroupe === g.id ? g.couleur : 'rgba(255,255,255,0.15)'}`, background: filtreGroupe === g.id ? g.couleur + '20' : 'transparent', color: filtreGroupe === g.id ? g.couleur : 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   {g.icone} {g.label} ({count})
                 </button>
@@ -800,7 +836,7 @@ export default function PageTemplates() {
         </aside>
 
         {/* Contenu principal */}
-        <main className="main-with-sidebar" style={{ flex: 1, paddingTop: 40 }}>
+        <main className="main-with-sidebar" style={{ flex: 1, minWidth: 0, paddingTop: 40 }}>
           {templatesFiltres.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '80px 0' }}>
               <p style={{ fontSize: 48, marginBottom: 16 }}>🔍</p>
@@ -817,8 +853,8 @@ export default function PageTemplates() {
                     <div style={{ width: 44, height: 44, borderRadius: 10, background: groupe.couleur + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
                       {groupe.icone}
                     </div>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                         <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>{groupe.label}</h2>
                         <span style={{ fontSize: 11, background: groupe.couleur + '20', color: groupe.couleur, padding: '2px 10px', borderRadius: 20, fontWeight: 700 }}>
                           {tempsGroupe.filter(t => t.disponible).length} disponibles
@@ -832,7 +868,7 @@ export default function PageTemplates() {
                   <div className="templates-mobile-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
                     {tempsGroupe.map((t, i) => (
                       <div key={t.id} className="fade-up" style={{ animationDelay: `${i * 0.06}s` }}>
-                        <CarteTemplate t={t} onCommencer={onCommencer} />
+                        <CarteTemplate t={t} onCommencer={onCommencer} prixAffiche={prixParTemplate[t.id]} />
                       </div>
                     ))}
                   </div>

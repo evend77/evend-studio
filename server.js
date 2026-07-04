@@ -24,6 +24,8 @@ const guidesAddons        = require('./routes/guides_addons');
 const blogsCollaborateur    = require('./routes/blogs_collaborateur');
 const faqsCollaborateur     = require('./routes/faqs_collaborateur');
 const studioSites = require('./routes/studio_sites');
+const templatesPrix       = require('./routes/templates_prix');
+const templatesPrixPublic = require('./routes/templates_prix_public');
 
 const app  = express();
 const port = process.env.PORT || 5000;
@@ -96,6 +98,8 @@ app.use('/api/contactPlateforme', require('./routes/contactPlateforme'));
 
 // ✅ ADMIN CONFIGURATION
 app.use('/api/admin/configuration', require('./routes/configuration_admin'));
+app.use('/api/admin/templates-prix', templatesPrix);
+app.use('/api/templates', templatesPrixPublic);
 
 // ✅ WEBHOOK DYNADOT (route)
 app.use('/api/webhooks/dynadot', require('./routes/webhooks-dynadot'));

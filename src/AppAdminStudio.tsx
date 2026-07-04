@@ -41,6 +41,7 @@ import IntegrationCode from './pages/admin/IntegrationCode';
 import AdminAddons from './pages/admin/AdminAddons';
 import GuidesAddons from './pages/admin/GuidesAddons';
 import AddonsActives from './pages/admin/AddonsActives';
+import PageAdminTemplatesPrix from './pages/admin/PageAdminTemplatesPrix';
 import StatistiquesSignalements from './pages/admin/StatistiquesSignalements';
 import MonForfaitPlateforme from './pages/admin/MonForfaitPlateforme';
 import ChampsPersonnalises from './pages/admin/ChampsPersonnalises';
@@ -198,6 +199,12 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'addons-gestion',  label: 'Gestion add-ons',  icon: '⚙️' },
       { id: 'addons-guides',   label: 'Guides add-ons',   icon: '📖' },
       { id: 'addons-actives',  label: 'Add-ons activés',  icon: '✅' },
+    ],
+  },
+  {
+    id: 'templates', label: 'Templates', icon: '🎨',
+    sousSections: [
+      { id: 'templates-prix', label: 'Prix Template', icon: '💰' },
     ],
   },
   {
@@ -671,6 +678,10 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur }: { o
         return <GuidesAddons />;
       case 'addons-actives':
         return <AddonsActives naviguerVers={naviguerVers} />;
+
+      case 'templates':
+      case 'templates-prix':
+        return <PageAdminTemplatesPrix />;
 
       case 'parametres':
       case 'parametres-menu':
