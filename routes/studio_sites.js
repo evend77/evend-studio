@@ -6,7 +6,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const { authenticateToken } = require('../middleware/auth');
-const cloudflareService = require('../services/cloudflareService');
+const renderService = require('../services/renderService');
 
 // =====================================================================
 // 🌐 GESTION DE DOMAINE — constantes & utilitaires
@@ -216,38 +216,37 @@ router.put('/:gestionnaireId/domaine', authenticateToken, async (req, res) => {
     }
 
     const ancienDomainePerso = actuel.rows[0].domaine_perso;
-    const ancienCfId = actuel.rows[0].cf_hostname_id;
+    const ancienCfId = actuel.rows[0].cf_hostname_id; // réutilisé : stocke maintenant l'ID du domaine Render
     let cfHostnameId = ancienCfId;
     let domaineStatut = null;
-    let avertissementCloudflare = null;
+    let avertissementRender = null;
 
-    // ── Si le domaine perso a changé, gérer Cloudflare ──
+    // ── Si le domaine perso a changé, gérer Render ──
     if (domaine_perso && domaine_perso !== ancienDomainePerso) {
-      // Retirer l'ancien hostname Cloudflare s'il y en avait un
-      if (ancienCfId) {
+      // Retirer l'ancien domaine Render s'il y en avait un
+      if (ancienDomainePerso) {
         try {
-          await cloudflareService.supprimerCustomHostname(ancienCfId);
+          await renderService.supprimerDomainePerso(ancienDomainePerso);
         } catch (e) {
-          console.warn('Impossible de supprimer l\'ancien Custom Hostname:', e.message);
+          console.warn('Impossible de supprimer l\'ancien domaine Render:', e.message);
         }
       }
 
-      try {
-        const resultat = await cloudflareService.creerCustomHostname(domaine_perso);
-        cfHostnameId = resultat.id;
+      const resultat = await renderService.ajouterDomainePerso(domaine_perso);
+      if (resultat.success) {
+        cfHostnameId = resultat.domaine?.id || null;
         domaineStatut = 'en_attente';
-      } catch (e) {
-        console.error('Erreur création Custom Hostname Cloudflare:', e.message);
+      } else {
         cfHostnameId = null;
         domaineStatut = 'erreur';
-        avertissementCloudflare = `Le domaine a été enregistré, mais la configuration Cloudflare a échoué : ${e.message}`;
+        avertissementRender = `Le domaine a été enregistré, mais la configuration Render a échoué : ${resultat.erreur}`;
       }
-    } else if (!domaine_perso && ancienCfId) {
+    } else if (!domaine_perso && ancienDomainePerso) {
       // Le gestionnaire a retiré son domaine perso
       try {
-        await cloudflareService.supprimerCustomHostname(ancienCfId);
+        await renderService.supprimerDomainePerso(ancienDomainePerso);
       } catch (e) {
-        console.warn('Impossible de supprimer le Custom Hostname retiré:', e.message);
+        console.warn('Impossible de supprimer le domaine Render retiré:', e.message);
       }
       cfHostnameId = null;
       domaineStatut = null;
@@ -269,13 +268,13 @@ router.put('/:gestionnaireId/domaine', authenticateToken, async (req, res) => {
       sous_domaine: sous_domaine || null,
       domaine_perso: domaine_perso || null,
       domaine_statut: domaineStatut,
-      avertissement: avertissementCloudflare,
+      avertissement: avertissementRender,
       instructions: domaine_perso
         ? {
             type: 'CNAME',
             hote: domaine_perso.startsWith('www.') ? 'www' : '@',
-            valeur: 'sites.e-vendstudio.ca',
-            message: `Configurez un enregistrement CNAME pour ${domaine_perso} pointant vers sites.e-vendstudio.ca`,
+            valeur: 'evend-studio.onrender.com',
+            message: `Configurez un enregistrement CNAME pour ${domaine_perso} pointant vers evend-studio.onrender.com`,
           }
         : null,
     });
@@ -287,7 +286,7 @@ router.put('/:gestionnaireId/domaine', authenticateToken, async (req, res) => {
 
 // =====================================================================
 // GET /api/studio/sites/:gestionnaireId/domaine/statut
-// Vérifie en direct le statut de vérification Cloudflare (pour polling UI)
+// Vérifie en direct le statut de vérification Render (pour polling UI)
 // =====================================================================
 router.get('/:gestionnaireId/domaine/statut', authenticateToken, async (req, res) => {
   const { gestionnaireId } = req.params;
@@ -299,7 +298,7 @@ router.get('/:gestionnaireId/domaine/statut', authenticateToken, async (req, res
 
   try {
     const result = await pool.query(
-      `SELECT domaine_perso, cf_hostname_id FROM sites WHERE gestionnaire_id = $1 LIMIT 1`,
+      `SELECT domaine_perso FROM sites WHERE gestionnaire_id = $1 LIMIT 1`,
       [gestionnaireId]
     );
 
@@ -307,13 +306,29 @@ router.get('/:gestionnaireId/domaine/statut', authenticateToken, async (req, res
       return res.json({ success: true, statut: 'aucun', message: 'Aucun domaine personnalisé configuré.' });
     }
 
-    const { cf_hostname_id } = result.rows[0];
-    if (!cf_hostname_id) {
-      return res.json({ success: true, statut: 'erreur', message: 'Aucune configuration Cloudflare associée.' });
+    const { domaine_perso } = result.rows[0];
+    const resultat = await renderService.obtenirStatutDomaine(domaine_perso);
+
+    if (!resultat.success || !resultat.trouve) {
+      return res.json({
+        success: true,
+        statut: 'erreur',
+        message: resultat.erreur || 'Impossible de vérifier le statut sur Render.',
+      });
     }
 
-    const cfResultat = await cloudflareService.statutCustomHostname(cf_hostname_id);
-    const { statut, message } = cloudflareService.traduireStatut(cfResultat);
+    // Traduction des statuts Render en statuts internes
+    const d = resultat.domaine || {};
+    const verifie = d.verificationStatus === 'verified';
+    const certificatEmis = d.domainType || d.certificate; // selon la forme exacte retournée par l'API
+
+    let statut = 'en_attente';
+    let message = 'En attente de vérification DNS. Assurez-vous que le CNAME pointe bien vers evend-studio.onrender.com.';
+
+    if (verifie) {
+      statut = 'actif';
+      message = 'Domaine actif et sécurisé (SSL valide).';
+    }
 
     // Mettre à jour le statut en BD si actif
     if (statut === 'actif') {

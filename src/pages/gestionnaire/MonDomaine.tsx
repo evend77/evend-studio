@@ -528,7 +528,7 @@ export default function MonDomaine({ gestionnaireId }: Props) {
         )}
 
         <div style={{ marginTop: 12, background: '#f8f8f8', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: '#555', fontFamily: 'monospace' }}>
-          CNAME → sites.e-vendstudio.ca
+          CNAME → evend-studio.onrender.com
         </div>
         <p style={{ fontSize: 11, color: '#999', marginTop: 8 }}>
           ⏱️ La propagation DNS peut prendre jusqu'à 48h.
