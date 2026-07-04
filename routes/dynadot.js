@@ -59,7 +59,7 @@ router.post('/check-availability-multi', authenticateToken, async (req, res) => 
         const response = await fetch(url);
         const data = await response.json();
 
-        const prixDynadot = data.Price || null;
+        const prixDynadot = data.Price != null ? parseFloat(data.Price) || null : null;
         resultats.push({
           domaine: domaineComplet,
           disponible: data.IsAvailable === 1,
@@ -100,7 +100,7 @@ router.post('/check-availability', authenticateToken, async (req, res) => {
     const response = await fetch(url);
     const data = await response.json();
 
-    const prixDynadot = data.Price || 12.99;
+    const prixDynadot = data.Price != null ? (parseFloat(data.Price) || 12.99) : 12.99;
     const prixClient = calculerPrixClient(prixDynadot);
 
     res.json({
@@ -144,7 +144,7 @@ router.post('/create-checkout', authenticateToken, async (req, res) => {
       });
     }
 
-    const prixDynadot = checkData.Price || 12.99;
+    const prixDynadot = checkData.Price != null ? (parseFloat(checkData.Price) || 12.99) : 12.99;
     const prixClient = calculerPrixClient(prixDynadot);
     const prixClientCents = Math.round(prixClient * 100);
 
@@ -398,7 +398,7 @@ router.post('/domaines/:id/renouveler-maintenant', authenticateToken, async (req
     const checkUrl = `${DYNADOT_API_URL}?key=${DYNADOT_API_KEY}&command=check&domain=${domaineRow.domaine}`;
     const checkResponse = await fetch(checkUrl);
     const checkData = await checkResponse.json();
-    const prixDynadot = checkData.Price || domaineRow.prix_dynadot || 12.99;
+    const prixDynadot = checkData.Price != null ? (parseFloat(checkData.Price) || domaineRow.prix_dynadot || 12.99) : (domaineRow.prix_dynadot || 12.99);
     const prixClient = calculerPrixClient(prixDynadot);
 
     const session = await stripe.checkout.sessions.create({
@@ -495,7 +495,7 @@ router.post('/stripe-webhook', express.raw({ type: 'application/json' }), async 
         const checkUrl = `${DYNADOT_API_URL}?key=${DYNADOT_API_KEY}&command=check&domain=${domain}`;
         const checkResponse = await fetch(checkUrl);
         const checkData = await checkResponse.json();
-        const prixDynadot = checkData.Price || null;
+        const prixDynadot = checkData.Price != null ? (parseFloat(checkData.Price) || null) : null;
         const prixClient = session.amount_total ? session.amount_total / 100 : calculerPrixClient(prixDynadot);
 
         // ✅ Sauvegarder dans l'historique d'achats
