@@ -43,8 +43,17 @@ const REGEX_DOMAINE_PERSO = /^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,}$/
 
 function validerFormatDomainePerso(domaine) {
   if (!domaine) return { valide: true }; // optionnel
-  if (!REGEX_DOMAINE_PERSO.test(domaine.trim())) {
-    return { valide: false, erreur: 'Format de domaine invalide (ex: monsite.com).' };
+  const d = domaine.trim().toLowerCase();
+  if (!REGEX_DOMAINE_PERSO.test(d)) {
+    return { valide: false, erreur: 'Format de domaine invalide (ex: www.mondomaine.com).' };
+  }
+  // Un CNAME ne peut pas être posé sur un domaine racine (limitation DNS standard).
+  // On exige donc le préfixe www (le gestionnaire peut rediriger la racine chez son registraire).
+  if (!d.startsWith('www.')) {
+    return {
+      valide: false,
+      erreur: 'Le domaine doit commencer par "www." (ex: www.mondomaine.com). Configurez une redirection pour le domaine sans www chez votre fournisseur.',
+    };
   }
   return { valide: true };
 }

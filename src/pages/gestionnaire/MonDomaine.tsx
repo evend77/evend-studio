@@ -44,28 +44,6 @@ export default function MonDomaine({ gestionnaireId }: Props) {
   const TAUX_TVQ = 0.09975;
   const PRIX_TOTAL = PRIX_DOMAINE * (1 + TAUX_TPS + TAUX_TVQ);
 
-  // ── Charger les données existantes du site (sous-domaine, domaine perso) ───
-  useEffect(() => {
-    const chargerSite = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`/api/studio/sites/${gestionnaireId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          setSousDomaine(data.sous_domaine || '');
-          setDomainePerso(data.domaine_perso || '');
-        }
-      } catch (error) {
-        console.error('Erreur chargement site:', error);
-      }
-    };
-
-    chargerSite();
-  }, [gestionnaireId]);
-
   // ── Charger les domaines achetés ───────────────────────────────────────────
   useEffect(() => {
     const chargerDomaines = async () => {
@@ -522,7 +500,33 @@ export default function MonDomaine({ gestionnaireId }: Props) {
           placeholder="www.mondomaine.com"
           style={{ width: '100%', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }}
         />
-        
+
+        {/* ── Avertissement : le www est obligatoire ── */}
+        <div style={{
+          marginTop: 10,
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          borderRadius: 8,
+          padding: '10px 14px',
+          fontSize: 12.5,
+          color: '#92400e',
+          lineHeight: 1.5,
+        }}>
+          ⚠️ <strong>Important :</strong> entrez votre domaine avec le <strong>www</strong> devant
+          (ex. : <code>www.mondomaine.com</code>). Un domaine sans www (ex. : <code>mondomaine.com</code>)
+          ne peut pas être connecté directement pour des raisons techniques (limitation standard du DNS).
+          Si vous voulez que <code>mondomaine.com</code> (sans www) fonctionne aussi, configurez une
+          redirection vers <code>www.mondomaine.com</code> chez votre fournisseur de domaine — la plupart
+          l'offrent gratuitement.
+        </div>
+
+        {/* ── Avertissement dynamique si le www est manquant ── */}
+        {domainePerso.trim() && !domainePerso.trim().toLowerCase().startsWith('www.') && (
+          <p style={{ fontSize: 12, color: '#dc2626', marginTop: 8, fontWeight: 600 }}>
+            ✗ Il manque le "www." au début. Essayez : www.{domainePerso.trim().replace(/^https?:\/\//, '')}
+          </p>
+        )}
+
         <div style={{ marginTop: 12, background: '#f8f8f8', borderRadius: 8, padding: '12px 16px', fontSize: 13, color: '#555', fontFamily: 'monospace' }}>
           CNAME → sites.e-vendstudio.ca
         </div>
