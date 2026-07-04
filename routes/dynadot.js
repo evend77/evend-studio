@@ -45,37 +45,32 @@ router.post('/check-availability-multi', authenticateToken, async (req, res) => 
   }
 
   try {
-    const params = new URLSearchParams({
-      key: DYNADOT_API_KEY,
-      command: 'search',
-      show_price: '1',
-      currency: 'CAD',
-    });
+    // ⚠️ Notre compte Dynadot est un compte standard (pas "Bulk"/"Super Bulk"),
+    // donc la recherche groupée (domain0-domain99) n'est pas disponible —
+    // il faut vérifier chaque extension une par une, séquentiellement
+    // (Dynadot n'accepte qu'un seul appel API à la fois, en parallèle ça peut
+    // entraîner un blocage temporaire du compte).
+    const resultats = [];
 
-    EXTENSIONS_AUTORISEES.forEach((ext, i) => {
-      params.append(`domain${i}`, `${nomBase}.${ext}`);
-    });
+    for (const ext of EXTENSIONS_AUTORISEES) {
+      const domaineComplet = `${nomBase}.${ext}`;
+      try {
+        const url = `${DYNADOT_API_URL}?key=${DYNADOT_API_KEY}&command=check&domain=${domaineComplet}`;
+        const response = await fetch(url);
+        const data = await response.json();
 
-    const response = await fetch(`${DYNADOT_API_URL}?${params.toString()}`);
-    const data = await response.json();
-
-    // Structure réelle Dynadot (confirmée par la doc officielle) :
-    // { "SearchResponse": [ { "SearchHeader": { DomainName, Available, Price } }, ... ] }
-    // (peut être un objet seul, pas un tableau, si un seul domaine est cherché — donc on normalise)
-    const reponses = Array.isArray(data.SearchResponse)
-      ? data.SearchResponse
-      : (data.SearchResponse ? [data.SearchResponse] : []);
-
-    const resultats = reponses.map(r => {
-      const header = r.SearchHeader || r;
-      const prixDynadot = parseFloat(header.Price) || null; // "77.00 in USD" → 77
-      return {
-        domaine: header.DomainName,
-        disponible: header.Available === 'yes',
-        prix_wholesale: prixDynadot,
-        prix_client: prixDynadot != null ? calculerPrixClient(prixDynadot) : null,
-      };
-    });
+        const prixDynadot = data.Price || null;
+        resultats.push({
+          domaine: domaineComplet,
+          disponible: data.IsAvailable === 1,
+          prix_wholesale: prixDynadot,
+          prix_client: prixDynadot != null ? calculerPrixClient(prixDynadot) : null,
+        });
+      } catch (errUnique) {
+        console.error(`Erreur vérification ${domaineComplet}:`, errUnique);
+        resultats.push({ domaine: domaineComplet, disponible: false, prix_wholesale: null, prix_client: null });
+      }
+    }
 
     res.json({ resultats });
   } catch (error) {
