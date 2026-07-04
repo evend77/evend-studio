@@ -93,7 +93,6 @@ router.post('/check-availability-multi', authenticateToken, async (req, res) => 
       resultats.push({
         domaine: domaineComplet,
         disponible,
-        prix_wholesale: prix,
         prix_client: prix != null ? calculerPrixClient(prix) : null,
       });
     }
@@ -128,7 +127,6 @@ router.post('/check-availability', authenticateToken, async (req, res) => {
 
     res.json({
       disponible,
-      prix_wholesale: prixDynadot,
       prix_client: prixClient,
     });
     

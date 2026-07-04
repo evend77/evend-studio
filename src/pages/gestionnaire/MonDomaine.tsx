@@ -19,7 +19,6 @@ interface DomaineAchete {
 interface ResultatExtension {
   domaine: string;
   disponible: boolean;
-  prix_wholesale: number | null;
   prix_client: number | null;
 }
 
