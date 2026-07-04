@@ -62,7 +62,7 @@ router.post('/check-availability-multi', authenticateToken, async (req, res) => 
         const prixDynadot = data.Price != null ? parseFloat(data.Price) || null : null;
         resultats.push({
           domaine: domaineComplet,
-          disponible: data.IsAvailable === 1,
+          disponible: Number(data.IsAvailable) === 1,
           prix_wholesale: prixDynadot,
           prix_client: prixDynadot != null ? calculerPrixClient(prixDynadot) : null,
         });
@@ -104,7 +104,7 @@ router.post('/check-availability', authenticateToken, async (req, res) => {
     const prixClient = calculerPrixClient(prixDynadot);
 
     res.json({
-      disponible: data.IsAvailable === 1,
+      disponible: Number(data.IsAvailable) === 1,
       prix_wholesale: prixDynadot,
       prix_client: prixClient,
     });
@@ -137,7 +137,7 @@ router.post('/create-checkout', authenticateToken, async (req, res) => {
     const checkResponse = await fetch(checkUrl);
     const checkData = await checkResponse.json();
     
-    if (checkData.IsAvailable !== 1) {
+    if (Number(checkData.IsAvailable) !== 1) {
       return res.status(409).json({ 
         error: 'Domaine plus disponible', 
         domaine: domain 
