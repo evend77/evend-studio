@@ -33,29 +33,32 @@ function calculerPrixClient(prixDynadot) {
 }
 
 // ── Vérifier un domaine chez Dynadot (commande officielle : "search") ──────
-// Centralise l'appel + le parsing pour éviter de dupliquer cette logique
-// fragile à plusieurs endroits. Retourne { disponible, prix } où prix est en
-// CAD (nombre) ou null si le domaine n'est pas disponible / erreur.
+// Structure JSON réelle confirmée en direct :
+// { "SearchResponse": { "ResponseCode": 0, "SearchResults": [ { DomainName, Status, Available, Price } ] } }
+// Le champ Price est un texte descriptif du genre :
+// "Registration Price: 15.90 in CAD and Renewal price: 15.90 in CAD and Domain is not a Premium Domain"
 async function verifierDomaineDynadot(domainComplet) {
   try {
     const url = `${DYNADOT_API_URL}?key=${DYNADOT_API_KEY}&command=search&domain0=${domainComplet}&show_price=1&currency=CAD`;
     const response = await fetch(url);
     const data = await response.json();
 
-    // Structure Dynadot : { "SearchResponse": [ { "SearchHeader": {...} } ] }
-    // (peut être un objet seul plutôt qu'un tableau pour une recherche à 1 domaine)
-    const reponses = Array.isArray(data.SearchResponse)
-      ? data.SearchResponse
-      : (data.SearchResponse ? [data.SearchResponse] : []);
+    const resultatsBruts = data.SearchResponse?.SearchResults;
+    const resultat = Array.isArray(resultatsBruts) ? resultatsBruts[0] : resultatsBruts;
 
-    if (!reponses.length) {
+    if (!resultat) {
       console.error('Réponse Dynadot inattendue pour', domainComplet, JSON.stringify(data));
       return { disponible: false, prix: null };
     }
 
-    const header = reponses[0].SearchHeader || reponses[0];
-    const disponible = header.Available === 'yes';
-    const prix = header.Price != null ? parseFloat(header.Price) || null : null;
+    const disponible = resultat.Available === 'yes';
+
+    // Extraire le prix numérique du texte descriptif (ex: "Registration Price: 15.90 in CAD...")
+    let prix = null;
+    if (typeof resultat.Price === 'string') {
+      const match = resultat.Price.match(/Registration Price:\s*([\d.]+)/i);
+      if (match) prix = parseFloat(match[1]);
+    }
 
     return { disponible, prix };
   } catch (err) {
