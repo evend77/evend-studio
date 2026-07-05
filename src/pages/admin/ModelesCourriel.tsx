@@ -85,9 +85,9 @@ body { background:#f0f2f5; font-family:'Segoe UI',Arial,sans-serif; padding:32px
 .step-txt { font-size:12px; color:#374151; padding-top:4px; }
 </style></head>
 <body><div class="wrap">
-<div class="hdr"><div class="logo">e<em>-</em>Vend<span style="color:rgba(255,255,255,0.4);font-size:12px;">.ca</span></div><div class="hdr-sub">${sujet}</div></div>
+<div class="hdr"><div class="logo">e<em>-</em>Vend<span style="color:rgba(255,255,255,0.4);font-size:12px;"> Studio</span></div><div class="hdr-sub">${sujet}</div></div>
 <div class="body">${corps}</div>
-<div class="ftr"><p><strong>e-Vend.ca</strong> · La marketplace québécoise<br>© 2026 e-Vend.ca — Tous droits réservés · {$date}</p></div>
+<div class="ftr"><p><strong>e-Vend Studio</strong> · Créez votre boutique en ligne<br>© 2026 e-Vend Studio — Tous droits réservés · {$date}</p></div>
 </div></body></html>`;
 
 const VC = [
@@ -161,6 +161,7 @@ const SUJETS: Record<number, string> = {
   62: '✅ Votre plan a été mis à jour — {$plan_actuel}',
   63: '⚠️ Votre plan {$plan_actuel} a expiré',
   64: '❌ Échec du paiement — Abonnement {$plan_actuel}',
+  65: '⏰ Votre domaine {$nom_domaine} expire dans {$jours_restants} jours',
   71: '🏖️ Mode vacances activé pour votre boutique',
   72: '📅 Votre mode vacances se termine dans 2 jours',
   73: '🎉 Bienvenue de retour ! Votre boutique est réactivée',
@@ -935,6 +936,22 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
+    id: 65, nom: 'Domaine expiré', theme: 'abonnements' as Theme,
+    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    sujet: SUJETS[65],
+    html: baseHTML(SUJETS[65], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>⏰ Votre domaine personnalisé <strong>{$nom_domaine}</strong> arrive à échéance dans <strong>{$jours_restants} jours</strong>.</p><div class='box'><div class='row'><span class='lbl'>Domaine</span><span class='val'>{$nom_domaine}</span></div><div class='row'><span class='lbl'>Date d'expiration</span><span class='val'><span class='badge-warn'>{$date_expiration}</span></span></div><div class='row'><span class='lbl'>Montant du renouvellement</span><span class='val'>{$montant_renouvellement}</span></div></div><p><strong>⚠️ Important :</strong> si le domaine n'est pas renouvelé avant cette date, votre site <strong>{$nom_boutique_gestionnaire}</strong> sera automatiquement mis hors service jusqu'à ce que le renouvellement soit effectué.</p><a href='{$lien_renouvellement}' class='btn'>Renouveler maintenant →</a><p style='margin-top:16px; font-size:12px; color:#6b7280;'>Vous pouvez aussi activer le renouvellement automatique depuis votre section "Mon domaine" pour éviter ce genre de rappel à l'avenir.</p></div>`, '#d97706'),
+    variables: [
+    ...VC,
+    { cle: '{$nom_gestionnaire}', desc: 'Nom complet du gestionnaire' },
+    { cle: '{$nom_boutique_gestionnaire}', desc: 'Nom du site du gestionnaire' },
+    { cle: '{$nom_domaine}', desc: 'Nom de domaine concerné' },
+    { cle: '{$jours_restants}', desc: "Nombre de jours avant l'expiration" },
+    { cle: '{$date_expiration}', desc: 'Date exacte d\'expiration du domaine' },
+    { cle: '{$montant_renouvellement}', desc: 'Montant du renouvellement (taxes incluses)' },
+    { cle: '{$lien_renouvellement}', desc: 'Lien direct vers "Mon domaine" pour renouveler' },
+    ],
+  },
+  {
     id: 71, nom: 'Mode vacances activé', theme: 'vacances' as Theme,
     destinataire: 'vendeur', canal: 'interne', actif: true,
     sujet: SUJETS[71],
@@ -1035,7 +1052,7 @@ export default function ModelesCourriel({ naviguerVers }: { naviguerVers: (p: st
   const [envoiEnCours, setEnvoiEnCours] = useState(false);
   const [sauvegarde, setSauvegarde]     = useState(false);
 
-  const API = 'https://evend-multivendeur-api.onrender.com/api';
+  const API = '/api'; // e-Vend Studio : appels relatifs (même origine)
 
   // Charger les templates sauvegardés depuis la BD au montage
   useEffect(() => {
@@ -1108,7 +1125,7 @@ export default function ModelesCourriel({ naviguerVers }: { naviguerVers: (p: st
 
       // Appel à votre futur backend
       // Pour l'instant, on simule un appel API
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/test-email', {
+      const response = await fetch('/api/test-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

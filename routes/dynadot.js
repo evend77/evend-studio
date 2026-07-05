@@ -32,6 +32,20 @@ function calculerPrixClient(prixDynadot) {
   return (prixDynadot || 0) + MARGE_FIXE;
 }
 
+// ── Taxes du Québec (TPS + TVQ) ──────────────────────────────────────────────
+// e-Vend Studio est inscrit aux fichiers de taxe au Québec. Stripe Tax n'étant
+// pas activé, on calcule et ajoute nous-mêmes les taxes au montant facturé —
+// c'est ce montant TOTAL (avec taxes) que Stripe doit charger, pas le prix HT.
+const TAUX_TPS = 0.05;      // 5%
+const TAUX_TVQ = 0.09975;   // 9.975% (calculée sur le prix HT, pas sur TPS+prix)
+
+function calculerTaxes(montantAvantTaxes) {
+  const tps = Math.round(montantAvantTaxes * TAUX_TPS * 100) / 100;
+  const tvq = Math.round(montantAvantTaxes * TAUX_TVQ * 100) / 100;
+  const total = Math.round((montantAvantTaxes + tps + tvq) * 100) / 100;
+  return { montantAvantTaxes, tps, tvq, total };
+}
+
 // ── Vérifier un domaine chez Dynadot (commande officielle : "search") ──────
 // Structure JSON réelle confirmée en direct :
 // { "SearchResponse": { "ResponseCode": 0, "SearchResults": [ { DomainName, Status, Available, Price } ] } }
@@ -90,10 +104,15 @@ router.post('/check-availability-multi', authenticateToken, async (req, res) => 
     for (const ext of EXTENSIONS_AUTORISEES) {
       const domaineComplet = `${nomBase}.${ext}`;
       const { disponible, prix } = await verifierDomaineDynadot(domaineComplet);
+      const prixClient = prix != null ? calculerPrixClient(prix) : null;
+      const taxes = prixClient != null ? calculerTaxes(prixClient) : null;
       resultats.push({
         domaine: domaineComplet,
         disponible,
-        prix_client: prix != null ? calculerPrixClient(prix) : null,
+        prix_avant_taxes: taxes ? taxes.montantAvantTaxes : null,
+        tps: taxes ? taxes.tps : null,
+        tvq: taxes ? taxes.tvq : null,
+        prix_total: taxes ? taxes.total : null,
       });
     }
 
@@ -124,10 +143,14 @@ router.post('/check-availability', authenticateToken, async (req, res) => {
     const { disponible, prix } = await verifierDomaineDynadot(domain);
     const prixDynadot = prix != null ? prix : 12.99;
     const prixClient = calculerPrixClient(prixDynadot);
+    const taxes = calculerTaxes(prixClient);
 
     res.json({
       disponible,
-      prix_client: prixClient,
+      prix_avant_taxes: taxes.montantAvantTaxes,
+      tps: taxes.tps,
+      tvq: taxes.tvq,
+      prix_total: taxes.total,
     });
     
   } catch (error) {
@@ -165,21 +188,34 @@ router.post('/create-checkout', authenticateToken, async (req, res) => {
 
     const prixDynadot = prix != null ? prix : 12.99;
     const prixClient = calculerPrixClient(prixDynadot);
-    const prixClientCents = Math.round(prixClient * 100);
+    const taxes = calculerTaxes(prixClient);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'cad',
-          product_data: {
-            name: `Domaine ${domain}`,
-            description: `Enregistrement du domaine ${domain} pour 1 an`,
+      line_items: [
+        {
+          price_data: {
+            currency: 'cad',
+            product_data: {
+              name: `Domaine ${domain}`,
+              description: `Enregistrement du domaine ${domain} pour 1 an`,
+            },
+            unit_amount: Math.round(taxes.montantAvantTaxes * 100),
           },
-          unit_amount: prixClientCents,
+          quantity: 1,
         },
-        quantity: 1,
-      }],
+        {
+          price_data: {
+            currency: 'cad',
+            product_data: {
+              name: 'TPS + TVQ',
+              description: 'Taxes (TPS 5% + TVQ 9.975%)',
+            },
+            unit_amount: Math.round((taxes.tps + taxes.tvq) * 100),
+          },
+          quantity: 1,
+        },
+      ],
       mode: 'payment',
       success_url: `${process.env.FRONTEND_URL}/domaine-succes?domain=${domain}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${process.env.FRONTEND_URL}/domaine-annule`,
@@ -417,20 +453,34 @@ router.post('/domaines/:id/renouveler-maintenant', authenticateToken, async (req
     const { prix } = await verifierDomaineDynadot(domaineRow.domaine);
     const prixDynadot = prix != null ? prix : (domaineRow.prix_dynadot || 12.99);
     const prixClient = calculerPrixClient(prixDynadot);
+    const taxes = calculerTaxes(prixClient);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
-      line_items: [{
-        price_data: {
-          currency: 'cad',
-          product_data: {
-            name: `Renouvellement — ${domaineRow.domaine}`,
-            description: `Renouvellement du domaine ${domaineRow.domaine} pour 1 an`,
+      line_items: [
+        {
+          price_data: {
+            currency: 'cad',
+            product_data: {
+              name: `Renouvellement — ${domaineRow.domaine}`,
+              description: `Renouvellement du domaine ${domaineRow.domaine} pour 1 an`,
+            },
+            unit_amount: Math.round(taxes.montantAvantTaxes * 100),
           },
-          unit_amount: Math.round(prixClient * 100),
+          quantity: 1,
         },
-        quantity: 1,
-      }],
+        {
+          price_data: {
+            currency: 'cad',
+            product_data: {
+              name: 'TPS + TVQ',
+              description: 'Taxes (TPS 5% + TVQ 9.975%)',
+            },
+            unit_amount: Math.round((taxes.tps + taxes.tvq) * 100),
+          },
+          quantity: 1,
+        },
+      ],
       mode: 'payment',
       success_url: `${process.env.FRONTEND_URL}/domaine-succes?domain=${domaineRow.domaine}&session_id={CHECKOUT_SESSION_ID}&renouvellement=true`,
       cancel_url: `${process.env.FRONTEND_URL}/domaine-annule`,
@@ -477,11 +527,20 @@ router.post('/stripe-webhook', express.raw({ type: 'application/json' }), async 
         const renewResult = await renouvelerDomaineDynadot(domain);
 
         if (renewResult.success) {
+          // Recalculer les taxes payées pour ce renouvellement (référence/historique)
+          const { prix: prixDynadotActuel } = await verifierDomaineDynadot(domain);
+          const prixClientActuel = calculerPrixClient(prixDynadotActuel != null ? prixDynadotActuel : 12.99);
+          const taxesActuelles = calculerTaxes(prixClientActuel);
+          const montantTotalPaye = session.amount_total ? session.amount_total / 100 : taxesActuelles.total;
+
           await pool.query(
             `UPDATE domaines
-             SET expiration_date = $1, dernier_rappel_envoye = NULL, statut = 'actif'
-             WHERE id = $2`,
-            [renewResult.expirationDate || null, domaineId]
+             SET expiration_date = $1, dernier_rappel_envoye = NULL, statut = 'actif',
+                 prix_dynadot = $2, prix_client = $3,
+                 montant_avant_taxes = $4, tps = $5, tvq = $6, montant_total = $7
+             WHERE id = $8`,
+            [renewResult.expirationDate || null, prixDynadotActuel, prixClientActuel,
+             taxesActuelles.montantAvantTaxes, taxesActuelles.tps, taxesActuelles.tvq, montantTotalPaye, domaineId]
           );
           console.log(`✅ Domaine ${domain} renouvelé avec succès chez Dynadot !`);
         } else {
@@ -510,13 +569,18 @@ router.post('/stripe-webhook', express.raw({ type: 'application/json' }), async 
       if (registerResult.success) {
         // Récupérer le prix réel Dynadot pour référence (utile au renouvellement)
         const { prix: prixDynadot } = await verifierDomaineDynadot(domain);
-        const prixClient = session.amount_total ? session.amount_total / 100 : calculerPrixClient(prixDynadot);
+        const prixClient = calculerPrixClient(prixDynadot != null ? prixDynadot : 12.99);
+        const taxes = calculerTaxes(prixClient);
+        // Le montant réellement chargé par Stripe fait foi (arrondi centimes) —
+        // on utilise notre calcul en secours si jamais amount_total est absent.
+        const montantTotal = session.amount_total ? session.amount_total / 100 : taxes.total;
 
         // ✅ Sauvegarder dans l'historique d'achats
         await pool.query(
-          `INSERT INTO domaines (domaine, gestionnaire_id, dynadot_order_id, expiration_date, statut, prix_dynadot, prix_client, created_at)
-           VALUES ($1, $2, $3, $4, 'actif', $5, $6, NOW())`,
-          [domain, gestionnaireId, registerResult.orderId || null, registerResult.expirationDate || null, prixDynadot, prixClient]
+          `INSERT INTO domaines (domaine, gestionnaire_id, dynadot_order_id, expiration_date, statut, prix_dynadot, prix_client, montant_avant_taxes, tps, tvq, montant_total, created_at)
+           VALUES ($1, $2, $3, $4, 'actif', $5, $6, $7, $8, $9, $10, NOW())`,
+          [domain, gestionnaireId, registerResult.orderId || null, registerResult.expirationDate || null,
+           prixDynadot, prixClient, taxes.montantAvantTaxes, taxes.tps, taxes.tvq, montantTotal]
         );
 
         // 🌐 Configurer le DNS automatiquement chez Dynadot (CNAME www + A apex vers Render)
@@ -685,3 +749,6 @@ async function configurerDNS(domain) {
 }
 
 module.exports = router;
+module.exports.calculerPrixClient = calculerPrixClient;
+module.exports.calculerTaxes = calculerTaxes;
+module.exports.verifierDomaineDynadot = verifierDomaineDynadot;

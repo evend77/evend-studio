@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = ''; // e-Vend Studio : appels relatifs (même origine), plus l'ancienne API e-Vend marketplace
 
 // ── Thème ──────────────────────────────────────────────────────────────────
 const T = {
@@ -11,7 +11,7 @@ const T = {
 };
 
 // ── Types ───────────────────────────────────────────────────────────────────
-type DocType = 'facture_acheteur' | 'commission_vendeur' | 'abonnement_vendeur' | 'packing_slip' | 'sommaire_vendeur' | 'sommaire_acheteur';
+type DocType = 'facture_acheteur' | 'commission_vendeur' | 'abonnement_vendeur' | 'packing_slip' | 'sommaire_vendeur' | 'sommaire_acheteur' | 'facture_domaine';
 
 interface Document {
   id: DocType;
@@ -79,6 +79,25 @@ const VARIABLES: Record<DocType, { cle: string; description: string; exemple: st
     { cle: '{$tps}', description: 'Montant TPS (5%)', exemple: '1,50 $' },
     { cle: '{$tvq}', description: 'Montant TVQ (9.975%)', exemple: '2,99 $' },
     { cle: '{$total}', description: 'Total avec taxes', exemple: '34,48 $' },
+    { cle: '{$methode_paiement}', description: 'Méthode de paiement', exemple: 'Carte de crédit (Visa)' },
+  ],
+  facture_domaine: [
+    { cle: '{$nom_boutique}', description: 'Nom de la plateforme e-Vend Studio', exemple: 'e-Vend Studio' },
+    { cle: '{$logo_boutique}', description: 'URL du logo e-Vend Studio', exemple: 'https://.../logo.png' },
+    { cle: '{$nom_gestionnaire}', description: 'Nom complet du gestionnaire', exemple: 'Alex Bosse' },
+    { cle: '{$email_gestionnaire}', description: 'Courriel du gestionnaire', exemple: 'alex@exemple.com' },
+    { cle: '{$nom_boutique_gestionnaire}', description: 'Nom du site du gestionnaire', exemple: 'Ma Boutique' },
+    { cle: '{$adresse_gestionnaire}', description: 'Adresse du gestionnaire (si disponible)', exemple: '123 rue Principale, Québec, QC G1V 2M2' },
+    { cle: '{$numero_facture}', description: 'Numéro de facture', exemple: 'DOM-2026-00789' },
+    { cle: '{$date_facture}', description: 'Date de la facture', exemple: '16/03/2026' },
+    { cle: '{$nom_domaine}', description: 'Nom de domaine enregistré/renouvelé', exemple: 'monsite.com' },
+    { cle: '{$type_transaction}', description: 'Type de transaction', exemple: 'Enregistrement (nouveau)' },
+    { cle: '{$date_debut}', description: 'Date de début de la période (1 an)', exemple: '16/03/2026' },
+    { cle: '{$date_expiration}', description: 'Date d\'expiration (fin de la période d\'1 an)', exemple: '16/03/2027' },
+    { cle: '{$sous_total}', description: 'Prix du domaine avant taxes', exemple: '25,90 $' },
+    { cle: '{$tps}', description: 'Montant TPS (5%)', exemple: '1,30 $' },
+    { cle: '{$tvq}', description: 'Montant TVQ (9.975%)', exemple: '2,58 $' },
+    { cle: '{$total}', description: 'Total avec taxes (montant réellement chargé par Stripe)', exemple: '29,78 $' },
     { cle: '{$methode_paiement}', description: 'Méthode de paiement', exemple: 'Carte de crédit (Visa)' },
   ],
   packing_slip: [
@@ -486,6 +505,115 @@ const HTML_DEFAUT: Record<DocType, string> = {
 
 <div class="footer">
   e-Vend.ca — Merci de votre confiance | Questions ? Contactez-nous via la messagerie interne.
+</div>
+
+</body>
+</html>`,
+
+  facture_domaine: `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1a2332; background: white; padding: 40px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #4F46E5; }
+  .logo { font-size: 24px; font-weight: 900; color: #4F46E5; }
+  .logo span { color: #10b981; }
+  .doc-title h1 { font-size: 26px; font-weight: 900; color: #4F46E5; text-align: right; text-transform: uppercase; }
+  .doc-title .sub { font-size: 13px; color: #6b7280; text-align: right; margin-top: 4px; }
+  .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+  .partie { background: #f8fafc; border-radius: 10px; padding: 16px 20px; border-left: 4px solid #4F46E5; }
+  .partie h3 { font-size: 10px; font-weight: 800; color: #4F46E5; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .partie p { font-size: 13px; color: #374151; line-height: 1.7; }
+  .partie .nom { font-weight: 800; font-size: 15px; }
+  .domaine-card { background: linear-gradient(135deg, #4F46E5 0%, #3730a3 100%); color: white; border-radius: 14px; padding: 28px 32px; margin-bottom: 28px; position: relative; overflow: hidden; }
+  .domaine-card::before { content: ''; position: absolute; top: -30px; right: -30px; width: 120px; height: 120px; background: rgba(255,255,255,0.07); border-radius: 50%; }
+  .domaine-card .domaine-nom { font-size: 26px; font-weight: 900; margin-bottom: 6px; word-break: break-all; }
+  .domaine-card .domaine-type { font-size: 13px; opacity: 0.85; margin-bottom: 20px; }
+  .domaine-card .dates { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .domaine-card .date-box .label { font-size: 10px; opacity: 0.7; text-transform: uppercase; font-weight: 700; }
+  .domaine-card .date-box .val { font-size: 15px; font-weight: 800; margin-top: 3px; }
+  .totaux { width: 320px; margin-left: auto; margin-bottom: 24px; }
+  .totaux .ligne { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #e1e4e8; font-size: 13px; }
+  .totaux .ligne.total { background: #4F46E5; color: white; padding: 12px 16px; border-radius: 8px; font-size: 16px; font-weight: 900; border: none; margin-top: 8px; }
+  .note-taxe { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; font-size: 11px; color: #1e40af; line-height: 1.6; margin-bottom: 16px; }
+  .note-renouvellement { background: #fffbeb; border: 1px solid #fcd34d; border-radius: 8px; padding: 14px 18px; font-size: 12px; color: #92400e; line-height: 1.7; margin-bottom: 20px; }
+  .footer { margin-top: 28px; padding-top: 18px; border-top: 2px solid #e1e4e8; font-size: 11px; color: #6b7280; text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="logo">e<span>-</span>Vend Studio</div>
+    <div style="font-size:11px; color:#6b7280; margin-top:4px;">Facture N° {$numero_facture}</div>
+  </div>
+  <div class="doc-title">
+    <h1>Facture de domaine</h1>
+    <div class="sub">Émise le {$date_facture}</div>
+  </div>
+</div>
+
+<div class="parties">
+  <div class="partie">
+    <h3>Fournisseur</h3>
+    <p class="nom">{$nom_boutique}</p>
+    <p>Création de sites et boutiques en ligne<br>Québec, Canada</p>
+  </div>
+  <div class="partie" style="border-left-color:#10b981;">
+    <h3>Client</h3>
+    <p class="nom">{$nom_gestionnaire}</p>
+    <p>{$email_gestionnaire}</p>
+    <p style="margin-top:6px;">{$adresse_gestionnaire}</p>
+  </div>
+</div>
+
+<div class="domaine-card">
+  <div class="domaine-nom">🌐 {$nom_domaine}</div>
+  <div class="domaine-type">{$type_transaction} — valide pour 1 an</div>
+  <div class="dates">
+    <div class="date-box"><div class="label">Début de la période</div><div class="val">{$date_debut}</div></div>
+    <div class="date-box"><div class="label">Expiration</div><div class="val">{$date_expiration}</div></div>
+  </div>
+</div>
+
+<table style="width:100%; border-collapse:collapse; margin-bottom:24px;">
+  <thead>
+    <tr style="background:#4F46E5; color:white;">
+      <th style="padding:11px 14px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase;">Description</th>
+      <th style="padding:11px 14px; text-align:right; font-size:11px; font-weight:700; text-transform:uppercase;">Montant</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom:1px solid #e1e4e8;">
+      <td style="padding:13px 14px;">{$type_transaction} — {$nom_domaine} — {$date_debut} au {$date_expiration}</td>
+      <td style="padding:13px 14px; text-align:right; font-weight:700;">{$sous_total}</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="totaux">
+  <div class="ligne"><span>Sous-total</span><span>{$sous_total}</span></div>
+  <div class="ligne"><span>TPS (5%)</span><span>{$tps}</span></div>
+  <div class="ligne"><span>TVQ (9.975%)</span><span>{$tvq}</span></div>
+  <div class="ligne total"><span>TOTAL</span><span>{$total}</span></div>
+</div>
+
+<div class="note-taxe">
+  ℹ️ <strong>Note fiscale :</strong> Les frais d'enregistrement de domaine sont assujettis aux taxes (TPS 5% + TVQ 9.975%) conformément à la législation fiscale canadienne et québécoise en vigueur. e-Vend Studio est inscrit aux fichiers de la taxe au Québec.
+</div>
+
+<div class="note-renouvellement">
+  ⚠️ <strong>Important — Renouvellement requis :</strong> Ce domaine est enregistré pour une période d'<strong>un (1) an</strong>, se terminant le <strong>{$date_expiration}</strong>. Un renouvellement sera requis avant cette date pour conserver l'usage du domaine. <strong>À défaut de renouvellement, votre site sera automatiquement mis hors service</strong> à la date d'expiration, jusqu'à ce que le domaine soit renouvelé. Un rappel vous sera envoyé par courriel avant l'échéance.
+</div>
+
+<div style="font-size:12px; color:#374151; margin-bottom:16px;">
+  <strong>Paiement :</strong> {$methode_paiement} — <span style="background:#dcfce7; color:#16a34a; padding:2px 10px; border-radius:20px; font-weight:700; font-size:11px;">PAYÉ</span>
+</div>
+
+<div class="footer">
+  e-Vend Studio — Merci de votre confiance | Questions ? Contactez-nous via la messagerie interne.
 </div>
 
 </body>
@@ -1063,6 +1191,14 @@ const DOCS_CONFIG: Document[] = [
     description: 'Facture de plan/abonnement pour le vendeur',
     couleurAccent: '#7c3aed',
     html: HTML_DEFAUT.abonnement_vendeur,
+  },
+  {
+    id: 'facture_domaine',
+    nom: 'Facture domaine',
+    icon: '🌐',
+    description: 'Facture envoyée au gestionnaire lors de l\'achat/renouvellement d\'un domaine personnalisé',
+    couleurAccent: '#4F46E5',
+    html: HTML_DEFAUT.facture_domaine,
   },
   {
     id: 'packing_slip',

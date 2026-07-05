@@ -14,12 +14,16 @@ interface DomaineAchete {
   created_at: string;
   renouvellement_auto: boolean;
   prix_client: number | null;
+  montant_total: number | null;
 }
 
 interface ResultatExtension {
   domaine: string;
   disponible: boolean;
-  prix_client: number | null;
+  prix_avant_taxes: number | null;
+  tps: number | null;
+  tvq: number | null;
+  prix_total: number | null;
 }
 
 export default function MonDomaine({ gestionnaireId }: Props) {
@@ -502,9 +506,14 @@ export default function MonDomaine({ gestionnaireId }: Props) {
                   </p>
                   <p style={{ fontSize: 12, color: r.disponible ? '#10b981' : '#999', margin: '2px 0 0' }}>
                     {r.disponible
-                      ? `✓ Disponible — ${r.prix_client != null ? r.prix_client.toFixed(2) : '?'}$ CAD/an`
+                      ? `✓ Disponible — ${r.prix_total != null ? r.prix_total.toFixed(2) : '?'}$ CAD/an (taxes incluses)`
                       : '✗ Non disponible'}
                   </p>
+                  {r.disponible && r.prix_avant_taxes != null && (
+                    <p style={{ fontSize: 10, color: '#aaa', margin: '2px 0 0' }}>
+                      Sous-total {r.prix_avant_taxes.toFixed(2)}$ + TPS {r.tps?.toFixed(2)}$ + TVQ {r.tvq?.toFixed(2)}$
+                    </p>
+                  )}
                 </div>
 
                 {r.disponible && (
@@ -757,9 +766,9 @@ export default function MonDomaine({ gestionnaireId }: Props) {
                     <tr key={d.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
                       <td style={{ padding: '12px 8px', fontWeight: 600, color: '#1a1a1a' }}>
                         {d.domaine}
-                        {d.prix_client != null && (
+                        {d.montant_total != null && (
                           <div style={{ fontSize: 11, color: '#999', fontWeight: 400 }}>
-                            {d.prix_client.toFixed(2)}$ CAD/an
+                            {d.montant_total.toFixed(2)}$ CAD/an (taxes incl.)
                           </div>
                         )}
                       </td>
