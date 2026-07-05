@@ -108,9 +108,11 @@ router.get('/domaine-perso/public/:domaine', async (req, res) => {
 
     const result = await pool.query(
       `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie,
-              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description
+              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description,
+              d.statut AS domaine_statut
        FROM sites s
        JOIN gestionnaires g ON g.id = s.gestionnaire_id
+       LEFT JOIN domaines d ON d.domaine = s.domaine_perso
        WHERE s.domaine_perso = $1
        LIMIT 1`,
       [domaine]
@@ -118,6 +120,17 @@ router.get('/domaine-perso/public/:domaine', async (req, res) => {
 
     if (!result.rows.length) {
       return res.status(404).json({ success: false, message: 'Aucun site trouvé pour ce domaine.' });
+    }
+
+    // Un domaine suspendu par un administrateur (ex: non-renouvellement,
+    // litige) ne doit plus servir le site — même si le sous-domaine gratuit
+    // reste, lui, toujours accessible séparément.
+    if (result.rows[0].domaine_statut === 'suspendu') {
+      return res.status(403).json({
+        success: false,
+        suspendu: true,
+        message: 'Ce domaine a été suspendu. Le site n\'est pas accessible via ce nom de domaine pour le moment.',
+      });
     }
 
     return res.json({ success: true, ...result.rows[0] });

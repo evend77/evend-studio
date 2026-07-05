@@ -484,6 +484,7 @@ app.use('/api/studio/sites', studioSites);
 app.use('/api/produits/gestionnaire', require('./routes/produits_gestionnaire'));
 app.use('/api/marketplace', require('./routes/marketplace-auth'));
 app.use('/api/marketplace', require('./routes/marketplace-panier'));
+app.use('/api/admin/domaines', require('./routes/admin_domaines'));
 
 // =====================================================================
 // 📦 CRÉER / MODIFIER ANNONCE

@@ -4,6 +4,7 @@ import translations from '@shopify/polaris/locales/fr.json';
 import GestionPlans          from './pages/admin/GestionPlans';
 import CreerPlan             from './pages/admin/CreerPlan';
 import GestionCommandes      from './pages/admin/GestionCommandes';
+import GestionDomaines       from './pages/admin/GestionDomaines';
 import DetailCommande        from './pages/admin/DetailCommande';
 import LitigesRetours        from './pages/admin/LitigesRetours';
 import FinancesCommissions   from './pages/admin/FinancesCommissions';
@@ -126,6 +127,12 @@ const NAV_ITEMS: NavItem[] = [
     sousSections: [
       { id: 'commandes-toutes',  label: 'Toutes les commandes', icon: '📋' },
       { id: 'commandes-litiges', label: 'Litiges & retours',    icon: '⚠️' },
+    ],
+  },
+  {
+    id: 'domaines', label: 'Domaines', icon: '🌐',
+    sousSections: [
+      { id: 'domaines-gestion', label: 'Gestion domaines', icon: '🛠️' },
     ],
   },
   {
@@ -590,6 +597,10 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur }: { o
           : <GestionCommandes naviguerVers={naviguerVers} />;
       case 'commandes-litiges':
         return <LitigesRetours naviguerVers={naviguerVers} />;
+
+      case 'domaines':
+      case 'domaines-gestion':
+        return <GestionDomaines />;
 
       case 'forfaits':
       case 'forfaits-liste':

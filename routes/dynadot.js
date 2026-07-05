@@ -542,6 +542,14 @@ router.post('/stripe-webhook', express.raw({ type: 'application/json' }), async 
             [renewResult.expirationDate || null, prixDynadotActuel, prixClientActuel,
              taxesActuelles.montantAvantTaxes, taxesActuelles.tps, taxesActuelles.tvq, montantTotalPaye, domaineId]
           );
+
+          // 📜 Historique de transaction (pour la page admin "Gestion domaines")
+          await pool.query(
+            `INSERT INTO domaines_transactions (domaine_id, type, montant_avant_taxes, tps, tvq, montant_total, stripe_session_id)
+             VALUES ($1, 'renouvellement', $2, $3, $4, $5, $6)`,
+            [domaineId, taxesActuelles.montantAvantTaxes, taxesActuelles.tps, taxesActuelles.tvq, montantTotalPaye, session.id || null]
+          );
+
           console.log(`✅ Domaine ${domain} renouvelé avec succès chez Dynadot !`);
         } else {
           console.error(`❌ Paiement reçu mais échec du renouvellement Dynadot pour ${domain}:`, renewResult.error);
@@ -576,11 +584,19 @@ router.post('/stripe-webhook', express.raw({ type: 'application/json' }), async 
         const montantTotal = session.amount_total ? session.amount_total / 100 : taxes.total;
 
         // ✅ Sauvegarder dans l'historique d'achats
-        await pool.query(
+        const insertDomaine = await pool.query(
           `INSERT INTO domaines (domaine, gestionnaire_id, dynadot_order_id, expiration_date, statut, prix_dynadot, prix_client, montant_avant_taxes, tps, tvq, montant_total, created_at)
-           VALUES ($1, $2, $3, $4, 'actif', $5, $6, $7, $8, $9, $10, NOW())`,
+           VALUES ($1, $2, $3, $4, 'actif', $5, $6, $7, $8, $9, $10, NOW())
+           RETURNING id`,
           [domain, gestionnaireId, registerResult.orderId || null, registerResult.expirationDate || null,
            prixDynadot, prixClient, taxes.montantAvantTaxes, taxes.tps, taxes.tvq, montantTotal]
+        );
+
+        // 📜 Historique de transaction (pour la page admin "Gestion domaines")
+        await pool.query(
+          `INSERT INTO domaines_transactions (domaine_id, type, montant_avant_taxes, tps, tvq, montant_total, stripe_session_id)
+           VALUES ($1, 'achat', $2, $3, $4, $5, $6)`,
+          [insertDomaine.rows[0].id, taxes.montantAvantTaxes, taxes.tps, taxes.tvq, montantTotal, session.id || null]
         );
 
         // 🌐 Configurer le DNS automatiquement chez Dynadot (CNAME www + A apex vers Render)
@@ -752,3 +768,4 @@ module.exports = router;
 module.exports.calculerPrixClient = calculerPrixClient;
 module.exports.calculerTaxes = calculerTaxes;
 module.exports.verifierDomaineDynadot = verifierDomaineDynadot;
+module.exports.renouvelerDomaineDynadot = renouvelerDomaineDynadot;
