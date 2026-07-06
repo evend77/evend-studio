@@ -2,6 +2,7 @@
 // e-Vend Studio — Page "Mon domaine" avec achat de domaine intégré
 
 import React, { useState, useEffect } from 'react';
+import GuideDomaine from './GuideDomaine';
 
 interface Props { gestionnaireId: number; }
 
@@ -27,6 +28,7 @@ interface ResultatExtension {
 }
 
 export default function MonDomaine({ gestionnaireId }: Props) {
+  const [guideOuvert, setGuideOuvert] = useState(false);
   const [sousDomaine, setSousDomaine] = useState('');
   const [domainePerso, setDomainePerso] = useState('');
   const [sauvegarde, setSauvegarde] = useState<'idle' | 'ok' | 'err'>('idle');
@@ -375,10 +377,24 @@ export default function MonDomaine({ gestionnaireId }: Props) {
 
   return (
     <div style={{ maxWidth: 900, margin: '0 auto', padding: '40px 24px', fontFamily: "'Inter', sans-serif" }}>
-      <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>Mon domaine</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, marginBottom: 8 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Mon domaine</h1>
+        <button
+          onClick={() => setGuideOuvert(true)}
+          style={{
+            padding: '10px 20px', background: '#4F46E5', border: 'none', borderRadius: 8,
+            color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', flexShrink: 0,
+          }}
+        >
+          📖 Guide
+        </button>
+      </div>
       <p style={{ fontSize: 15, color: '#666', marginBottom: 32 }}>
         Configurez le domaine de votre site ou achetez-en un directement via e-Vend Studio.
       </p>
+
+      {guideOuvert && <GuideDomaine onFermer={() => setGuideOuvert(false)} />}
 
       {/* ── SECTION 1 : ACHETER UN DOMAINE ── */}
       <div style={{ 
