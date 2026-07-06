@@ -34,7 +34,6 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
       navigator.clipboard.writeText(url).then(() => {
         alert('✅ URL copiée !\n\n' + url);
       }).catch(() => {
-        // Fallback
         const textarea = document.createElement('textarea');
         textarea.value = url;
         document.body.appendChild(textarea);
@@ -44,6 +43,26 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
         alert('✅ URL copiée !\n\n' + url);
       });
     }
+  };
+
+  // 👇 NOUVEAU : Déclencher le téléchargement pour Unsplash
+  const triggerDownload = async (photoId) => {
+    try {
+      await fetch(`/api/unsplash/download/${photoId}`, {
+        method: 'POST',
+      });
+    } catch (error) {
+      console.error('Erreur download:', error);
+    }
+  };
+
+  // 👇 NOUVEAU : Sélectionner une photo ET déclencher le download
+  const handleSelectPhoto = async (photo) => {
+    // Déclencher le téléchargement (requis pour Unsplash)
+    await triggerDownload(photo.id);
+    // Appeler la fonction parent
+    onSelectPhoto(photo);
+    onClose();
   };
 
   if (!isOpen) return null;
@@ -196,8 +215,16 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                     loading="lazy"
                   />
                   <div style={{ padding: '8px 10px' }}>
+                    {/* 👇 ATTRIBUTION MODIFIÉE : nom du photographe + lien */}
                     <p style={{ fontSize: '10px', color: '#999', margin: '0 0 6px 0' }}>
-                      📸 {photo.user.name}
+                      📸 <a 
+                        href={photo.user.links.html} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        style={{ color: '#666', textDecoration: 'underline' }}
+                      >
+                        {photo.user.name}
+                      </a>
                     </p>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button
@@ -219,8 +246,7 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          onSelectPhoto(photo);
-                          onClose();
+                          handleSelectPhoto(photo);
                         }}
                         style={{
                           flex: 1,
@@ -243,11 +269,16 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
             </div>
           )}
 
-          {/* Attribution obligatoire (règle API) */}
+          {/* 👇 ATTRIBUTION OBLIGATOIRE (règle API Unsplash) */}
           {photos.length > 0 && (
             <div style={{ marginTop: '16px', fontSize: '11px', color: '#aaa', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '12px' }}>
-              Photos de{' '}
-              <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" style={{ color: '#c9a96e' }}>
+              Photos par{' '}
+              <a 
+                href="https://unsplash.com" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                style={{ color: '#c9a96e', fontWeight: 600 }}
+              >
                 Unsplash
               </a>
             </div>
