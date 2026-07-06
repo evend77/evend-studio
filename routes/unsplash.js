@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-const axios = require('axios'); // 👈 Installe axios si pas déjà fait : npm install axios
 
 // Route : rechercher des photos
 router.get('/search', async (req, res) => {
@@ -13,28 +12,32 @@ router.get('/search', async (req, res) => {
       return res.status(400).json({ error: 'Le paramètre query est requis' });
     }
 
-    // 👇 APPEL DIRECT À L'API UNSPLASH (sans leur package)
-    const response = await axios.get('https://api.unsplash.com/search/photos', {
-      params: {
-        query: query.trim(),
-        page: parseInt(page),
-        per_page: parseInt(perPage),
-      },
+    // Construction de l'URL
+    const url = new URL('https://api.unsplash.com/search/photos');
+    url.searchParams.append('query', query.trim());
+    url.searchParams.append('page', parseInt(page));
+    url.searchParams.append('per_page', parseInt(perPage));
+
+    const response = await fetch(url.toString(), {
       headers: {
         'Authorization': `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}`,
         'Accept-Version': 'v1',
       },
     });
 
-    console.log('✅ Photos trouvées:', response.data.results?.length || 0);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.errors?.join(', ') || 'Erreur Unsplash');
+    }
 
-    // Retourner les données comme avant
-    res.json(response.data);
+    const data = await response.json();
+    console.log('✅ Photos trouvées:', data.results?.length || 0);
+    res.json(data);
   } catch (error) {
-    console.error('❌ Erreur Unsplash:', error.response?.data || error.message);
+    console.error('❌ Erreur Unsplash:', error.message);
     res.status(500).json({ 
       error: 'Erreur lors de la recherche',
-      details: error.response?.data?.errors || error.message 
+      details: error.message 
     });
   }
 });
@@ -44,19 +47,25 @@ router.get('/photo/:id', async (req, res) => {
   try {
     const { id } = req.params;
 
-    const response = await axios.get(`https://api.unsplash.com/photos/${id}`, {
+    const response = await fetch(`https://api.unsplash.com/photos/${id}`, {
       headers: {
         'Authorization': `Client-ID ${process.env.UNSPLASH_ACCESS_KEY}`,
         'Accept-Version': 'v1',
       },
     });
 
-    res.json(response.data);
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.errors?.join(', ') || 'Erreur Unsplash');
+    }
+
+    const data = await response.json();
+    res.json(data);
   } catch (error) {
-    console.error('❌ Erreur Unsplash:', error.response?.data || error.message);
+    console.error('❌ Erreur Unsplash:', error.message);
     res.status(500).json({ 
       error: 'Erreur lors de la récupération de la photo',
-      details: error.response?.data?.errors || error.message 
+      details: error.message 
     });
   }
 });
