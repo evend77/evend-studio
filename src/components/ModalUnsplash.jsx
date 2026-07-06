@@ -28,9 +28,22 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
     if (e.key === 'Enter') rechercherPhotos();
   };
 
-  const handleSelect = (photo) => {
-    onSelectPhoto(photo);
-    onClose();
+  const copierUrl = (url, e) => {
+    e.stopPropagation();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        alert('✅ URL copiée !\n\n' + url);
+      }).catch(() => {
+        // Fallback
+        const textarea = document.createElement('textarea');
+        textarea.value = url;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+        alert('✅ URL copiée !\n\n' + url);
+      });
+    }
   };
 
   if (!isOpen) return null;
@@ -160,11 +173,10 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
               {query ? '😕 Aucune photo trouvée' : '🔍 Entrez un mot-clé'}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
               {photos.map((photo) => (
                 <div
                   key={photo.id}
-                  onClick={() => handleSelect(photo)}
                   style={{
                     borderRadius: '10px',
                     overflow: 'hidden',
@@ -183,10 +195,48 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                     style={{ width: '100%', height: '140px', objectFit: 'cover' }}
                     loading="lazy"
                   />
-                  <div style={{ padding: '6px 10px' }}>
-                    <p style={{ fontSize: '10px', color: '#999', margin: 0 }}>
+                  <div style={{ padding: '8px 10px' }}>
+                    <p style={{ fontSize: '10px', color: '#999', margin: '0 0 6px 0' }}>
                       📸 {photo.user.name}
                     </p>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        onClick={(e) => copierUrl(photo.urls.regular, e)}
+                        style={{
+                          flex: 1,
+                          padding: '4px 8px',
+                          background: '#2563eb',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: '#fff',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        📋 Copier URL
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectPhoto(photo);
+                          onClose();
+                        }}
+                        style={{
+                          flex: 1,
+                          padding: '4px 8px',
+                          background: 'linear-gradient(135deg, #c9a96e, #a07840)',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: '#fff',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        ✅ Choisir
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
