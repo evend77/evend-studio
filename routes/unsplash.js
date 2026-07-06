@@ -1,19 +1,22 @@
-// routes/unsplash.js
 const express = require('express');
 const router = express.Router();
-const { createApi } = require('unsplash-js');
+
+// 👇 CELLE-LÀ EST BONNE
+const { createApi } = require('unsplash-js').default || require('unsplash-js');
+
 const fetch = require('node-fetch');
 
-// Initialiser l'API Unsplash
 const unsplash = createApi({
   accessKey: process.env.UNSPLASH_ACCESS_KEY,
   fetch: fetch,
 });
 
-// Route : rechercher des photos
+// Rechercher des photos
 router.get('/search', async (req, res) => {
   try {
     const { query, page = 1, perPage = 20 } = req.query;
+
+    console.log('🔍 Recherche Unsplash:', query);
 
     if (!query || query.trim() === '') {
       return res.status(400).json({ error: 'Le paramètre query est requis' });
@@ -36,7 +39,7 @@ router.get('/search', async (req, res) => {
   }
 });
 
-// Route : obtenir les détails d'une photo
+// Obtenir les détails d'une photo
 router.get('/photo/:id', async (req, res) => {
   try {
     const { id } = req.params;
