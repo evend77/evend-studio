@@ -45,7 +45,6 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
     }
   };
 
-  // 👇 NOUVEAU : Déclencher le téléchargement pour Unsplash
   const triggerDownload = async (photoId) => {
     try {
       await fetch(`/api/unsplash/download/${photoId}`, {
@@ -56,11 +55,8 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
     }
   };
 
-  // 👇 NOUVEAU : Sélectionner une photo ET déclencher le download
   const handleSelectPhoto = async (photo) => {
-    // Déclencher le téléchargement (requis pour Unsplash)
     await triggerDownload(photo.id);
-    // Appeler la fonction parent
     onSelectPhoto(photo);
     onClose();
   };
@@ -78,7 +74,7 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px',
+        padding: '10px',
         backdropFilter: 'blur(4px)',
       }}
     >
@@ -89,7 +85,7 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
           borderRadius: '16px',
           width: '100%',
           maxWidth: '900px',
-          maxHeight: '85vh',
+          maxHeight: '90vh',
           display: 'flex',
           flexDirection: 'column',
           boxShadow: '0 24px 64px rgba(0,0,0,0.3)',
@@ -99,7 +95,7 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
         {/* En-tête */}
         <div
           style={{
-            padding: '16px 24px',
+            padding: '12px 16px',
             borderBottom: '1px solid #e5e7eb',
             display: 'flex',
             justifyContent: 'space-between',
@@ -107,7 +103,7 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
             flexShrink: 0,
           }}
         >
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
             📷 Photos gratuites
           </h3>
           <button
@@ -118,6 +114,7 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
               fontSize: '22px',
               cursor: 'pointer',
               color: '#666',
+              padding: '0 4px',
             }}
           >
             ✕
@@ -125,17 +122,18 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
         </div>
 
         {/* Recherche */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid #f3f4f6', flexShrink: 0 }}>
-          <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', flexShrink: 0 }}>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <input
               type="text"
-              placeholder="Rechercher (ex: nature, bureau, montagne)..."
+              placeholder="Rechercher..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyPress={handleKeyPress}
               style={{
-                flex: 1,
-                padding: '10px 16px',
+                flex: '1',
+                minWidth: '120px',
+                padding: '8px 12px',
                 border: '2px solid #e5e7eb',
                 borderRadius: '10px',
                 fontSize: '14px',
@@ -145,7 +143,7 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
             <button
               onClick={rechercherPhotos}
               style={{
-                padding: '10px 24px',
+                padding: '8px 16px',
                 background: 'linear-gradient(135deg, #c9a96e, #a07840)',
                 border: 'none',
                 borderRadius: '10px',
@@ -153,6 +151,7 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                 fontSize: '14px',
                 fontWeight: 700,
                 cursor: 'pointer',
+                whiteSpace: 'nowrap',
               }}
             >
               🔍
@@ -160,19 +159,20 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
           </div>
 
           {/* Tags rapides */}
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '10px' }}>
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
             {['nature', 'bureau', 'montagne', 'mer', 'ville', 'café', 'voyage', 'business', 'architecture', 'plage'].map((tag) => (
               <button
                 key={tag}
                 onClick={() => { setQuery(tag); setTimeout(rechercherPhotos, 100); }}
                 style={{
-                  padding: '4px 12px',
+                  padding: '4px 10px',
                   background: '#f3f4f6',
                   border: '1px solid #e5e7eb',
                   borderRadius: '16px',
                   fontSize: '11px',
                   cursor: 'pointer',
                   color: '#555',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 #{tag}
@@ -182,17 +182,21 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
         </div>
 
         {/* Résultats */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', backgroundColor: '#fafafa' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 16px', backgroundColor: '#fafafa' }}>
           {loading ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#888' }}>
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#888' }}>
               ⏳ Chargement...
             </div>
           ) : photos.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 0', color: '#999' }}>
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
               {query ? '😕 Aucune photo trouvée' : '🔍 Entrez un mot-clé'}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '12px' }}>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', 
+              gap: '12px' 
+            }}>
               {photos.map((photo) => (
                 <div
                   key={photo.id}
@@ -211,37 +215,29 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                   <img
                     src={photo.urls.small}
                     alt={photo.alt_description || 'Photo'}
-                    style={{ width: '100%', height: '140px', objectFit: 'cover' }}
+                    style={{ width: '100%', height: '120px', objectFit: 'cover' }}
                     loading="lazy"
                   />
-                  <div style={{ padding: '8px 10px' }}>
-                    {/* 👇 ATTRIBUTION MODIFIÉE : nom du photographe + lien */}
-                    <p style={{ fontSize: '10px', color: '#999', margin: '0 0 6px 0' }}>
-                      📸 <a 
-                        href={photo.user.links.html} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        style={{ color: '#666', textDecoration: 'underline' }}
-                      >
-                        {photo.user.name}
-                      </a>
+                  <div style={{ padding: '6px 8px' }}>
+                    <p style={{ fontSize: '9px', color: '#999', margin: '0 0 4px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      📸 {photo.user.name}
                     </p>
-                    <div style={{ display: 'flex', gap: '6px' }}>
+                    <div style={{ display: 'flex', gap: '4px' }}>
                       <button
                         onClick={(e) => copierUrl(photo.urls.regular, e)}
                         style={{
                           flex: 1,
-                          padding: '4px 8px',
+                          padding: '4px 6px',
                           background: '#2563eb',
                           border: 'none',
                           borderRadius: '6px',
-                          fontSize: '11px',
+                          fontSize: '10px',
                           fontWeight: 600,
                           color: '#fff',
                           cursor: 'pointer',
                         }}
                       >
-                        📋 Copier URL
+                        📋 Copier
                       </button>
                       <button
                         onClick={(e) => {
@@ -250,11 +246,11 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                         }}
                         style={{
                           flex: 1,
-                          padding: '4px 8px',
+                          padding: '4px 6px',
                           background: 'linear-gradient(135deg, #c9a96e, #a07840)',
                           border: 'none',
                           borderRadius: '6px',
-                          fontSize: '11px',
+                          fontSize: '10px',
                           fontWeight: 600,
                           color: '#fff',
                           cursor: 'pointer',
@@ -269,9 +265,9 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
             </div>
           )}
 
-          {/* 👇 ATTRIBUTION OBLIGATOIRE (règle API Unsplash) */}
+          {/* Attribution */}
           {photos.length > 0 && (
-            <div style={{ marginTop: '16px', fontSize: '11px', color: '#aaa', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '12px' }}>
+            <div style={{ marginTop: '12px', fontSize: '10px', color: '#aaa', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '10px' }}>
               Photos par{' '}
               <a 
                 href="https://unsplash.com" 
