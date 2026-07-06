@@ -26,6 +26,7 @@ const faqsCollaborateur     = require('./routes/faqs_collaborateur');
 const studioSites = require('./routes/studio_sites');
 const templatesPrix       = require('./routes/templates_prix');
 const templatesPrixPublic = require('./routes/templates_prix_public');
+const unsplashRoutes = require('./routes/unsplash');
 
 const app  = express();
 const port = process.env.PORT || 5000;
@@ -485,6 +486,7 @@ app.use('/api/produits/gestionnaire', require('./routes/produits_gestionnaire'))
 app.use('/api/marketplace', require('./routes/marketplace-auth'));
 app.use('/api/marketplace', require('./routes/marketplace-panier'));
 app.use('/api/admin/domaines', require('./routes/admin_domaines'));
+app.use('/api/unsplash', unsplashRoutes);
 
 // =====================================================================
 // 📦 CRÉER / MODIFIER ANNONCE

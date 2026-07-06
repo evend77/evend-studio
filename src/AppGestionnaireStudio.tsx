@@ -4,8 +4,7 @@ import PageChoisirTemplate        from './pages/gestionnaire/PageChoisirTemplate
 import ConfigTemplate          from './pages/gestionnaire/ConfigTemplate';
 import MonDomaine          from './pages/gestionnaire/MonDomaine';
 import ImportEvend          from './pages/gestionnaire/ImportEvend';
-
-// Composants Polaris supprimés — remplacés par Dashboard.tsx et styles inline
+import ModalUnsplash from './components/ModalUnsplash';
 
 // ── Imports composants vendeur présents dans e-Vend Studio ──
 // SUPPRIMER les lignes des fichiers qui n'existent pas dans ton projet
@@ -329,6 +328,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [message, setMessage] = useState('');
   const [nonLus, setNonLus] = useState({ acheteurs: 0, admin: 0, notifs: 0, total: 0 });
 
+  // 👇 NOUVEAU STATE POUR LE MODAL UNSplash
+  const [modalPhotoOuvert, setModalPhotoOuvert] = useState(false);
+
   useEffect(() => {
     const chargerNonLus = async () => {
       const token = localStorage.getItem('token');
@@ -501,6 +503,18 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const ouvrirModal = useCallback(() => setModalOuvert(true), []);
   const fermerModal = useCallback(() => setModalOuvert(false), []);
   const envoyerMessage = useCallback(() => { setMessage(''); fermerModal(); }, [fermerModal]);
+
+  // 👇 FONCTION POUR SÉLECTIONNER UNE PHOTO UNSplash
+  const handleSelectPhoto = (photo) => {
+    const url = photo.urls.regular;
+    console.log('📷 Photo sélectionnée:', url);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        alert('✅ URL de la photo copiée !');
+      }).catch(() => {});
+    }
+    setModalPhotoOuvert(false);
+  };
 
   const formatDate = (d: Date) => d.toLocaleDateString('fr-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
   const formatHeure = (d: Date) => d.toLocaleTimeString('fr-CA');
@@ -1282,6 +1296,26 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '20px', marginLeft: 'auto' }}>
+        {/* 👇 BOUTON PHOTOS */}
+        <button 
+          onClick={() => setModalPhotoOuvert(true)}
+          style={{
+            background: 'linear-gradient(135deg, #c9a96e, #a07840)',
+            border: 'none',
+            borderRadius: '8px',
+            padding: '6px 16px',
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            boxShadow: '0 2px 8px rgba(201,169,110,0.3)'
+          }}
+        >
+          <span>📷</span> Photos
+        </button>
         {/* Notif messages */}
         <button onClick={() => setPageActive('messagerie')} title="Vos messages"
           style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, display: 'flex', alignItems: 'center' }}>
@@ -1546,6 +1580,13 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           <div className="footer-fixed" style={footerFixedStyle}>{footerText}</div>
         </div>
       </div>
+
+      {/* 👇 MODALE UNSplash */}
+      <ModalUnsplash 
+        isOpen={modalPhotoOuvert}
+        onClose={() => setModalPhotoOuvert(false)}
+        onSelectPhoto={handleSelectPhoto}
+      />
 
       {/* Modal messagerie */}
       {modalOuvert && (
