@@ -68,7 +68,7 @@ router.get('/public', async (req, res) => {
               couleur_bouton_accept, couleur_texte_bouton_accept,
               afficher_bouton_preferences, categories_actives
          FROM cookies_site_gestionnaire
-        WHERE vendeur_id = $1`,
+        WHERE gestionnaire_id = $1`,
       [req.params.gestionnaireId]
     );
     if (result.rows.length === 0) return res.json(DEFAUTS);

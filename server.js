@@ -28,6 +28,13 @@ const templatesPrix       = require('./routes/templates_prix');
 const templatesPrixPublic = require('./routes/templates_prix_public');
 const unsplashRoutes = require('./routes/unsplash');
 
+// ── IMPORTS e-Vend Studio (nouveaux modules) ─────────────────────────
+const webhooksStudioStripe    = require('./routes/webhooks_studio_stripe');
+const adminDomainesRoutes     = require('./routes/admin_domaines');
+const cronDomaineModule       = require('./routes/cron_domaine');
+const abonnementsStudioRoutes = require('./routes/abonnements_studio');
+const cronAbonnementsModule   = require('./routes/cron_abonnements_studio');
+
 const app  = express();
 const port = process.env.PORT || 5000;
 
@@ -36,6 +43,9 @@ const port = process.env.PORT || 5000;
 // ✅ IMPORTANT : Webhook Stripe DOIT être avant express.json()
 // Sinon, Stripe ne peut pas lire le body raw
 app.post('/api/dynadot/stripe-webhook', express.raw({ type: 'application/json' }));
+
+// ✅ Webhook Studio Stripe — abonnements e-Vend Studio
+app.use('/api/webhooks-studio', webhooksStudioStripe);
 
 // ✅ Webhook Dynadot (NOUVEAU)
 app.post('/api/webhooks/dynadot', express.raw({ type: 'application/json' }));
@@ -222,6 +232,14 @@ app.use('/api/reservations', require('./routes/reservations'));
 // 🌐 DYNADOT (ACHAT DE DOMAINES)
 // =====================================================================
 app.use('/api/dynadot', require('./routes/dynadot'));
+
+// =====================================================================
+// 🌐 ADMIN DOMAINES & ABONNEMENTS STUDIO
+// =====================================================================
+app.use('/api/admin/domaines',     adminDomainesRoutes);
+app.use('/api/cron-domaine',       cronDomaineModule);
+app.use('/api/abonnements-studio', abonnementsStudioRoutes);
+app.use('/api/cron-abonnements',   cronAbonnementsModule);
 
 // =====================================================================
 // 🎨 SITES STUDIO (config du site du vendeur)
@@ -729,6 +747,12 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // =====================================================================
+// ⏰ CRONS e-Vend Studio
+// =====================================================================
+cronDomaineModule.demarrer();
+cronAbonnementsModule.demarrer();
+
+// =====================================================================
 // 🚀 DÉMARRAGE
 // =====================================================================
 
@@ -757,6 +781,9 @@ app.listen(port, () => {
   console.log(`✅ Dynadot:      GET  /api/dynadot/verify-payment`);
   console.log(`🔗 Webhook:      POST /api/webhooks/dynadot`);
   console.log(`💳 Webhook Stripe: POST /api/dynadot/stripe-webhook`);
+  console.log(`💳 Webhook Studio: POST /api/webhooks-studio`);
+  console.log(`🌐 Admin domaines: GET  /api/admin/domaines`);
+  console.log(`📦 Abonnements:    GET  /api/abonnements-studio/mon-abonnement`);
   console.log(`🧩 Add-ons:      GET  /api/addons/admin/addons`);
   console.log(`🧩 Add-ons:      GET  /api/addons/gestionnaire/addons`);
   console.log(`🧩 Add-ons:      POST /api/addons/admin/addons`);

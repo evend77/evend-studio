@@ -11,7 +11,7 @@ const T = {
 };
 
 // ── Types ───────────────────────────────────────────────────────────────────
-type DocType = 'facture_acheteur' | 'commission_vendeur' | 'abonnement_vendeur' | 'packing_slip' | 'sommaire_vendeur' | 'sommaire_acheteur' | 'facture_domaine';
+type DocType = 'facture_acheteur' | 'commission_vendeur' | 'abonnement_gestionnaire' | 'packing_slip' | 'sommaire_vendeur' | 'sommaire_acheteur' | 'facture_domaine';
 
 interface Document {
   id: DocType;
@@ -63,22 +63,21 @@ const VARIABLES: Record<DocType, { cle: string; description: string; exemple: st
     { cle: '{$montant_net}', description: 'Montant net à recevoir', exemple: '1 172,83 $' },
     { cle: '{$note_taxe}', description: 'Note fiscale applicable', exemple: 'Les commissions sont sans taxes (particulier non inscrit).' },
   ],
-  abonnement_vendeur: [
-    { cle: '{$nom_boutique}', description: 'Nom de la boutique e-Vend', exemple: 'e-Vend.ca' },
-    { cle: '{$logo_boutique}', description: 'URL du logo', exemple: 'https://.../logo.png' },
-    { cle: '{$nom_vendeur}', description: 'Nom complet du vendeur', exemple: 'Marie Tremblay' },
-    { cle: '{$email_vendeur}', description: 'Courriel du vendeur', exemple: 'marie@artisanat.com' },
-    { cle: '{$adresse_vendeur}', description: 'Adresse du vendeur', exemple: '456 rue des Artisans, Montréal, QC H3C 1A1' },
+  abonnement_gestionnaire: [
+    { cle: '{$nom_boutique}', description: 'Nom de la plateforme e-Vend Studio', exemple: 'e-Vend Studio' },
+    { cle: '{$logo_boutique}', description: 'URL du logo e-Vend Studio', exemple: 'https://.../logo.png' },
+    { cle: '{$nom_gestionnaire}', description: 'Nom complet du gestionnaire', exemple: 'Alex Bosse' },
+    { cle: '{$email_gestionnaire}', description: 'Courriel du gestionnaire', exemple: 'alex@exemple.com' },
+    { cle: '{$adresse_gestionnaire}', description: 'Adresse du gestionnaire', exemple: '123 rue Principale, Québec, QC G1V 2M2' },
     { cle: '{$numero_facture}', description: 'Numéro de facture', exemple: 'ABO-2026-00321' },
     { cle: '{$date_facture}', description: 'Date de la facture', exemple: '16/03/2026' },
-    { cle: '{$nom_plan}', description: 'Nom du plan souscrit', exemple: 'Plan Or - Vendeur professionnel' },
-    { cle: '{$description_plan}', description: 'Description du plan', exemple: 'Jusqu\'à 100 produits, support prioritaire' },
-    { cle: '{$date_debut}', description: 'Date de début du plan', exemple: '01/03/2026' },
-    { cle: '{$date_fin}', description: 'Date de fin / renouvellement', exemple: '31/03/2026' },
-    { cle: '{$prix_plan}', description: 'Prix du plan (HT)', exemple: '29,99 $' },
-    { cle: '{$tps}', description: 'Montant TPS (5%)', exemple: '1,50 $' },
-    { cle: '{$tvq}', description: 'Montant TVQ (9.975%)', exemple: '2,99 $' },
-    { cle: '{$total}', description: 'Total avec taxes', exemple: '34,48 $' },
+    { cle: '{$date_debut}', description: 'Début de la période facturée', exemple: '01/03/2026' },
+    { cle: '{$date_fin}', description: 'Fin de la période facturée', exemple: '31/03/2026' },
+    { cle: '{$lignes_detail}', description: 'Tableau HTML des lignes de détail (forfait + options)', exemple: '<tr><td>Forfait Vitrine</td><td>15,00 $</td></tr>' },
+    { cle: '{$sous_total}', description: 'Sous-total avant taxes', exemple: '17,00 $' },
+    { cle: '{$tps}', description: 'Montant TPS (5%)', exemple: '0,85 $' },
+    { cle: '{$tvq}', description: 'Montant TVQ (9.975%)', exemple: '1,70 $' },
+    { cle: '{$total}', description: 'Total avec taxes (montant chargé par Stripe)', exemple: '19,55 $' },
     { cle: '{$methode_paiement}', description: 'Méthode de paiement', exemple: 'Carte de crédit (Visa)' },
   ],
   facture_domaine: [
@@ -301,7 +300,7 @@ const HTML_DEFAUT: Record<DocType, string> = {
 </body>
 </html>`,
 
-  // === TOUS TES AUTRES TEMPLATES ICI (commission_vendeur, abonnement_vendeur, packing_slip, sommaire_vendeur, sommaire_acheteur) ===
+  // === TOUS TES AUTRES TEMPLATES ICI (commission_vendeur, abonnement_gestionnaire, packing_slip, sommaire_vendeur, sommaire_acheteur) ===
   commission_vendeur: `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -406,33 +405,29 @@ const HTML_DEFAUT: Record<DocType, string> = {
 </body>
 </html>`,
 
-  abonnement_vendeur: `<!DOCTYPE html>
+  abonnement_gestionnaire: `<!DOCTYPE html>
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 13px; color: #1a2332; background: white; padding: 40px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #2d6a9f; }
-  .logo { font-size: 24px; font-weight: 900; color: #2d6a9f; }
-  .logo span { color: #e67e22; }
-  .doc-title h1 { font-size: 26px; font-weight: 900; color: #2d6a9f; text-align: right; text-transform: uppercase; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #4F46E5; }
+  .logo { font-size: 24px; font-weight: 900; color: #4F46E5; }
+  .logo span { color: #10b981; }
+  .doc-title h1 { font-size: 26px; font-weight: 900; color: #4F46E5; text-align: right; text-transform: uppercase; }
   .doc-title .sub { font-size: 13px; color: #6b7280; text-align: right; margin-top: 4px; }
   .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
-  .partie { background: #f8fafc; border-radius: 10px; padding: 16px 20px; border-left: 4px solid #2d6a9f; }
-  .partie h3 { font-size: 10px; font-weight: 800; color: #2d6a9f; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .partie { background: #f8fafc; border-radius: 10px; padding: 16px 20px; border-left: 4px solid #4F46E5; }
+  .partie h3 { font-size: 10px; font-weight: 800; color: #4F46E5; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
   .partie p { font-size: 13px; color: #374151; line-height: 1.7; }
   .partie .nom { font-weight: 800; font-size: 15px; }
-  .plan-card { background: linear-gradient(135deg, #2d6a9f 0%, #1e4d75 100%); color: white; border-radius: 14px; padding: 28px 32px; margin-bottom: 28px; position: relative; overflow: hidden; }
-  .plan-card::before { content: ''; position: absolute; top: -30px; right: -30px; width: 120px; height: 120px; background: rgba(255,255,255,0.07); border-radius: 50%; }
-  .plan-card .plan-nom { font-size: 28px; font-weight: 900; margin-bottom: 6px; }
-  .plan-card .plan-desc { font-size: 13px; opacity: 0.85; margin-bottom: 20px; }
-  .plan-card .dates { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .plan-card .date-box .label { font-size: 10px; opacity: 0.7; text-transform: uppercase; font-weight: 700; }
-  .plan-card .date-box .val { font-size: 15px; font-weight: 800; margin-top: 3px; }
+  .periode-card { background: linear-gradient(135deg, #4F46E5 0%, #3730a3 100%); color: white; border-radius: 14px; padding: 20px 28px; margin-bottom: 28px; display: flex; justify-content: space-between; align-items: center; }
+  .periode-card .label { font-size: 10px; opacity: 0.7; text-transform: uppercase; font-weight: 700; margin-bottom: 4px; }
+  .periode-card .val { font-size: 15px; font-weight: 800; }
   .totaux { width: 320px; margin-left: auto; margin-bottom: 24px; }
   .totaux .ligne { display: flex; justify-content: space-between; padding: 9px 0; border-bottom: 1px solid #e1e4e8; font-size: 13px; }
-  .totaux .ligne.total { background: #2d6a9f; color: white; padding: 12px 16px; border-radius: 8px; font-size: 16px; font-weight: 900; border: none; margin-top: 8px; }
+  .totaux .ligne.total { background: #4F46E5; color: white; padding: 12px 16px; border-radius: 8px; font-size: 16px; font-weight: 900; border: none; margin-top: 8px; }
   .note-taxe { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; font-size: 11px; color: #1e40af; line-height: 1.6; margin-bottom: 20px; }
   .footer { margin-top: 28px; padding-top: 18px; border-top: 2px solid #e1e4e8; font-size: 11px; color: #6b7280; text-align: center; }
 </style>
@@ -441,7 +436,7 @@ const HTML_DEFAUT: Record<DocType, string> = {
 
 <div class="header">
   <div>
-    <div class="logo">e<span>-</span>Vend.ca</div>
+    <div class="logo">e<span>-</span>Vend Studio</div>
     <div style="font-size:11px; color:#6b7280; margin-top:4px;">Facture N° {$numero_facture}</div>
   </div>
   <div class="doc-title">
@@ -454,49 +449,49 @@ const HTML_DEFAUT: Record<DocType, string> = {
   <div class="partie">
     <h3>Fournisseur</h3>
     <p class="nom">{$nom_boutique}</p>
-    <p>Plateforme de commerce en ligne<br>Québec, Canada</p>
+    <p>Création de sites et boutiques en ligne<br>Québec, Canada</p>
   </div>
-  <div class="partie" style="border-left-color:#e67e22;">
+  <div class="partie" style="border-left-color:#10b981;">
     <h3>Client</h3>
-    <p class="nom">{$nom_vendeur}</p>
-    <p>{$email_vendeur}</p>
-    <p style="margin-top:6px;">{$adresse_vendeur}</p>
+    <p class="nom">{$nom_gestionnaire}</p>
+    <p>{$email_gestionnaire}</p>
+    <p style="margin-top:6px;">{$adresse_gestionnaire}</p>
   </div>
 </div>
 
-<div class="plan-card">
-  <div class="plan-nom">{$nom_plan}</div>
-  <div class="plan-desc">{$description_plan}</div>
-  <div class="dates">
-    <div class="date-box"><div class="label">Début</div><div class="val">{$date_debut}</div></div>
-    <div class="date-box"><div class="label">Renouvellement</div><div class="val">{$date_fin}</div></div>
+<div class="periode-card">
+  <div>
+    <div class="label">Période facturée</div>
+    <div class="val">{$date_debut} — {$date_fin}</div>
+  </div>
+  <div style="text-align:right;">
+    <div class="label">Renouvellement automatique</div>
+    <div class="val">{$date_fin}</div>
   </div>
 </div>
 
 <table style="width:100%; border-collapse:collapse; margin-bottom:24px;">
   <thead>
-    <tr style="background:#2d6a9f; color:white;">
-      <th style="padding:11px 14px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase;">Description</th>
-      <th style="padding:11px 14px; text-align:right; font-size:11px; font-weight:700; text-transform:uppercase;">Montant</th>
+    <tr style="background:#4F46E5; color:white;">
+      <th style="padding:11px 14px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase;">Service</th>
+      <th style="padding:11px 14px; text-align:left; font-size:11px; font-weight:700; text-transform:uppercase;">Type</th>
+      <th style="padding:11px 14px; text-align:right; font-size:11px; font-weight:700; text-transform:uppercase;">Montant HT</th>
     </tr>
   </thead>
   <tbody>
-    <tr style="border-bottom:1px solid #e1e4e8;">
-      <td style="padding:13px 14px;">Abonnement {$nom_plan} — {$date_debut} au {$date_fin}</td>
-      <td style="padding:13px 14px; text-align:right; font-weight:700;">{$prix_plan}</td>
-    </tr>
+    {$lignes_detail}
   </tbody>
 </table>
 
 <div class="totaux">
-  <div class="ligne"><span>Sous-total</span><span>{$prix_plan}</span></div>
+  <div class="ligne"><span>Sous-total</span><span>{$sous_total}</span></div>
   <div class="ligne"><span>TPS (5%)</span><span>{$tps}</span></div>
   <div class="ligne"><span>TVQ (9.975%)</span><span>{$tvq}</span></div>
   <div class="ligne total"><span>TOTAL</span><span>{$total}</span></div>
 </div>
 
 <div class="note-taxe">
-  ℹ️ <strong>Note fiscale :</strong> Les frais d'abonnement à une plateforme de commerce électronique sont assujettis aux taxes (TPS 5% + TVQ 9.975%) conformément à la législation fiscale canadienne et québécoise en vigueur.
+  ℹ️ <strong>Note fiscale :</strong> Les frais d'abonnement à une plateforme de commerce électronique sont assujettis aux taxes (TPS 5% + TVQ 9.975%) conformément à la législation fiscale canadienne et québécoise en vigueur. e-Vend Studio est inscrit aux fichiers de la taxe au Québec.
 </div>
 
 <div style="font-size:12px; color:#374151; margin-bottom:16px;">
@@ -504,7 +499,7 @@ const HTML_DEFAUT: Record<DocType, string> = {
 </div>
 
 <div class="footer">
-  e-Vend.ca — Merci de votre confiance | Questions ? Contactez-nous via la messagerie interne.
+  e-Vend Studio — Merci de votre confiance | Questions ? Contactez-nous via la messagerie interne.
 </div>
 
 </body>
@@ -1185,12 +1180,12 @@ const DOCS_CONFIG: Document[] = [
     html: HTML_DEFAUT.commission_vendeur,
   },
   {
-    id: 'abonnement_vendeur',
+    id: 'abonnement_gestionnaire',
     nom: 'Facture abonnement',
     icon: '📋',
-    description: 'Facture de plan/abonnement pour le vendeur',
-    couleurAccent: '#7c3aed',
-    html: HTML_DEFAUT.abonnement_vendeur,
+    description: 'Facture mensuelle détaillée envoyée au gestionnaire (forfait + options + taxes)',
+    couleurAccent: '#4F46E5',
+    html: HTML_DEFAUT.abonnement_gestionnaire,
   },
   {
     id: 'facture_domaine',

@@ -3,8 +3,10 @@ import Dashboard          from './pages/gestionnaire/Dashboard';
 import PageChoisirTemplate        from './pages/gestionnaire/PageChoisirTemplate';
 import ConfigTemplate          from './pages/gestionnaire/ConfigTemplate';
 import MonDomaine          from './pages/gestionnaire/MonDomaine';
+import MesServices         from './pages/gestionnaire/MesServices';
 import ImportEvend          from './pages/gestionnaire/ImportEvend';
 import ModalUnsplash from './components/ModalUnsplash';
+import BandeauEssai  from './components/BandeauEssai';
 
 // ── Imports composants vendeur présents dans e-Vend Studio ──
 // SUPPRIMER les lignes des fichiers qui n'existent pas dans ton projet
@@ -359,6 +361,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [resetDone,    setResetDone]    = useState(false);
   const [nomPlateforme, setNomPlateforme] = useState('e-Vend');
   const [banniereVendeurActive, setBanniereVendeurActive] = useState(false);
+  const [hauteurBandeauEssai, setHauteurBandeauEssai] = useState(0);
   const [banniereVendeurMessage, setBanniereVendeurMessage] = useState('');
   const [banniereVendeurCouleurBg, setBanniereVendeurCouleurBg] = useState('#1e3a5f');
   const [banniereVendeurCouleurTx, setBanniereVendeurCouleurTx] = useState('#ffffff');
@@ -385,6 +388,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    const aller = () => setPageActive('mes-services');
+    window.addEventListener('naviguer-mes-services', aller);
+    return () => window.removeEventListener('naviguer-mes-services', aller);
   }, []);
 
   useEffect(() => {
@@ -609,6 +618,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id: 'profil-compte',        label: 'Mon compte',        icon: '👤' },
       { id: 'profil-paiement',      label: 'Détails de paiement', icon: '💳' },
       { id: 'profil-forfait',       label: 'Mon forfait',       icon: '📊' },
+      { id: 'mes-services',          label: 'Mes services',      icon: '💼' },
       { id: 'profil-rapport',       label: 'Rapport financier', icon: '📈' },
       { id: 'profil-factures',      label: 'Factures',          icon: '🧾' },
     ]
@@ -984,6 +994,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           { id: 'profil-faq',           label: 'Ma FAQ',              icon: '❓', cleAcces: 'faq' },
           { id: 'profil-badges',        label: 'Mes badges',          icon: '🏅' },
           { id: 'profil-forfait',       label: 'Mon forfait',         icon: '📊' },
+          { id: 'mes-services',          label: 'Mes services',        icon: '💼' },
           { id: 'profil-rapport',       label: 'Rapport financier',   icon: '📈' },
           { id: 'profil-factures',      label: 'Factures',            icon: '🧾' },
         ]
@@ -1139,6 +1150,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'messagerie-admin') return <MessagerieAdministration />;
     if (pageActive === 'messagerie-notifications') return <MessagerieNotifications />;
     if (pageActive === 'profil-forfait') return <MonForfait />;
+    if (pageActive === 'mes-services')   return <MesServices gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'plans-membership') return <PlansMembership naviguerVers={setPageActive} />;
     if (pageActive === 'profil-rapport') return <RapportVendeur nomVendeur={gestionnaire.nom_boutique || gestionnaire.nom} />;
     if (pageActive === 'profil-avis') return <MesAvis />;
@@ -1574,7 +1586,13 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
               {banniereVendeurMessage}
             </div>
           )}
-          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0)}px` }}>
+          <BandeauEssai
+            gestionnaireId={gestionnaire.id}
+            isMobile={isMobile}
+            offsetTop={56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0)}
+            onHauteur={setHauteurBandeauEssai}
+          />
+          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + hauteurBandeauEssai}px` }}>
             {renderPage()}
           </div>
           <div className="footer-fixed" style={footerFixedStyle}>{footerText}</div>
