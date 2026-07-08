@@ -630,59 +630,11 @@ app.get('/api/gestionnaires/moi', authenticateToken, async (req, res) => {
   }
 });
 
-// GET — Liste tous les gestionnaires (admin)
-app.get('/api/admin/gestionnaires', authenticateToken, async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Accès admin requis.' });
-  try {
-    const result = await pool.query(
-      `SELECT v.id, v.email, v.nom, v.plan, v.statut, v.created_at,
-              s.slug, s.publie, s.sous_type, s.template_id
-       FROM gestionnaires v
-       LEFT JOIN sites s ON s.gestionnaire_id = v.id
-       ORDER BY v.created_at DESC`
-    );
-    res.json({ gestionnaires: result.rows, total: result.rows.length });
-  } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur.' });
-  }
-});
-
-// PUT — Modifier statut d'un gestionnaire (admin)
-app.put('/api/admin/gestionnaires/:id/statut', authenticateToken, async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Accès admin requis.' });
-  const { statut } = req.body;
-  const statutsValides = ['actif', 'suspendu', 'banni', 'en_attente'];
-  if (!statutsValides.includes(statut)) return res.status(400).json({ message: 'Statut invalide.' });
-  try {
-    await pool.query('UPDATE gestionnaires SET statut = $1 WHERE id = $2', [statut, req.params.id]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur.' });
-  }
-});
-
-// PUT — Modifier plan d'un gestionnaire (admin)
-app.put('/api/admin/gestionnaires/:id/plan', authenticateToken, async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Accès admin requis.' });
-  const { plan } = req.body;
-  try {
-    await pool.query('UPDATE gestionnaires SET plan = $1 WHERE id = $2', [plan, req.params.id]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur.' });
-  }
-});
-
-// DELETE — Supprimer un gestionnaire (admin)
-app.delete('/api/admin/gestionnaires/:id', authenticateToken, async (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ message: 'Accès admin requis.' });
-  try {
-    await pool.query('DELETE FROM gestionnaires WHERE id = $1', [req.params.id]);
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ message: 'Erreur serveur.' });
-  }
-});
+// =====================================================================
+// 👑 ADMIN — Gestion des gestionnaires (liste enrichie, notes, statut,
+// mot de passe, F2A, impersonation) — voir routes/admin_gestionnaires.js
+// =====================================================================
+app.use('/api/admin/gestionnaires', require('./routes/admin_gestionnaires'));
 
 // =====================================================================
 // 👤 GESTIONNAIRES — GET /:id, options, plan, branding, vérificateur

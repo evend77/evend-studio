@@ -678,7 +678,9 @@ function ListeGestionnaires({ onImpersonate, onNaviguerVers }: ListeGestionnaire
       const res = await fetch(`${API}/api/admin/gestionnaires`, { headers: { Authorization: `Bearer ${token()}` } });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
-      setGestionnaires(data.map((g: any) => ({
+      const liste = Array.isArray(data) ? data : Array.isArray(data?.gestionnaires) ? data.gestionnaires : null;
+      if (!liste) throw new Error('Format de réponse inattendu (tableau attendu).');
+      setGestionnaires(liste.map((g: any) => ({
         id: g.id,
         nom: g.nom,
         email: g.email,

@@ -79,6 +79,33 @@ router.put('/:id/statut', authenticateToken, isAdmin, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// PUT /api/admin/gestionnaires/:id/plan
+// Change le plan d'un gestionnaire (ex: gratuit, pro, etc.)
+// Équivalent de l'ancienne route vestige de server.js, recréée ici
+// par prudence au cas où un écran existant l'appelle encore.
+// ─────────────────────────────────────────────────────────────
+router.put('/:id/plan', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const gestionnaireId = parseInt(req.params.id);
+    const { plan } = req.body;
+    if (!plan) return res.status(400).json({ error: 'Plan requis.' });
+
+    await pool.query(`UPDATE gestionnaires SET plan = $1, updated_at = NOW() WHERE id = $2`, [plan, gestionnaireId]);
+
+    pool.query(
+      `INSERT INTO audit_logs (action, utilisateur, details, niveau) VALUES ($1,$2,$3,$4)`,
+      ['CHANGEMENT_PLAN_GESTIONNAIRE', req.user.email || req.user.id,
+       JSON.stringify({ gestionnaire_id: gestionnaireId, nouveau_plan: plan }), 'info']
+    ).catch(() => {});
+
+    res.json({ success: true, plan });
+  } catch (err) {
+    console.error('❌ PUT /:id/plan:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
 // PUT /api/admin/gestionnaires/:id/mot-de-passe
 // Change le mot de passe d'un gestionnaire (action admin)
 // ─────────────────────────────────────────────────────────────
