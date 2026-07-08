@@ -30,6 +30,7 @@ import ConfigurationMakeOffer    from './pages/admin/ConfigurationMakeOffer';
 import ModelesCourriel      from './pages/admin/ModelesCourriel';
 import ModelesDocument      from './pages/admin/ModelesDocument';
 import ListeVendeurs, { Vendeur } from './pages/admin/ListeVendeurs';
+import ListeGestionnaires, { Gestionnaire } from './pages/admin/ListeGestionnaires';
 import ListeProduits         from './pages/admin/ListeProduits';
 import GestionTagsEtTypes    from './pages/admin/GestionTagsEtTypes';
 import GestionBadges         from './pages/admin/GestionBadges';
@@ -102,6 +103,13 @@ const NAV_ITEMS: NavItem[] = [
     sousSections: [
       { id: 'acheteurs-liste',        label: 'Liste des acheteurs',      icon: '📋' },
       { id: 'acheteurs-suspendus',    label: 'Compte acheteurs suspendus', icon: '🚫' },
+    ],
+  },
+
+  {
+    id: 'gestionnaires', label: 'Gestionnaires', icon: '🧑‍💼',
+    sousSections: [
+      { id: 'gestionnaires-liste', label: 'Liste des gestionnaires', icon: '📋' },
     ],
   },
 
@@ -432,22 +440,25 @@ function PageEnConstruction({ titre }: { titre: string }) {
 }
 
 // ── Composant principal ───────────────────────────────────────────────────────
-function AppAdmin({ onLogout, onImpersonate, onImpersonateAcheteur }: { onLogout?: () => void; onImpersonate?: (vendeur: any) => void; onImpersonateAcheteur?: (acheteur: any) => void }) {
+function AppAdmin({ onLogout, onImpersonate, onImpersonateAcheteur, onImpersonateGestionnaire }: { onLogout?: () => void; onImpersonate?: (vendeur: any) => void; onImpersonateAcheteur?: (acheteur: any) => void; onImpersonateGestionnaire?: (gestionnaire: any, token: string) => void }) {
   return (
     <TranslationProvider>
-      <AppAdminContent onLogout={onLogout} onImpersonate={onImpersonate} onImpersonateAcheteur={onImpersonateAcheteur} />
+      <AppAdminContent onLogout={onLogout} onImpersonate={onImpersonate} onImpersonateAcheteur={onImpersonateAcheteur} onImpersonateGestionnaire={onImpersonateGestionnaire} />
     </TranslationProvider>
   );
 }
 
 // ── Contenu principal de l'admin ───────────────────────────────────────────
-function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur }: { onLogout?: () => void; onImpersonate?: (vendeur: any) => void; onImpersonateAcheteur?: (acheteur: any) => void }) {
+function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImpersonateGestionnaire }: { onLogout?: () => void; onImpersonate?: (vendeur: any) => void; onImpersonateAcheteur?: (acheteur: any) => void; onImpersonateGestionnaire?: (gestionnaire: any, token: string) => void }) {
   const [pageActive, setPageActive] = useState('dashboard');
   const [sectionOuverte, setSectionOuverte] = useState<string | null>(null);
   const [heureActuelle, setHeureActuelle] = useState(new Date());
   const [vendeurImpersonne, setVendeurImpersonne] = useState<Vendeur | null>(null);
   const [vendeurAImpersonner, setVendeurAImpersonner] = useState<Vendeur | null>(null);
   const [modalImpersonateOuvert, setModalImpersonateOuvert] = useState(false);
+  const [gestionnaireImpersonne, setGestionnaireImpersonne] = useState<Gestionnaire | null>(null);
+  const [gestionnaireAImpersonner, setGestionnaireAImpersonner] = useState<{ gestionnaire: Gestionnaire; token: string } | null>(null);
+  const [modalImpersonateGestionnaireOuvert, setModalImpersonateGestionnaireOuvert] = useState(false);
   const [planAEditer, setPlanAEditer] = useState<any>(null);
   const [pageData, setPageData] = useState<any>(null);
   
@@ -560,6 +571,13 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur }: { o
         return <ListeAcheteurs onNaviguerVers={naviguerVers} onImpersonate={onImpersonateAcheteur} />;
       case 'acheteurs-suspendus':
         return <PageEnConstruction titre="Acheteurs suspendus" />;
+
+      case 'gestionnaires':
+      case 'gestionnaires-liste':
+        return <ListeGestionnaires
+                 onImpersonate={(gestionnaire, token) => { setGestionnaireAImpersonner({ gestionnaire, token }); setModalImpersonateGestionnaireOuvert(true); }}
+                 onNaviguerVers={naviguerVers}
+               />;
 
       case 'vendeurs':
       case 'vendeurs-liste':
@@ -899,6 +917,13 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur }: { o
           <button onClick={() => setVendeurImpersonne(null)} style={{ backgroundColor: '#d97706', color: 'white', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>✕ Quitter</button>
         </div>
       )}
+      {gestionnaireImpersonne && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#fef9c3', border: '1px solid #d97706', borderRadius: '8px', padding: '6px 14px' }}>
+          <span>👤</span>
+          <span style={{ fontSize: '12px', fontWeight: '700', color: '#92400e' }}>Impersonation : {gestionnaireImpersonne.nom} — {gestionnaireImpersonne.nom_boutique}</span>
+          <button onClick={() => setGestionnaireImpersonne(null)} style={{ backgroundColor: '#d97706', color: 'white', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>✕ Quitter</button>
+        </div>
+      )}
       
       <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
         <span style={{ fontSize: '13px', color: THEME.textLight, fontWeight: '500' }}>
@@ -996,6 +1021,39 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur }: { o
                     setModalImpersonateOuvert(false);
                     if (onImpersonate && vendeurAImpersonner) {
                       onImpersonate(vendeurAImpersonner);
+                    }
+                  }} style={{ backgroundColor: THEME.accent, color: 'white', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                    👤 Accéder au dashboard
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {modalImpersonateGestionnaireOuvert && gestionnaireAImpersonner && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ backgroundColor: 'white', borderRadius: '14px', width: '100%', maxWidth: '420px', boxShadow: '0 12px 48px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+              <div style={{ padding: '20px 24px', backgroundColor: '#fef9c3', borderBottom: '2px solid #d97706' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '0 0 2px 0', color: '#92400e', textTransform: 'uppercase' }}>👤 Accéder en tant que gestionnaire</h3>
+                <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Vous allez accéder au dashboard de ce gestionnaire</p>
+              </div>
+              <div style={{ padding: '24px' }}>
+                <div style={{ backgroundColor: '#f8fafc', borderRadius: '10px', padding: '16px', marginBottom: '16px', border: `1px solid ${THEME.border}` }}>
+                  <p style={{ fontSize: '15px', fontWeight: '800', color: THEME.text, margin: '0 0 4px 0' }}>{gestionnaireAImpersonner.gestionnaire.nom}</p>
+                  <p style={{ fontSize: '13px', color: THEME.textLight, margin: '0 0 2px 0' }}>🏪 {gestionnaireAImpersonner.gestionnaire.nom_boutique}</p>
+                  <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>{gestionnaireAImpersonner.gestionnaire.email} · {gestionnaireAImpersonner.gestionnaire.plan}</p>
+                </div>
+                <div style={{ backgroundColor: '#fef9c3', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', border: '1px solid #d97706' }}>
+                  <p style={{ fontSize: '12px', color: '#92400e', fontWeight: '600', margin: 0 }}>⚠️ Toutes vos actions seront enregistrées dans les journaux d'audit.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setModalImpersonateGestionnaireOuvert(false)} style={{ backgroundColor: 'white', color: '#666', border: '1px solid #ddd', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Annuler</button>
+                  <button onClick={() => {
+                    setGestionnaireImpersonne(gestionnaireAImpersonner.gestionnaire);
+                    setModalImpersonateGestionnaireOuvert(false);
+                    if (onImpersonateGestionnaire) {
+                      onImpersonateGestionnaire(gestionnaireAImpersonner.gestionnaire, gestionnaireAImpersonner.token);
                     }
                   }} style={{ backgroundColor: THEME.accent, color: 'white', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
                     👤 Accéder au dashboard

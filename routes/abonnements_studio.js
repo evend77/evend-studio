@@ -186,62 +186,147 @@ router.get('/options-disponibles', authenticateToken, async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
+// FONCTION RÉUTILISABLE — Démarrer l'essai pour un gestionnaire
+// Utilisée par la route POST /demarrer-essai ci-dessous ET par
+// routes/gestionnaires.js juste après la création d'un compte.
+// Lève une erreur (err.code = 'ABONNEMENT_EXISTANT') si un abonnement
+// existe déjà — à catcher par l'appelant.
+// ─────────────────────────────────────────────────────────────
+async function demarrerEssaiPourGestionnaire(gestionnaireId, forfaitId = null) {
+  // Vérifier qu'il n'a pas déjà un abonnement actif
+  const existant = await pool.query(
+    `SELECT id FROM abonnements_studio WHERE gestionnaire_id = $1 LIMIT 1`,
+    [gestionnaireId]
+  );
+  if (existant.rows.length) {
+    const err = new Error('Un abonnement ou essai existe déjà pour ce compte.');
+    err.code = 'ABONNEMENT_EXISTANT';
+    throw err;
+  }
+
+  const essaiDebut = new Date();
+  const essaiFin  = new Date(essaiDebut.getTime() + JOURS_ESSAI * 24 * 60 * 60 * 1000);
+
+  // Créer l'abonnement en statut 'essai'
+  const aboRes = await pool.query(
+    `INSERT INTO abonnements_studio
+       (gestionnaire_id, forfait_id, statut, essai_debut, essai_fin)
+     VALUES ($1, $2, 'essai', $3, $4)
+     RETURNING *`,
+    [gestionnaireId, forfaitId || null, essaiDebut, essaiFin]
+  );
+  const abo = aboRes.rows[0];
+
+  // Si un forfait est sélectionné, créer la ligne de base
+  if (forfaitId) {
+    const forfait = await pool.query(`SELECT * FROM forfaits_studio WHERE id = $1`, [forfaitId]);
+    if (forfait.rows.length) {
+      const f = forfait.rows[0];
+      await pool.query(
+        `INSERT INTO abonnements_lignes (abonnement_id, type, reference_id, code, nom, prix_ht)
+         VALUES ($1, 'forfait', $2, $3, $4, $5)`,
+        [abo.id, f.id, `forfait_${f.id}`, f.nom, f.prix_ht]
+      );
+    }
+  }
+
+  // Mettre à jour gestionnaires.statut_abo / essai_fin
+  await pool.query(
+    `UPDATE gestionnaires SET statut_abo = 'essai', essai_debut = $1, essai_fin = $2 WHERE id = $3`,
+    [essaiDebut, essaiFin, gestionnaireId]
+  );
+
+  return { essai_fin: essaiFin, abonnement: abo };
+}
+
+// ─────────────────────────────────────────────────────────────
 // POST /api/abonnements-studio/demarrer-essai
 // Crée l'essai gratuit de 14 jours pour un nouveau gestionnaire.
-// Appelé automatiquement à la création de compte (pas de carte).
+// Peut aussi être déclenché automatiquement à la création de compte
+// via demarrerEssaiPourGestionnaire() (voir gestionnaires.js).
 // ─────────────────────────────────────────────────────────────
 router.post('/demarrer-essai', authenticateToken, async (req, res) => {
   try {
     const gestionnaireId = req.user.id;
     const { forfait_id } = req.body;
 
-    // Vérifier qu'il n'a pas déjà un abonnement actif
-    const existant = await pool.query(
-      `SELECT id FROM abonnements_studio WHERE gestionnaire_id = $1 LIMIT 1`,
-      [gestionnaireId]
-    );
-    if (existant.rows.length) {
-      return res.status(409).json({ error: 'Un abonnement ou essai existe déjà pour ce compte.' });
-    }
+    const resultat = await demarrerEssaiPourGestionnaire(gestionnaireId, forfait_id);
 
-    const essaiDebut = new Date();
-    const essaiFin  = new Date(essaiDebut.getTime() + JOURS_ESSAI * 24 * 60 * 60 * 1000);
-
-    // Créer l'abonnement en statut 'essai'
-    const aboRes = await pool.query(
-      `INSERT INTO abonnements_studio
-         (gestionnaire_id, forfait_id, statut, essai_debut, essai_fin)
-       VALUES ($1, $2, 'essai', $3, $4)
-       RETURNING *`,
-      [gestionnaireId, forfait_id || null, essaiDebut, essaiFin]
-    );
-    const abo = aboRes.rows[0];
-
-    // Si un forfait est sélectionné, créer la ligne de base
-    if (forfait_id) {
-      const forfait = await pool.query(`SELECT * FROM forfaits_studio WHERE id = $1`, [forfait_id]);
-      if (forfait.rows.length) {
-        const f = forfait.rows[0];
-        await pool.query(
-          `INSERT INTO abonnements_lignes (abonnement_id, type, reference_id, code, nom, prix_ht)
-           VALUES ($1, 'forfait', $2, $3, $4, $5)`,
-          [abo.id, f.id, `forfait_${f.id}`, f.nom, f.prix_ht]
-        );
-      }
-    }
-
-    // Mettre à jour gestionnaires.statut_abo / essai_fin
-    await pool.query(
-      `UPDATE gestionnaires SET statut_abo = 'essai', essai_debut = $1, essai_fin = $2 WHERE id = $3`,
-      [essaiDebut, essaiFin, gestionnaireId]
-    );
-
-    res.json({ success: true, essai_fin: essaiFin, abonnement: abo });
+    res.json({ success: true, essai_fin: resultat.essai_fin, abonnement: resultat.abonnement });
   } catch (err) {
+    if (err.code === 'ABONNEMENT_EXISTANT') {
+      return res.status(409).json({ error: err.message });
+    }
     console.error('❌ POST /demarrer-essai:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
+// ─────────────────────────────────────────────────────────────
+// FONCTION RÉUTILISABLE — Générer un lien de paiement Stripe Checkout
+// pour un gestionnaire donné. Utilisée par la route ci-dessous ET
+// par routes/authStudio.js quand un compte 'expire' tente de se
+// connecter (aucun token émis dans ce cas — juste le lien Stripe).
+// ─────────────────────────────────────────────────────────────
+async function genererLienPaiementPourGestionnaire(gestionnaireId) {
+  const gRes = await pool.query(`SELECT * FROM gestionnaires WHERE id = $1`, [gestionnaireId]);
+  if (!gRes.rows.length) {
+    const err = new Error('Gestionnaire introuvable.');
+    err.code = 'GESTIONNAIRE_INTROUVABLE';
+    throw err;
+  }
+  const gestionnaire = gRes.rows[0];
+
+  // Inclut volontairement 'expire' : un compte expiré doit pouvoir
+  // relancer son paiement pour redevenir actif. Seul 'a_supprimer'
+  // (compte en cours de suppression définitive) est exclu.
+  const aboRes = await pool.query(
+    `SELECT * FROM abonnements_studio WHERE gestionnaire_id = $1 AND statut != 'a_supprimer'
+     ORDER BY created_at DESC LIMIT 1`,
+    [gestionnaireId]
+  );
+  if (!aboRes.rows.length) {
+    const err = new Error('Aucun abonnement trouvé.');
+    err.code = 'ABONNEMENT_INTROUVABLE';
+    throw err;
+  }
+  const abo = aboRes.rows[0];
+
+  const montantHT = await calculerMontantHT(abo.id);
+  if (montantHT <= 0) {
+    const err = new Error('Montant de l\'abonnement est 0 — aucun plan payant sélectionné.');
+    err.code = 'MONTANT_NUL';
+    throw err;
+  }
+
+  const customerId = await getOrCreateCustomer(gestionnaire, abo);
+  const priceId    = await syncStripePrice(abo, montantHT);
+
+  // Stripe Checkout en mode subscription (sans trial puisque l'essai
+  // est géré par notre propre système, pas par Stripe)
+  const session = await stripe.checkout.sessions.create({
+    customer:     customerId,
+    mode:         'subscription',
+    line_items:   [{ price: priceId, quantity: 1 }],
+    success_url:  `${FRONTEND_URL}/dashboard?abo=succes&session_id={CHECKOUT_SESSION_ID}`,
+    cancel_url:   `${FRONTEND_URL}/login?abo=annule`,
+    locale:       'fr',
+    metadata: {
+      gestionnaire_id: String(gestionnaireId),
+      abonnement_id:   String(abo.id),
+      evend_studio:    'true',
+    },
+    subscription_data: {
+      metadata: {
+        gestionnaire_id: String(gestionnaireId),
+        abonnement_id:   String(abo.id),
+        evend_studio:    'true',
+      },
+    },
+  });
+
+  return session.url;
+}
 
 // ─────────────────────────────────────────────────────────────
 // POST /api/abonnements-studio/configurer-paiement
@@ -251,52 +336,15 @@ router.post('/demarrer-essai', authenticateToken, async (req, res) => {
 // ─────────────────────────────────────────────────────────────
 router.post('/configurer-paiement', authenticateToken, async (req, res) => {
   try {
-    const gestionnaireId = req.user.id;
-
-    const gRes = await pool.query(`SELECT * FROM gestionnaires WHERE id = $1`, [gestionnaireId]);
-    if (!gRes.rows.length) return res.status(404).json({ error: 'Gestionnaire introuvable.' });
-    const gestionnaire = gRes.rows[0];
-
-    const aboRes = await pool.query(
-      `SELECT * FROM abonnements_studio WHERE gestionnaire_id = $1 AND statut NOT IN ('expire','a_supprimer') LIMIT 1`,
-      [gestionnaireId]
-    );
-    if (!aboRes.rows.length) return res.status(404).json({ error: 'Aucun abonnement trouvé.' });
-    const abo = aboRes.rows[0];
-
-    const montantHT = await calculerMontantHT(abo.id);
-    if (montantHT <= 0) {
-      return res.status(400).json({ error: 'Montant de l\'abonnement est 0 — aucun plan payant sélectionné.' });
-    }
-
-    const customerId = await getOrCreateCustomer(gestionnaire, abo);
-    const priceId    = await syncStripePrice(abo, montantHT);
-
-    // Stripe Checkout en mode subscription (sans trial puisque l'essai
-    // est géré par notre propre système, pas par Stripe)
-    const session = await stripe.checkout.sessions.create({
-      customer:     customerId,
-      mode:         'subscription',
-      line_items:   [{ price: priceId, quantity: 1 }],
-      success_url:  `${FRONTEND_URL}/dashboard?abo=succes&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url:   `${FRONTEND_URL}/dashboard?abo=annule`,
-      locale:       'fr',
-      metadata: {
-        gestionnaire_id: String(gestionnaireId),
-        abonnement_id:   String(abo.id),
-        evend_studio:    'true',
-      },
-      subscription_data: {
-        metadata: {
-          gestionnaire_id: String(gestionnaireId),
-          abonnement_id:   String(abo.id),
-          evend_studio:    'true',
-        },
-      },
-    });
-
-    res.json({ url: session.url });
+    const url = await genererLienPaiementPourGestionnaire(req.user.id);
+    res.json({ url });
   } catch (err) {
+    if (['GESTIONNAIRE_INTROUVABLE', 'ABONNEMENT_INTROUVABLE'].includes(err.code)) {
+      return res.status(404).json({ error: err.message });
+    }
+    if (err.code === 'MONTANT_NUL') {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('❌ POST /configurer-paiement:', err.message);
     res.status(500).json({ error: err.message });
   }
@@ -459,4 +507,84 @@ router.post('/portail', authenticateToken, async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────
+// GET /api/abonnements-studio/mes-factures
+// Liste l'historique des factures d'abonnement du gestionnaire connecté
+// (une ligne par paiement réussi dans abonnements_paiements)
+// ─────────────────────────────────────────────────────────────
+router.get('/mes-factures', authenticateToken, async (req, res) => {
+  try {
+    const gestionnaireId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT id, numero_facture, statut, montant_ht, tps, tvq, montant_total,
+              periode_debut, periode_fin, created_at
+       FROM abonnements_paiements
+       WHERE gestionnaire_id = $1
+       ORDER BY created_at DESC`,
+      [gestionnaireId]
+    );
+
+    res.json({ factures: result.rows });
+  } catch (err) {
+    console.error('❌ GET /mes-factures:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// GET /api/abonnements-studio/factures/:id
+// Détail complet d'une facture d'abonnement, pour affichage/impression
+// ─────────────────────────────────────────────────────────────
+router.get('/factures/:id', authenticateToken, async (req, res) => {
+  try {
+    const factureId = parseInt(req.params.id);
+    const gestionnaireId = req.user.id;
+
+    const result = await pool.query(
+      `SELECT p.*, g.nom AS gestionnaire_nom, g.nom_boutique AS gestionnaire_boutique,
+              g.email AS gestionnaire_email,
+              CONCAT(
+                COALESCE(g.num_civique || ' ', ''),
+                COALESCE(g.rue || ', ', ''),
+                COALESCE(g.ville || ', ', ''),
+                COALESCE(g.province || ' ', ''),
+                COALESCE(g.code_postal, '')
+              ) AS gestionnaire_adresse,
+              g.no_tps AS gestionnaire_no_tps, g.no_taxe_provinciale AS gestionnaire_no_tvq,
+              to_char(p.created_at,    'DD/MM/YYYY') AS date_emission_fr,
+              to_char(p.periode_debut, 'DD/MM/YYYY') AS periode_debut_fr,
+              to_char(p.periode_fin,   'DD/MM/YYYY') AS periode_fin_fr
+       FROM abonnements_paiements p
+       JOIN gestionnaires g ON g.id = p.gestionnaire_id
+       WHERE p.id = $1`,
+      [factureId]
+    );
+
+    if (!result.rows.length) return res.status(404).json({ error: 'Facture non trouvée.' });
+
+    const facture = result.rows[0];
+
+    // Un gestionnaire ne peut voir que ses propres factures
+    if (facture.gestionnaire_id !== gestionnaireId && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Accès refusé.' });
+    }
+
+    // Récupérer aussi le détail des lignes actives au moment de la facture
+    // (best-effort : on prend les lignes actuelles, faute d'historique ligne par ligne)
+    const lignesRes = await pool.query(
+      `SELECT nom, code, prix_ht FROM abonnements_lignes
+       WHERE abonnement_id = $1 AND actif = TRUE ORDER BY type, id`,
+      [facture.abonnement_id]
+    );
+
+    res.json({ ...facture, lignes: lignesRes.rows });
+  } catch (err) {
+    console.error('❌ GET /factures/:id:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;
+module.exports.demarrerEssaiPourGestionnaire = demarrerEssaiPourGestionnaire;
+module.exports.genererLienPaiementPourGestionnaire = genererLienPaiementPourGestionnaire;

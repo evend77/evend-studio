@@ -4,7 +4,7 @@
 // ============================================================
 // Événements gérés :
 //   - checkout.session.completed     → activer l'abonnement après paiement
-//   - invoice.payment_succeeded      → enregistrer le paiement reçu
+//   - invoice.payment_succeeded      → enregistrer le paiement reçu + numéro de facture
 //   - invoice.payment_failed         → marquer comme impayé
 //   - customer.subscription.deleted  → abonnement terminé (annulé ou impayé)
 //   - customer.subscription.updated  → changement de statut Stripe
@@ -22,6 +22,21 @@ function calculerTaxes(montantHT) {
   const tps = Math.round(montantHT * TAUX_TPS * 100) / 100;
   const tvq = Math.round(montantHT * TAUX_TVQ * 100) / 100;
   return { tps, tvq, total: Math.round((montantHT + tps + tvq) * 100) / 100 };
+}
+
+// ─────────────────────────────────────────────────────────────
+// HELPER — Générer un numéro de facture unique ABO-AAAA-NNNNN
+// (compteur par année, basé sur le nombre de factures déjà émises)
+// ─────────────────────────────────────────────────────────────
+async function genererNumeroFactureAbonnement() {
+  const annee = new Date().getFullYear();
+  const result = await pool.query(
+    `SELECT COUNT(*) + 1 AS next FROM abonnements_paiements
+     WHERE EXTRACT(YEAR FROM created_at) = $1`,
+    [annee]
+  );
+  const compteur = String(result.rows[0].next).padStart(5, '0');
+  return `ABO-${annee}-${compteur}`;
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -106,8 +121,8 @@ async function handleCheckoutCompleted(session) {
 
 // ─────────────────────────────────────────────────────────────
 // HANDLER : invoice.payment_succeeded
-// Renouvellement mensuel réussi — mettre à jour les dates et
-// enregistrer le paiement dans l'historique
+// Renouvellement mensuel réussi — mettre à jour les dates,
+// générer un numéro de facture et enregistrer le paiement
 // ─────────────────────────────────────────────────────────────
 async function handlePaiementReussi(invoice) {
   if (invoice.billing_reason === 'subscription_create') {
@@ -140,19 +155,20 @@ async function handlePaiementReussi(invoice) {
     [periodeDebut, periodeFin, abo.id]
   );
 
-  // Enregistrer le paiement dans l'historique
-  const montantTotal = (invoice.amount_paid || 0) / 100;
-  const montantHT    = Math.round(montantTotal / (1 + 0.05 + 0.09975) * 100) / 100;
-  const taxes        = calculerTaxes(montantHT);
+  // Enregistrer le paiement dans l'historique, avec numéro de facture
+  const montantTotal   = (invoice.amount_paid || 0) / 100;
+  const montantHT      = Math.round(montantTotal / (1 + 0.05 + 0.09975) * 100) / 100;
+  const taxes          = calculerTaxes(montantHT);
+  const numeroFacture  = await genererNumeroFactureAbonnement();
 
   await pool.query(
     `INSERT INTO abonnements_paiements
        (abonnement_id, gestionnaire_id, stripe_invoice_id, stripe_payment_intent,
-        montant_ht, tps, tvq, montant_total, statut, periode_debut, periode_fin)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'paye',$9,$10)
+        numero_facture, montant_ht, tps, tvq, montant_total, statut, periode_debut, periode_fin)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'paye',$10,$11)
      ON CONFLICT (stripe_invoice_id) DO NOTHING`,
     [abo.id, abo.gestionnaire_id, invoice.id, invoice.payment_intent,
-     montantHT, taxes.tps, taxes.tvq, montantTotal, periodeDebut, periodeFin]
+     numeroFacture, montantHT, taxes.tps, taxes.tvq, montantTotal, periodeDebut, periodeFin]
   );
 
   await pool.query(
@@ -160,7 +176,7 @@ async function handlePaiementReussi(invoice) {
     [abo.gestionnaire_id]
   );
 
-  console.log(`   ✅ Paiement enregistré — gestionnaire ${abo.gestionnaire_id} | ${montantTotal}$ CAD`);
+  console.log(`   ✅ Paiement enregistré (${numeroFacture}) — gestionnaire ${abo.gestionnaire_id} | ${montantTotal}$ CAD`);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -187,7 +203,7 @@ async function handlePaiementEchoue(invoice) {
     [abo.gestionnaire_id]
   );
 
-  // Enregistrer l'échec dans l'historique
+  // Enregistrer l'échec dans l'historique (pas de numéro de facture pour un échec)
   await pool.query(
     `INSERT INTO abonnements_paiements
        (abonnement_id, gestionnaire_id, stripe_invoice_id, montant_total, statut)

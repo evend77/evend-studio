@@ -4,6 +4,7 @@
 // forfait de base + options actives + taxes TPS/TVQ
 
 import React, { useState, useEffect } from 'react';
+import FacturePopupAbonnement from '../../components/FacturePopupAbonnement';
 
 interface Props {
   gestionnaireId: number;
@@ -45,13 +46,28 @@ interface OptionDispo {
   taxes: { tps: number; tvq: number; total: number };
 }
 
-type Vue = 'services' | 'options';
+interface FactureHistorique {
+  id: number;
+  numero_facture: string | null;
+  statut: string;
+  montant_ht: number | null;
+  tps: number | null;
+  tvq: number | null;
+  montant_total: number | null;
+  periode_debut: string | null;
+  periode_fin: string | null;
+  created_at: string;
+}
+
+type Vue = 'services' | 'options' | 'factures';
 
 export default function MesServices({ gestionnaireId }: Props) {
   const [abonnement, setAbonnement] = useState<Abonnement | null>(null);
   const [lignes, setLignes] = useState<Ligne[]>([]);
   const [totaux, setTotaux] = useState<Totaux | null>(null);
   const [options, setOptions] = useState<OptionDispo[]>([]);
+  const [factures, setFactures] = useState<FactureHistorique[]>([]);
+  const [factureOuverte, setFactureOuverte] = useState<number | null>(null);
   const [vue, setVue] = useState<Vue>('services');
   const [chargement, setChargement] = useState(true);
   const [actionEnCours, setActionEnCours] = useState<string | null>(null);
@@ -62,20 +78,25 @@ export default function MesServices({ gestionnaireId }: Props) {
   const charger = async () => {
     setChargement(true);
     try {
-      const [aboRes, optRes] = await Promise.all([
+      const [aboRes, optRes, facturesRes] = await Promise.all([
         fetch('/api/abonnements-studio/mon-abonnement', {
           headers: { Authorization: `Bearer ${token()}` },
         }),
         fetch('/api/abonnements-studio/options-disponibles', {
           headers: { Authorization: `Bearer ${token()}` },
         }),
+        fetch('/api/abonnements-studio/mes-factures', {
+          headers: { Authorization: `Bearer ${token()}` },
+        }),
       ]);
       const aboData = await aboRes.json();
       const optData = await optRes.json();
+      const facturesData = await facturesRes.json();
       setAbonnement(aboData.abonnement);
       setLignes(aboData.lignes || []);
       setTotaux(aboData.totaux);
       setOptions(optData || []);
+      setFactures(facturesData.factures || []);
     } catch {
       setMessage({ type: 'error', texte: 'Erreur lors du chargement.' });
     }
@@ -164,6 +185,12 @@ export default function MesServices({ gestionnaireId }: Props) {
     return { label: statut, couleur: '#888', bg: '#f3f4f6' };
   };
 
+  const statutFactureBadge = (statut: string) => {
+    if (statut === 'paye')   return { label: 'Payée',  couleur: '#10b981', bg: '#ecfdf5' };
+    if (statut === 'echoue') return { label: 'Échouée', couleur: '#dc2626', bg: '#fef2f2' };
+    return { label: statut, couleur: '#888', bg: '#f3f4f6' };
+  };
+
   if (chargement) {
     return (
       <div style={{ padding: 40, textAlign: 'center', color: '#888', fontFamily: "'Inter', sans-serif" }}>
@@ -244,7 +271,7 @@ export default function MesServices({ gestionnaireId }: Props) {
 
       {/* ── Onglets ── */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: '#f3f4f6', borderRadius: 10, padding: 4 }}>
-        {([['services', '📋 Mon abonnement'], ['options', '⚙️ Options disponibles']] as [Vue, string][]).map(([id, label]) => (
+        {([['services', '📋 Mon abonnement'], ['options', '⚙️ Options disponibles'], ['factures', '🧾 Factures']] as [Vue, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setVue(id)} style={{
             flex: 1, padding: '9px 16px', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
             background: vue === id ? '#fff' : 'transparent',
@@ -382,6 +409,66 @@ export default function MesServices({ gestionnaireId }: Props) {
             Les options activées s'ajoutent à votre montant mensuel dès le prochain cycle de facturation.
           </p>
         </div>
+      )}
+      {/* ══════════ VUE FACTURES ══════════ */}
+      {vue === 'factures' && (
+        <div style={{ background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', background: '#f8fafc', borderBottom: '1px solid #e5e7eb', fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase' }}>
+            Historique de facturation
+          </div>
+
+          {factures.length === 0 ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>
+              Aucune facture pour le moment. Vos factures apparaîtront ici après votre premier paiement.
+            </div>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <tbody>
+                {factures.map(f => {
+                  const fBadge = statutFactureBadge(f.statut);
+                  return (
+                    <tr key={f.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                      <td style={{ padding: '14px 20px' }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>
+                          {f.numero_facture || '—'}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
+                          {formatDate(f.created_at)}
+                          {f.periode_debut && f.periode_fin && (
+                            <> · Période : {formatDate(f.periode_debut)} — {formatDate(f.periode_fin)}</>
+                          )}
+                        </div>
+                      </td>
+                      <td style={{ padding: '14px 20px' }}>
+                        <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: fBadge.bg, color: fBadge.couleur }}>
+                          {fBadge.label}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 700, fontSize: 14, color: '#1a1a1a', whiteSpace: 'nowrap' }}>
+                        {f.montant_total !== null ? fmt(parseFloat(String(f.montant_total))) : '—'}
+                      </td>
+                      <td style={{ padding: '14px 20px', textAlign: 'right' }}>
+                        {f.statut === 'paye' && f.numero_facture ? (
+                          <button
+                            onClick={() => setFactureOuverte(f.id)}
+                            style={{ padding: '7px 14px', border: '1.5px solid #e5e7eb', background: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#4F46E5', whiteSpace: 'nowrap' }}
+                          >
+                            🖨️ Voir facture
+                          </button>
+                        ) : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* ── Popup facture (ouvrable depuis n'importe quel onglet) ── */}
+      {factureOuverte !== null && (
+        <FacturePopupAbonnement factureId={factureOuverte} onClose={() => setFactureOuverte(null)} />
       )}
     </div>
   );

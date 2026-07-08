@@ -7,6 +7,18 @@ const router  = express.Router();
 const pool    = require('../db');
 const bcrypt  = require('bcrypt');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
+const { demarrerEssaiPourGestionnaire } = require('./abonnements_studio');
+// ⚠️ AJUSTER SI NÉCESSAIRE : nom/chemin réel du service d'envoi d'email par template.
+// On s'attend à une fonction envoyerEmailModele(numeroTemplate, destinataireEmail, variables)
+// qui gère elle-même la récupération du HTML du template (#69 = bienvenue + essai démarré)
+// et l'envoi via AWS SES. Si le vrai nom diffère, remplacer uniquement cette ligne
+// et l'appel plus bas dans POST /.
+let envoyerEmailModele = null;
+try {
+    ({ envoyerEmailModele } = require('../services/email'));
+} catch (e) {
+    console.warn('⚠️ services/email.js introuvable — email de bienvenue (#69) non envoyé automatiquement:', e.message);
+}
 
 // GET / — liste tous les vendeurs (avec filtre statut optionnel)
 router.get('/', async (req, res) => {
@@ -97,7 +109,7 @@ router.post('/', async (req, res) => {
         const insertVals = [
             nom, email, hashedPassword, nom_boutique, province,
             zone_expedition || null, type_entreprise || null, telephone || null,
-            plan || 'Gratuit', 'pending',
+            plan || 'Gratuit', 'actif', // e-Vend Studio : aucune approbation admin requise, compte actif dès l'inscription
             date_inscription || new Date().toISOString().split('T')[0],
             0, 0, 0
         ];
@@ -151,11 +163,28 @@ router.post('/', async (req, res) => {
         pool.query(
             `INSERT INTO audit_logs (action, utilisateur, details, niveau) VALUES ($1,$2,$3,$4)`,
             ['INSCRIPTION_VENDEUR', email,
-             JSON.stringify({ seller_id: vendeur.seller_id, nom, nom_boutique, statut: 'pending' }), 'info']
+             JSON.stringify({ seller_id: vendeur.seller_id, nom, nom_boutique, statut: 'actif' }), 'info']
         ).catch(e => console.error('Erreur log inscription:', e));
 
+        // ── Démarrage automatique de l'essai gratuit 14 jours + email de bienvenue (#69) ──
+        // Ne doit JAMAIS faire échouer l'inscription : erreurs seulement loguées.
+        try {
+            const { forfait_id } = req.body; // optionnel, si le formulaire d'inscription en propose un
+            await demarrerEssaiPourGestionnaire(nouveauId, forfait_id || null);
+
+            if (envoyerEmailModele) {
+                envoyerEmailModele(69, vendeur.email, {
+                    nom: vendeur.nom,
+                    nom_boutique: vendeur.nom_boutique,
+                    seller_id: vendeur.seller_id,
+                }).catch(e => console.error('Erreur envoi email #69 (bienvenue/essai):', e.message));
+            }
+        } catch (e) {
+            console.error('⚠️ Erreur démarrage essai automatique pour', vendeur.seller_id, ':', e.message);
+        }
+
         res.status(201).json({
-            message: "Compte créé avec succès. En attente d'approbation.",
+            message: "Compte créé avec succès. Votre essai gratuit de 14 jours a commencé !",
             vendeur: {
                 id: vendeur.id, seller_id: vendeur.seller_id, nom: vendeur.nom,
                 email: vendeur.email, boutique: vendeur.nom_boutique,

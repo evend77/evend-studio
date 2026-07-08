@@ -636,6 +636,90 @@ function UnlockAccountModal({
   );
 }
 
+// ─── Modal Compte expiré (essai terminé, paiement requis) ────────────────────
+function CompteExpireModal({
+  open,
+  onClose,
+  accent,
+  message,
+  urlPaiement,
+}: {
+  open: boolean;
+  onClose: () => void;
+  accent: string;
+  message: string;
+  urlPaiement: string | null;
+}) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  if (!open) return null;
+
+  return (
+    <div
+      ref={overlayRef}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(5, 10, 30, 0.75)', backdropFilter: 'blur(8px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '20px', animation: 'fadeIn 0.2s ease',
+      }}
+    >
+      <div style={{
+        width: '100%', maxWidth: '440px', borderRadius: '20px', overflow: 'hidden',
+        boxShadow: '0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)',
+        animation: 'slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+        background: '#0d1428',
+      }}>
+        <div style={{
+          background: `linear-gradient(135deg, #92400e, #f59e0b)`,
+          padding: '28px 32px 24px', position: 'relative',
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute', top: '16px', right: '16px',
+              background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
+              width: '32px', height: '32px', color: '#fff', fontSize: '16px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            ✕
+          </button>
+          <div style={{ fontSize: '36px', marginBottom: '8px' }}>⏳</div>
+          <h3 style={{ margin: 0, color: '#fff', fontSize: '20px', fontWeight: 700, fontFamily: "'Sora', sans-serif" }}>
+            Période d'essai terminée
+          </h3>
+        </div>
+
+        <div style={{ padding: '28px 32px' }}>
+          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', lineHeight: 1.6, marginBottom: '24px' }}>
+            {message}
+          </p>
+
+          {urlPaiement ? (
+            <button
+              onClick={() => { window.location.href = urlPaiement; }}
+              style={{
+                width: '100%', padding: '14px', borderRadius: '12px', border: 'none',
+                background: `linear-gradient(135deg, #92400e, ${accent})`,
+                color: '#fff', fontSize: '15px', fontWeight: 700, cursor: 'pointer',
+                fontFamily: "'Sora', sans-serif",
+              }}
+            >
+              💳 Configurer mon paiement
+            </button>
+          ) : (
+            <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', textAlign: 'center' }}>
+              Veuillez contacter le support pour régulariser votre compte.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Modal Vérification 2FA ───────────────────────────────────────────────────
 function Verify2FAModal({
   open,
@@ -840,6 +924,9 @@ export default function LoginPage({
   const [banniereLoginMessage, setBanniereLoginMessage] = useState('');
   const [banniereLoginCouleurBg, setBanniereLoginCouleurBg] = useState('#1e3a5f');
   const [banniereLoginCouleurTx, setBanniereLoginCouleurTx] = useState('#ffffff');
+  const [compteExpireOpen, setCompteExpireOpen] = useState(false);
+  const [compteExpireMessage, setCompteExpireMessage] = useState('');
+  const [compteExpireUrl, setCompteExpireUrl] = useState<string | null>(null);
   const [banniereLoginHauteur, setBanniereLoginHauteur] = useState('36');
   const [banniereLoginPolice, setBanniereLoginPolice] = useState('13');
 
@@ -934,6 +1021,12 @@ export default function LoginPage({
         if (onLogin) {
           onLogin(activeTab, data.user, data.token);
         }
+      } else if (response.status === 402 && data.compte_expire) {
+        // Essai terminé sans paiement : aucun token émis, on affiche
+        // la popup avec le lien Stripe pour régulariser.
+        setCompteExpireMessage(data.message || 'Votre période d\'essai est terminée.');
+        setCompteExpireUrl(data.url_paiement || null);
+        setCompteExpireOpen(true);
       } else {
         setErreur(data.message || 'Email ou mot de passe incorrect');
       }
@@ -1890,6 +1983,15 @@ export default function LoginPage({
         email={unlockEmail}
         userType={unlockUserType}
         onUnlockSuccess={handleUnlockSuccess}
+      />
+
+      {/* MODAL COMPTE EXPIRÉ (ESSAI TERMINÉ) */}
+      <CompteExpireModal
+        open={compteExpireOpen}
+        onClose={() => setCompteExpireOpen(false)}
+        accent={tab.accent}
+        message={compteExpireMessage}
+        urlPaiement={compteExpireUrl}
       />
 
       {/* MODAL VÉRIFICATION 2FA */}

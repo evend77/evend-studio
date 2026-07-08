@@ -6,6 +6,7 @@ const router  = express.Router();
 const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
 const pool    = require('../db');
+const { genererLienPaiementPourGestionnaire } = require('./abonnements_studio');
 
 const JWT_SECRET  = process.env.JWT_SECRET  || 'evend-studio-secret-change-en-prod';
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d';
@@ -17,6 +18,9 @@ function genererToken(payload) {
 
 // ─── POST /api/auth/inscription ──────────────────────────────────────────────
 // Inscription d'un nouveau gestionnaire Studio
+// ⚠️ Note : le formulaire InscriptionGestionnaire.tsx utilise plutôt
+// POST /api/gestionnaires (routes/gestionnaires.js). Cette route reste
+// disponible pour compatibilité mais crée aussi bien dans 'gestionnaires'.
 router.post('/inscription', async (req, res) => {
   const { nom, email, mot_de_passe } = req.body;
 
@@ -37,7 +41,7 @@ router.post('/inscription', async (req, res) => {
     // Hasher le mot de passe
     const hash = await bcrypt.hash(mot_de_passe, 12);
 
-    // Créer le gestionnaire
+    // Créer le gestionnaire — actif immédiatement, aucune approbation requise
     const result = await pool.query(
       `INSERT INTO gestionnaires (email, mot_de_passe, nom, plan, statut)
        VALUES ($1, $2, $3, 'gratuit', 'actif')
@@ -152,6 +156,25 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Courriel ou mot de passe incorrect.' });
     }
 
+    // Essai terminé sans paiement (ou en cours de suppression) : pas de token,
+    // seulement un lien Stripe pour régulariser. Le frontend affiche une popup.
+    if (gestionnaire.statut === 'expire' || gestionnaire.statut === 'a_supprimer') {
+      try {
+        const urlPaiement = await genererLienPaiementPourGestionnaire(gestionnaire.id);
+        return res.status(402).json({
+          compte_expire: true,
+          message: 'Votre période d\'essai est terminée. Configurez votre paiement pour continuer.',
+          url_paiement: urlPaiement,
+        });
+      } catch (e) {
+        console.error('Erreur génération lien paiement (login):', e.message);
+        return res.status(402).json({
+          compte_expire: true,
+          message: 'Votre période d\'essai est terminée. Contactez le support pour régulariser votre compte.',
+        });
+      }
+    }
+
     const token = genererToken({
       id:    gestionnaire.id,
       email: gestionnaire.email,
@@ -195,7 +218,7 @@ router.get('/verify', async (req, res) => {
       if (r.rows.length === 0) return res.status(401).json({ valid: false });
       return res.json({ valid: true, user: { ...r.rows[0], role: 'admin' } });
     } else {
-      // gestionnaire ou ancien token vendeur (compatibilité)
+      // gestionnaire (ou ancien token 'vendeur' — compatibilité gérée par le middleware)
       const r = await pool.query(
         'SELECT id, email, nom, plan, statut FROM gestionnaires WHERE id = $1',
         [payload.id]
@@ -243,6 +266,26 @@ router.post('/login-studio', async (req, res) => {
     if (!valide) {
       return res.status(401).json({ message: 'Courriel ou mot de passe incorrect.' });
     }
+
+    // Essai terminé sans paiement (ou en cours de suppression) : pas de token,
+    // seulement un lien Stripe pour régulariser. Le frontend affiche une popup.
+    if (gestionnaire.statut === 'expire' || gestionnaire.statut === 'a_supprimer') {
+      try {
+        const urlPaiement = await genererLienPaiementPourGestionnaire(gestionnaire.id);
+        return res.status(402).json({
+          compte_expire: true,
+          message: 'Votre période d\'essai est terminée. Configurez votre paiement pour continuer.',
+          url_paiement: urlPaiement,
+        });
+      } catch (e) {
+        console.error('Erreur génération lien paiement (login-studio):', e.message);
+        return res.status(402).json({
+          compte_expire: true,
+          message: 'Votre période d\'essai est terminée. Contactez le support pour régulariser votre compte.',
+        });
+      }
+    }
+
     const token = genererToken({ id: gestionnaire.id, email: gestionnaire.email, role: 'gestionnaire', plan: gestionnaire.plan });
     return res.json({
       success: true, token,
