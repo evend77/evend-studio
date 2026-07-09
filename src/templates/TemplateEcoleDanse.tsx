@@ -905,7 +905,14 @@ function SectionContact({ config }: { config:ConfigEcoleDanse }) {
             ))}
             <div style={{ background:'rgba(255,255,255,.04)', border:`1px solid ${cm}20`, padding:'18px 20px', marginBottom:20 }}>
               <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:9, fontWeight:700, color:cm, letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:10 }}>Horaires</p>
-              {horairesStudio.map((h,i) => <p key={i} style={{ fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.4)', marginBottom:5 }}>{h}</p>)}
+              {horairesStudio.map((h,i) => {
+                const texte = typeof h === 'string'
+                  ? h
+                  : (h && typeof h === 'object')
+                    ? `${(h as any).jour || ''}${(h as any).jour && (h as any).horaires ? ' : ' : ''}${(h as any).horaires || ''}`
+                    : '';
+                return <p key={i} style={{ fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.4)', marginBottom:5 }}>{texte}</p>;
+              })}
             </div>
             <div style={{ display:'flex', gap:10 }}>
               {[['instagram','📸'],['facebook','📘'],['youtube','📺'],['tiktok','🎵']].map(([k,ico]) =>
