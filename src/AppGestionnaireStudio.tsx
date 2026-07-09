@@ -640,6 +640,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     id: 'addon', label: 'ADD-ONS', icon: '🧩',
   };
 
+  // 🟢 Branding & options — visible sur tous les templates SAUF multivendeur
+  // (le multivendeur aura son propre système d'add-ons séparé plus tard)
+  const menuBrandingOptions: MenuItem = {
+    id: 'branding-options', label: 'Branding & options', icon: '⚙️',
+  };
+
   const menuStudioSimplisse: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`http://localhost:3000/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuVosAnnoncesSimplisse: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-encheres',label:'Mes enchères',icon:'🔨',cleAcces:'modeEncheres' },{ id:'annonces-make-offer',label:'Mes offres reçues',icon:'💬' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-types',label:'Types produits',icon:'📑' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigMesPages: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🎨',sousMenu:[{ id:'simplisse-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'simplisse-plan',label:'Mon plan & limites',icon:'📊' },{ id:'simplisse-branding',label:'Branding & options',icon:'⚙️' }] };
@@ -675,6 +681,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuStudio,
       menuProfil,
       menuMessagerie,
+      menuBrandingOptions,
       menuAddOn,
     ];
   } else if (estVitrine) {
@@ -703,6 +710,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuProfil,
       menuMessagerie,
+      menuBrandingOptions,
       menuAddOn,
     ];
   } else if (estReservation) {
@@ -740,6 +748,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuProfil,
       menuMessagerie,
+      menuBrandingOptions,
       menuAddOn,
     ];
   } else if (estCagnotte) {
@@ -776,6 +785,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuProfil,
       menuMessagerie,
+      menuBrandingOptions,
       menuAddOn,
     ];
   } else if (estVitrinePro) {
@@ -804,6 +814,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuProfil,
       menuMessagerie,
+      menuBrandingOptions,
       menuAddOn,
     ];
   } else if (estSalon) {
@@ -840,6 +851,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuProfil,
       menuMessagerie,
+      menuBrandingOptions,
       menuAddOn,
     ];
   } else if (estEnchere) {
@@ -876,6 +888,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuProfil,
       menuMessagerie,
+      menuBrandingOptions,
       menuAddOn,
     ];
   } else if (estSimplisse) {
@@ -936,6 +949,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuProfil,
       menuMessagerie,
+      menuBrandingOptions,
       menuAddOn,
     ];
   } else {
@@ -1013,6 +1027,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         ]
       },
       menuMessagerie,
+      menuBrandingOptions,
       menuAddOn,
       menuSousVendeurs,
       menuBadges,
@@ -1139,6 +1154,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'badges-gestion')      return <StudioGestionBadges   gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'badges-attribues')    return <StudioBadgesAttribues gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'addon')               return <AddOn />;
+    if (pageActive === 'branding-options')     return <SimplisseBranding gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'annonces-liste') return <ListeProduits naviguerVers={setPageActive} gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'annonces-encheres') return <MesEncheres />;
     if (pageActive === 'annonces-make-offer') return <MesOffres />;
@@ -1592,7 +1608,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
             offsetTop={56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0)}
             onHauteur={setHauteurBandeauEssai}
           />
-          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + hauteurBandeauEssai}px` }}>
+          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + hauteurBandeauEssai}px`, backgroundColor: pageActive === 'studio-choisir-template' ? '#0d0d12' : undefined }}>
             {renderPage()}
           </div>
           <div className="footer-fixed" style={footerFixedStyle}>{footerText}</div>

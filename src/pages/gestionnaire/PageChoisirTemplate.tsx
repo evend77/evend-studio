@@ -387,6 +387,8 @@ function ModalReinitialisationTemplate({ gestionnaireId, onConfirme, onAnnuler }
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props) {
+  const [ongletCategorie, setOngletCategorie] = useState<'vitrines'|'boutiques'|'multivendeur'|'cagnottes'|'encheres'|'annonces'|'abonnements'|'locations'>('vitrines');
+  const [descOuverte, setDescOuverte] = useState(false);
   const [modalSimplisseOuvert, setModalSimplisseOuvert] = useState(false);
   const [enregistrementPlan, setEnregistrementPlan] = useState(false);
   const [modalResetOuvert, setModalResetOuvert] = useState(false);
@@ -438,7 +440,6 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     setModalModeOuvert(false);
     onChoisir('boutique-simplisse-mode');
   };
-// PremiumPlan handlers — déclarés plus haut
 
   const handleConfirmerPalier = async (plan: string) => {
     setEnregistrementPlan(true);
@@ -462,212 +463,274 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     onChoisir('boutique-simplisse');
   };
 
-  const groupes = [
+  const categories = [
     {
-      titre: '🛍 Boutique en ligne — Générique',
+      id: 'vitrines' as const,
+      titre: '🖼 Vitrines',
+      desc: 'Présence en ligne, portfolio, réservations — sans vente de produits en ligne.',
+      couleurGroupe: '#c9a96e',
+      sousGroupes: [
+        {
+          titre: 'Présentation simple',
+          templates: [
+            { id: 'vitrine-carte',        titre: 'Carte & Présentation', desc: "Restaurants, bars, hôtels. Horaires + adresse + carte. Simple et efficace.",         icone: '📍', couleur: '#f97316', disponible: true },
+            { id: 'vitrine-evenementiel', titre: 'Événementiel',         desc: 'Mariages, conférences, festivals. Compte à rebours + programme + billetterie.',       icone: '🎉', couleur: '#ec4899', disponible: true },
+          ]
+        },
+        {
+          titre: 'Portfolio & Services professionnels',
+          templates: [
+            { id: 'vitrine-portfolio',        titre: 'Portfolio',               desc: 'Artistes, photographes, architectes. Galerie + bio + formulaire contact.',                                                     icone: '🖼',  couleur: '#c9a96e', disponible: true },
+            { id: 'vitrine-cv',               titre: 'CV Professionnel',        desc: 'Coachs, consultants, avocats. Services + témoignages + prise de RDV.',                                                          icone: '💼',  couleur: '#0ea5e9', disponible: true },
+            { id: 'vitrine-pro-entrepreneur', titre: 'Pro Entrepreneur ⭐',     desc: 'Badge rotatif, stats animées, équipe, blog, témoignages, formulaire devis. 25$.',                                               icone: '🏗️', couleur: '#f59e0b', disponible: true, prix: '25$' },
+            { id: 'vitrine-pro-tech',         titre: 'Pro Tech / SaaS ⭐',      desc: 'Ticker défilant, hero vidéo/photo, solutions, tarifs, partenaires. 25$.',                                                        icone: '💻',  couleur: '#c026d3', disponible: true, prix: '25$' },
+            { id: 'vitrine-pro-sante',        titre: 'Pro Santé / Clinique ⭐', desc: 'Carte Google Maps, formulaire contact, équipe médicale, FAQ, scroll reveal. 25$.',                                              icone: '🏥',  couleur: '#1e6fa8', disponible: true, prix: '25$' },
+            { id: 'vitrine-pro-mariage',      titre: 'Pro Mariage ⭐',          desc: 'RSVP modal, compte à rebours, galerie lightbox, scroll reveal, timeline. 25$.',                                                  icone: '💍',  couleur: '#8b6914', disponible: true, prix: '25$' },
+            { id: 'vitrine-pro-beaute',       titre: 'Pro Beauté ⭐',           desc: 'Pétales animés, papillons, fleur rotative configurable. Beauté, cosmétique. 25$.',                                               icone: '🌸',  couleur: '#f4a5a0', disponible: true, prix: '25$' },
+            { id: 'vitrine-paysager',         titre: 'Entretien Paysager',      desc: 'Style sombre vert citron bold. Formulaire devis, galerie masonry, avis défilement auto, compteurs animés. Gratuit.',             icone: '🌿',  couleur: '#b5e24a', disponible: true },
+            { id: 'vitrine-avocat',           titre: "Bureau d'Avocat",        desc: 'Marine & or, FAQ accordéon, formulaire consultation, Google Maps, sections réordonnables. Gratuit.',                             icone: '⚖️', couleur: '#c9a84c', disponible: true },
+            { id: 'salon-coiffure',           titre: 'Salon de Coiffure ⭐',    desc: 'Réservation en ligne, galerie transformations, équipe stylistes, formulaire contact. Effet page de livre + photos twist 3D. 25$.', icone: '✂️', couleur: '#7b7cb6', disponible: true, prix: '25$' },
+          ]
+        },
+        {
+          titre: 'Cours & Formation',
+          templates: [
+            { id: 'cours-danse',      titre: 'École de Danse',       desc: "Studio de danse sombre & glamour. Rideau théâtre, silhouettes SVG, spotlight, ondes sonores, paillettes au clic. Magenta & or. Gratuit.",                     icone: '💃', couleur: '#e91e8c', disponible: true },
+            { id: 'cours-peinture',   titre: 'École de Peinture',    desc: "Atelier artistique vivant. Cube 3D CSS, éclaboussures SVG au clic, galerie 3D, pinceau animé, palette multicolore. Gratuit.",                                  icone: '🎨', couleur: '#e63946', disponible: true },
+            { id: 'cours-equitation', titre: "Centre d'Équitation",  desc: "Centre équestre noble. Cheval SVG au galop, herbe animée, carrousel 3D chevaux, palmarès, cours, instructeurs, événements. Bordeaux & or. Gratuit.",           icone: '🐎', couleur: '#8b2635', disponible: true },
+            { id: 'cours-yoga',       titre: 'Studio Yoga & Pilates',desc: 'Studio yoga fond ivoire & terracotta. Vague respirante, lotus animé, silhouettes poses, minuteur 4-7-8, horaires, abonnements. Gratuit.',                     icone: '🧘', couleur: '#c17f5a', disponible: true },
+            { id: 'cours-cuisine',    titre: 'École de Cuisine',     desc: 'École culinaire élégante. Vapeur animée, galerie plats plein écran, chefs, ateliers, thermomètre niveau. Ivoire & brique. Gratuit.',                          icone: '🍳', couleur: '#c0392b', disponible: true },
+            { id: 'cours-web',        titre: 'Formation Web & Dev',  desc: 'École de dev fond sombre ultra-moderne. Engrenages 360° animés, modules, formateurs, tarifs, FAQ. Cyan & violet. Gratuit.',                                    icone: '⚙️', couleur: '#00d4ff', disponible: true },
+            { id: 'cours-langues',    titre: 'École de Langues',     desc: 'École de langues complète. 10 langues, formules, professeurs, FAQ, événements, blog, newsletter. Sections réordonnables. Gratuit.',                            icone: '🌍', couleur: '#4F46E5', disponible: true },
+            { id: 'cours-piano',      titre: 'Cours de Piano',       desc: 'Portfolio pianiste / musicien. Hero plein écran, grille diagonale, récompenses, tarifs cours & prestations, galerie. Menu hamburger fullscreen. Gratuit.',      icone: '🎹', couleur: '#e8a87c', disponible: true },
+            { id: 'cours-coach',      titre: 'Coach de Vie',         desc: "Site coaching premium. Roue 4 piliers animée, titre morphing, flip 3D programmes, spotlight souris, étoiles ascendantes, formulaire appel découverte. Gratuit.", icone: '🌿', couleur: '#C9A96E', disponible: true },
+          ]
+        },
+        {
+          titre: 'Restaurant & Fast Food',
+          templates: [
+            { id: 'vitrine-boulangerie', titre: 'Boulangerie & Pâtisserie', desc: "Croissant SVG 3D tournant, farine qui tombe, badge sortie du four live, galerie flip 3D, commandes spéciales. Brun chaud & or. Gratuit.", icone: '🥐', couleur: '#8b4513', disponible: true },
+            { id: 'vitrine-foodtruck',   titre: 'Food Truck',               desc: "Camion SVG animé + flammes, emplacement GPS du jour, badge Ouvert/Fermé auto, menu flip 3D. Orange & noir. Gratuit.",                      icone: '🚚', couleur: '#ff6b00', disponible: true },
+            { id: 'vitrine-resto',       titre: 'Restaurant & Fast Food',   desc: 'Fond noir & orange. Menu burgers, accompagnements, réservation table, avis carrousel, carte Google Maps. Sections réordonnables. Gratuit.', icone: '🍔', couleur: '#e8820a', disponible: true },
+            { id: 'vitrine-bistro',      titre: 'Bistro & Café',            desc: 'Fond noir & brun doré. Galerie plein format, menu filtrable par catégorie, réservation, carte Google Maps, sections réordonnables. Gratuit.', icone: '☕', couleur: '#8b6914', disponible: true },
+          ]
+        },
+        {
+          titre: 'Réservations (sans paiement en ligne)',
+          templates: [
+            { id: 'reservation-restaurant', titre: 'Restaurant & Café',  desc: 'Réservation de table par créneau horaire avec calendrier visuel.',         icone: '🍽️', couleur: '#f97316', disponible: true },
+            { id: 'reservation-service',    titre: 'Service & RDV',      desc: 'Coiffeur, médecin, coach. Prise de rendez-vous par créneau.',              icone: '💈', couleur: '#0ea5e9', disponible: true },
+            { id: 'reservation-spectacle',  titre: 'Spectacle & Billet', desc: 'Réservation de sièges numérotés. Plan de salle visuel + gestion billets.', icone: '🎭', couleur: '#ec4899', disponible: true },
+          ]
+        },
+      ]
+    },
+    {
+      id: 'boutiques' as const,
+      titre: '🛍 Boutiques',
       desc: "Votre boutique complète hébergée sur e-Vend Studio, entièrement personnalisable à votre image. Gérez vos produits, commandes et apparence depuis votre tableau de bord — sans toucher au code.",
       couleurGroupe: '#2563eb',
       nouveau: true,
-      templates: [
+      sousGroupes: [
         {
-          id: 'boutique-simplisse',
-          titre: 'Simplisse',
-          desc: "La boutique complète, propre et professionnelle. Page d'accueil, catalogue avec filtres, page produit, blog, FAQ, contact et footer configurable. L'équivalent d'un Shopify sans le code.",
-          icone: '🛍',
-          couleur: '#2563eb',
-          disponible: true,
-          badge: 'Nouveau',
-          badgeCouleur: '#2563eb',
-          pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'Contact'],
+          titre: 'Générique',
+          templates: [
+            {
+              id: 'boutique-simplisse', titre: 'Simplisse',
+              desc: "La boutique complète, propre et professionnelle. Page d'accueil, catalogue avec filtres, page produit, blog, FAQ, contact et footer configurable. L'équivalent d'un Shopify sans le code.",
+              icone: '🛍', couleur: '#2563eb', disponible: true, badge: 'Nouveau', badgeCouleur: '#2563eb',
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'Contact'],
+            },
+            {
+              id: 'boutique-premium', titre: 'Premium',
+              desc: "La boutique haut de gamme — style sombre luxueux avec accents dorés. Tout ce que Simplisse offre, plus : zoom image, wishlist, avis clients, ticker défilant, popup promo, notification dernière vente, barre livraison gratuite, compte acheteur intégré.",
+              icone: '💎', couleur: '#c9a96e', disponible: true, badge: 'Premium', badgeCouleur: '#c9a96e',
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'À propos', 'Contact', 'Panier', 'Wishlist', 'Compte'],
+            },
+            { id: 'boutique-simple',    titre: 'Mono-produit',      desc: 'Une page, checkout intégré, parfait pour lancer un seul produit.',             icone: '🎯', couleur: '#a855f7', disponible: true  },
+            { id: 'boutique-complete',  titre: 'Boutique Complète', desc: 'Catalogue, panier, compte acheteur et historique des achats.',                  icone: '🏪', couleur: '#16a34a', disponible: true  },
+            { id: 'boutique-catalogue', titre: 'Catalogue Avancé',  desc: 'Grille produits avec filtres avancés et pages produit. Bientôt.',                icone: '🗂️', couleur: '#0ea5e9', disponible: false },
+          ]
         },
         {
-          id: 'boutique-premium',
-          titre: 'Premium',
-          desc: "La boutique haut de gamme — style sombre luxueux avec accents dorés. Tout ce que Simplisse offre, plus : zoom image, wishlist, avis clients, ticker défilant, popup promo, notification dernière vente, barre livraison gratuite, compte acheteur intégré.",
-          icone: '💎',
-          couleur: '#c9a96e',
-          disponible: true,
-          badge: 'Premium',
-          badgeCouleur: '#c9a96e',
-          pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'À propos', 'Contact', 'Panier', 'Wishlist', 'Compte'],
+          titre: 'Par industrie',
+          templates: [
+            {
+              id: 'boutique-simplisse-mode', titre: 'Simplisse Mode',
+              desc: "Boutique mode & vêtements haut de gamme. Lookbook, filtres taille/couleur visuels, guide des tailles, zoom image, wishlist, popup promo, compte acheteur. Style éditorial ivoire & bordeaux.",
+              icone: '👗', couleur: '#722f37', disponible: true, badge: 'Nouveau', badgeCouleur: '#722f37',
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Lookbook', 'Blog', 'FAQ', 'Contact', 'Panier', 'Wishlist', 'Compte'],
+            },
+            {
+              id: 'boutique-simplisse-artisan', titre: 'Simplisse Artisan',
+              desc: "Pour les artisans et créateurs. Mise en avant du savoir-faire, atelier, matériaux. Tons chauds & naturels. Bientôt.",
+              icone: '🪵', couleur: '#b45309', disponible: false, badge: 'Bientôt', badgeCouleur: '#b45309', pages: [],
+            },
+            {
+              id: 'boutique-simplisse-aliments', titre: 'Simplisse Épicerie',
+              desc: "Épicerie fine, produits locaux ou fermiers. Sections origines, producteurs, fraîcheur du jour. Tons verts & terroir. Bientôt.",
+              icone: '🥕', couleur: '#16a34a', disponible: false, badge: 'Bientôt', badgeCouleur: '#16a34a', pages: [],
+            },
+            {
+              id: 'boutique-simplisse-numerique', titre: 'Simplisse Numérique',
+              desc: "Produits numériques — PDF, guides, presets, musique, cours en ligne. Livraison instantanée par courriel. Bientôt.",
+              icone: '💾', couleur: '#0891b2', disponible: false, badge: 'Bientôt', badgeCouleur: '#0891b2', pages: [],
+            },
+            { id: 'agricole', titre: 'Boutique Agricole', desc: 'Ferme maraîchère avec panier intégré, catalogue produits, page Notre Ferme. Style terroir sombre doré.', icone: '🌱', couleur: '#c9854a', disponible: true },
+          ]
         },
-        { id: 'boutique-simple',    titre: 'Mono-produit',      desc: 'Une page, checkout intégré, parfait pour lancer un seul produit.',             icone: '🎯', couleur: '#a855f7', disponible: true  },
-        { id: 'boutique-complete',  titre: 'Boutique Complète', desc: 'Catalogue, panier, compte acheteur et historique des achats.',                  icone: '🏪', couleur: '#16a34a', disponible: true  },
-        { id: 'boutique-catalogue', titre: 'Catalogue Avancé',  desc: 'Grille produits avec filtres avancés et pages produit. Bientôt.',                icone: '🗂️', couleur: '#0ea5e9', disponible: false },
       ]
     },
     {
-      titre: '🎨 Boutique en ligne — Par industrie',
-      desc: "Boutiques prêtes-à-l'emploi, avec thème visuel et sections dédiées à votre secteur d'activité.",
-      couleurGroupe: '#d97706',
-      nouveau: true,
-      templates: [
-        {
-          id: 'boutique-simplisse-mode',
-          titre: 'Simplisse Mode',
-          desc: "Boutique mode & vêtements haut de gamme. Lookbook, filtres taille/couleur visuels, guide des tailles, zoom image, wishlist, popup promo, compte acheteur. Style éditorial ivoire & bordeaux.",
-          icone: '👗', couleur: '#722f37', disponible: true, badge: 'Nouveau', badgeCouleur: '#722f37',
-          pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Lookbook', 'Blog', 'FAQ', 'Contact', 'Panier', 'Wishlist', 'Compte'],
-        },
-        {
-          id: 'boutique-simplisse-artisan',
-          titre: 'Simplisse Artisan',
-          desc: "Pour les artisans et créateurs. Mise en avant du savoir-faire, atelier, matériaux. Tons chauds & naturels. Bientôt.",
-          icone: '🪵', couleur: '#b45309', disponible: false, badge: 'Bientôt', badgeCouleur: '#b45309', pages: [],
-        },
-        {
-          id: 'boutique-simplisse-aliments',
-          titre: 'Simplisse Épicerie',
-          desc: "Épicerie fine, produits locaux ou fermiers. Sections origines, producteurs, fraîcheur du jour. Tons verts & terroir. Bientôt.",
-          icone: '🥕', couleur: '#16a34a', disponible: false, badge: 'Bientôt', badgeCouleur: '#16a34a', pages: [],
-        },
-        {
-          id: 'boutique-simplisse-numerique',
-          titre: 'Simplisse Numérique',
-          desc: "Produits numériques — PDF, guides, presets, musique, cours en ligne. Livraison instantanée par courriel. Bientôt.",
-          icone: '💾', couleur: '#0891b2', disponible: false, badge: 'Bientôt', badgeCouleur: '#0891b2', pages: [],
-        },
-        { id: 'agricole', titre: 'Boutique Agricole', desc: 'Ferme maraîchère avec panier intégré, catalogue produits, page Notre Ferme. Style terroir sombre doré.', icone: '🌱', couleur: '#c9854a', disponible: true },
-      ]
-    },
-    {
-      titre: '🏪 Transactionnel multi-produit — multi-vendeur',
+      id: 'multivendeur' as const,
+      titre: '🏪 Multivendeur',
       desc: 'Marketplace complète avec plusieurs vendeurs indépendants, catalogue unifié, boutiques individuelles et système d\'enchères.',
       couleurGroupe: '#fbbf24',
       nouveau: true,
-      templates: [
+      sousGroupes: [
         {
-          id: 'multi-vendeur-premium',
-          titre: 'Multi-Vendeur Premium',
-          desc: 'Marketplace multi-vendeur complète inspirée de e-Vend. Accueil avec catégories, catalogue avec filtres avancés, boutiques vendeurs, fiche produit, enchères, documents et politiques. Style sombre & doré.',
-          icone: '🏪',
-          couleur: '#fbbf24',
-          disponible: true,
-          badge: 'Nouveau',
-          badgeCouleur: '#fbbf24',
-          pages: ['Accueil', 'Catalogue', 'Boutiques', 'Fiche produit', 'Enchères', 'Documents', 'Politiques'],
-        },
-        {
-          id: 'multi-vendeur-local',
-          titre: 'Marché Local',
-          desc: 'Marketplace axée produits locaux et artisans régionaux. Bientôt.',
-          icone: '🌾',
-          couleur: '#78350f',
-          disponible: false,
-          badge: 'Bientôt',
-          badgeCouleur: '#78350f',
-          pages: [],
+          templates: [
+            {
+              id: 'multi-vendeur-premium', titre: 'Multi-Vendeur Premium',
+              desc: 'Marketplace multi-vendeur complète inspirée de e-Vend. Accueil avec catégories, catalogue avec filtres avancés, boutiques vendeurs, fiche produit, enchères, documents et politiques. Style sombre & doré.',
+              icone: '🏪', couleur: '#fbbf24', disponible: true, badge: 'Nouveau', badgeCouleur: '#fbbf24',
+              pages: ['Accueil', 'Catalogue', 'Boutiques', 'Fiche produit', 'Enchères', 'Documents', 'Politiques'],
+            },
+            {
+              id: 'multi-vendeur-local', titre: 'Marché Local',
+              desc: 'Marketplace axée produits locaux et artisans régionaux. Bientôt.',
+              icone: '🌾', couleur: '#78350f', disponible: false, badge: 'Bientôt', badgeCouleur: '#78350f', pages: [],
+            },
+          ]
         },
       ]
-    }
-    ,
-    {
-      titre: '🖼 Sites vitrine (sans formulaire)',
-      desc: 'Présence simple — carte de visite, événement, horaires, sans formulaire de contact.',
-      couleurGroupe: '#c9a96e',
-      templates: [
-        { id: 'vitrine-carte',        titre: 'Carte & Présentation', desc: "Restaurants, bars, hôtels. Horaires + adresse + carte. Simple et efficace.",         icone: '📍', couleur: '#f97316', disponible: true },
-        { id: 'vitrine-evenementiel', titre: 'Événementiel',         desc: 'Mariages, conférences, festivals. Compte à rebours + programme + billetterie.',       icone: '🎉', couleur: '#ec4899', disponible: true },
-      ]
     },
     {
-      titre: '✉️ Sites vitrine (avec formulaire de contact)',
-      desc: 'Portfolio, CV, pages pro avec formulaire de contact ou devis intégré.',
-      couleurGroupe: '#0ea5e9',
-      templates: [
-        { id: 'vitrine-portfolio',        titre: 'Portfolio',               desc: 'Artistes, photographes, architectes. Galerie + bio + formulaire contact.',                                                     icone: '🖼',  couleur: '#c9a96e', disponible: true },
-        { id: 'vitrine-cv',               titre: 'CV Professionnel',        desc: 'Coachs, consultants, avocats. Services + témoignages + prise de RDV.',                                                          icone: '💼',  couleur: '#0ea5e9', disponible: true },
-        { id: 'vitrine-pro-entrepreneur', titre: 'Pro Entrepreneur ⭐',     desc: 'Badge rotatif, stats animées, équipe, blog, témoignages, formulaire devis. 25$.',                                               icone: '🏗️', couleur: '#f59e0b', disponible: true, prix: '25$' },
-        { id: 'vitrine-pro-tech',         titre: 'Pro Tech / SaaS ⭐',      desc: 'Ticker défilant, hero vidéo/photo, solutions, tarifs, partenaires. 25$.',                                                        icone: '💻',  couleur: '#c026d3', disponible: true, prix: '25$' },
-        { id: 'vitrine-pro-sante',        titre: 'Pro Santé / Clinique ⭐', desc: 'Carte Google Maps, formulaire contact, équipe médicale, FAQ, scroll reveal. 25$.',                                              icone: '🏥',  couleur: '#1e6fa8', disponible: true, prix: '25$' },
-        { id: 'vitrine-pro-mariage',      titre: 'Pro Mariage ⭐',          desc: 'RSVP modal, compte à rebours, galerie lightbox, scroll reveal, timeline. 25$.',                                                  icone: '💍',  couleur: '#8b6914', disponible: true, prix: '25$' },
-        { id: 'vitrine-pro-beaute',       titre: 'Pro Beauté ⭐',           desc: 'Pétales animés, papillons, fleur rotative configurable. Beauté, cosmétique. 25$.',                                               icone: '🌸',  couleur: '#f4a5a0', disponible: true, prix: '25$' },
-        { id: 'vitrine-paysager',         titre: 'Entretien Paysager',      desc: 'Style sombre vert citron bold. Formulaire devis, galerie masonry, avis défilement auto, compteurs animés. Gratuit.',             icone: '🌿',  couleur: '#b5e24a', disponible: true },
-      ]
-    },
-    {
-      titre: '🎹 Cours & Formation',
-      desc: 'Portfolio artistique et page de cours pour musiciens, coachs et formateurs.',
-      couleurGroupe: '#e8a87c',
-      templates: [
-        { id: 'cours-danse',      titre: 'École de Danse',       desc: "Studio de danse sombre & glamour. Rideau théâtre, silhouettes SVG, spotlight, ondes sonores, paillettes au clic. Magenta & or. Gratuit.",                     icone: '💃', couleur: '#e91e8c', disponible: true },
-        { id: 'cours-peinture',   titre: 'École de Peinture',    desc: "Atelier artistique vivant. Cube 3D CSS, éclaboussures SVG au clic, galerie 3D, pinceau animé, palette multicolore. Gratuit.",                                  icone: '🎨', couleur: '#e63946', disponible: true },
-        { id: 'cours-equitation', titre: "Centre d'Équitation",  desc: "Centre équestre noble. Cheval SVG au galop, herbe animée, carrousel 3D chevaux, palmarès, cours, instructeurs, événements. Bordeaux & or. Gratuit.",           icone: '🐎', couleur: '#8b2635', disponible: true },
-        { id: 'cours-yoga',       titre: 'Studio Yoga & Pilates',desc: 'Studio yoga fond ivoire & terracotta. Vague respirante, lotus animé, silhouettes poses, minuteur 4-7-8, horaires, abonnements. Gratuit.',                     icone: '🧘', couleur: '#c17f5a', disponible: true },
-        { id: 'cours-cuisine',    titre: 'École de Cuisine',     desc: 'École culinaire élégante. Vapeur animée, galerie plats plein écran, chefs, ateliers, thermomètre niveau. Ivoire & brique. Gratuit.',                          icone: '🍳', couleur: '#c0392b', disponible: true },
-        { id: 'cours-web',        titre: 'Formation Web & Dev',  desc: 'École de dev fond sombre ultra-moderne. Engrenages 360° animés, modules, formateurs, tarifs, FAQ. Cyan & violet. Gratuit.',                                    icone: '⚙️', couleur: '#00d4ff', disponible: true },
-        { id: 'cours-langues',    titre: 'École de Langues',     desc: 'École de langues complète. 10 langues, formules, professeurs, FAQ, événements, blog, newsletter. Sections réordonnables. Gratuit.',                            icone: '🌍', couleur: '#4F46E5', disponible: true },
-        { id: 'cours-piano',      titre: 'Cours de Piano',       desc: 'Portfolio pianiste / musicien. Hero plein écran, grille diagonale, récompenses, tarifs cours & prestations, galerie. Menu hamburger fullscreen. Gratuit.',      icone: '🎹', couleur: '#e8a87c', disponible: true },
-        { id: 'cours-coach',      titre: 'Coach de Vie',         desc: "Site coaching premium. Roue 4 piliers animée, titre morphing, flip 3D programmes, spotlight souris, étoiles ascendantes, formulaire appel découverte. Gratuit.", icone: '🌿', couleur: '#C9A96E', disponible: true },
-      ]
-    },
-    {
-      titre: '🍔 Restaurant & Fast Food',
-      desc: 'Site restaurant sombre & vibrant avec menu, réservation de table, avis et Google Maps.',
-      couleurGroupe: '#e8820a',
-      templates: [
-        { id: 'vitrine-boulangerie', titre: 'Boulangerie & Pâtisserie', desc: "Croissant SVG 3D tournant, farine qui tombe, badge sortie du four live, galerie flip 3D, commandes spéciales. Brun chaud & or. Gratuit.", icone: '🥐', couleur: '#8b4513', disponible: true },
-        { id: 'vitrine-foodtruck',   titre: 'Food Truck',               desc: "Camion SVG animé + flammes, emplacement GPS du jour, badge Ouvert/Fermé auto, menu flip 3D. Orange & noir. Gratuit.",                      icone: '🚚', couleur: '#ff6b00', disponible: true },
-        { id: 'vitrine-resto',       titre: 'Restaurant & Fast Food',   desc: 'Fond noir & orange. Menu burgers, accompagnements, réservation table, avis carrousel, carte Google Maps. Sections réordonnables. Gratuit.', icone: '🍔', couleur: '#e8820a', disponible: true },
-        { id: 'vitrine-bistro',      titre: 'Bistro & Café',            desc: 'Fond noir & brun doré. Galerie plein format, menu filtrable par catégorie, réservation, carte Google Maps, sections réordonnables. Gratuit.', icone: '☕', couleur: '#8b6914', disponible: true },
-      ]
-    },
-    {
-      titre: '💼 Profession',
-      desc: "Sites professionnels dédiés aux services : bureau d'avocat, salon de coiffure et plus.",
-      couleurGroupe: '#c9a84c',
-      templates: [
-        { id: 'vitrine-avocat', titre: "Bureau d'Avocat", desc: 'Marine & or, FAQ accordéon, formulaire consultation, Google Maps, sections réordonnables. Gratuit.', icone: '⚖️', couleur: '#c9a84c', disponible: true },
-        { id: 'salon-coiffure', titre: 'Salon de Coiffure ⭐', desc: 'Réservation en ligne, galerie transformations, équipe stylistes, formulaire contact. Effet page de livre + photos twist 3D. 25$.', icone: '✂️', couleur: '#7b7cb6', disponible: true, prix: '25$' },
-      ]
-    },
-    {
-      titre: '📅 Formulaires & Réservations',
-      desc: 'Sites avec système de réservation intégré — sans paiement en ligne.',
-      couleurGroupe: '#6366f1',
-      templates: [
-        { id: 'reservation-restaurant', titre: 'Restaurant & Café',  desc: 'Réservation de table par créneau horaire avec calendrier visuel.',         icone: '🍽️', couleur: '#f97316', disponible: true },
-        { id: 'reservation-location',   titre: "Location d'objet",   desc: 'Location de matériel, jeux gonflables, véhicules. Calendrier + dispo.',    icone: '📦', couleur: '#6366f1', disponible: true },
-        { id: 'reservation-service',    titre: 'Service & RDV',      desc: 'Coiffeur, médecin, coach. Prise de rendez-vous par créneau.',              icone: '💈', couleur: '#0ea5e9', disponible: true },
-        { id: 'reservation-spectacle',  titre: 'Spectacle & Billet', desc: 'Réservation de sièges numérotés. Plan de salle visuel + gestion billets.', icone: '🎭', couleur: '#ec4899', disponible: true },
-      ]
-    },
-    {
-      titre: '💝 CagnottePro',
+      id: 'cagnottes' as const,
+      titre: '💝 Cagnottes',
       desc: 'Collecte de fonds en ligne — recevez des dons via Stripe directement dans votre compte.',
       couleurGroupe: '#ec4899',
-      templates: [
-        { id: 'cagnotte-personnel',     titre: 'Personnel',     desc: "Besoin d'aide financière, frais médicaux, accident de vie.",         icone: '❤️', couleur: '#ec4899', disponible: true },
-        { id: 'cagnotte-projet',        titre: 'Projet',        desc: 'Financer un projet créatif, artistique ou entrepreneurial.',           icone: '🚀', couleur: '#6366f1', disponible: true },
-        { id: 'cagnotte-communaute',    titre: 'Communauté',    desc: 'Cause collective, association, équipe sportive, école.',               icone: '🤝', couleur: '#0ea5e9', disponible: true },
-        { id: 'cagnotte-environnement', titre: 'Environnement', desc: 'Cause verte, protection des animaux, nature.',                         icone: '🌿', couleur: '#16a34a', disponible: true },
-        { id: 'cagnotte-urgence',       titre: 'Urgence',       desc: 'Catastrophe naturelle, sinistre, crise humanitaire.',                  icone: '🆘', couleur: '#dc2626', disponible: true },
+      sousGroupes: [
+        {
+          templates: [
+            { id: 'cagnotte-personnel',     titre: 'Personnel',     desc: "Besoin d'aide financière, frais médicaux, accident de vie.",         icone: '❤️', couleur: '#ec4899', disponible: true },
+            { id: 'cagnotte-projet',        titre: 'Projet',        desc: 'Financer un projet créatif, artistique ou entrepreneurial.',           icone: '🚀', couleur: '#6366f1', disponible: true },
+            { id: 'cagnotte-communaute',    titre: 'Communauté',    desc: 'Cause collective, association, équipe sportive, école.',               icone: '🤝', couleur: '#0ea5e9', disponible: true },
+            { id: 'cagnotte-environnement', titre: 'Environnement', desc: 'Cause verte, protection des animaux, nature.',                         icone: '🌿', couleur: '#16a34a', disponible: true },
+            { id: 'cagnotte-urgence',       titre: 'Urgence',       desc: 'Catastrophe naturelle, sinistre, crise humanitaire.',                  icone: '🆘', couleur: '#dc2626', disponible: true },
+          ]
+        },
       ]
     },
     {
-      titre: '🔨 Enchères en ligne',
+      id: 'encheres' as const,
+      titre: '🔨 Enchères',
       desc: "Sites d'enchères en temps réel — du mono-produit au méga site multi-lots.",
       couleurGroupe: '#dc2626',
-      templates: [
-        { id: 'enchere-flash',   titre: 'Enchère Flash',   desc: 'Un produit, tension maximale. Compte à rebours géant + mises en temps réel.', icone: '⚡', couleur: '#dc2626', disponible: true },
-        { id: 'enchere-galerie', titre: 'Enchère Galerie', desc: 'Plusieurs lots, style maison de ventes. Filtres + modal par lot.',             icone: '🏛', couleur: '#c9a96e', disponible: true },
-        { id: 'enchere-live',    titre: 'Enchère Live',    desc: 'Méga site style bourse — ticker défilant, sidebar lots, proxy bid auto.',      icone: '📡', couleur: '#6366f1', disponible: true },
+      sousGroupes: [
+        {
+          templates: [
+            { id: 'enchere-flash',   titre: 'Enchère Flash',   desc: 'Un produit, tension maximale. Compte à rebours géant + mises en temps réel.', icone: '⚡', couleur: '#dc2626', disponible: true },
+            { id: 'enchere-galerie', titre: 'Enchère Galerie', desc: 'Plusieurs lots, style maison de ventes. Filtres + modal par lot.',             icone: '🏛', couleur: '#c9a96e', disponible: true },
+            { id: 'enchere-live',    titre: 'Enchère Live',    desc: 'Méga site style bourse — ticker défilant, sidebar lots, proxy bid auto.',      icone: '📡', couleur: '#6366f1', disponible: true },
+          ]
+        },
+      ]
+    },
+    // ─── Catégories à venir — pas encore de templates ────────────────────
+    {
+      id: 'annonces' as const,
+      titre: '📋 Petites annonces',
+      desc: 'Publier une annonce et se faire contacter — sans panier ni vendeur structuré. Immobilier, véhicules, emploi.',
+      couleurGroupe: '#14b8a6',
+      aVenir: true,
+      sousGroupes: []
+    },
+    {
+      id: 'abonnements' as const,
+      titre: '🔄 Abonnements',
+      desc: "Accès récurrent à du contenu ou une communauté — association, club, contenu premium mensuel.",
+      couleurGroupe: '#8b5cf6',
+      aVenir: true,
+      sousGroupes: []
+    },
+    {
+      id: 'locations' as const,
+      titre: '🏠 Locations',
+      desc: 'Location de biens avec calendrier de disponibilité et dépôt — équipement, chalets, véhicules.',
+      couleurGroupe: '#84cc16',
+      sousGroupes: [
+        {
+          templates: [
+            { id: 'reservation-location', titre: "Location d'objet", desc: 'Location de matériel, jeux gonflables, véhicules. Calendrier + dispo.', icone: '📦', couleur: '#84cc16', disponible: true },
+          ]
+        },
       ]
     },
   ];
 
   const COULEUR_MP = '#2563eb';
 
+  // ─── Palette sombre — même logique que ConfigurationEncheres.tsx ───────────
+  const C = {
+    bg: '#0d0d12',
+    cardBg: 'rgba(255,255,255,0.03)',
+    cardBgHover: 'rgba(255,255,255,0.05)',
+    border: 'rgba(255,255,255,0.08)',
+    inputBg: 'rgba(255,255,255,0.05)',
+    text: '#fff',
+    textLight: 'rgba(255,255,255,0.55)',
+    textDim: 'rgba(255,255,255,0.35)',
+    red: '#ef4444',
+    redLight: 'rgba(239,68,68,0.15)',
+  };
+
+  // ─── Stats pour le header dégradé ────────────────────────────────────────
+  const tousLesTemplates = categories.flatMap(c => c.sousGroupes.flatMap(sg => sg.templates));
+  const nbTemplatesTotal = tousLesTemplates.length;
+  const nbGratuits = tousLesTemplates.filter((t: any) => t.disponible && !t.prix).length;
+  const nbCategories = categories.filter(c => !(c as any).aVenir).length;
+
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '40px 24px', fontFamily: "'Inter', sans-serif" }}>
+    <div style={{ width: '100%', minHeight: 'calc(100vh - 96px)', background: C.bg, fontFamily: "'Inter', sans-serif" }}>
+      <div className="pct-wrap" style={{ maxWidth: 1300, margin: '0 auto' }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
         .template-card { transition: all 0.2s ease; }
         .template-card:hover { transform: translateY(-3px); }
         .badge-nouveau { animation: pulse-badge 2s ease-in-out infinite; }
+        .onglet-cat { transition: all 0.2s ease; }
         @keyframes pulse-badge {
           0%, 100% { box-shadow: 0 0 0 0 rgba(37,99,235,0.4); }
           50%       { box-shadow: 0 0 0 6px rgba(37,99,235,0); }
+        }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(8px);} to { opacity:1; transform:translateY(0);} }
+
+        /* ── Responsive mobile ─────────────────────────────────────────── */
+        .pct-wrap { padding: 40px 32px; }
+        .pct-hero { padding: 32px; }
+        .pct-hero h1 { font-size: 32px; }
+        .pct-hero-stats { gap: 40px; }
+        .pct-onglets { gap: 8px; margin-bottom: 0; }
+        .pct-onglet-btn { padding: 10px 20px; font-size: 14px; }
+        .pct-desc-toggle { display: none; }
+        .pct-desc-box { display: flex; }
+        @media (max-width: 640px) {
+          .pct-wrap { padding: 20px 16px; }
+          .pct-hero { padding: 22px 18px; border-radius: 18px; }
+          .pct-hero h1 { font-size: 24px; }
+          .pct-hero p { font-size: 14px !important; }
+          .pct-hero-stats { gap: 22px; }
+          .pct-hero-stats > div > div:first-child { font-size: 22px !important; }
+          .pct-onglets { gap: 6px; }
+          .pct-onglet-btn { padding: 8px 12px; font-size: 12px; }
+          .pct-desc-toggle { display: flex; align-items: center; gap: 6px; width: 100%; padding: 10px 14px; margin-bottom: 12px; }
+          .pct-desc-box { display: none; margin-bottom: 20px !important; }
+          .pct-desc-box.pct-desc-open { display: flex; }
+          .pct-desc-box { padding: 14px 16px !important; font-size: 12px !important; }
+        }
+        @media (max-width: 420px) {
+          .pct-grid { grid-template-columns: 1fr !important; }
         }
       `}</style>
 
@@ -700,172 +763,450 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         />
       )}
 
-      {/* Bannière réinitialisation — visible seulement si le gestionnaire a déjà un template */}
-      {gestionnaireId && (
-        <div style={{ background: '#fff8f8', border: '1px solid #fecaca', borderRadius: 12, padding: '14px 20px', marginBottom: 28, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 20 }}>🔄</span>
+      {/* ── Header dégradé — style ConfigurationEncheres (mêmes couleurs) ─── */}
+      <div className="pct-hero" style={{
+        background: 'linear-gradient(135deg, #f97316 0%, #f59e0b 100%)',
+        borderRadius: '24px', marginBottom: '28px',
+        position: 'relative', overflow: 'hidden', animation: 'fadeUp 0.5s ease',
+      }}>
+        <div style={{ position: 'absolute', top: '-30px', right: '-30px', width: '200px', height: '200px', borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />
+        <div style={{ position: 'absolute', bottom: '-50px', left: '-50px', width: '300px', height: '300px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)' }} />
+
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '12px' }}>
+            <span style={{ fontSize: '40px' }}>🧩</span>
+            <h1 style={{ margin: 0, fontSize: '32px', fontWeight: 800, color: '#fff', fontFamily: "'Sora', sans-serif" }}>
+              Choisir un template
+            </h1>
+          </div>
+          <p style={{ margin: '0 0 20px', fontSize: '16px', color: 'rgba(255,255,255,0.8)', maxWidth: '560px' }}>
+            Sélectionnez le type de site qui correspond à votre activité. Vous pourrez changer de template en tout temps depuis ce menu.
+          </p>
+
+          <div className="pct-hero-stats" style={{ display: 'flex', flexWrap: 'wrap' }}>
             <div>
-              <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#991b1b' }}>Vous voulez changer de template ?</p>
-              <p style={{ margin: 0, fontSize: 12, color: '#b91c1c', marginTop: 2 }}>Reinitialiser efface uniquement la config du template — vos produits et donnees sont conserves.</p>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff' }}>{nbTemplatesTotal}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Templates disponibles</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff' }}>{nbCategories}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Catégories</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff' }}>{nbGratuits}</div>
+              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Gratuits</div>
             </div>
           </div>
-          <button
-            onClick={() => setModalResetOuvert(true)}
-            style={{ padding: '8px 18px', background: '#dc2626', border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0 }}
-          >
-            🗑️ Reinitialiser le template
-          </button>
-        </div>
-      )}
 
-      <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>Choisir un template</h1>
-      <p style={{ fontSize: 15, color: '#666', marginBottom: 40, lineHeight: 1.6 }}>
-        Selectionnez le type de site qui correspond a votre activite.<br />
-        Vous pourrez changer de template en tout temps depuis ce menu.
-      </p>
-
-      {groupes.map(groupe => {
-        const estMP = !!(groupe as any).nouveau;
-        return (
-          <div key={groupe.titre} style={{ marginBottom: 52 }}>
-            {/* En-tête groupe */}
+          {/* Vous voulez changer de template ? — intégré dans le header, sous les stats */}
+          {gestionnaireId && (
             <div style={{
-              display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20,
-              paddingBottom: 14,
-              borderBottom: `2px solid ${estMP ? COULEUR_MP + '40' : groupe.couleurGroupe + '20'}`,
-              background: estMP ? `linear-gradient(135deg, ${COULEUR_MP}08 0%, transparent 60%)` : 'transparent',
-              borderRadius: estMP ? '12px 12px 0 0' : 0,
-              padding: estMP ? '16px 16px 14px' : '0 0 14px',
-              margin: estMP ? '0 -8px 20px' : '0 0 20px',
+              marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
             }}>
-              <div style={{ width: 4, height: 28, background: estMP ? COULEUR_MP : groupe.couleurGroupe, borderRadius: 2, flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 2 }}>
-                  <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{groupe.titre}</h2>
-                  {estMP && (
-                    <span className="badge-nouveau" style={{ fontSize: 10, fontWeight: 700, background: COULEUR_MP, color: '#fff', padding: '3px 10px', borderRadius: 20, letterSpacing: '0.05em' }}>
-                      ✨ NOUVEAU
-                    </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 20 }}>🔄</span>
+                <div>
+                  <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff' }}>Vous voulez changer de template ?</p>
+                  <p style={{ margin: 0, fontSize: 12, color: 'rgba(255,255,255,0.75)', marginTop: 2 }}>Reinitialiser efface uniquement la config du template — vos produits et donnees sont conserves.</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setModalResetOuvert(true)}
+                style={{ padding: '8px 18px', background: '#fff', border: 'none', borderRadius: 8, color: '#dc2626', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 8px 16px -8px rgba(0,0,0,0.3)' }}
+              >
+                🗑️ Reinitialiser le template
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ─── SECTION CATÉGORIES AMÉLIORÉE ─────────────────────────────────── */}
+      {/* En-tête de la section */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'space-between',
+        marginBottom: 14,
+        flexWrap: 'wrap',
+        gap: 8
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 18 }}>📂</span>
+          <h2 style={{ 
+            fontSize: 15, 
+            fontWeight: 700, 
+            color: C.text, 
+            margin: 0,
+            fontFamily: "'Sora', sans-serif",
+            letterSpacing: '-0.02em'
+          }}>
+            Catégories
+          </h2>
+          <span style={{ 
+            fontSize: 11, 
+            fontWeight: 600, 
+            color: C.textDim,
+            background: 'rgba(255,255,255,0.06)',
+            padding: '2px 10px',
+            borderRadius: 20
+          }}>
+            {categories.length}
+          </span>
+        </div>
+        <div style={{ 
+          fontSize: 11, 
+          color: C.textDim,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6
+        }}>
+          <span>💡</span>
+          <span>Cliquez sur une catégorie pour voir ses templates</span>
+        </div>
+      </div>
+
+      {/* Barre d'onglets — avec fond bien visible */}
+      <div style={{
+        background: 'rgba(255,255,255,0.05)',
+        border: `1px solid rgba(255,255,255,0.08)`,
+        borderRadius: 16,
+        padding: 8,
+        marginBottom: 24,
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+      }}>
+        <div className="pct-onglets" style={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          gap: 6,
+          marginBottom: 0 
+        }}>
+          {categories.map(cat => {
+            const actif = ongletCategorie === cat.id;
+            const aVenir = !!(cat as any).aVenir;
+            return (
+              <button 
+                key={cat.id} 
+                onClick={() => { setOngletCategorie(cat.id); setDescOuverte(false); }} 
+                className="onglet-cat pct-onglet-btn"
+                style={{
+                  borderRadius: 12,
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontFamily: "'Sora', sans-serif",
+                  fontSize: 13,
+                  padding: '8px 18px',
+                  color: actif ? '#0d0d12' : 'rgba(255,255,255,0.7)',
+                  background: actif ? cat.couleurGroupe : 'rgba(255,255,255,0.06)',
+                  border: `1.5px solid ${actif ? cat.couleurGroupe : 'rgba(255,255,255,0.06)'}`,
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: 8,
+                  boxShadow: actif ? `0 4px 12px -6px ${cat.couleurGroupe}` : 'none',
+                  opacity: aVenir && !actif ? 0.5 : 1,
+                  transition: 'all 0.2s ease',
+                  position: 'relative',
+                }}
+                onMouseEnter={e => {
+                  if (!actif) {
+                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)';
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.15)';
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!actif) {
+                    (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)';
+                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.06)';
+                  }
+                }}
+              >
+                {cat.titre}
+                {aVenir && (
+                  <span style={{ 
+                    fontSize: 8, 
+                    fontWeight: 700, 
+                    background: actif ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.1)', 
+                    color: actif ? '#0d0d12' : 'rgba(255,255,255,0.5)', 
+                    padding: '2px 8px', 
+                    borderRadius: 20, 
+                    letterSpacing: '0.05em' 
+                  }}>
+                    BIENTÔT
+                  </span>
+                )}
+                {actif && (
+                  <span style={{ 
+                    fontSize: 12,
+                    marginLeft: 2
+                  }}>
+                    ✦
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ─── DESCRIPTION DE LA CATÉGORIE ACTIVE — AMÉLIORÉE ────────────── */}
+      {categories.filter(cat => cat.id === ongletCategorie).map(categorie => {
+        const estMP = !!(categorie as any).nouveau;
+        const aVenir = !!(categorie as any).aVenir;
+        return (
+          <div key={categorie.id}>
+            {/* Description améliorée avec toggle */}
+            <div style={{ marginBottom: 28 }}>
+              <button
+                type="button"
+                className="pct-desc-toggle"
+                onClick={() => setDescOuverte(o => !o)}
+                style={{
+                  background: 'rgba(255,255,255,0.04)',
+                  border: `1px solid ${categorie.couleurGroupe}30`,
+                  borderRadius: 10,
+                  padding: '10px 16px',
+                  color: C.textLight,
+                  fontFamily: "'Sora', sans-serif",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={e => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)';
+                }}
+                onMouseLeave={e => {
+                  (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)';
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 14 }}>ℹ️</span>
+                  <span>À propos de cette catégorie</span>
+                </span>
+                <span style={{ fontSize: 16 }}>{descOuverte ? '▲' : '▼'}</span>
+              </button>
+
+              <div 
+                className={`pct-desc-box${descOuverte ? ' pct-desc-open' : ''}`}
+                style={{
+                  marginTop: 8,
+                  background: `linear-gradient(135deg, ${categorie.couleurGroupe}08, rgba(255,255,255,0.02))`,
+                  border: `1px solid ${categorie.couleurGroupe}20`,
+                  borderLeft: `4px solid ${categorie.couleurGroupe}`,
+                  borderRadius: 12,
+                  padding: '18px 22px',
+                  display: descOuverte ? 'flex' : 'none',
+                  alignItems: 'flex-start',
+                  gap: 14,
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <span style={{ fontSize: 24, flexShrink: 0, marginTop: 2 }}>
+                  {categorie.id === 'vitrines' ? '🖼' :
+                   categorie.id === 'boutiques' ? '🛍' :
+                   categorie.id === 'multivendeur' ? '🏪' :
+                   categorie.id === 'cagnottes' ? '💝' :
+                   categorie.id === 'encheres' ? '🔨' :
+                   categorie.id === 'annonces' ? '📋' :
+                   categorie.id === 'abonnements' ? '🔄' : '🏠'}
+                </span>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ 
+                    fontSize: 15, 
+                    fontWeight: 700, 
+                    color: C.text, 
+                    margin: '0 0 6px',
+                    fontFamily: "'Sora', sans-serif"
+                  }}>
+                    {categorie.titre}
+                  </h3>
+                  <p style={{ 
+                    fontSize: 13, 
+                    color: C.textLight, 
+                    margin: 0, 
+                    lineHeight: 1.6 
+                  }}>
+                    {categorie.desc}
+                  </p>
+                  {!aVenir && (
+                    <div style={{ 
+                      marginTop: 10, 
+                      display: 'flex', 
+                      gap: 16,
+                      flexWrap: 'wrap'
+                    }}>
+                      <span style={{ 
+                        fontSize: 11, 
+                        color: C.textDim,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}>
+                        <span>📦</span>
+                        {categorie.sousGroupes.flatMap(sg => sg.templates).filter(t => t.disponible).length} templates disponibles
+                      </span>
+                      <span style={{ 
+                        fontSize: 11, 
+                        color: C.textDim,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}>
+                        <span>🎯</span>
+                        {categorie.sousGroupes.flatMap(sg => sg.templates).filter(t => t.disponible && !t.prix).length} gratuits
+                      </span>
+                    </div>
                   )}
                 </div>
-                <p style={{ fontSize: 13, color: '#888', margin: 0 }}>{groupe.desc}</p>
               </div>
             </div>
 
-            {/* Grille templates */}
-            <div style={{ display: 'grid', gridTemplateColumns: estMP ? 'repeat(auto-fill, minmax(280px, 1fr))' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16, padding: estMP ? '0 8px' : 0 }}>
-              {groupe.templates.map((t: any) => {
-                const estSimplisse     = t.id === 'boutique-simplisse';
-                const estPremium       = t.id === 'boutique-premium';
-                const estSimplisseMode = t.id === 'boutique-simplisse-mode';
-                return (
-                  <div key={t.id} className="template-card"
-                    onClick={() => {
-                      if (!t.disponible) return;
-                      if (estSimplisse) { handleChoisirSimplisse(); return; }
-                      if (estPremium) { handleChoisirPremium(); return; }
-                      if (estSimplisseMode) { handleChoisirSimplisseMode(); return; }
-                      onChoisir(t.id);
-                    }}
-                    onMouseEnter={e => {
-                      if (!t.disponible) return;
-                      (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 24px ${t.couleur}30`;
-                      (e.currentTarget as HTMLDivElement).style.borderColor = `${t.couleur}80`;
-                    }}
-                    onMouseLeave={e => {
-                      (e.currentTarget as HTMLDivElement).style.boxShadow = estSimplisse ? `0 4px 16px ${COULEUR_MP}20` : 'none';
-                      (e.currentTarget as HTMLDivElement).style.borderColor = t.disponible ? `${t.couleur}40` : '#e5e7eb';
-                    }}
-                    style={{
-                      padding: '20px', borderRadius: 12,
-                      border: `2px solid ${t.disponible ? (estSimplisse ? COULEUR_MP + '60' : t.couleur + '40') : '#e5e7eb'}`,
-                      background: t.disponible ? (estSimplisse ? `${COULEUR_MP}06` : `${t.couleur}05`) : '#fafafa',
-                      cursor: t.disponible ? 'pointer' : 'not-allowed',
-                      opacity: t.disponible ? 1 : 0.55,
-                      display: 'flex', flexDirection: 'column' as const, gap: 0,
-                      boxShadow: estSimplisse ? `0 4px 16px ${COULEUR_MP}20` : 'none',
-                      position: 'relative' as const,
-                    }}>
+            {aVenir && (
+              <div style={{
+                textAlign: 'center', padding: '64px 24px', borderRadius: 24,
+                background: C.cardBg, border: `1.5px dashed ${categorie.couleurGroupe}40`,
+              }}>
+                <div style={{ fontSize: 44, marginBottom: 16, opacity: 0.7 }}>🚧</div>
+                <h3 style={{ fontFamily: "'Sora', sans-serif", fontSize: 18, fontWeight: 700, color: C.text, margin: '0 0 8px' }}>
+                  Bientôt disponible
+                </h3>
+                <p style={{ fontSize: 13, color: C.textLight, maxWidth: 420, margin: '0 auto' }}>
+                  On travaille sur les premiers templates de cette catégorie. Reviens bientôt !
+                </p>
+              </div>
+            )}
 
-                    {estSimplisse && (
-                      <div style={{ position: 'absolute', top: -1, right: 16, background: COULEUR_MP, color: '#fff', fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: '0 0 8px 8px', letterSpacing: '0.05em' }}>
-                        LE PLUS POPULAIRE
-                      </div>
-                    )}
+            {categorie.sousGroupes.map((sousGroupe, sgIndex) => (
+              <div key={sgIndex} style={{ marginBottom: 40 }}>
+                {/* Sous-titre interne — seulement si présent (Vitrines / Boutiques) */}
+                {(sousGroupe as any).titre && (
+                  <h3 style={{ fontSize: 13, fontWeight: 700, color: C.textLight, marginBottom: 14, paddingBottom: 8, borderBottom: `1px solid ${C.border}`, textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Sora', sans-serif" }}>
+                    {(sousGroupe as any).titre}
+                  </h3>
+                )}
 
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 14, marginTop: estSimplisse ? 10 : 0 }}>
-                      <div style={{ width: 44, height: 44, borderRadius: 10, background: `${t.couleur}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
-                        {t.icone}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' as const }}>
-                          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>{t.titre}</h3>
-                          {!t.disponible
-                            ? <span style={{ fontSize: 10, background: '#e5e7eb', color: '#888', padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>Bientôt</span>
-                            : t.badge
-                            ? <span style={{ fontSize: 10, background: `${t.badgeCouleur || t.couleur}18`, color: t.badgeCouleur || t.couleur, padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{t.badge}</span>
-                            : (prixParTemplate[t.id] || (t as any).prix) && (prixParTemplate[t.id] || (t as any).prix) !== 'Gratuit'
-                            ? <span style={{ fontSize: 10, background: '#fef3c7', color: '#b45309', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{prixParTemplate[t.id] || (t as any).prix}</span>
-                            : <span style={{ fontSize: 10, background: `${t.couleur}18`, color: t.couleur, padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>Gratuit</span>
-                          }
+                {/* Grille templates */}
+                <div className="pct-grid" style={{ display: 'grid', gridTemplateColumns: estMP ? 'repeat(auto-fill, minmax(280px, 1fr))' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: 16 }}>
+                  {sousGroupe.templates.map((t: any) => {
+                    const estSimplisse     = t.id === 'boutique-simplisse';
+                    const estPremium       = t.id === 'boutique-premium';
+                    const estSimplisseMode = t.id === 'boutique-simplisse-mode';
+                    return (
+                      <div key={t.id} className="template-card"
+                        onClick={() => {
+                          if (!t.disponible) return;
+                          if (estSimplisse) { handleChoisirSimplisse(); return; }
+                          if (estPremium) { handleChoisirPremium(); return; }
+                          if (estSimplisseMode) { handleChoisirSimplisseMode(); return; }
+                          onChoisir(t.id);
+                        }}
+                        onMouseEnter={e => {
+                          if (!t.disponible) return;
+                          (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 24px ${t.couleur}30`;
+                          (e.currentTarget as HTMLDivElement).style.borderColor = `${t.couleur}80`;
+                        }}
+                        onMouseLeave={e => {
+                          (e.currentTarget as HTMLDivElement).style.boxShadow = estSimplisse ? `0 4px 16px ${COULEUR_MP}20` : 'none';
+                          (e.currentTarget as HTMLDivElement).style.borderColor = t.disponible ? `${t.couleur}40` : C.border;
+                        }}
+                        style={{
+                          padding: '20px', borderRadius: 24,
+                          border: `2px solid ${t.disponible ? (estSimplisse ? COULEUR_MP + '60' : t.couleur + '40') : C.border}`,
+                          background: t.disponible ? (estSimplisse ? `${COULEUR_MP}10` : C.cardBg) : 'rgba(255,255,255,0.015)',
+                          cursor: t.disponible ? 'pointer' : 'not-allowed',
+                          opacity: t.disponible ? 1 : 0.55,
+                          display: 'flex', flexDirection: 'column' as const, gap: 0,
+                          boxShadow: estSimplisse ? `0 4px 16px ${COULEUR_MP}20` : 'none',
+                          position: 'relative' as const,
+                        }}>
+
+                        {estSimplisse && (
+                          <div style={{ position: 'absolute', top: -1, right: 16, background: COULEUR_MP, color: '#fff', fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: '0 0 8px 8px', letterSpacing: '0.05em' }}>
+                            LE PLUS POPULAIRE
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 14, marginTop: estSimplisse ? 10 : 0 }}>
+                          <div style={{ width: 44, height: 44, borderRadius: 10, background: `${t.couleur}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
+                            {t.icone}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' as const }}>
+                              <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: 0, fontFamily: "'Sora', sans-serif" }}>{t.titre}</h3>
+                              {!t.disponible
+                                ? <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.08)', color: C.textDim, padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>Bientôt</span>
+                                : t.badge
+                                ? <span style={{ fontSize: 10, background: `${t.badgeCouleur || t.couleur}18`, color: t.badgeCouleur || t.couleur, padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{t.badge}</span>
+                                : (prixParTemplate[t.id] || (t as any).prix) && (prixParTemplate[t.id] || (t as any).prix) !== 'Gratuit'
+                                ? <span style={{ fontSize: 10, background: 'rgba(245,158,11,0.15)', color: '#f59e0b', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{prixParTemplate[t.id] || (t as any).prix}</span>
+                                : <span style={{ fontSize: 10, background: `${t.couleur}18`, color: t.couleur, padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>Gratuit</span>
+                              }
+                            </div>
+                            <p style={{ fontSize: 13, color: C.textLight, lineHeight: 1.55, margin: 0 }}>{t.desc}</p>
+                          </div>
                         </div>
-                        <p style={{ fontSize: 13, color: '#666', lineHeight: 1.55, margin: 0 }}>{t.desc}</p>
-                      </div>
-                    </div>
 
-                    {t.pages && t.pages.length > 0 && (
-                      <div style={{ marginBottom: 14 }}>
-                        <p style={{ fontSize: 11, fontWeight: 600, color: '#999', margin: '0 0 6px', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Pages incluses</p>
-                        <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
-                          {t.pages.map((page: string) => (
-                            <span key={page} style={{ fontSize: 11, fontWeight: 600, background: `${t.couleur}12`, color: t.couleur, padding: '3px 9px', borderRadius: 6, border: `1px solid ${t.couleur}25` }}>
-                              {page}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                        {t.pages && t.pages.length > 0 && (
+                          <div style={{ marginBottom: 14 }}>
+                            <p style={{ fontSize: 11, fontWeight: 600, color: C.textDim, margin: '0 0 6px', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Pages incluses</p>
+                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
+                              {t.pages.map((page: string) => (
+                                <span key={page} style={{ fontSize: 11, fontWeight: 600, background: `${t.couleur}15`, color: t.couleur, padding: '3px 9px', borderRadius: 6, border: `1px solid ${t.couleur}30` }}>
+                                  {page}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
-                    {estSimplisse && (
-                      <div style={{ marginBottom: 14, background: `${COULEUR_MP}08`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COULEUR_MP}20` }}>
-                        <p style={{ fontSize: 11, color: '#555', margin: 0, lineHeight: 1.6 }}>
-                          ✅ Géré depuis le tableau de bord — sans code<br />
-                          ✅ Jusqu'à 200 produits · Catégories · Variantes · Promos<br />
-                          ✅ Panier & paiement Stripe intégré<br />
-                          ✅ Footer configurable · Bannière promo · Blog · FAQ<br />
-                          💰 Dès <strong>15,99$/mois</strong> + taxes
-                        </p>
-                      </div>
-                    )}
+                        {estSimplisse && (
+                          <div style={{ marginBottom: 14, background: `${COULEUR_MP}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COULEUR_MP}30` }}>
+                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
+                              ✅ Géré depuis le tableau de bord — sans code<br />
+                              ✅ Jusqu'à 200 produits · Catégories · Variantes · Promos<br />
+                              ✅ Panier & paiement Stripe intégré<br />
+                              ✅ Footer configurable · Bannière promo · Blog · FAQ<br />
+                              💰 Dès <strong style={{ color: C.text }}>15,99$/mois</strong> + taxes
+                            </p>
+                          </div>
+                        )}
 
-                    {t.disponible && (
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={e => { e.stopPropagation(); ouvrirApercu(t.id); }}
-                          style={{ padding: '9px 14px', background: '#fff', border: `2px solid ${t.couleur}`, borderRadius: 8, color: t.couleur, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-                          👁 Aperçu
-                        </button>
-                        <button
-                          onClick={e => {
-                            e.stopPropagation();
-                            if (estSimplisse) { handleChoisirSimplisse(); return; }
-                            if (estPremium) { handleChoisirPremium(); return; }
-                            if (estSimplisseMode) { handleChoisirSimplisseMode(); return; }
-                            onChoisir(t.id);
-                          }}
-                          style={{ padding: '9px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit', boxShadow: estSimplisse ? `0 2px 8px ${COULEUR_MP}40` : 'none' }}>
-                          {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : 'Choisir →'}
-                        </button>
+                        {t.disponible && (
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              onClick={e => { e.stopPropagation(); ouvrirApercu(t.id); }}
+                              style={{ padding: '9px 14px', background: C.inputBg, border: `2px solid ${t.couleur}60`, borderRadius: 8, color: t.couleur, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                              👁 Aperçu
+                            </button>
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                if (estSimplisse) { handleChoisirSimplisse(); return; }
+                                if (estPremium) { handleChoisirPremium(); return; }
+                                if (estSimplisseMode) { handleChoisirSimplisseMode(); return; }
+                                onChoisir(t.id);
+                              }}
+                              style={{ padding: '9px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit', boxShadow: `0 8px 16px -8px ${estSimplisse ? COULEUR_MP : t.couleur}` }}>
+                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : 'Choisir →'}
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
           </div>
         );
       })}
+      </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 // Sections ON/OFF + réordonnables — Gratuit — Catégorie : cours
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import AddonContact, { AddonTheme, AddonContactData, ChampFormulaire } from '../addons/contact/AddonContact';
 
 export interface SectionConfig { id: string; actif: boolean; ordre: number; label: string; }
 
@@ -821,22 +822,69 @@ function SectionFAQ({ config }: { config:ConfigEcoleDanse }) {
 
 // ─── CONTACT ──────────────────────────────────────────────────────────────────
 
+// ─── Add-on Contact : adaptateur de thème + valeurs par défaut ────────────────
+// Traduit LES couleurs de CE template vers le contrat neutre de l'add-on.
+// Ne contient AUCUNE logique de formulaire — juste de la couleur.
+function getThemeContactDanse(config: ConfigEcoleDanse): AddonTheme {
+  return {
+    primary:   config.couleurMagenta,
+    secondary: config.couleurOr,
+    bg:        'rgba(255,255,255,.04)',
+    text:      '#fff',
+    textDim:   'rgba(255,255,255,.3)',
+    border:    `${config.couleurMagenta}30`,
+    fontTitre: "'Cormorant Garamond',serif",
+    fontTexte: "'Poppins',sans-serif",
+  };
+}
+
+// Valeurs PAR DÉFAUT si le gestionnaire n'a pas encore configuré son formulaire
+// dans la page Add-ons > Contact. Dès qu'il le configure, sa config prend le dessus.
+// "Style souhaité" ici reprend config.stylesDanse (dynamique, propre au studio) —
+// une fois le gestionnaire passé par la page de config, il gère ces options lui-même.
+function getDataContactDanseDefaut(config: ConfigEcoleDanse, styles: StyleDanse[]): AddonContactData {
+  return {
+    titre: "S'inscrire ou nous contacter",
+    boutonTexte: '🎭 Réserver mon premier cours gratuit',
+    boutonTexteEnvoi: '💃 Envoi...',
+    messageSuccesTitre: 'Message envoyé!',
+    messageSuccesTexte: 'À très bientôt sur la piste!',
+    messageSuccesEmoji: '💃',
+    endpoint: '/api/studio/contact',
+    payloadExtra: { studio: config.nomEcole, type: 'contact-danse' },
+    champs: [
+      { id:'prenom',  type:'text',     label:'Prénom', requis:true, placeholder:'Prénom' },
+      { id:'nom',     type:'text',     label:'Nom',    requis:true, placeholder:'Nom' },
+      { id:'email',   type:'email',    label:'Email',  requis:true, placeholder:'votre@email.ca', largeurPleine:true },
+      { id:'style',   type:'select',   label:'Style souhaité', options: styles.map(s => `${s.emoji} ${s.nom}`) },
+      { id:'age',     type:'text',     label:'Âge', placeholder:'Ex: 28 ans' },
+      { id:'message', type:'textarea', label:'Message', placeholder:'Expérience, objectifs, questions...', largeurPleine:true },
+    ],
+  };
+}
+
 function SectionContact({ config }: { config:ConfigEcoleDanse }) {
   const { isMobile } = useIsMobile();
   const rv = useReveal(.05);
   const cm = config.couleurMagenta; const co = config.couleurOr;
   const styles = ea(config.stylesDanse, CONFIG_DANSE_DEFAUT.stylesDanse);
   const horairesStudio = ea(config.horairesStudio, CONFIG_DANSE_DEFAUT.horairesStudio);
-  const [form, setForm] = useState({ prenom:'', nom:'', email:'', style:'', age:'', message:'' });
-  const [envoye, setEnvoye] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const handleSubmit = async () => {
-    setLoading(true);
-    try {
-      await fetch('/api/studio/contact', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...form, studio:config.nomEcole, type:'contact-danse' }) });
-    } catch {}
-    setEnvoye(true); setLoading(false);
-  };
+
+  // 🟢 Config du gestionnaire (page Add-ons > Contact) si elle existe, sinon défaut du template
+  const configAddon = (config as any).addons?.contact;
+  const dataContact: AddonContactData = configAddon && configAddon.champs?.length
+    ? {
+        titre: configAddon.titre,
+        sousTitre: configAddon.sousTitre,
+        boutonTexte: configAddon.boutonTexte,
+        messageSuccesTitre: configAddon.messageSuccesTitre,
+        messageSuccesTexte: configAddon.messageSuccesTexte,
+        endpoint: '/api/studio/contact',
+        payloadExtra: { studio: config.nomEcole, type: 'contact-danse', destinataire: configAddon.destinataireEmail || undefined },
+        champs: configAddon.champs as ChampFormulaire[],
+      }
+    : getDataContactDanseDefaut(config, styles);
+
   return (
     <section style={{ background:config.couleurFond, padding:isMobile?'60px 20px':'100px 48px' }}>
       <div ref={rv.ref} className={`rv${rv.vis?' vis':''}`} style={{ maxWidth:1320, margin:'0 auto' }}>
@@ -870,52 +918,8 @@ function SectionContact({ config }: { config:ConfigEcoleDanse }) {
               <iframe src={config.coordGoogleMaps} width="100%" height="100%" style={{ border:0, display:'block' }} allowFullScreen loading="lazy" title="Localisation" />
             </div>
           </div>
-          <div style={{ background:'rgba(255,255,255,.04)', padding:'40px 36px', border:`2px solid ${cm}30`, borderTop:`4px solid ${cm}` }}>
-            {envoye ? (
-              <div style={{ textAlign:'center', padding:'60px 0' }}>
-                <div style={{ fontSize:64, marginBottom:16 }}>💃</div>
-                <h3 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:30, fontWeight:600, color:'#fff', marginBottom:12 }}>Message envoyé!</h3>
-                <p style={{ fontFamily:"'Dancing Script',cursive", fontSize:22, color:cm }}>À très bientôt sur la piste!</p>
-              </div>
-            ) : (
-              <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-                <h3 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:'#fff', marginBottom:4 }}>S'inscrire ou nous contacter</h3>
-                <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'1fr 1fr', gap:14 }}>
-                  {[['Prénom *','prenom','Prénom'],['Nom *','nom','Nom']].map(([label,key,ph]) => (
-                    <div key={key}>
-                      <label style={{ fontFamily:"'Poppins',sans-serif", fontSize:9, fontWeight:700, color:'rgba(255,255,255,.3)', letterSpacing:'0.15em', textTransform:'uppercase', display:'block', marginBottom:6 }}>{label}</label>
-                      <input className="fw-inp" value={(form as any)[key]} onChange={e => setForm({...form,[key]:e.target.value})} placeholder={ph} />
-                    </div>
-                  ))}
-                </div>
-                <div>
-                  <label style={{ fontFamily:"'Poppins',sans-serif", fontSize:9, fontWeight:700, color:'rgba(255,255,255,.3)', letterSpacing:'0.15em', textTransform:'uppercase', display:'block', marginBottom:6 }}>Email *</label>
-                  <input type="email" className="fw-inp" value={form.email} onChange={e => setForm({...form,email:e.target.value})} placeholder="votre@email.ca" />
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':'1fr 1fr', gap:14 }}>
-                  <div>
-                    <label style={{ fontFamily:"'Poppins',sans-serif", fontSize:9, fontWeight:700, color:'rgba(255,255,255,.3)', letterSpacing:'0.15em', textTransform:'uppercase', display:'block', marginBottom:6 }}>Style souhaité</label>
-                    <select className="fw-inp" value={form.style} onChange={e => setForm({...form,style:e.target.value})} style={{ cursor:'pointer' }}>
-                      <option value="">Choisir...</option>
-                      {styles.map(s => <option key={s.id} value={s.nom}>{s.emoji} {s.nom}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontFamily:"'Poppins',sans-serif", fontSize:9, fontWeight:700, color:'rgba(255,255,255,.3)', letterSpacing:'0.15em', textTransform:'uppercase', display:'block', marginBottom:6 }}>Âge</label>
-                    <input className="fw-inp" value={form.age} onChange={e => setForm({...form,age:e.target.value})} placeholder="Ex: 28 ans" />
-                  </div>
-                </div>
-                <div>
-                  <label style={{ fontFamily:"'Poppins',sans-serif", fontSize:9, fontWeight:700, color:'rgba(255,255,255,.3)', letterSpacing:'0.15em', textTransform:'uppercase', display:'block', marginBottom:6 }}>Message</label>
-                  <textarea className="fw-inp" rows={3} value={form.message} onChange={e => setForm({...form,message:e.target.value})} placeholder="Expérience, objectifs, questions..." style={{ resize:'none' }} />
-                </div>
-                <button className="btn-m" onClick={handleSubmit} disabled={loading || !form.prenom || !form.email} style={{ opacity:(!form.prenom||!form.email) ? 0.5 : 1, textAlign:'center', padding:'16px', width:'100%' }}>
-                  {loading?'💃 Envoi...':'🎭 Réserver mon premier cours gratuit'}
-                </button>
-                <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, color:'rgba(255,255,255,.2)', textAlign:'center' }}>Premier cours toujours gratuit · Sans engagement</p>
-              </div>
-            )}
-          </div>
+          {/* 🟢 Add-on Contact — générique, réutilisé par tous les templates */}
+          <AddonContact theme={getThemeContactDanse(config)} data={dataContact} isMobile={isMobile} />
         </div>
       </div>
     </section>

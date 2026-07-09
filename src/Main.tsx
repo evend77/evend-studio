@@ -29,22 +29,17 @@ export default function Main() {
   const [loading, setLoading] = useState(true);
 
   // ── Détection d'un sous-domaine client (xxx.e-vendstudio.ca) ───────────────
-  // Si le visiteur arrive sur un sous-domaine gratuit, on affiche directement
-  // le site du gestionnaire correspondant au lieu de la page marketing.
   const [sousDomaineCheck, setSousDomaineCheck] = useState<{
     verifie: boolean;
     gestionnaireId: number | null;
   }>({ verifie: false, gestionnaireId: null });
 
-  // Sous-domaines qui NE sont PAS des sites clients (domaine racine, www, outils dev)
   const SOUS_DOMAINES_NON_CLIENTS = ['www', 'e-vendstudio', 'localhost'];
 
   useEffect(() => {
     const hostname = window.location.hostname;
     const parties = hostname.split('.');
 
-    // Cas A — sous-domaine gratuit du type xxx.e-vendstudio.ca (3 segments),
-    // en excluant www et le domaine nu.
     const estSousDomaineClient =
       parties.length === 3 &&
       hostname.endsWith('.e-vendstudio.ca') &&
@@ -65,8 +60,6 @@ export default function Main() {
       return;
     }
 
-    // Cas B — domaine personnalisé externe d'un gestionnaire (ex: www.idee-cadeau.ca).
-    // On exclut nos propres domaines (e-vendstudio.ca et localhost/dev).
     const estNotreDomaine =
       hostname.endsWith('e-vendstudio.ca') ||
       hostname === 'localhost' ||
@@ -86,8 +79,6 @@ export default function Main() {
       return;
     }
 
-    // Sinon (e-vendstudio.ca, www.e-vendstudio.ca, localhost, etc.) : rien à faire,
-    // on affiche la plateforme normalement.
     setSousDomaineCheck({ verifie: true, gestionnaireId: null });
   }, []);
 
@@ -118,6 +109,41 @@ export default function Main() {
     setUser(null);
   };
 
+  // ── Impersonation admin → gestionnaire ──────────────────────────────────────
+  // On sauvegarde le token admin avant de le remplacer par celui du gestionnaire,
+  // pour pouvoir revenir proprement au dashboard admin au clic "Déconnecter"
+  // (dans le même onglet, sans reconnexion).
+  const handleImpersonateGestionnaire = (gestionnaire: any, token: string) => {
+    const tokenAdmin = localStorage.getItem('token');
+    const userAdmin  = localStorage.getItem('user');
+    if (tokenAdmin) localStorage.setItem('admin_token_backup', tokenAdmin);
+    if (userAdmin)  localStorage.setItem('admin_user_backup', userAdmin);
+
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(gestionnaire));
+    setUser(gestionnaire);
+  };
+
+  // Retour à la session admin après une impersonation (remplace le "logout"
+  // du dashboard gestionnaire tant qu'on est en mode impersonation)
+  const handleStopImpersonationGestionnaire = () => {
+    const tokenAdmin = localStorage.getItem('admin_token_backup');
+    const userAdmin  = localStorage.getItem('admin_user_backup');
+
+    localStorage.removeItem('admin_token_backup');
+    localStorage.removeItem('admin_user_backup');
+
+    if (tokenAdmin && userAdmin) {
+      localStorage.setItem('token', tokenAdmin);
+      localStorage.setItem('user', userAdmin);
+      setUser(JSON.parse(userAdmin));
+      window.location.href = '/admin';
+    } else {
+      // Pas de sauvegarde retrouvée (cas rare) : déconnexion complète par sécurité
+      handleLogout();
+    }
+  };
+
   if (!sousDomaineCheck.verifie || loading) {
     return (
       <div style={{ minHeight: '100vh', background: '#0f0f0f', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -131,9 +157,6 @@ export default function Main() {
     );
   }
 
-  // ── Sous-domaine client détecté : on affiche directement son site ──────────
-  // (peu importe le chemin visité — /, /catalogue, etc. — puisque le site du
-  // gestionnaire gère lui-même sa navigation interne via son template)
   if (sousDomaineCheck.gestionnaireId) {
     return (
       <BrowserRouter>
@@ -145,48 +168,46 @@ export default function Main() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Routes publiques */}
         <Route path="/"             element={<PageAccueil />} />
         <Route path="/templates"    element={<PageTemplates />} />
         <Route path="/site-preview" element={<SitePreview />} />
-        
-        {/* Blog */}
+
         <Route path="/blog"         element={<BlogPlateforme />} />
         <Route path="/blog/:slug"   element={<BlogArticle />} />
 
-        {/* FAQ & Contact */}
         <Route path="/faq"                element={<FaqPlateforme />} />
         <Route path="/contact"            element={<ContactPlateforme />} />
         <Route path="/politiques/:slug"   element={<PagePolitique />} />
         <Route path="/documents"           element={<PageDocumentsPlateforme />} />
         <Route path="/documents/:slug"     element={<PageDocumentsPlateforme />} />
 
-        {/* Inscription vendeur */}
         <Route path="/inscription"  element={
           user ? <Navigate to="/dashboard" replace /> :
           <InscriptionGestionnaire onSuccess={(g) => handleLogin('gestionnaire', g, '')} />
         } />
 
-        {/* Login */}
         <Route path="/login" element={
           user ? <Navigate to="/dashboard" replace /> : <AnyLoginPage onLogin={handleLogin} />
         } />
 
-        {/* Dashboard vendeur */}
         <Route path="/dashboard" element={
           !user ? <Navigate to="/login" replace /> :
-          user.role === 'gestionnaire' ? <AnyGestionnaire onLogout={handleLogout} gestionnaireUser={user} /> :
+          user.role === 'gestionnaire' ? (
+            <AnyGestionnaire
+              onLogout={localStorage.getItem('admin_token_backup') ? handleStopImpersonationGestionnaire : handleLogout}
+              gestionnaireUser={user}
+              isAdminImpersonation={!!localStorage.getItem('admin_token_backup')}
+            />
+          ) :
           <Navigate to="/admin" replace />
         } />
 
-        {/* Dashboard admin */}
         <Route path="/admin" element={
           !user ? <Navigate to="/login" replace /> :
-          user.role === 'admin' ? <AnyAdmin onLogout={handleLogout} /> :
+          user.role === 'admin' ? <AnyAdmin onLogout={handleLogout} onImpersonateGestionnaire={handleImpersonateGestionnaire} /> :
           <Navigate to="/dashboard" replace />
         } />
 
-        {/* 🔗 Domaines (NOUVEAU) */}
         <Route path="/mon-domaine" element={
           !user ? <Navigate to="/login" replace /> :
           <MonDomaine gestionnaireId={user.id} />
@@ -202,7 +223,6 @@ export default function Main() {
           <DomaineAnnule />
         } />
 
-        {/* Fallback — redirige selon statut */}
         <Route path="*" element={
           !user ? <PageAccueil /> :
           user.role === 'admin' ? <Navigate to="/admin" replace /> :
