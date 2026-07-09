@@ -40,7 +40,7 @@ import ConfigMesPagesPremium       from './pages/gestionnaire/ConfigMesPagesPrem
 import ConfigMesPagesSimplisseMode from './pages/gestionnaire/ConfigMesPagesSimplisseMode';
 import SimplissePlan               from './pages/gestionnaire/SimplissePlan';
 import PremiumPlan                 from './pages/gestionnaire/PremiumPlan';
-import SimplisseBranding           from './pages/gestionnaire/SimplisseBranding';
+import BrandingEtOptions            from './pages/gestionnaire/BrandingEtOptions';
 import CreerAnnonce                from './pages/gestionnaire/CreerAnnonce';
 import ConfigMesPagesBeaute        from './pages/gestionnaire/ConfigMesPagesBeaute';
 import BeautePlan                  from './pages/gestionnaire/BeautePlan';
@@ -1154,7 +1154,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'badges-gestion')      return <StudioGestionBadges   gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'badges-attribues')    return <StudioBadgesAttribues gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'addon')               return <AddOn />;
-    if (pageActive === 'branding-options')     return <SimplisseBranding gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'branding-options')     return <BrandingEtOptions gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'annonces-liste') return <ListeProduits naviguerVers={setPageActive} gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'annonces-encheres') return <MesEncheres />;
     if (pageActive === 'annonces-make-offer') return <MesOffres />;
@@ -1251,19 +1251,19 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'studio-import-evend') return <ImportEvend gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-config-pages') return <ConfigMesPagesSimplisse    gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-plan')         return <SimplissePlan              gestionnaireId={gestionnaire.id} />;
-    if (pageActive === 'simplisse-branding')     return <SimplisseBranding          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'simplisse-branding')     return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'premium-config-pages')   return <ConfigMesPagesPremium      gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'premium-plan')           return <PremiumPlan                gestionnaireId={gestionnaire.id} />;
-    if (pageActive === 'premium-branding')       return <SimplisseBranding          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'premium-branding')       return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'mode-config-pages')      return <ConfigMesPagesSimplisseMode gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mode-plan')              return <SimplissePlan              gestionnaireId={gestionnaire.id} />;
-    if (pageActive === 'mode-branding')          return <SimplisseBranding          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'mode-branding')          return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'beaute-config-pages')    return <ConfigMesPagesBeaute       gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'beaute-plan')            return <BeautePlan                 gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-premium-config-pages') return <ConfigMultiVendeurPremium  gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-premium-plan')        return <MVPremiumPlan              gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-premium-branding')    return <AddOn />;
-    if (pageActive === 'beaute-branding')        return <SimplisseBranding          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'beaute-branding')        return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'annonces-creer')         return <CreerAnnonce onRetour={() => setPageActive('annonces-liste')} gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-apercu') return null; // géré par onClick (nouvel onglet)
     if (pageActive === 'studio-page-404') return <StudioConfigPage404 gestionnaireId={gestionnaire.id} />;

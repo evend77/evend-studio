@@ -1,5 +1,6 @@
 // src/pages/studio/ConfigTemplateEcoleDanse.tsx
 import { useState, useEffect } from 'react';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import TemplateEcoleDanse, { CONFIG_DANSE_DEFAUT } from '../../templates/TemplateEcoleDanse';
 import type { ConfigEcoleDanse, SectionConfig, StyleDanse, CoursHoraire, ProfesseurDanse, AvisDanse, FormulairePass } from '../../templates/TemplateEcoleDanse';
 
@@ -66,6 +67,7 @@ const PALETTES = [
 interface Props { vendeurId: string; onSauvegarde?: (config:ConfigEcoleDanse)=>Promise<void>; }
 
 export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Props) {
+  const { isMobile } = useIsMobile();
   const [config, setConfig] = useState<ConfigEcoleDanse>({ ...CONFIG_DANSE_DEFAUT });
   const [onglet, setOnglet] = useState<Onglet>('identite');
   const [sauv, setSauv] = useState<'idle'|'loading'|'ok'|'err'>('idle');
@@ -137,8 +139,8 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
   ];
 
   return (
-    <div style={{ display:'flex', height:'100%', fontFamily:"'Inter',sans-serif", background:'#f8f9fb' }}>
-      <div style={{ width:360, minWidth:320, background:'#fff', borderRight:'1px solid #e5e7eb', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+    <div style={{ display:'flex', flexDirection: isMobile ? 'column' : 'row', height:'100%', fontFamily:"'Inter',sans-serif", background:'#f8f9fb' }}>
+      <div style={{ width: isMobile ? '100%' : 440, minWidth: isMobile ? undefined : 400, background:'#fff', borderRight: isMobile ? 'none' : '1px solid #e5e7eb', borderBottom: isMobile ? '1px solid #e5e7eb' : 'none', display:'flex', flexDirection:'column', overflow:'hidden' }}>
         <div style={{ padding:'13px 13px 0', borderBottom:'1px solid #f0f0f0' }}>
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:11 }}>
             <div style={{ width:32, height:32, borderRadius:8, background:`linear-gradient(135deg,#0a0a0f,${CM})`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:18 }}>💃</div>
@@ -149,7 +151,7 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
           </div>
         </div>
 
-        <div style={{ flex:1, overflowY:'auto', padding:13 }}>
+        <div style={{ flex:1, overflowY: isMobile ? 'visible' : 'auto', padding:13 }}>
 
           {onglet==='identite' && (<>
             <S titre="Studio"><F label="Nom"><Inp value={config.nomEcole} onChange={(v:string)=>set('nomEcole',v)} /></F><F label="Tagline 1"><Inp value={config.tagline} onChange={(v:string)=>set('tagline',v)} /></F><F label="Tagline 2 (dégradé)"><Inp value={config.sousTagline} onChange={(v:string)=>set('sousTagline',v)} /></F><F label="Citation"><Inp value={config.citation} onChange={(v:string)=>set('citation',v)} /></F><F label="Auteur citation"><Inp value={config.auteurCitation} onChange={(v:string)=>set('auteurCitation',v)} /></F><F label="Année fondation"><Inp value={config.fondee} onChange={(v:string)=>set('fondee',v)} /></F><F label="Description hero"><Txt value={config.descriptionHero} onChange={(v:string)=>set('descriptionHero',v)} rows={3} /></F><F label="Description à propos"><Txt value={config.descriptionAPropos} onChange={(v:string)=>set('descriptionAPropos',v)} rows={3} /></F></S>
@@ -310,8 +312,11 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
           )}
           {/* Aperçu + Sauvegarder */}
           <div style={{ display:'flex', gap:8 }}>
-            <button onClick={()=>setApercu(!apercu)} style={{ flex:1, padding:'9px 0', borderRadius:7, border:`1.5px solid #0a0a0f`, background:apercu?'#0a0a0f':'transparent', color:apercu?'#e91e8c':'#0a0a0f', fontSize:12, fontWeight:600, cursor:'pointer', transition:'all .2s' }}>
-              {apercu?'✕ Fermer':'👁 Aperçu'}
+            <button onClick={() => {
+              if (isMobile) { window.open(`/site-preview?vendeurId=${vendeurId}`, '_blank', 'noopener,noreferrer'); return; }
+              setApercu(!apercu);
+            }} style={{ flex:1, padding:'9px 0', borderRadius:7, border:`1.5px solid #0a0a0f`, background:apercu && !isMobile?'#0a0a0f':'transparent', color:apercu && !isMobile?'#e91e8c':'#0a0a0f', fontSize:12, fontWeight:600, cursor:'pointer', transition:'all .2s' }}>
+              {apercu && !isMobile ? '✕ Fermer' : '👁 Aperçu'}
             </button>
             <button onClick={handleSave} disabled={sauv==='loading'} style={{ flex:2, padding:'9px 0', borderRadius:7, border:'none', background:sauv==='ok'?'#10b981':sauv==='err'?'#dc2626':'#0a0a0f', color:sauv==='ok'||sauv==='err'?'#fff':CM, fontSize:12, fontWeight:700, cursor:'pointer', transition:'background .3s' }}>
               {sauv==='loading'?'⏳...':sauv==='ok'?'✅ Sauvegardé!':sauv==='err'?'❌ Erreur':'💾 Sauvegarder'}
@@ -320,7 +325,8 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
         </div>
       </div>
 
-      {/* Zone aperçu — icônes EN HAUT au centre, template scrollable en dessous */}
+      {/* Zone aperçu — desktop seulement. Sur mobile, l'aperçu s'ouvre dans un nouvel onglet (voir bouton ci-dessus) */}
+      {!isMobile && (
       <div style={{ flex:1, display:apercu?'flex':'none', flexDirection:'column', background:'#0a0a0f', overflow:'hidden' }}>
 
         {/* Message avertissement */}
@@ -365,8 +371,9 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
           </div>
         </div>
       </div>
+      )}
 
-      {!apercu && (
+      {!isMobile && !apercu && (
         <div style={{ flex:1, display:'flex', alignItems:'center', justifyContent:'center', background:'#0a0a0f', flexDirection:'column', gap:14 }}>
           <div style={{ fontSize:52 }}>💃</div>
           <p style={{ fontSize:15, color:CM, fontWeight:600 }}>Cliquez sur "Aperçu" pour voir votre site</p>
