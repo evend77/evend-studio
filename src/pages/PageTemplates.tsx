@@ -518,6 +518,68 @@ export const GROUPES: { id: Groupe; label: string; icone: string; couleur: strin
   { id: 'enchere',            label: 'Enchères en ligne',                  icone: '🔨', couleur: '#dc2626', desc: "Sites d'enchères en temps réel — du mono-produit au méga site multi-lots" },
 ];
 
+// ─── CATÉGORIES PUBLIQUES (SEO) ────────────────────────────────────────────────
+// Regroupe les 11 "Groupe" internes en 6 grandes catégories, alignées avec
+// les onglets de PageChoisirTemplate.tsx (dashboard gestionnaire). Les GROUPES
+// et le champ Template.groupe ci-dessus restent INCHANGÉS — cette couche ne fait
+// qu'organiser l'affichage public, sans toucher aux données existantes.
+export interface Categorie {
+  id: string;
+  titre: string;
+  icone: string;
+  couleur: string;
+  // Description longue, pensée pour le référencement (mots-clés, cas d'usage).
+  seoDesc: string;
+  groupes: Groupe[];        // sous-groupes classiques, basés sur Template.groupe
+  templateIds?: string[];   // override : catégorie construite à partir d'ids précis (ex: Locations)
+  excludeIds?: string[];    // ids à retirer des groupes ci-dessus (évite les doublons entre catégories)
+}
+
+export const CATEGORIES: Categorie[] = [
+  {
+    id: 'vitrines', titre: 'Sites Vitrine', icone: '🖼', couleur: '#c9a96e',
+    seoDesc: "Créez un site vitrine professionnel pour présenter votre entreprise, vos services ou votre portfolio en ligne, sans vendre de produits. Idéal pour les restaurants, bureaux d'avocats, salons de coiffure, coachs, artistes, écoles de danse, de cuisine ou de musique, et tout professionnel indépendant qui veut une présence web soignée. Formulaire de contact, prise de rendez-vous, galerie photo, avis clients et référencement Google inclus dans chaque template.",
+    groupes: ['vitrine', 'vitrine-contact', 'cours', 'resto', 'profession', 'reservation'],
+    excludeIds: ['reservation-location'],
+  },
+  {
+    id: 'boutiques', titre: 'Boutiques en ligne', icone: '🛍', couleur: '#2563eb',
+    seoDesc: "Lancez votre boutique en ligne complète avec catalogue de produits, panier d'achat et paiement sécurisé par Stripe, gérée entièrement depuis votre tableau de bord — sans écrire une ligne de code. Que vous vendiez des vêtements, de l'artisanat, des produits fermiers ou des produits numériques, nos templates de commerce électronique s'adaptent à votre secteur d'activité au Québec et au Canada.",
+    groupes: ['boutique-generique', 'boutique-industrie'],
+  },
+  {
+    id: 'multivendeur', titre: 'Marketplace Multivendeur', icone: '🏪', couleur: '#fbbf24',
+    seoDesc: "Bâtissez votre propre marketplace en ligne avec plusieurs vendeurs indépendants, chacun avec sa boutique, son catalogue et son système d'enchères. Une solution complète inspirée des grandes places de marché, idéale pour les regroupements de commerçants, marchés locaux et plateformes spécialisées par secteur.",
+    groupes: ['multi-vendeur'],
+  },
+  {
+    id: 'locations', titre: 'Location de biens', icone: '🏠', couleur: '#84cc16',
+    seoDesc: "Offrez la location de matériel, d'équipement, de jeux gonflables ou de véhicules directement en ligne, avec un calendrier de disponibilité intégré et une prise de réservation simplifiée. Parfait pour les entreprises de location d'outils, d'équipements événementiels ou de véhicules récréatifs.",
+    groupes: [],
+    templateIds: ['reservation-location'],
+  },
+  {
+    id: 'cagnottes', titre: 'Cagnottes & Collecte de fonds', icone: '💝', couleur: '#ec4899',
+    seoDesc: "Collectez des dons en ligne pour une cause personnelle, un projet créatif, une communauté ou une urgence, avec paiement sécurisé Stripe versé directement dans votre compte. Une solution simple et transparente pour vos campagnes de financement participatif.",
+    groupes: ['cagnotte'],
+  },
+  {
+    id: 'encheres', titre: 'Enchères en ligne', icone: '🔨', couleur: '#dc2626',
+    seoDesc: "Organisez des enchères en temps réel — d'un seul produit vedette jusqu'à un site complet multi-lots avec mises automatiques et suivi en direct. Idéal pour les encans, ventes de succession, levées de fonds par enchère ou maisons de ventes spécialisées.",
+    groupes: ['enchere'],
+  },
+];
+
+// Retourne les templates qui appartiennent à une catégorie donnée, à partir
+// d'une liste source (permet de composer avec templatesFiltres pour la recherche).
+export function templatesDeCategorie(cat: Categorie, source: Template[]): Template[] {
+  const base = cat.templateIds
+    ? source.filter(t => cat.templateIds!.includes(t.id))
+    : source.filter(t => cat.groupes.includes(t.groupe));
+  return cat.excludeIds ? base.filter(t => !cat.excludeIds!.includes(t.id)) : base;
+}
+
+
 // ─── APERÇU (ouvre la démo dans un nouvel onglet) ─────────────────────────────
 function ouvrirApercu(templateId: string) {
   const url = `/site-preview?forceTemplate=${templateId}&demo=true`;
@@ -528,6 +590,7 @@ function ouvrirApercu(templateId: string) {
 
 function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommencer: (id: string) => void; prixAffiche?: string }) {
   const [survol, setSurvol] = useState(false);
+  const navigate = useNavigate();
   const prixFinal = prixAffiche || t.prix || 'Gratuit';
   const estGratuit = prixFinal === 'Gratuit';
 
@@ -599,26 +662,35 @@ function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommenc
 
         {/* Boutons */}
         {t.disponible ? (
-          <div className="template-card-buttons" style={{ display: 'flex', gap: 8 }}>
+          <>
+            <div className="template-card-buttons" style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="template-card-btn-apercu"
+                onClick={e => { e.stopPropagation(); ouvrirApercu(t.id); }}
+                style={{ padding: '11px 14px', background: '#fff', border: `2px solid ${t.couleur}`, borderRadius: 10, color: t.couleur, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                👁 Aperçu
+              </button>
+              <button
+                className="template-card-btn-main"
+                onClick={() => onCommencer(t.id)}
+                style={{
+                  flex: 1, padding: '11px', borderRadius: 10, border: 'none',
+                  background: survol ? t.couleur : `${t.couleur}25`,
+                  color: survol ? '#fff' : t.couleur,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  transition: 'all 0.25s',
+                }}>
+                Commencer →
+              </button>
+            </div>
             <button
-              className="template-card-btn-apercu"
-              onClick={e => { e.stopPropagation(); ouvrirApercu(t.id); }}
-              style={{ padding: '11px 14px', background: '#fff', border: `2px solid ${t.couleur}`, borderRadius: 10, color: t.couleur, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
-              👁 Aperçu
+              onClick={() => navigate(`/templates/${t.id}`)}
+              style={{ marginTop: 10, background: 'none', border: 'none', padding: 0, color: 'rgba(255,255,255,0.4)', fontSize: 12, cursor: 'pointer', textAlign: 'center', width: '100%' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = t.couleur; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = 'rgba(255,255,255,0.4)'; }}>
+              📖 Voir tous les détails →
             </button>
-            <button
-              className="template-card-btn-main"
-              onClick={() => onCommencer(t.id)}
-              style={{
-                flex: 1, padding: '11px', borderRadius: 10, border: 'none',
-                background: survol ? t.couleur : `${t.couleur}25`,
-                color: survol ? '#fff' : t.couleur,
-                fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                transition: 'all 0.25s',
-              }}>
-              Commencer →
-            </button>
-          </div>
+          </>
         ) : (
           <button
             className="template-card-btn-main"
@@ -640,7 +712,7 @@ function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommenc
 
 export default function PageTemplates() {
   const navigate = useNavigate();
-  const [filtreGroupe, setFiltreGroupe] = useState<Groupe | 'tous'>('tous');
+  const [filtreCategorie, setFiltreCategorie] = useState<string>('tous');
   const [recherche, setRecherche] = useState('');
   const [menuMobile, setMenuMobile] = useState(false);
   const [prixParTemplate, setPrixParTemplate] = useState<Record<string, string>>({});
@@ -664,8 +736,10 @@ export default function PageTemplates() {
       .catch(() => { /* silencieux — fallback sur les prix codés en dur */ });
   }, []);
 
+  const categorieActive = CATEGORIES.find(c => c.id === filtreCategorie);
+
   const templatesFiltres = TEMPLATES.filter(t => {
-    if (filtreGroupe !== 'tous' && t.groupe !== filtreGroupe) return false;
+    if (categorieActive && !templatesDeCategorie(categorieActive, TEMPLATES).some(ct => ct.id === t.id)) return false;
     if (recherche) {
       const q = recherche.toLowerCase();
       return t.nom.toLowerCase().includes(q) || t.description.toLowerCase().includes(q);
@@ -673,9 +747,9 @@ export default function PageTemplates() {
     return true;
   });
 
-  const groupesAffiches = filtreGroupe === 'tous'
-    ? GROUPES
-    : GROUPES.filter(g => g.id === filtreGroupe);
+  const categoriesAffichees = filtreCategorie === 'tous'
+    ? CATEGORIES
+    : CATEGORIES.filter(c => c.id === filtreCategorie);
 
   const onCommencer = (templateId: string) => {
     // Redirige vers l'inscription avec le template présélectionné
@@ -774,18 +848,18 @@ export default function PageTemplates() {
           <p style={{ fontSize: 'clamp(15px, 2vw, 18px)', color: 'rgba(255,255,255,0.55)', maxWidth: 560, margin: '0 auto 32px' }}>
             Des designs professionnels prêts à l'emploi. Configurez votre site en quelques minutes, sans coder.
           </p>
-          {/* Chips groupes */}
+          {/* Chips catégories */}
           <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button className="hero-chip" onClick={() => setFiltreGroupe('tous')}
-              style={{ padding: '8px 20px', borderRadius: 30, border: `1.5px solid ${filtreGroupe === 'tous' ? '#c9a96e' : 'rgba(255,255,255,0.15)'}`, background: filtreGroupe === 'tous' ? '#c9a96e' : 'transparent', color: filtreGroupe === 'tous' ? '#000' : 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            <button className="hero-chip" onClick={() => setFiltreCategorie('tous')}
+              style={{ padding: '8px 20px', borderRadius: 30, border: `1.5px solid ${filtreCategorie === 'tous' ? '#c9a96e' : 'rgba(255,255,255,0.15)'}`, background: filtreCategorie === 'tous' ? '#c9a96e' : 'transparent', color: filtreCategorie === 'tous' ? '#000' : 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
               Tous ({TEMPLATES.filter(t => t.disponible).length})
             </button>
-            {GROUPES.map(g => {
-              const count = TEMPLATES.filter(t => t.groupe === g.id && t.disponible).length;
+            {CATEGORIES.map(c => {
+              const count = templatesDeCategorie(c, TEMPLATES).filter(t => t.disponible).length;
               return (
-                <button key={g.id} className="hero-chip" onClick={() => setFiltreGroupe(g.id)}
-                  style={{ padding: '8px 20px', borderRadius: 30, border: `1.5px solid ${filtreGroupe === g.id ? g.couleur : 'rgba(255,255,255,0.15)'}`, background: filtreGroupe === g.id ? g.couleur + '20' : 'transparent', color: filtreGroupe === g.id ? g.couleur : 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                  {g.icone} {g.label} ({count})
+                <button key={c.id} className="hero-chip" onClick={() => setFiltreCategorie(c.id)}
+                  style={{ padding: '8px 20px', borderRadius: 30, border: `1.5px solid ${filtreCategorie === c.id ? c.couleur : 'rgba(255,255,255,0.15)'}`, background: filtreCategorie === c.id ? c.couleur + '20' : 'transparent', color: filtreCategorie === c.id ? c.couleur : 'rgba(255,255,255,0.6)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  {c.icone} {c.titre} ({count})
                 </button>
               );
             })}
@@ -809,16 +883,16 @@ export default function PageTemplates() {
             />
           </div>
 
-          {/* Filtres groupe */}
+          {/* Filtres catégorie */}
           <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.3)', marginBottom: 12 }}>Type de site</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 28 }}>
-            {[{ id: 'tous' as Groupe | 'tous', label: 'Tous les templates', icone: '✦', couleur: '#c9a96e' }, ...GROUPES.map(g => ({ id: g.id as Groupe | 'tous', label: g.label, icone: g.icone, couleur: g.couleur }))].map(item => (
-              <button key={item.id} onClick={() => setFiltreGroupe(item.id)}
+            {[{ id: 'tous', label: 'Tous les templates', icone: '✦', couleur: '#c9a96e' }, ...CATEGORIES.map(c => ({ id: c.id, label: c.titre, icone: c.icone, couleur: c.couleur }))].map(item => (
+              <button key={item.id} onClick={() => setFiltreCategorie(item.id)}
                 style={{
-                  padding: '9px 12px', borderRadius: 8, border: `1px solid ${filtreGroupe === item.id ? item.couleur + '60' : 'rgba(255,255,255,0.07)'}`,
-                  background: filtreGroupe === item.id ? item.couleur + '15' : 'transparent',
-                  color: filtreGroupe === item.id ? item.couleur : 'rgba(255,255,255,0.55)',
-                  fontSize: 13, fontWeight: filtreGroupe === item.id ? 700 : 400, cursor: 'pointer', textAlign: 'left',
+                  padding: '9px 12px', borderRadius: 8, border: `1px solid ${filtreCategorie === item.id ? item.couleur + '60' : 'rgba(255,255,255,0.07)'}`,
+                  background: filtreCategorie === item.id ? item.couleur + '15' : 'transparent',
+                  color: filtreCategorie === item.id ? item.couleur : 'rgba(255,255,255,0.55)',
+                  fontSize: 13, fontWeight: filtreCategorie === item.id ? 700 : 400, cursor: 'pointer', textAlign: 'left',
                 }}>
                 {item.icone} {item.label}
               </button>
@@ -844,35 +918,59 @@ export default function PageTemplates() {
               <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.4)' }}>Aucun template trouvé pour "{recherche}"</p>
             </div>
           ) : (
-            groupesAffiches.map(groupe => {
-              const tempsGroupe = templatesFiltres.filter(t => t.groupe === groupe.id);
-              if (tempsGroupe.length === 0) return null;
+            categoriesAffichees.map(categorie => {
+              const tempsCategorie = templatesDeCategorie(categorie, templatesFiltres);
+              if (tempsCategorie.length === 0) return null;
+              // Sous-groupes internes (ex: Vitrines contient 6 sous-groupes ; Locations n'en a qu'un)
+              const sousGroupeIds = categorie.groupes;
               return (
-                <div key={groupe.id} style={{ marginBottom: 64 }} className="fade-up">
-                  {/* En-tête section */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10, paddingBottom: 16, borderBottom: `1px solid ${groupe.couleur}20` }}>
-                    <div style={{ width: 44, height: 44, borderRadius: 10, background: groupe.couleur + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
-                      {groupe.icone}
-                    </div>
-                    <div style={{ minWidth: 0, flex: 1 }}>
+                <div key={categorie.id} style={{ marginBottom: 72 }} className="fade-up">
+                  {/* En-tête de catégorie — description longue, importante pour le SEO */}
+                  <div style={{ marginBottom: 28, paddingBottom: 20, borderBottom: `2px solid ${categorie.couleur}25` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10 }}>
+                      <div style={{ width: 48, height: 48, borderRadius: 12, background: categorie.couleur + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 }}>
+                        {categorie.icone}
+                      </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                        <h2 style={{ fontSize: 22, fontWeight: 800, color: '#fff' }}>{groupe.label}</h2>
-                        <span style={{ fontSize: 11, background: groupe.couleur + '20', color: groupe.couleur, padding: '2px 10px', borderRadius: 20, fontWeight: 700 }}>
-                          {tempsGroupe.filter(t => t.disponible).length} disponibles
+                        <h2 style={{ fontSize: 26, fontWeight: 800, color: '#fff' }}>{categorie.titre}</h2>
+                        <span style={{ fontSize: 11, background: categorie.couleur + '20', color: categorie.couleur, padding: '2px 10px', borderRadius: 20, fontWeight: 700 }}>
+                          {tempsCategorie.filter(t => t.disponible).length} disponibles
                         </span>
                       </div>
-                      <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', marginTop: 2 }}>{groupe.desc}</p>
                     </div>
+                    <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, maxWidth: 820 }}>{categorie.seoDesc}</p>
                   </div>
 
-                  {/* Grille templates */}
-                  <div className="templates-mobile-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
-                    {tempsGroupe.map((t, i) => (
-                      <div key={t.id} className="fade-up" style={{ animationDelay: `${i * 0.06}s` }}>
-                        <CarteTemplate t={t} onCommencer={onCommencer} prixAffiche={prixParTemplate[t.id]} />
-                      </div>
-                    ))}
-                  </div>
+                  {/* Sous-groupes internes (si plusieurs) sinon grille directe */}
+                  {sousGroupeIds.length > 1 ? (
+                    sousGroupeIds.map(gId => {
+                      const g = GROUPES.find(x => x.id === gId);
+                      if (!g) return null;
+                      const tempsSousGroupe = tempsCategorie.filter(t => t.groupe === gId);
+                      if (tempsSousGroupe.length === 0) return null;
+                      return (
+                        <div key={gId} style={{ marginBottom: 40 }}>
+                          <h3 style={{ fontSize: 15, fontWeight: 700, color: 'rgba(255,255,255,0.7)', marginBottom: 4 }}>{g.icone} {g.label}</h3>
+                          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', marginBottom: 16 }}>{g.desc}</p>
+                          <div className="templates-mobile-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
+                            {tempsSousGroupe.map((t, i) => (
+                              <div key={t.id} className="fade-up" style={{ animationDelay: `${i * 0.06}s` }}>
+                                <CarteTemplate t={t} onCommencer={onCommencer} prixAffiche={prixParTemplate[t.id]} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="templates-mobile-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
+                      {tempsCategorie.map((t, i) => (
+                        <div key={t.id} className="fade-up" style={{ animationDelay: `${i * 0.06}s` }}>
+                          <CarteTemplate t={t} onCommencer={onCommencer} prixAffiche={prixParTemplate[t.id]} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               );
             })

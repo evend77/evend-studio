@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import PageAccueil         from './pages/PageAccueil';
 import PageTemplates         from './pages/PageTemplates';
+import PageTemplateDetail    from './pages/PageTemplateDetail';
 import LoginPage             from './pages/LoginPage';
 import AppGestionnaireStudio  from './AppGestionnaireStudio';
 import AppAdminStudio        from './AppAdminStudio';
@@ -170,6 +171,7 @@ export default function Main() {
       <Routes>
         <Route path="/"             element={<PageAccueil />} />
         <Route path="/templates"    element={<PageTemplates />} />
+        <Route path="/templates/:id" element={<PageTemplateDetail />} />
         <Route path="/site-preview" element={<SitePreview />} />
 
         <Route path="/blog"         element={<BlogPlateforme />} />

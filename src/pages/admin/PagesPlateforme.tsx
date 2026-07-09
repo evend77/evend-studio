@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../../config/api';
+import { TEMPLATES } from '../PageTemplates';
 
 interface PagePlateforme {
   id: number;
@@ -46,6 +47,8 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
   
   // États pour le modal de création
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [typePage, setTypePage] = useState<'normale' | 'guide-template'>('normale');
+  const [templateChoisi, setTemplateChoisi] = useState('');
   const [newPage, setNewPage] = useState({
     slug: '',
     titre: '',
@@ -472,8 +475,10 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
     
     setCreating(true);
     try {
-      const modeleInitial = `<h1>${newPage.titre}</h1>\n\n<p>Contenu à rédiger...</p>`;
-      
+      const modeleInitial = typePage === 'guide-template'
+        ? `<h2>Pourquoi choisir ce template ?</h2>\n\n<p>Rédigez ici un guide détaillé — cas d'usage concrets, exemples de sites, conseils de personnalisation...</p>\n\n<h2>Idéal pour</h2>\n\n<ul>\n  <li>À compléter</li>\n</ul>`
+        : `<h1>${newPage.titre}</h1>\n\n<p>Contenu à rédiger...</p>`;
+
       const res = await fetch(`${API_BASE}/pagesPlateforme`, {
         method: 'POST',
         credentials: 'include', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -484,7 +489,10 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
           actif: true,
           meta_description: newPage.description,
           ordre: pages.length,
-          afficher_dans_menu: true,
+          // Un guide de template s'affiche sous la fiche du template (/templates/:id),
+          // pas dans le menu général des Documents — sinon les 49 guides polluent
+          // la sidebar des vraies pages (FAQ, politiques, etc.)
+          afficher_dans_menu: typePage === 'guide-template' ? false : true,
         }),
       });
       
@@ -496,6 +504,8 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
       setMessageSauvegarde('✅ Page créée avec succès !');
       setShowCreateModal(false);
       setNewPage({ slug: '', titre: '', description: '' });
+      setTypePage('normale');
+      setTemplateChoisi('');
       await fetchPages();
       
       setTimeout(() => {
@@ -826,36 +836,92 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
         <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
           <div style={s.modal} onClick={e => e.stopPropagation()}>
             <h2 style={s.modalTitle}>➕ Créer une nouvelle page</h2>
-            
+
+            {/* Type de page — normale ou guide lié à un template */}
             <div style={s.modalField}>
-              <label style={s.modalLabel}>Titre *</label>
-              <input
-                type="text"
-                style={s.modalInput}
-                value={newPage.titre}
-                onChange={e => setNewPage(prev => ({ ...prev, titre: e.target.value }))}
-                placeholder="Ex: Guide des retours, FAQ vendeurs, etc."
-              />
+              <label style={s.modalLabel}>Type de page</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button type="button"
+                  onClick={() => { setTypePage('normale'); setTemplateChoisi(''); setNewPage({ slug: '', titre: '', description: '' }); }}
+                  style={{ flex: 1, padding: '9px', borderRadius: 8, border: `1.5px solid ${typePage === 'normale' ? T.accent : T.border}`, background: typePage === 'normale' ? '#e8f2fb' : '#fff', color: typePage === 'normale' ? T.accent : T.textLight, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  📄 Page normale
+                </button>
+                <button type="button"
+                  onClick={() => { setTypePage('guide-template'); setNewPage({ slug: '', titre: '', description: '' }); }}
+                  style={{ flex: 1, padding: '9px', borderRadius: 8, border: `1.5px solid ${typePage === 'guide-template' ? T.accent : T.border}`, background: typePage === 'guide-template' ? '#e8f2fb' : '#fff', color: typePage === 'guide-template' ? T.accent : T.textLight, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  🧩 Guide de template
+                </button>
+              </div>
             </div>
+
+            {typePage === 'guide-template' ? (
+              <div style={s.modalField}>
+                <label style={s.modalLabel}>Template lié *</label>
+                <select
+                  style={s.modalInput}
+                  value={templateChoisi}
+                  onChange={e => {
+                    const id = e.target.value;
+                    setTemplateChoisi(id);
+                    const tpl = TEMPLATES.find(t => t.id === id);
+                    setNewPage({
+                      slug: id ? `template-${id}` : '',
+                      titre: tpl ? `Guide — ${tpl.nom}` : '',
+                      description: tpl ? tpl.description : '',
+                    });
+                  }}>
+                  <option value="">Choisir un template...</option>
+                  {TEMPLATES.map(t => {
+                    const existe = pages.some(p => p.slug === `template-${t.id}`);
+                    return (
+                      <option key={t.id} value={t.id}>
+                        {existe ? '✅ ' : ''}{t.nom} ({t.id})
+                      </option>
+                    );
+                  })}
+                </select>
+                <p style={s.modalHint}>
+                  {templateChoisi
+                    ? `L'URL sera : /templates/${templateChoisi} — ✅ = un guide existe déjà pour ce template`
+                    : "✅ dans la liste = ce template a déjà un guide. Vous pouvez quand même le sélectionner pour voir/modifier son contenu existant depuis la liste des pages."}
+                </p>
+              </div>
+            ) : (
+              <div style={s.modalField}>
+                <label style={s.modalLabel}>Titre *</label>
+                <input
+                  type="text"
+                  style={s.modalInput}
+                  value={newPage.titre}
+                  onChange={e => setNewPage(prev => ({ ...prev, titre: e.target.value }))}
+                  placeholder="Ex: Guide des retours, FAQ vendeurs, etc."
+                />
+              </div>
+            )}
             
             <div style={s.modalField}>
               <label style={s.modalLabel}>
                 Slug (URL) *
-                <button type="button" onClick={autoGenerateSlug} style={s.modalAutoSlug}>
-                  🔄 Auto
-                </button>
+                {typePage === 'normale' && (
+                  <button type="button" onClick={autoGenerateSlug} style={s.modalAutoSlug}>
+                    🔄 Auto
+                  </button>
+                )}
               </label>
               <input
                 type="text"
-                style={s.modalInput}
+                style={{ ...s.modalInput, ...(typePage === 'guide-template' ? { background: '#f0f2f5', color: T.textLight } : {}) }}
                 value={newPage.slug}
+                disabled={typePage === 'guide-template'}
                 onChange={e => {
                   const val = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-');
                   setNewPage(prev => ({ ...prev, slug: val }));
                 }}
                 placeholder="guide-des-retours"
               />
-              <p style={s.modalHint}>L'URL sera : /documents/{newPage.slug || '...'}</p>
+              <p style={s.modalHint}>
+                L'URL sera : {typePage === 'guide-template' ? '/templates/' : '/documents/'}{newPage.slug.replace('template-', '') || '...'}
+              </p>
             </div>
             
             <div style={s.modalField}>
@@ -872,14 +938,14 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
             <div style={s.modalButtons}>
               <button
                 style={s.modalBtnCancel}
-                onClick={() => setShowCreateModal(false)}
+                onClick={() => { setShowCreateModal(false); setTypePage('normale'); setTemplateChoisi(''); }}
               >
                 Annuler
               </button>
               <button
                 style={s.modalBtnCreate}
                 onClick={creerPage}
-                disabled={creating || !newPage.slug || !newPage.titre}
+                disabled={creating || !newPage.slug || !newPage.titre || (typePage === 'guide-template' && !templateChoisi)}
               >
                 {creating ? 'Création...' : '✨ Créer la page'}
               </button>
