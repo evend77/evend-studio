@@ -21,6 +21,7 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
+const { verifierEtIncrementerQuota } = require('./messagerie_contact');
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@e-vend.ca';
 
@@ -373,6 +374,25 @@ router.post('/contact', async (req, res) => {
   if (digits > letters * 2 && letters < 20)
     return res.status(400).json({ message: 'Message invalide.' });
 
+  // ── 7.5 QUOTA MESSAGERIE ──────────────────────────────────────────────────
+  // Le formulaire de contact est gratuit et inclus, mais limité à un quota
+  // mensuel (100 messages + blocs achetés). Vérifié ici, PAS avant la
+  // validation anti-spam, pour ne jamais consommer de quota sur un spam bloqué.
+  let quotaInfo;
+  try {
+    quotaInfo = await verifierEtIncrementerQuota(vendeur_id);
+  } catch (err) {
+    console.error('[studio/contact] Erreur vérification quota:', err.message);
+    return res.status(500).json({ message: 'Erreur serveur.' });
+  }
+  if (!quotaInfo.autorise) {
+    console.log(`🚫 [studio/contact] Quota atteint — vendeur_id: ${vendeur_id} (${quotaInfo.utilises}/${quotaInfo.limite})`);
+    return res.status(403).json({
+      message: "Le formulaire de contact n'est pas disponible pour le moment.",
+      quota_atteint: true,
+    });
+  }
+
   // ── 8. RÉCUPÉRER EMAIL + NOM DU PROPRIÉTAIRE EN BD ───────────────────────
   let proprietaireEmail, proprietaireNom, nomSite;
   try {
@@ -422,6 +442,21 @@ router.post('/contact', async (req, res) => {
     if (!ok) throw new Error('SES failed');
 
     console.log(`📩 [studio/contact] → ${proprietaireEmail} | de: ${email_expediteur} | template: ${template_id} | IP: ${ip} | reste: ${rate.remaining}/${RATE_LIMIT_MAX}`);
+
+    // ── 10.5 ENREGISTREMENT DU MESSAGE — visible dans Messagerie ─────────────
+    // Ne bloque jamais la réponse au visiteur si ça échoue — l'email est déjà parti.
+    try {
+      const champsSupplementaires = Object.fromEntries(
+        (champs_extra || []).filter(c => c.label && c.valeur).map(c => [c.label, c.valeur])
+      );
+      await pool.query(
+        `INSERT INTO messages_contact (gestionnaire_id, nom, email, telephone, sujet, message, champs_supplementaires)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [vendeur_id, nom_expediteur, email_expediteur, telephone || null, sujet || null, message, JSON.stringify(champsSupplementaires)]
+      );
+    } catch (err) {
+      console.error('[studio/contact] Erreur enregistrement message (email envoyé quand même):', err.message);
+    }
 
     // ── 11. COPIE EXPÉDITEUR (optionnel) ──────────────────────────────────
     if (copie_expediteur && validateEmail(email_expediteur)) {

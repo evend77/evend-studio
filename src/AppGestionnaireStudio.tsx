@@ -45,6 +45,8 @@ import CreerAnnonce                from './pages/gestionnaire/CreerAnnonce';
 import ConfigMesPagesBeaute        from './pages/gestionnaire/ConfigMesPagesBeaute';
 import BeautePlan                  from './pages/gestionnaire/BeautePlan';
 import ConfigVerificateurAge        from './pages/gestionnaire/ConfigVerificateurAge';
+import ConfigFormulaireContact      from './pages/gestionnaire/ConfigFormulaireContact';
+import MessagerieFormulaireContact  from './pages/gestionnaire/MessagerieFormulaireContact';
 import ConfigPopupAnnonce           from './pages/gestionnaire/ConfigPopupAnnonce';
 import MVPremiumPlan               from './pages/gestionnaire/MVPremiumPlan';
 import ConfigMultiVendeurPremium   from './pages/gestionnaire/ConfigMultiVendeurPremium';
@@ -328,7 +330,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [templateIdChoisi, setTemplateIdChoisi] = useState<string>('');
   const [modalOuvert, setModalOuvert] = useState(false);
   const [message, setMessage] = useState('');
-  const [nonLus, setNonLus] = useState({ acheteurs: 0, admin: 0, notifs: 0, total: 0 });
+  const [nonLus, setNonLus] = useState({ acheteurs: 0, admin: 0, notifs: 0, contact: 0, total: 0 });
 
   // 👇 NOUVEAU STATE POUR LE MODAL UNSplash
   const [modalPhotoOuvert, setModalPhotoOuvert] = useState(false);
@@ -547,6 +549,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const itemVerificateurAge = { id:'config-verificateur-age', label:'Vérificateur d\'âge 🔞', icon:'🔞' };
   const itemPopupAnnonce    = { id:'config-popup-annonce',    label:'Popup Annonce 📢',          icon:'📢' };
   const itemPhotos: SousMenuItem     = { id: 'studio-photos-vendeur',   label: 'Mes photos de site',    icon: '🖼️' };
+  const itemFormulaireContact = { id: 'config-formulaire-contact', label: 'Formulaire de contact', icon: '📋' };
   const itemConfigGenerale: SousMenuItem = { id: 'config-generale',     label: 'Config générale',    icon: '⚙️' };
   const itemConfigMV: SousMenuItem       = { id: 'config-multivendeur', label: 'Config multivendeur', icon: '🏪' };
 
@@ -632,6 +635,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     sousMenu: [
       { id: 'messagerie-admin',         label: 'Message administration', icon: '🛡️', badge: nonLus.admin > 0 ? nonLus.admin : undefined },
       { id: 'messagerie-notifications', label: 'Notifications e-Vend',  icon: '🔔', badge: nonLus.notifs > 0 ? nonLus.notifs : undefined },
+      { id: 'messagerie-contact',       label: 'Messages via formulaire contact', icon: '📋', badge: nonLus.contact > 0 ? nonLus.contact : undefined },
     ]
   };
 
@@ -705,7 +709,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos,
+          itemPhotos, itemFormulaireContact,
         ]
       },
       menuProfil,
@@ -743,7 +747,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos,
+          itemPhotos, itemFormulaireContact,
         ]
       },
       menuProfil,
@@ -780,7 +784,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos,
+          itemPhotos, itemFormulaireContact,
         ]
       },
       menuProfil,
@@ -809,7 +813,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos,
+          itemPhotos, itemFormulaireContact,
         ]
       },
       menuProfil,
@@ -846,7 +850,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos,
+          itemPhotos, itemFormulaireContact,
         ]
       },
       menuProfil,
@@ -883,7 +887,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos,
+          itemPhotos, itemFormulaireContact,
         ]
       },
       menuProfil,
@@ -892,19 +896,19 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuAddOn,
     ];
   } else if (estSimplisse) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesSimplisse,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioSimplisse,menuConfigMesPages,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,...(options?.verificateur_age ? [itemVerificateurAge] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesSimplisse,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioSimplisse,menuConfigMesPages,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : [])] },menuProfil,menuMessagerie,menuAddOn];
 
   } else if (estPremium) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesPremium,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioPremium,menuConfigPremium,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,...(options?.verificateur_age ? [itemVerificateurAge] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesPremium,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioPremium,menuConfigPremium,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : [])] },menuProfil,menuMessagerie,menuAddOn];
 
   } else if (estSimplisseMode) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesMode,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioMode,menuConfigMode,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,...(options?.verificateur_age ? [itemVerificateurAge] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesMode,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioMode,menuConfigMode,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : [])] },menuProfil,menuMessagerie,menuAddOn];
 
   } else if (estMultiVendeur) {
     menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVendeurs,menuSousVendeurs,menuBadges,menuBlogsSV,menuFaqsSV,menuChatSV,{ id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📦' },{ id:'annonces-creer',label:'Créer une annonce',icon:'➕' }] },{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' }] },menuStudioMV,menuConfigMV,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },itemPage404,itemPolitiques,itemSeo,itemCookies,itemPhotos,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie];
 
   } else if (estBeaute) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesBeaute,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioBeaute,menuConfigBeaute,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,...(options?.verificateur_age ? [itemVerificateurAge] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesBeaute,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioBeaute,menuConfigBeaute,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : [])] },menuProfil,menuMessagerie,menuAddOn];
 
   } else if (estBoutiqueSimple) {
     // Boutique Simple (mono-produit) : commandes + config basique
@@ -944,7 +948,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos,
+          itemPhotos, itemFormulaireContact,
         ]
       },
       menuProfil,
@@ -1165,6 +1169,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'messagerie-gestionnaire') return <MessagerieAdministration />;
     if (pageActive === 'messagerie-admin') return <MessagerieAdministration />;
     if (pageActive === 'messagerie-notifications') return <MessagerieNotifications />;
+    if (pageActive === 'messagerie-contact') return <MessagerieFormulaireContact gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'profil-forfait') return <MonForfait />;
     if (pageActive === 'mes-services')   return <MesServices gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'plans-membership') return <PlansMembership naviguerVers={setPageActive} />;
@@ -1272,6 +1277,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'studio-seo-site')       return <StudioSeoSite       gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-cookies-site')   return <StudioCookiesSite   gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-verificateur-age') return <ConfigVerificateurAge gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-formulaire-contact') return <ConfigFormulaireContact gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-photos-vendeur') return <StudioGestionPhotosVendeur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-generale')       return <StudioConfigGenerale      gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-multivendeur')   return <StudioConfigMultivendeur  gestionnaireId={gestionnaire.id} />;

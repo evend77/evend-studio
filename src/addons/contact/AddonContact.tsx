@@ -55,6 +55,7 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
   const [envoye, setEnvoye] = useState(false);
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState('');
+  const [indisponible, setIndisponible] = useState(false); // quota de messages atteint
 
   const cp       = theme.primary;
   const textDim  = theme.textDim  || `${theme.text}99`;
@@ -74,6 +75,13 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, ...data.payloadExtra }),
       });
+      if (res.status === 403) {
+        const body = await res.json().catch(() => null);
+        if (body?.quota_atteint) {
+          setIndisponible(true);
+          return;
+        }
+      }
       if (!res.ok) throw new Error('Réponse serveur non OK');
       setEnvoye(true);
     } catch {
@@ -130,6 +138,16 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
             </h3>
             <p style={{ fontFamily: theme.fontTexte, fontSize: 14, color: textDim }}>
               {data.messageSuccesTexte}
+            </p>
+          </div>
+        ) : indisponible ? (
+          <div style={{ textAlign: 'center', padding: '48px 20px' }}>
+            <div style={{ fontSize: 44, marginBottom: 14 }}>⚠️</div>
+            <h3 style={{ fontFamily: theme.fontTitre, fontSize: 20, fontWeight: 600, color: '#ef4444', marginBottom: 10 }}>
+              Formulaire indisponible
+            </h3>
+            <p style={{ fontFamily: theme.fontTexte, fontSize: 13, color: textDim, maxWidth: 380, margin: '0 auto' }}>
+              Le formulaire de contact n'est pas disponible pour le moment. Merci de réessayer plus tard ou de nous contacter autrement.
             </p>
           </div>
         ) : (
