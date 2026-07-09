@@ -467,7 +467,7 @@ function SectionStyles({ config, setPage }: { config:ConfigEcoleDanse; setPage:(
             <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:20, color:'rgba(255,255,255,.75)', lineHeight:1.8, marginBottom:32 }}>{s.description}</p>
             <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:10, fontWeight:700, color:'rgba(255,255,255,.3)', letterSpacing:'0.2em', textTransform:'uppercase', marginBottom:14 }}>Niveaux disponibles</p>
             <div style={{ display:'flex', flexWrap:'wrap', gap:10, marginBottom:36 }}>
-              {s.niveaux.map((n,j) => (
+              {(s.niveaux || []).map((n,j) => (
                 <div key={j} style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, padding:'8px 18px', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.12)', color:'rgba(255,255,255,.8)', borderRadius:4, fontWeight:600, cursor:'default', transition:'all .2s' }}
                   onMouseEnter={e => { const el=e.currentTarget as HTMLDivElement; el.style.background=`${s.couleurAccent}20`; el.style.borderColor=s.couleurAccent; el.style.color=s.couleurAccent; }}
                   onMouseLeave={e => { const el=e.currentTarget as HTMLDivElement; el.style.background='rgba(255,255,255,.06)'; el.style.borderColor='rgba(255,255,255,.12)'; el.style.color='rgba(255,255,255,.8)'; }}>
@@ -495,7 +495,7 @@ function SectionHoraires({ config, setPage }: { config:ConfigEcoleDanse; setPage
   const [filtre, setFiltre] = useState('Tous');
   const opts = ['Tous', ...Array.from(new Set(horaires.map(h => h.style)))];
   const filtres = filtre==='Tous' ? horaires : horaires.filter(h => h.style===filtre);
-  const colStyle = (style: string) => styles.find(s => s.nom.toLowerCase().includes(style.toLowerCase()) || style.toLowerCase().includes(s.id))?.couleurAccent || config.couleurMagenta;
+  const colStyle = (style: string) => styles.find(s => (s.nom || '').toLowerCase().includes((style || '').toLowerCase()) || (style || '').toLowerCase().includes(s.id || ''))?.couleurAccent || config.couleurMagenta;
   return (
     <section style={{ background:'#0f0f1a', padding:isMobile?'60px 20px':'100px 48px' }}>
       <div ref={rv.ref} className={`rv${rv.vis?' vis':''}`} style={{ maxWidth:1320, margin:'0 auto' }}>
@@ -621,19 +621,19 @@ function SectionProfesseurs({ config }: { config:ConfigEcoleDanse }) {
                   <div style={{ position:'absolute', bottom:0, left:0, right:0, padding:16 }}>
                     <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:600, color:'#fff', marginBottom:4 }}>{p.nom}</p>
                     <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
-                      {p.specialites.slice(0,2).map((sp,j) => <span key={j} style={{ fontFamily:"'Poppins',sans-serif", fontSize:9, padding:'2px 8px', background:`${col}30`, border:`1px solid ${col}50`, color:col, borderRadius:10, fontWeight:700 }}>{sp}</span>)}
+                      {(p.specialites || []).slice(0,2).map((sp,j) => <span key={j} style={{ fontFamily:"'Poppins',sans-serif", fontSize:9, padding:'2px 8px', background:`${col}30`, border:`1px solid ${col}50`, color:col, borderRadius:10, fontWeight:700 }}>{sp}</span>)}
                     </div>
                   </div>
                   <div style={{ position:'absolute', bottom:0, left:0, right:0, height:3, background:col }} />
                 </div>
                 <div style={{ padding:'16px 18px', background:'rgba(255,255,255,.03)' }}>
                   <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, fontWeight:700, color:col, textTransform:'uppercase', letterSpacing:'0.08em', marginBottom:8 }}>{p.titre}</p>
-                  <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.45)', lineHeight:1.6 }}>{p.bio.slice(0,100)}...</p>
+                  <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.45)', lineHeight:1.6 }}>{(p.bio || '').slice(0,100)}...</p>
                   <div style={{ maxHeight:actif===i?280:0, overflow:'hidden', transition:'max-height .45s ease' }}>
                     <blockquote style={{ borderLeft:`3px solid ${col}`, paddingLeft:14, margin:'14px 0' }}>
-                      <p style={{ fontFamily:"'Dancing Script',cursive", fontSize:16, color:col, lineHeight:1.4 }}>"{p.citation}"</p>
+                      <p style={{ fontFamily:"'Dancing Script',cursive", fontSize:16, color:col, lineHeight:1.4 }}>"{p.citation || ''}"</p>
                     </blockquote>
-                    {p.palmares.map((pa,j) => <p key={j} style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, color:'rgba(255,255,255,.4)', marginBottom:5, paddingLeft:8, borderLeft:`2px solid ${col}30` }}>🏆 {pa}</p>)}
+                    {(p.palmares || []).map((pa,j) => <p key={j} style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, color:'rgba(255,255,255,.4)', marginBottom:5, paddingLeft:8, borderLeft:`2px solid ${col}30` }}>🏆 {pa}</p>)}
                   </div>
                   <p style={{ marginTop:10, color:col, fontSize:11, fontFamily:"'Poppins',sans-serif", fontWeight:700 }}>{actif===i?'↑ Masquer':`${p.annees} ans d'expérience ↓`}</p>
                 </div>
@@ -666,7 +666,9 @@ function SectionEvenements({ config, setPage }: { config:ConfigEcoleDanse; setPa
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(290px,1fr))', gap:24 }}>
           {evs.map((ev,i) => {
             const col = cols[i%cols.length];
-            const [jour,...reste] = ev.date.split(' ');
+            const dateParts = (ev.date || '').split(' ');
+            const jour = dateParts[0] || '';
+            const reste = dateParts.slice(1);
             return (
               <div key={i} style={{ overflow:'hidden', border:`2px solid ${col}30`, transition:'all .3s' }}
                 onMouseEnter={e => { const el=e.currentTarget as HTMLDivElement; el.style.borderColor=col; el.style.transform='translateY(-6px)'; el.style.boxShadow=`0 20px 50px ${col}25`; }}
@@ -734,7 +736,7 @@ function SectionAvis({ config }: { config:ConfigEcoleDanse }) {
                     <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, color:col }}>{a.style} · {a.depuis}</p>
                   </div>
                   <div style={{ marginLeft:'auto', display:'flex', gap:3 }}>
-                    {[...Array(a.note)].map((_,j) => <span key={j} style={{ color:config.couleurOr, fontSize:16 }}>★</span>)}
+                    {[...Array(a.note || 0)].map((_,j) => <span key={j} style={{ color:config.couleurOr, fontSize:16 }}>★</span>)}
                   </div>
                 </div>
               </div>
@@ -775,7 +777,7 @@ function SectionPass({ config, setPage }: { config:ConfigEcoleDanse; setPage:(p:
               <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.5)', marginBottom:24, lineHeight:1.6 }}>{p.description}</p>
               <div style={{ height:1, background:`${p.couleur}25`, marginBottom:20 }} />
               <ul style={{ listStyle:'none', marginBottom:28 }}>
-                {p.inclus.map((item,j) => <li key={j} style={{ fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.6)', marginBottom:10, display:'flex', gap:10 }}><span style={{ color:p.couleur, flexShrink:0 }}>💃</span>{item}</li>)}
+                {(p.inclus || []).map((item,j) => <li key={j} style={{ fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.6)', marginBottom:10, display:'flex', gap:10 }}><span style={{ color:p.couleur, flexShrink:0 }}>💃</span>{item}</li>)}
               </ul>
               <button onClick={() => setPage('contact-page')} style={{ width:'100%', padding:'14px', border:'none', background:p.couleur, color:p.couleur==config.couleurOr?'#1a1a1a':'#fff', fontFamily:"'Poppins',sans-serif", fontSize:12, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer', borderRadius:50, transition:'all .2s', boxShadow:`0 4px 20px ${p.couleur}40` }}
                 onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform='translateY(-2px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow=`0 8px 30px ${p.couleur}60`; }}
