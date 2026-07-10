@@ -47,6 +47,7 @@ import PageAdminTemplatesPrix from './pages/admin/PageAdminTemplatesPrix';
 import StatistiquesSignalements from './pages/admin/StatistiquesSignalements';
 import MonForfaitPlateforme from './pages/admin/MonForfaitPlateforme';
 import ChampsPersonnalises from './pages/admin/ChampsPersonnalises';
+import BlacklistContact from './pages/admin/BlacklistContact';
 import ListeAlertesPrix from './pages/admin/ListeAlertesPrix';
 import ListeWishlists from './pages/admin/ListeWishlists';
 import GestionMenus from './pages/admin/GestionMenus';
@@ -195,6 +196,7 @@ const NAV_ITEMS: NavItem[] = [
     id: 'plateforme', label: 'Plateforme', icon: '⚙️',
     sousSections: [
       { id: 'plateforme-champs-personnalises', label: 'Champs personnalisés (Méta)', icon: '🔖' },
+      { id: 'plateforme-blacklist-contact', label: 'Liste noire anti-spam', icon: '🚫' },
       { id: 'plateforme-config',      label: 'Configuration générale', icon: '🔧' },
       { id: 'plateforme-parution',    label: 'Configuration date futur', icon: '🗓️' },
       { id: 'plateforme-enchere',     label: 'Configuration enchères',   icon: '🔨' },
@@ -673,6 +675,8 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
 
       case 'plateforme-champs-personnalises':
         return <ChampsPersonnalises naviguerVers={naviguerVers} />;
+      case 'plateforme-blacklist-contact':
+        return <BlacklistContact />;
       case 'plateforme-paypal':
         return <ConfigurationPaypal naviguerVers={naviguerVers} />;
       case 'plateforme-wishlist':

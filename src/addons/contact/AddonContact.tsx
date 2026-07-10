@@ -214,13 +214,23 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
                   <label className="ea-label">{champ.label}{champ.requis ? ' *' : ''}</label>
 
                   {champ.type === 'textarea' ? (
-                    <textarea
-                      className="ea-inp" rows={3}
-                      placeholder={champ.placeholder}
-                      value={form[champ.id] || ''}
-                      onChange={e => handleChange(champ.id, e.target.value)}
-                      style={{ resize: 'none' }}
-                    />
+                    <>
+                      <textarea
+                        className="ea-inp" rows={3}
+                        placeholder={champ.placeholder}
+                        value={form[champ.id] || ''}
+                        onChange={e => handleChange(champ.id, e.target.value)}
+                        style={{ resize: 'none' }}
+                      />
+                      {champ.id === 'message' && (
+                        <p style={{
+                          fontSize: 11, marginTop: 4, fontFamily: theme.fontTexte,
+                          color: (form.message || '').length >= 10 ? textDim : '#f59e0b',
+                        }}>
+                          {(form.message || '').length}/10 caractères minimum
+                        </p>
+                      )}
+                    </>
                   ) : champ.type === 'select' ? (
                     <select
                       className="ea-inp"

@@ -242,6 +242,7 @@ app.use('/api/abonnements-studio', abonnementsStudioRoutes);
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
 
 app.use('/api/branding-public', require('./routes/branding_public'));
+app.use('/api/blacklist-contact', require('./routes/blacklist_contact'));
 
 // =====================================================================
 // 🎨 SITES STUDIO (config du site du vendeur)

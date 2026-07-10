@@ -22,6 +22,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const { verifierEtIncrementerQuota } = require('./messagerie_contact');
+const { getListeMots } = require('./blacklist_contact');
 
 const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@e-vend.ca';
 
@@ -35,11 +36,8 @@ const MAX_TIME_MS       = 30 * 60 * 1000;       // 30 minutes maximum
 
 const rateLimitStore = new Map();
 
-const BLACKLIST = [
-  'casino','viagra','porn','xxx','crypto','bitcoin',
-  'pharmacie','enlargement','loan','gagnant','lottery','prize',
-  'cialis','xanax','valium','dofollow','backlink',
-];
+// La liste noire vit maintenant en base de données (table blacklist_mots_contact),
+// gérée par l'admin plateforme — voir routes/blacklist_contact.js
 
 const TEMP_EMAIL_DOMAINS = [
   'tempmail','10minutemail','guerrillamail','mailinator',
@@ -55,9 +53,11 @@ function isTempEmail(email) {
   return TEMP_EMAIL_DOMAINS.some(t => domain.includes(t));
 }
 
-function containsBlacklist(text) {
-  const lower = (text || '').toLowerCase();
-  return BLACKLIST.some(w => lower.includes(w));
+async function containsBlacklist(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  const mots = await getListeMots();
+  return mots.some(w => lower.includes(w));
 }
 
 function checkRateLimit(ip) {
@@ -358,7 +358,7 @@ router.post('/contact', async (req, res) => {
     return res.status(400).json({ message: 'Destinataire non spécifié.' });
 
   // ── 5. BLACKLIST ──────────────────────────────────────────────────────────
-  if (containsBlacklist(message) || containsBlacklist(sujet)) {
+  if ((await containsBlacklist(message)) || (await containsBlacklist(sujet))) {
     console.log(`⚠️ [studio/contact] Blacklist — IP: ${ip}`);
     return res.status(400).json({ message: 'Message invalide.' });
   }
