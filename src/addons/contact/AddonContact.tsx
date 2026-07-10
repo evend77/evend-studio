@@ -119,8 +119,8 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
         throw new Error(resBody?.message || 'Réponse serveur non OK');
       }
       setEnvoye(true);
-    } catch {
-      setErreur("Une erreur est survenue. Veuillez réessayer.");
+    } catch (err) {
+      setErreur(err instanceof Error && err.message ? err.message : "Une erreur est survenue. Veuillez réessayer.");
     } finally {
       setLoading(false);
     }
@@ -244,7 +244,10 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
             </div>
 
             {erreur && (
-              <p style={{ color: '#ef4444', fontSize: 12, fontFamily: theme.fontTexte }}>{erreur}</p>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '10px 14px', background: '#ef444415', border: '1px solid #ef444440', borderRadius: 6 }}>
+                <span style={{ fontSize: 14, flexShrink: 0 }}>⚠️</span>
+                <p style={{ color: '#ef4444', fontSize: 12, fontFamily: theme.fontTexte, margin: 0, lineHeight: 1.5 }}>{erreur}</p>
+              </div>
             )}
 
             <button

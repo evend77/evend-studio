@@ -332,24 +332,54 @@ function Paillettes({ actif, couleurs }: { actif: boolean; couleurs: string[] })
 function Nav({ config, page, setPage }: { config: ConfigEcoleDanse; page: string; setPage:(p:string)=>void }) {
   const { isMobile } = useIsMobile();
   const [scrolled, setScrolled] = useState(false);
+  const [menuOuvert, setMenuOuvert] = useState(false);
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 60);
     window.addEventListener('scroll', fn, { passive:true });
     return () => window.removeEventListener('scroll', fn);
   }, []);
+  useEffect(() => { setMenuOuvert(false); }, [page]); // fermer le menu après avoir choisi une page
   const liens = [['accueil','Accueil'],['styles-page','Styles'],['horaires-page','Horaires'],['professeurs-page','Professeurs'],['contact-page',"S'inscrire"]];
+  const cm = config.couleurMagenta;
   return (
-    <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:1000, background:scrolled?'rgba(10,10,15,.97)':'rgba(10,10,15,.88)', backdropFilter:'blur(16px)', borderBottom:scrolled?`1px solid ${config.couleurMagenta}30`:'none', transition:'all .4s', padding:isMobile?'0 20px':'0 48px' }}>
+    <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:1000, background:scrolled?'rgba(10,10,15,.97)':'rgba(10,10,15,.88)', backdropFilter:'blur(16px)', borderBottom:scrolled?`1px solid ${cm}30`:'none', transition:'all .4s', padding:isMobile?'0 16px':'0 48px' }}>
       <div style={{ maxWidth:1320, margin:'0 auto', height:68, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div onClick={() => setPage('accueil')} style={{ cursor:'pointer' }}>
-          <p style={{ fontFamily:"'Cormorant Garamond',serif", fontStyle:'italic', fontSize:10, color:config.couleurMagenta, letterSpacing:'0.3em', marginBottom:2 }}>Studio de Danse</p>
-          <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:600, color:'#fff', letterSpacing:'0.06em', lineHeight:1 }}>{config.nomEcole}</p>
+        <div onClick={() => setPage('accueil')} style={{ cursor:'pointer', minWidth:0, overflow:'hidden' }}>
+          <p style={{ fontFamily:"'Cormorant Garamond',serif", fontStyle:'italic', fontSize:10, color:cm, letterSpacing:'0.3em', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Studio de Danse</p>
+          <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:isMobile?19:24, fontWeight:600, color:'#fff', letterSpacing:'0.06em', lineHeight:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{config.nomEcole}</p>
         </div>
-        <div style={{ display:'flex', gap:32 }}>
-          {liens.map(([id,label]) => <button key={id} className={`nav-d${page===id?' active':''}`} onClick={() => setPage(id)}>{label}</button>)}
-        </div>
-        <button className="btn-m" onClick={() => setPage('contact-page')} style={{ padding:'10px 24px', fontSize:11 }}>💃 Premier cours gratuit</button>
+
+        {isMobile ? (
+          <button onClick={() => setMenuOuvert(v => !v)} aria-label="Menu"
+            style={{ background:'none', border:'none', width:40, height:40, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
+            <div style={{ width:22, display:'flex', flexDirection:'column', gap:5 }}>
+              <span style={{ height:2, background:menuOuvert?cm:'#fff', width:'100%', transition:'all .25s', transform:menuOuvert?'translateY(7px) rotate(45deg)':'none' }} />
+              <span style={{ height:2, background:'#fff', width:'100%', opacity:menuOuvert?0:1, transition:'opacity .2s' }} />
+              <span style={{ height:2, background:menuOuvert?cm:'#fff', width:'100%', transition:'all .25s', transform:menuOuvert?'translateY(-7px) rotate(-45deg)':'none' }} />
+            </div>
+          </button>
+        ) : (
+          <>
+            <div style={{ display:'flex', gap:32 }}>
+              {liens.map(([id,label]) => <button key={id} className={`nav-d${page===id?' active':''}`} onClick={() => setPage(id)}>{label}</button>)}
+            </div>
+            <button className="btn-m" onClick={() => setPage('contact-page')} style={{ padding:'10px 24px', fontSize:11 }}>💃 Premier cours gratuit</button>
+          </>
+        )}
       </div>
+
+      {/* Panneau mobile — plein écran sous la barre, empilé verticalement */}
+      {isMobile && menuOuvert && (
+        <div style={{ position:'fixed', top:68, left:0, right:0, bottom:0, background:'#0a0a0f', display:'flex', flexDirection:'column', padding:'24px 20px', gap:4, overflowY:'auto' }}>
+          {liens.map(([id,label]) => (
+            <button key={id} onClick={() => setPage(id)}
+              style={{ textAlign:'left', background:page===id?`${cm}15`:'none', border:'none', borderLeft:page===id?`3px solid ${cm}`:'3px solid transparent', padding:'16px 14px', fontFamily:"'Poppins',sans-serif", fontSize:16, fontWeight:600, color:page===id?cm:'#fff', cursor:'pointer' }}>
+              {label}
+            </button>
+          ))}
+          <button className="btn-m" onClick={() => setPage('contact-page')} style={{ marginTop:16, padding:'16px', fontSize:13 }}>💃 Premier cours gratuit</button>
+        </div>
+      )}
     </nav>
   );
 }
