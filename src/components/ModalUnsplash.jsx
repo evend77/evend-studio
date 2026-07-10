@@ -219,8 +219,17 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                     loading="lazy"
                   />
                   <div style={{ padding: '6px 8px' }}>
+                    {/* 👇 LIEN VERS LE PHOTOGRAPHE AVEC UTM */}
                     <p style={{ fontSize: '9px', color: '#999', margin: '0 0 4px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      📸 {photo.user.name}
+                      📸{' '}
+                      <a 
+                        href={`${photo.user.links.html}?utm_source=evend_studio&utm_medium=referral`}
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        style={{ color: '#666', textDecoration: 'underline' }}
+                      >
+                        {photo.user.name}
+                      </a>
                     </p>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <button
@@ -265,12 +274,12 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
             </div>
           )}
 
-          {/* Attribution */}
+          {/* 👇 LIEN UNSplash AVEC UTM */}
           {photos.length > 0 && (
             <div style={{ marginTop: '12px', fontSize: '10px', color: '#aaa', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '10px' }}>
               Photos par{' '}
               <a 
-                href="https://unsplash.com" 
+                href="https://unsplash.com/?utm_source=evend_studio&utm_medium=referral" 
                 target="_blank" 
                 rel="noopener noreferrer" 
                 style={{ color: '#c9a96e', fontWeight: 600 }}

@@ -37,6 +37,9 @@ export interface FormulairePass {
 }
 
 export interface ConfigEcoleDanse {
+  // 🟢 Injecté automatiquement par SitePreview.tsx via { ...configBD, vendeurId: Number(vendeurId||0) }
+  // — le nom du champ est "vendeurId" dans tout le codebase, même s'il désigne un gestionnaire.
+  vendeurId?: number;
   nomEcole: string; tagline: string; sousTagline: string;
   descriptionHero: string; descriptionAPropos: string;
   citation: string; auteurCitation: string; fondee: string;
@@ -844,7 +847,7 @@ function getThemeContactDanse(config: ConfigEcoleDanse): AddonTheme {
 // dans la page Add-ons > Contact. Dès qu'il le configure, sa config prend le dessus.
 // "Style souhaité" ici reprend config.stylesDanse (dynamique, propre au studio) —
 // une fois le gestionnaire passé par la page de config, il gère ces options lui-même.
-function getDataContactDanseDefaut(config: ConfigEcoleDanse, styles: StyleDanse[]): AddonContactData {
+function getDataContactDanseDefaut(config: ConfigEcoleDanse, styles: StyleDanse[], vendeurId: number | string): AddonContactData {
   return {
     titre: "S'inscrire ou nous contacter",
     boutonTexte: '🎭 Réserver mon premier cours gratuit',
@@ -853,7 +856,8 @@ function getDataContactDanseDefaut(config: ConfigEcoleDanse, styles: StyleDanse[
     messageSuccesTexte: 'À très bientôt sur la piste!',
     messageSuccesEmoji: '💃',
     endpoint: '/api/studio/contact',
-    payloadExtra: { studio: config.nomEcole, type: 'contact-danse' },
+    vendeurId,
+    templateId: 'cours-danse',
     champs: [
       { id:'prenom',  type:'text',     label:'Prénom', requis:true, placeholder:'Prénom' },
       { id:'nom',     type:'text',     label:'Nom',    requis:true, placeholder:'Nom' },
@@ -865,14 +869,14 @@ function getDataContactDanseDefaut(config: ConfigEcoleDanse, styles: StyleDanse[
   };
 }
 
-function SectionContact({ config }: { config:ConfigEcoleDanse }) {
+function SectionContact({ config, vendeurId }: { config:ConfigEcoleDanse; vendeurId: number | string }) {
   const { isMobile } = useIsMobile();
   const rv = useReveal(.05);
   const cm = config.couleurMagenta; const co = config.couleurOr;
   const styles = ea(config.stylesDanse, CONFIG_DANSE_DEFAUT.stylesDanse);
   const horairesStudio = ea(config.horairesStudio, CONFIG_DANSE_DEFAUT.horairesStudio);
 
-  // 🟢 Config du gestionnaire (page Add-ons > Contact) si elle existe, sinon défaut du template
+  // 🟢 Config du gestionnaire (page Configuration > Formulaire de contact) si elle existe, sinon défaut du template
   const configAddon = (config as any).addons?.contact;
   const dataContact: AddonContactData = configAddon && configAddon.champs?.length
     ? {
@@ -882,10 +886,12 @@ function SectionContact({ config }: { config:ConfigEcoleDanse }) {
         messageSuccesTitre: configAddon.messageSuccesTitre,
         messageSuccesTexte: configAddon.messageSuccesTexte,
         endpoint: '/api/studio/contact',
-        payloadExtra: { studio: config.nomEcole, type: 'contact-danse', destinataire: configAddon.destinataireEmail || undefined },
+        vendeurId,
+        templateId: 'cours-danse',
+        destinataireEmail: configAddon.destinataireEmail || undefined,
         champs: configAddon.champs as ChampFormulaire[],
       }
-    : getDataContactDanseDefaut(config, styles);
+    : getDataContactDanseDefaut(config, styles, vendeurId);
 
   return (
     <section style={{ background:config.couleurFond, padding:isMobile?'60px 20px':'100px 48px' }}>
@@ -1002,6 +1008,9 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview }: Templ
     couleurFondSombre:  partiel?.couleurFondSombre  || CONFIG_DANSE_DEFAUT.couleurFondSombre,
   };
 
+  // 🟢 Injecté par SitePreview via config.vendeurId — 0 en secours (aperçu/démo sans site réel)
+  const vendeurId = config.vendeurId ?? 0;
+
   const VALID_IDS = ['hero','stats','styles','horaires','apropos','professeurs','evenements','avis','pass','faq','contact'];
   const rawSections = ea(partiel?.sections, CONFIG_DANSE_DEFAUT.sections);
   config.sections     = rawSections.every(s => VALID_IDS.includes(s.id)) ? rawSections : CONFIG_DANSE_DEFAUT.sections;
@@ -1034,7 +1043,7 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview }: Templ
       case 'avis':        return <SectionAvis        config={config} />;
       case 'pass':        return <SectionPass        config={config} setPage={handlePage} />;
       case 'faq':         return <SectionFAQ         config={config} />;
-      case 'contact':     return <SectionContact     config={config} />;
+      case 'contact':     return <SectionContact     config={config} vendeurId={vendeurId} />;
       default:            return null;
     }
   };
@@ -1051,7 +1060,7 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview }: Templ
         {page === 'styles-page'      && (<><SectionStyles      config={config} setPage={handlePage} /><Footer config={config} setPage={handlePage} /></>)}
         {page === 'horaires-page'    && (<><SectionHoraires    config={config} setPage={handlePage} /><Footer config={config} setPage={handlePage} /></>)}
         {page === 'professeurs-page' && (<><SectionProfesseurs config={config} /><Footer config={config} setPage={handlePage} /></>)}
-        {page === 'contact-page'     && (<><SectionContact     config={config} /><Footer config={config} setPage={handlePage} /></>)}
+        {page === 'contact-page'     && (<><SectionContact     config={config} vendeurId={vendeurId} /><Footer config={config} setPage={handlePage} /></>)}
       </div>
     </div>
   );

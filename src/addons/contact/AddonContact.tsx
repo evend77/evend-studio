@@ -1,20 +1,20 @@
 // 📁 src/addons/contact/AddonContact.tsx
 // e-Vend Studio — Add-on Contact générique
-// Ne connaît AUCUN template. Reçoit un thème + une liste de champs + un endpoint.
+// Ne connaît AUCUN template. Reçoit un thème + une liste de champs + les infos
+// nécessaires pour construire le payload EXACT attendu par /api/studio/contact.
 
 import { useState } from 'react';
 
 // ─── CONTRAT DE THÈME ─────────────────────────────────────────────────────────
-// Chaque template fournit un adaptateur qui traduit SES couleurs vers ce contrat.
 export interface AddonTheme {
   primary: string;
   secondary?: string;
   bg: string;
   text: string;
-  textDim?: string;      // texte atténué (labels, sous-titres) — défaut: text + 'aa'
-  border?: string;       // défaut: primary + '30'
-  fontTitre: string;     // ex: "'Cormorant Garamond',serif"
-  fontTexte: string;     // ex: "'Poppins',sans-serif"
+  textDim?: string;
+  border?: string;
+  fontTitre: string;
+  fontTexte: string;
 }
 
 // ─── CONTRAT DE CHAMPS ────────────────────────────────────────────────────────
@@ -26,9 +26,13 @@ export interface ChampFormulaire {
   label: string;
   placeholder?: string;
   requis?: boolean;
-  options?: string[];       // uniquement pour type 'select'
-  largeurPleine?: boolean;  // occupe toute la largeur de la grille (sinon 2 colonnes)
+  options?: string[];
+  largeurPleine?: boolean;
 }
+
+// Champs à sens fixe pour le backend — tout champ dont l'id N'EST PAS dans cette
+// liste est envoyé dans champs_extra (ex: 'style', 'age').
+const CHAMPS_CONNUS = ['nom', 'prenom', 'email', 'telephone', 'sujet', 'message'];
 
 // ─── DONNÉES FOURNIES PAR LE TEMPLATE ─────────────────────────────────────────
 export interface AddonContactData {
@@ -36,12 +40,15 @@ export interface AddonContactData {
   sousTitre?: string;
   champs: ChampFormulaire[];
   boutonTexte: string;
-  boutonTexteEnvoi?: string;   // texte affiché pendant l'envoi (défaut: "Envoi...")
+  boutonTexteEnvoi?: string;
   messageSuccesTitre: string;
   messageSuccesTexte: string;
-  messageSuccesEmoji?: string; // défaut: ✅
-  endpoint: string;             // ex: '/api/studio/contact'
-  payloadExtra: Record<string, any>; // ex: { studio: nomEcole, type: 'contact-danse' }
+  messageSuccesEmoji?: string;
+  endpoint: string;
+  // ── Requis par le backend — sans vendeurId, le serveur refuse le message (400) ──
+  vendeurId: number | string;
+  templateId?: string;
+  destinataireEmail?: string;
 }
 
 interface Props {
@@ -55,7 +62,9 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
   const [envoye, setEnvoye] = useState(false);
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState('');
-  const [indisponible, setIndisponible] = useState(false); // quota de messages atteint
+  const [indisponible, setIndisponible] = useState(false);
+  const [honeypot, setHoneypot] = useState('');
+  const [formStartTime] = useState(() => Date.now());
 
   const cp       = theme.primary;
   const textDim  = theme.textDim  || `${theme.text}99`;
@@ -70,19 +79,41 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
     setLoading(true);
     setErreur('');
     try {
+      const nomComplet = [form.prenom, form.nom].filter(Boolean).join(' ').trim() || form.nom || '';
+      const champsExtra = data.champs
+        .filter(c => !CHAMPS_CONNUS.includes(c.id))
+        .map(c => ({ label: c.label, valeur: form[c.id] || '' }))
+        .filter(c => c.valeur);
+
+      const body = {
+        vendeur_id: data.vendeurId,
+        template_id: data.templateId || '',
+        nom_expediteur: nomComplet,
+        email_expediteur: form.email || '',
+        telephone: form.telephone || '',
+        sujet: form.sujet || '',
+        message: form.message || '',
+        champs_extra: champsExtra,
+        honeypot,
+        form_start_time: formStartTime,
+      };
+
       const res = await fetch(data.endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, ...data.payloadExtra }),
+        body: JSON.stringify(body),
       });
       if (res.status === 403) {
-        const body = await res.json().catch(() => null);
-        if (body?.quota_atteint) {
+        const resBody = await res.json().catch(() => null);
+        if (resBody?.quota_atteint) {
           setIndisponible(true);
           return;
         }
       }
-      if (!res.ok) throw new Error('Réponse serveur non OK');
+      if (!res.ok) {
+        const resBody = await res.json().catch(() => null);
+        throw new Error(resBody?.message || 'Réponse serveur non OK');
+      }
       setEnvoye(true);
     } catch {
       setErreur("Une erreur est survenue. Veuillez réessayer.");
@@ -123,6 +154,7 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
         .evend-addon-contact .ea-btn:hover:not(:disabled) { opacity: 0.85; }
         .evend-addon-contact .ea-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .evend-addon-contact select.ea-inp { cursor: pointer; }
+        .evend-addon-contact select.ea-inp option { background: #fff; color: #1a1a1a; }
       `}</style>
 
       <div style={{
@@ -160,6 +192,17 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
                 {data.sousTitre}
               </p>
             )}
+
+            <input
+              type="text"
+              name="website"
+              value={honeypot}
+              onChange={e => setHoneypot(e.target.value)}
+              tabIndex={-1}
+              autoComplete="off"
+              style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
+              aria-hidden="true"
+            />
 
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
               {data.champs.map(champ => (

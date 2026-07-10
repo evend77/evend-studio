@@ -709,7 +709,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos, itemFormulaireContact,
+          itemPhotos, itemFormulaireContact, itemVerificateurAge,
         ]
       },
       menuProfil,
@@ -747,7 +747,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos, itemFormulaireContact,
+          itemPhotos, itemFormulaireContact, itemVerificateurAge,
         ]
       },
       menuProfil,
@@ -784,7 +784,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos, itemFormulaireContact,
+          itemPhotos, itemFormulaireContact, itemVerificateurAge,
         ]
       },
       menuProfil,
@@ -813,7 +813,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos, itemFormulaireContact,
+          itemPhotos, itemFormulaireContact, itemVerificateurAge,
         ]
       },
       menuProfil,
@@ -850,7 +850,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos, itemFormulaireContact,
+          itemPhotos, itemFormulaireContact, itemVerificateurAge,
         ]
       },
       menuProfil,
@@ -887,7 +887,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos, itemFormulaireContact,
+          itemPhotos, itemFormulaireContact, itemVerificateurAge,
         ]
       },
       menuProfil,
@@ -948,7 +948,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos, itemFormulaireContact,
+          itemPhotos, itemFormulaireContact, itemVerificateurAge,
         ]
       },
       menuProfil,
