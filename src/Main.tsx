@@ -19,6 +19,9 @@ import InscriptionGestionnaire from './pages/gestionnaire/InscriptionGestionnair
 import MonDomaine            from './pages/gestionnaire/MonDomaine';
 import DomaineSucces         from './pages/DomaineSucces';
 import DomaineAnnule         from './pages/DomaineAnnule';
+// 👇 NOUVEAUX IMPORTS POUR COMMANDITAIRE
+import InscriptionCommanditaire from './pages/commanditaire/InscriptionCommanditaire';
+import AppSponsors from './AppSponsors';
 
 const AnyLoginPage = LoginPage        as any;
 const AnyGestionnaire = AppGestionnaireStudio as any;
@@ -111,9 +114,6 @@ export default function Main() {
   };
 
   // ── Impersonation admin → gestionnaire ──────────────────────────────────────
-  // On sauvegarde le token admin avant de le remplacer par celui du gestionnaire,
-  // pour pouvoir revenir proprement au dashboard admin au clic "Déconnecter"
-  // (dans le même onglet, sans reconnexion).
   const handleImpersonateGestionnaire = (gestionnaire: any, token: string) => {
     const tokenAdmin = localStorage.getItem('token');
     const userAdmin  = localStorage.getItem('user');
@@ -125,8 +125,6 @@ export default function Main() {
     setUser(gestionnaire);
   };
 
-  // Retour à la session admin après une impersonation (remplace le "logout"
-  // du dashboard gestionnaire tant qu'on est en mode impersonation)
   const handleStopImpersonationGestionnaire = () => {
     const tokenAdmin = localStorage.getItem('admin_token_backup');
     const userAdmin  = localStorage.getItem('admin_user_backup');
@@ -140,7 +138,6 @@ export default function Main() {
       setUser(JSON.parse(userAdmin));
       window.location.href = '/admin';
     } else {
-      // Pas de sauvegarde retrouvée (cas rare) : déconnexion complète par sécurité
       handleLogout();
     }
   };
@@ -182,6 +179,26 @@ export default function Main() {
         <Route path="/politiques/:slug"   element={<PagePolitique />} />
         <Route path="/documents"           element={<PageDocumentsPlateforme />} />
         <Route path="/documents/:slug"     element={<PageDocumentsPlateforme />} />
+
+        {/* 👇 ROUTES COMMANDITAIRES */}
+        <Route path="/commanditaire/inscription" element={<InscriptionCommanditaire />} />
+        <Route path="/commanditaire/login" element={
+          <div style={{ minHeight: '100vh', background: '#1a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+            <div style={{ textAlign: 'center' }}>
+              <h2 style={{ color: '#f59e0b' }}>⭐ Connexion commanditaire</h2>
+              <p style={{ color: 'rgba(255,255,255,0.5)' }}>Utilisez le modal "Commanditaire" sur la page d'accueil</p>
+              <button 
+                onClick={() => window.location.href = '/'}
+                style={{ marginTop: '20px', padding: '10px 20px', background: '#f59e0b', border: 'none', borderRadius: '8px', color: '#000', fontWeight: '700', cursor: 'pointer' }}
+              >
+                ← Retour à l'accueil
+              </button>
+            </div>
+          </div>
+        } />
+        <Route path="/sponsor-dashboard" element={
+          <AppSponsors />
+        } />
 
         <Route path="/inscription"  element={
           user ? <Navigate to="/dashboard" replace /> :

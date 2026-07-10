@@ -34,6 +34,9 @@ const adminDomainesRoutes     = require('./routes/admin_domaines');
 const cronDomaineModule       = require('./routes/cron_domaine');
 const abonnementsStudioRoutes = require('./routes/abonnements_studio');
 const cronAbonnementsModule   = require('./routes/cron_abonnements_studio');
+const sponsorsPhotosRoutes = require('./routes/sponsorsphotos');
+const sponsorsPhotosRoutes = require('./routes/sponsorsphotos');
+const sponsorsRoutes = require('./routes/sponsors');
 
 const app  = express();
 const port = process.env.PORT || 5000;
@@ -243,6 +246,8 @@ app.use('/api/cron-abonnements',   cronAbonnementsModule);
 
 app.use('/api/branding-public', require('./routes/branding_public'));
 app.use('/api/blacklist-contact', require('./routes/blacklist_contact'));
+app.use('/api/sponsors/photos', sponsorsPhotosRoutes);
+app.use('/api/sponsors', sponsorsRoutes);
 
 // =====================================================================
 // 🎨 SITES STUDIO (config du site du vendeur)
@@ -508,6 +513,8 @@ app.use('/api/marketplace', require('./routes/marketplace-auth'));
 app.use('/api/marketplace', require('./routes/marketplace-panier'));
 app.use('/api/admin/domaines', require('./routes/admin_domaines'));
 app.use('/api/unsplash', unsplashRoutes);
+app.use('/api/sponsors/photos', sponsorsPhotosRoutes);
+
 
 // =====================================================================
 // 📦 CRÉER / MODIFIER ANNONCE

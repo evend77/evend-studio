@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TEMPLATES as TOUS_LES_TEMPLATES, PHOTOS as PHOTOS_TEMPLATES, GROUPES as GROUPES_TEMPLATES } from './PageTemplates';
+import ModalLoginSponsor from '../components/ModalLoginSponsor';
 
 // Photothèque libre de droits (Unsplash + Pexels via CDN)
 const PHOTOS = {
@@ -24,14 +25,15 @@ interface Template {
 export default function PageAccueil() {
   const navigate = useNavigate();
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
+  const [modalSponsorOuvert, setModalSponsorOuvert] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
 
-  // ✅ MÊME LOGIQUE QUE POUR LES TEMPLATES - OUVRE DANS UN NOUVEL ONGLET
+  // ✅ OUVRE LOGIN
   const ouvrirLogin = () => {
     window.open('/login', '_blank', 'noopener,noreferrer');
   };
 
-  // ✅ NOUVEAU : Fonction pour ouvrir le blog dans un nouvel onglet
+  // ✅ OUVRE BLOG
   const ouvrirBlog = () => {
     window.open('/blog', '_blank', 'noopener,noreferrer');
   };
@@ -44,8 +46,13 @@ export default function PageAccueil() {
     window.open('/documents', '_blank', 'noopener,noreferrer');
   };
 
-  // Sélection vedette tirée directement des vrais templates (PageTemplates.tsx)
-  // — reste automatiquement synchronisée si un template change de nom/photo.
+  // ✅ GESTION LOGIN SPONSOR
+  const handleSponsorLogin = (token: string, sponsor: any) => {
+    console.log('✅ Sponsor connecté:', sponsor);
+    window.location.href = '/sponsor-dashboard';
+  };
+
+  // Sélection vedette
   const IDS_VEDETTE = ['boutique-simplisse', 'salon-coiffure', 'multi-vendeur-premium', 'vitrine-resto'];
   const templates: Template[] = IDS_VEDETTE
     .map(id => TOUS_LES_TEMPLATES.find(t => t.id === id))
@@ -116,8 +123,6 @@ export default function PageAccueil() {
         }
         .nav-link:hover { color: #f5a623 !important; }
 
-        /* Inversion réelle texte/image (le container est en display:grid, */
-        /* flexDirection n'a donc aucun effet — on utilise order à la place) */
         .two-columns-reverse > div:first-child { order: 2; }
         .two-columns-reverse > div:last-child { order: 1; }
 
@@ -129,19 +134,13 @@ export default function PageAccueil() {
           .templates-grid { grid-template-columns: 1fr !important; }
           .features-grid { grid-template-columns: 1fr !important; }
           .hero-title { font-size: 36px !important; }
-
-          /* Sections génériques : moins de padding vertical sur mobile */
           .home-slide { padding: 56px 0 !important; }
-
-          /* Colonnes texte+image (Personnalisation / Domaine+Stripe) : empiler */
           .two-columns {
             grid-template-columns: 1fr !important;
             gap: 32px !important;
           }
           .two-columns > div:first-child { order: 1 !important; }
           .two-columns > div:last-child { order: 2 !important; }
-
-          /* Témoignage : empiler verticalement, réduire le padding */
           .testimonial-box {
             flex-direction: column !important;
             text-align: center !important;
@@ -149,8 +148,6 @@ export default function PageAccueil() {
             gap: 16px !important;
           }
           .testimonial-section { padding: 40px 0 !important; }
-
-          /* Stats hero : permettre le retour à la ligne */
           .hero-stats {
             flex-wrap: wrap !important;
             gap: 10px 18px !important;
@@ -179,13 +176,21 @@ export default function PageAccueil() {
           <div className="nav-desktop" style={s.navLinks}>
             <a href="#templates" style={s.navLink} onClick={(e) => { e.preventDefault(); document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }); }}>Templates</a>
             <a href="#features" style={s.navLink} onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); }}>Fonctionnalités</a>
-            {/* ✅ MODIFICATION ICI - Blog s'ouvre dans un nouvel onglet */}
             <button onClick={ouvrirBlog} style={{ ...s.navLink, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px' }}>Blog</button>
             <button onClick={ouvrirFaq} style={{ ...s.navLink, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px' }}>FAQ</button>
             <button onClick={ouvrirDocuments} style={{ ...s.navLink, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px' }}>Documents</button>
           </div>
 
           <div className="nav-desktop" style={s.navButtons}>
+            {/* 👇 NOUVEAU BOUTON COMMANDITAIRE */}
+            <button 
+              style={s.btnSponsor} 
+              onClick={() => setModalSponsorOuvert(true)}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+            >
+              ⭐ Commanditaire
+            </button>
             <button style={s.btnOutline} onClick={ouvrirLogin}>Connexion</button>
             <button style={s.btnPrimary} onClick={ouvrirLogin}>Commencer →</button>
           </div>
@@ -203,10 +208,16 @@ export default function PageAccueil() {
           <div style={s.mobileMenu}>
             <a href="#templates" style={s.mobileLink} onClick={(e) => { e.preventDefault(); document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }); setMenuMobileOuvert(false); }}>Templates</a>
             <a href="#features" style={s.mobileLink} onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); setMenuMobileOuvert(false); }}>Fonctionnalités</a>
-            {/* ✅ MODIFICATION ICI - Blog s'ouvre dans un nouvel onglet dans menu mobile */}
             <button onClick={() => { ouvrirBlog(); setMenuMobileOuvert(false); }} style={{ ...s.mobileLink, background: 'none', border: 'none', textAlign: 'left', fontSize: '16px', cursor: 'pointer' }}>Blog</button>
             <button onClick={() => { ouvrirFaq(); setMenuMobileOuvert(false); }} style={{ ...s.mobileLink, background: 'none', border: 'none', textAlign: 'left', fontSize: '16px', cursor: 'pointer' }}>FAQ</button>
             <button onClick={() => { ouvrirDocuments(); setMenuMobileOuvert(false); }} style={{ ...s.mobileLink, background: 'none', border: 'none', textAlign: 'left', fontSize: '16px', cursor: 'pointer' }}>Documents</button>
+            {/* 👇 BOUTON COMMANDITAIRE DANS MENU MOBILE */}
+            <button 
+              onClick={() => { setModalSponsorOuvert(true); setMenuMobileOuvert(false); }} 
+              style={{ ...s.mobileLink, background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', borderRadius: '8px', textAlign: 'center', fontSize: '16px', cursor: 'pointer', padding: '10px', color: '#000', fontWeight: 700 }}
+            >
+              ⭐ Commanditaire
+            </button>
             <button style={s.btnOutlineMobile} onClick={ouvrirLogin}>Connexion</button>
             <button style={s.btnPrimaryMobile} onClick={ouvrirLogin}>Commencer</button>
           </div>
@@ -263,7 +274,7 @@ export default function PageAccueil() {
         </div>
       </section>
 
-      {/* ═══════════════ SLIDE 3: TEMPLATES (comme Shopify) ═══════════════ */}
+      {/* ═══════════════ SLIDE 3: TEMPLATES ═══════════════ */}
       <section id="templates" className="home-slide" style={s.slide}>
         <div style={s.container}>
           <div style={s.slideHeader}>
@@ -304,7 +315,7 @@ export default function PageAccueil() {
         </div>
       </section>
 
-      {/* ═══════════════ SLIDE 4: PERSONNALISATION (couleurs + photos) ═══════════════ */}
+      {/* ═══════════════ SLIDE 4: PERSONNALISATION ═══════════════ */}
       <section id="features" className="home-slide" style={{ ...s.slide, background: 'linear-gradient(135deg, #0a0a0a 0%, #111 100%)' }}>
         <div style={s.container}>
           <div className="two-columns" style={s.twoColumns}>
@@ -357,7 +368,7 @@ export default function PageAccueil() {
         </div>
       </section>
 
-      {/* ═══════════════ SLIDE 6: FONCTIONNALITÉS CLÉS ═══════════════ */}
+      {/* ═══════════════ SLIDE 6: FONCTIONNALITÉS ═══════════════ */}
       <section className="home-slide" style={{ ...s.slide, background: '#0a0a0a' }}>
         <div style={s.container}>
           <div style={s.slideHeader}>
@@ -387,7 +398,7 @@ export default function PageAccueil() {
         </div>
       </section>
 
-      {/* ═══════════════ SLIDE 7: TÉMOIGNAGE VENDEUR ═══════════════ */}
+      {/* ═══════════════ SLIDE 7: TÉMOIGNAGE ═══════════════ */}
       <section className="home-slide testimonial-section" style={s.slide}>
         <div style={s.container}>
           <div className="testimonial-box" style={s.testimonial}>
@@ -430,7 +441,7 @@ export default function PageAccueil() {
         </div>
       </section>
 
-      {/* ═══════════════ NOTES DE BAS DE PAGE ═══════════════ */}
+      {/* ═══════════════ NOTES ═══════════════ */}
       <section id="notes" style={s.notesSection}>
         <div style={s.notesInner}>
           <ol style={s.notesList}>
@@ -442,12 +453,11 @@ export default function PageAccueil() {
               <span>2.</span>
               <span>Aucune carte de crédit n'est requise pour démarrer l'essai gratuit de 14 jours. Un moyen de paiement Stripe doit toutefois être configuré avant la fin de cette période — autrement, le site créé durant l'essai sera perdu.</span>
             </li>
-            {/* D'autres notes numérotées pourront être ajoutées ici (note-3, etc.) */}
           </ol>
         </div>
       </section>
 
-      {/* ═══════════════ SLIDE 10: FOOTER ═══════════════ */}
+      {/* ═══════════════ FOOTER ═══════════════ */}
       <footer style={s.footer}>
         <div style={s.footerInner}>
           <div style={s.footerLogo}>
@@ -458,7 +468,6 @@ export default function PageAccueil() {
           <div style={s.footerLinks}>
             <a href="#templates" onClick={(e) => { e.preventDefault(); document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }); }}>Templates</a>
             <a href="#features" onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); }}>Fonctionnalités</a>
-            {/* ✅ MODIFICATION ICI - Blog s'ouvre dans un nouvel onglet dans le footer */}
             <button onClick={ouvrirBlog} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>Blog</button>
             <button onClick={ouvrirFaq} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>FAQ</button>
             <button onClick={ouvrirDocuments} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>Documents</button>
@@ -471,6 +480,13 @@ export default function PageAccueil() {
           <p style={s.footerCopy}>© 2026 e-Vend Studio — La solution de boutique en ligne 100% canadienne</p>
         </div>
       </footer>
+
+      {/* ═══════════════ MODAL LOGIN SPONSOR ═══════════════ */}
+      <ModalLoginSponsor
+        isOpen={modalSponsorOuvert}
+        onClose={() => setModalSponsorOuvert(false)}
+        onLoginSuccess={handleSponsorLogin}
+      />
     </div>
   );
 }
@@ -488,7 +504,22 @@ const s: Record<string, React.CSSProperties> = {
   logoText: { fontSize: '14px', fontWeight: 600, letterSpacing: '2px', color: '#fff' },
   navLinks: { display: 'flex', gap: '32px' },
   navLink: { color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontSize: '14px', fontWeight: 500, transition: 'color 0.2s', cursor: 'pointer' },
-  navButtons: { display: 'flex', gap: '12px' },
+  navButtons: { display: 'flex', gap: '12px', alignItems: 'center' },
+  
+  // 👇 NOUVEAU STYLE BOUTON COMMANDITAIRE
+  btnSponsor: { 
+    padding: '8px 20px', 
+    background: 'linear-gradient(135deg, #f59e0b, #d97706)', 
+    border: 'none', 
+    borderRadius: '30px', 
+    color: '#000', 
+    fontSize: '14px', 
+    fontWeight: 700, 
+    cursor: 'pointer', 
+    transition: 'all 0.2s',
+    boxShadow: '0 2px 12px rgba(245, 158, 11, 0.3)',
+  },
+  
   btnOutline: { padding: '8px 20px', background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '30px', color: '#fff', fontSize: '14px', cursor: 'pointer', transition: 'all 0.2s' },
   btnPrimary: { padding: '8px 20px', background: '#f5a623', border: 'none', borderRadius: '30px', color: '#000', fontSize: '14px', fontWeight: 600, cursor: 'pointer', transition: 'all 0.2s' },
   mobileMenu: { position: 'absolute', top: '70px', left: 0, right: 0, background: '#000', borderBottom: '1px solid rgba(255,255,255,0.1)', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' },
@@ -511,7 +542,7 @@ const s: Record<string, React.CSSProperties> = {
   btnOutlineLarge: { padding: '14px 32px', background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', borderRadius: '40px', color: '#fff', fontSize: '16px', cursor: 'pointer', transition: 'all 0.2s' },
   heroStats: { display: 'flex', gap: '24px', justifyContent: 'center', fontSize: '14px', color: 'rgba(255,255,255,0.5)' },
 
-  // Slides génériques
+  // Slides
   slide: { padding: '100px 0' },
   container: { maxWidth: '1200px', margin: '0 auto', padding: '0 24px' },
   slideHeader: { textAlign: 'center', marginBottom: '56px' },
@@ -558,16 +589,6 @@ const s: Record<string, React.CSSProperties> = {
   testimonialQuote: { fontSize: '20px', lineHeight: 1.6, marginBottom: '16px', fontStyle: 'italic' },
   testimonialAuthor: { fontSize: '14px', color: '#f5a623' },
 
-  // Pricing
-  pricingGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '30px', maxWidth: '800px', margin: '0 auto' },
-  pricingCard: { background: '#111', borderRadius: '24px', padding: '32px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.08)', position: 'relative' },
-  pricingCardFeatured: { border: '1px solid #f5a623', transform: 'scale(1.02)' },
-  popularBadge: { position: 'absolute', top: '-12px', left: '50%', transform: 'translateX(-50%)', background: '#f5a623', color: '#000', padding: '4px 16px', borderRadius: '20px', fontSize: '12px', fontWeight: 600 },
-  pricingName: { fontSize: '20px', fontWeight: 600, marginBottom: '16px' },
-  pricingPrice: { fontSize: '48px', fontWeight: 800, marginBottom: '24px' },
-  pricingPeriod: { fontSize: '14px', fontWeight: 400, color: 'rgba(255,255,255,0.5)' },
-  pricingList: { listStyle: 'none', padding: 0, marginBottom: '32px', textAlign: 'left', fontSize: '14px', color: 'rgba(255,255,255,0.7)' },
-
   // CTA final
   ctaSlide: { padding: '120px 0', background: `url(${PHOTOS.hero}) center/cover fixed`, position: 'relative' },
   ctaOverlay: { position: 'absolute', inset: 0, background: 'linear-gradient(135deg, #000 0%, rgba(245,166,35,0.2) 100%)' },
@@ -586,7 +607,6 @@ const s: Record<string, React.CSSProperties> = {
   footerLinks: { display: 'flex', justifyContent: 'center', gap: '24px', marginBottom: '24px', flexWrap: 'wrap' },
   socialIcons: { display: 'flex', justifyContent: 'center', gap: '20px', fontSize: '20px', marginBottom: '24px' },
   footerCopy: { fontSize: '12px', color: 'rgba(255,255,255,0.3)' },
-  // Notes de bas de page
   notesSection: { padding: '32px 0', borderTop: '1px solid rgba(255,255,255,0.06)', background: '#000' },
   notesInner: { maxWidth: '1200px', margin: '0 auto', padding: '0 24px' },
   notesList: { listStyle: 'none', counterReset: 'notes-counter', margin: 0, padding: 0 },

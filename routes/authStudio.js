@@ -1,5 +1,5 @@
 // routes/authStudio.js
-// e-Vend Studio — Authentification gestionnaires et administrateurs
+// e-Vend Studio — Authentification gestionnaires, administrateurs et commanditaires
 
 const express = require('express');
 const router  = express.Router();
@@ -18,9 +18,6 @@ function genererToken(payload) {
 
 // ─── POST /api/auth/inscription ──────────────────────────────────────────────
 // Inscription d'un nouveau gestionnaire Studio
-// ⚠️ Note : le formulaire InscriptionGestionnaire.tsx utilise plutôt
-// POST /api/gestionnaires (routes/gestionnaires.js). Cette route reste
-// disponible pour compatibilité mais crée aussi bien dans 'gestionnaires'.
 router.post('/inscription', async (req, res) => {
   const { nom, email, mot_de_passe } = req.body;
 
@@ -32,16 +29,13 @@ router.post('/inscription', async (req, res) => {
   }
 
   try {
-    // Vérifier si l'email existe déjà
     const existe = await pool.query('SELECT id FROM gestionnaires WHERE email = $1', [email.toLowerCase()]);
     if (existe.rows.length > 0) {
       return res.status(409).json({ message: 'Cette adresse courriel est déjà utilisée.' });
     }
 
-    // Hasher le mot de passe
     const hash = await bcrypt.hash(mot_de_passe, 12);
 
-    // Créer le gestionnaire — actif immédiatement, aucune approbation requise
     const result = await pool.query(
       `INSERT INTO gestionnaires (email, mot_de_passe, nom, plan, statut)
        VALUES ($1, $2, $3, 'gratuit', 'actif')
@@ -50,7 +44,6 @@ router.post('/inscription', async (req, res) => {
     );
     const gestionnaire = result.rows[0];
 
-    // Créer un site vide pour ce gestionnaire
     const slug = nom.toLowerCase()
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
@@ -62,7 +55,6 @@ router.post('/inscription', async (req, res) => {
       [gestionnaire.id, slug]
     );
 
-    // Générer le token
     const token = genererToken({
       id:    gestionnaire.id,
       email: gestionnaire.email,
@@ -90,7 +82,7 @@ router.post('/inscription', async (req, res) => {
 });
 
 // ─── POST /api/auth/login ────────────────────────────────────────────────────
-// Connexion gestionnaire OU admin selon le champ "type"
+// Connexion gestionnaire, admin ou commanditaire selon le champ "type"
 router.post('/login', async (req, res) => {
   const { email, password, type } = req.body;
 
@@ -134,6 +126,53 @@ router.post('/login', async (req, res) => {
       });
     }
 
+    // ── LOGIN COMMANDITAIRE ──
+    if (type === 'commanditaire') {
+      const result = await pool.query(
+        `SELECT id, nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active
+         FROM sponsors WHERE email = $1`,
+        [email.toLowerCase()]
+      );
+
+      if (result.rows.length === 0) {
+        return res.status(401).json({ message: 'Identifiants incorrects.' });
+      }
+
+      const commanditaire = result.rows[0];
+
+      if (!commanditaire.active) {
+        return res.status(403).json({ message: 'Votre compte est désactivé. Contactez le support.' });
+      }
+
+      const valide = await bcrypt.compare(password, commanditaire.mot_de_passe);
+      if (!valide) {
+        return res.status(401).json({ message: 'Identifiants incorrects.' });
+      }
+
+      const token = genererToken({
+        id:    commanditaire.id,
+        email: commanditaire.email,
+        role:  'commanditaire',
+        type_sponsor: commanditaire.type_sponsor,
+      });
+
+      return res.json({
+        success: true,
+        token,
+        user: {
+          id:    commanditaire.id,
+          email: commanditaire.email,
+          nom:   commanditaire.nom,
+          role:  'commanditaire',
+          type_sponsor: commanditaire.type_sponsor,
+          site_web: commanditaire.site_web,
+          description: commanditaire.description,
+          forfait: commanditaire.forfait,
+          active: commanditaire.active,
+        },
+      });
+    }
+
     // ── LOGIN GESTIONNAIRE (défaut) ──
     const result = await pool.query(
       `SELECT id, email, mot_de_passe, nom, plan, statut FROM gestionnaires WHERE email = $1`,
@@ -146,7 +185,6 @@ router.post('/login', async (req, res) => {
 
     const gestionnaire = result.rows[0];
 
-    // Compte suspendu
     if (gestionnaire.statut === 'suspendu') {
       return res.status(403).json({ message: 'Votre compte est suspendu. Contactez le support.' });
     }
@@ -156,8 +194,6 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'Courriel ou mot de passe incorrect.' });
     }
 
-    // Essai terminé sans paiement (ou en cours de suppression) : pas de token,
-    // seulement un lien Stripe pour régulariser. Le frontend affiche une popup.
     if (gestionnaire.statut === 'expire' || gestionnaire.statut === 'a_supprimer') {
       try {
         const urlPaiement = await genererLienPaiementPourGestionnaire(gestionnaire.id);
@@ -201,7 +237,7 @@ router.post('/login', async (req, res) => {
 });
 
 // ─── GET /api/auth/verify ────────────────────────────────────────────────────
-// Vérifier si le token est encore valide
+// Vérifier si le token est encore valide (admin, gestionnaire ou commanditaire)
 router.get('/verify', async (req, res) => {
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith('Bearer ')) {
@@ -212,20 +248,32 @@ router.get('/verify', async (req, res) => {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
 
-    // Recharger les infos fraîches depuis la BD
+    // ── ADMIN ──
     if (payload.role === 'admin') {
       const r = await pool.query('SELECT id, email, nom FROM admins WHERE id = $1', [payload.id]);
       if (r.rows.length === 0) return res.status(401).json({ valid: false });
       return res.json({ valid: true, user: { ...r.rows[0], role: 'admin' } });
-    } else {
-      // gestionnaire (ou ancien token 'vendeur' — compatibilité gérée par le middleware)
+    }
+
+    // ── COMMANDITAIRE ──
+    if (payload.role === 'commanditaire') {
       const r = await pool.query(
-        'SELECT id, email, nom, plan, statut FROM gestionnaires WHERE id = $1',
+        `SELECT id, nom, email, site_web, description, forfait, type_sponsor, active
+         FROM sponsors WHERE id = $1`,
         [payload.id]
       );
       if (r.rows.length === 0) return res.status(401).json({ valid: false });
-      return res.json({ valid: true, user: { ...r.rows[0], role: 'gestionnaire' } });
+      if (!r.rows[0].active) return res.status(401).json({ valid: false, message: 'Compte désactivé.' });
+      return res.json({ valid: true, user: { ...r.rows[0], role: 'commanditaire' } });
     }
+
+    // ── GESTIONNAIRE (ou ancien token 'vendeur') ──
+    const r = await pool.query(
+      'SELECT id, email, nom, plan, statut FROM gestionnaires WHERE id = $1',
+      [payload.id]
+    );
+    if (r.rows.length === 0) return res.status(401).json({ valid: false });
+    return res.json({ valid: true, user: { ...r.rows[0], role: 'gestionnaire' } });
   } catch (err) {
     return res.status(401).json({ valid: false, message: 'Token invalide ou expiré.' });
   }
@@ -236,13 +284,11 @@ router.post('/mot-de-passe-oublie', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ message: 'Courriel requis.' });
 
-  // On retourne toujours succès pour ne pas révéler si l'email existe
-  // TODO: envoyer un vrai email avec AWS SES
   console.log(`[Mot de passe oublié] Demande pour: ${email}`);
   return res.json({ success: true, message: 'Si ce courriel existe, un lien vous sera envoyé.' });
 });
 
-// ─── ALIAS pour compatibilité avec LoginPage existante ───────────────────────
+// ─── ALIAS pour compatibilité ─────────────────────────────────────────────────
 
 // POST /api/auth/login-studio → login gestionnaire
 router.post('/login-studio', async (req, res) => {
@@ -267,8 +313,6 @@ router.post('/login-studio', async (req, res) => {
       return res.status(401).json({ message: 'Courriel ou mot de passe incorrect.' });
     }
 
-    // Essai terminé sans paiement (ou en cours de suppression) : pas de token,
-    // seulement un lien Stripe pour régulariser. Le frontend affiche une popup.
     if (gestionnaire.statut === 'expire' || gestionnaire.statut === 'a_supprimer') {
       try {
         const urlPaiement = await genererLienPaiementPourGestionnaire(gestionnaire.id);
@@ -323,6 +367,64 @@ router.post('/login-admin', async (req, res) => {
     });
   } catch (err) {
     console.error('Erreur /api/auth/login-admin:', err);
+    return res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// ─── POST /api/auth/login-commanditaire ──────────────────────────────────────
+// Connexion commanditaire (alias)
+router.post('/login-commanditaire', async (req, res) => {
+  const { email, mot_de_passe } = req.body;
+  if (!email || !mot_de_passe) {
+    return res.status(400).json({ message: 'Courriel et mot de passe requis.' });
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT id, nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active
+       FROM sponsors WHERE email = $1`,
+      [email.toLowerCase()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ message: 'Identifiants incorrects.' });
+    }
+
+    const commanditaire = result.rows[0];
+
+    if (!commanditaire.active) {
+      return res.status(403).json({ message: 'Votre compte est désactivé. Contactez le support.' });
+    }
+
+    const valide = await bcrypt.compare(mot_de_passe, commanditaire.mot_de_passe);
+    if (!valide) {
+      return res.status(401).json({ message: 'Identifiants incorrects.' });
+    }
+
+    const token = genererToken({
+      id:    commanditaire.id,
+      email: commanditaire.email,
+      role:  'commanditaire',
+      type_sponsor: commanditaire.type_sponsor,
+    });
+
+    return res.json({
+      success: true,
+      token,
+      user: {
+        id:    commanditaire.id,
+        email: commanditaire.email,
+        nom:   commanditaire.nom,
+        role:  'commanditaire',
+        type_sponsor: commanditaire.type_sponsor,
+        site_web: commanditaire.site_web,
+        description: commanditaire.description,
+        forfait: commanditaire.forfait,
+        active: commanditaire.active,
+      },
+    });
+  } catch (err) {
+    console.error('Erreur /api/auth/login-commanditaire:', err);
     return res.status(500).json({ message: 'Erreur serveur.' });
   }
 });

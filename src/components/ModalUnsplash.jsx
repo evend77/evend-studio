@@ -5,7 +5,9 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
   const [query, setQuery] = useState('');
   const [photos, setPhotos] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [ongletActif, setOngletActif] = useState('unsplash'); // 'unsplash' ou 'sponsors'
 
+  // 🔍 RECHERCHE UNSplash
   const rechercherPhotos = async () => {
     if (!query.trim()) return;
     setLoading(true);
@@ -24,8 +26,61 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
     }
   };
 
+  // ⭐ RECHERCHE SPONSORS (API locale)
+  const rechercherSponsors = async () => {
+    if (!query.trim()) {
+      // Charger les photos sponsors par défaut
+      setLoading(true);
+      try {
+        const response = await fetch('/api/sponsors/photos');
+        if (!response.ok) throw new Error('Erreur lors du chargement des sponsors');
+        const data = await response.json();
+        setPhotos(data.photos || []);
+      } catch (error) {
+        console.error('Erreur sponsors:', error);
+        setPhotos([]);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `/api/sponsors/search?query=${encodeURIComponent(query)}`
+      );
+      if (!response.ok) throw new Error('Erreur lors de la recherche sponsors');
+      const data = await response.json();
+      setPhotos(data.photos || []);
+    } catch (error) {
+      console.error('Erreur sponsors:', error);
+      setPhotos([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRechercher = () => {
+    if (ongletActif === 'unsplash') {
+      rechercherPhotos();
+    } else {
+      rechercherSponsors();
+    }
+  };
+
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') rechercherPhotos();
+    if (e.key === 'Enter') handleRechercher();
+  };
+
+  const changerOnglet = (onglet) => {
+    setOngletActif(onglet);
+    setQuery('');
+    setPhotos([]);
+    // Si on va sur sponsors, charger les photos par défaut
+    if (onglet === 'sponsors') {
+      rechercherSponsors();
+    }
   };
 
   const copierUrl = (url, e) => {
@@ -104,7 +159,7 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
           }}
         >
           <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            📷 Photos gratuites
+            📷 Bibliothèque d'images
           </h3>
           <button
             onClick={onClose}
@@ -121,12 +176,55 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
           </button>
         </div>
 
+        {/* 👇 ONGLETS */}
+        <div
+          style={{
+            display: 'flex',
+            borderBottom: '2px solid #e5e7eb',
+            flexShrink: 0,
+            padding: '0 16px',
+          }}
+        >
+          <button
+            onClick={() => changerOnglet('unsplash')}
+            style={{
+              padding: '10px 20px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: ongletActif === 'unsplash' ? '3px solid #c9a96e' : '3px solid transparent',
+              color: ongletActif === 'unsplash' ? '#c9a96e' : '#666',
+              fontSize: '14px',
+              fontWeight: ongletActif === 'unsplash' ? 700 : 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            📸 Unsplash
+          </button>
+          <button
+            onClick={() => changerOnglet('sponsors')}
+            style={{
+              padding: '10px 20px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: ongletActif === 'sponsors' ? '3px solid #c9a96e' : '3px solid transparent',
+              color: ongletActif === 'sponsors' ? '#c9a96e' : '#666',
+              fontSize: '14px',
+              fontWeight: ongletActif === 'sponsors' ? 700 : 500,
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+            }}
+          >
+            ⭐ Sponsoriser
+          </button>
+        </div>
+
         {/* Recherche */}
         <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', flexShrink: 0 }}>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             <input
               type="text"
-              placeholder="Rechercher..."
+              placeholder={ongletActif === 'unsplash' ? 'Rechercher sur Unsplash...' : 'Rechercher parmi les sponsors...'}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyPress={handleKeyPress}
@@ -141,10 +239,12 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
               }}
             />
             <button
-              onClick={rechercherPhotos}
+              onClick={handleRechercher}
               style={{
                 padding: '8px 16px',
-                background: 'linear-gradient(135deg, #c9a96e, #a07840)',
+                background: ongletActif === 'sponsors' 
+                  ? 'linear-gradient(135deg, #f59e0b, #d97706)' 
+                  : 'linear-gradient(135deg, #c9a96e, #a07840)',
                 border: 'none',
                 borderRadius: '10px',
                 color: '#fff',
@@ -158,27 +258,36 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
             </button>
           </div>
 
-          {/* Tags rapides */}
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
-            {['nature', 'bureau', 'montagne', 'mer', 'ville', 'café', 'voyage', 'business', 'architecture', 'plage'].map((tag) => (
-              <button
-                key={tag}
-                onClick={() => { setQuery(tag); setTimeout(rechercherPhotos, 100); }}
-                style={{
-                  padding: '4px 10px',
-                  background: '#f3f4f6',
-                  border: '1px solid #e5e7eb',
-                  borderRadius: '16px',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  color: '#555',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                #{tag}
-              </button>
-            ))}
-          </div>
+          {/* Tags rapides (seulement pour Unsplash) */}
+          {ongletActif === 'unsplash' && (
+            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
+              {['nature', 'bureau', 'montagne', 'mer', 'ville', 'café', 'voyage', 'business', 'architecture', 'plage'].map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => { setQuery(tag); setTimeout(handleRechercher, 100); }}
+                  style={{
+                    padding: '4px 10px',
+                    background: '#f3f4f6',
+                    border: '1px solid #e5e7eb',
+                    borderRadius: '16px',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    color: '#555',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  #{tag}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Badge sponsor */}
+          {ongletActif === 'sponsors' && (
+            <div style={{ marginTop: '8px', fontSize: '12px', color: '#f59e0b' }}>
+              ⭐ Photos fournies par nos partenaires sponsorisés
+            </div>
+          )}
         </div>
 
         {/* Résultats */}
@@ -207,11 +316,25 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                     cursor: 'pointer',
                     transition: 'transform 0.2s',
                     background: '#fff',
-                    border: '1px solid #eee',
+                    border: ongletActif === 'sponsors' ? '2px solid #f59e0b' : '1px solid #eee',
                   }}
                   onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.03)'}
                   onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
                 >
+                  {ongletActif === 'sponsors' && (
+                    <div style={{ 
+                      background: '#f59e0b', 
+                      color: '#fff', 
+                      fontSize: '9px', 
+                      padding: '2px 8px', 
+                      textAlign: 'center',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.5px'
+                    }}>
+                      ⭐ Sponsorisé
+                    </div>
+                  )}
                   <img
                     src={photo.urls.small}
                     alt={photo.alt_description || 'Photo'}
@@ -219,18 +342,23 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                     loading="lazy"
                   />
                   <div style={{ padding: '6px 8px' }}>
-                    {/* 👇 LE NOM DU PHOTOGRAPHE EST MAINTENANT UN LIEN CLICABLE */}
                     <p style={{ fontSize: '9px', color: '#999', margin: '0 0 4px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       📸{' '}
-                      <a 
-                        href={`${photo.user.links.html}?utm_source=evend_studio&utm_medium=referral`}
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        style={{ color: '#0066cc', textDecoration: 'underline', cursor: 'pointer' }}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {photo.user.name}
-                      </a>
+                      {ongletActif === 'unsplash' ? (
+                        <a 
+                          href={`${photo.user.links.html}?utm_source=evend_studio&utm_medium=referral`}
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          style={{ color: '#0066cc', textDecoration: 'underline', cursor: 'pointer' }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {photo.user.name}
+                        </a>
+                      ) : (
+                        <span style={{ color: '#f59e0b', fontWeight: 600 }}>
+                          {photo.sponsor_name || 'Marque sponsorisée'}
+                        </span>
+                      )}
                     </p>
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <button
@@ -257,7 +385,9 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                         style={{
                           flex: 1,
                           padding: '4px 6px',
-                          background: 'linear-gradient(135deg, #c9a96e, #a07840)',
+                          background: ongletActif === 'sponsors' 
+                            ? 'linear-gradient(135deg, #f59e0b, #d97706)' 
+                            : 'linear-gradient(135deg, #c9a96e, #a07840)',
                           border: 'none',
                           borderRadius: '6px',
                           fontSize: '10px',
@@ -275,8 +405,8 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
             </div>
           )}
 
-          {/* 👇 LIEN UNSplash AVEC UTM */}
-          {photos.length > 0 && (
+          {/* Attribution */}
+          {photos.length > 0 && ongletActif === 'unsplash' && (
             <div style={{ marginTop: '12px', fontSize: '10px', color: '#aaa', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '10px' }}>
               Photos par{' '}
               <a 
@@ -286,6 +416,18 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                 style={{ color: '#c9a96e', fontWeight: 600 }}
               >
                 Unsplash
+              </a>
+            </div>
+          )}
+
+          {photos.length > 0 && ongletActif === 'sponsors' && (
+            <div style={{ marginTop: '12px', fontSize: '10px', color: '#999', textAlign: 'center', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+              ⭐ Photos sponsorisées par nos partenaires — 
+              <a 
+                href="/devenir-sponsor" 
+                style={{ color: '#f59e0b', fontWeight: 600, marginLeft: '4px' }}
+              >
+                Devenir sponsor →
               </a>
             </div>
           )}
