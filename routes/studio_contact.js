@@ -401,7 +401,7 @@ router.post('/contact', async (req, res) => {
       `SELECT v.email, COALESCE(v.nom_boutique, v.nom, v.email) AS nom_affiche,
               COALESCE(s.config->>'nomSite', s.config->>'nomCoach', s.config->>'nomCommerce', s.config->>'nomBoutique', v.nom_boutique, v.nom) AS nom_site
        FROM gestionnaires v
-       LEFT JOIN sites s ON s.vendeur_id = v.id
+       LEFT JOIN sites s ON s.gestionnaire_id = v.id
        WHERE v.id = $1 AND v.statut = 'actif'`,
       [vendeur_id]
     );

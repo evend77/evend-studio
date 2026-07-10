@@ -47,9 +47,15 @@ const ADDONS: AddonDef[] = [
     description: 'Popup ou bannière configurable — promo, événement, fermeture. 3 formats, dates de début/fin.',
     necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Configuration → Popup Annonce',
   },
+  {
+    id: 'reservation_ecole', categorie: 'Réservations', nom: 'Réservation — École/Cours',
+    icone: '📅', couleur: '#6366f1', prix: 5,
+    description: 'Créneaux de cours avec capacité, suivi des places en direct — Salle, Professeur, Niveau.',
+    necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Configuration → Réservation École/Cours',
+  },
 ];
 
-const CATEGORIES_ORDRE = ['Branding', 'Marketing & Promotions', 'Sécurité & Conformité'];
+const CATEGORIES_ORDRE = ['Branding', 'Marketing & Promotions', 'Sécurité & Conformité', 'Réservations'];
 
 // ─────────────────────────────────────────────────────────────────────────
 // CARTE D'ADD-ON — générique, sert pour tous les add-ons du catalogue

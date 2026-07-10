@@ -152,11 +152,6 @@ export default function ConfigPopupAnnonce({ gestionnaireId }: Props) {
       <div style={{ display:'grid', gridTemplateColumns:'1fr 300px', gap:24, alignItems:'start' }}>
         {/* Panneau gauche */}
         <div>
-          {/* Toggle actif */}
-          <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:14, padding:'16px 20px', marginBottom:16 }}>
-            <Toggle label="Popup activée" desc="Désactivez temporairement sans perdre votre configuration" value={cfg.actif} onChange={(v: boolean)=>set('actif',v)} couleur='#22c55e' />
-          </div>
-
           {/* Onglets */}
           <div style={{ display:'flex', gap:0, background:'#f9fafb', borderRadius:12, padding:4, marginBottom:16, border:'1px solid #e5e7eb' }}>
             {ONGLETS.map(o => (

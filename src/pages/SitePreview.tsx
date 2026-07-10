@@ -187,7 +187,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     </div>
   );
 
-  if (erreur) return <Page404Public vendeurId={vendeurId} />;
+  if (erreur) return <Page404Public gestionnaireId={vendeurId} />;
 
   // ── Déterminer templateId et config ───────────────────────────────────────
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';

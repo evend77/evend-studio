@@ -170,7 +170,7 @@ router.put('/', authenticateToken, async (req, res) => {
               updated_at = NOW()
         WHERE gestionnaire_id = $2
         RETURNING config->'page404' AS page404`,
-      [JSON.stringify(nouvelleConfig), vendeurId]
+      [JSON.stringify(nouvelleConfig), gestionnaireId]
     );
 
     if (result.rowCount === 0) {

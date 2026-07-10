@@ -314,10 +314,13 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
         <div style={{ padding:'11px 13px', borderTop:'1px solid #f0f0f0', display:'flex', flexDirection:'column', gap:6, flexShrink:0 }}>
           {/* Bouton Réinitialiser */}
           {resetConfirm ? (
-            <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:7, padding:'8px 10px', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
-              <span style={{ fontSize:11, color:'#991b1b', fontWeight:600, flex:1 }}>⚠️ Effacer toute la config?</span>
-              <button onClick={()=>{ setConfig({...CONFIG_DANSE_DEFAUT}); setResetConfirm(false); }} style={{ padding:'4px 10px', borderRadius:5, background:'#dc2626', border:'none', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer' }}>✓ Confirmer</button>
-              <button onClick={()=>setResetConfirm(false)} style={{ padding:'4px 8px', borderRadius:5, background:'#f3f4f6', border:'none', color:'#555', fontSize:11, cursor:'pointer' }}>Annuler</button>
+            <div style={{ background:'#fef2f2', border:'1px solid #fca5a5', borderRadius:7, padding:'8px 10px', display:'flex', flexDirection:'column', gap:6 }}>
+              <span style={{ fontSize:11, color:'#991b1b', fontWeight:600 }}>⚠️ Effacer toute la config?</span>
+              <span style={{ fontSize:10, color:'#7f1d1d' }}>Après avoir confirmé, cliquez sur "💾 Sauvegarder" pour que ça s'applique vraiment sur votre site.</span>
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={()=>{ setConfig({...CONFIG_DANSE_DEFAUT}); setResetConfirm(false); }} style={{ flex:1, padding:'4px 10px', borderRadius:5, background:'#dc2626', border:'none', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer' }}>✓ Confirmer</button>
+                <button onClick={()=>setResetConfirm(false)} style={{ padding:'4px 8px', borderRadius:5, background:'#f3f4f6', border:'none', color:'#555', fontSize:11, cursor:'pointer' }}>Annuler</button>
+              </div>
             </div>
           ) : (
             <button onClick={()=>setResetConfirm(true)} style={{ width:'100%', padding:'6px 0', borderRadius:7, background:'transparent', border:'1.5px solid #fca5a5', color:'#dc2626', fontSize:11, fontWeight:600, cursor:'pointer' }}>

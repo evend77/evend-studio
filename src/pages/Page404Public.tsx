@@ -32,19 +32,19 @@ const DEFAUTS: Config404 = {
 };
 
 interface Props {
-  vendeurId?: string | number | null;
+  gestionnaireId?: string | number | null;
 }
 
-export default function Page404Public({ vendeurId }: Props) {
+export default function Page404Public({ gestionnaireId }: Props) {
   const [config, setConfig] = useState<Config404>(DEFAUTS);
 
   useEffect(() => {
-    if (!vendeurId) return; // pas d'id → on garde les défauts génériques
-    fetch(`${API_BASE}/studio/page-404/${vendeurId}`)
+    if (!gestionnaireId) return; // pas d'id → on garde les défauts génériques
+    fetch(`${API_BASE}/studio/page-404/${gestionnaireId}/public`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setConfig({ ...DEFAUTS, ...data }); })
       .catch(() => {}); // silencieux — les défauts restent utilisés
-  }, [vendeurId]);
+  }, [gestionnaireId]);
 
   return (
     <div style={{

@@ -158,17 +158,48 @@ router.post('/', async (req, res) => {
   }
 
   try {
-    // Vérifier conflit de réservation
-    const conflit = await pool.query(
-      `SELECT id FROM reservations
-       WHERE site_id = $1
-       AND statut != 'annulee'
-       AND tsrange(date_debut, date_fin) && tsrange($2::timestamp, $3::timestamp)`,
-      [site_id, date_debut, date_fin || date_debut]
+    // 🟢 Un créneau à capacité (ex: cours de danse) existe-t-il exactement pour ce moment?
+    // Si oui : on compte les places au lieu de bloquer au premier chevauchement.
+    // Si non : comportement EXACTEMENT identique à avant (réservation exclusive).
+    const dispoResult = await pool.query(
+      `SELECT id, capacite_max FROM disponibilites
+       WHERE site_id = $1 AND date_debut = $2::timestamp AND actif = true`,
+      [site_id, date_debut]
     );
 
-    if (conflit.rows.length > 0) {
-      return res.status(409).json({ message: 'Ce créneau est déjà réservé. Veuillez choisir un autre horaire.' });
+    if (dispoResult.rows.length > 0) {
+      const dispo = dispoResult.rows[0];
+      const compteResult = await pool.query(
+        `SELECT COALESCE(SUM(nb_personnes), 0) AS total
+         FROM reservations
+         WHERE site_id = $1 AND date_debut = $2::timestamp AND statut != 'annulee'`,
+        [site_id, date_debut]
+      );
+      const placesDejaReservees = parseInt(compteResult.rows[0].total, 10);
+      const demandees = nb_personnes || 1;
+      const placesRestantes = dispo.capacite_max - placesDejaReservees;
+
+      if (placesDejaReservees + demandees > dispo.capacite_max) {
+        return res.status(409).json({
+          message: placesRestantes > 0
+            ? `Il ne reste que ${placesRestantes} place(s) pour ce créneau.`
+            : 'Ce créneau est complet. Veuillez choisir un autre horaire.',
+        });
+      }
+      // Capacité suffisante — on continue vers la création, pas de vérification d'exclusivité.
+    } else {
+      // Comportement d'origine, inchangé — réservation exclusive (table, ressource unique, etc.)
+      const conflit = await pool.query(
+        `SELECT id FROM reservations
+         WHERE site_id = $1
+         AND statut != 'annulee'
+         AND tsrange(date_debut, date_fin) && tsrange($2::timestamp, $3::timestamp)`,
+        [site_id, date_debut, date_fin || date_debut]
+      );
+
+      if (conflit.rows.length > 0) {
+        return res.status(409).json({ message: 'Ce créneau est déjà réservé. Veuillez choisir un autre horaire.' });
+      }
     }
 
     // Créer la réservation
@@ -238,6 +269,54 @@ router.get('/gestionnaire', authenticateToken, async (req, res) => {
   }
 });
 
+// POST /api/reservations/gestionnaire/creer-manuel
+// Le gestionnaire crée une réservation lui-même (ex: client qui appelle par téléphone).
+// Même logique de capacité que la route publique, mais le site_id vient du token,
+// jamais du corps de la requête — un gestionnaire ne peut réserver que sur son propre site.
+router.post('/gestionnaire/creer-manuel', authenticateToken, async (req, res) => {
+  const { nom_client, email_client, telephone, date_debut, date_fin, nb_personnes, notes } = req.body;
+  if (!nom_client || !date_debut) {
+    return res.status(400).json({ message: 'Nom du client et date requis.' });
+  }
+  try {
+    const siteResult = await pool.query('SELECT id FROM sites WHERE gestionnaire_id = $1', [req.user.id]);
+    if (!siteResult.rows.length) return res.status(404).json({ message: 'Site non trouvé.' });
+    const siteId = siteResult.rows[0].id;
+
+    // Même vérification de capacité que la route publique — un gestionnaire ne
+    // peut pas dépasser la capacité d'un créneau non plus.
+    const dispoResult = await pool.query(
+      `SELECT id, capacite_max FROM disponibilites WHERE site_id = $1 AND date_debut = $2::timestamp AND actif = true`,
+      [siteId, date_debut]
+    );
+    if (dispoResult.rows.length > 0) {
+      const dispo = dispoResult.rows[0];
+      const compteResult = await pool.query(
+        `SELECT COALESCE(SUM(nb_personnes), 0) AS total FROM reservations
+         WHERE site_id = $1 AND date_debut = $2::timestamp AND statut != 'annulee'`,
+        [siteId, date_debut]
+      );
+      const placesDejaReservees = parseInt(compteResult.rows[0].total, 10);
+      const demandees = nb_personnes || 1;
+      if (placesDejaReservees + demandees > dispo.capacite_max) {
+        return res.status(409).json({ message: `Il ne reste que ${dispo.capacite_max - placesDejaReservees} place(s) pour ce créneau.` });
+      }
+    }
+
+    const result = await pool.query(
+      `INSERT INTO reservations
+        (site_id, nom_client, email_client, telephone, date_debut, date_fin, nb_personnes, notes, statut, type_reservation, objet_reserve)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'confirmee','cours',$9)
+       RETURNING *`,
+      [siteId, nom_client, email_client || null, telephone || null, date_debut, date_fin || date_debut, nb_personnes || 1, notes || null, 'Réservation par téléphone']
+    );
+
+    res.status(201).json({ success: true, reservation: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
 // PUT /api/reservations/:id/statut — changer le statut
 router.put('/:id/statut', authenticateToken, async (req, res) => {
   const { statut } = req.body;
@@ -267,7 +346,19 @@ router.get('/mes-disponibilites', authenticateToken, async (req, res) => {
     const siteId = siteResult.rows[0].id;
 
     const result = await pool.query(
-      `SELECT * FROM disponibilites WHERE site_id = $1 ORDER BY date_debut ASC`,
+      `SELECT
+         d.*,
+         COALESCE(r.nb_reservees, 0) AS places_reservees,
+         d.capacite_max - COALESCE(r.nb_reservees, 0) AS places_restantes
+       FROM disponibilites d
+       LEFT JOIN (
+         SELECT date_debut, SUM(nb_personnes) AS nb_reservees
+         FROM reservations
+         WHERE site_id = $1 AND statut != 'annulee'
+         GROUP BY date_debut
+       ) r ON r.date_debut = d.date_debut
+       WHERE d.site_id = $1
+       ORDER BY d.date_debut ASC`,
       [siteId]
     );
     res.json({ disponibilites: result.rows });
@@ -276,9 +367,39 @@ router.get('/mes-disponibilites', authenticateToken, async (req, res) => {
   }
 });
 
+// PUT /api/reservations/disponibilites/:id — modifier un créneau (dates, capacité, actif)
+router.put('/disponibilites/:id', authenticateToken, async (req, res) => {
+  const { date_debut, date_fin, capacite_max, titre, actif, salle, professeur, niveau, notes_internes } = req.body;
+  try {
+    const siteResult = await pool.query('SELECT id FROM sites WHERE gestionnaire_id = $1', [req.user.id]);
+    if (!siteResult.rows.length) return res.status(404).json({ message: 'Site non trouvé.' });
+    const siteId = siteResult.rows[0].id;
+
+    const result = await pool.query(
+      `UPDATE disponibilites
+          SET date_debut     = COALESCE($1, date_debut),
+              date_fin       = COALESCE($2, date_fin),
+              capacite_max   = COALESCE($3, capacite_max),
+              titre          = COALESCE($4, titre),
+              actif          = COALESCE($5, actif),
+              salle          = COALESCE($6, salle),
+              professeur     = COALESCE($7, professeur),
+              niveau         = COALESCE($8, niveau),
+              notes_internes = COALESCE($9, notes_internes)
+        WHERE id = $10 AND site_id = $11
+        RETURNING *`,
+      [date_debut, date_fin, capacite_max, titre, actif, salle, professeur, niveau, notes_internes, req.params.id, siteId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ message: 'Créneau introuvable.' });
+    res.json({ success: true, disponibilite: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
 // POST /api/reservations/disponibilites — créer un créneau
 router.post('/disponibilites', authenticateToken, async (req, res) => {
-  const { date_debut, date_fin, capacite_max, titre } = req.body;
+  const { date_debut, date_fin, capacite_max, titre, salle, professeur, niveau, notes_internes } = req.body;
   if (!date_debut || !date_fin) return res.status(400).json({ message: 'Dates requises.' });
   try {
     const siteResult = await pool.query('SELECT id FROM sites WHERE gestionnaire_id = $1', [req.user.id]);
@@ -286,9 +407,9 @@ router.post('/disponibilites', authenticateToken, async (req, res) => {
     const siteId = siteResult.rows[0].id;
 
     const result = await pool.query(
-      `INSERT INTO disponibilites (site_id, date_debut, date_fin, capacite_max, titre)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [siteId, date_debut, date_fin, capacite_max || 1, titre || null]
+      `INSERT INTO disponibilites (site_id, date_debut, date_fin, capacite_max, titre, salle, professeur, niveau, notes_internes)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [siteId, date_debut, date_fin, capacite_max || 1, titre || null, salle || null, professeur || null, niveau || null, notes_internes || null]
     );
     res.status(201).json({ success: true, disponibilite: result.rows[0] });
   } catch (err) {

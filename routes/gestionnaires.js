@@ -265,6 +265,7 @@ router.get('/:id/options', async (req, res) => {
                 cacher_propulse: false,
                 verificateur_age: false,
                 popup_annonce: false,
+                reservation_ecole: false,
             });
         }
         return res.json(result.rows[0]);
@@ -282,19 +283,20 @@ router.put('/:id/options', authenticateToken, async (req, res) => {
         if (!isAdminUser && req.user.id !== gestionnaireId) {
             return res.status(403).json({ success: false, message: 'Accès refusé' });
         }
-        const { cacher_propulse = false, domaine_personnalise = false, verificateur_age = false, popup_annonce = false } = req.body;
-        console.log(`🔍 PUT options gestionnaire ${gestionnaireId}:`, { cacher_propulse, verificateur_age, popup_annonce });
+        const { cacher_propulse = false, domaine_personnalise = false, verificateur_age = false, popup_annonce = false, reservation_ecole = false } = req.body;
+        console.log(`🔍 PUT options gestionnaire ${gestionnaireId}:`, { cacher_propulse, verificateur_age, popup_annonce, reservation_ecole });
 
         await pool.query(
-            `INSERT INTO options_gestionnaire (gestionnaire_id, cacher_propulse, domaine_personnalise, verificateur_age, popup_annonce)
-             VALUES ($1, $2, $3, $4, $5)
+            `INSERT INTO options_gestionnaire (gestionnaire_id, cacher_propulse, domaine_personnalise, verificateur_age, popup_annonce, reservation_ecole)
+             VALUES ($1, $2, $3, $4, $5, $6)
              ON CONFLICT (gestionnaire_id) DO UPDATE SET
                cacher_propulse      = EXCLUDED.cacher_propulse,
                domaine_personnalise = EXCLUDED.domaine_personnalise,
                verificateur_age     = EXCLUDED.verificateur_age,
                popup_annonce        = EXCLUDED.popup_annonce,
+               reservation_ecole    = EXCLUDED.reservation_ecole,
                updated_at           = NOW()`,
-            [gestionnaireId, cacher_propulse, domaine_personnalise, verificateur_age, popup_annonce]
+            [gestionnaireId, cacher_propulse, domaine_personnalise, verificateur_age, popup_annonce, reservation_ecole]
         );
 
         const result = await pool.query(
