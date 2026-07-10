@@ -15,6 +15,7 @@ export interface AddonTheme {
   border?: string;
   fontTitre: string;
   fontTexte: string;
+  taille?: 'petit' | 'moyen' | 'grand'; // défaut: moyen
 }
 
 // ─── CONTRAT DE CHAMPS ────────────────────────────────────────────────────────
@@ -69,6 +70,9 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
   const cp       = theme.primary;
   const textDim  = theme.textDim  || `${theme.text}99`;
   const border   = theme.border   || `${cp}30`;
+  const tailleInp   = theme.taille === 'petit' ? 13 : theme.taille === 'grand' ? 16 : 14;
+  const tailleTitre = theme.taille === 'petit' ? 18 : theme.taille === 'grand' ? 26 : 22;
+  const tailleLabel = theme.taille === 'petit' ? 8  : theme.taille === 'grand' ? 10 : 9;
 
   const champsRequisManquants = data.champs.filter(c => c.requis && !form[c.id]?.trim());
 
@@ -132,7 +136,7 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
           border: 1px solid ${border};
           color: ${theme.text};
           font-family: ${theme.fontTexte};
-          font-size: 14px;
+          font-size: ${tailleInp}px;
           outline: none;
           transition: border-color .2s;
         }
@@ -140,7 +144,7 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
         .evend-addon-contact .ea-inp:focus { border-color: ${cp}; }
         .evend-addon-contact .ea-label {
           font-family: ${theme.fontTexte};
-          font-size: 9px; font-weight: 700;
+          font-size: ${tailleLabel}px; font-weight: 700;
           color: ${textDim};
           letter-spacing: 0.15em; text-transform: uppercase;
           display: block; margin-bottom: 6px;
@@ -184,7 +188,7 @@ export default function AddonContact({ theme, data, isMobile = false }: Props) {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <h3 style={{ fontFamily: theme.fontTitre, fontSize: 22, fontWeight: 600, color: theme.text, marginBottom: data.sousTitre ? 0 : 4 }}>
+            <h3 style={{ fontFamily: theme.fontTitre, fontSize: tailleTitre, fontWeight: 600, color: theme.text, marginBottom: data.sousTitre ? 0 : 4 }}>
               {data.titre}
             </h3>
             {data.sousTitre && (

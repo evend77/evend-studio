@@ -19,6 +19,12 @@ export interface ConfigFormulaireContactData {
   messageSuccesTexte: string;
   destinataireEmail: string;
   champs: ChampFormulaire[];
+  // 🟢 Apparence — optionnels. Si absents, le formulaire suit automatiquement
+  // les couleurs/police du template (comportement par défaut inchangé).
+  couleurTexte?: string;
+  couleurAccent?: string;
+  police?: string;
+  tailleTexte?: 'petit' | 'moyen' | 'grand';
 }
 
 const CHAMPS_SUGGERES: Array<{ id: string; type: ChampType; label: string; options?: string[] }> = [
@@ -207,6 +213,59 @@ export default function ConfigFormulaireContact({ gestionnaireId }: Props) {
         <F label="Titre message de succès"><Inp value={config.messageSuccesTitre} onChange={(v: string) => set('messageSuccesTitre', v)} /></F>
         <F label="Texte message de succès"><Txt value={config.messageSuccesTexte} onChange={(v: string) => set('messageSuccesTexte', v)} rows={2} /></F>
         <F label="Recevoir les messages à (vide = email du compte)"><Inp value={config.destinataireEmail} onChange={(v: string) => set('destinataireEmail', v)} placeholder="contact@monsite.ca" /></F>
+      </div>
+
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: '22px 24px', marginBottom: 20 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#999', marginBottom: 4 }}>Apparence</p>
+        <p style={{ fontSize: 12, color: '#888', marginBottom: 14 }}>
+          Par défaut, le formulaire suit automatiquement les couleurs de votre template. Vous pouvez les remplacer ici si vous voulez un rendu différent.
+        </p>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 4 }}>
+          <F label="Couleur du texte">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="color" value={config.couleurTexte || '#ffffff'} onChange={e => set('couleurTexte', e.target.value)}
+                style={{ width: 40, height: 36, padding: 2, border: '1.5px solid #e5e7eb', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+              <Inp value={config.couleurTexte} onChange={(v: string) => set('couleurTexte', v)} placeholder="Auto (template)" />
+            </div>
+          </F>
+          <F label="Couleur d'accent (bouton, bordures)">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="color" value={config.couleurAccent || '#2563eb'} onChange={e => set('couleurAccent', e.target.value)}
+                style={{ width: 40, height: 36, padding: 2, border: '1.5px solid #e5e7eb', borderRadius: 6, cursor: 'pointer', flexShrink: 0 }} />
+              <Inp value={config.couleurAccent} onChange={(v: string) => set('couleurAccent', v)} placeholder="Auto (template)" />
+            </div>
+          </F>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 8 }}>
+          <F label="Police du texte">
+            <select value={config.police || ''} onChange={e => set('police', e.target.value)}
+              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e5e7eb', borderRadius: 6, fontSize: 13, background: '#fff', boxSizing: 'border-box' }}>
+              <option value="">Auto (police du template)</option>
+              <option value="'Inter',sans-serif">Inter (moderne)</option>
+              <option value="'Poppins',sans-serif">Poppins (rond)</option>
+              <option value="'Georgia',serif">Georgia (classique)</option>
+              <option value="'Cormorant Garamond',serif">Cormorant Garamond (élégant)</option>
+              <option value="'Courier New',monospace">Courier New (machine à écrire)</option>
+            </select>
+          </F>
+          <F label="Taille du texte">
+            <select value={config.tailleTexte || 'moyen'} onChange={e => set('tailleTexte', e.target.value as 'petit'|'moyen'|'grand')}
+              style={{ width: '100%', padding: '9px 12px', border: '1.5px solid #e5e7eb', borderRadius: 6, fontSize: 13, background: '#fff', boxSizing: 'border-box' }}>
+              <option value="petit">Petit</option>
+              <option value="moyen">Moyen (par défaut)</option>
+              <option value="grand">Grand</option>
+            </select>
+          </F>
+        </div>
+
+        {(config.couleurTexte || config.couleurAccent || config.police) && (
+          <button onClick={() => setConfig(prev => ({ ...prev, couleurTexte: undefined, couleurAccent: undefined, police: undefined, tailleTexte: undefined }))}
+            style={{ fontSize: 11, padding: '6px 12px', border: '1px solid #e5e7eb', borderRadius: 6, background: '#fff', color: '#555', cursor: 'pointer' }}>
+            🔄 Revenir à l'apparence automatique du template
+          </button>
+        )}
       </div>
 
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: '22px 24px', marginBottom: 20 }}>

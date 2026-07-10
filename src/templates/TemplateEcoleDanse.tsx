@@ -140,7 +140,7 @@ export const CONFIG_DANSE_DEFAUT: ConfigEcoleDanse = {
   email: 'bonjour@studio-eclat.ca',
   horairesStudio: ['Lun – Ven : 15h – 22h', 'Samedi : 9h – 19h', 'Dimanche : 10h – 17h'],
   reseaux: { instagram:'#', facebook:'#', youtube:'#', tiktok:'#' },
-  coordGoogleMaps: 'https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d2796.7!2d-73.5698!3d45.4994!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zNDXCsDI5JzU3LjkiTiA3M8KwMzQnMTEuMyJX!5e0!3m2!1sfr!2sca!4v1',
+  coordGoogleMaps: '', // vide = génération auto depuis adresse+ville (voir getUrlMaps)
   sections: [
     { id:'hero',        actif:true, ordre:1,  label:'Hero + Rideau + Silhouettes' },
     { id:'stats',       actif:true, ordre:2,  label:'Chiffres clés' },
@@ -900,6 +900,19 @@ function SectionContact({ config, vendeurId }: { config:ConfigEcoleDanse; vendeu
       }
     : getDataContactDanseDefaut(config, styles, vendeurId);
 
+  // 🟢 Fusionner les surcharges d'apparence du gestionnaire par-dessus le thème automatique du template
+  const themeDefaut = getThemeContactDanse(config);
+  const themeFinal: AddonTheme = configAddon
+    ? {
+        ...themeDefaut,
+        text:    configAddon.couleurTexte  || themeDefaut.text,
+        primary: configAddon.couleurAccent || themeDefaut.primary,
+        fontTitre: configAddon.police || themeDefaut.fontTitre,
+        fontTexte: configAddon.police || themeDefaut.fontTexte,
+        taille: configAddon.tailleTexte,
+      }
+    : themeDefaut;
+
   return (
     <section style={{ background:config.couleurFond, padding:isMobile?'60px 20px':'100px 48px' }}>
       <div ref={rv.ref} className={`rv${rv.vis?' vis':''}`} style={{ maxWidth:1320, margin:'0 auto' }}>
@@ -941,7 +954,7 @@ function SectionContact({ config, vendeurId }: { config:ConfigEcoleDanse; vendeu
             </div>
           </div>
           {/* 🟢 Add-on Contact — générique, réutilisé par tous les templates */}
-          <AddonContact theme={getThemeContactDanse(config)} data={dataContact} isMobile={isMobile} />
+          <AddonContact theme={themeFinal} data={dataContact} isMobile={isMobile} />
         </div>
       </div>
     </section>
