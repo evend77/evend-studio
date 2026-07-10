@@ -967,6 +967,17 @@ function Footer({ config, setPage }: { config:ConfigEcoleDanse; setPage:(p:strin
   const { isMobile } = useIsMobile();
   const cm = config.couleurMagenta; const co = config.couleurOr;
   const styles = ea(config.stylesDanse, CONFIG_DANSE_DEFAUT.stylesDanse);
+
+  // 🟢 Badge "Propulsé par e-Vend Studio" — caché uniquement si le gestionnaire
+  // a payé l'option "Cacher le branding" (table options_gestionnaire).
+  const [cacherBadge, setCacherBadge] = useState(false);
+  useEffect(() => {
+    if (!config.vendeurId) return;
+    fetch(`/api/branding-public/gestionnaire/${config.vendeurId}/cacher-propulse`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setCacherBadge(!!d.cacher_propulse); })
+      .catch(() => {}); // silencieux — badge visible par défaut si l'appel échoue
+  }, [config.vendeurId]);
   return (
     <footer style={{ background:config.couleurFondSombre, padding:isMobile?'0 20px':'0 48px', paddingTop:48 }}>
       <div style={{ height:3, background:`linear-gradient(90deg,${cm},${config.couleurViolet},${config.couleurCyan},${co})`, margin:'-48px -48px 48px' }} />
@@ -1006,6 +1017,13 @@ function Footer({ config, setPage }: { config:ConfigEcoleDanse; setPage:(p:strin
         <p style={{ fontFamily:"'Dancing Script',cursive", fontSize:14, color:'rgba(255,255,255,.2)' }}>💃 Dansez, brillez, vivez</p>
         <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, color:'rgba(255,255,255,.2)' }}>© {new Date().getFullYear()} {config.nomEcole}</p>
       </div>
+      {!cacherBadge && (
+        <div style={{ borderTop:'1px solid rgba(255,255,255,.05)', padding:'12px 0', textAlign:'center' as const }}>
+          <a href="https://e-vendstudio.ca" target="_blank" rel="noreferrer" style={{ fontFamily:"'Poppins',sans-serif", fontSize:10, color:'rgba(255,255,255,.25)', textDecoration:'none' }}>
+            Propulsé par e-Vend Studio
+          </a>
+        </div>
+      )}
     </footer>
   );
 }

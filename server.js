@@ -241,6 +241,8 @@ app.use('/api/cron-domaine',       cronDomaineModule);
 app.use('/api/abonnements-studio', abonnementsStudioRoutes);
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
 
+app.use('/api/branding-public', require('./routes/branding_public'));
+
 // =====================================================================
 // 🎨 SITES STUDIO (config du site du vendeur)
 // =====================================================================
