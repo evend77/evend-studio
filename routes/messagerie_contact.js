@@ -26,7 +26,7 @@ async function getOuCreerQuota(gestionnaireId) {
   if (res.rows.length > 0) return res.rows[0];
 
   const insert = await pool.query(
-    `INSERT INTO quotas_messagerie_contact (gestionnaire_id, utilises, inclus, extra_achetes)
+    `INSERT INTO quotas_messagerie_contact (gestionnaire_id, utilises, inclus, blocs_achetes)
      VALUES ($1, 0, $2, 0) RETURNING *`,
     [gestionnaireId, MESSAGES_INCLUS]
   );
@@ -62,8 +62,8 @@ router.get('/gestionnaire/:id/quota', authenticateToken, async (req, res) => {
     res.json({
       utilises: quota.utilises,
       inclus: quota.inclus,
-      extra_achetes: quota.extra_achetes,
-      limite_totale: quota.inclus + quota.extra_achetes,
+      blocs_achetes: quota.blocs_achetes,
+      limite_totale: quota.inclus + quota.blocs_achetes,
       cycle_fin: quota.cycle_fin,
     });
   } catch (err) {
@@ -106,7 +106,7 @@ router.post('/gestionnaire/:id/acheter-bloc', authenticateToken, async (req, res
     const quota = await getOuCreerQuota(gestionnaireId);
 
     await pool.query(
-      `UPDATE quotas_messagerie_contact SET extra_achetes = extra_achetes + $2, updated_at = NOW()
+      `UPDATE quotas_messagerie_contact SET blocs_achetes = blocs_achetes + $2, updated_at = NOW()
        WHERE gestionnaire_id = $1`,
       [gestionnaireId, palier.quantite]
     );
@@ -121,8 +121,29 @@ router.post('/gestionnaire/:id/acheter-bloc', authenticateToken, async (req, res
     res.json({
       success: true,
       palier,
-      nouvelle_limite: quota.inclus + quota.extra_achetes + palier.quantite,
+      nouvelle_limite: quota.inclus + quota.blocs_achetes + palier.quantite,
     });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── GET /api/messagerie-contact/gestionnaire/:id/facturation-cycle ────────
+// Retourne les blocs de messages achetés PENDANT LE CYCLE EN COURS, pour
+// affichage dans "Mes services" — chaque achat = une ligne de facture.
+router.get('/gestionnaire/:id/facturation-cycle', authenticateToken, async (req, res) => {
+  try {
+    const cycleFacturation = new Date().toISOString().slice(0, 7); // 'YYYY-MM'
+    const result = await pool.query(
+      `SELECT id, quantite_messages, prix_ht, created_at
+       FROM achats_blocs_messagerie
+       WHERE gestionnaire_id = $1 AND cycle_facturation = $2
+       ORDER BY created_at ASC`,
+      [req.params.id, cycleFacturation]
+    );
+    const achats = result.rows;
+    const total_ht = achats.reduce((s, a) => s + parseFloat(a.prix_ht), 0);
+    res.json({ achats, total_ht });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -133,7 +154,7 @@ router.post('/gestionnaire/:id/acheter-bloc', authenticateToken, async (req, res
 // Exporté pour être appelé depuis routes/studio_contact.js
 async function verifierEtIncrementerQuota(gestionnaireId) {
   const quota = await getOuCreerQuota(gestionnaireId);
-  const limite = quota.inclus + quota.extra_achetes;
+  const limite = quota.inclus + quota.blocs_achetes;
   if (quota.utilises >= limite) {
     return { autorise: false, limite, utilises: quota.utilises };
   }

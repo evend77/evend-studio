@@ -61,6 +61,15 @@ interface FactureHistorique {
 
 type Vue = 'services' | 'options' | 'factures';
 
+// Miroir du catalogue défini dans BrandingEtOptions.tsx — nécessaire ici pour
+// transformer les options actives (table options_gestionnaire) en lignes de
+// facturation affichables, puisque ce système est séparé de abonnements_studio.
+const ADDONS_CATALOGUE: { id: string; nom: string; prix_ht: number }[] = [
+  { id: 'cacher_propulse',  nom: 'Cacher le branding',       prix_ht: 2 },
+  { id: 'verificateur_age', nom: "Vérificateur d'âge",       prix_ht: 5 },
+  { id: 'popup_annonce',    nom: 'Popup Annonce',            prix_ht: 3 },
+];
+
 export default function MesServices({ gestionnaireId }: Props) {
   const [abonnement, setAbonnement] = useState<Abonnement | null>(null);
   const [lignes, setLignes] = useState<Ligne[]>([]);
@@ -78,7 +87,7 @@ export default function MesServices({ gestionnaireId }: Props) {
   const charger = async () => {
     setChargement(true);
     try {
-      const [aboRes, optRes, facturesRes] = await Promise.all([
+      const [aboRes, optRes, facturesRes, addonsRes, blocsRes] = await Promise.all([
         fetch('/api/abonnements-studio/mon-abonnement', {
           headers: { Authorization: `Bearer ${token()}` },
         }),
@@ -88,13 +97,52 @@ export default function MesServices({ gestionnaireId }: Props) {
         fetch('/api/abonnements-studio/mes-factures', {
           headers: { Authorization: `Bearer ${token()}` },
         }),
+        // 🟢 Add-ons payants (Branding & options) — système séparé de abonnements_studio,
+        // il faut les fusionner ici pour que "Mes services" reflète la vraie facture.
+        fetch(`/api/gestionnaires/${gestionnaireId}/options`, {
+          headers: { Authorization: `Bearer ${token()}` },
+        }),
+        // 🟢 Blocs de messagerie achetés ce cycle — encore un système séparé.
+        fetch(`/api/messagerie-contact/gestionnaire/${gestionnaireId}/facturation-cycle`, {
+          headers: { Authorization: `Bearer ${token()}` },
+        }),
       ]);
       const aboData = await aboRes.json();
       const optData = await optRes.json();
       const facturesData = await facturesRes.json();
+      const addonsData = await addonsRes.json().catch(() => ({}));
+      const blocsData = await blocsRes.json().catch(() => ({ achats: [] }));
+
+      // Transformer les options actives (booléens) en lignes de facturation affichables
+      const lignesAddons: Ligne[] = ADDONS_CATALOGUE
+        .filter(a => !!addonsData?.[a.id])
+        .map(a => ({ id: -1000 - ADDONS_CATALOGUE.indexOf(a), type: 'addon', code: a.id, nom: a.nom, prix_ht: a.prix_ht, actif: true }));
+
+      // Chaque bloc de messages acheté ce cycle = sa propre ligne, pour la transparence
+      const lignesBlocs: Ligne[] = (blocsData.achats || []).map((a: any, i: number) => ({
+        id: -2000 - i,
+        type: 'addon',
+        code: 'bloc_messagerie',
+        nom: `Bloc de ${a.quantite_messages} messages (formulaire de contact)`,
+        prix_ht: parseFloat(a.prix_ht),
+        actif: true,
+      }));
+
+      const lignesCombinees = [...(aboData.lignes || []), ...lignesAddons, ...lignesBlocs];
       setAbonnement(aboData.abonnement);
-      setLignes(aboData.lignes || []);
-      setTotaux(aboData.totaux);
+      setLignes(lignesCombinees);
+
+      // Si un vrai abonnement Stripe existe, ses totaux ne comptent pas les add-ons —
+      // on recalcule toujours localement à partir de TOUTES les lignes combinées.
+      const montantHt = lignesCombinees.reduce((s, l) => s + parseFloat(String(l.prix_ht || 0)), 0);
+      if (montantHt > 0) {
+        const tps = montantHt * 0.05;
+        const tvq = montantHt * 0.09975;
+        setTotaux({ montant_ht: montantHt, tps, tvq, total: montantHt + tps + tvq });
+      } else {
+        setTotaux(null);
+      }
+
       setOptions(optData || []);
       setFactures(facturesData.factures || []);
     } catch {
@@ -199,7 +247,7 @@ export default function MesServices({ gestionnaireId }: Props) {
     );
   }
 
-  if (!abonnement) {
+  if (!abonnement && lignes.length === 0) {
     return (
       <div style={{ maxWidth: 600, margin: '60px auto', padding: '0 24px', textAlign: 'center', fontFamily: "'Inter', sans-serif" }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>📦</div>
@@ -209,7 +257,7 @@ export default function MesServices({ gestionnaireId }: Props) {
     );
   }
 
-  const badge = statutBadge(abonnement.statut);
+  const badge = abonnement ? statutBadge(abonnement?.statut) : { label: '✅ Add-ons actifs', couleur: '#4F46E5', bg: '#eef2ff' };
 
   return (
     <div style={{ maxWidth: 860, margin: '0 auto', padding: '32px 24px', fontFamily: "'Inter', sans-serif" }}>
@@ -235,7 +283,7 @@ export default function MesServices({ gestionnaireId }: Props) {
       )}
 
       {/* ── Bandeau essai ── */}
-      {abonnement.statut === 'essai' && (
+      {abonnement?.statut === 'essai' && (
         <div style={{
           background: 'linear-gradient(135deg, #fef3c7 0%, #fff 100%)',
           border: '2px solid #f59e0b', borderRadius: 12, padding: '16px 20px', marginBottom: 24,
@@ -260,7 +308,7 @@ export default function MesServices({ gestionnaireId }: Props) {
       )}
 
       {/* ── Bandeau impayé ── */}
-      {abonnement.statut === 'impaye' && (
+      {abonnement?.statut === 'impaye' && (
         <div style={{ background: '#fef2f2', border: '2px solid #ef4444', borderRadius: 12, padding: '16px 20px', marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ fontWeight: 700, color: '#991b1b' }}>❌ Paiement échoué — Mettez votre carte à jour pour rétablir l'accès.</div>
           <button onClick={gererPortail} disabled={actionEnCours === 'portail'} style={{ padding: '10px 20px', background: '#dc2626', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
@@ -293,15 +341,15 @@ export default function MesServices({ gestionnaireId }: Props) {
               <span style={{ padding: '4px 12px', borderRadius: 20, fontSize: 13, fontWeight: 700, background: badge.bg, color: badge.couleur }}>
                 {badge.label}
               </span>
-              {abonnement.statut === 'actif' && abonnement.periode_fin && (
-                <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>Prochain renouvellement : {formatDate(abonnement.periode_fin)}</div>
+              {abonnement?.statut === 'actif' && abonnement?.periode_fin && (
+                <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>Prochain renouvellement : {formatDate(abonnement?.periode_fin)}</div>
               )}
-              {abonnement.statut === 'annule' && abonnement.periode_fin && (
-                <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>Accès conservé jusqu'au : {formatDate(abonnement.periode_fin)}</div>
+              {abonnement?.statut === 'annule' && abonnement?.periode_fin && (
+                <div style={{ fontSize: 12, color: '#888', marginTop: 8 }}>Accès conservé jusqu'au : {formatDate(abonnement?.periode_fin)}</div>
               )}
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              {abonnement.statut === 'actif' && (
+              {abonnement?.statut === 'actif' && (
                 <>
                   <button onClick={gererPortail} disabled={!!actionEnCours} style={btnSecondaire}>
                     {actionEnCours === 'portail' ? '⏳...' : '💳 Gérer la carte'}
@@ -357,7 +405,7 @@ export default function MesServices({ gestionnaireId }: Props) {
                 </div>
                 <p style={{ fontSize: 11, color: '#aaa', textAlign: 'right', marginTop: 10 }}>
                   Facturé en dollars canadiens (CAD), taxes comprises.<br />
-                  {abonnement.statut === 'actif' && abonnement.periode_fin ? `Prochain paiement le ${formatDate(abonnement.periode_fin)}.` : ''}
+                  {abonnement?.statut === 'actif' && abonnement?.periode_fin ? `Prochain paiement le ${formatDate(abonnement?.periode_fin)}.` : ''}
                 </p>
               </div>
             )}

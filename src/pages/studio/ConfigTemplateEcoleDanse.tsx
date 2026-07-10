@@ -293,7 +293,20 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
             <S titre="Réseaux">
               {(['instagram','facebook','youtube','tiktok'] as const).map(k => <F key={k} label={k.charAt(0).toUpperCase()+k.slice(1)}><Inp value={config.reseaux?.[k]||''} onChange={(v:string)=>set('reseaux',{...config.reseaux,[k]:v})} /></F>)}
             </S>
-            <S titre="Google Maps"><F label="URL iFrame"><Txt value={config.coordGoogleMaps} onChange={(v:string)=>set('coordGoogleMaps',v)} rows={2} /></F></S>
+            <S titre="Google Maps">
+              <F label="URL iFrame (optionnel)">
+                <Txt value={config.coordGoogleMaps} onChange={(v:string)=>set('coordGoogleMaps',v)} rows={2} />
+              </F>
+              <p style={{ fontSize:11, color:'#888', marginTop:-6, marginBottom:8 }}>
+                💡 Laissez ce champ vide — la carte se génère automatiquement depuis votre adresse et votre ville. Collez un lien ici seulement si vous voulez un point précis différent (ex: un bâtiment particulier).
+              </p>
+              {config.coordGoogleMaps && (
+                <button onClick={()=>set('coordGoogleMaps','')}
+                  style={{ fontSize:11, padding:'6px 12px', border:'1px solid #e5e7eb', borderRadius:6, background:'#fff', color:'#555', cursor:'pointer' }}>
+                  🔄 Revenir à la génération automatique depuis l'adresse
+                </button>
+              )}
+            </S>
           </>)}
 
         </div>

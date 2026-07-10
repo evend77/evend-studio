@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import Page404Public                  from './Page404Public';
 import CookieBanner                   from '../components/CookieBanner';
 import VerificateurAge                from '../components/VerificateurAge';
 import TemplateVitrine                from '../templates/TemplateVitrine';
@@ -186,14 +187,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     </div>
   );
 
-  if (erreur) return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', flexDirection: 'column', gap: 16 }}>
-      <div style={{ fontSize: 48 }}>🚧</div>
-      <h2 style={{ color: '#1a1a1a' }}>Site non disponible</h2>
-      <p style={{ color: '#888' }}>{erreur}</p>
-      <button onClick={() => window.close()} style={{ padding: '10px 24px', background: '#c9a96e', border: 'none', borderRadius: 8, color: '#fff', fontWeight: 600, cursor: 'pointer' }}>Fermer</button>
-    </div>
-  );
+  if (erreur) return <Page404Public vendeurId={vendeurId} />;
 
   // ── Déterminer templateId et config ───────────────────────────────────────
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';

@@ -32,8 +32,8 @@ const PALIERS_DEFAUT: Palier[] = [
 interface QuotaInfo {
   utilises: number;
   inclus: number;         // 100 par défaut
-  extra_achetes: number;  // messages supplémentaires achetés ce cycle (tous paliers confondus)
-  limite_totale: number;  // inclus + extra_achetes
+  blocs_achetes: number;  // messages supplémentaires achetés ce cycle (tous paliers confondus)
+  limite_totale: number;  // inclus + blocs_achetes
   cycle_fin: string | null;
 }
 
@@ -312,8 +312,8 @@ export default function MessagerieFormulaireContact({ gestionnaireId }: Props) {
                 <span style={{ fontSize: 13, fontWeight: 700, color: T.text }}>
                   Quota mensuel : <strong style={{ color: couleurQuota }}>{utilises} / {limiteTotale}</strong>
                 </span>
-                {quota && quota.extra_achetes > 0 && (
-                  <span style={{ fontSize: 11, color: T.textLight }}>({quota.inclus} inclus + {quota.extra_achetes} achetés)</span>
+                {quota && quota.blocs_achetes > 0 && (
+                  <span style={{ fontSize: 11, color: T.textLight }}>({quota.inclus} inclus + {quota.blocs_achetes} achetés)</span>
                 )}
               </div>
               <div style={{ width: '100%', height: 8, background: '#f0f0f0', borderRadius: 4, overflow: 'hidden' }}>

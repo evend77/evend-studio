@@ -219,14 +219,15 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                     loading="lazy"
                   />
                   <div style={{ padding: '6px 8px' }}>
-                    {/* 👇 LIEN VERS LE PHOTOGRAPHE AVEC UTM */}
+                    {/* 👇 LE NOM DU PHOTOGRAPHE EST MAINTENANT UN LIEN CLICABLE */}
                     <p style={{ fontSize: '9px', color: '#999', margin: '0 0 4px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       📸{' '}
                       <a 
                         href={`${photo.user.links.html}?utm_source=evend_studio&utm_medium=referral`}
                         target="_blank" 
                         rel="noopener noreferrer"
-                        style={{ color: '#666', textDecoration: 'underline' }}
+                        style={{ color: '#0066cc', textDecoration: 'underline', cursor: 'pointer' }}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {photo.user.name}
                       </a>

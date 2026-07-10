@@ -869,6 +869,13 @@ function getDataContactDanseDefaut(config: ConfigEcoleDanse, styles: StyleDanse[
   };
 }
 
+function getUrlMaps(config: ConfigEcoleDanse): string {
+  const lienManuel = config.coordGoogleMaps?.trim();
+  if (lienManuel) return lienManuel;
+  const adresseComplete = [config.adresse, config.ville].filter(Boolean).join(', ');
+  return `https://www.google.com/maps?q=${encodeURIComponent(adresseComplete)}&output=embed`;
+}
+
 function SectionContact({ config, vendeurId }: { config:ConfigEcoleDanse; vendeurId: number | string }) {
   const { isMobile } = useIsMobile();
   const rv = useReveal(.05);
@@ -930,7 +937,7 @@ function SectionContact({ config, vendeurId }: { config:ConfigEcoleDanse; vendeu
               )}
             </div>
             <div style={{ height:200, overflow:'hidden', marginTop:20, border:`2px solid ${cm}20`, borderRadius:4 }}>
-              <iframe src={config.coordGoogleMaps} width="100%" height="100%" style={{ border:0, display:'block' }} allowFullScreen loading="lazy" title="Localisation" />
+              <iframe src={getUrlMaps(config)} width="100%" height="100%" style={{ border:0, display:'block' }} allowFullScreen loading="lazy" title="Localisation" />
             </div>
           </div>
           {/* 🟢 Add-on Contact — générique, réutilisé par tous les templates */}
