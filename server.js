@@ -35,7 +35,7 @@ const cronDomaineModule       = require('./routes/cron_domaine');
 const abonnementsStudioRoutes = require('./routes/abonnements_studio');
 const cronAbonnementsModule   = require('./routes/cron_abonnements_studio');
 const sponsorsPhotosRoutes = require('./routes/sponsorsphotos');
-const sponsorsPhotosRoutes = require('./routes/sponsorsphotos');
+
 const sponsorsRoutes = require('./routes/sponsors');
 
 const app  = express();
