@@ -150,6 +150,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
 
   const [siteData, setSiteData] = useState<any>(null);
   const [configMV, setConfigMV] = useState<any>({});
+  const [options, setOptions] = useState<any>({});
   const [loading, setLoading]   = useState(true);
   const [erreur, setErreur]     = useState('');
 
@@ -173,6 +174,12 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     fetch(`${API_BASE}/gestionnaires/${vendeurId}/config-multivendeur`)
       .then(r => r.ok ? r.json() : {})
       .then(data => { if (data) setConfigMV(data); })
+      .catch(() => {});
+
+    // Charger les options/add-ons activés (route publique) — ex: reservation_ecole
+    fetch(`${API_BASE}/gestionnaires/${vendeurId}/options`)
+      .then(r => r.ok ? r.json() : {})
+      .then(data => { if (data) setOptions(data); })
       .catch(() => {});
   }, [vendeurId, forceTemplate, isDemo]);
 
@@ -211,7 +218,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     if (templateId === 'cours-yoga')               return <TemplateStudioYoga config={config} />;
     if (templateId === 'cours-equitation')         return <TemplateEquitation config={config} />;
     if (templateId === 'cours-peinture')           return <TemplateEcolePeinture config={config} />;
-    if (templateId === 'cours-danse')              return <TemplateEcoleDanse config={config} />;
+    if (templateId === 'cours-danse')              return <TemplateEcoleDanse config={config} siteId={siteId} reservationActive={!!options.reservation_ecole} />;
     if (templateId === 'vitrine-foodtruck')        return <TemplateFoodTruck config={config} />;
     if (templateId === 'vitrine-boulangerie')      return <TemplateBoulangerie config={config} />;
     if (templateId === 'cours-coach')              return <TemplateCoachVie config={config} />;

@@ -520,15 +520,113 @@ function SectionStyles({ config, setPage }: { config:ConfigEcoleDanse; setPage:(
 
 // ─── HORAIRES ─────────────────────────────────────────────────────────────────
 
-function SectionHoraires({ config, setPage }: { config:ConfigEcoleDanse; setPage:(p:string)=>void }) {
+// ─── Calcule la prochaine date réelle pour un jour/heure récurrent ────────────
+// Ex: "Lundi" + "17h30" → prochain lundi à 17h30 (aujourd'hui inclus si l'heure
+// n'est pas encore passée), au format 'YYYY-MM-DDTHH:mm' (comme un input datetime-local).
+const JOURS_FR: Record<string, number> = { dimanche:0, lundi:1, mardi:2, mercredi:3, jeudi:4, vendredi:5, samedi:6 };
+function prochaineDateOccurrence(jour: string, heure: string): { debut: string; fin: string } | null {
+  const cible = JOURS_FR[(jour || '').toLowerCase().trim()];
+  if (cible === undefined) return null;
+  const m = (heure || '').match(/(\d{1,2})h(\d{2})?/i);
+  if (!m) return null;
+  const h = parseInt(m[1], 10); const min = m[2] ? parseInt(m[2], 10) : 0;
+  const maintenant = new Date();
+  const d = new Date(maintenant);
+  let delta = (cible - d.getDay() + 7) % 7;
+  d.setDate(d.getDate() + delta);
+  d.setHours(h, min, 0, 0);
+  if (delta === 0 && d.getTime() <= maintenant.getTime()) d.setDate(d.getDate() + 7); // heure déjà passée aujourd'hui
+  const fin = new Date(d.getTime() + 60 * 60 * 1000); // durée par défaut 1h
+  const fmt = (x: Date) => `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}T${String(x.getHours()).padStart(2,'0')}:${String(x.getMinutes()).padStart(2,'0')}`;
+  return { debut: fmt(d), fin: fmt(fin) };
+}
+
+// ─── Popup d'inscription à un cours ───────────────────────────────────────────
+function PopupInscriptionCours({ config, horaire, siteId, onFermer }: { config:ConfigEcoleDanse; horaire:CoursHoraire; siteId?:number|string; onFermer:()=>void }) {
+  const [nom, setNom] = useState('');
+  const [telephone, setTelephone] = useState('');
+  const [email, setEmail] = useState('');
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState('');
+  const [succes, setSucces] = useState(false);
+  const cm = config.couleurMagenta;
+
+  const soumettre = async () => {
+    setErreur('');
+    if (!nom.trim() || !telephone.trim() || !email.trim()) { setErreur('Tous les champs sont requis.'); return; }
+    const dates = prochaineDateOccurrence(horaire.jour, horaire.heure);
+    if (!dates || !siteId) { setErreur('Impossible de déterminer la date du cours. Réessayez plus tard.'); return; }
+    setEnvoi(true);
+    try {
+      const res = await fetch('/api/reservations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          site_id: siteId,
+          nom_client: nom.trim(),
+          email_client: email.trim(),
+          telephone: telephone.trim(),
+          date_debut: dates.debut,
+          date_fin: dates.fin,
+          nb_personnes: 1,
+          type_reservation: 'cours',
+          objet_reserve: `${horaire.style} — ${horaire.niveau} (${horaire.jour} ${horaire.heure})`,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setErreur(data.message || 'Erreur lors de l\'inscription.'); setEnvoi(false); return; }
+      setSucces(true);
+    } catch {
+      setErreur('Erreur de connexion. Réessayez.');
+    }
+    setEnvoi(false);
+  };
+
+  return (
+    <div onClick={onFermer} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.7)', zIndex:9998, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'#14141f', border:`1px solid ${cm}40`, borderRadius:14, padding:'28px 26px', maxWidth:420, width:'100%', position:'relative' }}>
+        <button onClick={onFermer} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:'rgba(255,255,255,.4)', fontSize:18, cursor:'pointer' }}>✕</button>
+        {succes ? (
+          <div style={{ textAlign:'center', padding:'20px 0' }}>
+            <p style={{ fontSize:40, marginBottom:12 }}>✅</p>
+            <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:700, color:'#fff', marginBottom:8 }}>Inscription envoyée !</p>
+            <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.5)' }}>Vous recevrez un courriel de confirmation sous peu.</p>
+          </div>
+        ) : (
+          <>
+            <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:10, fontWeight:700, color:cm, letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:6 }}>S'inscrire</p>
+            <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:700, color:'#fff', marginBottom:4 }}>{horaire.style} — {horaire.niveau}</p>
+            <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)', marginBottom:20 }}>{horaire.jour} {horaire.heure} · {horaire.salle} · {horaire.professeur}</p>
+            {erreur && <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'#ff6b6b', marginBottom:14, background:'rgba(255,107,107,.1)', padding:'8px 12px', borderRadius:6 }}>⚠️ {erreur}</p>}
+            {[
+              { v: nom, set: setNom, ph: 'Nom complet', type: 'text' },
+              { v: telephone, set: setTelephone, ph: 'Téléphone', type: 'tel' },
+              { v: email, set: setEmail, ph: 'Courriel', type: 'email' },
+            ].map((f, i) => (
+              <input key={i} type={f.type} value={f.v} placeholder={f.ph} onChange={e => f.set(e.target.value)}
+                style={{ width:'100%', boxSizing:'border-box', padding:'11px 14px', marginBottom:10, borderRadius:8, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.04)', color:'#fff', fontFamily:"'Poppins',sans-serif", fontSize:13, outline:'none' }} />
+            ))}
+            <button onClick={soumettre} disabled={envoi} className="btn-m" style={{ width:'100%', marginTop:8, opacity:envoi?.6:1 }}>
+              {envoi ? 'Envoi...' : "Confirmer l'inscription"}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SectionHoraires({ config, setPage, siteId, reservationActive }: { config:ConfigEcoleDanse; setPage:(p:string)=>void; siteId?:number|string; reservationActive?:boolean }) {
   const { isMobile } = useIsMobile();
   const rv = useReveal(.05);
   const horaires = ea(config.horaires, CONFIG_DANSE_DEFAUT.horaires);
   const styles = ea(config.stylesDanse, CONFIG_DANSE_DEFAUT.stylesDanse);
   const [filtre, setFiltre] = useState('Tous');
+  const [popup, setPopup] = useState<CoursHoraire | null>(null);
   const opts = ['Tous', ...Array.from(new Set(horaires.map(h => h.style)))];
   const filtres = filtre==='Tous' ? horaires : horaires.filter(h => h.style===filtre);
   const colStyle = (style: string) => styles.find(s => (s.nom || '').toLowerCase().includes((style || '').toLowerCase()) || (style || '').toLowerCase().includes(s.id || ''))?.couleurAccent || config.couleurMagenta;
+  const entetes = ['Jour / Heure','Style & Niveau','Professeur','Salle','Prix', ...(reservationActive ? [''] : [])];
   return (
     <section style={{ background:'#0f0f1a', padding:isMobile?'60px 20px':'100px 48px' }}>
       <div ref={rv.ref} className={`rv${rv.vis?' vis':''}`} style={{ maxWidth:1320, margin:'0 auto' }}>
@@ -547,27 +645,33 @@ function SectionHoraires({ config, setPage }: { config:ConfigEcoleDanse; setPage
           ))}
         </div>
         <div style={{ overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' as any }}>
-        <div style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.08)', borderRadius:8, overflow:'hidden', minWidth: isMobile ? 520 : 'auto' }}>
-          <div className="hr-row" style={{ background:'rgba(255,255,255,.06)', borderBottom:`2px solid ${config.couleurMagenta}30` }}>
-            {['Jour / Heure','Style & Niveau','Professeur','Salle','Prix'].map(h => (
-              <p key={h} style={{ fontFamily:"'Poppins',sans-serif", fontSize:10, fontWeight:700, color:'rgba(255,255,255,.4)', letterSpacing:'0.15em', textTransform:'uppercase' }}>{h}</p>
+        <div style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.08)', borderRadius:8, overflow:'hidden', minWidth: isMobile ? (reservationActive ? 620 : 520) : 'auto' }}>
+          <div className="hr-row" style={{ background:'rgba(255,255,255,.06)', borderBottom:`2px solid ${config.couleurMagenta}30`, gridTemplateColumns: reservationActive ? '110px 1fr 90px 90px 60px auto' : undefined }}>
+            {entetes.map((h,i) => (
+              <p key={i} style={{ fontFamily:"'Poppins',sans-serif", fontSize:10, fontWeight:700, color:'rgba(255,255,255,.4)', letterSpacing:'0.15em', textTransform:'uppercase' }}>{h}</p>
             ))}
           </div>
           {filtres.filter(h => h && typeof h === 'object' && h.jour).map((h,i) => {
             const col = colStyle(h.style);
             return (
-              <div key={i} className="hr-row">
+              <div key={i} className="hr-row" style={reservationActive ? { gridTemplateColumns:'110px 1fr 90px 90px 60px auto' } : undefined}>
                 <div><p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, fontWeight:700, color:'#fff' }}>{h.jour}</p><p style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, color:col }}>{h.heure}</p></div>
                 <div><span style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, padding:'2px 10px', background:`${col}20`, border:`1px solid ${col}40`, color:col, borderRadius:12, fontWeight:700 }}>{h.style}</span><p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)', marginTop:4 }}>{h.niveau} · {h.places} places</p></div>
                 <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)' }}>{h.professeur}</p>
                 <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.4)' }}>{h.salle}</p>
                 <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:700, color:col }}>{h.prix}</p>
+                {reservationActive && (
+                  <button onClick={() => setPopup(h)} style={{ padding:'7px 14px', borderRadius:20, background:col, color:'#fff', border:'none', fontFamily:"'Poppins',sans-serif", fontSize:11, fontWeight:700, letterSpacing:'0.05em', textTransform:'uppercase', cursor:'pointer', whiteSpace:'nowrap' as any }}>
+                    S'inscrire
+                  </button>
+                )}
               </div>
             );
           })}
         </div>
         </div>
       </div>
+      {popup && <PopupInscriptionCours config={config} horaire={popup} siteId={siteId} onFermer={() => setPopup(null)} />}
     </section>
   );
 }
@@ -1063,9 +1167,11 @@ function Footer({ config, setPage }: { config:ConfigEcoleDanse; setPage:(p:strin
 export interface TemplateEcoleDanseProps {
   config?: Partial<ConfigEcoleDanse>;
   isPreview?: boolean;
+  siteId?: number | string;
+  reservationActive?: boolean;
 }
 
-export default function TemplateEcoleDanse({ config: partiel, isPreview }: TemplateEcoleDanseProps) {
+export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId, reservationActive }: TemplateEcoleDanseProps) {
   const config: ConfigEcoleDanse = {
     ...CONFIG_DANSE_DEFAUT, ...partiel,
     couleurMagenta:     partiel?.couleurMagenta     || CONFIG_DANSE_DEFAUT.couleurMagenta,
@@ -1104,7 +1210,7 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview }: Templ
       case 'hero':        return <SectionHero        config={config} setPage={handlePage} rideauFini={rideauFini} />;
       case 'stats':       return <SectionStats       config={config} />;
       case 'styles':      return <SectionStyles      config={config} setPage={handlePage} />;
-      case 'horaires':    return <SectionHoraires    config={config} setPage={handlePage} />;
+      case 'horaires':    return <SectionHoraires    config={config} setPage={handlePage} siteId={siteId} reservationActive={!!reservationActive} />;
       case 'apropos':     return <SectionAPropos     config={config} />;
       case 'professeurs': return <SectionProfesseurs config={config} />;
       case 'evenements':  return <SectionEvenements  config={config} setPage={handlePage} />;
@@ -1126,7 +1232,7 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview }: Templ
           <>{sectionsActives.map(s => <div key={s.id}>{renderSection(s.id)}</div>)}<Footer config={config} setPage={handlePage} /></>
         )}
         {page === 'styles-page'      && (<><SectionStyles      config={config} setPage={handlePage} /><Footer config={config} setPage={handlePage} /></>)}
-        {page === 'horaires-page'    && (<><SectionHoraires    config={config} setPage={handlePage} /><Footer config={config} setPage={handlePage} /></>)}
+        {page === 'horaires-page'    && (<><SectionHoraires    config={config} setPage={handlePage} siteId={siteId} reservationActive={!!reservationActive} /><Footer config={config} setPage={handlePage} /></>)}
         {page === 'professeurs-page' && (<><SectionProfesseurs config={config} /><Footer config={config} setPage={handlePage} /></>)}
         {page === 'contact-page'     && (<><SectionContact     config={config} vendeurId={vendeurId} /><Footer config={config} setPage={handlePage} /></>)}
       </div>

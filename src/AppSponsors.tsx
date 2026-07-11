@@ -10,6 +10,8 @@ interface SponsorPhoto {
     thumb: string;
   };
   alt_description: string;
+  url_image?: string;      // 👈 AJOUTÉ
+  titre?: string;          // 👈 AJOUTÉ
   user: {
     name: string;
     links: {
@@ -41,7 +43,7 @@ function AppSponsors() {
   const fetchPhotos = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
       const response = await fetch('/api/sponsors/photos', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -58,7 +60,7 @@ function AppSponsors() {
   // Récupérer les stats
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
       const response = await fetch('/api/sponsors/stats', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -73,7 +75,7 @@ function AppSponsors() {
   // Récupérer les infos du sponsor
   const fetchSponsorInfo = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
       const response = await fetch('/api/sponsors/moi', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -102,7 +104,7 @@ function AppSponsors() {
     formData.append('alt_text', file.name);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
       const response = await fetch('/api/sponsors/photos', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -119,10 +121,9 @@ function AppSponsors() {
 
   // Supprimer une photo
   const handleDelete = async (id: number) => {
-    // ✅ CORRIGÉ : Utilisation de window.confirm au lieu de confirm
     if (!window.confirm('Voulez-vous vraiment supprimer cette photo ?')) return;
     try {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
       const response = await fetch(`/api/sponsors/photos/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
@@ -149,6 +150,9 @@ function AppSponsors() {
           {sponsorInfo && (
             <span style={{ fontSize: '14px', fontWeight: 400, color: '#666', marginLeft: '12px' }}>
               {sponsorInfo.nom} • {sponsorInfo.forfait || 'Basique'}
+              {sponsorInfo.type_sponsor === 'pub' && ' 📢'}
+              {sponsorInfo.type_sponsor === 'photos' && ' 📸'}
+              {sponsorInfo.type_sponsor === 'both' && ' ⭐'}
             </span>
           )}
         </h1>
@@ -168,7 +172,7 @@ function AppSponsors() {
       </div>
 
       {/* Onglets */}
-      <div style={{ display: 'flex', gap: '4px', borderBottom: '2px solid #e5e7eb', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', gap: '4px', borderBottom: '2px solid #e5e7eb', marginBottom: '24px', flexWrap: 'wrap' }}>
         <button
           onClick={() => setOnglet('photos')}
           style={{
@@ -219,7 +223,45 @@ function AppSponsors() {
       {/* Contenu */}
       {onglet === 'photos' && (
         <div>
-          {/* Upload */}
+          {/* Bouton vers la page de gestion complète des photos */}
+          <div style={{
+            background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
+            borderRadius: '12px',
+            padding: '16px 20px',
+            marginBottom: '20px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
+          }}>
+            <div>
+              <p style={{ margin: 0, fontWeight: 600, color: '#92400e' }}>
+                📸 Gérez toutes vos photos sponsorisées
+              </p>
+              <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#78350f' }}>
+                Upload, suppression, copie d'URL — tout en un endroit
+              </p>
+            </div>
+            <button
+              onClick={() => window.location.href = '/sponsor/photos'}
+              style={{
+                padding: '10px 24px',
+                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                border: 'none',
+                borderRadius: '8px',
+                color: '#000',
+                fontWeight: 700,
+                cursor: 'pointer',
+                fontSize: '14px',
+                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
+              }}
+            >
+              📸 Gérer mes photos →
+            </button>
+          </div>
+
+          {/* Upload rapide */}
           <div style={{
             border: '2px dashed #ddd',
             borderRadius: '12px',
@@ -229,13 +271,13 @@ function AppSponsors() {
             background: '#fafafa'
           }}>
             <p style={{ margin: '0 0 12px 0', color: '#666' }}>
-              📤 Uploader une photo sponsorisée
+              📤 Uploader une photo rapidement
             </p>
             <label style={{
               display: 'inline-block',
               padding: '10px 24px',
               background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-              color: '#fff',
+              color: '#000',
               borderRadius: '8px',
               cursor: 'pointer',
               fontWeight: 600,
@@ -253,55 +295,49 @@ function AppSponsors() {
             </p>
           </div>
 
-          {/* Liste des photos */}
+          {/* Aperçu des dernières photos */}
           {photos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
               📭 Aucune photo sponsorisée pour le moment
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
-              {photos.map((photo) => (
-                <div
-                  key={photo.id}
-                  style={{
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                    background: '#fff',
-                    border: '1px solid #eee',
-                  }}
-                >
-                  <img
-                    src={photo.urls.small}
-                    alt={photo.alt_description}
-                    style={{ width: '100%', height: '150px', objectFit: 'cover' }}
-                  />
-                  <div style={{ padding: '12px' }}>
-                    <p style={{ fontSize: '12px', color: '#666', margin: '0 0 8px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {photo.alt_description || 'Sans titre'}
-                    </p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '11px', color: '#999' }}>
-                        {new Date(photo.created_at).toLocaleDateString()}
-                      </span>
-                      <button
-                        onClick={() => handleDelete(photo.id)}
-                        style={{
-                          padding: '4px 12px',
-                          background: '#ef4444',
-                          border: 'none',
-                          borderRadius: '6px',
-                          color: '#fff',
-                          fontSize: '11px',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        🗑️
-                      </button>
+            <div>
+              <p style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>
+                📸 Dernières photos ajoutées ({photos.length} au total)
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px' }}>
+                {photos.slice(0, 6).map((photo) => (
+                  <div
+                    key={photo.id}
+                    style={{
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      background: '#fff',
+                      border: '1px solid #eee',
+                    }}
+                  >
+                    {/* ✅ CORRIGÉ : utilise la bonne propriété */}
+                    <img
+                      src={photo.urls?.small || photo.url_image || ''}
+                      alt={photo.alt_description || photo.titre || 'Photo'}
+                      style={{ width: '100%', height: '150px', objectFit: 'cover' }}
+                    />
+                    <div style={{ padding: '8px 12px' }}>
+                      <p style={{ fontSize: '11px', color: '#666', margin: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {photo.titre || photo.alt_description || 'Sans titre'}
+                      </p>
                     </div>
                   </div>
+                ))}
+              </div>
+              {photos.length > 6 && (
+                <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                  <span style={{ fontSize: '13px', color: '#999' }}>
+                    + {photos.length - 6} autres photos
+                  </span>
                 </div>
-              ))}
+              )}
             </div>
           )}
         </div>
@@ -385,6 +421,11 @@ function AppSponsors() {
                 {sponsorInfo?.forfait === 'standard' && '50 photos • 100$ / mois'}
                 {sponsorInfo?.forfait === 'premium' && '200 photos • 250$ / mois'}
               </div>
+              <div style={{ fontSize: '12px', color: '#92400e', marginTop: '4px' }}>
+                Type: {sponsorInfo?.type_sponsor === 'photos' && '📸 Photos'}
+                {sponsorInfo?.type_sponsor === 'pub' && '📢 Publicité'}
+                {sponsorInfo?.type_sponsor === 'both' && '⭐ Photos + Publicité'}
+              </div>
             </div>
 
             <button
@@ -395,7 +436,7 @@ function AppSponsors() {
                 background: 'linear-gradient(135deg, #f59e0b, #d97706)',
                 border: 'none',
                 borderRadius: '8px',
-                color: '#fff',
+                color: '#000',
                 fontSize: '16px',
                 fontWeight: 700,
                 cursor: 'pointer',

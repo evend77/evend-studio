@@ -22,6 +22,7 @@ import DomaineAnnule         from './pages/DomaineAnnule';
 // 👇 NOUVEAUX IMPORTS POUR COMMANDITAIRE
 import InscriptionCommanditaire from './pages/commanditaire/InscriptionCommanditaire';
 import AppSponsors from './AppSponsors';
+import MesPhotosSponsor from './pages/commanditaire/MesPhotosSponsor';
 
 const AnyLoginPage = LoginPage        as any;
 const AnyGestionnaire = AppGestionnaireStudio as any;
@@ -179,6 +180,7 @@ export default function Main() {
         <Route path="/politiques/:slug"   element={<PagePolitique />} />
         <Route path="/documents"           element={<PageDocumentsPlateforme />} />
         <Route path="/documents/:slug"     element={<PageDocumentsPlateforme />} />
+        <Route path="/sponsor/photos" element={<MesPhotosSponsor />} />
 
         {/* 👇 ROUTES COMMANDITAIRES */}
         <Route path="/commanditaire/inscription" element={<InscriptionCommanditaire />} />
