@@ -72,11 +72,15 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
   const [apercu, setApercu] = useState(false);
   const [modeApercu, setModeApercu] = useState<'desktop'|'tablette'|'mobile'>('desktop');
   const [resetConfirm, setResetConfirm] = useState(false);
+  const [reservationEcoleActive, setReservationEcoleActive] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     fetch(`/api/studio/sites/${vendeurId}`, { headers:{ Authorization:`Bearer ${token}` }, credentials:'include' })
       .then(r=>r.ok?r.json():null).then(data=>{if(data?.config)setConfig(prev=>({...prev,...data.config}));}).catch(()=>{});
+    // Route publique — indique si l'add-on Réservation École/Cours est activé pour ce gestionnaire
+    fetch(`/api/gestionnaires/${vendeurId}/options`)
+      .then(r=>r.ok?r.json():null).then(data=>{if(data)setReservationEcoleActive(!!data.reservation_ecole);}).catch(()=>{});
   }, [vendeurId]);
 
   const set = (k: keyof ConfigEcoleDanse, v: any) => setConfig(prev=>({...prev,[k]:v}));
@@ -145,7 +149,7 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
             <div><p style={{ fontSize:10, color:'#888', fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase' }}>Template Gratuit</p><p style={{ fontSize:13, fontWeight:700, color:'#1a1a1a' }}>École de Danse</p></div>
           </div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:3, paddingBottom:10 }}>
-            {ONGLETS.map(o => <button key={o.id} onClick={()=>setOnglet(o.id)} style={{ padding:'3px 6px', borderRadius:5, border:'none', cursor:'pointer', fontSize:10, fontWeight:500, background:onglet===o.id?CM:'#f3f4f6', color:onglet===o.id?'#fff':'#555', transition:'all .15s' }}>{o.emoji} {o.label}</button>)}
+            {ONGLETS.map(o => <button key={o.id} onClick={()=>setOnglet(o.id)} style={{ padding:'3px 6px', borderRadius:5, border:'none', cursor:'pointer', fontSize:10, fontWeight:500, background:onglet===o.id?CM:'#f3f4f6', color:onglet===o.id?'#fff':'#555', transition:'all .15s' }}>{o.emoji} {o.label}{o.id==='horaires' && reservationEcoleActive ? ' 🔒' : ''}</button>)}
           </div>
         </div>
 
@@ -189,7 +193,18 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
             <button onClick={addStyle} style={{ width:'100%', padding:8, border:`2px dashed ${CM}`, borderRadius:8, background:'transparent', color:CM, cursor:'pointer', fontSize:11, fontWeight:600 }}>+ Ajouter un style</button>
           </>)}
 
-          {onglet==='horaires' && (<>
+          {onglet==='horaires' && (reservationEcoleActive ? (
+            <div style={{ background:'#fff0f8', border:`1.5px solid ${CM}40`, borderRadius:10, padding:16, textAlign:'center' }}>
+              <div style={{ fontSize:32, marginBottom:8 }}>🔒</div>
+              <p style={{ fontSize:12, fontWeight:700, color:'#1a1a1a', marginBottom:6 }}>Géré ailleurs maintenant</p>
+              <p style={{ fontSize:11, color:'#666', lineHeight:1.5, marginBottom:10 }}>
+                L'add-on <strong>Réservation — École/Cours</strong> est activé. Vos horaires affichés sur le site proviennent maintenant de vos vrais créneaux (avec places disponibles en temps réel), pas de cette liste manuelle.
+              </p>
+              <p style={{ fontSize:11, color:'#666', lineHeight:1.5 }}>
+                Pour ajouter, modifier ou supprimer un cours, allez dans <strong>Mes Réservations Écoles → Créer des créneaux</strong> depuis le menu principal du dashboard.
+              </p>
+            </div>
+          ) : (<>
             {horaires.map((h,i) => <div key={i} style={{ border:'1px solid #e5e7eb', borderRadius:8, padding:10, marginBottom:10 }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:7 }}><span style={{ fontSize:11, fontWeight:600 }}>{h.jour} {h.heure} — {h.style}</span><Del onClick={()=>delHor(i)} /></div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
@@ -204,7 +219,7 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
               </div>
             </div>)}
             <button onClick={addHor} style={{ width:'100%', padding:8, border:`2px dashed ${CM}`, borderRadius:8, background:'transparent', color:CM, cursor:'pointer', fontSize:11, fontWeight:600 }}>+ Ajouter un cours</button>
-          </>)}
+          </>))}
 
           {onglet==='professeurs' && (<>
             {profs.map((p,i) => <div key={i} style={{ border:'1px solid #e5e7eb', borderRadius:8, padding:10, marginBottom:10 }}>

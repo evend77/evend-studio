@@ -34,6 +34,7 @@ const adminDomainesRoutes     = require('./routes/admin_domaines');
 const cronDomaineModule       = require('./routes/cron_domaine');
 const abonnementsStudioRoutes = require('./routes/abonnements_studio');
 const cronAbonnementsModule   = require('./routes/cron_abonnements_studio');
+const cronReservationsModule  = require('./routes/cron_reservations');
 const sponsorsPhotosRoutes = require('./routes/sponsorsphotos');
 
 const sponsorsRoutes = require('./routes/sponsors');
@@ -243,6 +244,7 @@ app.use('/api/admin/domaines',     adminDomainesRoutes);
 app.use('/api/cron-domaine',       cronDomaineModule);
 app.use('/api/abonnements-studio', abonnementsStudioRoutes);
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
+app.use('/api/cron-reservations',  cronReservationsModule);
 
 app.use('/api/branding-public', require('./routes/branding_public'));
 app.use('/api/blacklist-contact', require('./routes/blacklist_contact'));
@@ -563,12 +565,21 @@ app.post('/api/studio/test-email', authenticateToken, async (req, res) => {
     const vars = {
       '{$nomClient}':            'Marie Dupont (TEST)',
       '{$emailClient}':          destinataire,
+      '{$objetReserve}':         'Cours Salsa débutant (TEST)',
+      '{$detailsReservation}':   `<p><strong>📅 Date :</strong> Vendredi 14 juin 2026 à 19h30</p>
+      <p style="margin-top:8px"><strong>📍 Salle :</strong> Salle A</p>
+      <p style="margin-top:8px"><strong>👤 Professeur :</strong> Isabelle Morin</p>
+      <p style="margin-top:8px"><strong>🎯 Niveau :</strong> Débutant</p>`,
       '{$dateReservation}':      'Vendredi 14 juin 2026 à 19h30',
-      '{$nbPersonnes}':          '4',
+      '{$nbPersonnes}':          '1',
+      '{$salle}':                'Salle A',
+      '{$professeur}':           'Isabelle Morin',
+      '{$niveau}':               'Débutant',
       '{$idReservation}':        '9999',
+      '{$lienAnnulation}':       '#test-lien-annulation',
       '{$nomSite}':              'Mon Site Studio',
       '{$couleur}':              '#c9a96e',
-      '{$notesSupplementaires}': 'Table près de la fenêtre svp.',
+      '{$notesSupplementaires}': 'Ceci est un envoi de test.',
     };
     for (const [cle, val] of Object.entries(vars)) {
       html  = html.split(cle).join(val);
@@ -713,6 +724,7 @@ if (process.env.NODE_ENV === 'production') {
 // =====================================================================
 cronDomaineModule.demarrer();
 cronAbonnementsModule.demarrer();
+cronReservationsModule.demarrer();
 
 // =====================================================================
 // 🚀 DÉMARRAGE

@@ -4,103 +4,170 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
+const crypto  = require('crypto');
 const { authenticateToken } = require('../middleware/auth');
 
-// ── Envoi email AWS SES ───────────────────────────────────────────────────────
-async function envoyerEmailConfirmation(reservation, configSite) {
+const BACKEND_URL = process.env.BACKEND_URL || 'https://www.e-vendstudio.ca';
+// ⚠️ À vérifier : je n'ai pas trouvé de variable d'environnement existante pour
+// l'URL publique du backend dans les fichiers que tu m'as envoyés. J'utilise ce
+// fallback par défaut (même convention que FROM_EMAIL plus bas). Si BACKEND_URL
+// n'est pas défini dans tes variables d'environnement, ajoute-le, sinon les liens
+// d'annulation dans les courriels pointeront vers cette URL par défaut.
+
+// ── Bas niveau : envoi brut via AWS SES ────────────────────────────────────────
+async function envoyerSES(destinataire, sujet, html) {
+  const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
+  const ses = new SESClient({
+    region: process.env.AWS_REGION || 'us-east-2',
+    credentials: {
+      accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    }
+  });
+  await ses.send(new SendEmailCommand({
+    Destination: { ToAddresses: [destinataire] },
+    Message: {
+      Subject: { Data: sujet, Charset: 'UTF-8' },
+      Body: { Html: { Data: html, Charset: 'UTF-8' } }
+    },
+    Source: process.env.FROM_EMAIL || 'contact@e-vend.ca',
+  }));
+}
+
+// ── Remplace les variables {$...} dans un sujet/html (même approche que le test-email de server.js) ──
+function substituerVariables(texte, vars) {
+  let resultat = texte;
+  for (const [cle, val] of Object.entries(vars)) {
+    resultat = resultat.split(cle).join(val ?? '');
+  }
+  return resultat;
+}
+
+// ── Construit le bloc de détails, n'affiche que ce qui s'applique au type de réservation ──
+function construireDetailsReservationHtml(reservation, dispo) {
+  const dateDebut = new Date(reservation.date_debut).toLocaleString('fr-CA', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+  const lignes = [`<p><strong>📅 Date :</strong> ${dateDebut}</p>`];
+  if (reservation.objet_reserve) lignes.push(`<p style="margin-top:8px"><strong>📋 Réservation :</strong> ${reservation.objet_reserve}</p>`);
+  if (dispo?.salle) lignes.push(`<p style="margin-top:8px"><strong>📍 Salle :</strong> ${dispo.salle}</p>`);
+  if (dispo?.professeur) lignes.push(`<p style="margin-top:8px"><strong>👤 Professeur :</strong> ${dispo.professeur}</p>`);
+  if (dispo?.niveau) lignes.push(`<p style="margin-top:8px"><strong>🎯 Niveau :</strong> ${dispo.niveau}</p>`);
+  if (reservation.nb_personnes && reservation.nb_personnes > 1) lignes.push(`<p style="margin-top:8px"><strong>👥 Personnes :</strong> ${reservation.nb_personnes}</p>`);
+  return lignes.join('\n      ');
+}
+
+// ── Récupère salle/professeur/niveau si un créneau (disponibilite) correspond ──
+async function recupererDispoAssociee(siteId, dateDebut) {
   try {
-    const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
-    const ses = new SESClient({
-      region: process.env.AWS_REGION || 'us-east-2',
-      credentials: {
-        accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-      }
-    });
+    const r = await pool.query(
+      `SELECT titre, salle, professeur, niveau FROM disponibilites WHERE site_id = $1 AND date_debut = $2::timestamp LIMIT 1`,
+      [siteId, dateDebut]
+    );
+    return r.rows[0] || null;
+  } catch {
+    return null;
+  }
+}
 
-    const dateDebut = new Date(reservation.date_debut).toLocaleString('fr-CA', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-      hour: '2-digit', minute: '2-digit'
-    });
+// ── Fallbacks HTML codés en dur, utilisés seulement si le gestionnaire n'a pas de modèle actif ──
+function templateFallback(type, couleur, nomSite, detailsHtml, reservation, lienAnnulation) {
+  if (type === 'annulation') {
+    return {
+      sujet: `Réservation annulée — ${nomSite}`,
+      html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
+<body style="background:#f4f4f2;font-family:'Segoe UI',Arial,sans-serif;padding:32px 16px;margin:0">
+<div style="max-width:600px;margin:0 auto">
+<div style="background:#dc2626;border-radius:12px 12px 0 0;padding:24px 32px"><h1 style="color:#fff;font-size:20px;margin:0">${nomSite}</h1></div>
+<div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none">
+  <h2 style="font-size:20px;color:#1a1a1a;margin:0 0 12px">Réservation annulée</h2>
+  <p style="font-size:14px;color:#555;margin:0 0 16px">Bonjour <strong>${reservation.nom_client}</strong>, la réservation suivante a été annulée :</p>
+  <div style="background:#f8f8f6;border-left:4px solid #dc2626;border-radius:0 8px 8px 0;padding:16px 20px;margin:16px 0">${detailsHtml}</div>
+  <p style="font-size:13px;color:#888;margin-top:24px">Cordialement,<br><strong>${nomSite}</strong></p>
+</div>
+<div style="background:#f8f8f6;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;padding:16px 32px;text-align:center"><p style="font-size:11px;color:#aaa">Propulsé par e-Vend Studio</p></div>
+</div></body></html>`,
+    };
+  }
+  // confirmation (défaut)
+  return {
+    sujet: `✅ Réservation confirmée — ${nomSite}`,
+    html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
+<body style="background:#f4f4f2;font-family:'Segoe UI',Arial,sans-serif;padding:32px 16px;margin:0">
+<div style="max-width:600px;margin:0 auto">
+<div style="background:${couleur};border-radius:12px 12px 0 0;padding:24px 32px"><h1 style="color:#fff;font-size:20px;margin:0">${nomSite}</h1></div>
+<div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none">
+  <div style="text-align:center;margin-bottom:24px">
+    <div style="font-size:56px">✅</div>
+    <h2 style="font-size:22px;font-weight:800;color:#1a1a1a;margin-top:12px">Réservation confirmée!</h2>
+  </div>
+  <div style="background:#f8f8f6;border-left:4px solid ${couleur};border-radius:0 8px 8px 0;padding:16px 20px;margin:24px 0">${detailsHtml}</div>
+  <div style="text-align:center;margin:8px 0 4px"><span style="display:inline-block;background:${couleur}20;color:${couleur};border:1px solid ${couleur}40;padding:4px 14px;border-radius:20px;font-size:12px;font-weight:700">Numéro de réservation : #${reservation.id}</span></div>
+  ${lienAnnulation ? `<div style="text-align:center;margin:28px 0 8px"><a href="${lienAnnulation}" style="display:inline-block;padding:11px 24px;border:1.5px solid #dc2626;border-radius:8px;color:#dc2626;text-decoration:none;font-size:13px;font-weight:600">Annuler cette réservation</a></div>` : ''}
+</div>
+<div style="background:#f8f8f6;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;padding:16px 32px;text-align:center"><p style="font-size:11px;color:#aaa;line-height:1.6">${nomSite} — Propulsé par e-Vend Studio<br>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p></div>
+</div></body></html>`,
+  };
+}
 
+// ── Point d'entrée principal : envoie le courriel de confirmation ou d'annulation ──
+// Utilise le modèle personnalisé du gestionnaire (configSite.modeles_courriel) s'il
+// existe et est actif; sinon, repli sur le HTML codé en dur ci-dessus.
+async function envoyerCourrielReservation(type, reservation, configSite) {
+  try {
     const couleur = configSite?.couleurPrincipale || '#c9a96e';
     const nomSite = configSite?.nomEntreprise || 'Notre service';
+    const dispo = await recupererDispoAssociee(reservation.site_id, reservation.date_debut);
+    const detailsHtml = construireDetailsReservationHtml(reservation, dispo);
+    const lienAnnulation = type === 'confirmation' && reservation.token_annulation
+      ? `${BACKEND_URL}/api/reservations/annuler/${reservation.token_annulation}`
+      : '';
 
-    const html = `<!DOCTYPE html>
-<html lang="fr"><head><meta charset="UTF-8">
-<style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { background:#f4f4f2; font-family:'Segoe UI',Arial,sans-serif; padding:32px 16px; }
-.wrap { max-width:600px; margin:0 auto; }
-.hdr { background:${couleur}; border-radius:12px 12px 0 0; padding:24px 32px; }
-.hdr h1 { color:#fff; font-size:20px; font-weight:800; }
-.hdr p { color:rgba(255,255,255,0.8); font-size:12px; margin-top:4px; }
-.body { background:#fff; padding:32px; border:1px solid #e5e7eb; border-top:none; }
-.check { text-align:center; margin-bottom:24px; }
-.check-icon { font-size:56px; }
-.check h2 { font-size:22px; font-weight:800; color:#1a1a1a; margin-top:12px; }
-.check p { font-size:14px; color:#6b7280; margin-top:6px; }
-.box { background:#f8f8f6; border-left:4px solid ${couleur}; border-radius:0 8px 8px 0; padding:16px 20px; margin:24px 0; }
-.row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #f0f0f0; font-size:13px; }
-.row:last-child { border-bottom:none; }
-.lbl { color:#6b7280; } .val { font-weight:700; color:#1a1a1a; }
-.ftr { background:#f8f8f6; border-radius:0 0 12px 12px; border:1px solid #e5e7eb; border-top:none; padding:18px 32px; text-align:center; }
-.ftr p { font-size:11px; color:#aaa; line-height:1.6; }
-.badge { display:inline-block; background:${couleur}20; color:${couleur}; border:1px solid ${couleur}40; padding:4px 14px; border-radius:20px; font-size:12px; font-weight:700; margin-top:16px; }
-</style></head>
-<body><div class="wrap">
-<div class="hdr"><h1>${nomSite}</h1><p>Propulsé par e-Vend Studio</p></div>
-<div class="body">
-  <div class="check">
-    <div class="check-icon">✅</div>
-    <h2>Réservation confirmée!</h2>
-    <p>Voici le récapitulatif de votre réservation.</p>
-  </div>
-  <div class="box">
-    <div class="row"><span class="lbl">Nom</span><span class="val">${reservation.nom_client}</span></div>
-    <div class="row"><span class="lbl">Date</span><span class="val">${dateDebut}</span></div>
-    ${reservation.nb_personnes ? `<div class="row"><span class="lbl">Personnes</span><span class="val">${reservation.nb_personnes}</span></div>` : ''}
-    ${reservation.objet_reserve ? `<div class="row"><span class="lbl">Réservation</span><span class="val">${reservation.objet_reserve}</span></div>` : ''}
-    ${reservation.notes ? `<div class="row"><span class="lbl">Notes</span><span class="val">${reservation.notes}</span></div>` : ''}
-    <div class="row"><span class="lbl">Statut</span><span class="val">✅ Confirmé</span></div>
-  </div>
-  <div class="badge">Numéro de réservation : #${reservation.id}</div>
-</div>
-<div class="ftr"><p>${nomSite} — Propulsé par e-Vend Studio<br>Cet email a été envoyé automatiquement, merci de ne pas y répondre.</p></div>
-</div></body></html>`;
+    const modele = configSite?.modeles_courriel?.[type];
+    let sujet, html;
 
-    // Email au client
-    await ses.send(new SendEmailCommand({
-      Destination: { ToAddresses: [reservation.email_client] },
-      Message: {
-        Subject: { Data: `✅ Réservation confirmée — ${nomSite}`, Charset: 'UTF-8' },
-        Body: { Html: { Data: html, Charset: 'UTF-8' } }
-      },
-      Source: process.env.FROM_EMAIL || 'contact@e-vend.ca',
-    }));
+    if (modele?.html && modele.actif !== false) {
+      const vars = {
+        '{$nomClient}':           reservation.nom_client || '',
+        '{$emailClient}':         reservation.email_client || '',
+        '{$objetReserve}':        reservation.objet_reserve || '',
+        '{$detailsReservation}':  detailsHtml,
+        '{$dateReservation}':     new Date(reservation.date_debut).toLocaleString('fr-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        '{$nbPersonnes}':         String(reservation.nb_personnes || 1),
+        '{$salle}':               dispo?.salle || '',
+        '{$professeur}':          dispo?.professeur || '',
+        '{$niveau}':              dispo?.niveau || '',
+        '{$idReservation}':       String(reservation.id),
+        '{$lienAnnulation}':      lienAnnulation,
+        '{$nomSite}':             nomSite,
+        '{$couleur}':             couleur,
+        '{$notesSupplementaires}': reservation.notes || '',
+      };
+      sujet = substituerVariables(modele.sujet || '', vars);
+      html  = substituerVariables(modele.html, vars);
+    } else {
+      const fallback = templateFallback(type, couleur, nomSite, detailsHtml, reservation, lienAnnulation);
+      sujet = fallback.sujet;
+      html  = fallback.html;
+    }
 
-    // Email au vendeur (notification)
-    if (configSite?.gestionnaireEmail) {
+    await envoyerSES(reservation.email_client, sujet, html);
+
+    // Notification interne au gestionnaire — seulement pour une nouvelle confirmation
+    if (type === 'confirmation' && configSite?.gestionnaireEmail) {
       const htmlVendeur = `<div style="font-family:sans-serif;padding:24px">
         <h2>🔔 Nouvelle réservation reçue</h2>
         <p><strong>Client:</strong> ${reservation.nom_client} (${reservation.email_client})</p>
-        <p><strong>Date:</strong> ${dateDebut}</p>
-        <p><strong>Personnes:</strong> ${reservation.nb_personnes || 1}</p>
+        <div style="margin:12px 0">${detailsHtml}</div>
         ${reservation.notes ? `<p><strong>Notes:</strong> ${reservation.notes}</p>` : ''}
       </div>`;
-      await ses.send(new SendEmailCommand({
-        Destination: { ToAddresses: [configSite.gestionnaireEmail] },
-        Message: {
-          Subject: { Data: `🔔 Nouvelle réservation — ${reservation.nom_client}`, Charset: 'UTF-8' },
-          Body: { Html: { Data: htmlVendeur, Charset: 'UTF-8' } }
-        },
-        Source: process.env.FROM_EMAIL || 'contact@e-vend.ca',
-      }));
+      await envoyerSES(configSite.gestionnaireEmail, `🔔 Nouvelle réservation — ${reservation.nom_client}`, htmlVendeur);
     }
 
-    console.log(`✅ Emails envoyés pour réservation #${reservation.id}`);
+    console.log(`✅ Courriel ${type} envoyé pour réservation #${reservation.id}`);
   } catch (err) {
-    console.error('❌ Erreur envoi email réservation:', err.message);
+    console.error(`❌ Erreur envoi courriel ${type}:`, err.message);
   }
 }
 
@@ -203,15 +270,16 @@ router.post('/', async (req, res) => {
     }
 
     // Créer la réservation
+    const tokenAnnulation = crypto.randomBytes(24).toString('hex');
     const result = await pool.query(
       `INSERT INTO reservations
         (site_id, nom_client, email_client, telephone, date_debut, date_fin,
-         nb_personnes, notes, statut, type_reservation, objet_reserve)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'confirmee',$9,$10)
+         nb_personnes, notes, statut, type_reservation, objet_reserve, token_annulation)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'confirmee',$9,$10,$11)
        RETURNING *`,
       [site_id, nom_client, email_client, telephone || null,
        date_debut, date_fin || date_debut, nb_personnes || 1,
-       notes || null, type_reservation || null, objet_reserve || null]
+       notes || null, type_reservation || null, objet_reserve || null, tokenAnnulation]
     );
 
     const reservation = result.rows[0];
@@ -229,8 +297,8 @@ router.post('/', async (req, res) => {
       gestionnaireEmail: siteData?.gestionnaire_email,
     };
 
-    // Envoyer emails
-    await envoyerEmailConfirmation(reservation, configSite);
+    // Envoyer le courriel de confirmation (modèle personnalisé, sinon repli par défaut)
+    await envoyerCourrielReservation('confirmation', reservation, configSite);
 
     res.status(201).json({
       success: true,
@@ -245,6 +313,49 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('POST reservations:', err);
     res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// ── Petite page HTML autonome pour les réponses du lien d'annulation (ouvert dans le navigateur, pas une API JSON) ──
+function pageAnnulationHtml(titre, message, succes) {
+  return `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${titre}</title></head>
+<body style="margin:0;background:#f4f4f2;font-family:'Segoe UI',Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px">
+  <div style="background:#fff;border-radius:16px;border:1px solid #e5e7eb;padding:40px 32px;max-width:440px;width:100%;text-align:center">
+    <div style="font-size:48px;margin-bottom:12px">${succes ? '✅' : '⚠️'}</div>
+    <h1 style="font-size:20px;color:#1a1a1a;margin:0 0 10px">${titre}</h1>
+    <p style="font-size:14px;color:#666;line-height:1.5;margin:0">${message}</p>
+  </div>
+</body></html>`;
+}
+
+// GET /api/reservations/annuler/:token — lien public cliqué depuis le courriel de confirmation
+router.get('/annuler/:token', async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT r.*, s.config, g.email as gestionnaire_email
+       FROM reservations r
+       JOIN sites s ON s.id = r.site_id
+       JOIN gestionnaires g ON g.id = s.gestionnaire_id
+       WHERE r.token_annulation = $1`,
+      [req.params.token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).send(pageAnnulationHtml('Lien invalide', "Ce lien d'annulation n'existe pas ou n'est plus valide. Contactez directement le commerce si vous souhaitez annuler votre réservation.", false));
+    }
+    const reservation = result.rows[0];
+    if (reservation.statut === 'annulee') {
+      return res.send(pageAnnulationHtml('Déjà annulée', 'Cette réservation avait déjà été annulée. Aucune action supplémentaire n\'est requise.', true));
+    }
+
+    await pool.query(`UPDATE reservations SET statut = 'annulee' WHERE id = $1`, [reservation.id]);
+
+    const configSite = { ...(reservation.config || {}), gestionnaireEmail: reservation.gestionnaire_email };
+    await envoyerCourrielReservation('annulation', reservation, configSite);
+
+    return res.send(pageAnnulationHtml('Réservation annulée', 'Votre réservation a bien été annulée. Une place est maintenant libre pour ce créneau. Un courriel de confirmation vous a été envoyé.', true));
+  } catch (err) {
+    console.error('GET /annuler/:token', err);
+    return res.status(500).send(pageAnnulationHtml('Erreur', "Une erreur est survenue. Veuillez contacter directement le commerce pour annuler votre réservation.", false));
   }
 });
 
@@ -325,11 +436,26 @@ router.put('/:id/statut', authenticateToken, async (req, res) => {
     return res.status(400).json({ message: 'Statut invalide.' });
   }
   try {
-    await pool.query(
+    const result = await pool.query(
       `UPDATE reservations SET statut = $1
-       WHERE id = $2 AND site_id IN (SELECT id FROM sites WHERE gestionnaire_id = $3)`,
+       WHERE id = $2 AND site_id IN (SELECT id FROM sites WHERE gestionnaire_id = $3)
+       RETURNING *`,
       [statut, req.params.id, req.user.id]
     );
+    if (result.rowCount === 0) return res.status(404).json({ message: 'Réservation introuvable.' });
+
+    // Le gestionnaire vient d'annuler manuellement — avertir le client par courriel
+    if (statut === 'annulee' && result.rows[0].email_client) {
+      const reservation = result.rows[0];
+      const siteResult = await pool.query(
+        `SELECT s.config, g.email as gestionnaire_email FROM sites s JOIN gestionnaires g ON g.id = s.gestionnaire_id WHERE s.id = $1`,
+        [reservation.site_id]
+      );
+      const siteData = siteResult.rows[0];
+      const configSite = { ...(siteData?.config || {}), gestionnaireEmail: siteData?.gestionnaire_email };
+      envoyerCourrielReservation('annulation', reservation, configSite); // pas de await — ne bloque pas la réponse au gestionnaire
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur.' });
@@ -369,7 +495,7 @@ router.get('/mes-disponibilites', authenticateToken, async (req, res) => {
 
 // PUT /api/reservations/disponibilites/:id — modifier un créneau (dates, capacité, actif)
 router.put('/disponibilites/:id', authenticateToken, async (req, res) => {
-  const { date_debut, date_fin, capacite_max, titre, actif, salle, professeur, niveau, notes_internes } = req.body;
+  const { date_debut, date_fin, capacite_max, titre, actif, salle, professeur, niveau, notes_internes, style, prix } = req.body;
   try {
     const siteResult = await pool.query('SELECT id FROM sites WHERE gestionnaire_id = $1', [req.user.id]);
     if (!siteResult.rows.length) return res.status(404).json({ message: 'Site non trouvé.' });
@@ -385,10 +511,12 @@ router.put('/disponibilites/:id', authenticateToken, async (req, res) => {
               salle          = COALESCE($6, salle),
               professeur     = COALESCE($7, professeur),
               niveau         = COALESCE($8, niveau),
-              notes_internes = COALESCE($9, notes_internes)
-        WHERE id = $10 AND site_id = $11
+              notes_internes = COALESCE($9, notes_internes),
+              style          = COALESCE($10, style),
+              prix           = COALESCE($11, prix)
+        WHERE id = $12 AND site_id = $13
         RETURNING *`,
-      [date_debut, date_fin, capacite_max, titre, actif, salle, professeur, niveau, notes_internes, req.params.id, siteId]
+      [date_debut, date_fin, capacite_max, titre, actif, salle, professeur, niveau, notes_internes, style, prix, req.params.id, siteId]
     );
     if (result.rowCount === 0) return res.status(404).json({ message: 'Créneau introuvable.' });
     res.json({ success: true, disponibilite: result.rows[0] });
@@ -399,7 +527,7 @@ router.put('/disponibilites/:id', authenticateToken, async (req, res) => {
 
 // POST /api/reservations/disponibilites — créer un créneau
 router.post('/disponibilites', authenticateToken, async (req, res) => {
-  const { date_debut, date_fin, capacite_max, titre, salle, professeur, niveau, notes_internes } = req.body;
+  const { date_debut, date_fin, capacite_max, titre, salle, professeur, niveau, notes_internes, style, prix } = req.body;
   if (!date_debut || !date_fin) return res.status(400).json({ message: 'Dates requises.' });
   try {
     const siteResult = await pool.query('SELECT id FROM sites WHERE gestionnaire_id = $1', [req.user.id]);
@@ -407,9 +535,9 @@ router.post('/disponibilites', authenticateToken, async (req, res) => {
     const siteId = siteResult.rows[0].id;
 
     const result = await pool.query(
-      `INSERT INTO disponibilites (site_id, date_debut, date_fin, capacite_max, titre, salle, professeur, niveau, notes_internes)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [siteId, date_debut, date_fin, capacite_max || 1, titre || null, salle || null, professeur || null, niveau || null, notes_internes || null]
+      `INSERT INTO disponibilites (site_id, date_debut, date_fin, capacite_max, titre, salle, professeur, niveau, notes_internes, style, prix)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      [siteId, date_debut, date_fin, capacite_max || 1, titre || null, salle || null, professeur || null, niveau || null, notes_internes || null, style || null, prix || null]
     );
     res.status(201).json({ success: true, disponibilite: result.rows[0] });
   } catch (err) {
@@ -432,3 +560,4 @@ router.delete('/disponibilites/:id', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
+module.exports.envoyerCourrielReservation = envoyerCourrielReservation;

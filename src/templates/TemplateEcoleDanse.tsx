@@ -520,29 +520,43 @@ function SectionStyles({ config, setPage }: { config:ConfigEcoleDanse; setPage:(
 
 // ─── HORAIRES ─────────────────────────────────────────────────────────────────
 
-// ─── Calcule la prochaine date réelle pour un jour/heure récurrent ────────────
-// Ex: "Lundi" + "17h30" → prochain lundi à 17h30 (aujourd'hui inclus si l'heure
-// n'est pas encore passée), au format 'YYYY-MM-DDTHH:mm' (comme un input datetime-local).
-const JOURS_FR: Record<string, number> = { dimanche:0, lundi:1, mardi:2, mercredi:3, jeudi:4, vendredi:5, samedi:6 };
-function prochaineDateOccurrence(jour: string, heure: string): { debut: string; fin: string } | null {
-  const cible = JOURS_FR[(jour || '').toLowerCase().trim()];
-  if (cible === undefined) return null;
-  const m = (heure || '').match(/(\d{1,2})h(\d{2})?/i);
-  if (!m) return null;
-  const h = parseInt(m[1], 10); const min = m[2] ? parseInt(m[2], 10) : 0;
-  const maintenant = new Date();
-  const d = new Date(maintenant);
-  let delta = (cible - d.getDay() + 7) % 7;
-  d.setDate(d.getDate() + delta);
-  d.setHours(h, min, 0, 0);
-  if (delta === 0 && d.getTime() <= maintenant.getTime()) d.setDate(d.getDate() + 7); // heure déjà passée aujourd'hui
-  const fin = new Date(d.getTime() + 60 * 60 * 1000); // durée par défaut 1h
-  const fmt = (x: Date) => `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}T${String(x.getHours()).padStart(2,'0')}:${String(x.getMinutes()).padStart(2,'0')}`;
-  return { debut: fmt(d), fin: fmt(fin) };
+// ─── Type d'un vrai créneau (disponibilite), tel que retourné par l'API publique ──
+interface DispoReelle {
+  id: number;
+  date_debut: string;
+  date_fin: string;
+  capacite_max: number;
+  titre: string | null;
+  salle: string | null;
+  professeur: string | null;
+  niveau: string | null;
+  style: string | null;
+  prix: string | null;
+  actif: boolean;
 }
 
-// ─── Popup d'inscription à un cours ───────────────────────────────────────────
-function PopupInscriptionCours({ config, horaire, siteId, onFermer }: { config:ConfigEcoleDanse; horaire:CoursHoraire; siteId?:number|string; onFermer:()=>void }) {
+const NOMS_JOURS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
+// Convertit un vrai créneau BD en objet d'affichage compatible avec le reste de la section
+function dispoVersAffichage(d: DispoReelle, placesRestantes: number) {
+  const dt = new Date(d.date_debut);
+  const jour = NOMS_JOURS[dt.getDay()];
+  const heure = `${String(dt.getHours()).padStart(2,'0')}h${String(dt.getMinutes()).padStart(2,'0')}`;
+  return {
+    id: d.id, date_debut: d.date_debut, date_fin: d.date_fin,
+    jour, heure,
+    style: d.style || d.titre || 'Cours',
+    niveau: d.niveau || '',
+    salle: d.salle || '',
+    professeur: d.professeur || '',
+    prix: d.prix || '',
+    places: d.capacite_max,
+    placesRestantes,
+  };
+}
+type CoursAffichable = ReturnType<typeof dispoVersAffichage>;
+
+// ─── Popup d'inscription à un cours (utilise toujours une vraie date de créneau) ──
+function PopupInscriptionCours({ config, cours, siteId, onFermer, onInscrit }: { config:ConfigEcoleDanse; cours:CoursAffichable; siteId?:number|string; onFermer:()=>void; onInscrit:()=>void }) {
   const [nom, setNom] = useState('');
   const [telephone, setTelephone] = useState('');
   const [email, setEmail] = useState('');
@@ -554,8 +568,7 @@ function PopupInscriptionCours({ config, horaire, siteId, onFermer }: { config:C
   const soumettre = async () => {
     setErreur('');
     if (!nom.trim() || !telephone.trim() || !email.trim()) { setErreur('Tous les champs sont requis.'); return; }
-    const dates = prochaineDateOccurrence(horaire.jour, horaire.heure);
-    if (!dates || !siteId) { setErreur('Impossible de déterminer la date du cours. Réessayez plus tard.'); return; }
+    if (!siteId) { setErreur('Impossible de déterminer le site. Réessayez plus tard.'); return; }
     setEnvoi(true);
     try {
       const res = await fetch('/api/reservations', {
@@ -566,16 +579,17 @@ function PopupInscriptionCours({ config, horaire, siteId, onFermer }: { config:C
           nom_client: nom.trim(),
           email_client: email.trim(),
           telephone: telephone.trim(),
-          date_debut: dates.debut,
-          date_fin: dates.fin,
+          date_debut: cours.date_debut,
+          date_fin: cours.date_fin,
           nb_personnes: 1,
           type_reservation: 'cours',
-          objet_reserve: `${horaire.style} — ${horaire.niveau} (${horaire.jour} ${horaire.heure})`,
+          objet_reserve: `${cours.style}${cours.niveau ? ' — ' + cours.niveau : ''} (${cours.jour} ${cours.heure})`,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setErreur(data.message || 'Erreur lors de l\'inscription.'); setEnvoi(false); return; }
       setSucces(true);
+      onInscrit(); // permet au parent de rafraîchir les places restantes
     } catch {
       setErreur('Erreur de connexion. Réessayez.');
     }
@@ -595,8 +609,8 @@ function PopupInscriptionCours({ config, horaire, siteId, onFermer }: { config:C
         ) : (
           <>
             <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:10, fontWeight:700, color:cm, letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:6 }}>S'inscrire</p>
-            <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:700, color:'#fff', marginBottom:4 }}>{horaire.style} — {horaire.niveau}</p>
-            <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)', marginBottom:20 }}>{horaire.jour} {horaire.heure} · {horaire.salle} · {horaire.professeur}</p>
+            <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:700, color:'#fff', marginBottom:4 }}>{cours.style}{cours.niveau ? ` — ${cours.niveau}` : ''}</p>
+            <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)', marginBottom:20 }}>{cours.jour} {cours.heure}{cours.salle ? ` · ${cours.salle}` : ''}{cours.professeur ? ` · ${cours.professeur}` : ''}</p>
             {erreur && <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'#ff6b6b', marginBottom:14, background:'rgba(255,107,107,.1)', padding:'8px 12px', borderRadius:6 }}>⚠️ {erreur}</p>}
             {[
               { v: nom, set: setNom, ph: 'Nom complet', type: 'text' },
@@ -619,14 +633,47 @@ function PopupInscriptionCours({ config, horaire, siteId, onFermer }: { config:C
 function SectionHoraires({ config, setPage, siteId, reservationActive }: { config:ConfigEcoleDanse; setPage:(p:string)=>void; siteId?:number|string; reservationActive?:boolean }) {
   const { isMobile } = useIsMobile();
   const rv = useReveal(.05);
-  const horaires = ea(config.horaires, CONFIG_DANSE_DEFAUT.horaires);
   const styles = ea(config.stylesDanse, CONFIG_DANSE_DEFAUT.stylesDanse);
   const [filtre, setFiltre] = useState('Tous');
-  const [popup, setPopup] = useState<CoursHoraire | null>(null);
-  const opts = ['Tous', ...Array.from(new Set(horaires.map(h => h.style)))];
-  const filtres = filtre==='Tous' ? horaires : horaires.filter(h => h.style===filtre);
+  const [popup, setPopup] = useState<CoursAffichable | null>(null);
+
+  // ── Chargement des vraies disponibilités si l'add-on est actif ──────────────
+  const [dispos, setDispos] = useState<DispoReelle[]>([]);
+  const [reservationsBrutes, setReservationsBrutes] = useState<{ date_debut:string; nb_personnes:number; statut:string }[]>([]);
+  const [chargement, setChargement] = useState(!!reservationActive);
+
+  const chargerDispos = () => {
+    if (!reservationActive || !siteId) return;
+    setChargement(true);
+    fetch(`/api/reservations/disponibilites/${siteId}`)
+      .then(r => r.ok ? r.json() : { disponibilites: [], reservations: [] })
+      .then(data => {
+        setDispos(data.disponibilites || []);
+        setReservationsBrutes(data.reservations || []);
+      })
+      .catch(() => {})
+      .finally(() => setChargement(false));
+  };
+  useEffect(() => { chargerDispos(); }, [reservationActive, siteId]);
+
+  // ── Liste finale à afficher : vraies dispos si l'add-on est actif, sinon horaire statique ──
+  const coursAffichables: CoursAffichable[] = reservationActive
+    ? dispos.filter(d => d.actif).map(d => {
+        const placesReservees = reservationsBrutes
+          .filter(r => r.date_debut === d.date_debut && r.statut !== 'annulee')
+          .reduce((s, r) => s + (r.nb_personnes || 1), 0);
+        return dispoVersAffichage(d, d.capacite_max - placesReservees);
+      })
+    : ea(config.horaires, CONFIG_DANSE_DEFAUT.horaires).filter(h => h && typeof h === 'object' && h.jour).map((h, i) => ({
+        id: i, date_debut: '', date_fin: '', jour: h.jour, heure: h.heure, style: h.style, niveau: h.niveau,
+        salle: h.salle, professeur: h.professeur, prix: h.prix, places: h.places, placesRestantes: h.places,
+      }));
+
+  const opts = ['Tous', ...Array.from(new Set(coursAffichables.map(h => h.style)))];
+  const filtres = filtre==='Tous' ? coursAffichables : coursAffichables.filter(h => h.style===filtre);
   const colStyle = (style: string) => styles.find(s => (s.nom || '').toLowerCase().includes((style || '').toLowerCase()) || (style || '').toLowerCase().includes(s.id || ''))?.couleurAccent || config.couleurMagenta;
   const entetes = ['Jour / Heure','Style & Niveau','Professeur','Salle','Prix', ...(reservationActive ? [''] : [])];
+
   return (
     <section style={{ background:'#0f0f1a', padding:isMobile?'60px 20px':'100px 48px' }}>
       <div ref={rv.ref} className={`rv${rv.vis?' vis':''}`} style={{ maxWidth:1320, margin:'0 auto' }}>
@@ -651,19 +698,35 @@ function SectionHoraires({ config, setPage, siteId, reservationActive }: { confi
               <p key={i} style={{ fontFamily:"'Poppins',sans-serif", fontSize:10, fontWeight:700, color:'rgba(255,255,255,.4)', letterSpacing:'0.15em', textTransform:'uppercase' }}>{h}</p>
             ))}
           </div>
-          {filtres.filter(h => h && typeof h === 'object' && h.jour).map((h,i) => {
+          {chargement ? (
+            <p style={{ padding:24, fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.4)' }}>Chargement des horaires...</p>
+          ) : filtres.length === 0 ? (
+            <p style={{ padding:24, fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.4)' }}>Aucun cours pour le moment.</p>
+          ) : filtres.map((h,i) => {
             const col = colStyle(h.style);
+            const complet = reservationActive && h.placesRestantes <= 0;
             return (
-              <div key={i} className="hr-row" style={reservationActive ? { gridTemplateColumns:'110px 1fr 90px 90px 60px auto' } : undefined}>
+              <div key={h.id ?? i} className="hr-row" style={reservationActive ? { gridTemplateColumns:'110px 1fr 90px 90px 60px auto' } : undefined}>
                 <div><p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, fontWeight:700, color:'#fff' }}>{h.jour}</p><p style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, color:col }}>{h.heure}</p></div>
-                <div><span style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, padding:'2px 10px', background:`${col}20`, border:`1px solid ${col}40`, color:col, borderRadius:12, fontWeight:700 }}>{h.style}</span><p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)', marginTop:4 }}>{h.niveau} · {h.places} places</p></div>
+                <div>
+                  <span style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, padding:'2px 10px', background:`${col}20`, border:`1px solid ${col}40`, color:col, borderRadius:12, fontWeight:700 }}>{h.style}</span>
+                  <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)', marginTop:4 }}>
+                    {h.niveau}{h.niveau ? ' · ' : ''}{reservationActive ? (complet ? 'Complet' : `${h.placesRestantes} places`) : `${h.places} places`}
+                  </p>
+                </div>
                 <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)' }}>{h.professeur}</p>
                 <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.4)' }}>{h.salle}</p>
                 <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:700, color:col }}>{h.prix}</p>
                 {reservationActive && (
-                  <button onClick={() => setPopup(h)} style={{ padding:'7px 14px', borderRadius:20, background:col, color:'#fff', border:'none', fontFamily:"'Poppins',sans-serif", fontSize:11, fontWeight:700, letterSpacing:'0.05em', textTransform:'uppercase', cursor:'pointer', whiteSpace:'nowrap' as any }}>
-                    S'inscrire
-                  </button>
+                  complet ? (
+                    <span style={{ padding:'7px 14px', borderRadius:20, background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.35)', fontFamily:"'Poppins',sans-serif", fontSize:11, fontWeight:700, letterSpacing:'0.05em', textTransform:'uppercase', whiteSpace:'nowrap' as any }}>
+                      Complet
+                    </span>
+                  ) : (
+                    <button onClick={() => setPopup(h)} style={{ padding:'7px 14px', borderRadius:20, background:col, color:'#fff', border:'none', fontFamily:"'Poppins',sans-serif", fontSize:11, fontWeight:700, letterSpacing:'0.05em', textTransform:'uppercase', cursor:'pointer', whiteSpace:'nowrap' as any }}>
+                      S'inscrire
+                    </button>
+                  )
                 )}
               </div>
             );
@@ -671,7 +734,7 @@ function SectionHoraires({ config, setPage, siteId, reservationActive }: { confi
         </div>
         </div>
       </div>
-      {popup && <PopupInscriptionCours config={config} horaire={popup} siteId={siteId} onFermer={() => setPopup(null)} />}
+      {popup && <PopupInscriptionCours config={config} cours={popup} siteId={siteId} onFermer={() => setPopup(null)} onInscrit={chargerDispos} />}
     </section>
   );
 }

@@ -11,6 +11,17 @@ import { useState, useEffect, useMemo } from 'react';
 
 const API_BASE = '/api';
 
+function useIsMobile(breakpoint = 640) {
+  const [isMobile, setIsMobile] = useState(typeof window !== 'undefined' ? window.innerWidth < breakpoint : false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < breakpoint);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [breakpoint]);
+  return isMobile;
+}
+
 // ─── Palette sombre — identique à PageChoisirTemplate.tsx ──────────────────
 const C = {
   bg: '#0d0d12',
@@ -43,6 +54,8 @@ interface Disponibilite {
   professeur?: string | null;
   niveau?: string | null;
   notes_internes?: string | null;
+  style?: string | null;
+  prix?: string | null;
 }
 
 interface Reservation {
@@ -72,9 +85,10 @@ const Champ = ({ label, children }: any) => (
   </div>
 );
 
-const FORM_VIDE = { titre: '', date_debut: '', date_fin: '', capacite_max: '', salle: '', professeur: '', niveau: '', notes_internes: '' };
+const FORM_VIDE = { titre: '', date_debut: '', date_fin: '', capacite_max: '', salle: '', professeur: '', niveau: '', notes_internes: '', style: '', prix: '' };
 
 export default function MesReservationsEcole({ gestionnaireId }: Props) {
+  const isMobile = useIsMobile();
   const [dispos, setDispos] = useState<Disponibilite[]>([]);
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -90,6 +104,7 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
   const [formulaire, setFormulaire] = useState(FORM_VIDE);
   const [creation, setCreation] = useState(false);
   const [erreurForm, setErreurForm] = useState('');
+  const [confirmation, setConfirmation] = useState<{ titre: string; message: string; texteBouton: string; onConfirmer: () => void } | null>(null);
 
   const token = () => localStorage.getItem('token');
 
@@ -143,21 +158,28 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
       .sort((a, b) => new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime());
   }, [dispos]);
 
-  const annuler = async (id: number) => {
-    if (!window.confirm('Annuler cette réservation?')) return;
-    try {
-      const res = await fetch(`${API_BASE}/reservations/${id}/statut`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ statut: 'annulee' }),
-      });
-      if (!res.ok) throw new Error();
-      setReservations(prev => prev.map(r => r.id === id ? { ...r, statut: 'annulee' } : r));
-      charger(); // recharger pour remettre à jour les places restantes
-      afficherToast('Réservation annulée.', 'ok');
-    } catch {
-      afficherToast('Erreur lors de l\'annulation.', 'err');
-    }
+  const annuler = (id: number, nomClient: string) => {
+    setConfirmation({
+      titre: 'Désinscrire ce client?',
+      message: `${nomClient} sera retiré de ce créneau et une place se libérera. Cette action ne peut pas être annulée depuis cette page.`,
+      texteBouton: '✕ Désinscrire',
+      onConfirmer: async () => {
+        setConfirmation(null);
+        try {
+          const res = await fetch(`${API_BASE}/reservations/${id}/statut`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+            body: JSON.stringify({ statut: 'annulee' }),
+          });
+          if (!res.ok) throw new Error();
+          setReservations(prev => prev.map(r => r.id === id ? { ...r, statut: 'annulee' } : r));
+          charger(); // recharger pour remettre à jour les places restantes
+          afficherToast('Client désinscrit — la place est de nouveau disponible.', 'ok');
+        } catch {
+          afficherToast('Erreur lors de la désinscription.', 'err');
+        }
+      },
+    });
   };
 
   const toggleActif = async (d: Disponibilite) => {
@@ -173,18 +195,25 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
     }
   };
 
-  const supprimer = async (id: number) => {
-    if (!window.confirm('Supprimer ce créneau? Cette action est irréversible.')) return;
-    try {
-      await fetch(`${API_BASE}/reservations/disponibilites/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token()}` },
-      });
-      setDispos(prev => prev.filter(d => d.id !== id));
-      afficherToast('Créneau supprimé.', 'ok');
-    } catch {
-      afficherToast('Erreur lors de la suppression.', 'err');
-    }
+  const supprimer = (id: number, titre: string) => {
+    setConfirmation({
+      titre: 'Supprimer ce créneau?',
+      message: `« ${titre || 'Ce créneau'} » sera supprimé définitivement. Cette action est irréversible.`,
+      texteBouton: '🗑️ Supprimer',
+      onConfirmer: async () => {
+        setConfirmation(null);
+        try {
+          await fetch(`${API_BASE}/reservations/disponibilites/${id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token()}` },
+          });
+          setDispos(prev => prev.filter(d => d.id !== id));
+          afficherToast('Créneau supprimé.', 'ok');
+        } catch {
+          afficherToast('Erreur lors de la suppression.', 'err');
+        }
+      },
+    });
   };
 
   // ── Ouvrir le formulaire pour créer (vide) ou modifier (pré-rempli) ───────
@@ -205,6 +234,8 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
       professeur: d.professeur || '',
       niveau: d.niveau || '',
       notes_internes: d.notes_internes || '',
+      style: d.style || '',
+      prix: d.prix || '',
     });
     setErreurForm('');
     setAjoutOuvert(true);
@@ -238,6 +269,8 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
           professeur: formulaire.professeur || null,
           niveau: formulaire.niveau || null,
           notes_internes: formulaire.notes_internes || null,
+          style: formulaire.style || null,
+          prix: formulaire.prix || null,
         }),
       });
       const data = await res.json();
@@ -272,12 +305,32 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
         .mre-card:hover { background: ${C.cardBgHover} !important; }
       `}</style>
 
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 32px' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: isMobile ? '20px 14px' : '40px 32px' }}>
 
         {/* Toast */}
         {toast && (
           <div style={{ position: 'fixed', top: 24, right: 24, zIndex: 2000, background: toast.type === 'ok' ? C.green : C.red, color: '#fff', padding: '12px 20px', borderRadius: 10, fontSize: 13, fontWeight: 700, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
             {toast.msg}
+          </div>
+        )}
+
+        {/* Modal de confirmation générique (désinscription / suppression) */}
+        {confirmation && (
+          <div onClick={() => setConfirmation(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#16161c', border: `1px solid ${C.border}`, borderRadius: 18, maxWidth: 400, width: '100%', padding: '26px 24px', boxShadow: '0 24px 64px rgba(0,0,0,0.5)' }}>
+              <p style={{ fontSize: 17, fontWeight: 800, color: C.text, margin: '0 0 10px' }}>{confirmation.titre}</p>
+              <p style={{ fontSize: 13, color: C.textLight, margin: '0 0 22px', lineHeight: 1.5 }}>{confirmation.message}</p>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setConfirmation(null)}
+                  style={{ flex: 1, padding: 11, border: `1.5px solid ${C.border}`, borderRadius: 10, background: 'transparent', color: C.textLight, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  Annuler
+                </button>
+                <button onClick={confirmation.onConfirmer}
+                  style={{ flex: 1, padding: 11, border: 'none', borderRadius: 10, background: C.red, color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer' }}>
+                  {confirmation.texteBouton}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -289,13 +342,14 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
             onCree={() => { setModalOuvert(false); charger(); afficherToast('Réservation créée!', 'ok'); }}
             onErreur={(m) => afficherToast(m, 'err')}
             token={token()}
+            isMobile={isMobile}
           />
         )}
 
         {/* ── Header dégradé ─────────────────────────────────────────────── */}
         <div style={{
           background: 'linear-gradient(135deg, #f97316 0%, #f59e0b 100%)',
-          borderRadius: 24, marginBottom: 28, padding: 32,
+          borderRadius: isMobile ? 16 : 24, marginBottom: 20, padding: isMobile ? 20 : 32,
           position: 'relative', overflow: 'hidden', animation: 'fadeUp 0.5s ease',
         }}>
           <div style={{ position: 'absolute', top: -30, right: -30, width: 200, height: 200, borderRadius: '50%', background: 'rgba(255,255,255,0.1)' }} />
@@ -304,52 +358,61 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
           <div style={{ position: 'relative', zIndex: 2 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 16 }}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 12 }}>
-                  <span style={{ fontSize: 40 }}>📅</span>
-                  <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, color: '#fff', fontFamily: "'Sora', sans-serif" }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 16, marginBottom: 12 }}>
+                  <span style={{ fontSize: isMobile ? 28 : 40 }}>📅</span>
+                  <h1 style={{ margin: 0, fontSize: isMobile ? 22 : 32, fontWeight: 800, color: '#fff', fontFamily: "'Sora', sans-serif" }}>
                     Mes réservations
                   </h1>
                 </div>
-                <p style={{ margin: '0 0 20px', fontSize: 16, color: 'rgba(255,255,255,0.8)', maxWidth: 560 }}>
+                <p style={{ margin: '0 0 20px', fontSize: isMobile ? 13 : 16, color: 'rgba(255,255,255,0.8)', maxWidth: 560 }}>
                   Gérez vos créneaux de cours et vos inscriptions — annulez une place, ou ajoutez une réservation pour un client au téléphone.
                 </p>
               </div>
               <button onClick={() => setModalOuvert(true)}
-                style={{ padding: '13px 24px', background: '#fff', color: '#c2410c', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
+                style={{ width: isMobile ? '100%' : undefined, padding: '13px 24px', background: '#fff', color: '#c2410c', border: 'none', borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>
                 📞 Réservation par téléphone
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 40, marginTop: 8 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: isMobile ? 24 : 40, marginTop: 8 }}>
               <div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: '#fff' }}>{creneauxActifs}</div>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#fff' }}>{creneauxActifs}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Créneaux actifs</div>
               </div>
               <div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: '#fff' }}>{totalReservationsActives}</div>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#fff' }}>{totalReservationsActives}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Réservations actives</div>
               </div>
               <div>
-                <div style={{ fontSize: 28, fontWeight: 800, color: '#fff' }}>{totalOccupees}/{totalPlaces}</div>
+                <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#fff' }}>{totalOccupees}/{totalPlaces}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Places occupées</div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Onglets */}
-        <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: `1px solid ${C.border}`, paddingBottom: 4 }}>
-          {ONGLETS.map(o => (
-            <button key={o.id} onClick={() => setOnglet(o.id)}
-              style={{
-                padding: '10px 18px', borderRadius: '10px 10px 0 0', border: 'none', borderBottom: `2px solid ${onglet === o.id ? C.amber : 'transparent'}`,
-                background: onglet === o.id ? 'rgba(245,158,11,0.1)' : 'transparent', color: onglet === o.id ? C.amber : C.textLight,
-                fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
-              }}>
-              {o.label}
-            </button>
-          ))}
-        </div>
+        {/* Onglets — dropdown compact sur mobile, boutons sur desktop */}
+        {isMobile ? (
+          <select value={onglet} onChange={e => setOnglet(e.target.value as typeof onglet)}
+            style={{ width: '100%', marginBottom: 18, padding: '12px 14px', borderRadius: 10, border: `1.5px solid ${C.border}`, background: C.inputBg, color: C.amber, fontSize: 14, fontWeight: 700, appearance: 'none' as any, WebkitAppearance: 'none' as any }}>
+            {ONGLETS.map(o => (
+              <option key={o.id} value={o.id} style={{ color: '#000' }}>{o.label}</option>
+            ))}
+          </select>
+        ) : (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20, borderBottom: `1px solid ${C.border}`, paddingBottom: 4 }}>
+            {ONGLETS.map(o => (
+              <button key={o.id} onClick={() => setOnglet(o.id)}
+                style={{
+                  padding: '10px 18px', borderRadius: '10px 10px 0 0', border: 'none', borderBottom: `2px solid ${onglet === o.id ? C.amber : 'transparent'}`,
+                  background: onglet === o.id ? 'rgba(245,158,11,0.1)' : 'transparent', color: onglet === o.id ? C.amber : C.textLight,
+                  fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all .15s',
+                }}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* ── ONGLET : À VENIR / PASSÉ ─────────────────────────────────────── */}
         {(onglet === 'a-venir' || onglet === 'passe') && (
@@ -429,7 +492,7 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
                                   Inscrit le {new Date(r.created_at).toLocaleDateString('fr-CA')}
                                 </p>
                                 {!passe && (
-                                  <button onClick={() => annuler(r.id)}
+                                  <button onClick={() => annuler(r.id, r.nom_client)}
                                     style={{ background: C.redLight, color: C.red, border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                                     ✕ Annuler
                                   </button>
@@ -476,7 +539,7 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
                   <Champ label="Titre (ex: Cours Salsa débutant)">
                     <Inp value={formulaire.titre} onChange={(e: any) => setFormulaire(p => ({ ...p, titre: e.target.value }))} placeholder="Cours Salsa débutant" />
                   </Champ>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
                     <Champ label="Début">
                       <Inp type="datetime-local" value={formulaire.date_debut} onChange={(e: any) => setFormulaire(p => ({ ...p, date_debut: e.target.value }))} />
                     </Champ>
@@ -489,7 +552,7 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
                   </Champ>
 
                   <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.textDim, margin: '16px 0 10px' }}>Optionnel</p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
                     <Champ label="Salle / Local">
                       <Inp value={formulaire.salle} onChange={(e: any) => setFormulaire(p => ({ ...p, salle: e.target.value }))} placeholder="Salle A" />
                     </Champ>
@@ -500,6 +563,14 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
                   <Champ label="Niveau">
                     <Inp value={formulaire.niveau} onChange={(e: any) => setFormulaire(p => ({ ...p, niveau: e.target.value }))} placeholder="Débutant, Intermédiaire, Avancé..." />
                   </Champ>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+                    <Champ label="Style (affiché comme filtre sur votre site)">
+                      <Inp value={formulaire.style} onChange={(e: any) => setFormulaire(p => ({ ...p, style: e.target.value }))} placeholder="Ballet, Hip-Hop, Salsa..." />
+                    </Champ>
+                    <Champ label="Prix (affiché sur votre site)">
+                      <Inp value={formulaire.prix} onChange={(e: any) => setFormulaire(p => ({ ...p, prix: e.target.value }))} placeholder="25$" />
+                    </Champ>
+                  </div>
                   <Champ label="Notes internes (non visibles par les clients)">
                     <Inp value={formulaire.notes_internes} onChange={(e: any) => setFormulaire(p => ({ ...p, notes_internes: e.target.value }))} placeholder="Ex: apporter le matériel de sono" />
                   </Champ>
@@ -547,7 +618,7 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
                             </p>
                             {(d.salle || d.professeur || d.niveau) && (
                               <p style={{ fontSize: 11, color: C.textDim, marginTop: 4 }}>
-                                {[d.salle && `📍 ${d.salle}`, d.professeur && `👤 ${d.professeur}`, d.niveau && `🎯 ${d.niveau}`].filter(Boolean).join('  ·  ')}
+                                {[d.style && `💃 ${d.style}`, d.salle && `📍 ${d.salle}`, d.professeur && `👤 ${d.professeur}`, d.niveau && `🎯 ${d.niveau}`, d.prix && `💲 ${d.prix}`].filter(Boolean).join('  ·  ')}
                               </p>
                             )}
                           </div>
@@ -561,7 +632,7 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
                                 style={{ background: 'none', border: 'none', color: C.amber, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
                                 ✏️ Modifier
                               </button>
-                              <button onClick={() => supprimer(d.id)}
+                              <button onClick={() => supprimer(d.id, d.titre || '')}
                                 style={{ background: 'none', border: 'none', color: C.red, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
                                 🗑️ Supprimer
                               </button>
@@ -585,8 +656,8 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
 // MODAL — Création manuelle (client au téléphone)
 // ─────────────────────────────────────────────────────────────────────────
 
-function ModalCreationManuelle({ dispos, onFermer, onCree, onErreur, token }: {
-  dispos: Disponibilite[]; onFermer: () => void; onCree: () => void; onErreur: (m: string) => void; token: string | null;
+function ModalCreationManuelle({ dispos, onFermer, onCree, onErreur, token, isMobile }: {
+  dispos: Disponibilite[]; onFermer: () => void; onCree: () => void; onErreur: (m: string) => void; token: string | null; isMobile: boolean;
 }) {
   const [creneauId, setCreneauId] = useState('');
   const [nom, setNom] = useState('');
@@ -644,7 +715,7 @@ function ModalCreationManuelle({ dispos, onFermer, onCree, onErreur, token }: {
             <Lbl>Nom du client *</Lbl>
             <Inp value={nom} onChange={(e: any) => setNom(e.target.value)} placeholder="Jean Tremblay" />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 14 }}>
             <div>
               <Lbl>Téléphone</Lbl>
               <Inp value={telephone} onChange={(e: any) => setTelephone(e.target.value)} placeholder="514-555-0123" />

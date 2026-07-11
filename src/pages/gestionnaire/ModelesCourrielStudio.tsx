@@ -1,4 +1,4 @@
-// src/pages/studio/ModelesCourrielStudio.tsx
+// src/pages/gestionnaire/ModelesCourrielStudio.tsx
 // e-Vend Studio — Gestion des modèles de courriel pour le vendeur
 // Templates : confirmation réservation, rappel, annulation
 
@@ -21,7 +21,7 @@ const TEMPLATES_DEFAUT: Record<TypeTemplate, TemplateCourriel> = {
   confirmation: {
     type: 'confirmation',
     actif: true,
-    sujet: 'Votre réservation est confirmée ✅',
+    sujet: '{$objetReserve} — Confirmation ✅',
     html: `<div style="font-family:'Segoe UI',sans-serif;max-width:600px;margin:0 auto">
   <div style="background:{$couleur};padding:24px 32px;border-radius:12px 12px 0 0">
     <h1 style="color:#fff;margin:0;font-size:20px">{$nomSite}</h1>
@@ -30,11 +30,13 @@ const TEMPLATES_DEFAUT: Record<TypeTemplate, TemplateCourriel> = {
     <h2 style="color:#1a1a1a">Bonjour {$nomClient} 👋</h2>
     <p style="color:#555;margin:16px 0">Votre réservation a bien été confirmée. Voici le récapitulatif :</p>
     <div style="background:#f8f8f6;border-left:4px solid {$couleur};padding:16px 20px;margin:20px 0;border-radius:0 8px 8px 0">
-      <p><strong>📅 Date :</strong> {$dateReservation}</p>
-      <p style="margin-top:8px"><strong>👥 Personnes :</strong> {$nbPersonnes}</p>
+      {$detailsReservation}
       <p style="margin-top:8px"><strong>📋 Réf. :</strong> #{$idReservation}</p>
     </div>
     <p style="color:#555">{$notesSupplementaires}</p>
+    <div style="text-align:center;margin:28px 0 8px">
+      <a href="{$lienAnnulation}" style="display:inline-block;padding:11px 24px;border:1.5px solid #dc2626;border-radius:8px;color:#dc2626;text-decoration:none;font-size:13px;font-weight:600">Annuler cette réservation</a>
+    </div>
     <p style="margin-top:24px;color:#888;font-size:13px">À bientôt!<br><strong>{$nomSite}</strong></p>
   </div>
   <div style="background:#f8f8f6;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;padding:16px 32px;text-align:center">
@@ -45,17 +47,16 @@ const TEMPLATES_DEFAUT: Record<TypeTemplate, TemplateCourriel> = {
   rappel: {
     type: 'rappel',
     actif: true,
-    sujet: 'Rappel — Votre réservation demain 🔔',
+    sujet: 'Rappel — {$objetReserve} demain 🔔',
     html: `<div style="font-family:'Segoe UI',sans-serif;max-width:600px;margin:0 auto">
   <div style="background:{$couleur};padding:24px 32px;border-radius:12px 12px 0 0">
     <h1 style="color:#fff;margin:0;font-size:20px">{$nomSite}</h1>
   </div>
   <div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none">
-    <h2 style="color:#1a1a1a">🔔 Rappel de réservation</h2>
+    <h2 style="color:#1a1a1a">🔔 Rappel</h2>
     <p style="color:#555;margin:16px 0">Bonjour <strong>{$nomClient}</strong>, nous vous rappelons votre réservation de demain :</p>
     <div style="background:#fff3cd;border:1px solid #ffc107;padding:16px 20px;margin:20px 0;border-radius:8px">
-      <p style="font-size:16px;font-weight:700;color:#856404">📅 {$dateReservation}</p>
-      <p style="margin-top:8px;color:#856404">👥 {$nbPersonnes} personne(s)</p>
+      {$detailsReservation}
     </div>
     <p style="color:#555">Pour toute question, contactez-nous directement.</p>
     <p style="margin-top:24px;color:#888;font-size:13px">À demain!<br><strong>{$nomSite}</strong></p>
@@ -68,14 +69,17 @@ const TEMPLATES_DEFAUT: Record<TypeTemplate, TemplateCourriel> = {
   annulation: {
     type: 'annulation',
     actif: true,
-    sujet: 'Votre réservation a été annulée',
+    sujet: '{$objetReserve} — Réservation annulée',
     html: `<div style="font-family:'Segoe UI',sans-serif;max-width:600px;margin:0 auto">
   <div style="background:#dc2626;padding:24px 32px;border-radius:12px 12px 0 0">
     <h1 style="color:#fff;margin:0;font-size:20px">{$nomSite}</h1>
   </div>
   <div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none">
     <h2 style="color:#1a1a1a">Réservation annulée</h2>
-    <p style="color:#555;margin:16px 0">Bonjour <strong>{$nomClient}</strong>, votre réservation du <strong>{$dateReservation}</strong> a été annulée.</p>
+    <p style="color:#555;margin:16px 0">Bonjour <strong>{$nomClient}</strong>, la réservation suivante a été annulée :</p>
+    <div style="background:#f8f8f6;border-left:4px solid #dc2626;padding:16px 20px;margin:20px 0;border-radius:0 8px 8px 0">
+      {$detailsReservation}
+    </div>
     <p style="color:#555">Si vous souhaitez effectuer une nouvelle réservation, n'hésitez pas à nous contacter.</p>
     <p style="margin-top:24px;color:#888;font-size:13px">Cordialement,<br><strong>{$nomSite}</strong></p>
   </div>
@@ -115,13 +119,19 @@ const TYPE_CONFIG: Record<TypeTemplate, { label: string; icone: string; couleur:
 };
 
 const VARIABLES = [
-  { cle: '{$nomClient}',         desc: 'Nom du client' },
-  { cle: '{$emailClient}',       desc: 'Email du client' },
-  { cle: '{$dateReservation}',   desc: 'Date et heure de la réservation' },
-  { cle: '{$nbPersonnes}',       desc: 'Nombre de personnes' },
-  { cle: '{$idReservation}',     desc: 'Numéro de réservation' },
-  { cle: '{$nomSite}',           desc: 'Nom de votre site/entreprise' },
-  { cle: '{$couleur}',           desc: 'Couleur principale de votre site' },
+  { cle: '{$nomClient}',           desc: 'Nom du client' },
+  { cle: '{$emailClient}',         desc: 'Email du client' },
+  { cle: '{$objetReserve}',        desc: 'Ce qui a été réservé — s\'adapte au type de réservation (ex: "Salsa débutant", "Table pour 4", "Consultation")' },
+  { cle: '{$detailsReservation}',  desc: 'Bloc récapitulatif complet, généré automatiquement (date, lieu, professeur, niveau, nb personnes — n\'affiche que ce qui s\'applique). Recommandé pour rester générique quel que soit le type de réservation.' },
+  { cle: '{$dateReservation}',     desc: 'Date et heure de la réservation (si tu préfères construire ton propre bloc au lieu de {$detailsReservation})' },
+  { cle: '{$nbPersonnes}',         desc: 'Nombre de personnes' },
+  { cle: '{$salle}',               desc: 'Salle / local (si applicable, ex: écoles, cours)' },
+  { cle: '{$professeur}',          desc: 'Professeur / animateur (si applicable)' },
+  { cle: '{$niveau}',              desc: 'Niveau (si applicable)' },
+  { cle: '{$idReservation}',       desc: 'Numéro de réservation' },
+  { cle: '{$lienAnnulation}',      desc: 'Lien à mettre dans un bouton — permet au client d\'annuler lui-même sa réservation' },
+  { cle: '{$nomSite}',             desc: 'Nom de votre site/entreprise' },
+  { cle: '{$couleur}',             desc: 'Couleur principale de votre site' },
   { cle: '{$notesSupplementaires}', desc: 'Notes supplémentaires du client' },
 ];
 
@@ -298,16 +308,27 @@ export default function ModelesCourrielStudio({ vendeurId }: { vendeurId: number
               {onglet === 'preview' && (
                 <div>
                   <div style={{ marginBottom: 16, padding: '10px 16px', background: '#f7f7f5', borderRadius: 8, fontSize: 13 }}>
-                    <strong>Sujet :</strong> {template.sujet.replace('{$nomSite}', 'Mon Restaurant')}
+                    <strong>Sujet :</strong> {template.sujet.replace('{$nomSite}', 'Mon Restaurant').replace('{$objetReserve}', 'Cours Salsa débutant')}
                   </div>
                   <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
                     <iframe
                       srcDoc={template.html
                         .replace(/\{\$nomClient\}/g, 'Marie Dupont')
                         .replace(/\{\$emailClient\}/g, 'marie@exemple.com')
+                        .replace(/\{\$objetReserve\}/g, 'Cours Salsa débutant')
+                        .replace(/\{\$detailsReservation\}/g, `
+                          <p><strong>📅 Date :</strong> Vendredi 14 juin 2026 à 19h30</p>
+                          <p style="margin-top:8px"><strong>📍 Salle :</strong> Salle A</p>
+                          <p style="margin-top:8px"><strong>👤 Professeur :</strong> Isabelle Morin</p>
+                          <p style="margin-top:8px"><strong>🎯 Niveau :</strong> Débutant</p>
+                        `)
                         .replace(/\{\$dateReservation\}/g, 'Vendredi 14 juin 2026 à 19h30')
-                        .replace(/\{\$nbPersonnes\}/g, '4')
+                        .replace(/\{\$nbPersonnes\}/g, '1')
+                        .replace(/\{\$salle\}/g, 'Salle A')
+                        .replace(/\{\$professeur\}/g, 'Isabelle Morin')
+                        .replace(/\{\$niveau\}/g, 'Débutant')
                         .replace(/\{\$idReservation\}/g, '1042')
+                        .replace(/\{\$lienAnnulation\}/g, '#apercu-lien-annulation')
                         .replace(/\{\$nomSite\}/g, 'Mon Restaurant')
                         .replace(/\{\$couleur\}/g, COULEUR)
                         .replace(/\{\$notesSupplementaires\}/g, 'Table près de la fenêtre svp.')

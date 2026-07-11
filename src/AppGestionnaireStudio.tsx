@@ -16,7 +16,7 @@ const API_BASE = '/api'; // e-Vend Studio API
 
 // ── e-Vend Studio ──
 import MaCagnotte                   from './pages/studio/MaCagnotte';
-import ModelesCourrielStudio from './pages/studio/ModelesCourrielStudio';
+import ModelesCourrielStudio from './pages/gestionnaire/ModelesCourrielStudio';
 import GestionReservations   from './pages/studio/GestionReservations';
 import MesReservationsEcole  from './pages/gestionnaire/MesReservationsEcole';
 import MesAcheteurs                  from './pages/studio/MesAcheteurs';
@@ -1400,6 +1400,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     <>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+        html, body { margin: 0; padding: 0; }
         * { box-sizing: border-box; }
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
