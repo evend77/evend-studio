@@ -352,8 +352,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     return () => clearInterval(interval);
   }, []);
   
-  const [heureActuelle, setHeureActuelle] = useState(new Date());
-  const [recherche, setRecherche] = useState('');
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [menuOuvert, setMenuOuvert] = useState<string | null>(null);
@@ -507,11 +505,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     return fonctionnalitesPlan[cle] === true;
   };
 
-  useEffect(() => {
-    const interval = setInterval(() => setHeureActuelle(new Date()), 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const ouvrirModal = useCallback(() => setModalOuvert(true), []);
   const fermerModal = useCallback(() => setModalOuvert(false), []);
   const envoyerMessage = useCallback(() => { setMessage(''); fermerModal(); }, [fermerModal]);
@@ -528,15 +521,22 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     setModalPhotoOuvert(false);
   };
 
-  const formatDate = (d: Date) => d.toLocaleDateString('fr-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const formatHeure = (d: Date) => d.toLocaleTimeString('fr-CA');
-
   const initialeAvatar = gestionnaire.nom?.charAt(0)?.toUpperCase() || 'V';
 
-  const ouvrirBoutiqueNouvelOnglet = () => {
-    const gestionnaireId = gestionnaire?.id || gestionnaire?.seller_id;
-    if (gestionnaireId) window.open(`/boutique/${gestionnaireId}`, '_blank', 'noopener,noreferrer');
-    else setPageActive('ma-boutique');
+  const ouvrirBoutiqueNouvelOnglet = async () => {
+    try {
+      const res = await fetch(`/api/studio/sites/${gestionnaire.id}`);
+      const data = res.ok ? await res.json() : null;
+      if (data?.domaine_perso && data?.domaine_statut !== 'suspendu') {
+        window.open(`https://${data.domaine_perso}`, '_blank', 'noopener,noreferrer');
+      } else if (data?.sous_domaine) {
+        window.open(`https://${data.sous_domaine}.e-vendstudio.ca`, '_blank', 'noopener,noreferrer');
+      } else {
+        window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer');
+    }
   };
 
   const handleMenuClick = (menuId: string) => setMenuOuvert(menuOuvert === menuId ? null : menuId);
@@ -576,7 +576,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuStudio: MenuItem = {
     id: 'studio', label: 'MON SITE STUDIO', icon: '🎨',
     sousMenu: [
-      { id: 'studio-apercu',            label: 'Aperçu de mon site',          icon: '👁',  onClick: () => window.open(`http://localhost:3000/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer') },
+      { id: 'studio-apercu',            label: 'Aperçu de mon site',          icon: '👁',  onClick: () => window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer') },
       { id: 'studio-choisir-template',  label: 'Choisir un template',         icon: '🗂️' },
       { id: 'studio-config-template',   label: 'Modifier mon site',           icon: '✏️' },
       { id: 'studio-domaine',           label: 'Mon domaine',                 icon: '🌐' },
@@ -656,22 +656,22 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     id: 'branding-options', label: 'Branding & options', icon: '⚙️',
   };
 
-  const menuStudioSimplisse: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`http://localhost:3000/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuStudioSimplisse: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuVosAnnoncesSimplisse: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-encheres',label:'Mes enchères',icon:'🔨',cleAcces:'modeEncheres' },{ id:'annonces-make-offer',label:'Mes offres reçues',icon:'💬' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-types',label:'Types produits',icon:'📑' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigMesPages: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🎨',sousMenu:[{ id:'simplisse-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'simplisse-plan',label:'Mon plan & limites',icon:'📊' },{ id:'simplisse-branding',label:'Branding & options',icon:'⚙️' }] };
 
-  const menuStudioPremium: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`http://localhost:3000/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuStudioPremium: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuVosAnnoncesPremium: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-encheres',label:'Mes enchères',icon:'🔨',cleAcces:'modeEncheres' },{ id:'annonces-make-offer',label:'Mes offres reçues',icon:'💬' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-types',label:'Types produits',icon:'📑' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigPremium: MenuItem = { id:'config-premium',label:'CONFIG MES PAGES',icon:'💎',sousMenu:[{ id:'premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'premium-branding',label:'Branding & options',icon:'⚙️' }] };
 
-  const menuStudioMode: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`http://localhost:3000/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuStudioMode: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuVosAnnoncesMode: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'👗',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigMode: MenuItem = { id:'config-mode',label:'CONFIG MES PAGES',icon:'👗',sousMenu:[{ id:'mode-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'mode-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mode-branding',label:'Branding & options',icon:'⚙️' }] };
 
-  const menuStudioBeaute: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`http://localhost:3000/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuStudioBeaute: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuVosAnnoncesBeaute: MenuItem = { id:'annonces',label:'VOS PRODUITS',icon:'💄',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigBeaute: MenuItem = { id:'config-beaute',label:'CONFIG MES PAGES',icon:'💄',sousMenu:[{ id:'beaute-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'beaute-plan',label:'Mon plan & limites',icon:'📊' },{ id:'beaute-branding',label:'Branding & options',icon:'⚙️' }] };
-  const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`http://localhost:3000/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-branding',label:'Branding & options',icon:'⚙️' }] };
   const menuVendeurs: MenuItem     = { id:'vendeurs',label:'MES VENDEURS',icon:'👥',sousMenu:[{ id:'vendeurs-liste',label:'Liste des vendeurs',icon:'👥' },{ id:'vendeurs-demandes',label:'Demandes en attente',icon:'📥' },{ id:'vendeurs-paiements',label:'Paiements vendeurs',icon:'💰' }] };
 
@@ -1328,16 +1328,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       borderBottom: '1px solid rgba(201,169,110,0.2)',
     }}>
       {isMobile && <button onClick={() => setMenuMobileOuvert(!menuMobileOuvert)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer', padding: '8px' }}>☰</button>}
-      {/* Logo e-Vend Studio — texte stylisé */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-        <span style={{ fontSize: isMobile ? '18px' : '22px', fontWeight: 800, background: 'linear-gradient(135deg, #c9a96e, #e8c87a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>e</span>
-        {!isMobile && <span style={{ color: '#fff', fontSize: '15px', fontWeight: 700, letterSpacing: '1.5px' }}>VEND STUDIO</span>}
-      </div>
-      {!isMobile && (
-        <div style={{ marginLeft: '8px' }}>
-          <input type="text" placeholder="🔍 Rechercher..." value={recherche} onChange={e => setRecherche(e.target.value)} style={{ border: '1px solid #444', background: '#2a2a2a', outline: 'none', fontSize: '13px', color: 'white', padding: '6px 14px', borderRadius: '20px', width: '200px' }} />
-        </div>
-      )}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '20px', marginLeft: 'auto' }}>
         {/* 👇 BOUTON PHOTOS */}
         <button 
@@ -1370,7 +1360,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           )}
         </button>
         {/* Voir ma boutique */}
-        <button onClick={ouvrirBoutiqueNouvelOnglet} title="Voir ma boutique"
+        <button onClick={ouvrirBoutiqueNouvelOnglet} title="Voir mon site"
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22 }}>
           👁️
         </button>
@@ -1382,14 +1372,11 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       </div>
       {!isMobile && (
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px' }}>
-          <span style={{ color: '#ccc', fontSize: '13px', fontWeight: '600' }}>{formatDate(heureActuelle)}</span>
-          <span style={{ color: '#aaa', fontSize: '13px' }}>{formatHeure(heureActuelle)}</span>
           <SessionIndicator statut={gestionnaire.statut} />
         </div>
       )}
       {isMobile && (
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span style={{ color: '#ccc', fontSize: '11px' }}>{formatHeure(heureActuelle)}</span>
           <SessionIndicator statut={gestionnaire.statut} />
         </div>
       )}
@@ -1461,10 +1448,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         }
         
         .scrollable-area {
-          margin-top: 56px;
           flex: 1;
           overflow-y: auto;
-          height: calc(100vh - 96px);
+          height: calc(100vh - 40px);
           color: #333;
           padding-bottom: 40px;
         }

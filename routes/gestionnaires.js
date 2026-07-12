@@ -283,20 +283,26 @@ router.put('/:id/options', authenticateToken, async (req, res) => {
         if (!isAdminUser && req.user.id !== gestionnaireId) {
             return res.status(403).json({ success: false, message: 'Accès refusé' });
         }
-        const { cacher_propulse = false, domaine_personnalise = false, verificateur_age = false, popup_annonce = false, reservation_ecole = false } = req.body;
-        console.log(`🔍 PUT options gestionnaire ${gestionnaireId}:`, { cacher_propulse, verificateur_age, popup_annonce, reservation_ecole });
+        // Mise à jour partielle sécurisée : un champ absent du body = valeur inchangée
+        // (COALESCE côté SQL), pas remis à false. Avant ce fix, un champ manquant du
+        // body écrasait silencieusement l'ancienne valeur à false.
+        const b = req.body || {};
+        const val = (k) => (b[k] === undefined ? null : b[k]);
+        console.log(`🔍 PUT options gestionnaire ${gestionnaireId}:`, b);
 
         await pool.query(
-            `INSERT INTO options_gestionnaire (gestionnaire_id, cacher_propulse, domaine_personnalise, verificateur_age, popup_annonce, reservation_ecole)
-             VALUES ($1, $2, $3, $4, $5, $6)
+            `INSERT INTO options_gestionnaire
+               (gestionnaire_id, cacher_propulse, domaine_personnalise, verificateur_age, popup_annonce, reservation_ecole, reservation_ecole_paiement)
+             VALUES ($1, COALESCE($2,false), COALESCE($3,false), COALESCE($4,false), COALESCE($5,false), COALESCE($6,false), COALESCE($7,false))
              ON CONFLICT (gestionnaire_id) DO UPDATE SET
-               cacher_propulse      = EXCLUDED.cacher_propulse,
-               domaine_personnalise = EXCLUDED.domaine_personnalise,
-               verificateur_age     = EXCLUDED.verificateur_age,
-               popup_annonce        = EXCLUDED.popup_annonce,
-               reservation_ecole    = EXCLUDED.reservation_ecole,
-               updated_at           = NOW()`,
-            [gestionnaireId, cacher_propulse, domaine_personnalise, verificateur_age, popup_annonce, reservation_ecole]
+               cacher_propulse            = COALESCE($2, options_gestionnaire.cacher_propulse),
+               domaine_personnalise       = COALESCE($3, options_gestionnaire.domaine_personnalise),
+               verificateur_age           = COALESCE($4, options_gestionnaire.verificateur_age),
+               popup_annonce              = COALESCE($5, options_gestionnaire.popup_annonce),
+               reservation_ecole          = COALESCE($6, options_gestionnaire.reservation_ecole),
+               reservation_ecole_paiement = COALESCE($7, options_gestionnaire.reservation_ecole_paiement),
+               updated_at                 = NOW()`,
+            [gestionnaireId, val('cacher_propulse'), val('domaine_personnalise'), val('verificateur_age'), val('popup_annonce'), val('reservation_ecole'), val('reservation_ecole_paiement')]
         );
 
         const result = await pool.query(
