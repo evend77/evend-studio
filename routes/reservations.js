@@ -559,5 +559,70 @@ router.delete('/disponibilites/:id', authenticateToken, async (req, res) => {
   }
 });
 
+// GET /api/reservations/paiements — liste des paiements du gestionnaire (onglet Paiements)
+router.get('/paiements', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT r.id, r.nom_client, r.email_client, r.objet_reserve, r.date_debut,
+              r.montant, r.devise, r.statut_paiement, r.created_at
+       FROM reservations r
+       JOIN sites s ON s.id = r.site_id
+       WHERE s.gestionnaire_id = $1 AND r.statut_paiement IS NOT NULL
+       ORDER BY r.created_at DESC`,
+      [req.user.id]
+    );
+    res.json({ paiements: result.rows });
+  } catch (err) {
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// POST /api/reservations/:id/rembourser — rembourse un paiement, annule la réservation, libère la place
+router.post('/:id/rembourser', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT r.*, s.config, g.email as gestionnaire_email
+       FROM reservations r
+       JOIN sites s ON s.id = r.site_id
+       JOIN gestionnaires g ON g.id = s.gestionnaire_id
+       WHERE r.id = $1 AND s.gestionnaire_id = $2`,
+      [req.params.id, req.user.id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ message: 'Paiement introuvable.' });
+    const reservation = result.rows[0];
+    if (reservation.statut_paiement === 'rembourse') return res.status(400).json({ message: 'Déjà remboursé.' });
+    if (!reservation.stripe_payment_intent_id) return res.status(400).json({ message: 'Aucun paiement Stripe associé à cette réservation.' });
+
+    // ⚠️ Nécessite Stripe Connect configuré (étape 2, pas encore branchée à l'écriture de ce code).
+    // Une fois le compte connecté du gestionnaire disponible (reservation.config.stripe_account_id
+    // ou équivalent), le remboursement doit être fait SUR CE COMPTE CONNECTÉ, pas sur la plateforme.
+    try {
+      const { Stripe } = require('stripe');
+      const stripe = Stripe(process.env.STRIPE_SECRET_KEY_STUDIO); // clé du compte plateforme Studio (2e compte admin)
+      const stripeAccountId = reservation.config?.stripe_account_id;
+      await stripe.refunds.create(
+        { payment_intent: reservation.stripe_payment_intent_id },
+        stripeAccountId ? { stripeAccount: stripeAccountId } : undefined
+      );
+    } catch (stripeErr) {
+      console.error('❌ Erreur remboursement Stripe:', stripeErr.message);
+      return res.status(502).json({ message: 'Erreur Stripe lors du remboursement. Rien n\'a été modifié.' });
+    }
+
+    await pool.query(
+      `UPDATE reservations SET statut = 'annulee', statut_paiement = 'rembourse' WHERE id = $1`,
+      [reservation.id]
+    );
+
+    const configSite = { ...(reservation.config || {}), gestionnaireEmail: reservation.gestionnaire_email };
+    envoyerCourrielReservation('annulation', reservation, configSite); // pas de await — ne bloque pas la réponse
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error('POST /:id/rembourser', err);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
 module.exports = router;
 module.exports.envoyerCourrielReservation = envoyerCourrielReservation;

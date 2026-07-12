@@ -71,6 +71,18 @@ interface Reservation {
   created_at: string;
 }
 
+interface Paiement {
+  id: number;               // id de la réservation associée
+  nom_client: string;
+  email_client: string | null;
+  objet_reserve: string | null;
+  date_debut: string;       // date du cours
+  montant: number | null;
+  devise: string | null;
+  statut_paiement: 'recu' | 'en_traitement' | 'rembourse' | string;
+  created_at: string;
+}
+
 const Inp = (props: any) => (
   <input {...props}
     style={{ width: '100%', padding: '10px 13px', border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: C.inputBg, color: C.text, boxSizing: 'border-box', fontFamily: 'inherit', ...(props.style || {}) }} />
@@ -96,7 +108,12 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
   const [modalOuvert, setModalOuvert] = useState(false);
   const [erreur, setErreur] = useState('');
   const [toast, setToast] = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
-  const [onglet, setOnglet] = useState<'a-venir' | 'passe' | 'creer'>('a-venir');
+  const [onglet, setOnglet] = useState<'a-venir' | 'passe' | 'creer' | 'paiements'>('a-venir');
+
+  // ── Options de l'add-on (toggles réservation / paiement) ──────────────────
+  const [reservationActive, setReservationActiveState] = useState(false);
+  const [paiementActif, setPaiementActifState] = useState(false);
+  const [sauvOptions, setSauvOptions] = useState(false);
 
   // ── État du formulaire de création/édition (onglet "Créer des créneaux") ──
   const [ajoutOuvert, setAjoutOuvert] = useState(false);
@@ -131,6 +148,39 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
   };
 
   useEffect(() => { charger(); }, [gestionnaireId]);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/options`)
+      .then(r => r.ok ? r.json() : Promise.resolve({} as Record<string, any>))
+      .then(data => {
+        setReservationActiveState(!!data?.reservation_ecole);
+        setPaiementActifState(!!data?.reservation_ecole_paiement);
+      })
+      .catch(() => {});
+  }, [gestionnaireId]);
+
+  // ── Sauvegarder un toggle (envoi partiel — les autres options ne sont pas touchées) ──
+  const sauvegarderOption = async (champ: 'reservation_ecole' | 'reservation_ecole_paiement', valeur: boolean) => {
+    setSauvOptions(true);
+    try {
+      const res = await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/options`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ [champ]: valeur }),
+      });
+      if (!res.ok) throw new Error();
+      if (champ === 'reservation_ecole') {
+        setReservationActiveState(valeur);
+        if (!valeur) { setPaiementActifState(false); sauvegarderOption('reservation_ecole_paiement', false); }
+      } else {
+        setPaiementActifState(valeur);
+      }
+      afficherToast(valeur ? 'Option activée.' : 'Option désactivée.', 'ok');
+    } catch {
+      afficherToast('Erreur lors de la sauvegarde de l\'option.', 'err');
+    }
+    setSauvOptions(false);
+  };
 
   // Regroupe les réservations par créneau (même date_debut exacte)
   const reservationsParCreneau = useMemo(() => {
@@ -290,10 +340,59 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
   const totalPlaces = dispos.reduce((s, d) => s + d.capacite_max, 0);
   const totalOccupees = dispos.reduce((s, d) => s + d.places_reservees, 0);
 
+  useEffect(() => { if (!paiementActif && onglet === 'paiements') setOnglet('creer'); }, [paiementActif, onglet]);
+
+  // ── Paiements (chargés seulement à la première ouverture de l'onglet) ─────
+  const [paiements, setPaiements] = useState<Paiement[]>([]);
+  const [chargementPaiements, setChargementPaiements] = useState(false);
+  const [paiementsCharges, setPaiementsCharges] = useState(false);
+
+  const chargerPaiements = async () => {
+    setChargementPaiements(true);
+    try {
+      const res = await fetch(`${API_BASE}/reservations/paiements`, { headers: { Authorization: `Bearer ${token()}` } });
+      const data = await res.json();
+      setPaiements(data.paiements || []);
+    } catch {
+      afficherToast('Erreur de chargement des paiements.', 'err');
+    }
+    setChargementPaiements(false);
+    setPaiementsCharges(true);
+  };
+
+  useEffect(() => {
+    if (onglet === 'paiements' && !paiementsCharges) chargerPaiements();
+  }, [onglet]);
+
+  const rembourser = (p: Paiement) => {
+    setConfirmation({
+      titre: 'Rembourser ce paiement?',
+      message: `${p.nom_client} sera remboursé de ${(p.montant ?? 0).toFixed(2)} $ ${(p.devise || 'CAD').toUpperCase()}. Sa place pour ce cours sera libérée. Cette action ne peut pas être annulée depuis cette page.`,
+      texteBouton: '💸 Rembourser',
+      onConfirmer: async () => {
+        setConfirmation(null);
+        try {
+          const res = await fetch(`${API_BASE}/reservations/${p.id}/rembourser`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token()}` },
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.message || 'Erreur.');
+          setPaiements(prev => prev.map(x => x.id === p.id ? { ...x, statut_paiement: 'rembourse' } : x));
+          charger(); // rafraîchit les places disponibles (À venir/Passé/Créer des créneaux)
+          afficherToast('Remboursement effectué — la place est de nouveau disponible.', 'ok');
+        } catch (err: any) {
+          afficherToast(err.message || 'Erreur lors du remboursement.', 'err');
+        }
+      },
+    });
+  };
+
   const ONGLETS: { id: typeof onglet; label: string }[] = [
     { id: 'a-venir', label: `📆 À venir${disposAvenir.length ? ` (${disposAvenir.length})` : ''}` },
     { id: 'passe', label: '📁 Passé' },
     { id: 'creer', label: '➕ Créer des créneaux' },
+    ...(paiementActif ? [{ id: 'paiements' as const, label: '💳 Paiements' }] : []),
   ];
 
   return (
@@ -387,6 +486,36 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
                 <div style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#fff' }}>{totalOccupees}/{totalPlaces}</div>
                 <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>Places occupées</div>
               </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Encadré jaune — activation des réservations et du paiement en ligne (visible peu importe l'onglet) */}
+        <div style={{ background: 'rgba(245,158,11,0.08)', border: `1.5px solid ${C.amber}50`, borderRadius: 16, padding: '20px 24px', marginBottom: 20 }}>
+          <p style={{ fontSize: 13, fontWeight: 800, color: C.amber, margin: '0 0 4px' }}>⚙️ Options d'affichage sur votre site</p>
+          <p style={{ fontSize: 12, color: C.textLight, margin: '0 0 16px' }}>Ces options contrôlent ce qui apparaît publiquement dans le tableau des horaires de votre site.</p>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '12px 0', borderBottom: `1px solid ${C.amber}30` }}>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>Activer les réservations en ligne</p>
+              <p style={{ fontSize: 11, color: C.textDim, margin: '2px 0 0' }}>Sans cette option, aucun tableau d'horaires n'apparaît sur votre site.</p>
+            </div>
+            <div onClick={() => !sauvOptions && sauvegarderOption('reservation_ecole', !reservationActive)}
+              style={{ width: 44, height: 24, borderRadius: 12, background: reservationActive ? C.amber : '#3a3a42', cursor: sauvOptions ? 'wait' : 'pointer', position: 'relative', flexShrink: 0, opacity: sauvOptions ? 0.6 : 1 }}>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: reservationActive ? 23 : 3, transition: 'left 0.2s' }} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: '12px 0 4px', opacity: reservationActive ? 1 : 0.4 }}>
+            <div>
+              <p style={{ fontSize: 13, fontWeight: 700, color: C.text, margin: 0 }}>Activer le paiement en ligne</p>
+              <p style={{ fontSize: 11, color: C.textDim, margin: '2px 0 0' }}>
+                {reservationActive ? 'Un bouton "Payer" apparaît à côté de "Réserver" dans le tableau.' : 'Activez d\'abord les réservations en ligne ci-dessus.'}
+              </p>
+            </div>
+            <div onClick={() => reservationActive && !sauvOptions && sauvegarderOption('reservation_ecole_paiement', !paiementActif)}
+              style={{ width: 44, height: 24, borderRadius: 12, background: paiementActif ? C.amber : '#3a3a42', cursor: reservationActive ? (sauvOptions ? 'wait' : 'pointer') : 'not-allowed', position: 'relative', flexShrink: 0, opacity: sauvOptions ? 0.6 : 1 }}>
+              <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: paiementActif ? 23 : 3, transition: 'left 0.2s' }} />
             </div>
           </div>
         </div>
@@ -645,6 +774,65 @@ export default function MesReservationsEcole({ gestionnaireId }: Props) {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ── ONGLET : PAIEMENTS ────────────────────────────────────────────── */}
+        {onglet === 'paiements' && (
+          <div style={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 16, padding: '20px 24px' }}>
+            {chargementPaiements ? (
+              <p style={{ fontSize: 13, color: C.textLight, textAlign: 'center', padding: 40 }}>Chargement des paiements...</p>
+            ) : paiements.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40 }}>
+                <div style={{ fontSize: 36, marginBottom: 10 }}>💳</div>
+                <p style={{ fontSize: 13, color: C.textLight }}>Aucun paiement reçu pour l'instant.</p>
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: isMobile ? 640 : 'auto' }}>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${C.border}` }}>
+                      {['Client', 'Cours', 'Date', 'Montant', 'Statut', ''].map(h => (
+                        <th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: C.textDim, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paiements.map(p => {
+                      const badge = p.statut_paiement === 'recu'
+                        ? { label: '🟢 Reçu', bg: C.greenLight, color: C.green }
+                        : p.statut_paiement === 'en_traitement'
+                        ? { label: '🟡 En traitement', bg: 'rgba(245,158,11,0.15)', color: C.amber }
+                        : p.statut_paiement === 'rembourse'
+                        ? { label: '↩️ Remboursé', bg: 'rgba(255,255,255,0.06)', color: C.textDim }
+                        : { label: p.statut_paiement, bg: 'rgba(255,255,255,0.06)', color: C.textDim };
+                      return (
+                        <tr key={p.id} style={{ borderBottom: `1px solid ${C.border}` }}>
+                          <td style={{ padding: '12px', color: C.text }}>
+                            <p style={{ margin: 0, fontWeight: 700 }}>{p.nom_client}</p>
+                            <p style={{ margin: 0, fontSize: 11, color: C.textDim }}>{p.email_client}</p>
+                          </td>
+                          <td style={{ padding: '12px', color: C.textLight }}>{p.objet_reserve || '—'}</td>
+                          <td style={{ padding: '12px', color: C.textLight, whiteSpace: 'nowrap' }}>{new Date(p.date_debut).toLocaleDateString('fr-CA', { dateStyle: 'medium' })}</td>
+                          <td style={{ padding: '12px', color: C.text, fontWeight: 700, whiteSpace: 'nowrap' }}>{(p.montant ?? 0).toFixed(2)} {(p.devise || 'CAD').toUpperCase()}</td>
+                          <td style={{ padding: '12px' }}>
+                            <span style={{ background: badge.bg, color: badge.color, padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>{badge.label}</span>
+                          </td>
+                          <td style={{ padding: '12px', textAlign: 'right' }}>
+                            {p.statut_paiement === 'recu' && (
+                              <button onClick={() => rembourser(p)}
+                                style={{ background: C.redLight, color: C.red, border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: 11, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                                💸 Rembourser
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
       </div>

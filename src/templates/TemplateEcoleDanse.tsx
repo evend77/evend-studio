@@ -8,17 +8,13 @@ import { useIsMobile } from '../hooks/useIsMobile';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AddonContact, { AddonTheme, AddonContactData, ChampFormulaire } from '../addons/contact/AddonContact';
+import AddonReservationEcole, { AddonReservationTheme, AddonReservationData } from '../addons/reservation-ecole/AddonReservationEcole';
 
 export interface SectionConfig { id: string; actif: boolean; ordre: number; label: string; }
 
 export interface StyleDanse {
   id: string; nom: string; emoji: string; description: string;
   photo: string; couleurAccent: string; niveaux: string[];
-}
-
-export interface CoursHoraire {
-  style: string; niveau: string; jour: string; heure: string;
-  salle: string; places: number; professeur: string; prix: string;
 }
 
 export interface ProfesseurDanse {
@@ -48,7 +44,6 @@ export interface ConfigEcoleDanse {
   photoHero: string; photoAPropos1: string; photoAPropos2: string; photoBanner: string;
   stats: { valeur: string; label: string; icone: string }[];
   stylesDanse: StyleDanse[];
-  horaires: CoursHoraire[];
   professeurs: ProfesseurDanse[];
   avis: AvisDanse[];
   pass: FormulairePass[];
@@ -93,16 +88,6 @@ export const CONFIG_DANSE_DEFAUT: ConfigEcoleDanse = {
     { id:'salsa', nom:'Salsa & Latin', emoji:'🌺', description:'Feu et sensualité. Salsa, bachata, merengue — laissez le rythme latin vous emporter.', photo:'https://images.pexels.com/photos/358010/pexels-photo-358010.jpeg?auto=compress&cs=tinysrgb&w=800', couleurAccent:'#ff6b35', niveaux:['Débutant','Social','Chorégraphie','Performance'] },
     { id:'jazz', nom:'Jazz & Show', emoji:'✨', description:'Showmanship et technique. Personnalité explosive, fouettés et grandes lignes pour briller sur scène.', photo:'https://images.pexels.com/photos/1190298/pexels-photo-1190298.jpeg?auto=compress&cs=tinysrgb&w=800', couleurAccent:'#7c3aed', niveaux:['Initiation','Niveau 1','Scène','Compétition'] },
     { id:'eveil', nom:'Éveil & Enfants', emoji:'🌸', description:'Pour les 3-8 ans. Découverte du corps, de la musique et du mouvement dans un univers ludique.', photo:'https://images.pexels.com/photos/209977/pexels-photo-209977.jpeg?auto=compress&cs=tinysrgb&w=800', couleurAccent:'#4caf50', niveaux:['3-5 ans','6-8 ans'] },
-  ],
-  horaires: [
-    { style:'Ballet', niveau:'Initiation', jour:'Lundi', heure:'17h30', salle:'Salle A', places:12, professeur:'Isabelle M.', prix:'28$' },
-    { style:'Hip-Hop', niveau:'Débutant', jour:'Lundi', heure:'19h00', salle:'Salle B', places:15, professeur:'Karim T.', prix:'25$' },
-    { style:'Contemporain', niveau:'Découverte', jour:'Mardi', heure:'18h00', salle:'Salle A', places:10, professeur:'Léa D.', prix:'28$' },
-    { style:'Salsa', niveau:'Débutant', jour:'Mercredi', heure:'20h00', salle:'Salle B', places:20, professeur:'Carlos R.', prix:'22$' },
-    { style:'Ballet', niveau:'Avancé', jour:'Jeudi', heure:'17h00', salle:'Salle A', places:8, professeur:'Isabelle M.', prix:'32$' },
-    { style:'Jazz', niveau:'Scène', jour:'Vendredi', heure:'18h30', salle:'Grande Salle', places:15, professeur:'Sophia K.', prix:'28$' },
-    { style:'Hip-Hop', niveau:'Avancé', jour:'Samedi', heure:'10h00', salle:'Salle B', places:12, professeur:'Karim T.', prix:'25$' },
-    { style:'Éveil', niveau:'3-5 ans', jour:'Samedi', heure:'9h00', salle:'Salle C', places:10, professeur:'Julie P.', prix:'22$' },
   ],
   professeurs: [
     { nom:'Isabelle Morin', titre:'Fondatrice & Professeure Ballet', specialites:['Ballet classique','Pointes','Contemporain'], bio:'Ancienne danseuse étoile des Grands Ballets Canadiens pendant 12 ans, Isabelle apporte une expertise rare et une pédagogie chaleureuse. Ses élèves ont intégré les meilleures compagnies au monde.', photo:'https://images.pexels.com/photos/3822622/pexels-photo-3822622.jpeg?auto=compress&cs=tinysrgb&w=400', annees:20, palmares:['Danseuse étoile GBC 2005-2017','Prix d\'excellence pédagogique 2021','Chorégraphe Festival MTL en lumière'], citation:'Chaque élève porte en lui une danse unique — mon rôle est de l\'aider à la révéler.' },
@@ -518,227 +503,34 @@ function SectionStyles({ config, setPage }: { config:ConfigEcoleDanse; setPage:(
   );
 }
 
+
 // ─── HORAIRES ─────────────────────────────────────────────────────────────────
-
-// ─── Type d'un vrai créneau (disponibilite), tel que retourné par l'API publique ──
-interface DispoReelle {
-  id: number;
-  date_debut: string;
-  date_fin: string;
-  capacite_max: number;
-  titre: string | null;
-  salle: string | null;
-  professeur: string | null;
-  niveau: string | null;
-  style: string | null;
-  prix: string | null;
-  actif: boolean;
-}
-
-const NOMS_JOURS = ['Dimanche','Lundi','Mardi','Mercredi','Jeudi','Vendredi','Samedi'];
-// Convertit un vrai créneau BD en objet d'affichage compatible avec le reste de la section
-function dispoVersAffichage(d: DispoReelle, placesRestantes: number) {
-  const dt = new Date(d.date_debut);
-  const jour = NOMS_JOURS[dt.getDay()];
-  const heure = `${String(dt.getHours()).padStart(2,'0')}h${String(dt.getMinutes()).padStart(2,'0')}`;
-  return {
-    id: d.id, date_debut: d.date_debut, date_fin: d.date_fin,
-    jour, heure,
-    style: d.style || d.titre || 'Cours',
-    niveau: d.niveau || '',
-    salle: d.salle || '',
-    professeur: d.professeur || '',
-    prix: d.prix || '',
-    places: d.capacite_max,
-    placesRestantes,
-  };
-}
-type CoursAffichable = ReturnType<typeof dispoVersAffichage>;
-
-// ─── Popup d'inscription à un cours (utilise toujours une vraie date de créneau) ──
-function PopupInscriptionCours({ config, cours, siteId, onFermer, onInscrit }: { config:ConfigEcoleDanse; cours:CoursAffichable; siteId?:number|string; onFermer:()=>void; onInscrit:()=>void }) {
-  const [nom, setNom] = useState('');
-  const [telephone, setTelephone] = useState('');
-  const [email, setEmail] = useState('');
-  const [envoi, setEnvoi] = useState(false);
-  const [erreur, setErreur] = useState('');
-  const [succes, setSucces] = useState(false);
-  const cm = config.couleurMagenta;
-
-  const soumettre = async () => {
-    setErreur('');
-    if (!nom.trim() || !telephone.trim() || !email.trim()) { setErreur('Tous les champs sont requis.'); return; }
-    if (!siteId) { setErreur('Impossible de déterminer le site. Réessayez plus tard.'); return; }
-    setEnvoi(true);
-    try {
-      const res = await fetch('/api/reservations', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          site_id: siteId,
-          nom_client: nom.trim(),
-          email_client: email.trim(),
-          telephone: telephone.trim(),
-          date_debut: cours.date_debut,
-          date_fin: cours.date_fin,
-          nb_personnes: 1,
-          type_reservation: 'cours',
-          objet_reserve: `${cours.style}${cours.niveau ? ' — ' + cours.niveau : ''} (${cours.jour} ${cours.heure})`,
-        }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { setErreur(data.message || 'Erreur lors de l\'inscription.'); setEnvoi(false); return; }
-      setSucces(true);
-      onInscrit(); // permet au parent de rafraîchir les places restantes
-    } catch {
-      setErreur('Erreur de connexion. Réessayez.');
-    }
-    setEnvoi(false);
-  };
-
-  return (
-    <div onClick={onFermer} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.7)', zIndex:9998, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:'#14141f', border:`1px solid ${cm}40`, borderRadius:14, padding:'28px 26px', maxWidth:420, width:'100%', position:'relative' }}>
-        <button onClick={onFermer} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:'rgba(255,255,255,.4)', fontSize:18, cursor:'pointer' }}>✕</button>
-        {succes ? (
-          <div style={{ textAlign:'center', padding:'20px 0' }}>
-            <p style={{ fontSize:40, marginBottom:12 }}>✅</p>
-            <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:22, fontWeight:700, color:'#fff', marginBottom:8 }}>Inscription envoyée !</p>
-            <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.5)' }}>Vous recevrez un courriel de confirmation sous peu.</p>
-          </div>
-        ) : (
-          <>
-            <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:10, fontWeight:700, color:cm, letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:6 }}>S'inscrire</p>
-            <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:24, fontWeight:700, color:'#fff', marginBottom:4 }}>{cours.style}{cours.niveau ? ` — ${cours.niveau}` : ''}</p>
-            <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)', marginBottom:20 }}>{cours.jour} {cours.heure}{cours.salle ? ` · ${cours.salle}` : ''}{cours.professeur ? ` · ${cours.professeur}` : ''}</p>
-            {erreur && <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'#ff6b6b', marginBottom:14, background:'rgba(255,107,107,.1)', padding:'8px 12px', borderRadius:6 }}>⚠️ {erreur}</p>}
-            {[
-              { v: nom, set: setNom, ph: 'Nom complet', type: 'text' },
-              { v: telephone, set: setTelephone, ph: 'Téléphone', type: 'tel' },
-              { v: email, set: setEmail, ph: 'Courriel', type: 'email' },
-            ].map((f, i) => (
-              <input key={i} type={f.type} value={f.v} placeholder={f.ph} onChange={e => f.set(e.target.value)}
-                style={{ width:'100%', boxSizing:'border-box', padding:'11px 14px', marginBottom:10, borderRadius:8, border:'1px solid rgba(255,255,255,.12)', background:'rgba(255,255,255,.04)', color:'#fff', fontFamily:"'Poppins',sans-serif", fontSize:13, outline:'none' }} />
-            ))}
-            <button onClick={soumettre} disabled={envoi} className="btn-m" style={{ width:'100%', marginTop:8, opacity:envoi?.6:1 }}>
-              {envoi ? 'Envoi...' : "Confirmer l'inscription"}
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
+// Add-on injectable — src/addons/reservation-ecole/AddonReservationEcole.tsx
+// Ce bloc est SEULEMENT l'adaptateur de thème, comme pour AddonContact.
 function SectionHoraires({ config, setPage, siteId, reservationActive }: { config:ConfigEcoleDanse; setPage:(p:string)=>void; siteId?:number|string; reservationActive?:boolean }) {
-  const { isMobile } = useIsMobile();
-  const rv = useReveal(.05);
-  const styles = ea(config.stylesDanse, CONFIG_DANSE_DEFAUT.stylesDanse);
-  const [filtre, setFiltre] = useState('Tous');
-  const [popup, setPopup] = useState<CoursAffichable | null>(null);
-
-  // ── Chargement des vraies disponibilités si l'add-on est actif ──────────────
-  const [dispos, setDispos] = useState<DispoReelle[]>([]);
-  const [reservationsBrutes, setReservationsBrutes] = useState<{ date_debut:string; nb_personnes:number; statut:string }[]>([]);
-  const [chargement, setChargement] = useState(!!reservationActive);
-
-  const chargerDispos = () => {
-    if (!reservationActive || !siteId) return;
-    setChargement(true);
-    fetch(`/api/reservations/disponibilites/${siteId}`)
-      .then(r => r.ok ? r.json() : { disponibilites: [], reservations: [] })
-      .then(data => {
-        setDispos(data.disponibilites || []);
-        setReservationsBrutes(data.reservations || []);
-      })
-      .catch(() => {})
-      .finally(() => setChargement(false));
+  const themeReservation: AddonReservationTheme = {
+    primary: config.couleurMagenta,
+    accentSecondaire: config.couleurOr,
+    bg: '#0f0f1a',
+    cardBg: 'rgba(255,255,255,.03)',
+    border: 'rgba(255,255,255,.08)',
+    text: '#fff',
+    textDim: 'rgba(255,255,255,.5)',
+    fontTitre: "'Cormorant Garamond',serif",
+    fontTexte: "'Poppins',sans-serif",
   };
-  useEffect(() => { chargerDispos(); }, [reservationActive, siteId]);
-
-  // ── Liste finale à afficher : vraies dispos si l'add-on est actif, sinon horaire statique ──
-  const coursAffichables: CoursAffichable[] = reservationActive
-    ? dispos.filter(d => d.actif).map(d => {
-        const placesReservees = reservationsBrutes
-          .filter(r => r.date_debut === d.date_debut && r.statut !== 'annulee')
-          .reduce((s, r) => s + (r.nb_personnes || 1), 0);
-        return dispoVersAffichage(d, d.capacite_max - placesReservees);
-      })
-    : ea(config.horaires, CONFIG_DANSE_DEFAUT.horaires).filter(h => h && typeof h === 'object' && h.jour).map((h, i) => ({
-        id: i, date_debut: '', date_fin: '', jour: h.jour, heure: h.heure, style: h.style, niveau: h.niveau,
-        salle: h.salle, professeur: h.professeur, prix: h.prix, places: h.places, placesRestantes: h.places,
-      }));
-
-  const opts = ['Tous', ...Array.from(new Set(coursAffichables.map(h => h.style)))];
-  const filtres = filtre==='Tous' ? coursAffichables : coursAffichables.filter(h => h.style===filtre);
-  const colStyle = (style: string) => styles.find(s => (s.nom || '').toLowerCase().includes((style || '').toLowerCase()) || (style || '').toLowerCase().includes(s.id || ''))?.couleurAccent || config.couleurMagenta;
-  const entetes = ['Jour / Heure','Style & Niveau','Professeur','Salle','Prix', ...(reservationActive ? [''] : [])];
-
-  return (
-    <section style={{ background:'#0f0f1a', padding:isMobile?'60px 20px':'100px 48px' }}>
-      <div ref={rv.ref} className={`rv${rv.vis?' vis':''}`} style={{ maxWidth:1320, margin:'0 auto' }}>
-        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-end', marginBottom:40 }}>
-          <div>
-            <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, fontWeight:600, color:config.couleurOr, letterSpacing:'0.25em', textTransform:'uppercase', marginBottom:12 }}>Planning</p>
-            <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'clamp(36px,5vw,68px)', fontWeight:600, color:'#fff', lineHeight:1.05 }}>Horaires du <em style={{ fontStyle:'italic', color:config.couleurOr }}>studio</em></h2>
-          </div>
-          <button className="btn-m" onClick={() => setPage('contact-page')}>Réserver une place</button>
-        </div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:24 }}>
-          {opts.map(f => (
-            <button key={f} onClick={() => setFiltre(f)} style={{ padding:'7px 16px', borderRadius:20, cursor:'pointer', fontFamily:"'Poppins',sans-serif", fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', background:filtre===f?config.couleurMagenta:'rgba(255,255,255,.06)', color:filtre===f?'#fff':'rgba(255,255,255,.5)', border:`1px solid ${filtre===f?config.couleurMagenta:'rgba(255,255,255,.1)'}`, transition:'all .25s' }}>
-              {f}
-            </button>
-          ))}
-        </div>
-        <div style={{ overflowX: isMobile ? 'auto' : 'visible', WebkitOverflowScrolling: 'touch' as any }}>
-        <div style={{ background:'rgba(255,255,255,.03)', border:'1px solid rgba(255,255,255,.08)', borderRadius:8, overflow:'hidden', minWidth: isMobile ? (reservationActive ? 620 : 520) : 'auto' }}>
-          <div className="hr-row" style={{ background:'rgba(255,255,255,.06)', borderBottom:`2px solid ${config.couleurMagenta}30`, gridTemplateColumns: reservationActive ? '110px 1fr 90px 90px 60px auto' : undefined }}>
-            {entetes.map((h,i) => (
-              <p key={i} style={{ fontFamily:"'Poppins',sans-serif", fontSize:10, fontWeight:700, color:'rgba(255,255,255,.4)', letterSpacing:'0.15em', textTransform:'uppercase' }}>{h}</p>
-            ))}
-          </div>
-          {chargement ? (
-            <p style={{ padding:24, fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.4)' }}>Chargement des horaires...</p>
-          ) : filtres.length === 0 ? (
-            <p style={{ padding:24, fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.4)' }}>Aucun cours pour le moment.</p>
-          ) : filtres.map((h,i) => {
-            const col = colStyle(h.style);
-            const complet = reservationActive && h.placesRestantes <= 0;
-            return (
-              <div key={h.id ?? i} className="hr-row" style={reservationActive ? { gridTemplateColumns:'110px 1fr 90px 90px 60px auto' } : undefined}>
-                <div><p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, fontWeight:700, color:'#fff' }}>{h.jour}</p><p style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, color:col }}>{h.heure}</p></div>
-                <div>
-                  <span style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, padding:'2px 10px', background:`${col}20`, border:`1px solid ${col}40`, color:col, borderRadius:12, fontWeight:700 }}>{h.style}</span>
-                  <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)', marginTop:4 }}>
-                    {h.niveau}{h.niveau ? ' · ' : ''}{reservationActive ? (complet ? 'Complet' : `${h.placesRestantes} places`) : `${h.places} places`}
-                  </p>
-                </div>
-                <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.5)' }}>{h.professeur}</p>
-                <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:12, color:'rgba(255,255,255,.4)' }}>{h.salle}</p>
-                <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:18, fontWeight:700, color:col }}>{h.prix}</p>
-                {reservationActive && (
-                  complet ? (
-                    <span style={{ padding:'7px 14px', borderRadius:20, background:'rgba(255,255,255,.06)', color:'rgba(255,255,255,.35)', fontFamily:"'Poppins',sans-serif", fontSize:11, fontWeight:700, letterSpacing:'0.05em', textTransform:'uppercase', whiteSpace:'nowrap' as any }}>
-                      Complet
-                    </span>
-                  ) : (
-                    <button onClick={() => setPopup(h)} style={{ padding:'7px 14px', borderRadius:20, background:col, color:'#fff', border:'none', fontFamily:"'Poppins',sans-serif", fontSize:11, fontWeight:700, letterSpacing:'0.05em', textTransform:'uppercase', cursor:'pointer', whiteSpace:'nowrap' as any }}>
-                      S'inscrire
-                    </button>
-                  )
-                )}
-              </div>
-            );
-          })}
-        </div>
-        </div>
-      </div>
-      {popup && <PopupInscriptionCours config={config} cours={popup} siteId={siteId} onFermer={() => setPopup(null)} onInscrit={chargerDispos} />}
-    </section>
-  );
+  const styles = ea(config.stylesDanse, CONFIG_DANSE_DEFAUT.stylesDanse);
+  const dataReservation: AddonReservationData = {
+    siteId, reservationActive,
+    titreLabel: 'Planning',
+    titre: 'Horaires du',
+    titreAccent: 'studio',
+    labelBoutonHeader: 'Réserver une place',
+    onClicBoutonHeader: () => setPage('contact-page'),
+    couleurParStyle: (style: string) => styles.find(s => (s.nom || '').toLowerCase().includes((style || '').toLowerCase()) || (style || '').toLowerCase().includes(s.id || ''))?.couleurAccent,
+  };
+  return <AddonReservationEcole theme={themeReservation} data={dataReservation} />;
 }
-
 // ─── À PROPOS ─────────────────────────────────────────────────────────────────
 
 function SectionAPropos({ config }: { config:ConfigEcoleDanse }) {
@@ -1253,7 +1045,6 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId,
   config.sections     = rawSections.every(s => VALID_IDS.includes(s.id)) ? rawSections : CONFIG_DANSE_DEFAUT.sections;
   config.stats        = ea(partiel?.stats,         CONFIG_DANSE_DEFAUT.stats);
   config.stylesDanse  = ea(partiel?.stylesDanse,   CONFIG_DANSE_DEFAUT.stylesDanse);
-  config.horaires     = ea(partiel?.horaires,      CONFIG_DANSE_DEFAUT.horaires);
   config.professeurs  = ea(partiel?.professeurs,   CONFIG_DANSE_DEFAUT.professeurs);
   config.avis         = ea(partiel?.avis,          CONFIG_DANSE_DEFAUT.avis);
   config.pass         = ea(partiel?.pass,          CONFIG_DANSE_DEFAUT.pass);

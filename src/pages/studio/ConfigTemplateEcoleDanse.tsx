@@ -1,9 +1,9 @@
 // src/pages/studio/ConfigTemplateEcoleDanse.tsx
 import { useState, useEffect } from 'react';
 import TemplateEcoleDanse, { CONFIG_DANSE_DEFAUT } from '../../templates/TemplateEcoleDanse';
-import type { ConfigEcoleDanse, SectionConfig, StyleDanse, CoursHoraire, ProfesseurDanse, AvisDanse, FormulairePass } from '../../templates/TemplateEcoleDanse';
+import type { ConfigEcoleDanse, SectionConfig, StyleDanse, ProfesseurDanse, AvisDanse, FormulairePass } from '../../templates/TemplateEcoleDanse';
 
-type Onglet = 'identite'|'apparence'|'sections'|'stats'|'styles'|'horaires'|'professeurs'|'avis'|'pass'|'evenements'|'faq'|'contact';
+type Onglet = 'identite'|'apparence'|'sections'|'stats'|'styles'|'professeurs'|'avis'|'pass'|'evenements'|'faq'|'contact';
 const CM = '#e91e8c';
 
 const Inp = ({ value, onChange, placeholder, type='text' }: any) => (
@@ -30,7 +30,7 @@ function SectionsManager({ sections, onChange }: { sections:SectionConfig[]; onC
   };
   const tog = (id: string) => onChange(sections.map(s=>s.id===id?{...s,actif:!s.actif}:s));
   const sorted=[...sections].sort((a,b)=>a.ordre-b.ordre);
-  const ico: Record<string,string> = { hero:'🎭',stats:'📊',styles:'💃',horaires:'📅',apropos:'📖',professeurs:'⭐',evenements:'🎪',avis:'💬',pass:'💰',faq:'❓',contact:'✉️' };
+  const ico: Record<string,string> = { hero:'🎭',stats:'📊',styles:'💃',apropos:'📖',professeurs:'⭐',evenements:'🎪',avis:'💬',pass:'💰',faq:'❓',contact:'✉️' };
   return (
     <div>
       <div style={{ background:'#fff0f8', border:`1px solid ${CM}40`, borderRadius:7, padding:9, fontSize:11, color:'#7a0a3a', marginBottom:12 }}><strong>💃 Sections</strong> — Toggle + ▲▼</div>
@@ -72,15 +72,11 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
   const [apercu, setApercu] = useState(false);
   const [modeApercu, setModeApercu] = useState<'desktop'|'tablette'|'mobile'>('desktop');
   const [resetConfirm, setResetConfirm] = useState(false);
-  const [reservationEcoleActive, setReservationEcoleActive] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     fetch(`/api/studio/sites/${vendeurId}`, { headers:{ Authorization:`Bearer ${token}` }, credentials:'include' })
       .then(r=>r.ok?r.json():null).then(data=>{if(data?.config)setConfig(prev=>({...prev,...data.config}));}).catch(()=>{});
-    // Route publique — indique si l'add-on Réservation École/Cours est activé pour ce gestionnaire
-    fetch(`/api/gestionnaires/${vendeurId}/options`)
-      .then(r=>r.ok?r.json():null).then(data=>{if(data)setReservationEcoleActive(!!data.reservation_ecole);}).catch(()=>{});
   }, [vendeurId]);
 
   const set = (k: keyof ConfigEcoleDanse, v: any) => setConfig(prev=>({...prev,[k]:v}));
@@ -100,7 +96,6 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
   const sections   = ea(config.sections,       CONFIG_DANSE_DEFAUT.sections);
   const stats      = ea(config.stats,           CONFIG_DANSE_DEFAUT.stats);
   const styles     = ea(config.stylesDanse,     CONFIG_DANSE_DEFAUT.stylesDanse);
-  const horaires   = ea(config.horaires,        CONFIG_DANSE_DEFAUT.horaires);
   const profs      = ea(config.professeurs,     CONFIG_DANSE_DEFAUT.professeurs);
   const avis       = ea(config.avis,            CONFIG_DANSE_DEFAUT.avis);
   const pass       = ea(config.pass,            CONFIG_DANSE_DEFAUT.pass);
@@ -112,9 +107,6 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
   const updStyle= (i:number,k:keyof StyleDanse,v:any)=>{const a=[...styles];a[i]={...a[i],[k]:v};set('stylesDanse',a);};
   const delStyle= (i:number)=>{const a=[...styles];a.splice(i,1);set('stylesDanse',a);};
   const addStyle= ()=>set('stylesDanse',[...styles,{id:'nouveau',nom:'Nouveau style',emoji:'💃',description:'',photo:'',couleurAccent:CM,niveaux:[]}]);
-  const updHor  = (i:number,k:keyof CoursHoraire,v:any)=>{const a=[...horaires];a[i]={...a[i],[k]:v};set('horaires',a);};
-  const delHor  = (i:number)=>{const a=[...horaires];a.splice(i,1);set('horaires',a);};
-  const addHor  = ()=>set('horaires',[...horaires,{style:'Ballet',niveau:'Débutant',jour:'Lundi',heure:'18h00',salle:'Salle A',places:12,professeur:'',prix:'25$'}]);
   const updProf = (i:number,k:keyof ProfesseurDanse,v:any)=>{const a=[...profs];a[i]={...a[i],[k]:v};set('professeurs',a);};
   const delProf = (i:number)=>{const a=[...profs];a.splice(i,1);set('professeurs',a);};
   const addProf = ()=>set('professeurs',[...profs,{nom:'Nouveau',titre:'',specialites:[],bio:'',photo:'',annees:5,palmares:[],citation:''}]);
@@ -134,7 +126,7 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
   const ONGLETS: {id:Onglet;label:string;emoji:string}[] = [
     {id:'identite',label:'Identité',emoji:'🏷️'},{id:'apparence',label:'Couleurs',emoji:'🎨'},
     {id:'sections',label:'Sections',emoji:'📐'},{id:'stats',label:'Stats',emoji:'📊'},
-    {id:'styles',label:'Styles',emoji:'💃'},{id:'horaires',label:'Horaires',emoji:'📅'},
+    {id:'styles',label:'Styles',emoji:'💃'},
     {id:'professeurs',label:'Profs',emoji:'⭐'},{id:'avis',label:'Avis',emoji:'💬'},
     {id:'pass',label:'Pass',emoji:'💰'},{id:'evenements',label:'Événements',emoji:'🎪'},
     {id:'faq',label:'FAQ',emoji:'❓'},{id:'contact',label:'Contact',emoji:'✉️'},
@@ -149,7 +141,7 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
             <div><p style={{ fontSize:10, color:'#888', fontWeight:600, letterSpacing:'0.1em', textTransform:'uppercase' }}>Template Gratuit</p><p style={{ fontSize:13, fontWeight:700, color:'#1a1a1a' }}>École de Danse</p></div>
           </div>
           <div style={{ display:'flex', flexWrap:'wrap', gap:3, paddingBottom:10 }}>
-            {ONGLETS.map(o => <button key={o.id} onClick={()=>setOnglet(o.id)} style={{ padding:'3px 6px', borderRadius:5, border:'none', cursor:'pointer', fontSize:10, fontWeight:500, background:onglet===o.id?CM:'#f3f4f6', color:onglet===o.id?'#fff':'#555', transition:'all .15s' }}>{o.emoji} {o.label}{o.id==='horaires' && reservationEcoleActive ? ' 🔒' : ''}</button>)}
+            {ONGLETS.map(o => <button key={o.id} onClick={()=>setOnglet(o.id)} style={{ padding:'3px 6px', borderRadius:5, border:'none', cursor:'pointer', fontSize:10, fontWeight:500, background:onglet===o.id?CM:'#f3f4f6', color:onglet===o.id?'#fff':'#555', transition:'all .15s' }}>{o.emoji} {o.label}</button>)}
           </div>
         </div>
 
@@ -192,34 +184,6 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
             </div>)}
             <button onClick={addStyle} style={{ width:'100%', padding:8, border:`2px dashed ${CM}`, borderRadius:8, background:'transparent', color:CM, cursor:'pointer', fontSize:11, fontWeight:600 }}>+ Ajouter un style</button>
           </>)}
-
-          {onglet==='horaires' && (reservationEcoleActive ? (
-            <div style={{ background:'#fff0f8', border:`1.5px solid ${CM}40`, borderRadius:10, padding:16, textAlign:'center' }}>
-              <div style={{ fontSize:32, marginBottom:8 }}>🔒</div>
-              <p style={{ fontSize:12, fontWeight:700, color:'#1a1a1a', marginBottom:6 }}>Géré ailleurs maintenant</p>
-              <p style={{ fontSize:11, color:'#666', lineHeight:1.5, marginBottom:10 }}>
-                L'add-on <strong>Réservation — École/Cours</strong> est activé. Vos horaires affichés sur le site proviennent maintenant de vos vrais créneaux (avec places disponibles en temps réel), pas de cette liste manuelle.
-              </p>
-              <p style={{ fontSize:11, color:'#666', lineHeight:1.5 }}>
-                Pour ajouter, modifier ou supprimer un cours, allez dans <strong>Mes Réservations Écoles → Créer des créneaux</strong> depuis le menu principal du dashboard.
-              </p>
-            </div>
-          ) : (<>
-            {horaires.map((h,i) => <div key={i} style={{ border:'1px solid #e5e7eb', borderRadius:8, padding:10, marginBottom:10 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:7 }}><span style={{ fontSize:11, fontWeight:600 }}>{h.jour} {h.heure} — {h.style}</span><Del onClick={()=>delHor(i)} /></div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-                <F label="Style"><Inp value={h.style} onChange={(v:string)=>updHor(i,'style',v)} /></F>
-                <F label="Niveau"><Inp value={h.niveau} onChange={(v:string)=>updHor(i,'niveau',v)} /></F>
-                <F label="Jour"><Inp value={h.jour} onChange={(v:string)=>updHor(i,'jour',v)} /></F>
-                <F label="Heure"><Inp value={h.heure} onChange={(v:string)=>updHor(i,'heure',v)} placeholder="18h00" /></F>
-                <F label="Salle"><Inp value={h.salle} onChange={(v:string)=>updHor(i,'salle',v)} /></F>
-                <F label="Prix"><Inp value={h.prix} onChange={(v:string)=>updHor(i,'prix',v)} /></F>
-                <F label="Professeur"><Inp value={h.professeur} onChange={(v:string)=>updHor(i,'professeur',v)} /></F>
-                <F label="Places max"><Inp value={String(h.places)} onChange={(v:string)=>updHor(i,'places',parseInt(v)||10)} /></F>
-              </div>
-            </div>)}
-            <button onClick={addHor} style={{ width:'100%', padding:8, border:`2px dashed ${CM}`, borderRadius:8, background:'transparent', color:CM, cursor:'pointer', fontSize:11, fontWeight:600 }}>+ Ajouter un cours</button>
-          </>))}
 
           {onglet==='professeurs' && (<>
             {profs.map((p,i) => <div key={i} style={{ border:'1px solid #e5e7eb', borderRadius:8, padding:10, marginBottom:10 }}>
