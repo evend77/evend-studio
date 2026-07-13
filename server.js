@@ -231,6 +231,7 @@ app.use('/api/sieges', require('./routes/sieges'));
 // 📅 RÉSERVATIONS STUDIO
 // =====================================================================
 app.use('/api/reservations', require('./routes/reservations'));
+app.use('/api/abonnements', require('./routes/abonnements'));
 
 // =====================================================================
 // 🌐 DYNADOT (ACHAT DE DOMAINES)
@@ -662,6 +663,7 @@ app.use('/api/admin/gestionnaires', require('./routes/admin_gestionnaires'));
 // (monté APRÈS /moi et /stats pour éviter les conflits de routing)
 // =====================================================================
 app.use('/api/gestionnaires', require('./routes/gestionnaires'));
+app.use('/api/gestionnaires', require('./routes/stripe_gestionnaire'));
 
 // =====================================================================
 // 📦 CRÉER / MODIFIER ANNONCE

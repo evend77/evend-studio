@@ -193,7 +193,7 @@ export default function AddonReservationEcole({ theme, data }: { theme:AddonRese
 
         <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:24 }}>
           {opts.map(f => (
-            <button key={f} onClick={() => setFiltre(f)} style={{ padding:'7px 16px', borderRadius:20, cursor:'pointer', fontFamily:theme.fontTexte, fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', background:filtre===f?theme.primary:`${theme.text}10`, color:filtre===f?'#fff':theme.textDim, border:`1px solid ${filtre===f?theme.primary:theme.border}`, transition:'all .25s' }}>
+            <button key={f} onClick={() => setFiltre(f)} style={{ padding:'7px 16px', borderRadius:20, cursor:'pointer', fontFamily:theme.fontTexte, fontSize:11, fontWeight:700, letterSpacing:'0.08em', textTransform:'uppercase', background:filtre===f?theme.primary:'rgba(255,255,255,.08)', color:filtre===f?'#fff':theme.text, border:`1px solid ${filtre===f?theme.primary:theme.border}`, transition:'all .25s' }}>
               {f}
             </button>
           ))}

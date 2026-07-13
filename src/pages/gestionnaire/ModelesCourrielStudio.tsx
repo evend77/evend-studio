@@ -8,7 +8,7 @@ const API_BASE = '/api';
 
 const COULEUR = '#c9a96e';
 
-type TypeTemplate = 'confirmation' | 'rappel' | 'annulation' | 'bienvenue';
+type TypeTemplate = 'confirmation' | 'rappel' | 'annulation' | 'bienvenue' | 'recu_paiement';
 
 interface TemplateCourriel {
   type: TypeTemplate;
@@ -109,13 +109,41 @@ const TEMPLATES_DEFAUT: Record<TypeTemplate, TemplateCourriel> = {
   </div>
 </div>`,
   },
+  recu_paiement: {
+    type: 'recu_paiement',
+    actif: true,
+    sujet: 'Reçu de paiement — {$nomSite}',
+    html: `<div style="font-family:'Segoe UI',sans-serif;max-width:600px;margin:0 auto">
+  <div style="background:{$couleur};padding:24px 32px;border-radius:12px 12px 0 0">
+    <h1 style="color:#fff;margin:0;font-size:20px">{$nomSite}</h1>
+  </div>
+  <div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="font-size:48px">✅</div>
+      <h2 style="color:#1a1a1a;margin-top:12px">Paiement reçu</h2>
+    </div>
+    <p style="color:#555;margin:16px 0">Bonjour <strong>{$nomClient}</strong>, voici votre reçu :</p>
+    <div style="background:#f8f8f6;border-left:4px solid {$couleur};padding:16px 20px;margin:20px 0;border-radius:0 8px 8px 0">
+      <p><strong>📋 Forfait :</strong> {$objetAbonnement}</p>
+      <p style="margin-top:8px"><strong>💳 Montant :</strong> {$montant} $ {$frequence}</p>
+      <p style="margin-top:8px"><strong>🪪 Numéro de membre :</strong> {$numeroMembre}</p>
+    </div>
+    <p style="color:#555">Merci de votre confiance!</p>
+    <p style="margin-top:24px;color:#888;font-size:13px">L'équipe de <strong>{$nomSite}</strong></p>
+  </div>
+  <div style="background:#f8f8f6;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;padding:16px 32px;text-align:center">
+    <p style="font-size:11px;color:#aaa">Propulsé par e-Vend Studio</p>
+  </div>
+</div>`,
+  },
 };
 
 const TYPE_CONFIG: Record<TypeTemplate, { label: string; icone: string; couleur: string }> = {
-  confirmation: { label: 'Confirmation',  icone: '✅', couleur: '#16a34a' },
-  rappel:       { label: 'Rappel',        icone: '🔔', couleur: '#d97706' },
-  annulation:   { label: 'Annulation',    icone: '❌', couleur: '#dc2626' },
-  bienvenue:    { label: 'Bienvenue',     icone: '🎉', couleur: '#6366f1' },
+  confirmation:   { label: 'Confirmation',      icone: '✅', couleur: '#16a34a' },
+  rappel:         { label: 'Rappel',            icone: '🔔', couleur: '#d97706' },
+  annulation:     { label: 'Annulation',        icone: '❌', couleur: '#dc2626' },
+  bienvenue:      { label: 'Bienvenue',         icone: '🎉', couleur: '#6366f1' },
+  recu_paiement:  { label: 'Reçu de paiement',  icone: '💳', couleur: '#a855f7' },
 };
 
 const VARIABLES = [
@@ -130,6 +158,11 @@ const VARIABLES = [
   { cle: '{$niveau}',              desc: 'Niveau (si applicable)' },
   { cle: '{$idReservation}',       desc: 'Numéro de réservation' },
   { cle: '{$lienAnnulation}',      desc: 'Lien à mettre dans un bouton — permet au client d\'annuler lui-même sa réservation' },
+  { cle: '{$objetAbonnement}',     desc: 'Nom du forfait d\'abonnement (ex: "Cours illimités")' },
+  { cle: '{$frequence}',           desc: 'Fréquence de facturation de l\'abonnement (ex: "/ mois", "/ semaine", "/ an")' },
+  { cle: '{$montant}',             desc: 'Montant facturé (utilisé avec {$frequence} pour les abonnements, ou seul pour un montant ponctuel)' },
+  { cle: '{$numeroMembre}',        desc: 'Numéro de membre du client abonné (ex: "#0007")' },
+  { cle: '{$lienGestionAbonnement}', desc: 'Lien permettant au client d\'annuler lui-même son abonnement' },
   { cle: '{$nomSite}',             desc: 'Nom de votre site/entreprise' },
   { cle: '{$couleur}',             desc: 'Couleur principale de votre site' },
   { cle: '{$notesSupplementaires}', desc: 'Notes supplémentaires du client' },
@@ -329,6 +362,11 @@ export default function ModelesCourrielStudio({ vendeurId }: { vendeurId: number
                         .replace(/\{\$niveau\}/g, 'Débutant')
                         .replace(/\{\$idReservation\}/g, '1042')
                         .replace(/\{\$lienAnnulation\}/g, '#apercu-lien-annulation')
+                        .replace(/\{\$objetAbonnement\}/g, 'Cours illimités')
+                        .replace(/\{\$frequence\}/g, '/ mois')
+                        .replace(/\{\$montant\}/g, '49.00')
+                        .replace(/\{\$numeroMembre\}/g, '#0007')
+                        .replace(/\{\$lienGestionAbonnement\}/g, '#apercu-lien-abonnement')
                         .replace(/\{\$nomSite\}/g, 'Mon Restaurant')
                         .replace(/\{\$couleur\}/g, COULEUR)
                         .replace(/\{\$notesSupplementaires\}/g, 'Table près de la fenêtre svp.')

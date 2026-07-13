@@ -218,7 +218,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     if (templateId === 'cours-yoga')               return <TemplateStudioYoga config={config} />;
     if (templateId === 'cours-equitation')         return <TemplateEquitation config={config} />;
     if (templateId === 'cours-peinture')           return <TemplateEcolePeinture config={config} />;
-    if (templateId === 'cours-danse')              return <TemplateEcoleDanse config={config} siteId={siteId} reservationActive={!!options.reservation_ecole} />;
+    if (templateId === 'cours-danse')              return <TemplateEcoleDanse config={config} siteId={siteId} reservationActive={!!options.reservation_ecole} abonnementActive={!!options.abonnement_ecole} />;
     if (templateId === 'vitrine-foodtruck')        return <TemplateFoodTruck config={config} />;
     if (templateId === 'vitrine-boulangerie')      return <TemplateBoulangerie config={config} />;
     if (templateId === 'cours-coach')              return <TemplateCoachVie config={config} />;

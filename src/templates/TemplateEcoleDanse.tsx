@@ -9,6 +9,7 @@ import { useIsMobile } from '../hooks/useIsMobile';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AddonContact, { AddonTheme, AddonContactData, ChampFormulaire } from '../addons/contact/AddonContact';
 import AddonReservationEcole, { AddonReservationTheme, AddonReservationData } from '../addons/reservation-ecole/AddonReservationEcole';
+import AddonAbonnementEcole, { AddonAbonnementTheme, AddonAbonnementData } from '../addons/abonnement-ecole/AddonAbonnementEcole';
 
 export interface SectionConfig { id: string; actif: boolean; ordre: number; label: string; }
 
@@ -135,7 +136,7 @@ export const CONFIG_DANSE_DEFAUT: ConfigEcoleDanse = {
     { id:'professeurs', actif:true, ordre:6,  label:'Nos professeurs' },
     { id:'evenements',  actif:true, ordre:7,  label:'Événements à venir' },
     { id:'avis',        actif:true, ordre:8,  label:'Témoignages' },
-    { id:'pass',        actif:true, ordre:9,  label:'Pass & Tarifs' },
+    { id:'pass',        actif:true, ordre:9,  label:'Abonnements' },
     { id:'faq',         actif:true, ordre:10, label:'FAQ' },
     { id:'contact',     actif:true, ordre:11, label:'Contact & Inscription' },
   ],
@@ -228,56 +229,6 @@ function Rideau({ onFin }: { onFin: () => void }) {
 
 // ─── SILHOUETTES SVG ──────────────────────────────────────────────────────────
 
-function Silhouettes({ couleur }: { couleur: string }) {
-  const poses = [
-    <svg key="arabesque" viewBox="0 0 120 200" width="120" height="200" fill={couleur} opacity=".85">
-      <circle cx="60" cy="18" r="12"/>
-      <path d="M60 30 Q65 55 62 80" stroke={couleur} strokeWidth="8" fill="none" strokeLinecap="round"/>
-      <path d="M62 80 Q40 70 20 65" stroke={couleur} strokeWidth="7" fill="none" strokeLinecap="round"/>
-      <path d="M62 48 Q90 38 110 30" stroke={couleur} strokeWidth="6" fill="none" strokeLinecap="round"/>
-      <path d="M62 80 Q58 120 55 150" stroke={couleur} strokeWidth="9" fill="none" strokeLinecap="round"/>
-      <path d="M62 80 Q85 65 100 45" stroke={couleur} strokeWidth="7" fill="none" strokeLinecap="round"/>
-    </svg>,
-    <svg key="hiphop" viewBox="0 0 160 200" width="160" height="200" fill={couleur} opacity=".85">
-      <circle cx="80" cy="20" r="14"/>
-      <path d="M80 35 Q80 70 78 100" stroke={couleur} strokeWidth="10" fill="none" strokeLinecap="round"/>
-      <path d="M80 55 Q50 48 20 60" stroke={couleur} strokeWidth="8" fill="none" strokeLinecap="round"/>
-      <path d="M80 55 Q110 45 140 58" stroke={couleur} strokeWidth="8" fill="none" strokeLinecap="round"/>
-      <path d="M78 100 Q68 140 60 175" stroke={couleur} strokeWidth="10" fill="none" strokeLinecap="round"/>
-      <path d="M78 100 Q90 140 100 172" stroke={couleur} strokeWidth="10" fill="none" strokeLinecap="round"/>
-    </svg>,
-    <svg key="contemporain" viewBox="0 0 180 200" width="180" height="200" fill={couleur} opacity=".85">
-      <circle cx="90" cy="18" r="13"/>
-      <path d="M90 32 Q92 65 95 90" stroke={couleur} strokeWidth="9" fill="none" strokeLinecap="round"/>
-      <path d="M90 50 Q60 25 40 10" stroke={couleur} strokeWidth="7" fill="none" strokeLinecap="round"/>
-      <path d="M90 55 Q120 70 150 80" stroke={couleur} strokeWidth="7" fill="none" strokeLinecap="round"/>
-      <path d="M95 90 Q70 120 45 140" stroke={couleur} strokeWidth="9" fill="none" strokeLinecap="round"/>
-      <path d="M95 90 Q110 125 115 162" stroke={couleur} strokeWidth="9" fill="none" strokeLinecap="round"/>
-    </svg>,
-    <svg key="salsa" viewBox="0 0 140 210" width="140" height="210" fill={couleur} opacity=".85">
-      <circle cx="70" cy="20" r="13"/>
-      <path d="M70 34 Q68 65 65 95" stroke={couleur} strokeWidth="9" fill="none" strokeLinecap="round"/>
-      <path d="M70 50 Q95 35 118 20" stroke={couleur} strokeWidth="7" fill="none" strokeLinecap="round"/>
-      <path d="M70 55 Q45 65 25 70" stroke={couleur} strokeWidth="7" fill="none" strokeLinecap="round"/>
-      <path d="M65 95 Q58 130 55 165" stroke={couleur} strokeWidth="9" fill="none" strokeLinecap="round"/>
-      <path d="M65 95 Q78 128 85 160" stroke={couleur} strokeWidth="9" fill="none" strokeLinecap="round"/>
-    </svg>,
-  ];
-  const [pose, setPose] = useState(0);
-  const [vis, setVis] = useState(true);
-  useEffect(() => {
-    const id = setInterval(() => {
-      setVis(false);
-      setTimeout(() => { setPose(p => (p+1)%poses.length); setVis(true); }, 400);
-    }, 3500);
-    return () => clearInterval(id);
-  }, []);
-  return (
-    <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'center', height:240, opacity:vis?1:0, transform:vis?'translateY(0) scale(1)':'translateY(12px) scale(0.95)', transition:'opacity .4s ease,transform .4s ease', filter:`drop-shadow(0 0 24px ${couleur}80)` }}>
-      {poses[pose]}
-    </div>
-  );
-}
 
 // ─── ONDES SONORES ────────────────────────────────────────────────────────────
 
@@ -324,20 +275,27 @@ function Nav({ config, page, setPage }: { config: ConfigEcoleDanse; page: string
     return () => window.removeEventListener('scroll', fn);
   }, []);
   useEffect(() => { setMenuOuvert(false); }, [page]); // fermer le menu après avoir choisi une page
+  useEffect(() => {
+    if (isMobile && menuOuvert) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [isMobile, menuOuvert]);
   const liens = [['accueil','Accueil'],['styles-page','Styles'],['horaires-page','Horaires'],['professeurs-page','Professeurs'],['contact-page',"S'inscrire"]];
   const cm = config.couleurMagenta;
   return (
-    <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:1000, background:scrolled?'rgba(10,10,15,.97)':'rgba(10,10,15,.88)', backdropFilter:'blur(16px)', borderBottom:scrolled?`1px solid ${cm}30`:'none', transition:'all .4s', padding:isMobile?'0 16px':'0 48px' }}>
-      <div style={{ maxWidth:1320, margin:'0 auto', height:68, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div onClick={() => setPage('accueil')} style={{ cursor:'pointer', minWidth:0, overflow:'hidden' }}>
+    <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:1000, background:scrolled?'rgba(10,10,15,.97)':'rgba(10,10,15,.88)', backdropFilter:'blur(16px)', borderBottom:scrolled?`1px solid ${cm}30`:'none', transition:'all .4s', padding:isMobile?'0 14px':'0 48px', width:'100%', boxSizing:'border-box' }}>
+      <div style={{ maxWidth:1320, margin:'0 auto', height:68, display:'flex', flexWrap:'nowrap', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+        <div onClick={() => setPage('accueil')} style={{ cursor:'pointer', minWidth:0, flex:'1 1 auto', overflow:'hidden' }}>
           <p style={{ fontFamily:"'Cormorant Garamond',serif", fontStyle:'italic', fontSize:10, color:cm, letterSpacing:'0.3em', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Studio de Danse</p>
           <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:isMobile?19:24, fontWeight:600, color:'#fff', letterSpacing:'0.06em', lineHeight:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{config.nomEcole}</p>
         </div>
 
         {isMobile ? (
           <button onClick={() => setMenuOuvert(v => !v)} aria-label="Menu"
-            style={{ background:'none', border:'none', width:40, height:40, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer' }}>
-            <div style={{ width:22, display:'flex', flexDirection:'column', gap:5 }}>
+            style={{ background:'none', border:'none', width:36, height:36, flexShrink:0, flexGrow:0, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', padding:0 }}>
+            <div style={{ width:20, display:'flex', flexDirection:'column', gap:5 }}>
               <span style={{ height:2, background:menuOuvert?cm:'#fff', width:'100%', transition:'all .25s', transform:menuOuvert?'translateY(7px) rotate(45deg)':'none' }} />
               <span style={{ height:2, background:'#fff', width:'100%', opacity:menuOuvert?0:1, transition:'opacity .2s' }} />
               <span style={{ height:2, background:menuOuvert?cm:'#fff', width:'100%', transition:'all .25s', transform:menuOuvert?'translateY(-7px) rotate(-45deg)':'none' }} />
@@ -353,16 +311,25 @@ function Nav({ config, page, setPage }: { config: ConfigEcoleDanse; page: string
         )}
       </div>
 
-      {/* Panneau mobile — plein écran sous la barre, empilé verticalement */}
+      {/* Panneau mobile — plein écran, au-dessus de tout, scroll de fond verrouillé */}
       {isMobile && menuOuvert && (
-        <div style={{ position:'fixed', top:68, left:0, right:0, bottom:0, background:'#0a0a0f', display:'flex', flexDirection:'column', padding:'24px 20px', gap:4, overflowY:'auto' }}>
-          {liens.map(([id,label]) => (
-            <button key={id} onClick={() => setPage(id)}
-              style={{ textAlign:'left', background:page===id?`${cm}15`:'none', border:'none', borderLeft:page===id?`3px solid ${cm}`:'3px solid transparent', padding:'16px 14px', fontFamily:"'Poppins',sans-serif", fontSize:16, fontWeight:600, color:page===id?cm:'#fff', cursor:'pointer' }}>
-              {label}
+        <div style={{ position:'fixed', inset:0, zIndex:1100, background:'#0a0a0f', display:'flex', flexDirection:'column', boxSizing:'border-box' }}>
+          <div style={{ height:68, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 20px', borderBottom:`1px solid ${cm}20` }}>
+            <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:19, fontWeight:600, color:'#fff', margin:0 }}>{config.nomEcole}</p>
+            <button onClick={() => setMenuOuvert(false)} aria-label="Fermer"
+              style={{ background:'none', border:'none', width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'#fff', fontSize:22, flexShrink:0 }}>
+              ✕
             </button>
-          ))}
-          <button className="btn-m" onClick={() => setPage('contact-page')} style={{ marginTop:16, padding:'16px', fontSize:13 }}>💃 Premier cours gratuit</button>
+          </div>
+          <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', padding:'20px 20px 32px', gap:4, WebkitOverflowScrolling:'touch' }}>
+            {liens.map(([id,label]) => (
+              <button key={id} onClick={() => setPage(id)}
+                style={{ textAlign:'left', background:page===id?`${cm}15`:'none', border:'none', borderLeft:page===id?`3px solid ${cm}`:'3px solid transparent', padding:'16px 14px', fontFamily:"'Poppins',sans-serif", fontSize:16, fontWeight:600, color:page===id?cm:'#fff', cursor:'pointer', borderRadius:'0 8px 8px 0' }}>
+                {label}
+              </button>
+            ))}
+            <button className="btn-m" onClick={() => setPage('contact-page')} style={{ marginTop:16, padding:'16px', fontSize:13, width:'100%', boxSizing:'border-box' }}>💃 Premier cours gratuit</button>
+          </div>
         </div>
       )}
     </nav>
@@ -412,7 +379,6 @@ function SectionHero({ config, setPage, rideauFini }: { config:ConfigEcoleDanse;
             </div>
           </div>
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:20, position:'relative', zIndex:8 }}>
-            <Silhouettes couleur={cm} />
             <Ondes c1={cm} c2={co} />
           </div>
         </div>
@@ -745,43 +711,28 @@ function SectionAvis({ config }: { config:ConfigEcoleDanse }) {
 
 // ─── PASS ─────────────────────────────────────────────────────────────────────
 
-function SectionPass({ config, setPage }: { config:ConfigEcoleDanse; setPage:(p:string)=>void }) {
-  const { isMobile } = useIsMobile();
-  const rv = useReveal(.05);
-  const pass = ea(config.pass, CONFIG_DANSE_DEFAUT.pass);
-  return (
-    <section style={{ background:config.couleurFond, padding:isMobile?'60px 20px':'100px 48px', position:'relative', overflow:'hidden' }}>
-      <div ref={rv.ref} className={`rv${rv.vis?' vis':''}`} style={{ maxWidth:1320, margin:'0 auto', position:'relative' }}>
-        <div style={{ textAlign:'center', marginBottom:56 }}>
-          <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:11, fontWeight:600, color:config.couleurMagenta, letterSpacing:'0.25em', textTransform:'uppercase', marginBottom:14 }}>Abonnements</p>
-          <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'clamp(36px,5vw,68px)', fontWeight:600, color:'#fff', lineHeight:1.05 }}>Votre <em style={{ fontStyle:'italic', color:config.couleurMagenta }}>pass danse</em></h2>
-        </div>
-        <div style={{ display:'grid', gridTemplateColumns:isMobile?'1fr':`repeat(${Math.min(pass.length,3)},1fr)`, gap:24, alignItems:'start' }}>
-          {pass.map((p,i) => (
-            <div key={i} style={{ background:'rgba(255,255,255,.04)', border:`2px solid ${p.couleur}`, padding:'36px 28px', position:'relative', transform:p.populaire?'scale(1.05)':'none', boxShadow:p.populaire?`0 20px 60px ${p.couleur}30`:'none' }}>
-              {p.populaire && <div style={{ position:'absolute', top:-14, left:'50%', transform:'translateX(-50%)', background:p.couleur, color:p.couleur==config.couleurOr?'#1a1a1a':'#fff', fontSize:10, fontWeight:700, fontFamily:"'Poppins',sans-serif", padding:'5px 20px', borderRadius:20, letterSpacing:'0.1em', textTransform:'uppercase', whiteSpace:'nowrap' as const }}>✨ POPULAIRE</div>}
-              <div style={{ width:48, height:48, borderRadius:'50%', background:`${p.couleur}20`, border:`2px solid ${p.couleur}`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:18 }}><span style={{ fontSize:22 }}>💃</span></div>
-              <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:28, fontWeight:600, color:'#fff', marginBottom:8 }}>{p.nom}</p>
-              <div style={{ display:'flex', alignItems:'baseline', gap:4, marginBottom:8 }}>
-                <span style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:56, fontWeight:700, color:p.couleur, lineHeight:1 }}>{p.prix}</span>
-                <span style={{ fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.4)' }}>{p.periode}</span>
-              </div>
-              <p style={{ fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.5)', marginBottom:24, lineHeight:1.6 }}>{p.description}</p>
-              <div style={{ height:1, background:`${p.couleur}25`, marginBottom:20 }} />
-              <ul style={{ listStyle:'none', marginBottom:28 }}>
-                {(p.inclus || []).map((item,j) => <li key={j} style={{ fontFamily:"'Poppins',sans-serif", fontSize:13, color:'rgba(255,255,255,.6)', marginBottom:10, display:'flex', gap:10 }}><span style={{ color:p.couleur, flexShrink:0 }}>💃</span>{item}</li>)}
-              </ul>
-              <button onClick={() => setPage('contact-page')} style={{ width:'100%', padding:'14px', border:'none', background:p.couleur, color:p.couleur==config.couleurOr?'#1a1a1a':'#fff', fontFamily:"'Poppins',sans-serif", fontSize:12, fontWeight:700, letterSpacing:'0.12em', textTransform:'uppercase', cursor:'pointer', borderRadius:50, transition:'all .2s', boxShadow:`0 4px 20px ${p.couleur}40` }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform='translateY(-2px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow=`0 8px 30px ${p.couleur}60`; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform='none'; (e.currentTarget as HTMLButtonElement).style.boxShadow=`0 4px 20px ${p.couleur}40`; }}>
-                S'abonner →
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+// Add-on injectable — src/addons/abonnement-ecole/AddonAbonnementEcole.tsx
+// Ce bloc est SEULEMENT l'adaptateur de thème, comme SectionHoraires pour la réservation.
+// Remplace l'ancien contenu statique (config.pass) — n'affiche plus rien si l'add-on est inactif.
+function SectionPass({ config, setPage, siteId, abonnementActive }: { config:ConfigEcoleDanse; setPage:(p:string)=>void; siteId?:number|string; abonnementActive?:boolean }) {
+  const themeAbonnement: AddonAbonnementTheme = {
+    primary: config.couleurMagenta,
+    accentSecondaire: config.couleurOr,
+    bg: config.couleurFond,
+    cardBg: 'rgba(255,255,255,.04)',
+    border: 'rgba(255,255,255,.1)',
+    text: '#fff',
+    textDim: 'rgba(255,255,255,.5)',
+    fontTitre: "'Cormorant Garamond',serif",
+    fontTexte: "'Poppins',sans-serif",
+  };
+  const dataAbonnement: AddonAbonnementData = {
+    siteId, abonnementActif: abonnementActive,
+    titreLabel: 'Abonnements',
+    titre: 'Votre',
+    titreAccent: 'pass danse',
+  };
+  return <AddonAbonnementEcole theme={themeAbonnement} data={dataAbonnement} />;
 }
 
 // ─── FAQ ──────────────────────────────────────────────────────────────────────
@@ -1024,9 +975,10 @@ export interface TemplateEcoleDanseProps {
   isPreview?: boolean;
   siteId?: number | string;
   reservationActive?: boolean;
+  abonnementActive?: boolean;
 }
 
-export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId, reservationActive }: TemplateEcoleDanseProps) {
+export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId, reservationActive, abonnementActive }: TemplateEcoleDanseProps) {
   const config: ConfigEcoleDanse = {
     ...CONFIG_DANSE_DEFAUT, ...partiel,
     couleurMagenta:     partiel?.couleurMagenta     || CONFIG_DANSE_DEFAUT.couleurMagenta,
@@ -1069,7 +1021,7 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId,
       case 'professeurs': return <SectionProfesseurs config={config} />;
       case 'evenements':  return <SectionEvenements  config={config} setPage={handlePage} />;
       case 'avis':        return <SectionAvis        config={config} />;
-      case 'pass':        return <SectionPass        config={config} setPage={handlePage} />;
+      case 'pass':        return <SectionPass        config={config} setPage={handlePage} siteId={siteId} abonnementActive={!!abonnementActive} />;
       case 'faq':         return <SectionFAQ         config={config} />;
       case 'contact':     return <SectionContact     config={config} vendeurId={vendeurId} />;
       default:            return null;

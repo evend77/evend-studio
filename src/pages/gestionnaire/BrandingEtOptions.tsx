@@ -51,11 +51,17 @@ const ADDONS: AddonDef[] = [
     id: 'reservation_ecole', categorie: 'Réservations', nom: 'Réservation — École/Cours',
     icone: '📅', couleur: '#6366f1', prix: 5,
     description: 'Créneaux de cours avec capacité, suivi des places en direct — Salle, Professeur, Niveau.',
-    necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Configuration → Réservation École/Cours',
+    necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Mes Réservations Écoles → Créer des créneaux',
+  },
+  {
+    id: 'abonnement_ecole', categorie: 'Abonnements', nom: 'Abonnement — École/Cours',
+    icone: '💳', couleur: '#a855f7', prix: 5,
+    description: 'Forfaits récurrents (hebdomadaire, mensuel, annuel) — vos clients s\'abonnent directement sur votre site.',
+    necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Abonnements clients → Mes forfaits',
   },
 ];
 
-const CATEGORIES_ORDRE = ['Branding', 'Marketing & Promotions', 'Sécurité & Conformité', 'Réservations'];
+const CATEGORIES_ORDRE = ['Branding', 'Marketing & Promotions', 'Sécurité & Conformité', 'Réservations', 'Abonnements'];
 
 // ─────────────────────────────────────────────────────────────────────────
 // CARTE D'ADD-ON — générique, sert pour tous les add-ons du catalogue

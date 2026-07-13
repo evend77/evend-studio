@@ -1,7 +1,7 @@
 // src/pages/studio/ConfigTemplateEcoleDanse.tsx
 import { useState, useEffect } from 'react';
 import TemplateEcoleDanse, { CONFIG_DANSE_DEFAUT } from '../../templates/TemplateEcoleDanse';
-import type { ConfigEcoleDanse, SectionConfig, StyleDanse, ProfesseurDanse, AvisDanse, FormulairePass } from '../../templates/TemplateEcoleDanse';
+import type { ConfigEcoleDanse, SectionConfig, StyleDanse, ProfesseurDanse, AvisDanse } from '../../templates/TemplateEcoleDanse';
 
 type Onglet = 'identite'|'apparence'|'sections'|'stats'|'styles'|'professeurs'|'avis'|'pass'|'evenements'|'faq'|'contact';
 const CM = '#e91e8c';
@@ -98,7 +98,6 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
   const styles     = ea(config.stylesDanse,     CONFIG_DANSE_DEFAUT.stylesDanse);
   const profs      = ea(config.professeurs,     CONFIG_DANSE_DEFAUT.professeurs);
   const avis       = ea(config.avis,            CONFIG_DANSE_DEFAUT.avis);
-  const pass       = ea(config.pass,            CONFIG_DANSE_DEFAUT.pass);
   const evs        = ea(config.evenements,      CONFIG_DANSE_DEFAUT.evenements);
   const faq        = ea(config.faq,             CONFIG_DANSE_DEFAUT.faq);
   const horStudio  = ea(config.horairesStudio,  CONFIG_DANSE_DEFAUT.horairesStudio);
@@ -113,9 +112,6 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
   const updAvis = (i:number,k:keyof AvisDanse,v:any)=>{const a=[...avis];a[i]={...a[i],[k]:v};set('avis',a);};
   const delAvis = (i:number)=>{const a=[...avis];a.splice(i,1);set('avis',a);};
   const addAvis = ()=>set('avis',[...avis,{texte:'',auteur:'',style:'',photo:'',note:5,depuis:''}]);
-  const updPass = (i:number,k:keyof FormulairePass,v:any)=>{const a=[...pass];a[i]={...a[i],[k]:v};set('pass',a);};
-  const delPass = (i:number)=>{const a=[...pass];a.splice(i,1);set('pass',a);};
-  const addPass = ()=>set('pass',[...pass,{nom:'Nouveau pass',prix:'0$',periode:'/mois',description:'',inclus:[],couleur:CM,populaire:false}]);
   const updEv   = (i:number,k:string,v:string)=>{const a=[...evs];a[i]={...a[i],[k]:v};set('evenements',a);};
   const delEv   = (i:number)=>{const a=[...evs];a.splice(i,1);set('evenements',a);};
   const addEv   = ()=>set('evenements',[...evs,{titre:'Nouvel événement',date:'1 jan 2027',description:'',type:'Spectacle',photo:''}]);
@@ -128,7 +124,7 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
     {id:'sections',label:'Sections',emoji:'📐'},{id:'stats',label:'Stats',emoji:'📊'},
     {id:'styles',label:'Styles',emoji:'💃'},
     {id:'professeurs',label:'Profs',emoji:'⭐'},{id:'avis',label:'Avis',emoji:'💬'},
-    {id:'pass',label:'Pass',emoji:'💰'},{id:'evenements',label:'Événements',emoji:'🎪'},
+    {id:'pass',label:'Abonnements',emoji:'💳'},{id:'evenements',label:'Événements',emoji:'🎪'},
     {id:'faq',label:'FAQ',emoji:'❓'},{id:'contact',label:'Contact',emoji:'✉️'},
   ];
 
@@ -215,23 +211,15 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
             <button onClick={addAvis} style={{ width:'100%', padding:8, border:`2px dashed ${CM}`, borderRadius:8, background:'transparent', color:CM, cursor:'pointer', fontSize:11, fontWeight:600 }}>+ Ajouter un avis</button>
           </>)}
 
-          {onglet==='pass' && (<>
-            {pass.map((p,i) => <div key={i} style={{ border:`2px solid ${p.couleur}40`, borderRadius:8, padding:10, marginBottom:10 }}>
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:7 }}>
-                <span style={{ fontSize:11, fontWeight:600 }}>{p.nom}</span>
-                <div style={{ display:'flex', gap:5 }}><label style={{ fontSize:10, color:'#888', display:'flex', alignItems:'center', gap:3, cursor:'pointer' }}><input type="checkbox" checked={!!p.populaire} onChange={e=>updPass(i,'populaire',e.target.checked)} />Populaire</label><Del onClick={()=>delPass(i)} /></div>
-              </div>
-              <F label="Couleur"><div style={{ display:'flex', gap:6 }}><input type="color" value={p.couleur||CM} onChange={e=>updPass(i,'couleur',e.target.value)} style={{ width:34, height:30, padding:2, border:'1px solid #ddd', borderRadius:5, cursor:'pointer' }}/><Inp value={p.couleur} onChange={(v:string)=>updPass(i,'couleur',v)} /></div></F>
-              <F label="Nom"><Inp value={p.nom} onChange={(v:string)=>updPass(i,'nom',v)} /></F>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-                <F label="Prix"><Inp value={p.prix} onChange={(v:string)=>updPass(i,'prix',v)} /></F>
-                <F label="Période"><Inp value={p.periode} onChange={(v:string)=>updPass(i,'periode',v)} /></F>
-              </div>
-              <F label="Description"><Txt value={p.description} onChange={(v:string)=>updPass(i,'description',v)} rows={2} /></F>
-              <F label="Inclus (virgules)"><Inp value={p.inclus?.join(', ')||''} onChange={(v:string)=>updPass(i,'inclus',v.split(',').map((x:string)=>x.trim()).filter(Boolean))} /></F>
-            </div>)}
-            <button onClick={addPass} style={{ width:'100%', padding:8, border:`2px dashed ${CM}`, borderRadius:8, background:'transparent', color:CM, cursor:'pointer', fontSize:11, fontWeight:600 }}>+ Ajouter un pass</button>
-          </>)}
+          {onglet==='pass' && (
+            <div style={{ background:'#fff0f8', border:`1.5px solid ${CM}40`, borderRadius:10, padding:16, textAlign:'center' }}>
+              <div style={{ fontSize:32, marginBottom:8 }}>🔒</div>
+              <p style={{ fontSize:12, fontWeight:700, color:'#1a1a1a', marginBottom:6 }}>Géré ailleurs maintenant</p>
+              <p style={{ fontSize:11, color:'#666', lineHeight:1.5 }}>
+                Vos forfaits d'abonnement se créent et se gèrent maintenant dans <strong>Mes Abonnements → Mes forfaits</strong> depuis le menu principal du dashboard. Cet onglet ne contrôle plus le contenu affiché sur votre site.
+              </p>
+            </div>
+          )}
 
           {onglet==='evenements' && (<>
             {evs.map((ev,i) => <div key={i} style={{ border:'1px solid #e5e7eb', borderRadius:8, padding:10, marginBottom:10 }}>

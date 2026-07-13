@@ -19,6 +19,8 @@ import MaCagnotte                   from './pages/studio/MaCagnotte';
 import ModelesCourrielStudio from './pages/gestionnaire/ModelesCourrielStudio';
 import GestionReservations   from './pages/studio/GestionReservations';
 import MesReservationsEcole  from './pages/gestionnaire/MesReservationsEcole';
+import MesAbonnementsEcole   from './pages/gestionnaire/MesAbonnementsEcole';
+import ConfigurationPaiements from './pages/gestionnaire/ConfigurationPaiements';
 import MesAcheteurs                  from './pages/studio/MesAcheteurs';
 import StudioConfigPage404   from './pages/gestionnaire/StudioConfigPage404';
 import StudioMesPolitiques  from './pages/gestionnaire/StudioMesPolitiques';
@@ -553,6 +555,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const itemFormulaireContact = { id: 'config-formulaire-contact', label: 'Formulaire de contact', icon: '📋' };
   const itemConfigGenerale: SousMenuItem = { id: 'config-generale',     label: 'Config générale',    icon: '⚙️' };
   const itemConfigMV: SousMenuItem       = { id: 'config-multivendeur', label: 'Config multivendeur', icon: '🏪' };
+  const itemConfigPaiements: SousMenuItem = { id: 'config-paiements',   label: 'Config paiement',     icon: '💳' };
 
   // ── Groupe du template actif ──────────────────────────────────────────────
   const templateActif = templateIdChoisi || gestionnaire.site_template_id || '';
@@ -587,6 +590,11 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   // ── Mes réservations école (add-on réservation_ecole, sans sous-menu) ──────
   const menuMesReservations: MenuItem = {
     id: 'mes-reservations', label: 'MES RÉSERVATIONS ÉCOLES', icon: '📅',
+  };
+
+  // ── Mes abonnements clients (add-on abonnement_ecole, sans sous-menu) ──────
+  const menuMesAbonnements: MenuItem = {
+    id: 'abonnements-clients', label: 'ABONNEMENTS CLIENTS', icon: '💳',
   };
 
   // ── Mes collaborateurs (commun à tous) ─────────────────────────────────────
@@ -709,6 +717,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         sousMenu: [
           itemConfigGenerale,
           itemConfigMV,
+          itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
           itemPolitiques,
@@ -747,6 +756,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         sousMenu: [
           itemConfigGenerale,
           itemConfigMV,
+          itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
           itemPolitiques,
@@ -784,6 +794,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         sousMenu: [
           itemConfigGenerale,
           itemConfigMV,
+          itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
           itemPolitiques,
@@ -803,6 +814,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       ...(options?.reservation_ecole ? [menuMesReservations] : []),
+      ...(options?.abonnement_ecole ? [menuMesAbonnements] : []),
       menuSousVendeurs,
       menuBadges,
       menuBlogsSV,
@@ -814,6 +826,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         sousMenu: [
           itemConfigGenerale,
           itemConfigMV,
+          itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
           itemPolitiques,
@@ -851,6 +864,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         sousMenu: [
           itemConfigGenerale,
           itemConfigMV,
+          itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
           itemPolitiques,
@@ -888,6 +902,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         sousMenu: [
           itemConfigGenerale,
           itemConfigMV,
+          itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
           itemPolitiques,
@@ -903,19 +918,19 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuAddOn,
     ];
   } else if (estSimplisse) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesSimplisse,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioSimplisse,menuConfigMesPages,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesSimplisse,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioSimplisse,menuConfigMesPages,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
 
   } else if (estPremium) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesPremium,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioPremium,menuConfigPremium,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesPremium,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioPremium,menuConfigPremium,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
 
   } else if (estSimplisseMode) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesMode,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioMode,menuConfigMode,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesMode,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioMode,menuConfigMode,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
 
   } else if (estMultiVendeur) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVendeurs,menuSousVendeurs,menuBadges,menuBlogsSV,menuFaqsSV,menuChatSV,{ id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📦' },{ id:'annonces-creer',label:'Créer une annonce',icon:'➕' }] },{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' }] },menuStudioMV,menuConfigMV,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },itemPage404,itemPolitiques,itemSeo,itemCookies,itemPhotos,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVendeurs,menuSousVendeurs,menuBadges,menuBlogsSV,menuFaqsSV,menuChatSV,{ id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📦' },{ id:'annonces-creer',label:'Créer une annonce',icon:'➕' }] },{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' }] },menuStudioMV,menuConfigMV,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },itemPage404,itemPolitiques,itemSeo,itemCookies,itemPhotos,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie];
 
   } else if (estBeaute) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesBeaute,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioBeaute,menuConfigBeaute,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesBeaute,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioBeaute,menuConfigBeaute,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
 
   } else if (estBoutiqueSimple) {
     // Boutique Simple (mono-produit) : commandes + config basique
@@ -947,6 +962,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         sousMenu: [
           itemConfigGenerale,
           itemConfigMV,
+          itemConfigPaiements,
           { id: 'config-expedition',       label: "Méthode d'expédition",    icon: '🚚' },
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',     icon: '📧' },
           { id: 'config-facture',          label: 'Modèle de facture',       icon: '🧾' },
@@ -1002,6 +1018,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         sousMenu: [
           itemConfigGenerale,
           itemConfigMV,
+          itemConfigPaiements,
           { id: 'config-expedition',       label: "Méthode d'expédition",    icon: '🚚' },
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',     icon: '📧' },
           { id: 'config-facture',          label: 'Modèle de facture',       icon: '🧾' },
@@ -1156,6 +1173,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'config-modeles-courriel') return <ModelesCourrielStudio vendeurId={gestionnaire.id} />;
     if (pageActive === 'commandes-reservations') return <GestionReservations vendeurId={gestionnaire.id} />;
     if (pageActive === 'mes-reservations') return <MesReservationsEcole gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'abonnements-clients') return <MesAbonnementsEcole gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-liste') return <StudioSousVendeurs    gestionnaireId={gestionnaire.id} />;
