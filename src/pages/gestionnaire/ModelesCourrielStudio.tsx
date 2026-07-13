@@ -8,7 +8,7 @@ const API_BASE = '/api';
 
 const COULEUR = '#c9a96e';
 
-type TypeTemplate = 'confirmation' | 'rappel' | 'annulation' | 'bienvenue' | 'recu_paiement';
+type TypeTemplate = 'confirmation' | 'rappel' | 'annulation' | 'bienvenue' | 'recu_paiement' | 'paiement_en_attente';
 
 interface TemplateCourriel {
   type: TypeTemplate;
@@ -136,21 +136,50 @@ const TEMPLATES_DEFAUT: Record<TypeTemplate, TemplateCourriel> = {
   </div>
 </div>`,
   },
+  paiement_en_attente: {
+    type: 'paiement_en_attente',
+    actif: true,
+    sujet: 'Il vous reste une étape — {$nomSite}',
+    html: `<div style="font-family:'Segoe UI',sans-serif;max-width:600px;margin:0 auto">
+  <div style="background:{$couleur};padding:24px 32px;border-radius:12px 12px 0 0">
+    <h1 style="color:#fff;margin:0;font-size:20px">{$nomSite}</h1>
+  </div>
+  <div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none">
+    <div style="text-align:center;margin-bottom:24px">
+      <div style="font-size:48px">⏳</div>
+      <h2 style="color:#1a1a1a;margin-top:12px">Il vous reste une étape!</h2>
+    </div>
+    <p style="color:#555;margin:16px 0">Bonjour <strong>{$nomClient}</strong>, votre demande a bien été reçue, mais le paiement n'a pas encore été complété.</p>
+    <div style="background:#f8f8f6;border-left:4px solid {$couleur};padding:16px 20px;margin:20px 0;border-radius:0 8px 8px 0">
+      {$detailsReservation}
+    </div>
+    <div style="text-align:center;margin:28px 0 8px">
+      <a href="{$lienPaiement}" style="display:inline-block;padding:13px 28px;border-radius:8px;background:{$couleur};color:#fff;text-decoration:none;font-size:14px;font-weight:700">Compléter mon paiement →</a>
+    </div>
+    <p style="color:#888;font-size:12px;text-align:center;margin-top:20px">Si vous ne complétez pas le paiement, votre place ne sera pas garantie.</p>
+    <p style="margin-top:24px;color:#888;font-size:13px">L'équipe de <strong>{$nomSite}</strong></p>
+  </div>
+  <div style="background:#f8f8f6;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;padding:16px 32px;text-align:center">
+    <p style="font-size:11px;color:#aaa">Propulsé par e-Vend Studio</p>
+  </div>
+</div>`,
+  },
 };
 
 const TYPE_CONFIG: Record<TypeTemplate, { label: string; icone: string; couleur: string }> = {
-  confirmation:   { label: 'Confirmation',      icone: '✅', couleur: '#16a34a' },
-  rappel:         { label: 'Rappel',            icone: '🔔', couleur: '#d97706' },
-  annulation:     { label: 'Annulation',        icone: '❌', couleur: '#dc2626' },
-  bienvenue:      { label: 'Bienvenue',         icone: '🎉', couleur: '#6366f1' },
-  recu_paiement:  { label: 'Reçu de paiement',  icone: '💳', couleur: '#a855f7' },
+  confirmation:        { label: 'Confirmation',       icone: '✅', couleur: '#16a34a' },
+  rappel:              { label: 'Rappel',             icone: '🔔', couleur: '#d97706' },
+  annulation:          { label: 'Annulation',         icone: '❌', couleur: '#dc2626' },
+  bienvenue:           { label: 'Bienvenue',          icone: '🎉', couleur: '#6366f1' },
+  recu_paiement:       { label: 'Reçu de paiement',   icone: '💳', couleur: '#a855f7' },
+  paiement_en_attente: { label: 'Paiement en attente', icone: '⏳', couleur: '#f59e0b' },
 };
 
 const VARIABLES = [
   { cle: '{$nomClient}',           desc: 'Nom du client' },
   { cle: '{$emailClient}',         desc: 'Email du client' },
   { cle: '{$objetReserve}',        desc: 'Ce qui a été réservé — s\'adapte au type de réservation (ex: "Salsa débutant", "Table pour 4", "Consultation")' },
-  { cle: '{$detailsReservation}',  desc: 'Bloc récapitulatif complet, généré automatiquement (date, lieu, professeur, niveau, nb personnes — n\'affiche que ce qui s\'applique). Recommandé pour rester générique quel que soit le type de réservation.' },
+  { cle: '{$detailsReservation}',  desc: 'Bloc récapitulatif complet, généré automatiquement (date, lieu, professeur, niveau, nb personnes, ou forfait/montant pour un abonnement — n\'affiche que ce qui s\'applique). Recommandé pour rester générique.' },
   { cle: '{$dateReservation}',     desc: 'Date et heure de la réservation (si tu préfères construire ton propre bloc au lieu de {$detailsReservation})' },
   { cle: '{$nbPersonnes}',         desc: 'Nombre de personnes' },
   { cle: '{$salle}',               desc: 'Salle / local (si applicable, ex: écoles, cours)' },
@@ -158,6 +187,7 @@ const VARIABLES = [
   { cle: '{$niveau}',              desc: 'Niveau (si applicable)' },
   { cle: '{$idReservation}',       desc: 'Numéro de réservation' },
   { cle: '{$lienAnnulation}',      desc: 'Lien à mettre dans un bouton — permet au client d\'annuler lui-même sa réservation' },
+  { cle: '{$lienPaiement}',        desc: 'Lien à mettre dans un bouton — amène le client compléter son paiement en attente' },
   { cle: '{$objetAbonnement}',     desc: 'Nom du forfait d\'abonnement (ex: "Cours illimités")' },
   { cle: '{$frequence}',           desc: 'Fréquence de facturation de l\'abonnement (ex: "/ mois", "/ semaine", "/ an")' },
   { cle: '{$montant}',             desc: 'Montant facturé (utilisé avec {$frequence} pour les abonnements, ou seul pour un montant ponctuel)' },
@@ -367,6 +397,7 @@ export default function ModelesCourrielStudio({ vendeurId }: { vendeurId: number
                         .replace(/\{\$montant\}/g, '49.00')
                         .replace(/\{\$numeroMembre\}/g, '#0007')
                         .replace(/\{\$lienGestionAbonnement\}/g, '#apercu-lien-abonnement')
+                        .replace(/\{\$lienPaiement\}/g, '#apercu-lien-paiement')
                         .replace(/\{\$nomSite\}/g, 'Mon Restaurant')
                         .replace(/\{\$couleur\}/g, COULEUR)
                         .replace(/\{\$notesSupplementaires\}/g, 'Table près de la fenêtre svp.')

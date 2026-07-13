@@ -48,12 +48,30 @@ function substituerVariables(texte, vars) {
 const LABEL_FREQUENCE = { hebdomadaire: 'semaine', mensuel: 'mois', annuel: 'an' };
 
 // ── Fallbacks HTML si le gestionnaire n'a pas de modèle actif pour ce type ────
-function templateFallbackAbonnement(type, couleur, nomSite, abonnement, formation, lienGestion) {
+function templateFallbackAbonnement(type, couleur, nomSite, abonnement, formation, lienGestion, lienPaiement) {
   const details = `
     <p><strong>📋 Forfait :</strong> ${formation?.titre || abonnement.objet_abonnement || ''}</p>
     <p style="margin-top:8px"><strong>💳 Montant :</strong> ${Number(abonnement.montant).toFixed(2)} ${(abonnement.devise || 'CAD').toUpperCase()} / ${LABEL_FREQUENCE[abonnement.frequence] || abonnement.frequence}</p>
     <p style="margin-top:8px"><strong>🪪 Numéro de membre :</strong> #${String(abonnement.numero_membre).padStart(4, '0')}</p>`;
 
+  if (type === 'paiement_en_attente') {
+    return {
+      sujet: `Il vous reste une étape — ${nomSite}`,
+      html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
+<body style="background:#f4f4f2;font-family:'Segoe UI',Arial,sans-serif;padding:32px 16px;margin:0">
+<div style="max-width:600px;margin:0 auto">
+<div style="background:${couleur};border-radius:12px 12px 0 0;padding:24px 32px"><h1 style="color:#fff;font-size:20px;margin:0">${nomSite}</h1></div>
+<div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none">
+  <div style="text-align:center;margin-bottom:24px"><div style="font-size:48px">⏳</div><h2 style="font-size:20px;color:#1a1a1a;margin-top:12px">Il vous reste une étape!</h2></div>
+  <p style="font-size:14px;color:#555;margin:0 0 16px">Bonjour <strong>${abonnement.nom_client}</strong>, votre demande d'abonnement a bien été reçue, mais le paiement n'a pas encore été complété.</p>
+  <div style="background:#f8f8f6;border-left:4px solid ${couleur};border-radius:0 8px 8px 0;padding:16px 20px;margin:16px 0">${details}</div>
+  <div style="text-align:center;margin:28px 0 8px"><a href="${lienPaiement}" style="display:inline-block;padding:13px 28px;border-radius:8px;background:${couleur};color:#fff;text-decoration:none;font-size:14px;font-weight:700">Compléter mon paiement →</a></div>
+  <p style="font-size:12px;color:#888;text-align:center;margin-top:20px">Votre abonnement ne sera activé qu'une fois le paiement complété.</p>
+</div>
+<div style="background:#f8f8f6;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;padding:16px 32px;text-align:center"><p style="font-size:11px;color:#aaa">Propulsé par e-Vend Studio</p></div>
+</div></body></html>`,
+    };
+  }
   if (type === 'annulation') {
     return {
       sujet: `Abonnement annulé — ${nomSite}`,
@@ -107,11 +125,15 @@ function templateFallbackAbonnement(type, couleur, nomSite, abonnement, formatio
 
 // ── Point d'entrée : envoie confirmation / annulation / recu_paiement ─────────
 // Réutilise sites.config.modeles_courriel[type] si actif, même mécanique que reservations.js.
-async function envoyerCourrielAbonnement(type, abonnement, configSite, formation) {
+async function envoyerCourrielAbonnement(type, abonnement, configSite, formation, options = {}) {
   try {
     const couleur = configSite?.couleurPrincipale || '#c9a96e';
     const nomSite = configSite?.nomEntreprise || 'Notre service';
-    const lienGestion = ''; // TODO: lien d'auto-annulation, une fois le token équivalent ajouté (comme reservations.js)
+    const lienGestion = options.lienGestion || ''; // TODO: lien d'auto-annulation, une fois le token équivalent ajouté (comme reservations.js)
+    const lienPaiement = options.lienPaiement || '';
+    const detailsBloc = `
+      <p><strong>📋 Forfait :</strong> ${formation?.titre || ''}</p>
+      <p style="margin-top:8px"><strong>💳 Montant :</strong> ${Number(abonnement.montant || 0).toFixed(2)} ${(abonnement.devise || 'CAD').toUpperCase()} ${LABEL_FREQUENCE[abonnement.frequence] || ''}</p>`;
 
     const modele = configSite?.modeles_courriel?.[type];
     let sujet, html;
@@ -124,14 +146,16 @@ async function envoyerCourrielAbonnement(type, abonnement, configSite, formation
         '{$frequence}':        LABEL_FREQUENCE[abonnement.frequence] || abonnement.frequence || '',
         '{$montant}':          Number(abonnement.montant || 0).toFixed(2),
         '{$numeroMembre}':     `#${String(abonnement.numero_membre).padStart(4, '0')}`,
+        '{$detailsReservation}': detailsBloc,
         '{$lienGestionAbonnement}': lienGestion,
+        '{$lienPaiement}':     lienPaiement,
         '{$nomSite}':          nomSite,
         '{$couleur}':          couleur,
       };
       sujet = substituerVariables(modele.sujet || '', vars);
       html  = substituerVariables(modele.html, vars);
     } else {
-      const fallback = templateFallbackAbonnement(type, couleur, nomSite, abonnement, formation, lienGestion);
+      const fallback = templateFallbackAbonnement(type, couleur, nomSite, abonnement, formation, lienGestion, lienPaiement);
       sujet = fallback.sujet;
       html  = fallback.html;
     }

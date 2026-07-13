@@ -35,6 +35,7 @@ const cronDomaineModule       = require('./routes/cron_domaine');
 const abonnementsStudioRoutes = require('./routes/abonnements_studio');
 const cronAbonnementsModule   = require('./routes/cron_abonnements_studio');
 const cronReservationsModule  = require('./routes/cron_reservations');
+const cronPaiementsModule     = require('./routes/cron_paiements_en_attente');
 const sponsorsPhotosRoutes = require('./routes/sponsorsphotos');
 
 const sponsorsRoutes = require('./routes/sponsors');
@@ -251,6 +252,7 @@ app.use('/api/cron-domaine',       cronDomaineModule);
 app.use('/api/abonnements-studio', abonnementsStudioRoutes);
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
 app.use('/api/cron-reservations',  cronReservationsModule);
+app.use('/api/cron-paiements',     cronPaiementsModule);
 app.use('/api/admin/stripe', require('./routes/admin_stripe'));
 app.use('/api/paiements', require('./routes/paiements'));
 
@@ -734,6 +736,7 @@ if (process.env.NODE_ENV === 'production') {
 cronDomaineModule.demarrer();
 cronAbonnementsModule.demarrer();
 cronReservationsModule.demarrer();
+cronPaiementsModule.demarrer();
 
 // =====================================================================
 // 🚀 DÉMARRAGE

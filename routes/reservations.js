@@ -72,7 +72,25 @@ async function recupererDispoAssociee(siteId, dateDebut) {
 }
 
 // ── Fallbacks HTML codés en dur, utilisés seulement si le gestionnaire n'a pas de modèle actif ──
-function templateFallback(type, couleur, nomSite, detailsHtml, reservation, lienAnnulation) {
+function templateFallback(type, couleur, nomSite, detailsHtml, reservation, lienAnnulation, lienPaiement) {
+  if (type === 'paiement_en_attente') {
+    return {
+      sujet: `Il vous reste une étape — ${nomSite}`,
+      html: `<!DOCTYPE html><html lang="fr"><head><meta charset="UTF-8"></head>
+<body style="background:#f4f4f2;font-family:'Segoe UI',Arial,sans-serif;padding:32px 16px;margin:0">
+<div style="max-width:600px;margin:0 auto">
+<div style="background:${couleur};border-radius:12px 12px 0 0;padding:24px 32px"><h1 style="color:#fff;font-size:20px;margin:0">${nomSite}</h1></div>
+<div style="background:#fff;padding:32px;border:1px solid #e5e7eb;border-top:none">
+  <div style="text-align:center;margin-bottom:24px"><div style="font-size:48px">⏳</div><h2 style="font-size:20px;color:#1a1a1a;margin-top:12px">Il vous reste une étape!</h2></div>
+  <p style="font-size:14px;color:#555;margin:0 0 16px">Bonjour <strong>${reservation.nom_client}</strong>, votre demande a bien été reçue, mais le paiement n'a pas encore été complété.</p>
+  <div style="background:#f8f8f6;border-left:4px solid ${couleur};border-radius:0 8px 8px 0;padding:16px 20px;margin:16px 0">${detailsHtml}</div>
+  <div style="text-align:center;margin:28px 0 8px"><a href="${lienPaiement}" style="display:inline-block;padding:13px 28px;border-radius:8px;background:${couleur};color:#fff;text-decoration:none;font-size:14px;font-weight:700">Compléter mon paiement →</a></div>
+  <p style="font-size:12px;color:#888;text-align:center;margin-top:20px">Si vous ne complétez pas le paiement, votre place ne sera pas garantie.</p>
+</div>
+<div style="background:#f8f8f6;border-radius:0 0 12px 12px;border:1px solid #e5e7eb;border-top:none;padding:16px 32px;text-align:center"><p style="font-size:11px;color:#aaa">Propulsé par e-Vend Studio</p></div>
+</div></body></html>`,
+    };
+  }
   if (type === 'annulation') {
     return {
       sujet: `Réservation annulée — ${nomSite}`,
@@ -114,7 +132,7 @@ function templateFallback(type, couleur, nomSite, detailsHtml, reservation, lien
 // ── Point d'entrée principal : envoie le courriel de confirmation ou d'annulation ──
 // Utilise le modèle personnalisé du gestionnaire (configSite.modeles_courriel) s'il
 // existe et est actif; sinon, repli sur le HTML codé en dur ci-dessus.
-async function envoyerCourrielReservation(type, reservation, configSite) {
+async function envoyerCourrielReservation(type, reservation, configSite, options = {}) {
   try {
     const couleur = configSite?.couleurPrincipale || '#c9a96e';
     const nomSite = configSite?.nomEntreprise || 'Notre service';
@@ -123,6 +141,7 @@ async function envoyerCourrielReservation(type, reservation, configSite) {
     const lienAnnulation = type === 'confirmation' && reservation.token_annulation
       ? `${BACKEND_URL}/api/reservations/annuler/${reservation.token_annulation}`
       : '';
+    const lienPaiement = options.lienPaiement || '';
 
     const modele = configSite?.modeles_courriel?.[type];
     let sujet, html;
@@ -140,6 +159,7 @@ async function envoyerCourrielReservation(type, reservation, configSite) {
         '{$niveau}':              dispo?.niveau || '',
         '{$idReservation}':       String(reservation.id),
         '{$lienAnnulation}':      lienAnnulation,
+        '{$lienPaiement}':        lienPaiement,
         '{$nomSite}':             nomSite,
         '{$couleur}':             couleur,
         '{$notesSupplementaires}': reservation.notes || '',
@@ -147,7 +167,7 @@ async function envoyerCourrielReservation(type, reservation, configSite) {
       sujet = substituerVariables(modele.sujet || '', vars);
       html  = substituerVariables(modele.html, vars);
     } else {
-      const fallback = templateFallback(type, couleur, nomSite, detailsHtml, reservation, lienAnnulation);
+      const fallback = templateFallback(type, couleur, nomSite, detailsHtml, reservation, lienAnnulation, lienPaiement);
       sujet = fallback.sujet;
       html  = fallback.html;
     }
