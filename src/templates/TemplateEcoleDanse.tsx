@@ -52,6 +52,8 @@ export interface ConfigEcoleDanse {
   evenements: { titre: string; date: string; description: string; type: string; photo: string }[];
   adresse: string; ville: string; telephone: string; email: string;
   horairesStudio: string[];
+  titreAbonnements: string;
+  titreAbonnementsAccent: string;
   reseaux: { instagram?: string; facebook?: string; youtube?: string; tiktok?: string };
   coordGoogleMaps: string;
   sections: SectionConfig[];
@@ -125,6 +127,8 @@ export const CONFIG_DANSE_DEFAUT: ConfigEcoleDanse = {
   telephone: '(514) 555-0360',
   email: 'bonjour@studio-eclat.ca',
   horairesStudio: ['Lun – Ven : 15h – 22h', 'Samedi : 9h – 19h', 'Dimanche : 10h – 17h'],
+  titreAbonnements: 'Votre',
+  titreAbonnementsAccent: 'pass danse',
   reseaux: { instagram:'#', facebook:'#', youtube:'#', tiktok:'#' },
   coordGoogleMaps: '', // vide = génération auto depuis adresse+ville (voir getUrlMaps)
   sections: [
@@ -729,8 +733,8 @@ function SectionPass({ config, setPage, siteId, abonnementActive }: { config:Con
   const dataAbonnement: AddonAbonnementData = {
     siteId, abonnementActif: abonnementActive,
     titreLabel: 'Abonnements',
-    titre: 'Votre',
-    titreAccent: 'pass danse',
+    titre: config.titreAbonnements,
+    titreAccent: config.titreAbonnementsAccent,
   };
   return <AddonAbonnementEcole theme={themeAbonnement} data={dataAbonnement} />;
 }
@@ -1003,6 +1007,8 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId,
   config.faq          = ea(partiel?.faq,           CONFIG_DANSE_DEFAUT.faq);
   config.evenements   = ea(partiel?.evenements,    CONFIG_DANSE_DEFAUT.evenements);
   config.horairesStudio = ea(partiel?.horairesStudio, CONFIG_DANSE_DEFAUT.horairesStudio);
+  config.titreAbonnements = partiel?.titreAbonnements ?? CONFIG_DANSE_DEFAUT.titreAbonnements;
+  config.titreAbonnementsAccent = partiel?.titreAbonnementsAccent ?? CONFIG_DANSE_DEFAUT.titreAbonnementsAccent;
 
   const [page, setPage] = useState('accueil');
   const [rideauFini, setRideauFini] = useState(!!isPreview);

@@ -19,10 +19,11 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
+const { dechiffrer } = require('../utils/chiffrement');
 
 function getStripePlateforme(config) {
   const { Stripe } = require('stripe');
-  const cle = config.sandbox ? config.dev_secret_key : config.prod_secret_key;
+  const cle = config.sandbox ? dechiffrer(config.dev_secret_key) : dechiffrer(config.prod_secret_key);
   return Stripe(cle || process.env.STRIPE_SECRET_KEY_STUDIO);
 }
 

@@ -285,6 +285,10 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
   const [numEntreprise, setNumEntreprise]   = useState('');
   const [noTps, setNoTps]                   = useState('');
   const [noTaxeProvinciale, setNoTaxeProvinciale] = useState('');
+  const [tauxTps, setTauxTps]               = useState('');
+  const [tauxProvincial, setTauxProvincial] = useState('');
+  const [tauxParProvince, setTauxParProvince] = useState<Record<string, { taux_tps: number; taux_provincial: number }>>({});
+  const [tauxDejaCharges, setTauxDejaCharges] = useState(false);
   const [joursRemboursement, setJoursRemboursement] = useState('14');
   const [latitude, setLatitude]             = useState<number | null>(null);
   const [longitude, setLongitude]           = useState<number | null>(null);
@@ -297,6 +301,18 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
   const [toast, setToast]               = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
   const [showModalMdp, setShowModalMdp] = useState(false);
   const [onglet, setOnglet]             = useState<'profil' | 'boutique' | 'entreprise' | 'securite'>('profil');
+
+  // ── Table de référence des taux par province (préremplissage seulement) ────
+  useEffect(() => {
+    fetch(`${API_BASE}/gestionnaires/taux-reference`)
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: any[]) => {
+        const map: Record<string, { taux_tps: number; taux_provincial: number }> = {};
+        rows.forEach(r => { map[r.province] = { taux_tps: Number(r.taux_tps), taux_provincial: Number(r.taux_provincial) }; });
+        setTauxParProvince(map);
+      })
+      .catch(() => {});
+  }, []);
 
   // ── Charger ───────────────────────────────────────────────────────────────
   const charger = useCallback(async () => {
@@ -317,6 +333,8 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
       setEstEntreprise(v.est_entreprise || false); setProvinceEntreprise(v.province_entreprise || 'qc');
       setNumEntreprise(v.num_entreprise || ''); setNoTps(v.no_tps || '');
       setNoTaxeProvinciale(v.no_taxe_provinciale || '');
+      if (v.taux_tps !== null && v.taux_tps !== undefined) { setTauxTps(String(v.taux_tps)); setTauxDejaCharges(true); }
+      if (v.taux_provincial !== null && v.taux_provincial !== undefined) setTauxProvincial(String(v.taux_provincial));
       setJoursRemboursement(String(v.jours_remboursement || 14));
       setLatitude(v.latitude ?? null); setLongitude(v.longitude ?? null);
     } catch { showToast('Erreur lors du chargement.', 'err'); }
@@ -325,6 +343,28 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
 
   useEffect(() => { charger(); }, [charger]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 3500); return () => clearTimeout(t); }, [toast]);
+
+  // Premier chargement (nouveau gestionnaire, aucun taux encore sauvegardé) —
+  // dès que la table de référence arrive, préremplir selon la province choisie.
+  useEffect(() => {
+    if (tauxDejaCharges) return;
+    const ref = tauxParProvince[provinceEntreprise];
+    if (ref) {
+      setTauxTps(String(ref.taux_tps));
+      setTauxProvincial(String(ref.taux_provincial));
+      setTauxDejaCharges(true);
+    }
+  }, [tauxParProvince]);
+
+  // Changement manuel de province — repréremplit les taux (le gestionnaire peut ensuite les ajuster)
+  function handleChangerProvinceEntreprise(nouvelleProvince: string) {
+    setProvinceEntreprise(nouvelleProvince);
+    const ref = tauxParProvince[nouvelleProvince];
+    if (ref) {
+      setTauxTps(String(ref.taux_tps));
+      setTauxProvincial(String(ref.taux_provincial));
+    }
+  }
 
   function showToast(msg: string, type: 'ok' | 'err') { setToast({ msg, type }); }
 
@@ -342,6 +382,8 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
           type_entreprise: typeEntreprise, est_entreprise: estEntreprise,
           province_entreprise: provinceEntreprise, num_entreprise: numEntreprise,
           no_tps: noTps, no_taxe_provinciale: noTaxeProvinciale,
+          taux_tps: tauxTps ? parseFloat(tauxTps) : null,
+          taux_provincial: tauxProvincial ? parseFloat(tauxProvincial) : null,
           jours_remboursement: parseInt(joursRemboursement, 10),
           latitude, longitude,
         }),
@@ -597,7 +639,7 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
                 <div style={{ height: '1px', background: C.border, margin: '16px 0' }} />
 
                 <Champ label="Province d'enregistrement">
-                  <select style={inp} value={provinceEntreprise} onChange={e => setProvinceEntreprise(e.target.value)}>
+                  <select style={inp} value={provinceEntreprise} onChange={e => handleChangerProvinceEntreprise(e.target.value)}>
                     {PROVINCES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
                   </select>
                 </Champ>
@@ -622,6 +664,23 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
                     <input style={inp} value={noTaxeProvinciale} onChange={e => setNoTaxeProvinciale(e.target.value)} placeholder="Ex : 1234567890 TQ0001" />
                   </Champ>
                 )}
+
+                <div style={{ height: '1px', background: C.border, margin: '16px 0' }} />
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+                  <Champ label="Taux TPS/TVH appliqué (%)" hint="Ex: 0.05 pour 5%">
+                    <input type="number" step="0.001" style={inp} value={tauxTps} onChange={e => setTauxTps(e.target.value)} />
+                  </Champ>
+                  <Champ label="Taux provincial appliqué (%)" hint="0 si aucune taxe provinciale distincte">
+                    <input type="number" step="0.001" style={inp} value={tauxProvincial} onChange={e => setTauxProvincial(e.target.value)} />
+                  </Champ>
+                </div>
+                <div style={{ background: '#fefce8', border: '1px solid #fde68a', borderRadius: '10px', padding: '12px 16px' }}>
+                  <p style={{ margin: 0, fontSize: '12px', color: '#854d0e', lineHeight: 1.6 }}>
+                    Préremplis automatiquement selon votre province. Si le gouvernement change un taux, ajustez-le
+                    ici vous-même — c'est cette valeur qui sera utilisée pour calculer la taxe de vos clients.
+                  </p>
+                </div>
               </>
             )}
           </Section>

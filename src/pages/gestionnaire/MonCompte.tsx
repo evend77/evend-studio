@@ -590,7 +590,7 @@ const RichTextEditor = ({ value, onChange, placeholder }: { value: string; onCha
   );
 };
 
-function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
+function MonCompte({ gestionnaireId: gestionnaireIdProp }: { gestionnaireId?: number }) {
   // Injecter le CSS responsive au montage
   React.useEffect(() => {
     const styleId = 'moncompte-responsive-style';
@@ -684,6 +684,13 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
   const [noTPS, setNoTPS] = useState('');
   const [noTaxeProvinciale, setNoTaxeProvinciale] = useState('');
 
+  // Taux de taxe réellement appliqués (modifiables librement par le gestionnaire —
+  // préremplis automatiquement selon la province, mais jamais imposés par le code).
+  const [tauxTPS, setTauxTPS] = useState('');
+  const [tauxProvincial, setTauxProvincial] = useState('');
+  const [tauxParProvince, setTauxParProvince] = useState<Record<string, { taux_tps: number; taux_provincial: number }>>({});
+  const [tauxDejaCharges, setTauxDejaCharges] = useState(false); // évite de préremplir par-dessus une valeur déjà chargée de la BD
+
   // États de validation fiscale en temps réel
   const [erreurTPS, setErreurTPS] = useState('');
   const [erreurTaxeProvinciale, setErreurTaxeProvinciale] = useState('');
@@ -695,7 +702,7 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
   const [abonnementInfo, setAbonnementInfo] = useState<any>(null);
   const [paiementsHisto, setPaiementsHisto] = useState<any[]>([]);
   const [showForfaitPopup, setShowForfaitPopup] = useState(false);
-  const [vendeurId, setVendeurId] = useState<number | null>(vendeurIdProp ?? null);
+  const [gestionnaireId, setGestionnaireId] = useState<number | null>(gestionnaireIdProp ?? null);
 
   // Mapping des provinces avec leurs codes
   const provinces = [
@@ -713,6 +720,28 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
     { label: 'Territoires du Nord-Ouest', value: 'nt' },
     { label: 'Nunavut', value: 'nu' },
   ];
+
+  // Changement de province — préremplit aussi les taux (le gestionnaire peut ensuite les ajuster librement)
+  const handleChangerProvinceEntreprise = (nouvelleProvince: string) => {
+    setProvinceEntreprise(nouvelleProvince);
+    const ref = tauxParProvince[nouvelleProvince];
+    if (ref) {
+      setTauxTPS(String(ref.taux_tps));
+      setTauxProvincial(String(ref.taux_provincial));
+    }
+  };
+
+  // Premier chargement (nouveau gestionnaire, aucun taux encore sauvegardé en BD) —
+  // dès que la table de référence arrive, préremplir selon la province déjà choisie.
+  useEffect(() => {
+    if (tauxDejaCharges) return;
+    const ref = tauxParProvince[provinceEntreprise];
+    if (ref) {
+      setTauxTPS(String(ref.taux_tps));
+      setTauxProvincial(String(ref.taux_provincial));
+      setTauxDejaCharges(true);
+    }
+  }, [tauxParProvince]);
 
   // Fonction pour obtenir le libellé du numéro d'entreprise provincial
   const getLabelEntrepriseProvincial = () => {
@@ -870,7 +899,7 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('type', type); // Pour savoir si c'est une bannière ou un logo
-      formData.append('vendeur_id', vendeurId?.toString() || ''); // Lier au vendeur
+      formData.append('gestionnaire_id', gestionnaireId?.toString() || ''); // Lier au vendeur
       
       const uploadRes = await fetch('https://evend-multivendeur-api.onrender.com/api/upload', {
         method: 'POST',
@@ -927,7 +956,7 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
       }
     };
     input.click();
-  }, [vendeurId]);
+  }, [gestionnaireId]);
 
   // Fonction de suppression de bannière
   const handleSupprimerBanniere = useCallback(() => {
@@ -961,7 +990,7 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
       }
     };
     input.click();
-  }, [vendeurId]);
+  }, [gestionnaireId]);
 
   // Fonction de suppression de logo
   const handleSupprimerLogo = useCallback(() => {
@@ -970,14 +999,27 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
     setLogoNom('');
   }, []);
 
+  // ── Charger la table de référence des taux (préremplissage seulement) ─────
+  useEffect(() => {
+    // Table de référence des taux par province — sert uniquement à préremplir,
+    // jamais utilisée pour le calcul réel (voir src/utils/taxes.js côté serveur).
+    fetch('/api/gestionnaires/taux-reference')
+      .then(r => r.ok ? r.json() : [])
+      .then((rows: any[]) => {
+        const map: Record<string, { taux_tps: number; taux_provincial: number }> = {};
+        rows.forEach(r => { map[r.province] = { taux_tps: Number(r.taux_tps), taux_provincial: Number(r.taux_provincial) }; });
+        setTauxParProvince(map);
+      })
+      .catch(() => {});
+  }, []);
+
   // ── Charger profil + plan depuis BD ────────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem('token');
     if (!token) { setLoading(false); return; }
     
-    const url = vendeurIdProp
-      ? `https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeurIdProp}`
-      : 'https://evend-multivendeur-api.onrender.com/api/vendeurs/profil';
+    if (!gestionnaireIdProp) { setLoading(false); return; }
+    const url = `/api/gestionnaires/${gestionnaireIdProp}`;
 
     fetch(url, {
       headers: { Authorization: `Bearer ${token}` }
@@ -987,7 +1029,7 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
       if (d.error) { setLoading(false); return; }
       
       // Sauvegarder l'ID du vendeur pour l'utiliser dans les uploads
-      if (d.id) setVendeurId(d.id);
+      if (d.id) setGestionnaireId(d.id);
       
       setEmail(d.email || '');
       setNomVendeur(d.nom || '');
@@ -1021,6 +1063,11 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
       setNumEntrepriseProvincial(d.num_entreprise_provincial || '');
       setNoTPS(d.no_tps || '');
       setNoTaxeProvinciale(d.no_taxe_provinciale || '');
+      // Taux : si déjà sauvegardés en BD, on les respecte tels quels (le gestionnaire
+      // les a peut-être ajustés manuellement) — sinon, le préremplissage automatique
+      // par province prend le relais (voir useEffect plus bas).
+      if (d.taux_tps !== null && d.taux_tps !== undefined) { setTauxTPS(String(d.taux_tps)); setTauxDejaCharges(true); }
+      if (d.taux_provincial !== null && d.taux_provincial !== undefined) setTauxProvincial(String(d.taux_provincial));
       
       // Charger plan + historique paiements
       Promise.all([
@@ -1164,11 +1211,10 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
     setSaving(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('https://evend-multivendeur-api.onrender.com/api/vendeurs/profil', {
+      const res = await fetch(`/api/gestionnaires/${gestionnaireId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({
-          vendeur_id: vendeurId,
           email,
           nom: nomVendeur, 
           nom_boutique: nomBoutique, 
@@ -1192,6 +1238,8 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
           num_entreprise_provincial: numEntrepriseProvincial,
           no_tps: noTPS, 
           no_taxe_provinciale: noTaxeProvinciale,
+          taux_tps: tauxTPS ? parseFloat(tauxTPS) : null,
+          taux_provincial: tauxProvincial ? parseFloat(tauxProvincial) : null,
           //
           banniere_url: banniereUrl,
           logo_url: logoUrl
@@ -1214,11 +1262,11 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
     } finally {
       setSaving(false);
     }
-  }, [nomVendeur, nomBoutique, telephone, regionAdmin, zonesExpedition, typeEntreprise,
+  }, [gestionnaireId, nomVendeur, nomBoutique, telephone, regionAdmin, zonesExpedition, typeEntreprise,
       numCivique, rue, ville, codePostal, pays, descriptionDetaillee, 
       politiqueRetours, politiqueLivraison, joursRemboursement, 
       estEntrepriseEnregistree, provinceEntreprise,
-      numEntrepriseProvincial, noTPS, noTaxeProvinciale, termesAcceptes,
+      numEntrepriseProvincial, noTPS, noTaxeProvinciale, tauxTPS, tauxProvincial, termesAcceptes,
       banniereUrl, logoUrl]);
 
   const handleChangerMotDePasse = useCallback(async () => {
@@ -1597,7 +1645,7 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
                           label="Province de l'entreprise *"
                           options={provinces}
                           value={provinceEntreprise}
-                          onChange={setProvinceEntreprise}
+                          onChange={handleChangerProvinceEntreprise}
                         />
 
                         {/* Résumé des taux de taxe */}
@@ -1610,6 +1658,33 @@ function MonCompte({ vendeurId: vendeurIdProp }: { vendeurId?: number }) {
                           border: '1px solid #bbdefb'
                         }}>
                           <span>ℹ️ {getTauxTaxe()}</span>
+                        </div>
+
+                        {/* Taux réellement appliqués — modifiables, préremplis automatiquement par province */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          <TextField
+                            label="Taux TPS/TVH appliqué (%)"
+                            type="number"
+                            step={0.001}
+                            value={tauxTPS}
+                            onChange={setTauxTPS}
+                            autoComplete="off"
+                            helpText="Ex: 0.05 pour 5%"
+                          />
+                          <TextField
+                            label="Taux provincial appliqué (%)"
+                            type="number"
+                            step={0.001}
+                            value={tauxProvincial}
+                            onChange={setTauxProvincial}
+                            autoComplete="off"
+                            helpText="0 si votre province n'a pas de taxe distincte"
+                          />
+                        </div>
+                        <div style={{ padding: '10px 12px', backgroundColor: '#fefce8', border: '1px solid #fde68a', borderRadius: '6px', fontSize: '12px', color: '#854d0e' }}>
+                          Préremplis automatiquement selon votre province. Si le gouvernement change un taux, ajustez-le
+                          ici vous-même — c'est cette valeur, pas une valeur codée en dur, qui sera utilisée pour calculer
+                          la taxe de vos clients.
                         </div>
 
                         {/* ── DÉCLARATION DE RESPONSABILITÉ ── */}

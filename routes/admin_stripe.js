@@ -14,33 +14,51 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
+const { chiffrer, dechiffrer } = require('../utils/chiffrement');
 
-function getStripe(sandbox, config) {
+// Les 6 champs sensibles — chiffrés en BD, déchiffrés seulement au moment de s'en servir ou de les afficher à l'admin.
+const CHAMPS_SENSIBLES = ['dev_secret_key', 'prod_secret_key', 'dev_webhook_secret', 'prod_webhook_secret', 'dev_connect_webhook_secret', 'prod_connect_webhook_secret'];
+
+function dechiffrerConfig(config) {
+  const copie = { ...config };
+  for (const champ of CHAMPS_SENSIBLES) copie[champ] = dechiffrer(copie[champ]);
+  return copie;
+}
+
+function getStripe(sandbox, configChiffree) {
   const { Stripe } = require('stripe');
-  const cle = sandbox ? config.dev_secret_key : config.prod_secret_key;
+  const cle = sandbox ? dechiffrer(configChiffree.dev_secret_key) : dechiffrer(configChiffree.prod_secret_key);
   return Stripe(cle || process.env.STRIPE_SECRET_KEY_STUDIO);
 }
 
-// GET /api/admin/stripe — charger la configuration
+// GET /api/admin/stripe — charger la configuration (déchiffrée pour l'admin)
 router.get('/', authenticateToken, isAdmin, async (req, res) => {
   try {
     let result = await pool.query('SELECT * FROM configuration_stripe_admin WHERE id = 1');
     if (!result.rows.length) {
       result = await pool.query('INSERT INTO configuration_stripe_admin (id) VALUES (1) RETURNING *');
     }
-    res.json(result.rows[0]);
+    res.json(dechiffrerConfig(result.rows[0]));
   } catch (err) {
     console.error('GET /api/admin/stripe', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// POST /api/admin/stripe — sauvegarder toute la configuration
+// POST /api/admin/stripe — sauvegarder toute la configuration (chiffre les 6 champs sensibles)
 router.post('/', authenticateToken, isAdmin, async (req, res) => {
   try {
     const c = req.body || {};
     const rowCheck = await pool.query('SELECT id FROM configuration_stripe_admin WHERE id = 1');
     if (!rowCheck.rows.length) await pool.query('INSERT INTO configuration_stripe_admin (id) VALUES (1)');
+
+    // Chiffrer seulement les champs sensibles fournis (undefined → on laisse COALESCE garder l'ancienne valeur chiffrée)
+    const devSecret        = c.dev_secret_key !== undefined ? chiffrer(c.dev_secret_key) : undefined;
+    const prodSecret       = c.prod_secret_key !== undefined ? chiffrer(c.prod_secret_key) : undefined;
+    const devWebhook       = c.dev_webhook_secret !== undefined ? chiffrer(c.dev_webhook_secret) : undefined;
+    const prodWebhook      = c.prod_webhook_secret !== undefined ? chiffrer(c.prod_webhook_secret) : undefined;
+    const devConnectWh     = c.dev_connect_webhook_secret !== undefined ? chiffrer(c.dev_connect_webhook_secret) : undefined;
+    const prodConnectWh    = c.prod_connect_webhook_secret !== undefined ? chiffrer(c.prod_connect_webhook_secret) : undefined;
 
     const result = await pool.query(
       `UPDATE configuration_stripe_admin SET
@@ -68,12 +86,12 @@ router.post('/', authenticateToken, isAdmin, async (req, res) => {
          updated_at = NOW()
        WHERE id = 1
        RETURNING *`,
-      [c.sandbox, c.dev_publish_key, c.dev_secret_key, c.dev_client_id, c.dev_webhook_secret, c.dev_connect_webhook_secret,
-       c.prod_publish_key, c.prod_secret_key, c.prod_client_id, c.prod_webhook_secret, c.prod_connect_webhook_secret,
+      [c.sandbox, c.dev_publish_key, devSecret, c.dev_client_id, devWebhook, devConnectWh,
+       c.prod_publish_key, prodSecret, c.prod_client_id, prodWebhook, prodConnectWh,
        c.account_type, c.connect_flow, c.full_service, c.cross_border, c.debit_negative, c.payout_time,
        c.controller_losses, c.controller_fees_payer, c.controller_dashboard, c.controller_requirements]
     );
-    res.json(result.rows[0]);
+    res.json(dechiffrerConfig(result.rows[0]));
   } catch (err) {
     console.error('POST /api/admin/stripe', err);
     res.status(500).json({ error: err.message });

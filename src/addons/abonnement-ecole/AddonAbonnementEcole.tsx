@@ -71,6 +71,10 @@ function PopupInscriptionAbonnement({ theme, choix, siteId, onFermer }: { theme:
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setErreur(data.message || "Erreur lors de l'inscription."); setEnvoi(false); return; }
+      if (data.payment_required && data.abonnement?.id) {
+        window.location.href = `/paiement?type=abonnement&id=${data.abonnement.id}`;
+        return;
+      }
       setSucces(true);
     } catch {
       setErreur('Erreur de connexion. Réessayez.');
@@ -80,7 +84,7 @@ function PopupInscriptionAbonnement({ theme, choix, siteId, onFermer }: { theme:
 
   return (
     <div onClick={onFermer} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.7)', zIndex:9998, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:theme.cardBg, border:`1px solid ${theme.primary}40`, borderRadius:14, padding:'28px 26px', maxWidth:420, width:'100%', position:'relative' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:'#14141f', border:`1px solid ${theme.primary}40`, borderRadius:14, padding:'28px 26px', maxWidth:420, width:'100%', position:'relative' }}>
         <button onClick={onFermer} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:theme.textDim, fontSize:18, cursor:'pointer' }}>✕</button>
         {succes ? (
           <div style={{ textAlign:'center', padding:'20px 0' }}>

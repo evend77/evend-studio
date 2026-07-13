@@ -352,6 +352,18 @@ router.put('/:id/plan', authenticateToken, async (req, res) => {
 });
 
 // PUT /:id — mise à jour générale d'un vendeur (champs de base)
+// GET /api/gestionnaires/taux-reference — taux de référence par province (public),
+// sert uniquement à préremplir Mon Profil quand le gestionnaire choisit sa province.
+// Le calcul réel des taxes n'utilise JAMAIS cette table — voir src/utils/taxes.js.
+router.get('/taux-reference', async (req, res) => {
+    try {
+        const result = await pool.query('SELECT * FROM taux_taxes_provinces ORDER BY nom_affiche ASC');
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 router.put('/:id', async (req, res) => {
     try {
         const { id } = req.params;
@@ -370,9 +382,29 @@ router.put('/:id', async (req, res) => {
         const commission   = body.commission   !== undefined ? body.commission   : v.commission;
         const produits     = body.produits     !== undefined ? body.produits     : v.produits;
 
+        // Section entreprise/taxe (Mon Compte) — si est_entreprise_enregistree
+        // n'est pas coché, le gestionnaire ne facture aucune taxe à ses clients.
+        const est_entreprise_enregistree = body.est_entreprise_enregistree !== undefined ? body.est_entreprise_enregistree : v.est_entreprise_enregistree;
+        const province_entreprise        = body.province_entreprise        !== undefined ? body.province_entreprise        : v.province_entreprise;
+        const num_entreprise_provincial  = body.num_entreprise_provincial  !== undefined ? body.num_entreprise_provincial  : v.num_entreprise_provincial;
+        const no_tps                     = body.no_tps                     !== undefined ? body.no_tps                     : v.no_tps;
+        const no_taxe_provinciale        = body.no_taxe_provinciale        !== undefined ? body.no_taxe_provinciale        : v.no_taxe_provinciale;
+        // Taux de taxe éditables par le gestionnaire (préremplis par défaut côté
+        // frontend via GET /taux-reference, mais librement modifiables ensuite).
+        const taux_tps         = body.taux_tps         !== undefined ? body.taux_tps         : v.taux_tps;
+        const taux_provincial  = body.taux_provincial  !== undefined ? body.taux_provincial  : v.taux_provincial;
+
         const result = await pool.query(
-            'UPDATE gestionnaires SET nom=$1, email=$2, nom_boutique=$3, plan=$4, statut=$5, province=$6, total_ventes=$7, commission=$8, produits=$9 WHERE id=$10 RETURNING *',
-            [nom, email, nom_boutique, plan, statut, province, total_ventes, commission, produits, id]
+            `UPDATE gestionnaires SET
+               nom=$1, email=$2, nom_boutique=$3, plan=$4, statut=$5, province=$6,
+               total_ventes=$7, commission=$8, produits=$9,
+               est_entreprise_enregistree=$10, province_entreprise=$11,
+               num_entreprise_provincial=$12, no_tps=$13, no_taxe_provinciale=$14,
+               taux_tps=$15, taux_provincial=$16
+             WHERE id=$17 RETURNING *`,
+            [nom, email, nom_boutique, plan, statut, province, total_ventes, commission, produits,
+             est_entreprise_enregistree, province_entreprise, num_entreprise_provincial, no_tps, no_taxe_provinciale,
+             taux_tps, taux_provincial, id]
         );
         res.json({ success: true, vendeur: result.rows[0] });
     } catch (err) {

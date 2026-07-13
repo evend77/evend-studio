@@ -16,6 +16,7 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
+const { dechiffrer } = require('../utils/chiffrement');
 
 async function chargerConfigAdmin() {
   const r = await pool.query('SELECT * FROM configuration_stripe_admin WHERE id = 1');
@@ -25,10 +26,10 @@ async function chargerConfigAdmin() {
 router.post('/', express.raw({ type: 'application/json' }), async (req, res) => {
   const configAdmin = await chargerConfigAdmin();
   const { Stripe } = require('stripe');
-  const stripe = Stripe(configAdmin.sandbox ? configAdmin.dev_secret_key : configAdmin.prod_secret_key);
+  const stripe = Stripe(dechiffrer(configAdmin.sandbox ? configAdmin.dev_secret_key : configAdmin.prod_secret_key));
 
   const sig = req.headers['stripe-signature'];
-  const secret = configAdmin.sandbox ? configAdmin.dev_connect_webhook_secret : configAdmin.prod_connect_webhook_secret;
+  const secret = dechiffrer(configAdmin.sandbox ? configAdmin.dev_connect_webhook_secret : configAdmin.prod_connect_webhook_secret);
 
   let event;
   try {

@@ -211,15 +211,17 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
             <button onClick={addAvis} style={{ width:'100%', padding:8, border:`2px dashed ${CM}`, borderRadius:8, background:'transparent', color:CM, cursor:'pointer', fontSize:11, fontWeight:600 }}>+ Ajouter un avis</button>
           </>)}
 
-          {onglet==='pass' && (
-            <div style={{ background:'#fff0f8', border:`1.5px solid ${CM}40`, borderRadius:10, padding:16, textAlign:'center' }}>
+          {onglet==='pass' && (<>
+            <F label="Titre (partie normale)"><Inp value={config.titreAbonnements} onChange={(v:string)=>set('titreAbonnements',v)} placeholder="Votre" /></F>
+            <F label="Titre (partie en italique/accent)"><Inp value={config.titreAbonnementsAccent} onChange={(v:string)=>set('titreAbonnementsAccent',v)} placeholder="pass danse" /></F>
+            <div style={{ background:'#fff0f8', border:`1.5px solid ${CM}40`, borderRadius:10, padding:16, textAlign:'center', marginTop:14 }}>
               <div style={{ fontSize:32, marginBottom:8 }}>🔒</div>
               <p style={{ fontSize:12, fontWeight:700, color:'#1a1a1a', marginBottom:6 }}>Géré ailleurs maintenant</p>
               <p style={{ fontSize:11, color:'#666', lineHeight:1.5 }}>
-                Vos forfaits d'abonnement se créent et se gèrent maintenant dans <strong>Mes Abonnements → Mes forfaits</strong> depuis le menu principal du dashboard. Cet onglet ne contrôle plus le contenu affiché sur votre site.
+                Vos forfaits d'abonnement se créent et se gèrent maintenant dans <strong>Mes Abonnements → Mes forfaits</strong> depuis le menu principal du dashboard. Seul le titre ci-dessus reste modifiable ici.
               </p>
             </div>
-          )}
+          </>)}
 
           {onglet==='evenements' && (<>
             {evs.map((ev,i) => <div key={i} style={{ border:'1px solid #e5e7eb', borderRadius:8, padding:10, marginBottom:10 }}>

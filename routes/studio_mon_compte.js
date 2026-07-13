@@ -47,7 +47,7 @@ function verifierProprietaire(req, res) {
 }
 
 // ─── Helper upload S3 ─────────────────────────────────────────────────────────
-async function uploadVersS3(file, vendeurId, type) {
+async function uploadVersS3(file, gestionnaireId, type) {
   const ext   = path.extname(file.originalname).toLowerCase() || '.jpg';
   const s3Key = `studio/comptes/gestionnaire_${gestionnaireId}_${type}_${uuidv4()}${ext}`;
   await s3.send(new PutObjectCommand({
@@ -75,7 +75,7 @@ async function supprimerS3(urlActuelle) {
 }
 
 // =============================================================================
-// GET /api/studio/mon-compte/:vendeurId
+// GET /api/studio/mon-compte/:gestionnaireId
 // Charger le profil complet du gestionnaire
 // =============================================================================
 router.get('/', authenticateToken, async (req, res) => {
@@ -89,6 +89,7 @@ router.get('/', authenticateToken, async (req, res) => {
          politique_retours, politique_livraison,
          type_entreprise, est_entreprise, province_entreprise,
          num_entreprise, no_tps, no_taxe_provinciale,
+         taux_tps, taux_provincial,
          jours_remboursement, latitude, longitude,
          plan, statut, created_at, updated_at
        FROM gestionnaires
@@ -105,7 +106,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // =============================================================================
-// PUT /api/studio/mon-compte/:vendeurId
+// PUT /api/studio/mon-compte/:gestionnaireId
 // Sauvegarder le profil du gestionnaire (sans mot de passe, sans logo/bannière)
 // =============================================================================
 router.put('/', authenticateToken, async (req, res) => {
@@ -117,6 +118,7 @@ router.put('/', authenticateToken, async (req, res) => {
     description, politique_retours, politique_livraison,
     type_entreprise, est_entreprise, province_entreprise,
     num_entreprise, no_tps, no_taxe_provinciale,
+    taux_tps, taux_provincial,
     jours_remboursement, latitude, longitude,
   } = req.body;
 
@@ -144,8 +146,10 @@ router.put('/', authenticateToken, async (req, res) => {
          jours_remboursement  = COALESCE($19, jours_remboursement),
          latitude             = COALESCE($20, latitude),
          longitude            = COALESCE($21, longitude),
+         taux_tps             = COALESCE($22, taux_tps),
+         taux_provincial      = COALESCE($23, taux_provincial),
          updated_at           = NOW()
-       WHERE id = $22
+       WHERE id = $24
        RETURNING id, nom, nom_boutique, email, updated_at`,
       [
         nom ?? null, nom_boutique ?? null, telephone ?? null,
@@ -155,6 +159,7 @@ router.put('/', authenticateToken, async (req, res) => {
         type_entreprise ?? null, est_entreprise ?? null, province_entreprise ?? null,
         num_entreprise ?? null, no_tps ?? null, no_taxe_provinciale ?? null,
         jours_remboursement ?? null, latitude ?? null, longitude ?? null,
+        taux_tps ?? null, taux_provincial ?? null,
         req.params.gestionnaireId,
       ]
     );
@@ -225,8 +230,8 @@ router.post('/logo', authenticateToken, (req, res) => {
       const ancien = await pool.query(`SELECT logo_url FROM gestionnaires WHERE id = $1`, [gestionnaireId]);
       if (ancien.rows[0]?.logo_url) await supprimerS3(ancien.rows[0].logo_url);
 
-      const { url } = await uploadVersS3(req.file, vendeurId, 'logo');
-      await pool.query(`UPDATE gestionnaires SET logo_url = $1, updated_at = NOW() WHERE id = $2`, [url, vendeurId]);
+      const { url } = await uploadVersS3(req.file, gestionnaireId, 'logo');
+      await pool.query(`UPDATE gestionnaires SET logo_url = $1, updated_at = NOW() WHERE id = $2`, [url, gestionnaireId]);
 
       console.log(`🖼️  Logo gestionnaire ${gestionnaireId} uploadé : ${url}`);
       res.json({ success: true, logo_url: url });
@@ -254,8 +259,8 @@ router.post('/banniere', authenticateToken, (req, res) => {
       const ancien = await pool.query(`SELECT banniere_url FROM gestionnaires WHERE id = $1`, [gestionnaireId]);
       if (ancien.rows[0]?.banniere_url) await supprimerS3(ancien.rows[0].banniere_url);
 
-      const { url } = await uploadVersS3(req.file, vendeurId, 'banniere');
-      await pool.query(`UPDATE gestionnaires SET banniere_url = $1, updated_at = NOW() WHERE id = $2`, [url, vendeurId]);
+      const { url } = await uploadVersS3(req.file, gestionnaireId, 'banniere');
+      await pool.query(`UPDATE gestionnaires SET banniere_url = $1, updated_at = NOW() WHERE id = $2`, [url, gestionnaireId]);
 
       console.log(`🖼️  Bannière gestionnaire ${gestionnaireId} uploadée : ${url}`);
       res.json({ success: true, banniere_url: url });
