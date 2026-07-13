@@ -51,6 +51,10 @@ app.post('/api/dynadot/stripe-webhook', express.raw({ type: 'application/json' }
 // ✅ Webhook Studio Stripe — abonnements e-Vend Studio
 app.use('/api/webhooks-studio', webhooksStudioStripe);
 
+// ✅ Webhook paiements École/Cours — comptes Connect des gestionnaires (réservations/abonnements)
+app.post('/api/webhooks/paiements-connect', express.raw({ type: 'application/json' }));
+app.use('/api/webhooks/paiements-connect', require('./routes/webhooks_paiements_stripe'));
+
 // ✅ Webhook Dynadot (NOUVEAU)
 app.post('/api/webhooks/dynadot', express.raw({ type: 'application/json' }));
 
@@ -66,7 +70,8 @@ app.use((req, res, next) => {
   // Ne jamais bloquer les webhooks externes
   if (
     req.path === '/api/dynadot/stripe-webhook' ||
-    req.path === '/api/webhooks/dynadot'
+    req.path === '/api/webhooks/dynadot' ||
+    req.path === '/api/webhooks/paiements-connect'
   ) {
     return next();
   }
@@ -246,6 +251,8 @@ app.use('/api/cron-domaine',       cronDomaineModule);
 app.use('/api/abonnements-studio', abonnementsStudioRoutes);
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
 app.use('/api/cron-reservations',  cronReservationsModule);
+app.use('/api/admin/stripe', require('./routes/admin_stripe'));
+app.use('/api/paiements', require('./routes/paiements'));
 
 app.use('/api/branding-public', require('./routes/branding_public'));
 app.use('/api/blacklist-contact', require('./routes/blacklist_contact'));

@@ -48,6 +48,7 @@ export default function ConfigurationPaiements({ gestionnaireId }: Props) {
   // ── PayPal ────────────────────────────────────────────────────────────────
   const [paypalActif, setPaypalActifState] = useState(false);
   const [paypalEmail, setPaypalEmail] = useState('');
+  const [paypalClientId, setPaypalClientId] = useState('');
   const [sauvPaypal, setSauvPaypal] = useState(false);
 
   const token = () => localStorage.getItem('token');
@@ -73,6 +74,7 @@ export default function ConfigurationPaiements({ gestionnaireId }: Props) {
       const data = await res.json();
       setPaypalActifState(!!data.paypal_actif);
       setPaypalEmail(data.paypal_email || '');
+      setPaypalClientId(data.paypal_client_id || '');
     } catch {}
   };
 
@@ -113,13 +115,13 @@ export default function ConfigurationPaiements({ gestionnaireId }: Props) {
     });
   };
 
-  const sauvegarderPaypal = async (actif: boolean, email: string) => {
+  const sauvegarderPaypal = async (actif: boolean, email: string, clientId: string) => {
     setSauvPaypal(true);
     try {
       const res = await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/paypal`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ paypal_actif: actif, paypal_email: email }),
+        body: JSON.stringify({ paypal_actif: actif, paypal_email: email, paypal_client_id: clientId }),
       });
       if (!res.ok) { const d = await res.json(); throw new Error(d.message || 'Erreur.'); }
       afficherToast('PayPal mis à jour.', 'ok');
@@ -253,7 +255,7 @@ export default function ConfigurationPaiements({ gestionnaireId }: Props) {
                 <p style={{ fontSize: 12, color: C.textDim, margin: 0 }}>Offrez PayPal en plus de Stripe à vos clients</p>
               </div>
             </div>
-            <div onClick={() => { const v = !paypalActif; setPaypalActifState(v); sauvegarderPaypal(v, paypalEmail); }}
+            <div onClick={() => { const v = !paypalActif; setPaypalActifState(v); sauvegarderPaypal(v, paypalEmail, paypalClientId); }}
               style={{ width: 44, height: 24, borderRadius: 12, background: paypalActif ? '#0070ba' : '#3a3a42', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
               <div style={{ width: 18, height: 18, borderRadius: '50%', background: '#fff', position: 'absolute', top: 3, left: paypalActif ? 23 : 3, transition: 'left 0.2s' }} />
             </div>
@@ -264,10 +266,18 @@ export default function ConfigurationPaiements({ gestionnaireId }: Props) {
               <label style={{ fontSize: 11, fontWeight: 700, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Courriel PayPal *</label>
               <input type="email" value={paypalEmail} onChange={e => setPaypalEmail(e.target.value)} placeholder="votre-compte@exemple.com"
                 style={{ width: '100%', padding: '10px 13px', border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: C.inputBg, color: C.text, boxSizing: 'border-box', marginBottom: 12 }} />
+
+              <label style={{ fontSize: 11, fontWeight: 700, color: C.textLight, textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 6 }}>Client ID PayPal *</label>
+              <input type="text" value={paypalClientId} onChange={e => setPaypalClientId(e.target.value)} placeholder="AeA1QRj8..."
+                style={{ width: '100%', padding: '10px 13px', border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: C.inputBg, color: C.text, boxSizing: 'border-box', marginBottom: 6, fontFamily: 'monospace' }} />
+              <p style={{ fontSize: 11, color: C.textDim, margin: '0 0 12px' }}>
+                Créez une app gratuite sur <a href="https://developer.paypal.com/dashboard/applications" target="_blank" rel="noopener noreferrer" style={{ color: '#0070ba' }}>developer.paypal.com</a> → copiez le "Client ID" (public, sans danger à partager).
+              </p>
+
               <div style={{ background: C.amberLight, border: `1px solid ${C.amber}30`, borderRadius: 8, padding: '10px 14px', fontSize: 12, color: C.textLight, marginBottom: 14 }}>
-                Entrez le courriel de votre compte PayPal Business — c'est là que les paiements seront envoyés directement, e-Vend Studio n'y a jamais accès.
+                Le courriel identifie votre compte, le Client ID permet au bouton de paiement de fonctionner sur votre site. Les paiements vont directement sur votre compte — e-Vend Studio n'y a jamais accès.
               </div>
-              <button onClick={() => sauvegarderPaypal(paypalActif, paypalEmail)} disabled={sauvPaypal}
+              <button onClick={() => sauvegarderPaypal(paypalActif, paypalEmail, paypalClientId)} disabled={sauvPaypal}
                 style={{ padding: '10px 20px', border: 'none', borderRadius: 8, background: '#0070ba', color: '#fff', fontSize: 12, fontWeight: 700, cursor: sauvPaypal ? 'wait' : 'pointer' }}>
                 {sauvPaypal ? '⏳...' : '💾 Enregistrer'}
               </button>

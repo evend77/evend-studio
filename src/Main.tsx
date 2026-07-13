@@ -9,6 +9,7 @@ import LoginPage             from './pages/LoginPage';
 import AppGestionnaireStudio  from './AppGestionnaireStudio';
 import AppAdminStudio        from './AppAdminStudio';
 import SitePreview           from './pages/SitePreview';
+import PagePaiement          from './pages/PagePaiement';
 import BlogPlateforme        from './pages/BlogPlateforme';
 import BlogArticle           from './pages/BlogArticle';
 import FaqPlateforme         from './pages/FaqPlateforme';
@@ -171,6 +172,9 @@ export default function Main() {
         <Route path="/templates"    element={<PageTemplates />} />
         <Route path="/templates/:id" element={<PageTemplateDetail />} />
         <Route path="/site-preview" element={<SitePreview />} />
+        <Route path="/paiement"          element={<PagePaiement mode="payer" />} />
+        <Route path="/paiement-confirme" element={<PagePaiement mode="confirme" />} />
+        <Route path="/paiement-annule"   element={<PagePaiement mode="annule" />} />
 
         <Route path="/blog"         element={<BlogPlateforme />} />
         <Route path="/blog/:slug"   element={<BlogArticle />} />

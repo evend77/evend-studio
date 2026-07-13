@@ -269,20 +269,43 @@ router.post('/', async (req, res) => {
       }
     }
 
-    // Créer la réservation
+    // Le paiement en ligne est-il activé pour ce site?
+    const optionsResult = await pool.query(
+      `SELECT o.reservation_ecole_paiement
+       FROM sites s JOIN options_gestionnaire o ON o.gestionnaire_id = s.gestionnaire_id
+       WHERE s.id = $1`,
+      [site_id]
+    );
+    const paiementActif = !!optionsResult.rows[0]?.reservation_ecole_paiement;
+
+    // Créer la réservation — en attente de paiement si l'option est active, confirmée sinon
     const tokenAnnulation = crypto.randomBytes(24).toString('hex');
     const result = await pool.query(
       `INSERT INTO reservations
         (site_id, nom_client, email_client, telephone, date_debut, date_fin,
-         nb_personnes, notes, statut, type_reservation, objet_reserve, token_annulation)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'confirmee',$9,$10,$11)
+         nb_personnes, notes, statut, statut_paiement, type_reservation, objet_reserve, token_annulation)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        RETURNING *`,
       [site_id, nom_client, email_client, telephone || null,
        date_debut, date_fin || date_debut, nb_personnes || 1,
-       notes || null, type_reservation || null, objet_reserve || null, tokenAnnulation]
+       notes || null,
+       paiementActif ? 'en_attente_paiement' : 'confirmee',
+       paiementActif ? 'en_attente' : null,
+       type_reservation || null, objet_reserve || null, tokenAnnulation]
     );
 
     const reservation = result.rows[0];
+
+    // Si paiement requis : ne pas confirmer/envoyer le courriel tout de suite —
+    // ça se fera au webhook (checkout.session.completed) ou après capture PayPal.
+    if (paiementActif) {
+      return res.status(201).json({
+        success: true,
+        payment_required: true,
+        reservation,
+        message: 'Réservation créée — paiement requis pour la confirmer.',
+      });
+    }
 
     // Récupérer config du site pour l'email
     const siteResult = await pool.query(

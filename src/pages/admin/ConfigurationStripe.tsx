@@ -135,41 +135,14 @@ function Badge({ label, color }: { label: string; color: string }) {
 // ── Popup Vendeurs Connectés ──────────────────────────────────────────────────
 function PopupVendeurs({ vendeurs, onClose, onUpdateStatus }: { vendeurs: any[]; onClose: () => void; onUpdateStatus: (id: number, status: string) => void }) {
   const [recherche, setRecherche] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [updatingId, setUpdatingId] = useState<number | null>(null);
 
   const filtres = vendeurs.filter(v =>
-    v.vendeur_nom?.toLowerCase().includes(recherche.toLowerCase()) ||
-    v.vendeur_email?.toLowerCase().includes(recherche.toLowerCase()) ||
+    v.gestionnaire_nom?.toLowerCase().includes(recherche.toLowerCase()) ||
+    v.gestionnaire_email?.toLowerCase().includes(recherche.toLowerCase()) ||
     v.stripe_account_id?.toLowerCase().includes(recherche.toLowerCase())
   );
 
   const statutColor = (s: string) => s === 'active' ? THEME.success : s === 'suspended' ? THEME.danger : s === 'pending' ? THEME.warning : THEME.textLight;
-
-  const handleStatusChange = async (vendeurId: number, newStatus: string) => {
-    setUpdatingId(vendeurId);
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/admin/stripe/vendeurs/${vendeurId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ stripe_account_status: newStatus })
-      });
-      
-      if (response.ok) {
-        onUpdateStatus(vendeurId, newStatus);
-      }
-    } catch (error) {
-      console.error('Erreur mise à jour statut:', error);
-    } finally {
-      setUpdatingId(null);
-      setLoading(false);
-    }
-  };
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
@@ -203,76 +176,39 @@ function PopupVendeurs({ vendeurs, onClose, onUpdateStatus }: { vendeurs: any[];
           <table style={{ width: '100%', borderCollapse: 'collapse' as const }}>
             <thead>
               <tr style={{ background: '#f0f4f8', position: 'sticky' as const, top: 0, zIndex: 1 }}>
-                <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'left' as const, borderBottom: `2px solid ${THEME.border}` }}>Vendeur</th>
+                <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'left' as const, borderBottom: `2px solid ${THEME.border}` }}>Gestionnaire</th>
                 <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'left' as const, borderBottom: `2px solid ${THEME.border}` }}>Courriel</th>
-                <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'left' as const, borderBottom: `2px solid ${THEME.border}` }}>ID Stripe Connect</th>
-                <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'left' as const, borderBottom: `2px solid ${THEME.border}` }}>Type</th>
-                <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'left' as const, borderBottom: `2px solid ${THEME.border}` }}>Statut</th>
-                <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'left' as const, borderBottom: `2px solid ${THEME.border}` }}>Connecté le</th>
+                <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'left' as const, borderBottom: `2px solid ${THEME.border}` }}>💳 Stripe</th>
+                <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'left' as const, borderBottom: `2px solid ${THEME.border}` }}>Statut Stripe</th>
+                <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'left' as const, borderBottom: `2px solid ${THEME.border}` }}>🅿️ PayPal</th>
                 <th style={{ padding: '11px 16px', fontSize: '11px', fontWeight: '700', color: THEME.textLight, textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'center' as const, borderBottom: `2px solid ${THEME.border}` }}>Action</th>
                </tr>
             </thead>
             <tbody>
               {filtres.length === 0 ? (
-                <tr><td colSpan={7} style={{ padding: '40px', textAlign: 'center' as const, color: THEME.textLight }}>Aucun vendeur trouvé</td></tr>
+                <tr><td colSpan={6} style={{ padding: '40px', textAlign: 'center' as const, color: THEME.textLight }}>Aucun gestionnaire trouvé</td></tr>
               ) : filtres.map((v, i) => (
-                <tr key={v.id}
+                <tr key={v.gestionnaire_id}
                   style={{ borderBottom: `1px solid ${THEME.border}`, background: i % 2 === 0 ? '#fff' : '#fafbfc' }}>
-                  <td style={{ padding: '13px 16px', fontSize: '14px', fontWeight: '700', color: THEME.text }}>{v.vendeur_nom}</td>
-                  <td style={{ padding: '13px 16px', fontSize: '13px', color: THEME.textLight }}>{v.vendeur_email}</td>
+                  <td style={{ padding: '13px 16px', fontSize: '14px', fontWeight: '700', color: THEME.text }}>{v.gestionnaire_nom}</td>
+                  <td style={{ padding: '13px 16px', fontSize: '13px', color: THEME.textLight }}>{v.gestionnaire_email}</td>
                   <td style={{ padding: '13px 16px' }}>
-                    <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '3px 8px', borderRadius: '4px', color: '#1e40af', fontFamily: 'monospace' }}>{v.stripe_account_id}</code>
+                    {v.stripe_account_id
+                      ? <code style={{ fontSize: '11px', background: '#f1f5f9', padding: '3px 8px', borderRadius: '4px', color: '#1e40af', fontFamily: 'monospace' }}>{v.stripe_account_id}</code>
+                      : <span style={{ fontSize: '12px', color: THEME.textLight }}>—</span>}
                   </td>
-                  <td style={{ padding: '13px 16px', fontSize: '13px', color: THEME.text }}>{v.stripe_account_type}</td>
                   <td style={{ padding: '13px 16px' }}>
-                    <select
-                      value={v.stripe_account_status}
-                      onChange={(e) => handleStatusChange(v.vendeur_id, e.target.value)}
-                      disabled={updatingId === v.vendeur_id}
-                      style={{
-                        padding: '4px 8px',
-                        borderRadius: '6px',
-                        border: `1px solid ${THEME.border}`,
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        background: statutColor(v.stripe_account_status) + '10',
-                        color: statutColor(v.stripe_account_status),
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="active">Actif</option>
-                      <option value="pending">En attente</option>
-                      <option value="suspended">Suspendu</option>
-                      <option value="restricted">Restreint</option>
-                      <option value="rejected">Rejeté</option>
-                    </select>
+                    {v.stripe_account_id
+                      ? <Badge label={v.stripe_account_status === 'active' ? '✅ Vérifié' : '⏳ En attente'} color={statutColor(v.stripe_account_status)} />
+                      : <span style={{ fontSize: '12px', color: THEME.textLight }}>—</span>}
                   </td>
-                  <td style={{ padding: '13px 16px', fontSize: '12px', color: THEME.textLight }}>{new Date(v.connected_at).toLocaleDateString('fr-CA')}</td>
+                  <td style={{ padding: '13px 16px', fontSize: '13px', color: THEME.text }}>
+                    {v.paypal_actif
+                      ? <span>{v.paypal_email}{!v.paypal_client_id && <span style={{ color: THEME.warning, fontSize: '11px', marginLeft: 6 }}>⚠️ pas de Client ID</span>}</span>
+                      : <span style={{ fontSize: '12px', color: THEME.textLight }}>—</span>}
+                  </td>
                   <td style={{ padding: '13px 16px', textAlign: 'center' as const }}>
                     <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', alignItems: 'center' }}>
-                      {!v.stripe_account_id && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              const token = localStorage.getItem('token');
-                              const r = await fetch(`https://evend-multivendeur-api.onrender.com/api/admin/stripe/onboarding/${v.vendeur_id}`, {
-                                method: 'POST',
-                                headers: { Authorization: `Bearer ${token}` }
-                              });
-                              const data = await r.json();
-                              if (data.onboarding_url) {
-                                window.open(data.onboarding_url, '_blank');
-                              } else {
-                                alert('Erreur: ' + (data.error || 'Impossible de générer le lien'));
-                              }
-                            } catch (e: any) {
-                              alert('Erreur: ' + e.message);
-                            }
-                          }}
-                          style={{ background: THEME.success, color: 'white', border: 'none', borderRadius: '6px', padding: '5px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' as const }}>
-                          🔗 Connecter
-                        </button>
-                      )}
                       {v.stripe_account_id && (
                         <a href={`https://dashboard.stripe.com/connect/accounts/${v.stripe_account_id}`} target="_blank" rel="noopener noreferrer"
                           style={{ color: THEME.accent, textDecoration: 'none', fontSize: '12px', fontWeight: '600' }}>
@@ -301,270 +237,9 @@ function PopupVendeurs({ vendeurs, onClose, onUpdateStatus }: { vendeurs: any[];
   );
 }
 
-// ── ONGLET 1 : Configuration paiement Stripe ──────────────────────────────────
-function OngletPaiement({ config, setConfig, onSave }: { config: any; setConfig: (key: string, value: any) => void; onSave: () => void }) {
-  const [saved, setSaved] = useState(false);
-  const [paymentMethods, setPaymentMethods] = useState<Record<string, boolean>>(config.payment_methods || {
-    Cards: true, iDEAL: false, 'Payment Request Button (Apple Pay, Google Pay)': true,
-    Sofort: false, Bancontact: false, EPS: false, FPX: false, giropay: false,
-    Przelewy24: false, alipay: false, GrabPay: false, 'AfterPay/ClearPay': false,
-    Paypal: false, 'Sepa Debit': false,
-  });
-
-  const isPayout   = config.use_stripe_for === 'STRIPE PAYOUT';
-  const isTransfer = config.use_stripe_for === 'STRIPE TRANSFER';
-  if (isPayout || isTransfer) return <OngletPayout config={config} setConfig={setConfig} onSave={onSave} />;
-
-  const handleSave = () => {
-    onSave();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  };
-
-  const updatePaymentMethods = (methods: Record<string, boolean>) => {
-    setPaymentMethods(methods);
-    setConfig('payment_methods', methods);
-  };
-
-  return (
-    <div style={{ padding: '28px 32px', maxWidth: '900px' }}>
-
-      <SectionTitle>⚙️ Paramètres généraux</SectionTitle>
-
-      <SelectField label="Utiliser Stripe pour" value={config.use_stripe_for} onChange={(v) => setConfig('use_stripe_for', v)}
-        options={[
-          { val: 'STRIPE PAYMENT METHOD', label: 'STRIPE PAYMENT METHOD' },
-          { val: 'STRIPE PAYOUT',         label: 'STRIPE PAYOUT' },
-          { val: 'STRIPE TRANSFER',       label: 'STRIPE TRANSFER' },
-        ]} />
-
-      <SelectField label="Appliquer Stripe pour" value={config.use_stripe_for_who} onChange={(v) => setConfig('use_stripe_for_who', v)}
-        options={[
-          { val: 'BOTH',       label: 'BOTH' },
-          { val: 'CHECKOUT',   label: 'CHECKOUT' },
-          { val: 'MEMBERSHIP', label: 'MEMBERSHIP' },
-        ]} />
-
-      <SelectField label="Obtenir les détails de carte client sur" value={config.card_details_on} onChange={(v) => setConfig('card_details_on', v)}
-        options={[{ val: 'THANK YOU PAGE', label: 'THANK YOU PAGE' }]} />
-
-      <InputField
-        label="Libellé sur le relevé bancaire (Statement Descriptor)"
-        note="Texte affiché sur le relevé bancaire du client — requis par Stripe (max 22 caractères, sans caractères spéciaux)."
-        value={config.statement_desc || ''} onChange={(v) => setConfig('statement_desc', v)} placeholder="e-Vend" width="280px" />
-
-      <ToggleRow
-        label="Restreindre l'accès vendeur aux commandes non payées"
-        note="Empêche le vendeur de voir la commande si le client n'a pas encore payé."
-        value={config.restrict_seller || false} onChange={(v) => setConfig('restrict_seller', v)} />
-
-      <ToggleRow
-        label="Annulation automatique de la commande"
-        note="Annule automatiquement la commande si le client n'a pas payé dans le délai imparti."
-        value={config.auto_cancel || true} onChange={(v) => setConfig('auto_cancel', v)} />
-
-      {config.auto_cancel && (
-        <div style={{ marginTop: '16px' }}>
-          <InputField label="Délai d'annulation" note="Nombre d'heures avant l'annulation automatique." value={config.cancel_hour || '24'} onChange={(v) => setConfig('cancel_hour', v)} type="number" width="100px" suffix="heures" />
-        </div>
-      )}
-
-      <SectionTitle>💳 Flux de paiement</SectionTitle>
-
-      <div style={{ marginBottom: '28px' }}>
-        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: THEME.text, textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '12px' }}>Flux de paiement</label>
-        {[
-          { val: 'redirect', label: 'Rediriger vers la page Stripe' },
-          { val: 'same',     label: 'Paiement sur la même page' },
-        ].map(opt => (
-          <label key={opt.val} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '10px', fontSize: '14px', color: THEME.text }}>
-            <input type="radio" name="paymentFlow" value={opt.val} checked={config.payment_flow === opt.val}
-              onChange={() => setConfig('payment_flow', opt.val)} style={{ accentColor: THEME.accent, width: '16px', height: '16px' }} />
-            {opt.label}
-          </label>
-        ))}
-        <NoteBox>
-          <strong>Rediriger vers la page Stripe :</strong> Le client est redirigé vers Stripe pour entrer ses informations de paiement, puis revient sur la page de confirmation.<br />
-          <strong>Paiement sur la même page :</strong> Les informations de paiement apparaissent en popup sur la page de confirmation.
-        </NoteBox>
-      </div>
-
-      {config.payment_flow === 'same' && (
-        <div style={{ marginBottom: '28px' }}>
-          <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: THEME.text, textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '12px' }}>Méthodes de paiement acceptées</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '4px' }}>
-            {Object.keys(paymentMethods).map(m => (
-              <CheckboxRow key={m} label={m} checked={paymentMethods[m]} onChange={v => updatePaymentMethods({ ...paymentMethods, [m]: v })} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      <InputField label="Code de pays ISO" note="Le code pays à deux lettres de votre compte Stripe (ex : CA, US, FR)." value={config.country_code || 'CA'} onChange={(v) => setConfig('country_code', v)} placeholder="CA" width="120px" />
-      <InputField label="Description du paiement" note="Description visible par le client lors du paiement (max 200 caractères)." value={config.description || ''} onChange={(v) => setConfig('description', v)} />
-
-      <SectionTitle>🔧 Méthode de traitement</SectionTitle>
-
-      <div style={{ marginBottom: '24px' }}>
-        <label style={{ display: 'block', fontSize: '13px', fontWeight: '700', color: THEME.text, textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '12px' }}>Méthode de traitement des paiements</label>
-        {[
-          { val: 'DIRECT CHARGES',      label: 'Direct Charges' },
-          { val: 'DESTINATION CHARGES', label: 'Destination Charges' },
-        ].map(opt => (
-          <label key={opt.val} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', marginBottom: '10px', fontSize: '14px', color: THEME.text }}>
-            <input type="radio" name="processingMethod" value={opt.val} checked={config.processing_method === opt.val}
-              onChange={() => setConfig('processing_method', opt.val)} style={{ accentColor: THEME.accent, width: '16px', height: '16px' }} />
-            {opt.label}
-          </label>
-        ))}
-      </div>
-
-      <NoteBox>
-        <strong>Separate Charges &amp; Transfer :</strong> L'admin reçoit le montant total, puis transfère les gains au vendeur. Fonctionne uniquement si les deux comptes sont dans la même région.<br /><br />
-        <strong>Destination Charges :</strong> Les frais de traitement Stripe sont à la charge de l'admin uniquement et la commission est ajoutée aux frais d'application.<br /><br />
-        <strong>Direct Charges :</strong> Les frais de traitement Stripe sont à la charge du vendeur uniquement et la commission admin est ajoutée aux frais d'application.
-      </NoteBox>
-
-      <SelectField label="Frais Stripe pris en charge par" value={config.stripe_fee_bear || 'Seller'} onChange={(v) => setConfig('stripe_fee_bear', v)}
-        options={[
-          { val: 'Seller', label: 'Seller' },
-          { val: 'Admin',  label: 'Admin' },
-        ]} />
-
-      <SectionTitle>📧 Rappels de paiement</SectionTitle>
-
-      <InputField label="Nom du paiement Stripe" note="Nom affiché pour ce mode de paiement dans la boutique." value={config.payment_name || ''} onChange={(v) => setConfig('payment_name', v)} />
-
-      <ToggleRow
-        label="Rappel de paiement commande Stripe"
-        note="Envoie un rappel de paiement en attente au client par courriel."
-        value={config.reminder_enabled || true} onChange={(v) => setConfig('reminder_enabled', v)} />
-
-      {config.reminder_enabled && (
-        <div style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-          <InputField label="Heure d'envoi du rappel" note="Délai après lequel le rappel est envoyé." value={config.reminder_time || '6'} onChange={(v) => setConfig('reminder_time', v)} type="number" suffix="heures" width="100px" />
-          <InputField label="Nombre de jours de rappel" note="Durée pendant laquelle les rappels seront envoyés." value={config.reminder_days || '1'} onChange={(v) => setConfig('reminder_days', v)} type="number" suffix="jours" width="100px" />
-        </div>
-      )}
-
-      <SectionTitle>⏱️ Délai de versement Stripe au vendeur</SectionTitle>
-
-      <NoteBox type="info">
-        💡 <strong>Délai propre à Stripe :</strong> Ce délai est indépendant du délai PayPal — chaque passerelle a son propre calendrier. Stripe impose déjà un minimum de 2 jours ouvrables avant tout transfert. Le délai configuré ici s'ajoute à ce délai Stripe standard, vous permettant de gérer remboursements et litiges avant versement.
-      </NoteBox>
-
-      <ToggleRow
-        label="Activer le versement automatique (Autopay)"
-        note="Si activé, Stripe verse automatiquement les gains du vendeur selon le délai configuré ci-dessous. Si désactivé, les versements sont manuels — tu dois les déclencher toi-même via l'API Stripe."
-        value={config.delai_actif || false} onChange={(v) => setConfig('delai_actif', v)} />
-
-      {config.delai_actif && (
-        <div style={{ background: '#f8fafc', border: `1px solid ${THEME.border}`, borderRadius: '10px', padding: '24px', marginTop: '16px' }}>
-
-          <SelectField
-            label="Déclencher le versement après le statut"
-            note="Le compte à rebours démarre une fois ce statut de commande atteint."
-            value={config.delai_statut || 'commande_livree'} onChange={(v) => setConfig('delai_statut', v)}
-            options={[
-              { val: 'commande_payee',    label: 'Commande payée' },
-              { val: 'commande_expediee', label: 'Commande expédiée' },
-              { val: 'commande_livree',   label: 'Commande livrée' },
-              { val: 'delai_retour',      label: 'Après délai de retour expiré' },
-            ]} />
-
-          <NoteBox type="info">
-            💡 <strong>Comment ça fonctionne avec Stripe :</strong> Quand activé, le compte Stripe du vendeur est configuré en payout <code>daily</code> avec un délai de <strong>{config.delai_jours || 3} jours ouvrables</strong>. Stripe verse automatiquement chaque jour les transactions qui ont atteint ce délai.
-          </NoteBox>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
-            <InputField
-              label="Délai avant versement (delay_days Stripe)"
-              note="Minimum 2 jours (limite Stripe). Recommandé : 3 à 7 jours pour gérer les litiges. Correspond au paramètre delay_days de l'API Stripe."
-              value={config.delai_jours || '3'} onChange={(v) => setConfig('delai_jours', v)}
-              type="number" suffix="jours ouvrables" width="100px" />
-            <InputField
-              label="Montant minimum de versement"
-              note="Stripe ne transfère pas les montants inférieurs à ce seuil."
-              value={config.delai_min_montant || '5.00'} onChange={(v) => setConfig('delai_min_montant', v)}
-              type="number" suffix="$" width="100px" />
-          </div>
-
-          <ToggleRow
-            label="Notifier le vendeur lors du versement"
-            note="Envoie un courriel au vendeur à chaque versement Stripe effectué."
-            value={config.notif_versement || true} onChange={(v) => setConfig('notif_versement', v)} />
-
-          <div style={{ marginTop: '16px' }}>
-            <NoteBox type="success">
-              ✅ <strong>Conformité Stripe Connect :</strong> Les transferts doivent être effectués en devise supportée (CAD, USD…). Le compte Stripe du vendeur doit être activé et vérifié. Stripe conserve un historique de tous les transferts dans votre dashboard Connect.
-            </NoteBox>
-          </div>
-        </div>
-      )}
-
-      <div style={{ marginTop: '32px' }}>
-        <button onClick={handleSave}
-          style={{ backgroundColor: saved ? THEME.success : THEME.accent, color: 'white', border: 'none', borderRadius: '8px', padding: '11px 28px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
-          {saved ? '✓ Enregistré!' : 'Enregistrer les modifications'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── ONGLET PAYOUT/TRANSFER ────────────────────────────────────────────────────
-function OngletPayout({ config, setConfig, onSave }: { config: any; setConfig: (key: string, value: any) => void; onSave: () => void }) {
-  const [saved, setSaved] = useState(false);
-  
-  const handleSave = () => {
-    onSave();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
-  };
-
-  return (
-    <div style={{ padding: '28px 32px', maxWidth: '900px' }}>
-      <SectionTitle>⚙️ Paramètres {config.use_stripe_for === 'STRIPE PAYOUT' ? 'Payout' : 'Transfer'}</SectionTitle>
-
-      <SelectField label="Utiliser Stripe pour" value={config.use_stripe_for} onChange={(v) => setConfig('use_stripe_for', v)}
-        options={[
-          { val: 'STRIPE PAYMENT METHOD', label: 'STRIPE PAYMENT METHOD' },
-          { val: 'STRIPE PAYOUT',         label: 'STRIPE PAYOUT' },
-          { val: 'STRIPE TRANSFER',       label: 'STRIPE TRANSFER' },
-        ]} />
-      <SelectField label="Appliquer Stripe pour" value={config.use_stripe_for_who} onChange={(v) => setConfig('use_stripe_for_who', v)}
-        options={[
-          { val: 'BOTH',       label: 'BOTH' },
-          { val: 'CHECKOUT',   label: 'CHECKOUT' },
-          { val: 'MEMBERSHIP', label: 'MEMBERSHIP' },
-        ]} />
-
-      <ToggleRow label="Envoyer la description avec le virement Stripe"
-        note="Si activé, une description sera incluse dans le virement Stripe."
-        value={config.send_description || false} onChange={(v) => setConfig('send_description', v)} />
-      <ToggleRow label="Versement automatique au vendeur (Autopay)"
-        note="Si activé, le gain total du vendeur sera automatiquement versé après le statut de commande sélectionné."
-        value={config.autopay || false} onChange={(v) => setConfig('autopay', v)} />
-
-      <div style={{ marginTop: '20px' }}>
-        <SelectField label="Type de méthode de paiement pour le transfert" value={config.transfer_method || 'All payment methods'} onChange={(v) => setConfig('transfer_method', v)}
-          options={[
-            { val: 'All payment methods', label: 'All payment methods' },
-            { val: 'Stripe only',         label: 'Stripe only' },
-          ]} />
-      </div>
-
-      <div style={{ marginTop: '32px' }}>
-        <button onClick={handleSave}
-          style={{ backgroundColor: saved ? THEME.success : THEME.accent, color: 'white', border: 'none', borderRadius: '8px', padding: '11px 28px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
-          {saved ? '✓ Enregistré!' : 'Enregistrer les modifications'}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-// ── ONGLET 2 : Configuration Stripe vendeur ───────────────────────────────────
+// ── ONGLET : Compte gestionnaire (comment e-Vend Studio crée les comptes Connect des gestionnaires) ──
+// Pattern réutilisable plus tard pour le multi-vendeur (gestionnaire ↔ ses sous-vendeurs),
+// mais dans un fichier séparé avec sa propre config Stripe (clé du gestionnaire, pas celle-ci).
 function OngletVendeur({ config, setConfig, onSave }: { config: any; setConfig: (key: string, value: any) => void; onSave: () => void }) {
   const [saved, setSaved] = useState(false);
   
@@ -724,10 +399,12 @@ function OngletVendeur({ config, setConfig, onSave }: { config: any; setConfig: 
         label="Debit Negative Balance (Débit solde négatif)"
         note="Si le solde du vendeur est négatif (ex: remboursement), Stripe débitera automatiquement son compte bancaire."
         value={config.debit_negative !== undefined ? config.debit_negative : true} onChange={(v) => setConfig('debit_negative', v)} />
-      <ToggleRow
-        label="Définir un délai de versement personnalisé"
-        note="Permet de configurer un calendrier de versement spécifique pour les vendeurs (quotidien, hebdomadaire, mensuel)."
-        value={config.payout_time !== undefined ? config.payout_time : true} onChange={(v) => setConfig('payout_time', v)} />
+      {config.account_type !== 'STANDARD' && (
+        <ToggleRow
+          label="Définir un délai de versement personnalisé"
+          note="Permet de configurer un calendrier de versement spécifique pour les gestionnaires (quotidien, hebdomadaire, mensuel). Non disponible pour les comptes Standard — le gestionnaire contrôle ses propres versements directement dans son dashboard Stripe."
+          value={config.payout_time || false} onChange={(v) => setConfig('payout_time', v)} />
+      )}
 
       <div style={{ marginTop: '32px' }}>
         <button onClick={handleSave}
@@ -756,7 +433,7 @@ function OngletCredentials({ config, setConfig, onSave }: { config: any; setConf
     const token = localStorage.getItem('token');
     try {
       const response = await fetch(
-        'https://evend-multivendeur-api.onrender.com/api/admin/stripe/webhook/register',
+        '/api/admin/stripe/webhook/register',
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
@@ -904,7 +581,7 @@ function OngletCredentials({ config, setConfig, onSave }: { config: any; setConf
 
 // ── Page principale ConfigurationStripe ───────────────────────────────────────
 export default function ConfigurationStripe({ naviguerVers }: { naviguerVers?: (p: string) => void }) {
-  const [onglet, setOnglet] = useState<'paiement' | 'vendeur' | 'credentials'>('paiement');
+  const [onglet, setOnglet] = useState<'vendeur' | 'credentials'>('vendeur');
   const [showPopupVendeurs, setShowPopupVendeurs] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -922,7 +599,7 @@ export default function ConfigurationStripe({ naviguerVers }: { naviguerVers?: (
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/admin/stripe', {
+      const response = await fetch('/api/admin/stripe', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -942,7 +619,7 @@ export default function ConfigurationStripe({ naviguerVers }: { naviguerVers?: (
   const chargerVendeurs = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/admin/stripe/vendeurs', {
+      const response = await fetch('/api/admin/stripe/vendeurs', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -960,7 +637,7 @@ export default function ConfigurationStripe({ naviguerVers }: { naviguerVers?: (
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/admin/stripe', {
+      const response = await fetch('/api/admin/stripe', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -989,11 +666,11 @@ export default function ConfigurationStripe({ naviguerVers }: { naviguerVers?: (
   };
 
   // Mettre à jour le statut d'un vendeur
-  const updateVendeurStatus = (vendeurId: number, newStatus: string) => {
+  const updateVendeurStatus = (gestionnaireId: number, newStatus: string) => {
     setVendeurs((prev: any[]) =>
-      prev.map(v => v.vendeur_id === vendeurId ? { ...v, stripe_account_status: newStatus } : v)
+      prev.map(v => v.gestionnaire_id === gestionnaireId ? { ...v, stripe_account_status: newStatus } : v)
     );
-    showToast(`Statut du vendeur mis à jour`, 'success');
+    showToast(`Statut du gestionnaire mis à jour`, 'success');
   };
 
   useEffect(() => {
@@ -1002,8 +679,7 @@ export default function ConfigurationStripe({ naviguerVers }: { naviguerVers?: (
   }, []);
 
   const onglets = [
-    { id: 'paiement',    label: 'Configuration paiement Stripe' },
-    { id: 'vendeur',     label: 'Configuration Stripe vendeur' },
+    { id: 'vendeur',     label: 'Compte gestionnaire' },
     { id: 'credentials', label: 'Credentials' },
   ] as const;
 
@@ -1039,15 +715,12 @@ export default function ConfigurationStripe({ naviguerVers }: { naviguerVers?: (
           <h1 style={{ fontSize: '22px', fontWeight: '800', margin: '0 0 4px', color: THEME.text, textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>
             💳 Configuration Stripe
           </h1>
-          <p style={{ fontSize: '13px', color: THEME.textLight, margin: 0 }}>Configurez les détails de l'application Stripe Connect.</p>
+          <p style={{ fontSize: '13px', color: THEME.textLight, margin: 0 }}>Compte plateforme Stripe Connect (Studio) — gère la connexion des comptes gestionnaires, 0% commission.</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button style={{ backgroundColor: THEME.danger, color: 'white', border: 'none', borderRadius: '8px', padding: '9px 20px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
-            DÉSACTIVER
-          </button>
           <button onClick={() => { chargerVendeurs(); setShowPopupVendeurs(true); }}
             style={{ backgroundColor: THEME.accent, color: 'white', border: 'none', borderRadius: '8px', padding: '9px 20px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
-            👥 VOIR LES VENDEURS CONNECTÉS ({vendeurs.length})
+            👥 GESTIONNAIRES CONNECTÉS ({vendeurs.length})
           </button>
           <button onClick={sauvegarderConfiguration} disabled={saving}
             style={{ backgroundColor: THEME.success, color: 'white', border: 'none', borderRadius: '8px', padding: '9px 20px', fontSize: '13px', fontWeight: '700', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.6 : 1 }}>
@@ -1066,7 +739,6 @@ export default function ConfigurationStripe({ naviguerVers }: { naviguerVers?: (
           ))}
         </div>
 
-        {onglet === 'paiement'    && <OngletPaiement config={config} setConfig={updateConfig} onSave={sauvegarderConfiguration} />}
         {onglet === 'vendeur'     && <OngletVendeur config={config} setConfig={updateConfig} onSave={sauvegarderConfiguration} />}
         {onglet === 'credentials' && <OngletCredentials config={config} setConfig={updateConfig} onSave={sauvegarderConfiguration} />}
       </div>

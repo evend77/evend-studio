@@ -97,6 +97,10 @@ function PopupInscriptionCours({ theme, cours, siteId, onFermer, onInscrit }: { 
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) { setErreur(data.message || "Erreur lors de l'inscription."); setEnvoi(false); return; }
+      if (data.payment_required && data.reservation?.id) {
+        window.location.href = `/paiement?type=reservation&id=${data.reservation.id}`;
+        return;
+      }
       setSucces(true);
       onInscrit();
     } catch {

@@ -103,14 +103,16 @@ router.post('/:id/stripe/deconnecter', authenticateToken, async (req, res) => {
   }
 });
 
-// ── PayPal — simple email + toggle, aucune API Partner/Platform requise ──────
+// ── PayPal — courriel + Client ID (public, sans risque à exposer côté client) ─
+// Pas de Secret Key ici : le checkout PayPal Smart Buttons n'a besoin que du
+// Client ID publiquement. Aucune API Partner/Platform requise.
 
 // GET /api/gestionnaires/:id/paypal
 router.get('/:id/paypal', authenticateToken, async (req, res) => {
   try {
     if (req.user.id !== parseInt(req.params.id)) return res.status(403).json({ message: 'Accès refusé.' });
-    const result = await pool.query(`SELECT paypal_actif, paypal_email FROM options_gestionnaire WHERE gestionnaire_id = $1`, [req.params.id]);
-    res.json(result.rows[0] || { paypal_actif: false, paypal_email: '' });
+    const result = await pool.query(`SELECT paypal_actif, paypal_email, paypal_client_id FROM options_gestionnaire WHERE gestionnaire_id = $1`, [req.params.id]);
+    res.json(result.rows[0] || { paypal_actif: false, paypal_email: '', paypal_client_id: '' });
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur.' });
   }
@@ -120,16 +122,18 @@ router.get('/:id/paypal', authenticateToken, async (req, res) => {
 router.put('/:id/paypal', authenticateToken, async (req, res) => {
   try {
     if (req.user.id !== parseInt(req.params.id)) return res.status(403).json({ message: 'Accès refusé.' });
-    const { paypal_actif, paypal_email } = req.body;
+    const { paypal_actif, paypal_email, paypal_client_id } = req.body;
     if (paypal_actif && !paypal_email) return res.status(400).json({ message: 'Courriel PayPal requis.' });
+    if (paypal_actif && !paypal_client_id) return res.status(400).json({ message: 'Client ID PayPal requis pour activer les paiements.' });
 
     await pool.query(
-      `INSERT INTO options_gestionnaire (gestionnaire_id, paypal_actif, paypal_email)
-       VALUES ($1, $2, $3)
+      `INSERT INTO options_gestionnaire (gestionnaire_id, paypal_actif, paypal_email, paypal_client_id)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (gestionnaire_id) DO UPDATE SET
          paypal_actif = COALESCE($2, options_gestionnaire.paypal_actif),
-         paypal_email = COALESCE($3, options_gestionnaire.paypal_email)`,
-      [req.params.id, paypal_actif ?? null, paypal_email ?? null]
+         paypal_email = COALESCE($3, options_gestionnaire.paypal_email),
+         paypal_client_id = COALESCE($4, options_gestionnaire.paypal_client_id)`,
+      [req.params.id, paypal_actif ?? null, paypal_email ?? null, paypal_client_id ?? null]
     );
     res.json({ success: true });
   } catch (err) {

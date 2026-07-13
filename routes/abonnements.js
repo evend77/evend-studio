@@ -189,24 +189,22 @@ router.post('/', async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO abonnements_clients
-        (site_id, formation_id, numero_membre, nom_client, email_client, telephone, frequence, montant, statut, date_debut, prochaine_facturation)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'actif', NOW(), NOW() + ($9 || ' 1')::interval)
+        (site_id, formation_id, numero_membre, nom_client, email_client, telephone, frequence, montant, statut)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'en_attente_paiement')
        RETURNING *`,
-      [formation.site_id, formation_id, numeroMembre, nom_client, email_client, telephone || null, frequence, montant,
-       frequence === 'hebdomadaire' ? 'week' : frequence === 'mensuel' ? 'month' : 'year']
+      [formation.site_id, formation_id, numeroMembre, nom_client, email_client, telephone || null, frequence, montant]
     );
     const abonnement = result.rows[0];
 
-    const siteResult = await pool.query(
-      `SELECT s.config, g.email as gestionnaire_email FROM sites s JOIN gestionnaires g ON g.id = s.gestionnaire_id WHERE s.id = $1`,
-      [formation.site_id]
-    );
-    const siteData = siteResult.rows[0];
-    const configSite = { ...(siteData?.config || {}), gestionnaireEmail: siteData?.gestionnaire_email };
-
-    await envoyerCourrielAbonnement('confirmation', abonnement, configSite, formation);
-
-    res.status(201).json({ success: true, abonnement });
+    // Le paiement (Stripe Checkout, mode subscription) est TOUJOURS requis pour un
+    // abonnement — pas de bypass comme pour réservation. L'activation réelle et le
+    // courriel de confirmation se font au webhook (checkout.session.completed).
+    res.status(201).json({
+      success: true,
+      payment_required: true,
+      abonnement,
+      message: 'Abonnement créé — paiement requis pour l\'activer.',
+    });
   } catch (err) {
     console.error('POST /api/abonnements', err);
     res.status(500).json({ message: 'Erreur serveur.' });
