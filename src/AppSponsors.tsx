@@ -10,8 +10,8 @@ interface SponsorPhoto {
     thumb: string;
   };
   alt_description: string;
-  url_image?: string;      // 👈 AJOUTÉ
-  titre?: string;          // 👈 AJOUTÉ
+  url_image?: string;
+  titre?: string;
   user: {
     name: string;
     links: {
@@ -44,7 +44,7 @@ function AppSponsors() {
     setLoading(true);
     try {
       const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
-      const response = await fetch('/api/sponsors/photos', {
+      const response = await fetch('/api/sponsors/photos/sponsor/photos', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!response.ok) throw new Error('Erreur');
@@ -105,12 +105,15 @@ function AppSponsors() {
 
     try {
       const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
-      const response = await fetch('/api/sponsors/photos', {
+      const response = await fetch('/api/sponsors/photos/sponsor/upload', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
       });
-      if (!response.ok) throw new Error('Erreur upload');
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Erreur upload');
+      }
       alert('✅ Photo uploadée avec succès !');
       fetchPhotos();
     } catch (error) {
@@ -124,7 +127,7 @@ function AppSponsors() {
     if (!window.confirm('Voulez-vous vraiment supprimer cette photo ?')) return;
     try {
       const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
-      const response = await fetch(`/api/sponsors/photos/${id}`, {
+      const response = await fetch(`/api/sponsors/photos/sponsor/photos/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -317,7 +320,6 @@ function AppSponsors() {
                       border: '1px solid #eee',
                     }}
                   >
-                    {/* ✅ CORRIGÉ : utilise la bonne propriété */}
                     <img
                       src={photo.urls?.small || photo.url_image || ''}
                       alt={photo.alt_description || photo.titre || 'Photo'}

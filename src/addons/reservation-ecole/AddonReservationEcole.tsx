@@ -204,10 +204,10 @@ export default function AddonReservationEcole({ theme, data }: { theme:AddonRese
         </div>
 
         <div style={{ overflowX:'auto', WebkitOverflowScrolling:'touch' as any }}>
-          <div style={{ background:theme.cardBg, border:`1px solid ${theme.border}`, borderRadius:8, overflow:'hidden', minWidth: reservationActive ? 620 : 520 }}>
-            <div style={{ display:'grid', gridTemplateColumns: reservationActive ? '110px 1fr 90px 90px 60px auto' : '110px 1fr 90px 90px 60px', gap:12, alignItems:'center', padding:'14px 20px', background:`${theme.text}08`, borderBottom:`2px solid ${theme.primary}30` }}>
+          <div style={{ background:theme.cardBg, border:`1px solid ${theme.border}`, borderRadius:8, overflow:'hidden', minWidth: reservationActive ? 720 : 620 }}>
+            <div style={{ display:'grid', gridTemplateColumns: reservationActive ? '110px 1.3fr 130px 110px 90px auto' : '110px 1.3fr 130px 110px 90px', gap:16, alignItems:'center', padding:'14px 20px', background:`${theme.text}08`, borderBottom:`2px solid ${theme.primary}30` }}>
               {entetes.map((h,i) => (
-                <p key={i} style={{ fontFamily:theme.fontTexte, fontSize:10, fontWeight:700, color:theme.textDim, letterSpacing:'0.15em', textTransform:'uppercase' }}>{h}</p>
+                <p key={i} style={{ fontFamily:theme.fontTexte, fontSize:10, fontWeight:700, color:theme.textDim, letterSpacing:'0.15em', textTransform:'uppercase', margin:0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{h}</p>
               ))}
             </div>
             {chargement ? (
@@ -218,17 +218,20 @@ export default function AddonReservationEcole({ theme, data }: { theme:AddonRese
               const col = colStyle(h.style);
               const complet = reservationActive && h.placesRestantes <= 0;
               return (
-                <div key={h.id ?? i} style={{ display:'grid', gridTemplateColumns: reservationActive ? '110px 1fr 90px 90px 60px auto' : '110px 1fr 90px 90px 60px', gap:12, alignItems:'center', padding:'14px 20px', borderBottom:`1px solid ${theme.border}` }}>
-                  <div><p style={{ fontFamily:theme.fontTexte, fontSize:12, fontWeight:700, color:theme.text }}>{h.jour}</p><p style={{ fontFamily:theme.fontTexte, fontSize:11, color:col }}>{h.heure}</p></div>
-                  <div>
-                    <span style={{ fontFamily:theme.fontTexte, fontSize:11, padding:'2px 10px', background:`${col}20`, border:`1px solid ${col}40`, color:col, borderRadius:12, fontWeight:700 }}>{h.style}</span>
-                    <p style={{ fontFamily:theme.fontTexte, fontSize:12, color:theme.textDim, marginTop:4 }}>
+                <div key={h.id ?? i} style={{ display:'grid', gridTemplateColumns: reservationActive ? '110px 1.3fr 130px 110px 90px auto' : '110px 1.3fr 130px 110px 90px', gap:16, alignItems:'center', padding:'14px 20px', borderBottom:`1px solid ${theme.border}` }}>
+                  <div style={{ minWidth:0 }}>
+                    <p style={{ fontFamily:theme.fontTexte, fontSize:12, fontWeight:700, color:theme.text, margin:0 }}>{h.jour}</p>
+                    <p style={{ fontFamily:theme.fontTexte, fontSize:11, color:col, margin:0 }}>{h.heure}</p>
+                  </div>
+                  <div style={{ minWidth:0 }}>
+                    <span style={{ fontFamily:theme.fontTexte, fontSize:11, padding:'2px 10px', background:`${col}20`, border:`1px solid ${col}40`, color:col, borderRadius:12, fontWeight:700, whiteSpace:'nowrap' }}>{h.style}</span>
+                    <p style={{ fontFamily:theme.fontTexte, fontSize:12, color:theme.textDim, marginTop:4, marginBottom:0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                       {h.niveau}{h.niveau ? ' · ' : ''}{reservationActive ? (complet ? 'Complet' : `${h.placesRestantes} places`) : `${h.places} places`}
                     </p>
                   </div>
-                  <p style={{ fontFamily:theme.fontTexte, fontSize:12, color:theme.textDim }}>{h.professeur}</p>
-                  <p style={{ fontFamily:theme.fontTexte, fontSize:12, color:theme.textDim }}>{h.salle}</p>
-                  <p style={{ fontFamily:theme.fontTitre, fontSize:18, fontWeight:700, color:col }}>{h.prix}</p>
+                  <p style={{ fontFamily:theme.fontTexte, fontSize:12, color:theme.textDim, margin:0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{h.professeur}</p>
+                  <p style={{ fontFamily:theme.fontTexte, fontSize:12, color:theme.textDim, margin:0, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{h.salle}</p>
+                  <p style={{ fontFamily:theme.fontTitre, fontSize:16, fontWeight:700, color:col, margin:0, whiteSpace:'nowrap' }}>{h.prix}</p>
                   {reservationActive && (
                     complet ? (
                       <span style={{ padding:'7px 14px', borderRadius:20, background:`${theme.text}10`, color:theme.textDim, fontFamily:theme.fontTexte, fontSize:11, fontWeight:700, letterSpacing:'0.05em', textTransform:'uppercase', whiteSpace:'nowrap' as any }}>

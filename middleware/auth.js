@@ -38,4 +38,20 @@ function isAdmin(req, res, next) {
   }
 }
 
-module.exports = { authenticateToken, isAdmin };
+function isGestionnaire(req, res, next) {
+  if (req.user && (req.user.role === 'gestionnaire' || req.user.role === 'admin')) {
+    next();
+  } else {
+    res.status(403).json({ error: 'Accès non autorisé. Droits gestionnaire requis.' });
+  }
+}
+
+function isCommanditaire(req, res, next) {
+  if (req.user && (req.user.role === 'commanditaire' || req.user.role === 'admin')) {
+    next();
+  } else {
+    res.status(403).json({ error: 'Accès non autorisé. Droits commanditaire requis.' });
+  }
+}
+
+module.exports = { authenticateToken, isAdmin, isGestionnaire, isCommanditaire };

@@ -176,6 +176,8 @@ function ea<T>(val: any, def: T[]): T[] {
 const getStyle = (c: ConfigEcoleDanse) => `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Poppins:wght@300;400;500;600;700;800&family=Dancing+Script:wght@600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
+html,body{overflow-x:hidden;max-width:100vw;}
+#root{overflow-x:hidden;}
 @keyframes rideauG { from{transform:translateX(0)} to{transform:translateX(-100%)} }
 @keyframes rideauD { from{transform:translateX(0)} to{transform:translateX(100%)} }
 @keyframes paillette { 0%{transform:translateY(-20px) rotate(0deg);opacity:1} 100%{transform:translateY(100vh) rotate(720deg);opacity:0} }
@@ -289,7 +291,7 @@ function Nav({ config, page, setPage }: { config: ConfigEcoleDanse; page: string
   const liens = [['accueil','Accueil'],['styles-page','Styles'],['horaires-page','Horaires'],['professeurs-page','Professeurs'],['contact-page',"S'inscrire"]];
   const cm = config.couleurMagenta;
   return (
-    <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:1000, background:scrolled?'rgba(10,10,15,.97)':'rgba(10,10,15,.88)', backdropFilter:'blur(16px)', borderBottom:scrolled?`1px solid ${cm}30`:'none', transition:'all .4s', padding:isMobile?'0 14px':'0 48px', width:'100%', boxSizing:'border-box' }}>
+    <nav style={{ position:'fixed', top:0, left:0, right:0, zIndex:1000, background:scrolled?'rgba(10,10,15,.97)':'rgba(10,10,15,.88)', backdropFilter:'blur(16px)', borderBottom:scrolled?`1px solid ${cm}30`:'none', transition:'all .4s', padding:isMobile?'0 14px':'0 48px', width:'100%', maxWidth:'100vw', boxSizing:'border-box' }}>
       <div style={{ maxWidth:1320, margin:'0 auto', height:68, display:'flex', flexWrap:'nowrap', alignItems:'center', justifyContent:'space-between', gap:8 }}>
         <div onClick={() => setPage('accueil')} style={{ cursor:'pointer', minWidth:0, flex:'1 1 auto', overflow:'hidden' }}>
           <p style={{ fontFamily:"'Cormorant Garamond',serif", fontStyle:'italic', fontSize:10, color:cm, letterSpacing:'0.3em', marginBottom:2, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>Studio de Danse</p>

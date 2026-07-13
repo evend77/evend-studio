@@ -46,7 +46,7 @@ export default function MesPhotosSponsor() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/sponsors/photos', {
+      const res = await fetch('/api/sponsors/photos/sponsor/photos', {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) {
@@ -79,7 +79,7 @@ export default function MesPhotosSponsor() {
     formData.append('alt_text', file.name);
 
     try {
-      const res = await fetch('/api/sponsors/photos', {
+      const res = await fetch('/api/sponsors/photos/sponsor/upload', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,
@@ -103,7 +103,7 @@ export default function MesPhotosSponsor() {
   const deletePhoto = async (photo: PhotoItem) => {
     if (!window.confirm(`Supprimer "${photo.titre}" ?`)) return;
     try {
-      const res = await fetch(`/api/sponsors/photos/${photo.id}`, {
+      const res = await fetch(`/api/sponsors/photos/sponsor/photos/${photo.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });

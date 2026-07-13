@@ -2,26 +2,27 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, isAdmin, isCommanditaire } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
-// ── CONFIGURATION MULTER ────────────────────────────────────────
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = path.join(__dirname, '../uploads/sponsors');
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
+// ── AWS S3 CONFIGURATION ──────────────────────────────────────
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
   },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${uuidv4()}${ext}`);
-  }
 });
+
+const BUCKET_NAME = process.env.AWS_S3_BUCKET_SPONSOR || 'evend-studio-sponsors-2026-296886269853-us-east-1-an';
+
+// ── MULTER (upload vers S3) ──────────────────────────────────
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
@@ -36,19 +37,39 @@ const upload = multer({
   }
 });
 
-// ── MIDDLEWARE ──────────────────────────────────────────────────
-const verifierAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Accès réservé aux administrateurs' });
-  }
-  next();
-};
+// ── UTILITAIRES ─────────────────────────────────────────────────
+// Upload vers S3
+async function uploadToS3(file, folder = 'sponsors') {
+  const key = `${folder}/${uuidv4()}-${file.originalname}`;
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: file.buffer,
+    ContentType: file.mimetype,
+    ACL: 'public-read',
+  });
+  await s3Client.send(command);
+  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+}
+
+// Supprimer de S3
+async function deleteFromS3(url) {
+  if (!url) return;
+  const baseUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/`;
+  if (!url.startsWith(baseUrl)) return;
+  const key = url.replace(baseUrl, '');
+  const command = new DeleteObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+  });
+  await s3Client.send(command);
+}
 
 // ════════════════════════════════════════════════════════════════
 // 📸 ROUTES PUBLIQUES (pour le modal)
 // ════════════════════════════════════════════════════════════════
 
-// GET — Récupérer toutes les photos sponsors
+// GET — Récupérer toutes les photos sponsors (publiques)
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
@@ -57,14 +78,12 @@ router.get('/', async (req, res) => {
         sp.titre,
         sp.description,
         sp.url_image,
-        sp.url_original,
         sp.alt_text,
         sp.sponsor_id,
         s.nom AS sponsor_nom,
         s.logo AS sponsor_logo,
         s.site_web AS sponsor_site,
-        sp.created_at,
-        sp.active
+        sp.created_at
        FROM sponsor_photos sp
        JOIN sponsors s ON s.id = sp.sponsor_id
        WHERE sp.active = true AND s.active = true
@@ -72,15 +91,16 @@ router.get('/', async (req, res) => {
        LIMIT 100`
     );
 
-    // Formater pour correspondre à l'interface Unsplash
     const photos = result.rows.map(row => ({
       id: row.id,
       urls: {
         small: row.url_image,
-        regular: row.url_original || row.url_image,
-        full: row.url_original || row.url_image,
+        regular: row.url_image,
+        full: row.url_image,
         thumb: row.url_image,
       },
+      url_image: row.url_image,
+      titre: row.titre,
       alt_description: row.alt_text || row.titre,
       user: {
         name: row.sponsor_nom,
@@ -102,7 +122,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET — Rechercher dans les photos sponsors
+// GET — Rechercher dans les photos sponsors (publique)
 router.get('/search', async (req, res) => {
   try {
     const { query } = req.query;
@@ -113,14 +133,12 @@ router.get('/search', async (req, res) => {
         sp.titre,
         sp.description,
         sp.url_image,
-        sp.url_original,
         sp.alt_text,
         sp.sponsor_id,
         s.nom AS sponsor_nom,
         s.logo AS sponsor_logo,
         s.site_web AS sponsor_site,
-        sp.created_at,
-        sp.active
+        sp.created_at
       FROM sponsor_photos sp
       JOIN sponsors s ON s.id = sp.sponsor_id
       WHERE sp.active = true AND s.active = true
@@ -140,10 +158,12 @@ router.get('/search', async (req, res) => {
       id: row.id,
       urls: {
         small: row.url_image,
-        regular: row.url_original || row.url_image,
-        full: row.url_original || row.url_image,
+        regular: row.url_image,
+        full: row.url_image,
         thumb: row.url_image,
       },
+      url_image: row.url_image,
+      titre: row.titre,
       alt_description: row.alt_text || row.titre,
       user: {
         name: row.sponsor_nom,
@@ -166,11 +186,11 @@ router.get('/search', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// 🔐 ROUTES ADMIN (pour gérer les photos sponsors)
+// 📸 ROUTES ADMIN (pour gérer les photos sponsors)
 // ════════════════════════════════════════════════════════════════
 
-// POST — Ajouter une photo sponsor
-router.post('/', authenticateToken, verifierAdmin, upload.single('image'), async (req, res) => {
+// POST — Ajouter une photo sponsor (admin)
+router.post('/', authenticateToken, isAdmin, upload.single('image'), async (req, res) => {
   try {
     const { sponsor_id, titre, description, alt_text, url_original } = req.body;
 
@@ -178,16 +198,14 @@ router.post('/', authenticateToken, verifierAdmin, upload.single('image'), async
       return res.status(400).json({ error: 'Le sponsor_id est requis' });
     }
 
-    // Vérifier que le sponsor existe
     const sponsorCheck = await pool.query('SELECT id, nom FROM sponsors WHERE id = $1 AND active = true', [sponsor_id]);
     if (sponsorCheck.rows.length === 0) {
       return res.status(404).json({ error: 'Sponsor non trouvé ou inactif' });
     }
 
-    // Si une image est uploadée
     let url_image = null;
     if (req.file) {
-      url_image = `/uploads/sponsors/${req.file.filename}`;
+      url_image = await uploadToS3(req.file, 'sponsors');
     } else if (url_original) {
       url_image = url_original;
     } else {
@@ -213,13 +231,12 @@ router.post('/', authenticateToken, verifierAdmin, upload.single('image'), async
   }
 });
 
-// PUT — Modifier une photo sponsor
-router.put('/:id', authenticateToken, verifierAdmin, upload.single('image'), async (req, res) => {
+// PUT — Modifier une photo sponsor (admin)
+router.put('/:id', authenticateToken, isAdmin, upload.single('image'), async (req, res) => {
   try {
     const { id } = req.params;
     const { sponsor_id, titre, description, alt_text, url_original, active } = req.body;
 
-    // Récupérer la photo existante
     const existing = await pool.query('SELECT * FROM sponsor_photos WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Photo non trouvée' });
@@ -227,14 +244,8 @@ router.put('/:id', authenticateToken, verifierAdmin, upload.single('image'), asy
 
     let url_image = existing.rows[0].url_image;
     if (req.file) {
-      // Supprimer l'ancienne image si elle existe
-      if (url_image && url_image.startsWith('/uploads/sponsors/')) {
-        const oldPath = path.join(__dirname, '..', url_image);
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
-        }
-      }
-      url_image = `/uploads/sponsors/${req.file.filename}`;
+      await deleteFromS3(url_image);
+      url_image = await uploadToS3(req.file, 'sponsors');
     } else if (url_original) {
       url_image = url_original;
     }
@@ -274,31 +285,152 @@ router.put('/:id', authenticateToken, verifierAdmin, upload.single('image'), asy
   }
 });
 
-// DELETE — Supprimer une photo sponsor
-router.delete('/:id', authenticateToken, verifierAdmin, async (req, res) => {
+// DELETE — Supprimer une photo sponsor (admin)
+router.delete('/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Récupérer la photo
     const existing = await pool.query('SELECT * FROM sponsor_photos WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Photo non trouvée' });
     }
 
-    // Supprimer le fichier si c'est un upload local
-    const url_image = existing.rows[0].url_image;
-    if (url_image && url_image.startsWith('/uploads/sponsors/')) {
-      const filePath = path.join(__dirname, '..', url_image);
-      if (fs.existsSync(filePath)) {
-        fs.unlinkSync(filePath);
-      }
-    }
-
+    await deleteFromS3(existing.rows[0].url_image);
     await pool.query('DELETE FROM sponsor_photos WHERE id = $1', [id]);
 
     res.json({
       success: true,
       message: 'Photo sponsor supprimée avec succès'
+    });
+  } catch (error) {
+    console.error('❌ Erreur suppression photo sponsor:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression' });
+  }
+});
+
+// ════════════════════════════════════════════════════════════════
+// 📸 ROUTES SPONSOR (pour les commanditaires eux-mêmes)
+// ════════════════════════════════════════════════════════════════
+
+// POST — Uploader une photo (sponsor)
+router.post('/sponsor/upload', authenticateToken, isCommanditaire, upload.single('image'), async (req, res) => {
+  try {
+    const { titre, description, alt_text } = req.body;
+    const sponsor_id = req.user.id;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'Une image est requise' });
+    }
+
+    // Vérifier le quota
+    const quotaCheck = await pool.query(
+      `SELECT COUNT(*) as count FROM sponsor_photos 
+       WHERE sponsor_id = $1 AND active = true`,
+      [sponsor_id]
+    );
+
+    const sponsorResult = await pool.query(
+      'SELECT forfait, type_sponsor FROM sponsors WHERE id = $1',
+      [sponsor_id]
+    );
+
+    const type_sponsor = sponsorResult.rows[0]?.type_sponsor || 'photos';
+    if (type_sponsor === 'pub') {
+      return res.status(403).json({ 
+        error: 'Votre compte est de type "Publicité". Vous ne pouvez pas uploader de photos.' 
+      });
+    }
+
+    let maxPhotos = 10;
+    const forfait = sponsorResult.rows[0]?.forfait || 'basique';
+    if (forfait === 'standard') maxPhotos = 50;
+    if (forfait === 'premium') maxPhotos = 200;
+
+    if (parseInt(quotaCheck.rows[0].count) >= maxPhotos) {
+      return res.status(403).json({ 
+        error: `Vous avez atteint votre quota de ${maxPhotos} photos actives.`
+      });
+    }
+
+    // Upload vers S3
+    const url_image = await uploadToS3(req.file, `sponsors/${sponsor_id}`);
+
+    const result = await pool.query(
+      `INSERT INTO sponsor_photos 
+       (sponsor_id, titre, description, url_image, alt_text, created_at, active)
+       VALUES ($1, $2, $3, $4, $5, NOW(), true)
+       RETURNING *`,
+      [sponsor_id, titre || null, description || null, url_image, alt_text || null]
+    );
+
+    res.status(201).json({
+      success: true,
+      message: 'Photo uploadée avec succès',
+      photo: result.rows[0]
+    });
+  } catch (error) {
+    console.error('❌ Erreur upload photo sponsor:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'upload de la photo' });
+  }
+});
+
+// GET — Récupérer les photos du sponsor connecté
+router.get('/sponsor/photos', authenticateToken, isCommanditaire, async (req, res) => {
+  try {
+    const sponsor_id = req.user.id;
+
+    const result = await pool.query(
+      `SELECT 
+        id, titre, description, url_image, alt_text, active, created_at
+       FROM sponsor_photos
+       WHERE sponsor_id = $1
+       ORDER BY created_at DESC`,
+      [sponsor_id]
+    );
+
+    const photos = result.rows.map(row => ({
+      id: row.id,
+      url_image: row.url_image,
+      titre: row.titre,
+      description: row.description,
+      alt_text: row.alt_text,
+      active: row.active,
+      created_at: row.created_at,
+      urls: {
+        small: row.url_image,
+        regular: row.url_image,
+        full: row.url_image,
+        thumb: row.url_image,
+      }
+    }));
+
+    res.json({ photos, total: photos.length });
+  } catch (error) {
+    console.error('❌ Erreur récupération photos sponsor:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des photos' });
+  }
+});
+
+// DELETE — Supprimer une photo (sponsor)
+router.delete('/sponsor/photos/:id', authenticateToken, isCommanditaire, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sponsor_id = req.user.id;
+
+    const existing = await pool.query(
+      'SELECT * FROM sponsor_photos WHERE id = $1 AND sponsor_id = $2',
+      [id, sponsor_id]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Photo non trouvée' });
+    }
+
+    await deleteFromS3(existing.rows[0].url_image);
+    await pool.query('DELETE FROM sponsor_photos WHERE id = $1', [id]);
+
+    res.json({
+      success: true,
+      message: 'Photo supprimée avec succès'
     });
   } catch (error) {
     console.error('❌ Erreur suppression photo sponsor:', error);
