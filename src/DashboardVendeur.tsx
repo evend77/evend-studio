@@ -16,7 +16,7 @@ import {
 
 // Imports des composants vendeur
 import CreerAnnonce from './pages/gestionnaire/CreerAnnonce';
-import MonCompte from './pages/gestionnaire/MonCompte';
+
 import ListeCommandes from './pages/gestionnaire/ListeCommandes';
 import DetailCommande from './pages/gestionnaire/DetailCommande';
 import PaiementsCommandes from './pages/gestionnaire/PaiementsCommandes';
@@ -905,7 +905,7 @@ function AppVendeur({ onLogout, vendeurUser }: AppVendeurProps) {
       return <ModifierAnnonce />;
     }
     
-    if (pageActive === 'profil-compte') return <MonCompte vendeurId={vendeur.id} />;
+  
     
     if (pageActive === 'commandes-liste') {
       return (

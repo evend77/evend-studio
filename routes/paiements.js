@@ -20,6 +20,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const { dechiffrer } = require('../utils/chiffrement');
+const { calculerTaxesParSite } = require('../utils/taxes');
 
 function getStripePlateforme(config) {
   const { Stripe } = require('stripe');
@@ -42,6 +43,32 @@ async function chargerOptionsGestionnaire(siteId) {
     [siteId]
   );
   return r.rows[0] || {};
+}
+
+// Crée un (ou deux) objet(s) Stripe Tax Rate représentant la taxe calculée —
+// affichés séparément sur la facture Stripe pour que le client voie la
+// ventilation (ex: "TPS/TVH 5%" + "Taxe provinciale 9.975%").
+// ⚠️ Créés à chaque appel plutôt que mis en cache — simple et correct, mais
+// un peu redondant sur Stripe (aucun problème pratique, juste une note pour plus tard).
+async function creerTauxTaxeStripe(stripe, stripeAccountId, taxInfo) {
+  const tauxRates = [];
+  if (!taxInfo?.taxable) return tauxRates;
+
+  if (taxInfo.tauxTpsRate > 0) {
+    const t = await stripe.taxRates.create(
+      { display_name: 'TPS/TVH', percentage: Number((taxInfo.tauxTpsRate * 100).toFixed(4)), inclusive: false, country: 'CA' },
+      { stripeAccount: stripeAccountId }
+    );
+    tauxRates.push(t.id);
+  }
+  if (taxInfo.tauxProvincialRate > 0) {
+    const t = await stripe.taxRates.create(
+      { display_name: 'Taxe provinciale', percentage: Number((taxInfo.tauxProvincialRate * 100).toFixed(4)), inclusive: false, country: 'CA' },
+      { stripeAccount: stripeAccountId }
+    );
+    tauxRates.push(t.id);
+  }
+  return tauxRates;
 }
 
 // GET /api/paiements/moyens/:siteId — quels moyens de paiement afficher (public)
@@ -85,6 +112,9 @@ router.post('/reservation/:id/stripe-checkout', async (req, res) => {
     const stripe = getStripePlateforme(configAdmin);
     const baseUrl = process.env.BACKEND_URL || 'https://www.e-vendstudio.ca';
 
+    const taxInfo = await calculerTaxesParSite(pool, reservation.montant, reservation.site_id);
+    const tauxRates = await creerTauxTaxeStripe(stripe, opts.stripe_account_id, taxInfo);
+
     const session = await stripe.checkout.sessions.create(
       {
         mode: 'payment',
@@ -96,6 +126,7 @@ router.post('/reservation/:id/stripe-checkout', async (req, res) => {
             product_data: { name: reservation.objet_reserve || 'Réservation' },
           },
           quantity: 1,
+          tax_rates: tauxRates.length ? tauxRates : undefined,
         }],
         customer_email: reservation.email_client,
         metadata: { type: 'reservation', reservation_id: String(reservation.id) },
@@ -190,11 +221,14 @@ router.post('/abonnement/:id/stripe-checkout', async (req, res) => {
       await pool.query(`UPDATE formations SET ${colonnePrix} = $1 WHERE id = $2`, [priceId, abonnement.formation_id]);
     }
 
+    const taxInfo = await calculerTaxesParSite(pool, abonnement.montant, abonnement.site_id);
+    const tauxRates = await creerTauxTaxeStripe(stripe, opts.stripe_account_id, taxInfo);
+
     const session = await stripe.checkout.sessions.create(
       {
         mode: 'subscription',
         payment_method_types: ['card'],
-        line_items: [{ price: priceId, quantity: 1 }],
+        line_items: [{ price: priceId, quantity: 1, tax_rates: tauxRates.length ? tauxRates : undefined }],
         customer_email: abonnement.email_client,
         metadata: { type: 'abonnement', abonnement_id: String(abonnement.id) },
         success_url: `${baseUrl}/paiement-confirme?type=abonnement&id=${abonnement.id}`,
@@ -223,11 +257,13 @@ router.get('/reservation/:id', async (req, res) => {
     const configAdmin = await chargerConfigAdmin();
     const stripeDisponible = !!(opts.reservation_ecole_paiement && opts.stripe_account_id && opts.stripe_verifie);
     const paypalDisponible = !!(opts.reservation_ecole_paiement && opts.paypal_actif && opts.paypal_email && opts.paypal_client_id);
+    const taxInfo = await calculerTaxesParSite(pool, reservation.montant, reservation.site_id);
     res.json({
       ...reservation,
       stripe_disponible: stripeDisponible,
       paypal_disponible: paypalDisponible,
       paypal_client_id: paypalDisponible ? opts.paypal_client_id : null,
+      taxes: taxInfo,
     });
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur.' });
@@ -246,7 +282,8 @@ router.get('/abonnement/:id', async (req, res) => {
     const abonnement = r.rows[0];
     const opts = await chargerOptionsGestionnaire(abonnement.site_id);
     const stripeDisponible = !!(opts.stripe_account_id && opts.stripe_verifie); // abonnement = Stripe seulement
-    res.json({ ...abonnement, stripe_disponible: stripeDisponible });
+    const taxInfo = await calculerTaxesParSite(pool, abonnement.montant, abonnement.site_id);
+    res.json({ ...abonnement, stripe_disponible: stripeDisponible, taxes: taxInfo });
   } catch (err) {
     res.status(500).json({ message: 'Erreur serveur.' });
   }

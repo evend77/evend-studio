@@ -15,11 +15,16 @@ const C = {
   textLight: '#6b7280', accent: '#635bff', green: '#16a34a', red: '#dc2626',
 };
 
+interface TaxInfo {
+  taxable: boolean; montantHT: number; tps: number; provincial: number; total: number; province: string | null;
+}
+
 interface Details {
   id: number; nom_client: string; montant: number; devise: string;
   objet_reserve?: string; formation_titre?: string; frequence?: string;
   statut?: string; statut_paiement?: string;
   stripe_disponible: boolean; paypal_disponible?: boolean; paypal_client_id?: string;
+  taxes?: TaxInfo;
 }
 
 const LABEL_FREQUENCE: Record<string, string> = { hebdomadaire: '/ semaine', mensuel: '/ mois', annuel: '/ an' };
@@ -60,9 +65,30 @@ export default function PagePaiement({ mode }: { mode: 'payer' | 'confirme' | 'a
     const w = window as any;
     if (!w.paypal) return;
     w.paypal.Buttons({
-      createOrder: (_: any, actions: any) => actions.order.create({
-        purchase_units: [{ amount: { value: Number(details.montant).toFixed(2), currency_code: (details.devise || 'CAD').toUpperCase() } }],
-      }),
+      createOrder: (_: any, actions: any) => {
+        const devise = (details.devise || 'CAD').toUpperCase();
+        const taxTotal = (details.taxes?.tps || 0) + (details.taxes?.provincial || 0);
+        const montantHT = details.taxes?.montantHT ?? Number(details.montant);
+        const total = details.taxes?.total ?? Number(details.montant);
+        return actions.order.create({
+          purchase_units: [{
+            amount: {
+              value: total.toFixed(2),
+              currency_code: devise,
+              breakdown: taxTotal > 0 ? {
+                item_total: { value: montantHT.toFixed(2), currency_code: devise },
+                tax_total: { value: taxTotal.toFixed(2), currency_code: devise },
+              } : undefined,
+            },
+            items: taxTotal > 0 ? [{
+              name: details.objet_reserve || 'Réservation',
+              unit_amount: { value: montantHT.toFixed(2), currency_code: devise },
+              tax: { value: taxTotal.toFixed(2), currency_code: devise },
+              quantity: '1',
+            }] : undefined,
+          }],
+        });
+      },
       onApprove: async (_: any, actions: any) => {
         await actions.order.capture();
         await fetch(`${API_BASE}/paiements/reservation/${id}/confirmer-paypal`, {
@@ -124,10 +150,33 @@ export default function PagePaiement({ mode }: { mode: 'payer' | 'confirme' | 'a
           <>
             <p style={{ fontSize: 11, fontWeight: 700, color: C.accent, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Paiement sécurisé</p>
             <p style={{ fontSize: 20, fontWeight: 800, color: C.text, marginBottom: 4 }}>{details?.objet_reserve || details?.formation_titre}</p>
-            <p style={{ fontSize: 14, color: C.textLight, marginBottom: 24 }}>
-              {Number(details?.montant || 0).toFixed(2)} {(details?.devise || 'CAD').toUpperCase()}
-              {details?.frequence && <span> {LABEL_FREQUENCE[details.frequence]}</span>}
-            </p>
+
+            {details?.taxes?.taxable ? (
+              <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '14px 16px', marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: C.textLight, marginBottom: 4 }}>
+                  <span>Sous-total</span><span>{details.taxes.montantHT.toFixed(2)} {(details.devise || 'CAD').toUpperCase()}</span>
+                </div>
+                {details.taxes.tps > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: C.textLight, marginBottom: 4 }}>
+                    <span>TPS/TVH</span><span>{details.taxes.tps.toFixed(2)} {(details.devise || 'CAD').toUpperCase()}</span>
+                  </div>
+                )}
+                {details.taxes.provincial > 0 && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: C.textLight, marginBottom: 8 }}>
+                    <span>Taxe provinciale</span><span>{details.taxes.provincial.toFixed(2)} {(details.devise || 'CAD').toUpperCase()}</span>
+                  </div>
+                )}
+                <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 15, fontWeight: 800, color: C.text }}>
+                  <span>Total {details?.frequence && LABEL_FREQUENCE[details.frequence]}</span>
+                  <span>{details.taxes.total.toFixed(2)} {(details.devise || 'CAD').toUpperCase()}</span>
+                </div>
+              </div>
+            ) : (
+              <p style={{ fontSize: 14, color: C.textLight, marginBottom: 24 }}>
+                {Number(details?.montant || 0).toFixed(2)} {(details?.devise || 'CAD').toUpperCase()}
+                {details?.frequence && <span> {LABEL_FREQUENCE[details.frequence]}</span>}
+              </p>
+            )}
 
             {!details?.stripe_disponible && !details?.paypal_disponible && (
               <p style={{ fontSize: 13, color: C.red, textAlign: 'center' }}>Aucun moyen de paiement n'est actuellement disponible pour ce site. Contactez directement le commerce.</p>

@@ -39,6 +39,8 @@ async function calculerTaxesParSite(pool, montantHT, siteId) {
     taxable: tauxTps > 0 || tauxProvincial > 0,
     montantHT: Number(montantHT),
     tps, provincial, total,
+    tauxTpsRate: tauxTps,
+    tauxProvincialRate: tauxProvincial,
     province: g.province_entreprise,
   };
 }
