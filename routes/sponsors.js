@@ -18,7 +18,7 @@ const verifierAdmin = (req, res, next) => {
 // 🔓 ROUTES PUBLIQUES
 // ════════════════════════════════════════════════════════════════
 
-// POST — Inscription d'un nouveau sponsor (avec type_sponsor)
+// POST — Inscription d'un nouveau sponsor
 router.post('/inscription', async (req, res) => {
   try {
     const { 
@@ -28,10 +28,9 @@ router.post('/inscription', async (req, res) => {
       site_web, 
       description, 
       forfait = 'basique',
-      type_sponsor = 'photos' // 'photos' | 'pub' | 'both'
+      type_sponsor = 'photos'
     } = req.body;
 
-    // Validation
     if (!nom || !email || !mot_de_passe) {
       return res.status(400).json({ error: 'Nom, email et mot de passe requis' });
     }
@@ -42,16 +41,13 @@ router.post('/inscription', async (req, res) => {
       return res.status(400).json({ error: 'Type de sponsor invalide' });
     }
 
-    // Vérifier si l'email existe déjà
     const existing = await pool.query('SELECT id FROM sponsors WHERE email = $1', [email.toLowerCase()]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Cet email est déjà utilisé' });
     }
 
-    // Hasher le mot de passe
     const hashedPassword = await bcrypt.hash(mot_de_passe, 12);
 
-    // Créer le sponsor
     const result = await pool.query(
       `INSERT INTO sponsors 
        (nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active, created_at)
@@ -62,9 +58,8 @@ router.post('/inscription', async (req, res) => {
 
     const sponsor = result.rows[0];
 
-    // Générer un token JWT
     const token = jwt.sign(
-      { id: sponsor.id, email: sponsor.email, role: 'sponsor' },
+      { id: sponsor.id, email: sponsor.email, role: 'commanditaire' },
       process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
       { expiresIn: '30d' }
     );
@@ -99,7 +94,6 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
 
-    // Vérifier si le sponsor existe
     const result = await pool.query(
       `SELECT id, nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active, created_at
        FROM sponsors WHERE email = $1`,
@@ -112,20 +106,17 @@ router.post('/login', async (req, res) => {
 
     const sponsor = result.rows[0];
 
-    // Vérifier le mot de passe
     const validPassword = await bcrypt.compare(mot_de_passe, sponsor.mot_de_passe);
     if (!validPassword) {
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
     }
 
-    // Vérifier si le compte est actif
     if (!sponsor.active) {
       return res.status(403).json({ error: 'Votre compte a été désactivé. Contactez le support.' });
     }
 
-    // Générer un token JWT
     const token = jwt.sign(
-      { id: sponsor.id, email: sponsor.email, role: 'sponsor' },
+      { id: sponsor.id, email: sponsor.email, role: 'commanditaire' },
       process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
       { expiresIn: '30d' }
     );
@@ -152,7 +143,7 @@ router.post('/login', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// 🔐 ROUTES PROTÉGÉES (authentification requise)
+// 🔐 ROUTES PROTÉGÉES
 // ════════════════════════════════════════════════════════════════
 
 // GET — Profil du sponsor connecté
@@ -219,7 +210,6 @@ router.put('/mot-de-passe', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 8 caractères' });
     }
 
-    // Récupérer le mot de passe actuel
     const result = await pool.query(
       'SELECT mot_de_passe FROM sponsors WHERE id = $1',
       [req.user.id]
@@ -229,13 +219,11 @@ router.put('/mot-de-passe', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Sponsor non trouvé' });
     }
 
-    // Vérifier l'ancien mot de passe
     const validPassword = await bcrypt.compare(ancien_mot_de_passe, result.rows[0].mot_de_passe);
     if (!validPassword) {
       return res.status(401).json({ error: 'Ancien mot de passe incorrect' });
     }
 
-    // Hasher le nouveau mot de passe
     const hashedPassword = await bcrypt.hash(nouveau_mot_de_passe, 12);
 
     await pool.query(
@@ -256,7 +244,6 @@ router.put('/mot-de-passe', authenticateToken, async (req, res) => {
 // GET — Statistiques du sponsor
 router.get('/stats', authenticateToken, async (req, res) => {
   try {
-    // Récupérer les stats des photos du sponsor
     const statsResult = await pool.query(
       `SELECT 
         sp.id as photo_id,
@@ -272,7 +259,6 @@ router.get('/stats', authenticateToken, async (req, res) => {
       [req.user.id]
     );
 
-    // Total des stats
     const totalResult = await pool.query(
       `SELECT 
         COALESCE(SUM(vue_count), 0) as total_vues,
@@ -291,174 +277,6 @@ router.get('/stats', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur stats sponsor:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des statistiques' });
-  }
-});
-
-// GET — Toutes les photos du sponsor
-router.get('/photos', authenticateToken, async (req, res) => {
-  try {
-    const result = await pool.query(
-      `SELECT 
-        id,
-        titre,
-        description,
-        url_image,
-        url_original,
-        alt_text,
-        active,
-        created_at
-       FROM sponsor_photos
-       WHERE sponsor_id = $1
-       ORDER BY created_at DESC`,
-      [req.user.id]
-    );
-
-    const photos = result.rows.map(row => ({
-      id: row.id,
-      urls: {
-        small: row.url_image,
-        regular: row.url_original || row.url_image,
-        full: row.url_original || row.url_image,
-        thumb: row.url_image,
-      },
-      alt_description: row.alt_text || row.titre,
-      titre: row.titre,
-      description: row.description,
-      active: row.active,
-      created_at: row.created_at,
-    }));
-
-    res.json({ photos, total: photos.length });
-  } catch (error) {
-    console.error('❌ Erreur récupération photos sponsor:', error);
-    res.status(500).json({ error: 'Erreur lors de la récupération des photos' });
-  }
-});
-
-// POST — Upload d'une photo par le sponsor
-router.post('/upload', authenticateToken, async (req, res) => {
-  try {
-    const { titre, description, alt_text, url_image, url_original } = req.body;
-
-    if (!url_image && !url_original) {
-      return res.status(400).json({ error: 'Une URL d\'image est requise' });
-    }
-
-    // Vérifier le quota (nombre de photos actives)
-    const quotaCheck = await pool.query(
-      `SELECT COUNT(*) as count FROM sponsor_photos 
-       WHERE sponsor_id = $1 AND active = true`,
-      [req.user.id]
-    );
-
-    // Récupérer le forfait du sponsor
-    const sponsorResult = await pool.query(
-      'SELECT forfait, type_sponsor FROM sponsors WHERE id = $1',
-      [req.user.id]
-    );
-
-    // Vérifier si le sponsor peut uploader des photos
-    const type_sponsor = sponsorResult.rows[0]?.type_sponsor || 'photos';
-    if (type_sponsor === 'pub') {
-      return res.status(403).json({ 
-        error: 'Votre compte est de type "Publicité". Vous ne pouvez pas uploader de photos.' 
-      });
-    }
-
-    let maxPhotos = 10; // Basique
-    const forfait = sponsorResult.rows[0]?.forfait || 'basique';
-    if (forfait === 'standard') maxPhotos = 50;
-    if (forfait === 'premium') maxPhotos = 200;
-
-    if (parseInt(quotaCheck.rows[0].count) >= maxPhotos) {
-      return res.status(403).json({ 
-        error: `Vous avez atteint votre quota de ${maxPhotos} photos actives. Mettez à jour votre forfait pour plus.`
-      });
-    }
-
-    const result = await pool.query(
-      `INSERT INTO sponsor_photos 
-       (sponsor_id, titre, description, url_image, url_original, alt_text, active, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, true, NOW())
-       RETURNING *`,
-      [req.user.id, titre || null, description || null, url_image, url_original || null, alt_text || null]
-    );
-
-    res.status(201).json({
-      success: true,
-      message: 'Photo ajoutée avec succès',
-      photo: result.rows[0]
-    });
-  } catch (error) {
-    console.error('❌ Erreur upload photo sponsor:', error);
-    res.status(500).json({ error: 'Erreur lors de l\'upload de la photo' });
-  }
-});
-
-// PUT — Modifier une photo du sponsor
-router.put('/photos/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { titre, description, alt_text, active } = req.body;
-
-    // Vérifier que la photo appartient bien au sponsor
-    const check = await pool.query(
-      'SELECT id FROM sponsor_photos WHERE id = $1 AND sponsor_id = $2',
-      [id, req.user.id]
-    );
-    if (check.rows.length === 0) {
-      return res.status(404).json({ error: 'Photo non trouvée ou vous n\'avez pas les droits' });
-    }
-
-    const result = await pool.query(
-      `UPDATE sponsor_photos SET
-        titre = COALESCE($1, titre),
-        description = COALESCE($2, description),
-        alt_text = COALESCE($3, alt_text),
-        active = COALESCE($4, active),
-        updated_at = NOW()
-       WHERE id = $5 AND sponsor_id = $6
-       RETURNING *`,
-      [titre || null, description || null, alt_text || null, active !== undefined ? active : null, id, req.user.id]
-    );
-
-    res.json({
-      success: true,
-      message: 'Photo mise à jour',
-      photo: result.rows[0]
-    });
-  } catch (error) {
-    console.error('❌ Erreur mise à jour photo sponsor:', error);
-    res.status(500).json({ error: 'Erreur lors de la mise à jour de la photo' });
-  }
-});
-
-// DELETE — Supprimer une photo du sponsor
-router.delete('/photos/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    // Vérifier que la photo appartient bien au sponsor
-    const check = await pool.query(
-      'SELECT id FROM sponsor_photos WHERE id = $1 AND sponsor_id = $2',
-      [id, req.user.id]
-    );
-    if (check.rows.length === 0) {
-      return res.status(404).json({ error: 'Photo non trouvée ou vous n\'avez pas les droits' });
-    }
-
-    await pool.query(
-      'DELETE FROM sponsor_photos WHERE id = $1 AND sponsor_id = $2',
-      [id, req.user.id]
-    );
-
-    res.json({
-      success: true,
-      message: 'Photo supprimée avec succès'
-    });
-  } catch (error) {
-    console.error('❌ Erreur suppression photo sponsor:', error);
-    res.status(500).json({ error: 'Erreur lors de la suppression de la photo' });
   }
 });
 
@@ -526,15 +344,12 @@ router.delete('/admin/:id', authenticateToken, verifierAdmin, async (req, res) =
   try {
     const { id } = req.params;
 
-    // Vérifier que le sponsor existe
     const check = await pool.query('SELECT id FROM sponsors WHERE id = $1', [id]);
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Sponsor non trouvé' });
     }
 
-    // Supprimer les photos du sponsor
     await pool.query('DELETE FROM sponsor_photos WHERE sponsor_id = $1', [id]);
-    // Supprimer le sponsor
     await pool.query('DELETE FROM sponsors WHERE id = $1', [id]);
 
     res.json({

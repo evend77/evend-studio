@@ -3,25 +3,29 @@ import React, { useState, useEffect } from 'react';
 
 interface SponsorPhoto {
   id: number;
-  urls: {
+  url_image: string;
+  titre: string;
+  description: string;
+  alt_text: string;
+  active: boolean;
+  created_at: string;
+  urls?: {
     small: string;
     regular: string;
     full: string;
     thumb: string;
   };
-  alt_description: string;
-  url_image?: string;
-  titre?: string;
-  user: {
-    name: string;
-    links: {
-      html: string;
-    };
-  };
-  sponsor_name: string;
-  sponsor_logo: string;
-  sponsor_id: number;
+}
+
+interface SponsorPub {
+  id: number;
+  titre: string;
   description: string;
+  url_image: string;
+  url_lien: string;
+  impressions: number;
+  clics: number;
+  actif: boolean;
   created_at: string;
 }
 
@@ -34,16 +38,17 @@ interface Stat {
 
 function AppSponsors() {
   const [photos, setPhotos] = useState<SponsorPhoto[]>([]);
+  const [pubs, setPubs] = useState<SponsorPub[]>([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState<Stat[]>([]);
-  const [onglet, setOnglet] = useState<'photos' | 'stats' | 'abonnement'>('photos');
+  const [onglet, setOnglet] = useState<'photos' | 'pubs' | 'abonnement'>('photos');
   const [sponsorInfo, setSponsorInfo] = useState<any>(null);
 
-  // Récupérer les photos du sponsor
+  const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
+
+  // ── Récupérer les photos ──────────────────────────────────────────────────
   const fetchPhotos = async () => {
-    setLoading(true);
     try {
-      const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
       const response = await fetch('/api/sponsors/photos/sponsor/photos', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -52,15 +57,12 @@ function AppSponsors() {
       setPhotos(data.photos || []);
     } catch (error) {
       console.error('Erreur:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Récupérer les stats
+  // ── Récupérer les stats ──────────────────────────────────────────────────
   const fetchStats = async () => {
     try {
-      const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
       const response = await fetch('/api/sponsors/stats', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -72,10 +74,9 @@ function AppSponsors() {
     }
   };
 
-  // Récupérer les infos du sponsor
+  // ── Récupérer les infos du sponsor ──────────────────────────────────────
   const fetchSponsorInfo = async () => {
     try {
-      const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
       const response = await fetch('/api/sponsors/moi', {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -88,12 +89,15 @@ function AppSponsors() {
   };
 
   useEffect(() => {
-    fetchPhotos();
-    fetchStats();
-    fetchSponsorInfo();
+    const fetchAll = async () => {
+      setLoading(true);
+      await Promise.all([fetchPhotos(), fetchStats(), fetchSponsorInfo()]);
+      setLoading(false);
+    };
+    fetchAll();
   }, []);
 
-  // Uploader une photo
+  // ── Uploader une photo ──────────────────────────────────────────────────
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -104,7 +108,6 @@ function AppSponsors() {
     formData.append('alt_text', file.name);
 
     try {
-      const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
       const response = await fetch('/api/sponsors/photos/sponsor/upload', {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -122,11 +125,10 @@ function AppSponsors() {
     }
   };
 
-  // Supprimer une photo
+  // ── Supprimer une photo ──────────────────────────────────────────────────
   const handleDelete = async (id: number) => {
     if (!window.confirm('Voulez-vous vraiment supprimer cette photo ?')) return;
     try {
-      const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
       const response = await fetch(`/api/sponsors/photos/sponsor/photos/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
@@ -140,25 +142,40 @@ function AppSponsors() {
     }
   };
 
+  // ── Formater ──────────────────────────────────────────────────────────────
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString('fr-CA', {
+      day: 'numeric', month: 'short', year: 'numeric',
+    });
+  };
+
   if (loading) {
     return <div style={{ padding: '40px', textAlign: 'center' }}>⏳ Chargement...</div>;
   }
+
+  // Vérifier si le sponsor peut faire des photos ou de la pub
+  const peutPhotos = sponsorInfo?.type_sponsor === 'photos' || sponsorInfo?.type_sponsor === 'both';
+  const peutPubs = sponsorInfo?.type_sponsor === 'pub' || sponsorInfo?.type_sponsor === 'both';
 
   return (
     <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px', fontFamily: 'sans-serif' }}>
       {/* En-tête */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '28px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <span>⭐</span> Espace Sponsor
-          {sponsorInfo && (
-            <span style={{ fontSize: '14px', fontWeight: 400, color: '#666', marginLeft: '12px' }}>
-              {sponsorInfo.nom} • {sponsorInfo.forfait || 'Basique'}
-              {sponsorInfo.type_sponsor === 'pub' && ' 📢'}
-              {sponsorInfo.type_sponsor === 'photos' && ' 📸'}
-              {sponsorInfo.type_sponsor === 'both' && ' ⭐'}
-            </span>
-          )}
-        </h1>
+        <div>
+          <h1 style={{ fontSize: '28px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span>⭐</span> Espace Sponsor
+            {sponsorInfo && (
+              <span style={{ fontSize: '14px', fontWeight: 400, color: '#666', marginLeft: '12px' }}>
+                {sponsorInfo.nom}
+              </span>
+            )}
+          </h1>
+          <p style={{ fontSize: '14px', color: '#666', margin: '4px 0 0' }}>
+            {sponsorInfo?.type_sponsor === 'photos' && '📸 Vous fournissez des photos'}
+            {sponsorInfo?.type_sponsor === 'pub' && '📢 Vous faites de la publicité'}
+            {sponsorInfo?.type_sponsor === 'both' && '⭐ Vous fournissez des photos ET faites de la publicité'}
+          </p>
+        </div>
         <button
           onClick={() => window.location.href = '/'}
           style={{
@@ -176,36 +193,40 @@ function AppSponsors() {
 
       {/* Onglets */}
       <div style={{ display: 'flex', gap: '4px', borderBottom: '2px solid #e5e7eb', marginBottom: '24px', flexWrap: 'wrap' }}>
-        <button
-          onClick={() => setOnglet('photos')}
-          style={{
-            padding: '12px 24px',
-            background: 'transparent',
-            border: 'none',
-            borderBottom: onglet === 'photos' ? '3px solid #f59e0b' : '3px solid transparent',
-            color: onglet === 'photos' ? '#f59e0b' : '#666',
-            fontWeight: onglet === 'photos' ? 700 : 500,
-            cursor: 'pointer',
-            fontSize: '14px',
-          }}
-        >
-          📸 Mes photos
-        </button>
-        <button
-          onClick={() => setOnglet('stats')}
-          style={{
-            padding: '12px 24px',
-            background: 'transparent',
-            border: 'none',
-            borderBottom: onglet === 'stats' ? '3px solid #f59e0b' : '3px solid transparent',
-            color: onglet === 'stats' ? '#f59e0b' : '#666',
-            fontWeight: onglet === 'stats' ? 700 : 500,
-            cursor: 'pointer',
-            fontSize: '14px',
-          }}
-        >
-          📊 Statistiques
-        </button>
+        {peutPhotos && (
+          <button
+            onClick={() => setOnglet('photos')}
+            style={{
+              padding: '12px 24px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: onglet === 'photos' ? '3px solid #f59e0b' : '3px solid transparent',
+              color: onglet === 'photos' ? '#f59e0b' : '#666',
+              fontWeight: onglet === 'photos' ? 700 : 500,
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            📸 Photos
+          </button>
+        )}
+        {peutPubs && (
+          <button
+            onClick={() => setOnglet('pubs')}
+            style={{
+              padding: '12px 24px',
+              background: 'transparent',
+              border: 'none',
+              borderBottom: onglet === 'pubs' ? '3px solid #f59e0b' : '3px solid transparent',
+              color: onglet === 'pubs' ? '#f59e0b' : '#666',
+              fontWeight: onglet === 'pubs' ? 700 : 500,
+              cursor: 'pointer',
+              fontSize: '14px',
+            }}
+          >
+            📢 Publicité
+          </button>
+        )}
         <button
           onClick={() => setOnglet('abonnement')}
           style={{
@@ -223,48 +244,10 @@ function AppSponsors() {
         </button>
       </div>
 
-      {/* Contenu */}
-      {onglet === 'photos' && (
+      {/* ─── CONTENU PHOTOS ──────────────────────────────────────────────── */}
+      {onglet === 'photos' && peutPhotos && (
         <div>
-          {/* Bouton vers la page de gestion complète des photos */}
-          <div style={{
-            background: 'linear-gradient(135deg, #fef3c7, #fde68a)',
-            borderRadius: '12px',
-            padding: '16px 20px',
-            marginBottom: '20px',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            flexWrap: 'wrap',
-            gap: '12px',
-          }}>
-            <div>
-              <p style={{ margin: 0, fontWeight: 600, color: '#92400e' }}>
-                📸 Gérez toutes vos photos sponsorisées
-              </p>
-              <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#78350f' }}>
-                Upload, suppression, copie d'URL — tout en un endroit
-              </p>
-            </div>
-            <button
-              onClick={() => window.location.href = '/sponsor/photos'}
-              style={{
-                padding: '10px 24px',
-                background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-                border: 'none',
-                borderRadius: '8px',
-                color: '#000',
-                fontWeight: 700,
-                cursor: 'pointer',
-                fontSize: '14px',
-                boxShadow: '0 2px 8px rgba(245, 158, 11, 0.3)',
-              }}
-            >
-              📸 Gérer mes photos →
-            </button>
-          </div>
-
-          {/* Upload rapide */}
+          {/* Upload */}
           <div style={{
             border: '2px dashed #ddd',
             borderRadius: '12px',
@@ -274,7 +257,7 @@ function AppSponsors() {
             background: '#fafafa'
           }}>
             <p style={{ margin: '0 0 12px 0', color: '#666' }}>
-              📤 Uploader une photo rapidement
+              📤 Uploader une photo sponsorisée
             </p>
             <label style={{
               display: 'inline-block',
@@ -298,154 +281,194 @@ function AppSponsors() {
             </p>
           </div>
 
-          {/* Aperçu des dernières photos */}
+          {/* Liste des photos */}
           {photos.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>
               📭 Aucune photo sponsorisée pour le moment
             </div>
           ) : (
-            <div>
-              <p style={{ fontSize: '14px', color: '#666', marginBottom: '12px' }}>
-                📸 Dernières photos ajoutées ({photos.length} au total)
-              </p>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '16px' }}>
-                {photos.slice(0, 6).map((photo) => (
-                  <div
-                    key={photo.id}
-                    style={{
-                      borderRadius: '12px',
-                      overflow: 'hidden',
-                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                      background: '#fff',
-                      border: '1px solid #eee',
-                    }}
-                  >
-                    <img
-                      src={photo.urls?.small || photo.url_image || ''}
-                      alt={photo.alt_description || photo.titre || 'Photo'}
-                      style={{ width: '100%', height: '150px', objectFit: 'cover' }}
-                    />
-                    <div style={{ padding: '8px 12px' }}>
-                      <p style={{ fontSize: '11px', color: '#666', margin: '0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {photo.titre || photo.alt_description || 'Sans titre'}
-                      </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '16px' }}>
+              {photos.map((photo) => (
+                <div
+                  key={photo.id}
+                  style={{
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                    background: '#fff',
+                    border: '1px solid #eee',
+                  }}
+                >
+                  <img
+                    src={photo.url_image}
+                    alt={photo.titre}
+                    style={{ width: '100%', height: '150px', objectFit: 'cover' }}
+                  />
+                  <div style={{ padding: '12px' }}>
+                    <p style={{ fontSize: '12px', color: '#666', margin: '0 0 8px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {photo.titre || 'Sans titre'}
+                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '11px', color: '#999' }}>
+                        {formatDate(photo.created_at)}
+                      </span>
+                      <button
+                        onClick={() => handleDelete(photo.id)}
+                        style={{
+                          padding: '4px 12px',
+                          background: '#ef4444',
+                          border: 'none',
+                          borderRadius: '6px',
+                          color: '#fff',
+                          fontSize: '11px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        🗑️
+                      </button>
                     </div>
                   </div>
-                ))}
-              </div>
-              {photos.length > 6 && (
-                <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                  <span style={{ fontSize: '13px', color: '#999' }}>
-                    + {photos.length - 6} autres photos
-                  </span>
                 </div>
-              )}
+              ))}
             </div>
           )}
         </div>
       )}
 
-      {onglet === 'stats' && (
+      {/* ─── CONTENU PUBLICITÉ ───────────────────────────────────────────── */}
+      {onglet === 'pubs' && peutPubs && (
         <div>
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-            gap: '16px',
-            marginBottom: '24px',
-          }}>
-            <div style={{ background: '#f3f4f6', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', fontWeight: 700, color: '#2563eb' }}>
-                {stats.reduce((acc, s) => acc + s.vues, 0)}
-              </div>
-              <div style={{ fontSize: '12px', color: '#666' }}>👁️ Vues totales</div>
-            </div>
-            <div style={{ background: '#f3f4f6', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', fontWeight: 700, color: '#10b981' }}>
-                {stats.reduce((acc, s) => acc + s.selections, 0)}
-              </div>
-              <div style={{ fontSize: '12px', color: '#666' }}>✅ Sélections</div>
-            </div>
-            <div style={{ background: '#f3f4f6', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
-              <div style={{ fontSize: '28px', fontWeight: 700, color: '#f59e0b' }}>
-                {stats.reduce((acc, s) => acc + s.clics, 0)}
-              </div>
-              <div style={{ fontSize: '12px', color: '#666' }}>🖱️ Clics</div>
-            </div>
-          </div>
-
-          <div style={{ background: '#fff', borderRadius: '12px', padding: '20px', border: '1px solid #eee' }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: '16px' }}>📊 Détail par photo</h3>
-            {stats.length === 0 ? (
-              <p style={{ color: '#999' }}>Aucune donnée disponible</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-                    <th style={{ textAlign: 'left', padding: '8px', fontSize: '12px', color: '#666' }}>Photo</th>
-                    <th style={{ textAlign: 'center', padding: '8px', fontSize: '12px', color: '#666' }}>👁️ Vues</th>
-                    <th style={{ textAlign: 'center', padding: '8px', fontSize: '12px', color: '#666' }}>✅ Sélections</th>
-                    <th style={{ textAlign: 'center', padding: '8px', fontSize: '12px', color: '#666' }}>🖱️ Clics</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {stats.map((stat) => (
-                    <tr key={stat.photo_id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '8px', fontSize: '13px' }}>Photo #{stat.photo_id}</td>
-                      <td style={{ textAlign: 'center', padding: '8px' }}>{stat.vues}</td>
-                      <td style={{ textAlign: 'center', padding: '8px' }}>{stat.selections}</td>
-                      <td style={{ textAlign: 'center', padding: '8px' }}>{stat.clics}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
-      )}
-
-      {onglet === 'abonnement' && (
-        <div>
-          <div style={{
-            background: '#fff',
+            background: '#fef3c7',
             borderRadius: '12px',
-            padding: '24px',
-            border: '1px solid #eee',
-            maxWidth: '500px',
+            padding: '20px',
+            marginBottom: '24px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            flexWrap: 'wrap',
+            gap: '12px',
           }}>
-            <h3 style={{ margin: '0 0 16px 0' }}>💳 Mon forfait sponsor</h3>
-            <div style={{ background: '#fef3c7', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
-              <div style={{ fontSize: '12px', color: '#92400e' }}>Forfait actuel</div>
-              <div style={{ fontSize: '24px', fontWeight: 700, color: '#92400e' }}>
-                {sponsorInfo?.forfait || 'Basique'}
-              </div>
-              <div style={{ fontSize: '14px', color: '#92400e' }}>
-                {sponsorInfo?.forfait === 'basique' && '10 photos • 50$ / mois'}
-                {sponsorInfo?.forfait === 'standard' && '50 photos • 100$ / mois'}
-                {sponsorInfo?.forfait === 'premium' && '200 photos • 250$ / mois'}
-              </div>
-              <div style={{ fontSize: '12px', color: '#92400e', marginTop: '4px' }}>
-                Type: {sponsorInfo?.type_sponsor === 'photos' && '📸 Photos'}
-                {sponsorInfo?.type_sponsor === 'pub' && '📢 Publicité'}
-                {sponsorInfo?.type_sponsor === 'both' && '⭐ Photos + Publicité'}
-              </div>
+            <div>
+              <h3 style={{ margin: 0, color: '#92400e' }}>📢 Gestion des publicités</h3>
+              <p style={{ margin: '4px 0 0', color: '#78350f', fontSize: '14px' }}>
+                Créez des publicités qui apparaîtront dans les sites des gestionnaires
+              </p>
             </div>
-
             <button
-              onClick={() => window.location.href = '/api/sponsors/checkout'}
+              onClick={() => window.location.href = '/sponsor/pubs/creer'}
               style={{
-                width: '100%',
-                padding: '12px',
+                padding: '10px 24px',
                 background: 'linear-gradient(135deg, #f59e0b, #d97706)',
                 border: 'none',
                 borderRadius: '8px',
                 color: '#000',
-                fontSize: '16px',
                 fontWeight: 700,
                 cursor: 'pointer',
+                fontSize: '14px',
               }}
             >
-              🔄 Mettre à jour mon forfait
+              ➕ Créer une publicité
             </button>
+          </div>
+
+          <div style={{ textAlign: 'center', padding: '60px 0', color: '#999' }}>
+            <p style={{ fontSize: '48px', marginBottom: '16px' }}>📢</p>
+            <p style={{ fontSize: '18px', fontWeight: 600, color: '#666' }}>Aucune publicité pour le moment</p>
+            <p style={{ fontSize: '14px' }}>Créez votre première publicité pour atteindre les gestionnaires</p>
+          </div>
+        </div>
+      )}
+
+      {/* ─── CONTENU ABONNEMENT ────────────────────────────────────────────── */}
+      {onglet === 'abonnement' && (
+        <div>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: peutPhotos && peutPubs ? '1fr 1fr' : '1fr',
+            gap: '24px',
+          }}>
+            {/* Forfait Photos */}
+            {peutPhotos && (
+              <div style={{
+                background: '#fff',
+                borderRadius: '12px',
+                padding: '24px',
+                border: '1px solid #eee',
+              }}>
+                <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  📸 Forfait Photos
+                </h3>
+                <div style={{ background: '#fef3c7', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '12px', color: '#92400e' }}>Forfait actuel</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#92400e' }}>
+                    {sponsorInfo?.forfait || 'Basique'}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#92400e' }}>
+                    {sponsorInfo?.forfait === 'basique' && '10 photos • 50$ / mois'}
+                    {sponsorInfo?.forfait === 'standard' && '50 photos • 100$ / mois'}
+                    {sponsorInfo?.forfait === 'premium' && '200 photos • 250$ / mois'}
+                  </div>
+                </div>
+                <button
+                  onClick={() => window.location.href = '/api/sponsors/checkout/photos'}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#000',
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  🔄 Mettre à jour
+                </button>
+              </div>
+            )}
+
+            {/* Forfait Publicité */}
+            {peutPubs && (
+              <div style={{
+                background: '#fff',
+                borderRadius: '12px',
+                padding: '24px',
+                border: '1px solid #eee',
+              }}>
+                <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  📢 Forfait Publicité
+                </h3>
+                <div style={{ background: '#fef3c7', padding: '16px', borderRadius: '8px', marginBottom: '16px' }}>
+                  <div style={{ fontSize: '12px', color: '#92400e' }}>Forfait actuel</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: '#92400e' }}>
+                    {sponsorInfo?.forfait_pub || 'Basique'}
+                  </div>
+                  <div style={{ fontSize: '14px', color: '#92400e' }}>
+                    {sponsorInfo?.forfait_pub === 'basique' && '1000 impressions • 50$ / mois'}
+                    {sponsorInfo?.forfait_pub === 'standard' && '5000 impressions • 100$ / mois'}
+                    {sponsorInfo?.forfait_pub === 'premium' && '20000 impressions • 250$ / mois'}
+                  </div>
+                </div>
+                <button
+                  onClick={() => window.location.href = '/api/sponsors/checkout/pubs'}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#000',
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  🔄 Mettre à jour
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

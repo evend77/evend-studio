@@ -21,6 +21,10 @@ function authenticateToken(req, res, next) {
     if (payload.role === 'vendeur') {
       payload.role = 'gestionnaire';
     }
+    // Compatibilité 'sponsor' → 'commanditaire'
+    if (payload.role === 'sponsor') {
+      payload.role = 'commanditaire';
+    }
     // ──────────────────────────────────────────────────────────────────────
 
     req.user = payload;
@@ -47,7 +51,7 @@ function isGestionnaire(req, res, next) {
 }
 
 function isCommanditaire(req, res, next) {
-  if (req.user && (req.user.role === 'commanditaire' || req.user.role === 'admin')) {
+  if (req.user && (req.user.role === 'commanditaire' || req.user.role === 'sponsor' || req.user.role === 'admin')) {
     next();
   } else {
     res.status(403).json({ error: 'Accès non autorisé. Droits commanditaire requis.' });

@@ -177,7 +177,6 @@ const getStyle = (c: ConfigEcoleDanse) => `
 @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,300;1,400;1,600&family=Poppins:wght@300;400;500;600;700;800&family=Dancing+Script:wght@600;700&display=swap');
 *{box-sizing:border-box;margin:0;padding:0;}
 html,body{overflow-x:hidden;max-width:100vw;}
-#root{overflow-x:hidden;}
 @keyframes rideauG { from{transform:translateX(0)} to{transform:translateX(-100%)} }
 @keyframes rideauD { from{transform:translateX(0)} to{transform:translateX(100%)} }
 @keyframes paillette { 0%{transform:translateY(-20px) rotate(0deg);opacity:1} 100%{transform:translateY(100vh) rotate(720deg);opacity:0} }
@@ -319,7 +318,7 @@ function Nav({ config, page, setPage }: { config: ConfigEcoleDanse; page: string
 
       {/* Panneau mobile — plein écran, au-dessus de tout, scroll de fond verrouillé */}
       {isMobile && menuOuvert && (
-        <div style={{ position:'fixed', inset:0, zIndex:1100, background:'#0a0a0f', display:'flex', flexDirection:'column', boxSizing:'border-box' }}>
+        <div style={{ position:'fixed', top:0, left:0, right:0, bottom:0, width:'100vw', height:'100vh', zIndex:1100, background:'#0a0a0f', display:'flex', flexDirection:'column', boxSizing:'border-box', overflow:'hidden' }}>
           <div style={{ height:68, flexShrink:0, display:'flex', alignItems:'center', justifyContent:'space-between', padding:'0 20px', borderBottom:`1px solid ${cm}20` }}>
             <p style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:19, fontWeight:600, color:'#fff', margin:0 }}>{config.nomEcole}</p>
             <button onClick={() => setMenuOuvert(false)} aria-label="Fermer"
