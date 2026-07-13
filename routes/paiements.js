@@ -19,8 +19,8 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
-const { dechiffrer } = require('../utils/chiffrement');
-const { calculerTaxesParSite } = require('../utils/taxes');
+const { dechiffrer } = require('../src/utils/chiffrement');
+const { calculerTaxesParSite } = require('../src/utils/taxes');
 
 function getStripePlateforme(config) {
   const { Stripe } = require('stripe');

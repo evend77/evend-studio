@@ -14,7 +14,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
-const { chiffrer, dechiffrer } = require('../utils/chiffrement');
+const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
 
 // Les 6 champs sensibles — chiffrés en BD, déchiffrés seulement au moment de s'en servir ou de les afficher à l'admin.
 const CHAMPS_SENSIBLES = ['dev_secret_key', 'prod_secret_key', 'dev_webhook_secret', 'prod_webhook_secret', 'dev_connect_webhook_secret', 'prod_connect_webhook_secret'];

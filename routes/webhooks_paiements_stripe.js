@@ -16,7 +16,7 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
-const { dechiffrer } = require('../utils/chiffrement');
+const { dechiffrer } = require('../src/utils/chiffrement');
 
 async function chargerConfigAdmin() {
   const r = await pool.query('SELECT * FROM configuration_stripe_admin WHERE id = 1');
