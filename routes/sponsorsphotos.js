@@ -21,12 +21,12 @@ const s3Client = new S3Client({
 
 const BUCKET_NAME = process.env.AWS_S3_BUCKET_SPONSOR || 'evend-studio-sponsors-2026-296886269853-us-east-1-an';
 
-// ── MULTER (upload vers S3) ──────────────────────────────────
+// ── MULTER ──────────────────────────────────────────────────────
 const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB max
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (allowedTypes.includes(file.mimetype)) {
@@ -38,7 +38,6 @@ const upload = multer({
 });
 
 // ── UTILITAIRES ─────────────────────────────────────────────────
-// Upload vers S3
 async function uploadToS3(file, folder = 'sponsors') {
   const key = `${folder}/${uuidv4()}-${file.originalname}`;
   const command = new PutObjectCommand({
@@ -46,13 +45,11 @@ async function uploadToS3(file, folder = 'sponsors') {
     Key: key,
     Body: file.buffer,
     ContentType: file.mimetype,
-    ACL: 'public-read',
   });
   await s3Client.send(command);
   return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
 }
 
-// Supprimer de S3
 async function deleteFromS3(url) {
   if (!url) return;
   const baseUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/`;
@@ -66,24 +63,17 @@ async function deleteFromS3(url) {
 }
 
 // ════════════════════════════════════════════════════════════════
-// 📸 ROUTES PUBLIQUES (pour le modal)
+// 📸 ROUTES PUBLIQUES
 // ════════════════════════════════════════════════════════════════
 
-// GET — Récupérer toutes les photos sponsors (publiques)
+// GET — Toutes les photos
 router.get('/', async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
-        sp.id,
-        sp.titre,
-        sp.description,
-        sp.url_image,
-        sp.alt_text,
-        sp.sponsor_id,
-        s.nom AS sponsor_nom,
-        s.logo AS sponsor_logo,
-        s.site_web AS sponsor_site,
-        sp.created_at
+        sp.id, sp.titre, sp.description, sp.url_image, sp.alt_text, sp.categorie,
+        sp.sponsor_id, sp.created_at,
+        s.nom AS sponsor_nom, s.logo AS sponsor_logo, s.site_web AS sponsor_site
        FROM sponsor_photos sp
        JOIN sponsors s ON s.id = sp.sponsor_id
        WHERE sp.active = true AND s.active = true
@@ -93,21 +83,12 @@ router.get('/', async (req, res) => {
 
     const photos = result.rows.map(row => ({
       id: row.id,
-      urls: {
-        small: row.url_image,
-        regular: row.url_image,
-        full: row.url_image,
-        thumb: row.url_image,
-      },
+      urls: { small: row.url_image, regular: row.url_image, full: row.url_image, thumb: row.url_image },
       url_image: row.url_image,
       titre: row.titre,
       alt_description: row.alt_text || row.titre,
-      user: {
-        name: row.sponsor_nom,
-        links: {
-          html: row.sponsor_site || '#',
-        }
-      },
+      categorie: row.categorie || 'general',
+      user: { name: row.sponsor_nom, links: { html: row.sponsor_site || '#' } },
       sponsor_name: row.sponsor_nom,
       sponsor_logo: row.sponsor_logo,
       sponsor_id: row.sponsor_id,
@@ -122,32 +103,74 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET — Rechercher dans les photos sponsors (publique)
+// GET — Par catégorie
+router.get('/categorie/:categorie', async (req, res) => {
+  try {
+    const { categorie } = req.params;
+
+    const result = await pool.query(
+      `SELECT 
+        sp.id, sp.titre, sp.description, sp.url_image, sp.alt_text, sp.categorie,
+        sp.sponsor_id, sp.created_at,
+        s.nom AS sponsor_nom, s.logo AS sponsor_logo, s.site_web AS sponsor_site
+       FROM sponsor_photos sp
+       JOIN sponsors s ON s.id = sp.sponsor_id
+       WHERE sp.active = true AND s.active = true AND sp.categorie = $1
+       ORDER BY sp.created_at DESC
+       LIMIT 100`,
+      [categorie]
+    );
+
+    const photos = result.rows.map(row => ({
+      id: row.id,
+      urls: { small: row.url_image, regular: row.url_image, full: row.url_image, thumb: row.url_image },
+      url_image: row.url_image,
+      titre: row.titre,
+      alt_description: row.alt_text || row.titre,
+      categorie: row.categorie || 'general',
+      user: { name: row.sponsor_nom, links: { html: row.sponsor_site || '#' } },
+      sponsor_name: row.sponsor_nom,
+      sponsor_logo: row.sponsor_logo,
+      sponsor_id: row.sponsor_id,
+      description: row.description,
+      created_at: row.created_at,
+    }));
+
+    res.json({ photos, total: photos.length });
+  } catch (error) {
+    console.error('❌ Erreur récupération sponsors photos par catégorie:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des photos sponsorisées' });
+  }
+});
+
+// GET — Recherche
 router.get('/search', async (req, res) => {
   try {
-    const { query } = req.query;
+    const { query, categorie } = req.query;
 
     let sql = `
       SELECT 
-        sp.id,
-        sp.titre,
-        sp.description,
-        sp.url_image,
-        sp.alt_text,
-        sp.sponsor_id,
-        s.nom AS sponsor_nom,
-        s.logo AS sponsor_logo,
-        s.site_web AS sponsor_site,
-        sp.created_at
+        sp.id, sp.titre, sp.description, sp.url_image, sp.alt_text, sp.categorie,
+        sp.sponsor_id, sp.created_at,
+        s.nom AS sponsor_nom, s.logo AS sponsor_logo, s.site_web AS sponsor_site
       FROM sponsor_photos sp
       JOIN sponsors s ON s.id = sp.sponsor_id
       WHERE sp.active = true AND s.active = true
     `;
 
     const params = [];
+    let paramIndex = 1;
+
     if (query && query.trim() !== '') {
-      sql += ` AND (sp.titre ILIKE $1 OR sp.description ILIKE $1 OR sp.alt_text ILIKE $1 OR s.nom ILIKE $1)`;
+      sql += ` AND (sp.titre ILIKE $${paramIndex} OR sp.description ILIKE $${paramIndex} OR sp.alt_text ILIKE $${paramIndex} OR s.nom ILIKE $${paramIndex})`;
       params.push(`%${query.trim()}%`);
+      paramIndex++;
+    }
+
+    if (categorie && categorie !== 'all' && categorie !== '') {
+      sql += ` AND sp.categorie = $${paramIndex}`;
+      params.push(categorie);
+      paramIndex++;
     }
 
     sql += ` ORDER BY sp.created_at DESC LIMIT 100`;
@@ -156,21 +179,12 @@ router.get('/search', async (req, res) => {
 
     const photos = result.rows.map(row => ({
       id: row.id,
-      urls: {
-        small: row.url_image,
-        regular: row.url_image,
-        full: row.url_image,
-        thumb: row.url_image,
-      },
+      urls: { small: row.url_image, regular: row.url_image, full: row.url_image, thumb: row.url_image },
       url_image: row.url_image,
       titre: row.titre,
       alt_description: row.alt_text || row.titre,
-      user: {
-        name: row.sponsor_nom,
-        links: {
-          html: row.sponsor_site || '#',
-        }
-      },
+      categorie: row.categorie || 'general',
+      user: { name: row.sponsor_nom, links: { html: row.sponsor_site || '#' } },
       sponsor_name: row.sponsor_nom,
       sponsor_logo: row.sponsor_logo,
       sponsor_id: row.sponsor_id,
@@ -186,13 +200,12 @@ router.get('/search', async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// 📸 ROUTES ADMIN (pour gérer les photos sponsors)
+// 🔐 ROUTES ADMIN
 // ════════════════════════════════════════════════════════════════
 
-// POST — Ajouter une photo sponsor (admin)
 router.post('/', authenticateToken, isAdmin, upload.single('image'), async (req, res) => {
   try {
-    const { sponsor_id, titre, description, alt_text, url_original } = req.body;
+    const { sponsor_id, titre, description, alt_text, url_original, categorie } = req.body;
 
     if (!sponsor_id) {
       return res.status(400).json({ error: 'Le sponsor_id est requis' });
@@ -214,10 +227,10 @@ router.post('/', authenticateToken, isAdmin, upload.single('image'), async (req,
 
     const result = await pool.query(
       `INSERT INTO sponsor_photos 
-       (sponsor_id, titre, description, url_image, url_original, alt_text, created_at, active)
-       VALUES ($1, $2, $3, $4, $5, $6, NOW(), true)
+       (sponsor_id, titre, description, url_image, url_original, alt_text, categorie, created_at, active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), true)
        RETURNING *`,
-      [sponsor_id, titre || null, description || null, url_image, url_original || null, alt_text || null]
+      [sponsor_id, titre || null, description || null, url_image, url_original || null, alt_text || null, categorie || 'general']
     );
 
     res.status(201).json({
@@ -231,11 +244,10 @@ router.post('/', authenticateToken, isAdmin, upload.single('image'), async (req,
   }
 });
 
-// PUT — Modifier une photo sponsor (admin)
 router.put('/:id', authenticateToken, isAdmin, upload.single('image'), async (req, res) => {
   try {
     const { id } = req.params;
-    const { sponsor_id, titre, description, alt_text, url_original, active } = req.body;
+    const { sponsor_id, titre, description, alt_text, url_original, active, categorie } = req.body;
 
     const existing = await pool.query('SELECT * FROM sponsor_photos WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
@@ -259,8 +271,9 @@ router.put('/:id', authenticateToken, isAdmin, upload.single('image'), async (re
         url_original = COALESCE($5, url_original),
         alt_text = COALESCE($6, alt_text),
         active = COALESCE($7, active),
+        categorie = COALESCE($8, categorie),
         updated_at = NOW()
-       WHERE id = $8
+       WHERE id = $9
        RETURNING *`,
       [
         sponsor_id || existing.rows[0].sponsor_id,
@@ -270,6 +283,7 @@ router.put('/:id', authenticateToken, isAdmin, upload.single('image'), async (re
         url_original || existing.rows[0].url_original,
         alt_text !== undefined ? alt_text : existing.rows[0].alt_text,
         active !== undefined ? active : existing.rows[0].active,
+        categorie || existing.rows[0].categorie || 'general',
         id
       ]
     );
@@ -285,7 +299,6 @@ router.put('/:id', authenticateToken, isAdmin, upload.single('image'), async (re
   }
 });
 
-// DELETE — Supprimer une photo sponsor (admin)
 router.delete('/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -309,20 +322,18 @@ router.delete('/:id', authenticateToken, isAdmin, async (req, res) => {
 });
 
 // ════════════════════════════════════════════════════════════════
-// 📸 ROUTES SPONSOR (pour les commanditaires eux-mêmes)
+// 📸 ROUTES SPONSOR
 // ════════════════════════════════════════════════════════════════
 
-// POST — Uploader une photo (sponsor)
 router.post('/sponsor/upload', authenticateToken, isCommanditaire, upload.single('image'), async (req, res) => {
   try {
-    const { titre, description, alt_text } = req.body;
+    const { titre, description, alt_text, categorie } = req.body;
     const sponsor_id = req.user.id;
 
     if (!req.file) {
       return res.status(400).json({ error: 'Une image est requise' });
     }
 
-    // Vérifier le quota
     const quotaCheck = await pool.query(
       `SELECT COUNT(*) as count FROM sponsor_photos 
        WHERE sponsor_id = $1 AND active = true`,
@@ -352,15 +363,14 @@ router.post('/sponsor/upload', authenticateToken, isCommanditaire, upload.single
       });
     }
 
-    // Upload vers S3
     const url_image = await uploadToS3(req.file, `sponsors/${sponsor_id}`);
 
     const result = await pool.query(
       `INSERT INTO sponsor_photos 
-       (sponsor_id, titre, description, url_image, alt_text, created_at, active)
-       VALUES ($1, $2, $3, $4, $5, NOW(), true)
+       (sponsor_id, titre, description, url_image, alt_text, categorie, created_at, active)
+       VALUES ($1, $2, $3, $4, $5, $6, NOW(), true)
        RETURNING *`,
-      [sponsor_id, titre || null, description || null, url_image, alt_text || null]
+      [sponsor_id, titre || null, description || null, url_image, alt_text || null, categorie || 'general']
     );
 
     res.status(201).json({
@@ -374,14 +384,13 @@ router.post('/sponsor/upload', authenticateToken, isCommanditaire, upload.single
   }
 });
 
-// GET — Récupérer les photos du sponsor connecté
 router.get('/sponsor/photos', authenticateToken, isCommanditaire, async (req, res) => {
   try {
     const sponsor_id = req.user.id;
 
     const result = await pool.query(
       `SELECT 
-        id, titre, description, url_image, alt_text, active, created_at
+        id, titre, description, url_image, alt_text, active, created_at, categorie
        FROM sponsor_photos
        WHERE sponsor_id = $1
        ORDER BY created_at DESC`,
@@ -396,6 +405,7 @@ router.get('/sponsor/photos', authenticateToken, isCommanditaire, async (req, re
       alt_text: row.alt_text,
       active: row.active,
       created_at: row.created_at,
+      categorie: row.categorie || 'general',
       urls: {
         small: row.url_image,
         regular: row.url_image,
@@ -411,7 +421,6 @@ router.get('/sponsor/photos', authenticateToken, isCommanditaire, async (req, re
   }
 });
 
-// DELETE — Supprimer une photo (sponsor)
 router.delete('/sponsor/photos/:id', authenticateToken, isCommanditaire, async (req, res) => {
   try {
     const { id } = req.params;

@@ -7,6 +7,28 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
   const [loading, setLoading] = useState(false);
   const [ongletActif, setOngletActif] = useState('unsplash'); // 'unsplash' ou 'sponsors'
 
+  // ── CATÉGORIES POUR SPONSORS ──────────────────────────────────────────
+  const CATEGORIES_SPONSOR = [
+    { id: 'all', label: 'Toutes' },
+    { id: 'general', label: 'Général' },
+    { id: 'nature', label: 'Nature' },
+    { id: 'bureau', label: 'Bureau' },
+    { id: 'montagne', label: 'Montagne' },
+    { id: 'mer', label: 'Mer' },
+    { id: 'ville', label: 'Ville' },
+    { id: 'café', label: 'Café' },
+    { id: 'voyage', label: 'Voyage' },
+    { id: 'business', label: 'Business' },
+    { id: 'architecture', label: 'Architecture' },
+    { id: 'plage', label: 'Plage' },
+    { id: 'nourriture', label: 'Nourriture' },
+    { id: 'sport', label: 'Sport' },
+    { id: 'technologie', label: 'Technologie' },
+    { id: 'mode', label: 'Mode' },
+  ];
+
+  const [categorieFiltre, setCategorieFiltre] = useState('all');
+
   // 🔍 RECHERCHE UNSplash
   const rechercherPhotos = async () => {
     if (!query.trim()) return;
@@ -26,30 +48,24 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
     }
   };
 
-  // ⭐ RECHERCHE SPONSORS (API locale)
-  const rechercherSponsors = async () => {
-    if (!query.trim()) {
-      // Charger les photos sponsors par défaut
-      setLoading(true);
-      try {
-        const response = await fetch('/api/sponsors/photos');
-        if (!response.ok) throw new Error('Erreur lors du chargement des sponsors');
-        const data = await response.json();
-        setPhotos(data.photos || []);
-      } catch (error) {
-        console.error('Erreur sponsors:', error);
-        setPhotos([]);
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-
+  // ⭐ RECHERCHE SPONSORS (API locale avec catégorie)
+  const rechercherSponsors = async (cat = categorieFiltre, searchQuery = query) => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `/api/sponsors/search?query=${encodeURIComponent(query)}`
-      );
+      let url = '/api/sponsors/photos/search?';
+      const params = [];
+
+      if (searchQuery && searchQuery.trim() !== '') {
+        params.push(`query=${encodeURIComponent(searchQuery.trim())}`);
+      }
+
+      if (cat && cat !== 'all') {
+        params.push(`categorie=${encodeURIComponent(cat)}`);
+      }
+
+      url += params.join('&');
+
+      const response = await fetch(url);
       if (!response.ok) throw new Error('Erreur lors de la recherche sponsors');
       const data = await response.json();
       setPhotos(data.photos || []);
@@ -65,7 +81,7 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
     if (ongletActif === 'unsplash') {
       rechercherPhotos();
     } else {
-      rechercherSponsors();
+      rechercherSponsors(categorieFiltre, query);
     }
   };
 
@@ -76,10 +92,10 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
   const changerOnglet = (onglet) => {
     setOngletActif(onglet);
     setQuery('');
+    setCategorieFiltre('all');
     setPhotos([]);
-    // Si on va sur sponsors, charger les photos par défaut
     if (onglet === 'sponsors') {
-      rechercherSponsors();
+      rechercherSponsors('all', '');
     }
   };
 
@@ -282,10 +298,39 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
             </div>
           )}
 
-          {/* Badge sponsor */}
+          {/* Filtres catégories pour sponsors */}
           {ongletActif === 'sponsors' && (
-            <div style={{ marginTop: '8px', fontSize: '12px', color: '#f59e0b' }}>
-              ⭐ Photos fournies par nos partenaires sponsorisés
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+              <div style={{ fontSize: '12px', color: '#666', fontWeight: 600 }}>
+                📂 Filtrer par catégorie :
+              </div>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {CATEGORIES_SPONSOR.map((cat) => (
+                  <button
+                    key={cat.id}
+                    onClick={() => {
+                      setCategorieFiltre(cat.id);
+                      rechercherSponsors(cat.id, query);
+                    }}
+                    style={{
+                      padding: '4px 14px',
+                      background: categorieFiltre === cat.id ? 'linear-gradient(135deg, #f59e0b, #d97706)' : '#f3f4f6',
+                      border: 'none',
+                      borderRadius: '16px',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      color: categorieFiltre === cat.id ? '#fff' : '#555',
+                      fontWeight: categorieFiltre === cat.id ? 600 : 400,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ fontSize: '12px', color: '#f59e0b' }}>
+                ⭐ Photos fournies par nos partenaires sponsorisés
+              </div>
             </div>
           )}
         </div>
@@ -335,8 +380,22 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                       ⭐ Sponsorisé
                     </div>
                   )}
+                  {ongletActif === 'sponsors' && photo.categorie && (
+                    <div style={{ 
+                      position: 'absolute',
+                      top: '28px',
+                      left: '4px',
+                      background: 'rgba(0,0,0,0.6)', 
+                      color: '#fff', 
+                      fontSize: '8px', 
+                      padding: '1px 6px', 
+                      borderRadius: '4px',
+                    }}>
+                      {photo.categorie}
+                    </div>
+                  )}
                   <img
-                    src={photo.urls.small}
+                    src={photo.urls?.small || photo.url_image}
                     alt={photo.alt_description || 'Photo'}
                     style={{ width: '100%', height: '120px', objectFit: 'cover' }}
                     loading="lazy"
@@ -360,9 +419,14 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
                         </span>
                       )}
                     </p>
+                    {ongletActif === 'sponsors' && photo.categorie && (
+                      <p style={{ fontSize: '8px', color: '#999', margin: '0 0 4px 0' }}>
+                        📂 {photo.categorie}
+                      </p>
+                    )}
                     <div style={{ display: 'flex', gap: '4px' }}>
                       <button
-                        onClick={(e) => copierUrl(photo.urls.regular, e)}
+                        onClick={(e) => copierUrl(photo.urls?.regular || photo.url_image, e)}
                         style={{
                           flex: 1,
                           padding: '4px 6px',
