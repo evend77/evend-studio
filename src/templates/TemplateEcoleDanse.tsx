@@ -10,6 +10,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import AddonContact, { AddonTheme, AddonContactData, ChampFormulaire } from '../addons/contact/AddonContact';
 import AddonReservationEcole, { AddonReservationTheme, AddonReservationData } from '../addons/reservation-ecole/AddonReservationEcole';
 import AddonAbonnementEcole, { AddonAbonnementTheme, AddonAbonnementData } from '../addons/abonnement-ecole/AddonAbonnementEcole';
+import AddonPubSponsor, { AddonPubTheme, AddonPubData } from '../addons/pub-sponsor/AddonPubSponsor';
 
 export interface SectionConfig { id: string; actif: boolean; ordre: number; label: string; }
 
@@ -141,8 +142,9 @@ export const CONFIG_DANSE_DEFAUT: ConfigEcoleDanse = {
     { id:'evenements',  actif:true, ordre:7,  label:'Événements à venir' },
     { id:'avis',        actif:true, ordre:8,  label:'Témoignages' },
     { id:'pass',        actif:true, ordre:9,  label:'Abonnements' },
-    { id:'faq',         actif:true, ordre:10, label:'FAQ' },
-    { id:'contact',     actif:true, ordre:11, label:'Contact & Inscription' },
+    { id:'sponsors',    actif:true, ordre:10, label:'Espace partenaires' },
+    { id:'faq',         actif:true, ordre:11, label:'FAQ' },
+    { id:'contact',     actif:true, ordre:12, label:'Contact & Inscription' },
   ],
 };
 
@@ -740,6 +742,26 @@ function SectionPass({ config, setPage, siteId, abonnementActive }: { config:Con
   return <AddonAbonnementEcole theme={themeAbonnement} data={dataAbonnement} />;
 }
 
+// Add-on injectable — src/addons/pub-sponsor/AddonPubSponsor.tsx
+function SectionPubSponsor({ config, vendeurId, pubActive }: { config:ConfigEcoleDanse; vendeurId:number|string; pubActive?:boolean }) {
+  const themePub: AddonPubTheme = {
+    primary: config.couleurMagenta,
+    bg: config.couleurFond,
+    cardBg: 'rgba(255,255,255,.04)',
+    border: 'rgba(255,255,255,.1)',
+    text: '#fff',
+    textDim: 'rgba(255,255,255,.5)',
+    fontTitre: "'Cormorant Garamond',serif",
+    fontTexte: "'Poppins',sans-serif",
+  };
+  const dataPub: AddonPubData = {
+    siteId: vendeurId, gestionnaireId: vendeurId, pubActive,
+    categorieSite: 'cours',
+    titreLabel: 'Nos partenaires',
+  };
+  return <AddonPubSponsor theme={themePub} data={dataPub} />;
+}
+
 // ─── FAQ ──────────────────────────────────────────────────────────────────────
 
 function SectionFAQ({ config }: { config:ConfigEcoleDanse }) {
@@ -981,9 +1003,10 @@ export interface TemplateEcoleDanseProps {
   siteId?: number | string;
   reservationActive?: boolean;
   abonnementActive?: boolean;
+  pubActive?: boolean;
 }
 
-export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId, reservationActive, abonnementActive }: TemplateEcoleDanseProps) {
+export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId, reservationActive, abonnementActive, pubActive }: TemplateEcoleDanseProps) {
   const config: ConfigEcoleDanse = {
     ...CONFIG_DANSE_DEFAUT, ...partiel,
     couleurMagenta:     partiel?.couleurMagenta     || CONFIG_DANSE_DEFAUT.couleurMagenta,
@@ -997,7 +1020,7 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId,
   // 🟢 Injecté par SitePreview via config.vendeurId — 0 en secours (aperçu/démo sans site réel)
   const vendeurId = config.vendeurId ?? 0;
 
-  const VALID_IDS = ['hero','stats','styles','horaires','apropos','professeurs','evenements','avis','pass','faq','contact'];
+  const VALID_IDS = ['hero','stats','styles','horaires','apropos','professeurs','evenements','avis','pass','sponsors','faq','contact'];
   const rawSections = ea(partiel?.sections, CONFIG_DANSE_DEFAUT.sections);
   config.sections     = rawSections.every(s => VALID_IDS.includes(s.id)) ? rawSections : CONFIG_DANSE_DEFAUT.sections;
   config.stats        = ea(partiel?.stats,         CONFIG_DANSE_DEFAUT.stats);
@@ -1029,6 +1052,7 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId,
       case 'evenements':  return <SectionEvenements  config={config} setPage={handlePage} />;
       case 'avis':        return <SectionAvis        config={config} />;
       case 'pass':        return <SectionPass        config={config} setPage={handlePage} siteId={siteId} abonnementActive={!!abonnementActive} />;
+      case 'sponsors':    return <SectionPubSponsor   config={config} vendeurId={vendeurId} pubActive={!!pubActive} />;
       case 'faq':         return <SectionFAQ         config={config} />;
       case 'contact':     return <SectionContact     config={config} vendeurId={vendeurId} />;
       default:            return null;

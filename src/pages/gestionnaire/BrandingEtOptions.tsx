@@ -26,6 +26,7 @@ interface AddonDef {
   necessiteConfirmation: boolean;
   badge?: string;
   detailsActifTexte?: string;
+  modeleRevenuPartage?: boolean; // true = pas de frais, le gestionnaire touche un % du revenu généré
 }
 
 const ADDONS: AddonDef[] = [
@@ -59,15 +60,22 @@ const ADDONS: AddonDef[] = [
     description: 'Forfaits récurrents (hebdomadaire, mensuel, annuel) — vos clients s\'abonnent directement sur votre site.',
     necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Abonnements clients → Mes forfaits',
   },
+  {
+    id: 'pub_sponsor', categorie: 'Publicité & Revenus', nom: 'Espace Sponsors',
+    icone: '⭐', couleur: '#f59e0b', prix: 0,
+    description: 'Affichez des publicités de commanditaires e-Vend sur votre site et touchez une part des revenus générés — vous gardez le contrôle : bloquez n\'importe quelle pub ou sponsor en un clic.',
+    necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Mes Sponsors → Publicités sur mon site',
+    modeleRevenuPartage: true,
+  },
 ];
 
-const CATEGORIES_ORDRE = ['Branding', 'Marketing & Promotions', 'Sécurité & Conformité', 'Réservations', 'Abonnements'];
+const CATEGORIES_ORDRE = ['Branding', 'Marketing & Promotions', 'Sécurité & Conformité', 'Réservations', 'Abonnements', 'Publicité & Revenus'];
 
 // ─────────────────────────────────────────────────────────────────────────
 // CARTE D'ADD-ON — générique, sert pour tous les add-ons du catalogue
 // ─────────────────────────────────────────────────────────────────────────
 
-function AddonCard({ addon, actif, onToggle }: { addon: AddonDef; actif: boolean; onToggle: () => void }) {
+function AddonCard({ addon, actif, onToggle, tauxPartagePub }: { addon: AddonDef; actif: boolean; onToggle: () => void; tauxPartagePub?: number }) {
   return (
     <div style={{ border: `2px solid ${actif ? addon.couleur : '#e5e7eb'}`, borderRadius: 14, overflow: 'hidden', transition: 'border-color 0.2s', background: '#fff' }}>
       <div style={{ padding: '16px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
@@ -78,7 +86,13 @@ function AddonCard({ addon, actif, onToggle }: { addon: AddonDef; actif: boolean
             {actif && <span style={{ fontSize: 10, background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', padding: '1px 8px', borderRadius: 20, fontWeight: 700 }}>Actif</span>}
             {!actif && addon.badge && <span style={{ fontSize: 10, background: `${addon.couleur}15`, color: addon.couleur, padding: '1px 8px', borderRadius: 20, fontWeight: 700 }}>{addon.badge}</span>}
           </div>
-          <p style={{ fontSize: 11, color: addon.couleur, fontWeight: 700, margin: '0 0 5px' }}>+{addon.prix.toFixed(2)} $/mois + tx</p>
+          {addon.modeleRevenuPartage ? (
+            <p style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, margin: '0 0 5px' }}>
+              💰 Gratuit — vous touchez {tauxPartagePub ?? 70}% des revenus générés
+            </p>
+          ) : (
+            <p style={{ fontSize: 11, color: addon.couleur, fontWeight: 700, margin: '0 0 5px' }}>+{addon.prix.toFixed(2)} $/mois + tx</p>
+          )}
           <p style={{ fontSize: 12, color: '#666', lineHeight: 1.5, margin: 0 }}>{addon.description}</p>
         </div>
         <div onClick={onToggle}
@@ -99,7 +113,7 @@ function AddonCard({ addon, actif, onToggle }: { addon: AddonDef; actif: boolean
 // MODAL DE CONFIRMATION — générique
 // ─────────────────────────────────────────────────────────────────────────
 
-function ModalConfirmationAddon({ addon, onAnnuler, onConfirmer }: { addon: AddonDef; onAnnuler: () => void; onConfirmer: () => void }) {
+function ModalConfirmationAddon({ addon, onAnnuler, onConfirmer, tauxPartagePub }: { addon: AddonDef; onAnnuler: () => void; onConfirmer: () => void; tauxPartagePub?: number }) {
   return (
     <div onClick={onAnnuler}
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
@@ -108,19 +122,27 @@ function ModalConfirmationAddon({ addon, onAnnuler, onConfirmer }: { addon: Addo
         <div style={{ background: `linear-gradient(135deg, ${addon.couleur}, ${addon.couleur}cc)`, padding: '26px 30px', textAlign: 'center' }}>
           <div style={{ fontSize: 44, marginBottom: 8 }}>{addon.icone}</div>
           <h2 style={{ fontSize: 19, fontWeight: 900, color: '#fff', margin: '0 0 4px' }}>Activer {addon.nom}</h2>
-          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', margin: 0 }}>Add-On — facturation mensuelle</p>
+          <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.85)', margin: 0 }}>
+            {addon.modeleRevenuPartage ? 'Add-On — gratuit, revenu partagé' : 'Add-On — facturation mensuelle'}
+          </p>
         </div>
         <div style={{ padding: '22px 28px' }}>
           <div style={{ background: `${addon.couleur}10`, border: `1px solid ${addon.couleur}30`, borderRadius: 12, padding: '13px 16px', marginBottom: 20 }}>
-            <p style={{ margin: 0, fontSize: 13, color: '#1a1a1a', lineHeight: 1.6 }}>
-              Des frais de <strong style={{ color: addon.couleur }}>{addon.prix.toFixed(2)} $/mois + taxes</strong> seront ajoutés à votre abonnement, effectifs dès le prochain renouvellement.
-            </p>
+            {addon.modeleRevenuPartage ? (
+              <p style={{ margin: 0, fontSize: 13, color: '#1a1a1a', lineHeight: 1.6 }}>
+                Aucun frais. Des publicités de commanditaires e-Vend apparaîtront sur votre site, et vous toucherez <strong style={{ color: addon.couleur }}>{tauxPartagePub ?? 70}% du revenu généré</strong> par les clics sur ces publicités. Vous pourrez bloquer n'importe quelle pub ou sponsor à tout moment.
+              </p>
+            ) : (
+              <p style={{ margin: 0, fontSize: 13, color: '#1a1a1a', lineHeight: 1.6 }}>
+                Des frais de <strong style={{ color: addon.couleur }}>{addon.prix.toFixed(2)} $/mois + taxes</strong> seront ajoutés à votre abonnement, effectifs dès le prochain renouvellement.
+              </p>
+            )}
           </div>
           <div style={{ display: 'flex', gap: 10 }}>
             <button onClick={onAnnuler} style={{ flex: 1, padding: '10px', border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', color: '#555' }}>Annuler</button>
             <button onClick={onConfirmer}
               style={{ flex: 2, padding: '10px', border: 'none', borderRadius: 10, background: addon.couleur, color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-              ✅ Activer — {addon.prix.toFixed(2)} $/mois
+              {addon.modeleRevenuPartage ? '✅ Activer l\'espace sponsors' : `✅ Activer — ${addon.prix.toFixed(2)} $/mois`}
             </button>
           </div>
         </div>
@@ -139,6 +161,7 @@ export default function BrandingEtOptions({ gestionnaireId, onOptionsUpdated }: 
   const [statut, setStatut] = useState<'idle' | 'ok' | 'err'>('idle');
   const [confirmationEnCours, setConfirmationEnCours] = useState<AddonDef | null>(null);
   const [planActuel, setPlanActuel] = useState('simplisse-25');
+  const [tauxPartagePub, setTauxPartagePub] = useState<number>(70);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -150,6 +173,7 @@ export default function BrandingEtOptions({ gestionnaireId, onOptionsUpdated }: 
       for (const a of ADDONS) map[a.id] = !!opts[a.id];
       setActifs(map);
       setPlanActuel(gest?.plan || 'simplisse-25');
+      if (gest?.taux_partage_pub !== undefined) setTauxPartagePub(parseFloat(gest.taux_partage_pub));
     }).catch(() => {});
   }, [gestionnaireId]);
 
@@ -228,7 +252,8 @@ export default function BrandingEtOptions({ gestionnaireId, onOptionsUpdated }: 
                 {addonsActifs.map(a => (
                   <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: `1px solid ${a.couleur}40`, borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#1a1a1a' }}>
                     <span>{a.icone}</span>{a.nom}
-                    <span style={{ color: a.couleur, fontWeight: 800 }}>{a.prix.toFixed(2)}$</span>
+                    {!a.modeleRevenuPartage && <span style={{ color: a.couleur, fontWeight: 800 }}>{a.prix.toFixed(2)}$</span>}
+                    {a.modeleRevenuPartage && <span style={{ color: '#16a34a', fontWeight: 800 }}>+{tauxPartagePub}%</span>}
                   </span>
                 ))}
               </div>
@@ -240,7 +265,7 @@ export default function BrandingEtOptions({ gestionnaireId, onOptionsUpdated }: 
               <h2 style={{ fontSize: 13, fontWeight: 700, color: '#999', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 12 }}>{cat.nom}</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
                 {cat.addons.map(addon => (
-                  <AddonCard key={addon.id} addon={addon} actif={!!actifs[addon.id]} onToggle={() => toggleAddon(addon)} />
+                  <AddonCard key={addon.id} addon={addon} actif={!!actifs[addon.id]} onToggle={() => toggleAddon(addon)} tauxPartagePub={tauxPartagePub} />
                 ))}
               </div>
             </div>
@@ -257,7 +282,10 @@ export default function BrandingEtOptions({ gestionnaireId, onOptionsUpdated }: 
               </div>
               {addonsActifs.map(a => (
                 <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#555' }}>
-                  <span>{a.nom}</span><span style={{ fontWeight: 600, color: a.couleur }}>+{a.prix.toFixed(2)}$</span>
+                  <span>{a.nom}</span>
+                  {a.modeleRevenuPartage
+                    ? <span style={{ fontWeight: 600, color: '#16a34a' }}>vous touchez {tauxPartagePub}%</span>
+                    : <span style={{ fontWeight: 600, color: a.couleur }}>+{a.prix.toFixed(2)}$</span>}
                 </div>
               ))}
             </div>
@@ -284,6 +312,7 @@ export default function BrandingEtOptions({ gestionnaireId, onOptionsUpdated }: 
           addon={confirmationEnCours}
           onAnnuler={() => setConfirmationEnCours(null)}
           onConfirmer={confirmerActivation}
+          tauxPartagePub={tauxPartagePub}
         />
       )}
     </div>

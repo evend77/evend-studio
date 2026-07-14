@@ -675,6 +675,7 @@ app.use('/api/admin/gestionnaires', require('./routes/admin_gestionnaires'));
 // =====================================================================
 app.use('/api/gestionnaires', require('./routes/gestionnaires'));
 app.use('/api/gestionnaires', require('./routes/stripe_gestionnaire'));
+app.use('/api/gestionnaires/addon-pub-sponsor', require('./routes/gestionnaire_pubs'));
 
 // =====================================================================
 // 📦 CRÉER / MODIFIER ANNONCE

@@ -26,7 +26,10 @@ router.get('/pubs', authenticateToken, async (req, res) => {
         actif, impressions, clics, type, effet, prix_par_click,
         budget_type, budget_montant, budget_depense,
         categories,
-        roue_active, codes_promo_roue, participations_roue, gagnants_roue,
+        roue_active,
+        codes_promo AS codes_promo_roue,
+        participations AS participations_roue,
+        gagnants AS gagnants_roue,
         created_at
        FROM sponsor_pubs
        WHERE sponsor_id = $1
@@ -88,7 +91,7 @@ router.post('/pubs', authenticateToken, async (req, res) => {
         type, effet, prix_par_click, extra_data,
         budget_type, budget_montant, budget_depense,
         categories,
-        roue_active, codes_promo_roue,
+        roue_active, codes_promo,
         created_at, updated_at)
        VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8, $9, $10, $11, 0, $12, $13, $14, NOW(), NOW())
        RETURNING *`,
@@ -194,7 +197,10 @@ router.get('/pubs/stats', authenticateToken, async (req, res) => {
         impressions, clics,
         budget_montant, budget_depense,
         categories,
-        roue_active, codes_promo_roue, participations_roue, gagnants_roue,
+        roue_active,
+        codes_promo AS codes_promo_roue,
+        participations AS participations_roue,
+        gagnants AS gagnants_roue,
         COALESCE(clics * prix_par_click, 0) as cout_estime,
         created_at
        FROM sponsor_pubs
@@ -261,7 +267,7 @@ router.post('/roue/:pubId/participer', async (req, res) => {
     // Incrémenter les participations
     await pool.query(
       `UPDATE sponsor_pubs SET 
-        participations_roue = participations_roue + 1,
+        participations = participations + 1,
         updated_at = NOW()
        WHERE id = $1`,
       [pubId]
@@ -271,7 +277,7 @@ router.post('/roue/:pubId/participer', async (req, res) => {
     if (gagne) {
       await pool.query(
         `UPDATE sponsor_pubs SET 
-          gagnants_roue = gagnants_roue + 1,
+          gagnants = gagnants + 1,
           updated_at = NOW()
          WHERE id = $1`,
         [pubId]
@@ -290,26 +296,33 @@ router.post('/roue/:pubId/participer', async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 // GET — Récupérer une pub aléatoire pour un site spécifique
+// ?gestionnaireId=123 requis pour exclure les pubs/sponsors bloqués par ce gestionnaire
+// et pour tracker l'impression dans addon_pub_stats (revenu du gestionnaire).
 router.get('/pub/random/:categorieSite', async (req, res) => {
   try {
     const { categorieSite } = req.params;
+    const gestionnaireId = req.query.gestionnaireId ? parseInt(req.query.gestionnaireId) : null;
 
-    let query = `
+    const query = `
       SELECT 
         sp.id, sp.titre, sp.description, sp.url_image, sp.url_lien,
         sp.type, sp.effet, sp.extra_data, sp.categories,
-        sp.roue_active, sp.codes_promo_roue,
-        s.nom AS sponsor_nom
+        sp.roue_active, sp.codes_promo AS codes_promo_roue,
+        sp.sponsor_id, s.nom AS sponsor_nom
       FROM sponsor_pubs sp
       JOIN sponsors s ON s.id = sp.sponsor_id
       WHERE sp.actif = true AND s.active = true
+        AND (sp.categories = '{}' OR $1 = ANY(sp.categories))
+        AND ($2::int IS NULL OR NOT EXISTS (
+          SELECT 1 FROM gestionnaire_pubs_bloquees b WHERE b.gestionnaire_id = $2 AND b.pub_id = sp.id
+        ))
+        AND ($2::int IS NULL OR NOT EXISTS (
+          SELECT 1 FROM gestionnaire_sponsors_bloques bs WHERE bs.gestionnaire_id = $2 AND bs.sponsor_id = sp.sponsor_id
+        ))
+      ORDER BY RANDOM() LIMIT 1
     `;
 
-    // Filtrer par catégorie
-    query += ` AND (sp.categories = '{}' OR $1 = ANY(sp.categories))`;
-    query += ` ORDER BY RANDOM() LIMIT 1`;
-
-    const result = await pool.query(query, [categorieSite]);
+    const result = await pool.query(query, [categorieSite, gestionnaireId]);
 
     if (result.rows.length === 0) {
       return res.status(200).json({ pub: null, message: 'Aucune pub disponible' });
@@ -320,6 +333,16 @@ router.get('/pub/random/:categorieSite', async (req, res) => {
       `UPDATE sponsor_pubs SET impressions = impressions + 1 WHERE id = $1`,
       [pub.id]
     );
+
+    if (gestionnaireId) {
+      await pool.query(
+        `INSERT INTO addon_pub_stats (gestionnaire_id, pub_id, impressions, clics, date)
+         VALUES ($1, $2, 1, 0, CURRENT_DATE)
+         ON CONFLICT (gestionnaire_id, pub_id, date)
+         DO UPDATE SET impressions = addon_pub_stats.impressions + 1`,
+        [gestionnaireId, pub.id]
+      );
+    }
 
     res.json({ pub });
   } catch (error) {

@@ -20,6 +20,7 @@ import ModelesCourrielStudio from './pages/gestionnaire/ModelesCourrielStudio';
 import GestionReservations   from './pages/studio/GestionReservations';
 import MesReservationsEcole  from './pages/gestionnaire/MesReservationsEcole';
 import MesAbonnementsEcole   from './pages/gestionnaire/MesAbonnementsEcole';
+import MesSponsorsGestionnaire from './pages/gestionnaire/MesSponsorsGestionnaire';
 import ConfigurationPaiements from './pages/gestionnaire/ConfigurationPaiements';
 import MesAcheteurs                  from './pages/studio/MesAcheteurs';
 import StudioConfigPage404   from './pages/gestionnaire/StudioConfigPage404';
@@ -597,6 +598,11 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     id: 'abonnements-clients', label: 'ABONNEMENTS CLIENTS', icon: '💳',
   };
 
+  // ── Mes sponsors (add-on pub_sponsor, sans sous-menu) ──────────────────────
+  const menuMesSponsors: MenuItem = {
+    id: 'mes-sponsors', label: 'MES SPONSORS', icon: '⭐',
+  };
+
   // ── Mes collaborateurs (commun à tous) ─────────────────────────────────────
   const menuSousVendeurs: MenuItem = {
     id: 'collaborateurs', label: 'MES COLLABORATEURS', icon: '🏪',
@@ -815,6 +821,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       ...(options?.reservation_ecole ? [menuMesReservations] : []),
       ...(options?.abonnement_ecole ? [menuMesAbonnements] : []),
+      ...(options?.pub_sponsor ? [menuMesSponsors] : []),
       menuSousVendeurs,
       menuBadges,
       menuBlogsSV,
@@ -1174,6 +1181,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'commandes-reservations') return <GestionReservations vendeurId={gestionnaire.id} />;
     if (pageActive === 'mes-reservations') return <MesReservationsEcole gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'abonnements-clients') return <MesAbonnementsEcole gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mes-sponsors') return <MesSponsorsGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
