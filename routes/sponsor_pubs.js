@@ -214,6 +214,7 @@ router.get('/pubs/stats', authenticateToken, async (req, res) => {
       cout: parseFloat(pub.cout_estime) || 0,
       budget_montant: parseFloat(pub.budget_montant) || 0,
       budget_depense: parseFloat(pub.budget_depense) || 0,
+      budget_restant: Math.max(parseFloat(pub.budget_montant) - parseFloat(pub.cout_estime), 0),
       categories: pub.categories || [],
       roue_active: pub.roue_active || false,
       codes_promo_roue: pub.codes_promo_roue || [],

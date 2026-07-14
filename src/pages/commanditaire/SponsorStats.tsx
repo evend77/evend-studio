@@ -11,6 +11,7 @@ interface Stat {
   cout: number;
   budget_montant: number;
   budget_depense: number;
+  budget_restant: number;
   prix_par_click: number;
   actif: boolean;
   created_at: string;
@@ -216,6 +217,7 @@ function SponsorStats({ token }: SponsorStatsProps) {
                   <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: '12px', color: '#666', fontWeight: 600 }}>📈 CTR</th>
                   <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: '12px', color: '#666', fontWeight: 600 }}>💰 Dépensé</th>
                   <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: '12px', color: '#666', fontWeight: 600 }}>💰 Budget</th>
+                  <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: '12px', color: '#666', fontWeight: 600 }}>💰 Restant</th>
                   <th style={{ textAlign: 'center', padding: '12px 16px', fontSize: '12px', color: '#666', fontWeight: 600 }}>Statut</th>
                 </tr>
               </thead>
@@ -248,7 +250,7 @@ function SponsorStats({ token }: SponsorStatsProps) {
                       <td style={{ textAlign: 'center', padding: '12px 16px', fontSize: '13px' }}>
                         <div>
                           <span style={{ fontWeight: 600 }}>
-                            {formatCurrency(stat.cout)} / {formatCurrency(stat.budget_montant || 0)}
+                            {formatCurrency(stat.budget_montant)}
                           </span>
                           {stat.budget_montant > 0 && (
                             <div style={{
@@ -269,6 +271,24 @@ function SponsorStats({ token }: SponsorStatsProps) {
                             </div>
                           )}
                         </div>
+                      </td>
+                      <td style={{ textAlign: 'center', padding: '12px 16px', fontSize: '13px' }}>
+                        <span style={{ 
+                          fontWeight: 600,
+                          color: stat.budget_restant > 0 ? '#16a34a' : '#dc2626',
+                        }}>
+                          {formatCurrency(stat.budget_restant)}
+                        </span>
+                        {stat.budget_restant <= 0 && (
+                          <span style={{ fontSize: '11px', color: '#dc2626', display: 'block' }}>
+                            ⚠️ Épuisé
+                          </span>
+                        )}
+                        {stat.budget_restant / stat.budget_montant < 0.2 && stat.budget_restant > 0 && stat.budget_montant > 0 && (
+                          <span style={{ fontSize: '11px', color: '#f59e0b', display: 'block' }}>
+                            ⚠️ Bientôt épuisé
+                          </span>
+                        )}
                       </td>
                       <td style={{ textAlign: 'center', padding: '12px 16px' }}>
                         <span style={{
