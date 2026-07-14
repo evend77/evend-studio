@@ -24,6 +24,7 @@ import DomaineAnnule         from './pages/DomaineAnnule';
 import InscriptionCommanditaire from './pages/commanditaire/InscriptionCommanditaire';
 import AppSponsors from './AppSponsors';
 import MesPhotosSponsor from './pages/commanditaire/MesPhotosSponsor';
+import SponsorPubsCreer from './pages/commanditaire/SponsorPubsCreer';
 
 
 const AnyLoginPage = LoginPage        as any;
@@ -186,6 +187,7 @@ export default function Main() {
         <Route path="/documents"           element={<PageDocumentsPlateforme />} />
         <Route path="/documents/:slug"     element={<PageDocumentsPlateforme />} />
         <Route path="/sponsor/photos" element={<MesPhotosSponsor />} />
+        <Route path="/sponsor/pubs/creer" element={<SponsorPubsCreer />} />
         
 
         {/* 👇 ROUTES COMMANDITAIRES */}

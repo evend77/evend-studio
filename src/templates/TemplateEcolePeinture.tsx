@@ -15,6 +15,8 @@ import { useIsMobile } from '../hooks/useIsMobile';
 // Sections ON/OFF + réordonnables — Gratuit — Catégorie : cours
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import AddonReservationEcole, { AddonReservationTheme, AddonReservationData } from '../addons/reservation-ecole/AddonReservationEcole';
+import AddonAbonnementEcole, { AddonAbonnementTheme, AddonAbonnementData } from '../addons/abonnement-ecole/AddonAbonnementEcole';
 
 export interface SectionConfig { id: string; actif: boolean; ordre: number; label: string; }
 
@@ -111,6 +113,8 @@ export interface ConfigEcolePeinture {
   coordGoogleMaps: string;
   sections: SectionConfig[];
   vendeurId?: number;
+  titreAbonnements: string;
+  titreAbonnementsAccent: string;
 }
 
 export const CONFIG_PEINTURE_DEFAUT: ConfigEcolePeinture = {
@@ -278,15 +282,18 @@ export const CONFIG_PEINTURE_DEFAUT: ConfigEcolePeinture = {
     { id: 'hero',        actif: true, ordre: 1,  label: 'Hero + Cube 3D'              },
     { id: 'stats',       actif: true, ordre: 2,  label: 'Chiffres clés'               },
     { id: 'cours',       actif: true, ordre: 3,  label: 'Nos ateliers'                },
-    { id: 'galerie3d',   actif: true, ordre: 4,  label: 'Galerie 3D — Œuvres élèves'  },
-    { id: 'apropos',     actif: true, ordre: 5,  label: 'À propos & philosophie'      },
-    { id: 'professeurs', actif: true, ordre: 6,  label: 'Nos artistes-professeurs'    },
-    { id: 'evenements',  actif: true, ordre: 7,  label: 'Événements à venir'          },
-    { id: 'avis',        actif: true, ordre: 8,  label: 'Témoignages'                 },
-    { id: 'formules',    actif: true, ordre: 9,  label: 'Formules & Tarifs'           },
-    { id: 'faq',         actif: true, ordre: 10, label: 'FAQ'                         },
-    { id: 'contact',     actif: true, ordre: 11, label: 'Contact & Inscription'       },
+    { id: 'horaires',    actif: true, ordre: 4,  label: 'Horaires & Réservation'      },
+    { id: 'galerie3d',   actif: true, ordre: 5,  label: 'Galerie 3D — Œuvres élèves'  },
+    { id: 'apropos',     actif: true, ordre: 6,  label: 'À propos & philosophie'      },
+    { id: 'professeurs', actif: true, ordre: 7,  label: 'Nos artistes-professeurs'    },
+    { id: 'evenements',  actif: true, ordre: 8,  label: 'Événements à venir'          },
+    { id: 'avis',        actif: true, ordre: 9,  label: 'Témoignages'                 },
+    { id: 'formules',    actif: true, ordre: 10, label: 'Abonnements'                 },
+    { id: 'faq',         actif: true, ordre: 11, label: 'FAQ'                         },
+    { id: 'contact',     actif: true, ordre: 12, label: 'Contact & Inscription'       },
   ],
+  titreAbonnements: 'Votre',
+  titreAbonnementsAccent: 'pass création',
 };
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
@@ -1162,63 +1169,53 @@ function SectionAvis({ config }: { config: ConfigEcolePeinture }) {
 
 // ─── SECTION FORMULES ─────────────────────────────────────────────────────────
 
-function SectionFormules({ config, setPage }: { config: ConfigEcolePeinture; setPage: (p: string) => void }) {
-  const { isMobile } = useIsMobile();
-  const rv = useReveal(0.05);
-  const formules = ea(config.formules, CONFIG_PEINTURE_DEFAUT.formules);
+// Add-on injectable — src/addons/abonnement-ecole/AddonAbonnementEcole.tsx
+// Ce bloc est SEULEMENT l'adaptateur de thème — n'affiche rien si l'add-on est inactif.
+function SectionFormules({ config, siteId, abonnementActive }: { config: ConfigEcolePeinture; setPage: (p: string) => void; siteId?: number|string; abonnementActive?: boolean }) {
+  const themeAbonnement: AddonAbonnementTheme = {
+    primary: config.couleur1,
+    accentSecondaire: config.couleur3,
+    bg: config.couleurSombre,
+    cardBg: 'rgba(255,255,255,.05)',
+    border: 'rgba(255,255,255,.12)',
+    text: '#fff',
+    textDim: 'rgba(255,255,255,.5)',
+    fontTitre: "'Bebas Neue',cursive",
+    fontTexte: "'Nunito',sans-serif",
+  };
+  const dataAbonnement: AddonAbonnementData = {
+    siteId, abonnementActif: abonnementActive,
+    titreLabel: 'Formules',
+    titre: config.titreAbonnements,
+    titreAccent: config.titreAbonnementsAccent,
+  };
+  return <AddonAbonnementEcole theme={themeAbonnement} data={dataAbonnement} />;
+}
 
-  return (
-    <section style={{ background: config.couleurSombre, padding: isMobile ? '60px 20px' : '100px 48px', position: 'relative', overflow: 'hidden' }}>
-      <ParticulesArt couleurs={[config.couleur1, config.couleur2, config.couleur3, config.couleur4, config.couleur5]} />
-      <div ref={rv.ref} className={`rv${rv.vis ? ' vis' : ''}`} style={{ maxWidth: 1320, margin: '0 auto', position: 'relative' }}>
-        <div style={{ textAlign: 'center', marginBottom: 60 }}>
-          <p style={{ fontFamily: "'Nunito', sans-serif", fontSize: 11, fontWeight: 800, color: config.couleur3, letterSpacing: '0.25em', textTransform: 'uppercase', marginBottom: 14 }}>Formules</p>
-          <h2 style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 'clamp(40px,6vw,80px)', color: '#fff', letterSpacing: '0.02em', lineHeight: 1 }}>Votre pass création</h2>
-          <TraitPinceau couleur={config.couleur3} vis={rv.vis} largeur={300} />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(formules.length, 3)}, 1fr)`, gap: 24, alignItems: 'start' }}>
-          {formules.map((f, i) => (
-            <div key={i} style={{
-              background: f.populaire ? '#fff' : 'rgba(255,255,255,.05)',
-              border: `4px solid ${f.couleur}`,
-              padding: '36px 28px', position: 'relative', overflow: 'hidden',
-              transform: f.populaire ? 'scale(1.04)' : 'none',
-              boxShadow: f.populaire ? `8px 8px 0 ${f.couleur}50` : 'none',
-            }}>
-              {f.populaire && (
-                <div style={{ position: 'absolute', top: -1, right: -1, background: f.couleur, color: '#fff', fontSize: 10, fontWeight: 800, fontFamily: "'Nunito',sans-serif", padding: '6px 18px', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                  ⭐ RECOMMANDÉ
-                </div>
-              )}
-              {/* Barre couleur top */}
-              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 5, background: f.couleur }} />
-
-              <p style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 36, color: f.populaire ? config.couleurTexte : '#fff', letterSpacing: '0.06em', marginBottom: 4, marginTop: 8 }}>{f.nom}</p>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginBottom: 8 }}>
-                <span style={{ fontFamily: "'Bebas Neue', cursive", fontSize: 56, color: f.couleur, lineHeight: 1 }}>{f.prix}</span>
-                <span style={{ fontFamily: "'Nunito', sans-serif", fontSize: 13, color: f.populaire ? 'rgba(0,0,0,.4)' : 'rgba(255,255,255,.4)' }}>{f.periode}</span>
-              </div>
-              <p style={{ fontFamily: "'Nunito', sans-serif", fontSize: 13, color: f.populaire ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.5)', marginBottom: 24, lineHeight: 1.6 }}>{f.description}</p>
-              <div style={{ height: 2, background: `${f.couleur}30`, marginBottom: 20 }} />
-              <ul style={{ listStyle: 'none', marginBottom: 28 }}>
-                {f.inclus.map((item, j) => (
-                  <li key={j} style={{ fontFamily: "'Nunito', sans-serif", fontSize: 13, color: f.populaire ? 'rgba(0,0,0,.65)' : 'rgba(255,255,255,.65)', marginBottom: 10, display: 'flex', gap: 10 }}>
-                    <span style={{ color: f.couleur, fontSize: 16, flexShrink: 0 }}>🎨</span>{item}
-                  </li>
-                ))}
-              </ul>
-              <button onClick={() => setPage('contact-page')} style={{ width: '100%', padding: '14px', border: 'none', background: f.couleur, color: '#fff', fontFamily: "'Nunito', sans-serif", fontSize: 13, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer', boxShadow: `4px 4px 0 rgba(0,0,0,.2)`, transition: 'all .2s' }}
-                onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'translate(-2px,-2px)'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '6px 6px 0 rgba(0,0,0,.3)'; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.transform = 'none'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '4px 4px 0 rgba(0,0,0,.2)'; }}>
-                S'inscrire →
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
+// Add-on injectable — src/addons/reservation-ecole/AddonReservationEcole.tsx
+// Nouvelle section (n'existait pas avant) — même principe.
+function SectionHoraires({ config, setPage, siteId, reservationActive }: { config: ConfigEcolePeinture; setPage: (p: string) => void; siteId?: number|string; reservationActive?: boolean }) {
+  const themeReservation: AddonReservationTheme = {
+    primary: config.couleur1,
+    accentSecondaire: config.couleur3,
+    bg: config.couleurSombre,
+    cardBg: 'rgba(255,255,255,.05)',
+    border: 'rgba(255,255,255,.12)',
+    text: '#fff',
+    textDim: 'rgba(255,255,255,.5)',
+    fontTitre: "'Bebas Neue',cursive",
+    fontTexte: "'Nunito',sans-serif",
+  };
+  const dataReservation: AddonReservationData = {
+    siteId, reservationActive,
+    titreLabel: 'Planning',
+    titre: 'Horaires des',
+    titreAccent: 'ateliers',
+    labelBoutonHeader: 'Réserver une place',
+    onClicBoutonHeader: () => setPage('contact-page'),
+    couleurParStyle: () => config.couleur2,
+  };
+  return <AddonReservationEcole theme={themeReservation} data={dataReservation} />;
 }
 
 // ─── SECTION FAQ ──────────────────────────────────────────────────────────────
@@ -1363,6 +1360,17 @@ function SectionContact({ config }: { config: ConfigEcolePeinture }) {
 function Footer({ config, setPage }: { config: ConfigEcolePeinture; setPage: (p: string) => void }) {
   const cours = ea(config.cours, CONFIG_PEINTURE_DEFAUT.cours);
 
+  // 🟢 Badge "Propulsé par e-Vend Studio" — caché uniquement si le gestionnaire
+  // a payé l'option "Cacher le branding" (table options_gestionnaire).
+  const [cacherBadge, setCacherBadge] = useState(false);
+  useEffect(() => {
+    if (!config.vendeurId) return;
+    fetch(`/api/branding-public/gestionnaire/${config.vendeurId}/cacher-propulse`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d) setCacherBadge(!!d.cacher_propulse); })
+      .catch(() => {}); // silencieux — badge visible par défaut si l'appel échoue
+  }, [config.vendeurId]);
+
   return (
     <footer style={{ background: config.couleurSombre, padding: '60px 48px 0' }}>
       {/* Barre multicolore top */}
@@ -1414,6 +1422,13 @@ function Footer({ config, setPage }: { config: ConfigEcolePeinture; setPage: (p:
         <p style={{ fontFamily: "'Dancing Script', cursive", fontSize: 14, color: 'rgba(255,255,255,.25)' }}>🎨 Créer, c'est vivre</p>
         <p style={{ fontFamily: "'Nunito', sans-serif", fontSize: 12, color: 'rgba(255,255,255,.2)' }}>© {new Date().getFullYear()} {config.nomEcole}</p>
       </div>
+      {!cacherBadge && (
+        <div style={{ borderTop: '1px solid rgba(255,255,255,.06)', padding: '12px 0', textAlign: 'center' as const }}>
+          <a href="https://e-vendstudio.ca" target="_blank" rel="noreferrer" style={{ fontFamily: "'Nunito', sans-serif", fontSize: 10, color: 'rgba(255,255,255,.25)', textDecoration: 'none' }}>
+            Propulsé par e-Vend Studio
+          </a>
+        </div>
+      )}
     </footer>
   );
 }
@@ -1423,9 +1438,12 @@ function Footer({ config, setPage }: { config: ConfigEcolePeinture; setPage: (p:
 export interface TemplateEcolePeintureProps {
   config?: Partial<ConfigEcolePeinture>;
   isPreview?: boolean;
+  siteId?: number | string;
+  reservationActive?: boolean;
+  abonnementActive?: boolean;
 }
 
-export default function TemplateEcolePeinture({ config: partiel, isPreview }: TemplateEcolePeintureProps) {
+export default function TemplateEcolePeinture({ config: partiel, isPreview, siteId, reservationActive, abonnementActive }: TemplateEcolePeintureProps) {
   const config: ConfigEcolePeinture = { ...CONFIG_PEINTURE_DEFAUT, ...partiel,
     couleur1: partiel?.couleur1 || CONFIG_PEINTURE_DEFAUT.couleur1,
     couleur2: partiel?.couleur2 || CONFIG_PEINTURE_DEFAUT.couleur2,
@@ -1434,9 +1452,11 @@ export default function TemplateEcolePeinture({ config: partiel, isPreview }: Te
     couleur5: partiel?.couleur5 || CONFIG_PEINTURE_DEFAUT.couleur5,
   };
 
-  const VALID_IDS = ['hero','stats','cours','galerie3d','apropos','professeurs','evenements','avis','formules','faq','contact'];
+  const VALID_IDS = ['hero','stats','cours','horaires','galerie3d','apropos','professeurs','evenements','avis','formules','faq','contact'];
   const rawSections = ea(partiel?.sections, CONFIG_PEINTURE_DEFAUT.sections);
   config.sections = rawSections.every(s => VALID_IDS.includes(s.id)) ? rawSections : CONFIG_PEINTURE_DEFAUT.sections;
+  config.titreAbonnements = partiel?.titreAbonnements ?? CONFIG_PEINTURE_DEFAUT.titreAbonnements;
+  config.titreAbonnementsAccent = partiel?.titreAbonnementsAccent ?? CONFIG_PEINTURE_DEFAUT.titreAbonnementsAccent;
 
   config.stats          = ea(partiel?.stats,          CONFIG_PEINTURE_DEFAUT.stats);
   config.cours          = ea(partiel?.cours,           CONFIG_PEINTURE_DEFAUT.cours);
@@ -1459,12 +1479,13 @@ export default function TemplateEcolePeinture({ config: partiel, isPreview }: Te
       case 'hero':        return <SectionHero        config={config} setPage={handlePage} />;
       case 'stats':       return <SectionStats       config={config} />;
       case 'cours':       return <SectionCours       config={config} setPage={handlePage} />;
+      case 'horaires':    return <SectionHoraires    config={config} setPage={handlePage} siteId={siteId} reservationActive={!!reservationActive} />;
       case 'galerie3d':   return <SectionGalerie3D   config={config} />;
       case 'apropos':     return <SectionAPropos     config={config} />;
       case 'professeurs': return <SectionProfesseurs config={config} />;
       case 'evenements':  return <SectionEvenements  config={config} setPage={handlePage} />;
       case 'avis':        return <SectionAvis        config={config} />;
-      case 'formules':    return <SectionFormules    config={config} setPage={handlePage} />;
+      case 'formules':    return <SectionFormules    config={config} setPage={handlePage} siteId={siteId} abonnementActive={!!abonnementActive} />;
       case 'faq':         return <SectionFAQ         config={config} />;
       case 'contact':     return <SectionContact     config={config} />;
       default:            return null;

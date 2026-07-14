@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import TemplateEcolePeinture, { CONFIG_PEINTURE_DEFAUT } from '../../templates/TemplateEcolePeinture';
-import type { ConfigEcolePeinture, SectionConfig, CoursArt, ArtisteProfesseur, OeuvreEleve, AvisArt, AtlierFormule } from '../../templates/TemplateEcolePeinture';
+import type { ConfigEcolePeinture, SectionConfig, CoursArt, ArtisteProfesseur, OeuvreEleve, AvisArt } from '../../templates/TemplateEcolePeinture';
 
 type Onglet = 'identite' | 'apparence' | 'sections' | 'stats' | 'cours' | 'galerie' | 'professeurs' | 'avis' | 'formules' | 'evenements' | 'faq' | 'contact';
 
@@ -47,7 +47,7 @@ function SectionsManager({ sections, onChange }: { sections: SectionConfig[]; on
   };
   const toggle = (id: string) => onChange(sections.map(s => s.id === id ? { ...s, actif: !s.actif } : s));
   const sorted = [...sections].sort((a, b) => a.ordre - b.ordre);
-  const icones: Record<string,string> = { hero:'🎨', stats:'📊', cours:'🖌️', galerie3d:'🖼️', apropos:'📖', professeurs:'⭐', evenements:'📅', avis:'💬', formules:'💰', faq:'❓', contact:'✉️' };
+  const icones: Record<string,string> = { hero:'🎨', stats:'📊', cours:'🖌️', horaires:'📅', galerie3d:'🖼️', apropos:'📖', professeurs:'⭐', evenements:'📅', avis:'💬', formules:'💰', faq:'❓', contact:'✉️' };
 
   return (
     <div>
@@ -121,7 +121,6 @@ export default function ConfigTemplateEcolePeinture({ vendeurId, onSauvegarde }:
   const galerie     = ea(config.oeuvresEleves,    CONFIG_PEINTURE_DEFAUT.oeuvresEleves);
   const profs       = ea(config.professeurs,      CONFIG_PEINTURE_DEFAUT.professeurs);
   const avis        = ea(config.avis,             CONFIG_PEINTURE_DEFAUT.avis);
-  const formules    = ea(config.formules,         CONFIG_PEINTURE_DEFAUT.formules);
   const evenements  = ea(config.evenements,       CONFIG_PEINTURE_DEFAUT.evenements);
   const faq         = ea(config.faq,              CONFIG_PEINTURE_DEFAUT.faq);
   const horaires    = ea(config.horaires,         CONFIG_PEINTURE_DEFAUT.horaires);
@@ -139,9 +138,6 @@ export default function ConfigTemplateEcolePeinture({ vendeurId, onSauvegarde }:
   const updAvis   = (i:number, k:keyof AvisArt, v:any) => { const a=[...avis]; a[i]={...a[i],[k]:v}; set('avis',a); };
   const delAvis   = (i:number) => { const a=[...avis]; a.splice(i,1); set('avis',a); };
   const addAvis   = () => set('avis',[...avis,{texte:'',auteur:'',cours:'',photo:'',note:5}]);
-  const updFormule= (i:number, k:keyof AtlierFormule, v:any) => { const a=[...formules]; a[i]={...a[i],[k]:v}; set('formules',a); };
-  const delFormule= (i:number) => { const a=[...formules]; a.splice(i,1); set('formules',a); };
-  const addFormule= () => set('formules',[...formules,{nom:'Nouvelle formule',prix:'0$',periode:'/mois',description:'',inclus:[],populaire:false,couleur:'#e63946'}]);
   const updEv     = (i:number, k:string, v:string) => { const a=[...evenements]; a[i]={...a[i],[k]:v}; set('evenements',a); };
   const delEv     = (i:number) => { const a=[...evenements]; a.splice(i,1); set('evenements',a); };
   const addEv     = () => set('evenements',[...evenements,{titre:'Nouvel événement',date:'1 jan 2027',description:'',type:'Vernissage'}]);
@@ -353,33 +349,15 @@ export default function ConfigTemplateEcolePeinture({ vendeurId, onSauvegarde }:
           </>)}
 
           {onglet === 'formules' && (<>
-            {formules.map((f,i) => (
-              <div key={i} style={{ border:`2px solid ${f.couleur}40`, borderRadius:8, padding:10, marginBottom:10 }}>
-                <div style={{ display:'flex', justifyContent:'space-between', marginBottom:7 }}>
-                  <span style={{ fontSize:11, fontWeight:600 }}>{f.nom}</span>
-                  <div style={{ display:'flex', gap:5 }}>
-                    <label style={{ fontSize:10, color:'#888', display:'flex', alignItems:'center', gap:3, cursor:'pointer' }}>
-                      <input type="checkbox" checked={!!f.populaire} onChange={e => updFormule(i,'populaire',e.target.checked)} />Recommandé
-                    </label>
-                    <BtnDel onClick={() => delFormule(i)} />
-                  </div>
-                </div>
-                <Champ label="Couleur">
-                  <div style={{ display:'flex', gap:6 }}>
-                    <input type="color" value={f.couleur||'#e63946'} onChange={e => updFormule(i,'couleur',e.target.value)} style={{ width:34, height:30, padding:2, border:'1px solid #ddd', borderRadius:5, cursor:'pointer' }} />
-                    <Input value={f.couleur} onChange={(v:string) => updFormule(i,'couleur',v)} />
-                  </div>
-                </Champ>
-                <Champ label="Nom"><Input value={f.nom} onChange={(v:string) => updFormule(i,'nom',v)} /></Champ>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
-                  <Champ label="Prix"><Input value={f.prix} onChange={(v:string) => updFormule(i,'prix',v)} /></Champ>
-                  <Champ label="Période"><Input value={f.periode} onChange={(v:string) => updFormule(i,'periode',v)} /></Champ>
-                </div>
-                <Champ label="Description"><Textarea value={f.description} onChange={(v:string) => updFormule(i,'description',v)} rows={2} /></Champ>
-                <Champ label="Inclus (virgules)"><Input value={f.inclus?.join(', ')||''} onChange={(v:string) => updFormule(i,'inclus',v.split(',').map((s:string)=>s.trim()).filter(Boolean))} /></Champ>
-              </div>
-            ))}
-            <button onClick={addFormule} style={{ width:'100%', padding:8, border:`2px dashed ${C1}`, borderRadius:8, background:'transparent', color:C1, cursor:'pointer', fontSize:11, fontWeight:600 }}>+ Ajouter une formule</button>
+            <Champ label="Titre (partie normale)"><Input value={config.titreAbonnements} onChange={(v:string) => set('titreAbonnements', v)} placeholder="Votre" /></Champ>
+            <Champ label="Titre (partie en couleur)"><Input value={config.titreAbonnementsAccent} onChange={(v:string) => set('titreAbonnementsAccent', v)} placeholder="pass création" /></Champ>
+            <div style={{ background:'#fff5f5', border:`1.5px solid ${C1}40`, borderRadius:10, padding:16, textAlign:'center', marginTop:14 }}>
+              <div style={{ fontSize:32, marginBottom:8 }}>🔒</div>
+              <p style={{ fontSize:12, fontWeight:700, color:'#1a1a1a', marginBottom:6 }}>Géré ailleurs maintenant</p>
+              <p style={{ fontSize:11, color:'#666', lineHeight:1.5 }}>
+                Vos forfaits d'abonnement se créent et se gèrent maintenant dans <strong>Mes Abonnements → Mes forfaits</strong> depuis le menu principal du dashboard. Seuls les titres ci-dessus restent modifiables ici.
+              </p>
+            </div>
           </>)}
 
           {onglet === 'evenements' && (<>

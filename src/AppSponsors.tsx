@@ -1,14 +1,14 @@
 // src/AppSponsors.tsx
-// DASHBOARD PRINCIPAL DU SPONSOR
 import React, { useState, useEffect } from 'react';
 import SponsorPhotos from './pages/commanditaire/SponsorPhotos';
 import SponsorPubs from './pages/commanditaire/SponsorPubs';
 import SponsorAbonnement from './pages/commanditaire/SponsorAbonnement';
+import SponsorStats from './pages/commanditaire/SponsorStats';
 
 function AppSponsors() {
   const [sponsorInfo, setSponsorInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [onglet, setOnglet] = useState<'photos' | 'pubs' | 'abonnement'>('photos');
+  const [onglet, setOnglet] = useState<'photos' | 'pubs' | 'stats' | 'abonnement'>('photos');
   const [token, setToken] = useState<string>('');
 
   useEffect(() => {
@@ -33,6 +33,16 @@ function AppSponsors() {
   };
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ongletParam = params.get('onglet');
+    if (ongletParam === 'pubs') {
+      setOnglet('pubs');
+    } else if (ongletParam === 'abonnement') {
+      setOnglet('abonnement');
+    } else if (ongletParam === 'stats') {
+      setOnglet('stats');
+    }
+    
     fetchSponsorInfo();
   }, []);
 
@@ -114,6 +124,21 @@ function AppSponsors() {
           </button>
         )}
         <button
+          onClick={() => setOnglet('stats')}
+          style={{
+            padding: '12px 24px',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: onglet === 'stats' ? '3px solid #f59e0b' : '3px solid transparent',
+            color: onglet === 'stats' ? '#f59e0b' : '#666',
+            fontWeight: onglet === 'stats' ? 700 : 500,
+            cursor: 'pointer',
+            fontSize: '14px',
+          }}
+        >
+          📊 Statistiques
+        </button>
+        <button
           onClick={() => setOnglet('abonnement')}
           style={{
             padding: '12px 24px',
@@ -130,9 +155,10 @@ function AppSponsors() {
         </button>
       </div>
 
-      {/* Contenu des onglets — on appelle les autres pages ! */}
+      {/* Contenu des onglets */}
       {onglet === 'photos' && peutPhotos && <SponsorPhotos token={token} />}
       {onglet === 'pubs' && peutPubs && <SponsorPubs token={token} />}
+      {onglet === 'stats' && <SponsorStats token={token} />}
       {onglet === 'abonnement' && <SponsorAbonnement sponsorInfo={sponsorInfo} token={token} />}
     </div>
   );

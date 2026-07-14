@@ -37,6 +37,7 @@ const cronAbonnementsModule   = require('./routes/cron_abonnements_studio');
 const cronReservationsModule  = require('./routes/cron_reservations');
 const cronPaiementsModule     = require('./routes/cron_paiements_en_attente');
 const sponsorsPhotosRoutes = require('./routes/sponsorsphotos');
+const sponsorPubsRoutes = require('./routes/sponsor_pubs');
 
 const sponsorsRoutes = require('./routes/sponsors');
 
@@ -260,6 +261,7 @@ app.use('/api/branding-public', require('./routes/branding_public'));
 app.use('/api/blacklist-contact', require('./routes/blacklist_contact'));
 app.use('/api/sponsors/photos', sponsorsPhotosRoutes);
 app.use('/api/sponsors', sponsorsRoutes);
+app.use('/api/sponsors', sponsorPubsRoutes);
 
 // =====================================================================
 // 🎨 SITES STUDIO (config du site du vendeur)
