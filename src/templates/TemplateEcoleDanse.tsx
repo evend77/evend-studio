@@ -173,6 +173,20 @@ function ea<T>(val: any, def: T[]): T[] {
   return def;
 }
 
+// Fusionne les sections sauvegardées avec les défauts : garde l'ordre/actif/perso
+// existants et ajoute à la fin les sections du défaut qui n'existaient pas encore
+// (ex: un nouvel add-on ajouté après la création du site). Sans ça, un site déjà
+// configuré n'affiche jamais une section ajoutée après coup, même si l'add-on est activé.
+function mergerSections(saved: any, defaut: { id:string; actif:boolean; ordre:number; label:string }[]) {
+  if (!Array.isArray(saved) || saved.length === 0) return defaut;
+  const idsExistants = new Set(saved.map((s: any) => s.id));
+  const manquantes = defaut.filter(d => !idsExistants.has(d.id));
+  if (manquantes.length === 0) return saved;
+  const ordreMax = saved.reduce((max: number, s: any) => Math.max(max, s.ordre || 0), 0);
+  const nouvelles = manquantes.map((d, i) => ({ ...d, ordre: ordreMax + i + 1 }));
+  return [...saved, ...nouvelles];
+}
+
 // ─── STYLES CSS ───────────────────────────────────────────────────────────────
 
 const getStyle = (c: ConfigEcoleDanse) => `
@@ -1021,7 +1035,7 @@ export default function TemplateEcoleDanse({ config: partiel, isPreview, siteId,
   const vendeurId = config.vendeurId ?? 0;
 
   const VALID_IDS = ['hero','stats','styles','horaires','apropos','professeurs','evenements','avis','pass','sponsors','faq','contact'];
-  const rawSections = ea(partiel?.sections, CONFIG_DANSE_DEFAUT.sections);
+  const rawSections = mergerSections(partiel?.sections, CONFIG_DANSE_DEFAUT.sections);
   config.sections     = rawSections.every(s => VALID_IDS.includes(s.id)) ? rawSections : CONFIG_DANSE_DEFAUT.sections;
   config.stats        = ea(partiel?.stats,         CONFIG_DANSE_DEFAUT.stats);
   config.stylesDanse  = ea(partiel?.stylesDanse,   CONFIG_DANSE_DEFAUT.stylesDanse);

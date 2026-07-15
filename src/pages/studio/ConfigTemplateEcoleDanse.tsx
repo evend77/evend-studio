@@ -19,6 +19,22 @@ const Txt = ({ value, onChange, placeholder, rows=3 }: any) => (
 const F = ({ label, children }: any) => <div style={{ marginBottom:11 }}><label style={{ fontSize:11, fontWeight:600, color:'#555', display:'block', marginBottom:3 }}>{label}</label>{children}</div>;
 const S = ({ titre, children }: any) => <div style={{ marginBottom:18 }}><h3 style={{ fontSize:10, fontWeight:700, textTransform:'uppercase' as any, letterSpacing:'0.12em', color:'#aaa', marginBottom:9, paddingBottom:5, borderBottom:'1px solid #f0f0f0' }}>{titre}</h3>{children}</div>;
 function ea<T>(val: any, def: T[]): T[] { return Array.isArray(val) && val.length > 0 ? val : def; }
+
+// Fusionne les sections sauvegardées avec les défauts : garde tout ce qui existe déjà
+// (ordre, actif, personnalisations) et ajoute à la fin les nouvelles sections du défaut
+// qui n'existaient pas encore (ex: un nouvel add-on ajouté après la création du site).
+// Sans ça, ea() ignorerait complètement les nouvelles sections dès que le tableau
+// sauvegardé existe déjà (tout-ou-rien), donc un nouvel add-on n'apparaîtrait jamais
+// sur les sites déjà configurés.
+function mergerSections(saved: any, defaut: { id:string; actif:boolean; ordre:number; label:string }[]) {
+  if (!Array.isArray(saved) || saved.length === 0) return defaut;
+  const idsExistants = new Set(saved.map((s: any) => s.id));
+  const manquantes = defaut.filter(d => !idsExistants.has(d.id));
+  if (manquantes.length === 0) return saved;
+  const ordreMax = saved.reduce((max: number, s: any) => Math.max(max, s.ordre || 0), 0);
+  const nouvelles = manquantes.map((d, i) => ({ ...d, ordre: ordreMax + i + 1 }));
+  return [...saved, ...nouvelles];
+}
 const Del = ({ onClick }: any) => <button onClick={onClick} style={{ background:'#fef2f2', border:'none', borderRadius:4, padding:'2px 7px', fontSize:10, color:'#dc2626', cursor:'pointer' }}>✕</button>;
 
 function SectionsManager({ sections, onChange }: { sections:SectionConfig[]; onChange:(s:SectionConfig[])=>void }) {
@@ -93,7 +109,7 @@ export default function ConfigTemplateEcoleDanse({ vendeurId, onSauvegarde }: Pr
     } catch { setSauv('err'); setTimeout(()=>setSauv('idle'),3000); }
   };
 
-  const sections   = ea(config.sections,       CONFIG_DANSE_DEFAUT.sections);
+  const sections   = mergerSections(config.sections, CONFIG_DANSE_DEFAUT.sections);
   const stats      = ea(config.stats,           CONFIG_DANSE_DEFAUT.stats);
   const styles     = ea(config.stylesDanse,     CONFIG_DANSE_DEFAUT.stylesDanse);
   const profs      = ea(config.professeurs,     CONFIG_DANSE_DEFAUT.professeurs);

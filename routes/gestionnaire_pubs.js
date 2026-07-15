@@ -20,24 +20,63 @@ const verifierGestionnaire = (req, res, next) => {
 // ════════════════════════════════════════════════════════════════
 
 // GET — Liste des pubs actives (toutes catégories confondues) + statut de blocage pour ce gestionnaire
+// Supporte la recherche (par ID exact, titre, ou nom de sponsor) et la pagination
+// (50 par page par défaut) — pensé pour tenir avec des milliers de pubs.
 router.get('/pubs', authenticateToken, verifierGestionnaire, async (req, res) => {
   try {
     const gestionnaire_id = req.user.id;
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
+    const offset = (page - 1) * limit;
+    const search = (req.query.search || '').trim();
+
+    // Sans recherche : seulement les pubs actives (ce qui peut vraiment circuler).
+    // Avec recherche : on cherche partout (même une pub pausée/coupée depuis),
+    // pour qu'un gestionnaire puisse retrouver et bloquer une pub signalée
+    // même si elle n'est plus active au moment où il la cherche.
+    const conditionRecherche = `(sp.id::text = $COUNT_IDX OR sp.titre ILIKE '%' || $COUNT_IDX || '%' OR s.nom ILIKE '%' || $COUNT_IDX || '%')`;
+
+    // ── Total (pour la pagination) ──
+    const paramsCount = search ? [search] : [];
+    const whereCount = search
+      ? `s.active = true AND ${conditionRecherche.replaceAll('$COUNT_IDX', '$1')}`
+      : 's.active = true AND sp.actif = true';
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM sponsor_pubs sp JOIN sponsors s ON s.id = sp.sponsor_id WHERE ${whereCount}`,
+      paramsCount
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    // ── Page demandée ──
+    // gestionnaire_id est toujours $1 (utilisé dans les EXISTS ci-dessous)
+    const paramsListe = search ? [gestionnaire_id, search, limit, offset] : [gestionnaire_id, limit, offset];
+    const whereListe = search
+      ? `s.active = true AND ${conditionRecherche.replaceAll('$COUNT_IDX', '$2')}`
+      : 's.active = true AND sp.actif = true';
+    const limitIdx = search ? 3 : 2;
+    const offsetIdx = search ? 4 : 3;
 
     const result = await pool.query(
       `SELECT
-        sp.id, sp.titre, sp.description, sp.url_image, sp.type, sp.categories,
+        sp.id, sp.titre, sp.description, sp.url_image, sp.type, sp.categories, sp.actif, sp.statut,
         sp.sponsor_id, s.nom AS sponsor_nom,
         EXISTS(SELECT 1 FROM gestionnaire_pubs_bloquees b WHERE b.gestionnaire_id = $1 AND b.pub_id = sp.id) AS bloquee,
         EXISTS(SELECT 1 FROM gestionnaire_sponsors_bloques bs WHERE bs.gestionnaire_id = $1 AND bs.sponsor_id = sp.sponsor_id) AS sponsor_bloque
        FROM sponsor_pubs sp
        JOIN sponsors s ON s.id = sp.sponsor_id
-       WHERE sp.actif = true AND s.active = true
-       ORDER BY s.nom, sp.titre`,
-      [gestionnaire_id]
+       WHERE ${whereListe}
+       ORDER BY s.nom, sp.titre
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      paramsListe
     );
 
-    res.json({ pubs: result.rows });
+    res.json({
+      pubs: result.rows,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(Math.ceil(total / limit), 1),
+    });
   } catch (error) {
     console.error('❌ Erreur liste pubs gestionnaire:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des pubs' });

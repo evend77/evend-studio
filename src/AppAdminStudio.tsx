@@ -1,6 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { AppProvider } from '@shopify/polaris';
-import translations from '@shopify/polaris/locales/fr.json';
 import GestionPlans          from './pages/admin/GestionPlans';
 import CreerPlan             from './pages/admin/CreerPlan';
 import GestionCommandes      from './pages/admin/GestionCommandes';
@@ -31,6 +29,11 @@ import ModelesCourriel      from './pages/admin/ModelesCourriel';
 import ModelesDocument      from './pages/admin/ModelesDocument';
 import ListeVendeurs, { Vendeur } from './pages/admin/ListeVendeurs';
 import ListeGestionnaires, { Gestionnaire } from './pages/admin/ListeGestionnaires';
+import ListeSponsors, { Sponsor } from './pages/admin/ListeSponsors';
+import AdminForfaitsPhoto from './pages/admin/AdminForfaitsPhoto';
+import AdminForfaitsPub from './pages/admin/AdminForfaitsPub';
+import AdminPhotosSponsors from './pages/admin/AdminPhotosSponsors';
+import AdminPubsSponsors from './pages/admin/AdminPubsSponsors';
 import ListeProduits         from './pages/admin/ListeProduits';
 import GestionTagsEtTypes    from './pages/admin/GestionTagsEtTypes';
 import GestionBadges         from './pages/admin/GestionBadges';
@@ -120,6 +123,17 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'vendeurs-liste',        label: 'Liste des vendeurs',      icon: '📋', badge: 0 },
       { id: 'vendeurs-approbations', label: 'Approbations en attente', icon: '⏳', badge: 1 },
       { id: 'vendeurs-suspendus',    label: 'Comptes suspendus',       icon: '🚫' },
+    ],
+  },
+  {
+    id: 'sponsors', label: 'Sponsors', icon: '⭐',
+    sousSections: [
+      { id: 'sponsors-liste',       label: 'Liste sponsors',   icon: '📋' },
+      { id: 'sponsors-photos',      label: 'Photos sponsors',  icon: '🖼️' },
+      { id: 'sponsors-pubs',        label: 'Pub sponsor',      icon: '📢' },
+      { id: 'sponsors-monetisation', label: 'Monétisation',    icon: '💰' },
+      { id: 'sponsors-forfait-photo', label: 'Forfait photo',  icon: '📸' },
+      { id: 'sponsors-forfait-pub',  label: 'Forfait pub',     icon: '📣' },
     ],
   },
   {
@@ -461,6 +475,8 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
   const [gestionnaireImpersonne, setGestionnaireImpersonne] = useState<Gestionnaire | null>(null);
   const [gestionnaireAImpersonner, setGestionnaireAImpersonner] = useState<{ gestionnaire: Gestionnaire; token: string } | null>(null);
   const [modalImpersonateGestionnaireOuvert, setModalImpersonateGestionnaireOuvert] = useState(false);
+  const [sponsorAImpersonner, setSponsorAImpersonner] = useState<{ sponsor: Sponsor; token: string } | null>(null);
+  const [modalImpersonateSponsorOuvert, setModalImpersonateSponsorOuvert] = useState(false);
   const [planAEditer, setPlanAEditer] = useState<any>(null);
   const [pageData, setPageData] = useState<any>(null);
   
@@ -580,6 +596,23 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
                  onImpersonate={(gestionnaire, token) => { setGestionnaireAImpersonner({ gestionnaire, token }); setModalImpersonateGestionnaireOuvert(true); }}
                  onNaviguerVers={naviguerVers}
                />;
+
+      case 'sponsors':
+      case 'sponsors-liste':
+        return <ListeSponsors
+                 onImpersonate={(sponsor, token) => { setSponsorAImpersonner({ sponsor, token }); setModalImpersonateSponsorOuvert(true); }}
+                 onNaviguerVers={naviguerVers}
+               />;
+      case 'sponsors-photos':
+        return <AdminPhotosSponsors />;
+      case 'sponsors-pubs':
+        return <AdminPubsSponsors />;
+      case 'sponsors-monetisation':
+        return <div style={{ padding: 40, textAlign: 'center', color: THEME.textLight }}>💰 Monétisation — à construire (prochaine étape)</div>;
+      case 'sponsors-forfait-photo':
+        return <AdminForfaitsPhoto />;
+      case 'sponsors-forfait-pub':
+        return <AdminForfaitsPub />;
 
       case 'vendeurs':
       case 'vendeurs-liste':
@@ -981,7 +1014,7 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
   );
 
   return (
-    <AppProvider i18n={translations}>
+    <>
       <div style={{ fontFamily: 'inherit', backgroundColor: THEME.bg, minHeight: '100vh' }}>
         {sidebar}
         {topbar}
@@ -1067,8 +1100,38 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
             </div>
           </div>
         )}
+
+        {modalImpersonateSponsorOuvert && sponsorAImpersonner && (
+          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ backgroundColor: 'white', borderRadius: '14px', width: '100%', maxWidth: '420px', boxShadow: '0 12px 48px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+              <div style={{ padding: '20px 24px', backgroundColor: '#fef3c7', borderBottom: '2px solid #f59e0b' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '0 0 2px 0', color: '#92400e', textTransform: 'uppercase' }}>⭐ Accéder en tant que sponsor</h3>
+                <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Vous allez accéder au dashboard de ce sponsor</p>
+              </div>
+              <div style={{ padding: '24px' }}>
+                <div style={{ backgroundColor: '#f8fafc', borderRadius: '10px', padding: '16px', marginBottom: '16px', border: `1px solid ${THEME.border}` }}>
+                  <p style={{ fontSize: '15px', fontWeight: '800', color: THEME.text, margin: '0 0 4px 0' }}>{sponsorAImpersonner.sponsor.nom}</p>
+                  <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>{sponsorAImpersonner.sponsor.email}</p>
+                </div>
+                <div style={{ backgroundColor: '#fef3c7', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', border: '1px solid #f59e0b' }}>
+                  <p style={{ fontSize: '12px', color: '#92400e', fontWeight: '600', margin: 0 }}>⚠️ Toutes vos actions seront enregistrées dans les journaux d'audit.</p>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button onClick={() => setModalImpersonateSponsorOuvert(false)} style={{ backgroundColor: 'white', color: '#666', border: '1px solid #ddd', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Annuler</button>
+                  <button onClick={() => {
+                    localStorage.setItem('sponsorToken', sponsorAImpersonner.token);
+                    setModalImpersonateSponsorOuvert(false);
+                    window.location.href = '/sponsor-dashboard';
+                  }} style={{ backgroundColor: THEME.accent, color: 'white', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
+                    👤 Accéder au dashboard
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
-    </AppProvider>
+    </>
   );
 }
 

@@ -5,7 +5,8 @@ const pool = require('../db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { authenticateToken } = require('../middleware/auth');
-const { PLANS_PHOTOS, PLAN_PHOTOS_DEFAUT } = require('../config/plansPhotos');
+const { getTousLesPlansPhotos, versDictionnaire: versDictPhotos, PLAN_PHOTOS_DEFAUT } = require('../config/plansPhotos');
+const { getTousLesPlansPub, versDictionnaire: versDictPub, PLAN_PUB_DEFAUT } = require('../config/plansPub');
 
 // ── MIDDLEWARE ──────────────────────────────────────────────────
 const verifierAdmin = (req, res, next) => {
@@ -151,7 +152,7 @@ router.post('/login', async (req, res) => {
 router.get('/moi', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT id, nom, email, site_web, description, logo, forfait, type_sponsor, active, created_at, updated_at
+      `SELECT id, nom, email, site_web, description, logo, forfait, forfait_pub, type_sponsor, active, created_at, updated_at
        FROM sponsors WHERE id = $1`,
       [req.user.id]
     );
@@ -161,11 +162,20 @@ router.get('/moi', authenticateToken, async (req, res) => {
     }
 
     const sponsor = result.rows[0];
+    const plansPhotos = versDictPhotos(await getTousLesPlansPhotos());
     const forfaitId = sponsor.forfait || PLAN_PHOTOS_DEFAUT;
-    const plan = PLANS_PHOTOS[forfaitId] || PLANS_PHOTOS[PLAN_PHOTOS_DEFAUT];
+    const plan = plansPhotos[forfaitId] || plansPhotos[PLAN_PHOTOS_DEFAUT];
 
     const compteResult = await pool.query(
       'SELECT COUNT(*) as count FROM sponsor_photos WHERE sponsor_id = $1 AND active = true',
+      [req.user.id]
+    );
+
+    const plansPub = versDictPub(await getTousLesPlansPub());
+    const forfaitPubId = sponsor.forfait_pub || PLAN_PUB_DEFAUT;
+    const planPub = plansPub[forfaitPubId] || plansPub[PLAN_PUB_DEFAUT];
+    const comptePubsResult = await pool.query(
+      `SELECT COUNT(*) as count FROM sponsor_pubs WHERE sponsor_id = $1 AND statut = 'active'`,
       [req.user.id]
     );
 
@@ -175,6 +185,10 @@ router.get('/moi', authenticateToken, async (req, res) => {
       photos_limite: plan.maxPhotos, // null = illimité
       photos_plan_label: plan.label,
       photos_plan_prix: plan.prix,
+      pubs_utilisees: parseInt(comptePubsResult.rows[0].count),
+      pubs_limite: planPub.maxPubsActives, // null = illimité
+      pubs_plan_label: planPub.label,
+      pubs_plan_prix: planPub.prix,
     });
   } catch (error) {
     console.error('❌ Erreur profil sponsor:', error);
@@ -184,20 +198,65 @@ router.get('/moi', authenticateToken, async (req, res) => {
 
 // GET — Liste des paliers photos disponibles (pour affichage dans le dashboard)
 router.get('/plans-photos', authenticateToken, async (req, res) => {
-  res.json({
-    plans: Object.entries(PLANS_PHOTOS).map(([id, p]) => ({ id, ...p })),
-  });
+  const tous = await getTousLesPlansPhotos();
+  res.json({ plans: tous.filter(p => p.actif).map(p => ({ id: p.key, ...p })) });
+});
+
+// GET — Liste des paliers pub disponibles (pour affichage dans le dashboard)
+router.get('/plans-pub', authenticateToken, async (req, res) => {
+  const tous = await getTousLesPlansPub();
+  res.json({ plans: tous.filter(p => p.actif).map(p => ({ id: p.key, ...p })) });
+});
+
+// PUT — Changer de forfait pub
+router.put('/forfait-pub', authenticateToken, async (req, res) => {
+  try {
+    const { forfait } = req.body;
+    const plansPub = versDictPub(await getTousLesPlansPub());
+    if (!plansPub[forfait]) {
+      return res.status(400).json({ error: 'Forfait invalide' });
+    }
+
+    const nouveauPlan = plansPub[forfait];
+
+    if (nouveauPlan.maxPubsActives !== null) {
+      const compteResult = await pool.query(
+        `SELECT COUNT(*) as count FROM sponsor_pubs WHERE sponsor_id = $1 AND statut = 'active'`,
+        [req.user.id]
+      );
+      const pubsActives = parseInt(compteResult.rows[0].count);
+
+      if (pubsActives > nouveauPlan.maxPubsActives) {
+        return res.status(409).json({
+          error: `Vous avez ${pubsActives} pubs actives, mais le forfait "${nouveauPlan.label}" est limité à ${nouveauPlan.maxPubsActives}. Mettez ${pubsActives - nouveauPlan.maxPubsActives} pub(s) en pause avant de rétrograder.`,
+          pubs_actives: pubsActives,
+          limite_demandee: nouveauPlan.maxPubsActives,
+        });
+      }
+    }
+
+    await pool.query(
+      'UPDATE sponsors SET forfait_pub = $1, updated_at = NOW() WHERE id = $2',
+      [forfait, req.user.id]
+    );
+
+    res.json({ success: true, message: `Forfait pub mis à jour : ${nouveauPlan.label}`, forfait });
+  } catch (error) {
+    console.error('❌ Erreur changement forfait pub:', error);
+    res.status(500).json({ error: 'Erreur lors du changement de forfait pub' });
+  }
 });
 
 // PUT — Changer de forfait photos
 router.put('/forfait-photos', authenticateToken, async (req, res) => {
   try {
     const { forfait } = req.body;
-    if (!PLANS_PHOTOS[forfait]) {
+    const plansPhotos = versDictPhotos(await getTousLesPlansPhotos());
+    if (!plansPhotos[forfait]) {
       return res.status(400).json({ error: 'Forfait invalide' });
     }
 
-    const nouveauPlan = PLANS_PHOTOS[forfait];
+    const nouveauPlan = plansPhotos[forfait];
 
     if (nouveauPlan.maxPhotos !== null) {
       const compteResult = await pool.query(
@@ -350,9 +409,11 @@ router.get('/admin/liste', authenticateToken, verifierAdmin, async (req, res) =>
   try {
     const result = await pool.query(
       `SELECT 
-        id, nom, email, site_web, description, forfait, type_sponsor, active, 
+        id, nom, email, site_web, description, forfait, forfait_pub, type_sponsor, active, 
         created_at, updated_at,
-        (SELECT COUNT(*) FROM sponsor_photos WHERE sponsor_id = sponsors.id AND active = true) as photos_actives
+        (SELECT COUNT(*) FROM sponsor_photos WHERE sponsor_id = sponsors.id AND active = true) as photos_actives,
+        (SELECT COUNT(*) FROM sponsor_pubs WHERE sponsor_id = sponsors.id AND statut = 'active') as pubs_actives,
+        (SELECT COUNT(*) FROM notes_sponsors WHERE sponsor_id = sponsors.id) as nb_notes
        FROM sponsors
        ORDER BY created_at DESC`
     );
@@ -420,6 +481,116 @@ router.delete('/admin/:id', authenticateToken, verifierAdmin, async (req, res) =
   } catch (error) {
     console.error('❌ Erreur suppression sponsor:', error);
     res.status(500).json({ error: 'Erreur lors de la suppression du sponsor' });
+  }
+});
+
+// POST — Impersonation (l'admin accède au dashboard du sponsor)
+router.post('/admin/:id/impersonate', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT id, email FROM sponsors WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Sponsor non trouvé' });
+    }
+    const sponsor = result.rows[0];
+    const token = jwt.sign(
+      { id: sponsor.id, email: sponsor.email, role: 'commanditaire' },
+      process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
+      { expiresIn: '2h' }
+    );
+    res.json({ token });
+  } catch (error) {
+    console.error('❌ Erreur impersonation sponsor:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'accès au dashboard du sponsor' });
+  }
+});
+
+// GET — Notes internes d'un sponsor
+router.get('/admin/:id/notes', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT id, contenu, auteur, date_creation FROM notes_sponsors WHERE sponsor_id = $1 ORDER BY date_creation DESC',
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    console.error('❌ Erreur chargement notes sponsor:', error);
+    res.status(500).json({ error: 'Erreur lors du chargement des notes' });
+  }
+});
+
+// POST — Ajouter une note interne
+router.post('/admin/:id/notes', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { contenu } = req.body;
+    if (!contenu || !contenu.trim()) {
+      return res.status(400).json({ error: 'Le contenu de la note est requis' });
+    }
+    const result = await pool.query(
+      `INSERT INTO notes_sponsors (sponsor_id, contenu, auteur, date_creation)
+       VALUES ($1, $2, $3, NOW()) RETURNING id, contenu, auteur, date_creation`,
+      [id, contenu.trim(), req.user.email || 'Admin']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('❌ Erreur ajout note sponsor:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'ajout de la note' });
+  }
+});
+
+// DELETE — Supprimer une note interne
+router.delete('/admin/notes/:noteId', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM notes_sponsors WHERE id = $1', [req.params.noteId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erreur suppression note sponsor:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression de la note' });
+  }
+});
+
+// PUT — Changer le mot de passe d'un sponsor (admin)
+router.put('/admin/:id/mot-de-passe', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nouveau_mot_de_passe } = req.body;
+    if (!nouveau_mot_de_passe || nouveau_mot_de_passe.length < 8) {
+      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+    }
+    const hashedPassword = await bcrypt.hash(nouveau_mot_de_passe, 12);
+    const result = await pool.query(
+      'UPDATE sponsors SET mot_de_passe = $1, updated_at = NOW() WHERE id = $2 RETURNING id',
+      [hashedPassword, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Sponsor non trouvé' });
+    }
+    res.json({ success: true, message: 'Mot de passe modifié' });
+  } catch (error) {
+    console.error('❌ Erreur changement mot de passe sponsor (admin):', error);
+    res.status(500).json({ error: 'Erreur lors du changement de mot de passe' });
+  }
+});
+
+// PUT — Changer le statut (actif/suspendu) — raccourci pratique en plus de PUT /admin/:id générique
+router.put('/admin/:id/statut', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { statut } = req.body; // 'actif' | 'suspendu'
+    const active = statut === 'actif';
+    const result = await pool.query(
+      'UPDATE sponsors SET active = $1, updated_at = NOW() WHERE id = $2 RETURNING id',
+      [active, id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Sponsor non trouvé' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erreur changement statut sponsor:', error);
+    res.status(500).json({ error: 'Erreur lors du changement de statut' });
   }
 });
 

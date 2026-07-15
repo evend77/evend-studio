@@ -1,5 +1,5 @@
 // src/pages/gestionnaire/MesSponsorsGestionnaire.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 interface PubGestionnaire {
   id: number;
@@ -29,11 +29,19 @@ interface MesSponsorsGestionnaireProps {
 }
 
 const API_BASE = '/api/gestionnaires/addon-pub-sponsor';
+const PAR_PAGE = 50;
 
 function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProps) {
   const [onglet, setOnglet] = useState<'pubs' | 'monetisation'>('pubs');
   const [pubs, setPubs] = useState<PubGestionnaire[]>([]);
   const [loadingPubs, setLoadingPubs] = useState(true);
+  const [recherche, setRecherche] = useState('');
+  const [rechercheInput, setRechercheInput] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const [monetisation, setMonetisation] = useState<{
     taux_partage_pub: number; total_revenu_brut: number; total_revenu_gestionnaire: number; detail: MonetisationDetail[];
   } | null>(null);
@@ -42,18 +50,34 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
 
   const token = () => localStorage.getItem('token') || '';
 
-  const fetchPubs = async () => {
+  const fetchPubs = async (pageDemandee: number, rechercheDemandee: string) => {
     setLoadingPubs(true);
     try {
-      const res = await fetch(`${API_BASE}/pubs`, { headers: { Authorization: `Bearer ${token()}` } });
+      const params = new URLSearchParams({ page: String(pageDemandee), limit: String(PAR_PAGE) });
+      if (rechercheDemandee) params.set('search', rechercheDemandee);
+      const res = await fetch(`${API_BASE}/pubs?${params.toString()}`, { headers: { Authorization: `Bearer ${token()}` } });
       const data = await res.json();
       setPubs(data.pubs || []);
+      setTotalPages(data.totalPages || 1);
+      setTotal(data.total || 0);
     } catch (e) {
       console.error('Erreur chargement pubs:', e);
     } finally {
       setLoadingPubs(false);
     }
   };
+
+  // Recherche avec un petit délai (évite un appel API à chaque frappe)
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setPage(1);
+      setRecherche(rechercheInput.trim());
+    }, 350);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [rechercheInput]);
+
+  useEffect(() => { fetchPubs(page, recherche); }, [page, recherche]);
 
   const fetchMonetisation = async () => {
     setLoadingMonetisation(true);
@@ -68,7 +92,6 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
     }
   };
 
-  useEffect(() => { fetchPubs(); }, []);
   useEffect(() => { fetchMonetisation(); }, [periode]);
 
   const bloquerPub = async (pubId: number, bloquer: boolean) => {
@@ -81,7 +104,7 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
       });
     } catch (e) {
       console.error('Erreur blocage pub:', e);
-      fetchPubs();
+      fetchPubs(page, recherche);
     }
   };
 
@@ -95,14 +118,14 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
       });
     } catch (e) {
       console.error('Erreur blocage sponsor:', e);
-      fetchPubs();
+      fetchPubs(page, recherche);
     }
   };
 
   const formatCurrency = (num: number) =>
     new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', minimumFractionDigits: 2 }).format(num || 0);
 
-  // Regrouper par sponsor pour l'affichage
+  // Regrouper par sponsor pour l'affichage (juste la page courante)
   const sponsorsMap = new Map<number, { nom: string; pubs: PubGestionnaire[]; bloque: boolean }>();
   pubs.forEach(p => {
     if (!sponsorsMap.has(p.sponsor_id)) sponsorsMap.set(p.sponsor_id, { nom: p.sponsor_nom, pubs: [], bloque: p.sponsor_bloque });
@@ -110,7 +133,7 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
   });
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 8px', fontFamily: 'sans-serif' }}>
+    <div className="msg-container" style={{ maxWidth: 1100, margin: '0 auto', padding: '24px 8px', fontFamily: 'sans-serif' }}>
       <h1 style={{ fontSize: 24, fontWeight: 700, margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 10 }}>
         <span>⭐</span> Mes sponsors
       </h1>
@@ -119,7 +142,7 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
       </p>
 
       {/* Onglets */}
-      <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid #e5e7eb', marginBottom: 24 }}>
+      <div className="msg-tabs" style={{ display: 'flex', gap: 4, borderBottom: '2px solid #e5e7eb', marginBottom: 24, flexWrap: 'wrap' }}>
         <button
           onClick={() => setOnglet('pubs')}
           style={{
@@ -146,74 +169,136 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
 
       {/* ── ONGLET PUBS ─────────────────────────────────────────────── */}
       {onglet === 'pubs' && (
-        loadingPubs ? (
-          <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>⏳ Chargement...</div>
-        ) : sponsorsMap.size === 0 ? (
-          <div style={{ padding: '60px 0', textAlign: 'center', color: '#999' }}>
-            <p style={{ fontSize: 48, marginBottom: 16 }}>📭</p>
-            <p style={{ fontSize: 16, fontWeight: 600, color: '#666' }}>Aucune publicité active pour le moment</p>
-            <p style={{ fontSize: 13 }}>Les publicités commanditaires apparaîtront ici dès qu'elles seront disponibles.</p>
+        <>
+          {/* Recherche */}
+          <div className="msg-recherche" style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
+            <input
+              type="text"
+              value={rechercheInput}
+              onChange={(e) => setRechercheInput(e.target.value)}
+              placeholder="🔍 Chercher par ID, titre ou nom de sponsor..."
+              style={{
+                flex: '1 1 280px', padding: '10px 14px', border: '1.5px solid #e5e7eb', borderRadius: 10,
+                fontSize: 13, outline: 'none',
+              }}
+            />
+            {total > 0 && (
+              <span style={{ fontSize: 12, color: '#999', whiteSpace: 'nowrap' }}>
+                {total} résultat{total > 1 ? 's' : ''}
+              </span>
+            )}
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-            {Array.from(sponsorsMap.entries()).map(([sponsorId, s]) => (
-              <div key={sponsorId} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '14px 18px', background: s.bloque ? '#fef2f2' : '#f9fafb', borderBottom: '1px solid #e5e7eb',
-                }}>
-                  <div>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{s.nom}</p>
-                    <p style={{ margin: '2px 0 0', fontSize: 12, color: '#999' }}>{s.pubs.length} publicité{s.pubs.length > 1 ? 's' : ''}</p>
+
+          {loadingPubs ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>⏳ Chargement...</div>
+          ) : sponsorsMap.size === 0 ? (
+            <div style={{ padding: '60px 0', textAlign: 'center', color: '#999' }}>
+              <p style={{ fontSize: 48, marginBottom: 16 }}>{recherche ? '🔍' : '📭'}</p>
+              <p style={{ fontSize: 16, fontWeight: 600, color: '#666' }}>
+                {recherche ? 'Aucun résultat pour cette recherche' : 'Aucune publicité active pour le moment'}
+              </p>
+              {!recherche && (
+                <p style={{ fontSize: 13 }}>Les publicités commanditaires apparaîtront ici dès qu'elles seront disponibles.</p>
+              )}
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                {Array.from(sponsorsMap.entries()).map(([sponsorId, s]) => (
+                  <div key={sponsorId} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
+                    <div className="msg-sponsor-header" style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      padding: '14px 18px', background: s.bloque ? '#fef2f2' : '#f9fafb', borderBottom: '1px solid #e5e7eb',
+                      flexWrap: 'wrap', gap: 10,
+                    }}>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 700, fontSize: 14 }}>{s.nom}</p>
+                        <p style={{ margin: '2px 0 0', fontSize: 12, color: '#999' }}>{s.pubs.length} publicité{s.pubs.length > 1 ? 's' : ''}</p>
+                      </div>
+                      <button
+                        onClick={() => bloquerSponsor(sponsorId, !s.bloque)}
+                        style={{
+                          padding: '7px 16px', borderRadius: 20, border: `1.5px solid ${s.bloque ? '#16a34a' : '#dc2626'}`,
+                          background: s.bloque ? '#16a34a' : '#fff', color: s.bloque ? '#fff' : '#dc2626',
+                          fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        }}
+                      >
+                        {s.bloque ? '✓ Débloquer ce sponsor' : '🚫 Bloquer ce sponsor'}
+                      </button>
+                    </div>
+                    <div className="msg-pubs-grid" style={{ padding: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+                      {s.pubs.map(p => (
+                        <div key={p.id} style={{
+                          border: `1.5px solid ${p.bloquee ? '#fca5a5' : '#e5e7eb'}`, borderRadius: 8, overflow: 'hidden',
+                          opacity: s.bloque ? 0.5 : 1,
+                        }}>
+                          <img src={p.url_image} alt={p.titre} style={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }} />
+                          <div style={{ padding: 10 }}>
+                            <p style={{ margin: '0 0 2px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {p.titre}
+                            </p>
+                            <p style={{ margin: '0 0 8px', fontSize: 9, color: '#aaa', fontFamily: 'monospace' }}>
+                              ID #{p.id}
+                            </p>
+                            <button
+                              disabled={s.bloque}
+                              onClick={() => bloquerPub(p.id, !p.bloquee)}
+                              style={{
+                                width: '100%', padding: '6px 0', borderRadius: 6, border: 'none',
+                                background: p.bloquee ? '#16a34a' : '#fef2f2',
+                                color: p.bloquee ? '#fff' : '#dc2626',
+                                fontSize: 11, fontWeight: 700, cursor: s.bloque ? 'default' : 'pointer',
+                              }}
+                            >
+                              {p.bloquee ? '✓ Débloquée' : '🚫 Bloquer'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="msg-pagination" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 24, flexWrap: 'wrap' }}>
                   <button
-                    onClick={() => bloquerSponsor(sponsorId, !s.bloque)}
+                    onClick={() => setPage(p => Math.max(p - 1, 1))}
+                    disabled={page <= 1}
                     style={{
-                      padding: '7px 16px', borderRadius: 20, border: `1.5px solid ${s.bloque ? '#16a34a' : '#dc2626'}`,
-                      background: s.bloque ? '#16a34a' : '#fff', color: s.bloque ? '#fff' : '#dc2626',
-                      fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      padding: '8px 16px', borderRadius: 8, border: '1px solid #e5e7eb',
+                      background: page <= 1 ? '#f3f4f6' : '#fff', color: page <= 1 ? '#ccc' : '#333',
+                      fontSize: 13, fontWeight: 600, cursor: page <= 1 ? 'default' : 'pointer',
                     }}
                   >
-                    {s.bloque ? '✓ Débloquer ce sponsor' : '🚫 Bloquer ce sponsor'}
+                    ← Précédent
+                  </button>
+                  <span style={{ fontSize: 13, color: '#666' }}>
+                    Page <strong>{page}</strong> / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setPage(p => Math.min(p + 1, totalPages))}
+                    disabled={page >= totalPages}
+                    style={{
+                      padding: '8px 16px', borderRadius: 8, border: '1px solid #e5e7eb',
+                      background: page >= totalPages ? '#f3f4f6' : '#fff', color: page >= totalPages ? '#ccc' : '#333',
+                      fontSize: 13, fontWeight: 600, cursor: page >= totalPages ? 'default' : 'pointer',
+                    }}
+                  >
+                    Suivant →
                   </button>
                 </div>
-                <div style={{ padding: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
-                  {s.pubs.map(p => (
-                    <div key={p.id} style={{
-                      border: `1.5px solid ${p.bloquee ? '#fca5a5' : '#e5e7eb'}`, borderRadius: 8, overflow: 'hidden',
-                      opacity: s.bloque ? 0.5 : 1,
-                    }}>
-                      <img src={p.url_image} alt={p.titre} style={{ width: '100%', height: 100, objectFit: 'cover', display: 'block' }} />
-                      <div style={{ padding: 10 }}>
-                        <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {p.titre}
-                        </p>
-                        <button
-                          disabled={s.bloque}
-                          onClick={() => bloquerPub(p.id, !p.bloquee)}
-                          style={{
-                            width: '100%', padding: '6px 0', borderRadius: 6, border: 'none',
-                            background: p.bloquee ? '#16a34a' : '#fef2f2',
-                            color: p.bloquee ? '#fff' : '#dc2626',
-                            fontSize: 11, fontWeight: 700, cursor: s.bloque ? 'default' : 'pointer',
-                          }}
-                        >
-                          {p.bloquee ? '✓ Débloquée' : '🚫 Bloquer'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        )
+              )}
+            </>
+          )}
+        </>
       )}
 
       {/* ── ONGLET MONÉTISATION ─────────────────────────────────────── */}
       {onglet === 'monetisation' && (
         <div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
             {(['7', '30', '90'] as const).map(p => (
               <button
                 key={p}
@@ -294,6 +379,18 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
           )}
         </div>
       )}
+
+      <style>{`
+        @media (max-width: 640px) {
+          .msg-container { padding: 16px 10px !important; }
+          .msg-tabs button { padding: 10px 12px !important; font-size: 12.5px !important; flex: 1 1 auto; }
+          .msg-recherche input { flex: 1 1 100% !important; }
+          .msg-sponsor-header { padding: 12px 14px !important; }
+          .msg-pubs-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important; }
+          .msg-pagination { gap: 8px !important; }
+          .msg-pagination button { padding: 8px 12px !important; font-size: 12px !important; }
+        }
+      `}</style>
     </div>
   );
 }

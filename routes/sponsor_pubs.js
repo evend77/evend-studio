@@ -3,13 +3,14 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authenticateToken } = require('../middleware/auth');
+const { getTousLesPlansPub, versDictionnaire: versDictPub, PLAN_PUB_DEFAUT } = require('../config/plansPub');
 
 // ── UPLOAD D'IMAGES DE PUB — séparé du système Photos (sponsor_photos) ────
 // Les images de pub ne doivent JAMAIS créer d'entrée dans sponsor_photos
 // (cette table est la banque de photos gratuite pour les gestionnaires).
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
-const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -36,6 +37,18 @@ async function uploadPubToS3(file, sponsor_id) {
     Bucket: BUCKET_NAME, Key: key, Body: file.buffer, ContentType: file.mimetype,
   }));
   return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+}
+
+async function deletePubImageFromS3(url) {
+  if (!url) return;
+  const base = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/`;
+  if (!url.startsWith(base)) return; // image pas sur notre bucket (ex: ancienne URL), on ignore
+  const key = url.replace(base, '');
+  try {
+    await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
+  } catch (e) {
+    console.error('⚠️ Erreur suppression image pub sur S3 (ignorée):', e.message);
+  }
 }
 
 // POST — Upload d'une image/vidéo de PUB (ne touche PAS à sponsor_photos)
@@ -112,6 +125,28 @@ router.post('/pubs', authenticateToken, async (req, res) => {
     }
     if (sponsorCheck.rows[0].type_sponsor === 'photos') {
       return res.status(403).json({ error: 'Votre compte n\'est pas autorisé à créer des publicités' });
+    }
+
+    // Vérifier le quota de pubs actives du forfait pub
+    const sponsorForfaitResult = await pool.query(
+      'SELECT forfait_pub FROM sponsors WHERE id = $1',
+      [sponsor_id]
+    );
+    const forfaitPubId = sponsorForfaitResult.rows[0]?.forfait_pub || PLAN_PUB_DEFAUT;
+    const plansPubCreation = versDictPub(await getTousLesPlansPub());
+    const planPub = plansPubCreation[forfaitPubId] || plansPubCreation[PLAN_PUB_DEFAUT];
+
+    if (planPub.maxPubsActives !== null) {
+      const comptePubsActives = await pool.query(
+        `SELECT COUNT(*) as count FROM sponsor_pubs WHERE sponsor_id = $1 AND statut = 'active'`,
+        [sponsor_id]
+      );
+      const pubsActives = parseInt(comptePubsActives.rows[0].count);
+      if (pubsActives >= planPub.maxPubsActives) {
+        return res.status(403).json({
+          error: `Vous avez atteint votre quota de ${planPub.maxPubsActives} pubs actives pour le forfait "${planPub.label}". Mettez une pub en pause ou passez à un forfait supérieur.`
+        });
+      }
     }
 
     // Sauvegarder les données spécifiques au format
@@ -244,6 +279,29 @@ router.put('/pubs/:id/toggle', authenticateToken, async (req, res) => {
     );
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Publicité non trouvée' });
+    }
+
+    if (actif) {
+      const sponsorForfaitResult = await pool.query(
+        'SELECT forfait_pub FROM sponsors WHERE id = $1',
+        [sponsor_id]
+      );
+      const forfaitPubId = sponsorForfaitResult.rows[0]?.forfait_pub || PLAN_PUB_DEFAUT;
+      const plansPubToggle = versDictPub(await getTousLesPlansPub());
+      const planPub = plansPubToggle[forfaitPubId] || plansPubToggle[PLAN_PUB_DEFAUT];
+
+      if (planPub.maxPubsActives !== null) {
+        const comptePubsActives = await pool.query(
+          `SELECT COUNT(*) as count FROM sponsor_pubs WHERE sponsor_id = $1 AND statut = 'active' AND id != $2`,
+          [sponsor_id, id]
+        );
+        const pubsActives = parseInt(comptePubsActives.rows[0].count);
+        if (pubsActives >= planPub.maxPubsActives) {
+          return res.status(403).json({
+            error: `Vous avez atteint votre quota de ${planPub.maxPubsActives} pubs actives pour le forfait "${planPub.label}". Mettez une autre pub en pause ou passez à un forfait supérieur.`
+          });
+        }
+      }
     }
 
     await pool.query(
@@ -522,25 +580,77 @@ router.post('/pub/:id/click', async (req, res) => {
 // 🔧 ADMIN ROUTES
 // ════════════════════════════════════════════════════════════════
 
-// GET — Toutes les pubs (admin)
+// GET — Toutes les pubs (admin), tous sponsors confondus
+// Recherche (ID, titre, nom de sponsor) + pagination (50/page) — pensé pour des milliers de pubs.
 router.get('/admin/all', authenticateToken, verifierAdmin, async (req, res) => {
   try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
+    const offset = (page - 1) * limit;
+    const search = (req.query.search || '').trim();
+
+    const paramsCount = search ? [search] : [];
+    const whereCount = search
+      ? `(sp.id::text = $1 OR sp.titre ILIKE '%' || $1 || '%' OR s.nom ILIKE '%' || $1 || '%')`
+      : '1=1';
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM sponsor_pubs sp JOIN sponsors s ON s.id = sp.sponsor_id WHERE ${whereCount}`,
+      paramsCount
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    const paramsListe = search ? [search, limit, offset] : [limit, offset];
+    const whereListe = search
+      ? `(sp.id::text = $1 OR sp.titre ILIKE '%' || $1 || '%' OR s.nom ILIKE '%' || $1 || '%')`
+      : '1=1';
+    const limitIdx = search ? 2 : 1;
+    const offsetIdx = search ? 3 : 2;
+
     const result = await pool.query(
-      `SELECT 
-        sp.*,
-        s.nom AS sponsor_nom
+      `SELECT
+        sp.id, sp.titre, sp.description, sp.url_image, sp.type, sp.actif, sp.statut,
+        sp.impressions, sp.clics, sp.prix_par_click,
+        sp.budget_type, sp.budget_montant, sp.budget_depense,
+        sp.sponsor_id, s.nom AS sponsor_nom, sp.created_at
        FROM sponsor_pubs sp
        JOIN sponsors s ON s.id = sp.sponsor_id
-       ORDER BY sp.created_at DESC`
+       WHERE ${whereListe}
+       ORDER BY sp.created_at DESC
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      paramsListe
     );
-    res.json({ pubs: result.rows });
+
+    res.json({
+      pubs: result.rows,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(Math.ceil(total / limit), 1),
+    });
   } catch (error) {
     console.error('❌ Erreur récupération pubs admin:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des pubs' });
   }
 });
 
-// PUT — Modifier une pub (admin)
+// PUT — Mettre en pause / réactiver une pub (admin) — cohérent avec le champ statut
+router.put('/admin/:id/pause', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { actif } = req.body;
+    const result = await pool.query(
+      `UPDATE sponsor_pubs SET actif = $1, statut = $2, updated_at = NOW() WHERE id = $3 RETURNING *`,
+      [actif, actif ? 'active' : 'pause', id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Publicité non trouvée' });
+    res.json({ success: true, message: actif ? 'Publicité réactivée' : 'Publicité mise en pause', pub: result.rows[0] });
+  } catch (error) {
+    console.error('❌ Erreur pause/reprise pub admin:', error);
+    res.status(500).json({ error: 'Erreur lors du changement de statut' });
+  }
+});
+
+// PUT — Modifier une pub (admin) — édition générale (prix par clic, etc.)
 router.put('/admin/:id', authenticateToken, verifierAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -549,6 +659,7 @@ router.put('/admin/:id', authenticateToken, verifierAdmin, async (req, res) => {
     const result = await pool.query(
       `UPDATE sponsor_pubs SET
         actif = COALESCE($1, actif),
+        statut = CASE WHEN $1 IS NOT NULL THEN (CASE WHEN $1 THEN 'active' ELSE 'pause' END) ELSE statut END,
         prix_par_click = COALESCE($2, prix_par_click),
         updated_at = NOW()
        WHERE id = $3
@@ -568,6 +679,23 @@ router.put('/admin/:id', authenticateToken, verifierAdmin, async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur modification pub admin:', error);
     res.status(500).json({ error: 'Erreur lors de la modification' });
+  }
+});
+
+// DELETE — Supprimer définitivement une pub (admin) — BD + image S3
+router.delete('/admin/:id', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const existing = await pool.query('SELECT url_image FROM sponsor_pubs WHERE id = $1', [id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Publicité non trouvée' });
+    }
+    await deletePubImageFromS3(existing.rows[0].url_image);
+    await pool.query('DELETE FROM sponsor_pubs WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Publicité supprimée' });
+  } catch (error) {
+    console.error('❌ Erreur suppression pub admin:', error);
+    res.status(500).json({ error: 'Erreur lors de la suppression' });
   }
 });
 

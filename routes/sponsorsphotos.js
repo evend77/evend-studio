@@ -3,7 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authenticateToken, isAdmin, isCommanditaire } = require('../middleware/auth');
-const { PLANS_PHOTOS, PLAN_PHOTOS_DEFAUT } = require('../config/plansPhotos');
+const { getTousLesPlansPhotos, versDictionnaire: versDictPhotos, PLAN_PHOTOS_DEFAUT } = require('../config/plansPhotos');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -204,6 +204,57 @@ router.get('/search', async (req, res) => {
 // 🔐 ROUTES ADMIN
 // ════════════════════════════════════════════════════════════════
 
+// GET — Liste de TOUTES les photos sponsors, tous sponsors confondus
+// (actives ET inactives — pour la modération admin). Recherche par ID, titre,
+// catégorie ou nom de sponsor. Paginé (50 par défaut) pour tenir avec beaucoup de photos.
+router.get('/admin/liste', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
+    const offset = (page - 1) * limit;
+    const search = (req.query.search || '').trim();
+
+    const paramsCount = search ? [search] : [];
+    const whereCount = search
+      ? `(sp.id::text = $1 OR sp.titre ILIKE '%' || $1 || '%' OR sp.categorie ILIKE '%' || $1 || '%' OR s.nom ILIKE '%' || $1 || '%')`
+      : '1=1';
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM sponsor_photos sp JOIN sponsors s ON s.id = sp.sponsor_id WHERE ${whereCount}`,
+      paramsCount
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    const paramsListe = search ? [search, limit, offset] : [limit, offset];
+    const whereListe = search
+      ? `(sp.id::text = $1 OR sp.titre ILIKE '%' || $1 || '%' OR sp.categorie ILIKE '%' || $1 || '%' OR s.nom ILIKE '%' || $1 || '%')`
+      : '1=1';
+    const limitIdx = search ? 2 : 1;
+    const offsetIdx = search ? 3 : 2;
+
+    const result = await pool.query(
+      `SELECT sp.id, sp.titre, sp.description, sp.url_image, sp.alt_text, sp.categorie,
+        sp.active, sp.sponsor_id, sp.created_at, s.nom AS sponsor_nom
+       FROM sponsor_photos sp
+       JOIN sponsors s ON s.id = sp.sponsor_id
+       WHERE ${whereListe}
+       ORDER BY sp.created_at DESC
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      paramsListe
+    );
+
+    res.json({
+      photos: result.rows,
+      total,
+      page,
+      limit,
+      totalPages: Math.max(Math.ceil(total / limit), 1),
+    });
+  } catch (error) {
+    console.error('❌ Erreur liste admin photos sponsors:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des photos' });
+  }
+});
+
 router.post('/', authenticateToken, isAdmin, upload.single('image'), async (req, res) => {
   try {
     const { sponsor_id, titre, description, alt_text, url_original, categorie } = req.body;
@@ -355,7 +406,8 @@ router.post('/sponsor/upload', authenticateToken, isCommanditaire, upload.single
 
     let maxPhotos = 10;
     const forfait = sponsorResult.rows[0]?.forfait || PLAN_PHOTOS_DEFAUT;
-    const planActuel = PLANS_PHOTOS[forfait] || PLANS_PHOTOS[PLAN_PHOTOS_DEFAUT];
+    const plansPhotos = versDictPhotos(await getTousLesPlansPhotos());
+    const planActuel = plansPhotos[forfait] || plansPhotos[PLAN_PHOTOS_DEFAUT];
     maxPhotos = planActuel.maxPhotos; // null = illimité
 
     if (maxPhotos !== null && parseInt(quotaCheck.rows[0].count) >= maxPhotos) {

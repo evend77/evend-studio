@@ -43,6 +43,18 @@ function SponsorPubs({ token }: SponsorPubsProps) {
   const [pubs, setPubs] = useState<Pub[]>([]);
   const [loading, setLoading] = useState(true);
   const [erreur, setErreur] = useState('');
+  const [quota, setQuota] = useState<{ utilisees: number; limite: number | null; planLabel: string } | null>(null);
+
+  const fetchQuota = async () => {
+    try {
+      const response = await fetch('/api/sponsors/moi', { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) return;
+      const data = await response.json();
+      setQuota({ utilisees: data.pubs_utilisees ?? 0, limite: data.pubs_limite ?? null, planLabel: data.pubs_plan_label ?? '' });
+    } catch (error) {
+      console.error('Erreur chargement quota pubs:', error);
+    }
+  };
 
   const fetchPubs = async () => {
     setLoading(true);
@@ -62,7 +74,7 @@ function SponsorPubs({ token }: SponsorPubsProps) {
     }
   };
 
-  useEffect(() => { fetchPubs(); }, []);
+  useEffect(() => { fetchPubs(); fetchQuota(); }, []);
 
   const toggleActif = async (pub: Pub) => {
     setPubs(prev => prev.map(p => p.id === pub.id ? { ...p, actif: !p.actif } : p));
@@ -72,11 +84,13 @@ function SponsorPubs({ token }: SponsorPubsProps) {
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ actif: !pub.actif }),
       });
-      if (!response.ok) throw new Error('Erreur');
-    } catch (error) {
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erreur');
+      fetchQuota();
+    } catch (error: any) {
       console.error('Erreur toggle:', error);
       setPubs(prev => prev.map(p => p.id === pub.id ? { ...p, actif: pub.actif } : p));
-      alert('❌ Erreur lors du changement de statut');
+      alert(`❌ ${error.message || 'Erreur lors du changement de statut'}`);
     }
   };
 
@@ -89,6 +103,7 @@ function SponsorPubs({ token }: SponsorPubsProps) {
       });
       if (!response.ok) throw new Error('Erreur');
       setPubs(prev => prev.filter(p => p.id !== id));
+      fetchQuota();
     } catch (error) {
       console.error('Erreur suppression:', error);
       alert('❌ Erreur lors de la suppression');
@@ -102,8 +117,28 @@ function SponsorPubs({ token }: SponsorPubsProps) {
     return <div style={{ padding: '40px', textAlign: 'center' }}>⏳ Chargement...</div>;
   }
 
+  const quotaAtteint = quota?.limite !== null && quota !== null && quota.utilisees >= (quota.limite as number);
+
   return (
     <div>
+      {/* Quota */}
+      {quota && (
+        <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#fff', border: '1px solid #eee', borderRadius: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#555', marginBottom: '6px' }}>
+            <span>📢 {quota.utilisees} pub{quota.utilisees > 1 ? 's' : ''} active{quota.utilisees > 1 ? 's' : ''} — forfait {quota.planLabel}</span>
+            <span style={{ fontWeight: 700 }}>{quota.limite === null ? 'Illimité' : `/ ${quota.limite}`}</span>
+          </div>
+          {quota.limite !== null && (
+            <div style={{ width: '100%', height: '8px', background: '#f3f4f6', borderRadius: '20px', overflow: 'hidden' }}>
+              <div style={{
+                width: `${Math.min((quota.utilisees / quota.limite) * 100, 100)}%`, height: '100%',
+                background: quotaAtteint ? '#dc2626' : '#f59e0b', borderRadius: '20px', transition: 'width 0.4s ease',
+              }} />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* En-tête */}
       <div style={{
         background: '#fef3c7', borderRadius: '12px', padding: '20px', marginBottom: '24px',
@@ -116,13 +151,14 @@ function SponsorPubs({ token }: SponsorPubsProps) {
           </p>
         </div>
         <button
-          onClick={() => window.location.href = '/sponsor/pubs/creer'}
+          onClick={() => quotaAtteint ? alert('🔒 Quota de pubs actives atteint — passez à un forfait supérieur ou mettez-en une en pause.') : window.location.href = '/sponsor/pubs/creer'}
           style={{
-            padding: '10px 24px', background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-            border: 'none', borderRadius: '8px', color: '#000', fontWeight: 700, cursor: 'pointer', fontSize: '14px',
+            padding: '10px 24px', background: quotaAtteint ? '#e5e7eb' : 'linear-gradient(135deg, #f59e0b, #d97706)',
+            border: 'none', borderRadius: '8px', color: quotaAtteint ? '#999' : '#000', fontWeight: 700,
+            cursor: quotaAtteint ? 'not-allowed' : 'pointer', fontSize: '14px',
           }}
         >
-          ➕ Créer une publicité
+          {quotaAtteint ? '🔒 Quota atteint' : '➕ Créer une publicité'}
         </button>
       </div>
 
@@ -163,8 +199,11 @@ function SponsorPubs({ token }: SponsorPubsProps) {
                 </span>
               </div>
               <div style={{ padding: '14px' }}>
-                <p style={{ margin: '0 0 4px', fontWeight: 700, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <p style={{ margin: '0 0 2px', fontWeight: 700, fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {pub.titre}
+                </p>
+                <p style={{ margin: '0 0 6px', fontSize: '10px', color: '#aaa', fontFamily: 'monospace' }}>
+                  ID #{pub.id}
                 </p>
                 <p style={{ margin: '0 0 10px', fontSize: '12px', color: '#666', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                   {pub.description}
