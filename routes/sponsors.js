@@ -5,6 +5,7 @@ const pool = require('../db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { authenticateToken } = require('../middleware/auth');
+const { PLANS_PHOTOS, PLAN_PHOTOS_DEFAUT } = require('../config/plansPhotos');
 
 // ── MIDDLEWARE ──────────────────────────────────────────────────
 const verifierAdmin = (req, res, next) => {
@@ -159,10 +160,70 @@ router.get('/moi', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Sponsor non trouvé' });
     }
 
-    res.json(result.rows[0]);
+    const sponsor = result.rows[0];
+    const forfaitId = sponsor.forfait || PLAN_PHOTOS_DEFAUT;
+    const plan = PLANS_PHOTOS[forfaitId] || PLANS_PHOTOS[PLAN_PHOTOS_DEFAUT];
+
+    const compteResult = await pool.query(
+      'SELECT COUNT(*) as count FROM sponsor_photos WHERE sponsor_id = $1 AND active = true',
+      [req.user.id]
+    );
+
+    res.json({
+      ...sponsor,
+      photos_utilisees: parseInt(compteResult.rows[0].count),
+      photos_limite: plan.maxPhotos, // null = illimité
+      photos_plan_label: plan.label,
+      photos_plan_prix: plan.prix,
+    });
   } catch (error) {
     console.error('❌ Erreur profil sponsor:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération du profil' });
+  }
+});
+
+// GET — Liste des paliers photos disponibles (pour affichage dans le dashboard)
+router.get('/plans-photos', authenticateToken, async (req, res) => {
+  res.json({
+    plans: Object.entries(PLANS_PHOTOS).map(([id, p]) => ({ id, ...p })),
+  });
+});
+
+// PUT — Changer de forfait photos
+router.put('/forfait-photos', authenticateToken, async (req, res) => {
+  try {
+    const { forfait } = req.body;
+    if (!PLANS_PHOTOS[forfait]) {
+      return res.status(400).json({ error: 'Forfait invalide' });
+    }
+
+    const nouveauPlan = PLANS_PHOTOS[forfait];
+
+    if (nouveauPlan.maxPhotos !== null) {
+      const compteResult = await pool.query(
+        'SELECT COUNT(*) as count FROM sponsor_photos WHERE sponsor_id = $1 AND active = true',
+        [req.user.id]
+      );
+      const photosActives = parseInt(compteResult.rows[0].count);
+
+      if (photosActives > nouveauPlan.maxPhotos) {
+        return res.status(409).json({
+          error: `Vous avez ${photosActives} photos actives, mais le forfait "${nouveauPlan.label}" est limité à ${nouveauPlan.maxPhotos}. Supprimez ou désactivez ${photosActives - nouveauPlan.maxPhotos} photo(s) avant de rétrograder.`,
+          photos_actives: photosActives,
+          limite_demandee: nouveauPlan.maxPhotos,
+        });
+      }
+    }
+
+    await pool.query(
+      'UPDATE sponsors SET forfait = $1, updated_at = NOW() WHERE id = $2',
+      [forfait, req.user.id]
+    );
+
+    res.json({ success: true, message: `Forfait mis à jour : ${nouveauPlan.label}`, forfait });
+  } catch (error) {
+    console.error('❌ Erreur changement forfait photos:', error);
+    res.status(500).json({ error: 'Erreur lors du changement de forfait' });
   }
 });
 

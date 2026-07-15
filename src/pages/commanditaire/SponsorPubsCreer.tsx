@@ -67,6 +67,11 @@ const CATEGORIES_SITES = [
 ];
 
 function SponsorPubsCreer() {
+  const paramsUrl = new URLSearchParams(window.location.search);
+  const editId = paramsUrl.get('id');
+  const modeEdition = !!editId;
+  const [chargementEdition, setChargementEdition] = useState(modeEdition);
+
   const [typePub, setTypePub] = useState<TypePub>('basique');
   const [effet, setEffet] = useState<EffetCarrousel>('fondu');
   const [titre, setTitre] = useState('');
@@ -108,6 +113,48 @@ function SponsorPubsCreer() {
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
+
+  // ── Mode édition : pré-remplir avec la pub existante ────────────────────
+  useEffect(() => {
+    if (!modeEdition) return;
+    fetch(`/api/sponsors/pubs/${editId}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : Promise.reject(new Error('Erreur de chargement')))
+      .then(({ pub }) => {
+        setTypePub(pub.type || 'basique');
+        setEffet(pub.effet || 'fondu');
+        setTitre(pub.titre || '');
+        setDescription(pub.description || '');
+        setLien(pub.url_lien || '');
+        setBudgetType(pub.budget_type || 'jour');
+        setBudgetMontant(pub.budget_montant || 10);
+        setCategoriesSelectionnees(pub.categories || []);
+        setRoueActive(pub.roue_active || false);
+        setCodesPromoRoue((pub.codes_promo_roue || []).join(', '));
+        setImageUrl(pub.url_image || '');
+
+        const extra = pub.extra_data
+          ? (typeof pub.extra_data === 'string' ? JSON.parse(pub.extra_data) : pub.extra_data)
+          : {};
+        if (pub.type === 'interactive') {
+          setQuestion(extra.question || '');
+          setChoix1(extra.choix?.[0] || '');
+          setChoix2(extra.choix?.[1] || '');
+          setChoix3(extra.choix?.[2] || '');
+        } else if (pub.type === 'social') {
+          setCompteur(extra.compteur ?? 12);
+        } else if (pub.type === 'codepromo') {
+          setCodePromo(extra.code_promo || '');
+        } else if (pub.type === 'temoignage') {
+          setNote(extra.note ?? 5);
+          setAuteur(extra.auteur || '');
+        }
+      })
+      .catch(err => {
+        console.error('Erreur chargement pub à éditer:', err);
+        alert('❌ Impossible de charger cette publicité');
+      })
+      .finally(() => setChargementEdition(false));
+  }, [modeEdition, editId]);
 
   // ── Toggle catégorie ──────────────────────────────────────────────────
   const toggleCategorie = (catId: string) => {
@@ -398,13 +445,13 @@ function SponsorPubsCreer() {
       const uploadFile = async (file: File, folder: string) => {
         const formData = new FormData();
         formData.append('image', file);
-        const res = await fetch('/api/sponsors/photos/sponsor/upload', {
+        const res = await fetch('/api/sponsors/pubs/upload-image', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
         });
         const data = await res.json();
-        return data.photo?.url_image;
+        return data.url_image;
       };
 
       if (typePub === 'basique' && image) {
@@ -448,45 +495,52 @@ function SponsorPubsCreer() {
         extraData.auteur = auteur;
       }
 
-      const response = await fetch('/api/sponsors/pubs', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          titre,
-          description,
-          url_lien: lien,
-          type: typePub,
-          effet: typePub === 'carrousel' ? effet : null,
-          images: imagesUrls,
-          prix_par_click: prixEstime,
-          budget_type: budgetType,
-          budget_montant: budgetMontant,
-          categories: categoriesSelectionnees,
-          roue_active: roueActive,
-          codes_promo_roue: roueActive ? codesPromoRoue.split(',').map(c => c.trim()).filter(c => c) : [],
-          ...extraData,
-        }),
-      });
+      const response = await fetch(
+        modeEdition ? `/api/sponsors/pubs/${editId}` : '/api/sponsors/pubs',
+        {
+          method: modeEdition ? 'PUT' : 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            titre,
+            description,
+            url_lien: lien,
+            type: typePub,
+            effet: typePub === 'carrousel' ? effet : null,
+            images: imagesUrls,
+            prix_par_click: prixEstime,
+            budget_type: budgetType,
+            budget_montant: budgetMontant,
+            categories: categoriesSelectionnees,
+            roue_active: roueActive,
+            codes_promo_roue: roueActive ? codesPromoRoue.split(',').map(c => c.trim()).filter(c => c) : [],
+            ...extraData,
+          }),
+        }
+      );
 
       if (!response.ok) {
         const data = await response.json();
-        throw new Error(data.error || 'Erreur création pub');
+        throw new Error(data.error || (modeEdition ? 'Erreur modification pub' : 'Erreur création pub'));
       }
 
-      alert('✅ Publicité créée avec succès !');
+      alert(modeEdition ? '✅ Publicité modifiée avec succès !' : '✅ Publicité créée avec succès !');
       window.location.href = '/sponsor-dashboard?onglet=pubs';
     } catch (error: any) {
-      console.error('Erreur création pub:', error);
-      alert('❌ Erreur lors de la création : ' + error.message);
+      console.error(modeEdition ? 'Erreur modification pub:' : 'Erreur création pub:', error);
+      alert(`❌ Erreur lors de la ${modeEdition ? 'modification' : 'création'} : ` + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   // ── RENDU ──────────────────────────────────────────────────────────────
+  if (chargementEdition) {
+    return <div style={{ padding: '40px', textAlign: 'center' }}>⏳ Chargement de la publicité...</div>;
+  }
+
   return (
     <div style={{ padding: '24px', background: THEME.bg, minHeight: '100vh' }}>
       <style>{`
@@ -511,10 +565,10 @@ function SponsorPubsCreer() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
             <h1 style={{ fontSize: '28px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-              📢 Studio de publicité
+              📢 {modeEdition ? 'Modifier la publicité' : 'Studio de publicité'}
             </h1>
             <p style={{ fontSize: '14px', color: THEME.textLight, margin: '4px 0 0' }}>
-              Créez votre publicité en quelques clics
+              {modeEdition ? 'Ajustez les détails de votre publicité' : 'Créez votre publicité en quelques clics'}
             </p>
           </div>
           <button
@@ -1004,7 +1058,7 @@ function SponsorPubsCreer() {
 
               {/* Bouton publier */}
               <button type="submit" disabled={loading} style={{ width: '100%', padding: '12px', background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', borderRadius: '10px', color: '#000', fontSize: '15px', fontWeight: 700, cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.6 : 1 }}>
-                {loading ? '⏳ Publication...' : '📤 Publier'}
+                {loading ? (modeEdition ? '⏳ Sauvegarde...' : '⏳ Publication...') : (modeEdition ? '💾 Sauvegarder les modifications' : '📤 Publier')}
               </button>
             </form>
           </div>

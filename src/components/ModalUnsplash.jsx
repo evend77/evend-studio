@@ -126,8 +126,24 @@ function ModalUnsplash({ isOpen, onClose, onSelectPhoto }) {
     }
   };
 
+  const trackerSelectionSponsor = async (photoId) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`/api/sponsors/photos/photo/${photoId}/selection`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    } catch (error) {
+      console.error('Erreur tracking sélection sponsor:', error);
+    }
+  };
+
   const handleSelectPhoto = async (photo) => {
-    await triggerDownload(photo.id);
+    if (ongletActif === 'unsplash') {
+      await triggerDownload(photo.id);
+    } else if (ongletActif === 'sponsors') {
+      await trackerSelectionSponsor(photo.id);
+    }
     onSelectPhoto(photo);
     onClose();
   };

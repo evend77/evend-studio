@@ -41,9 +41,28 @@ const CATEGORIES = [
 
 function SponsorPhotos({ token }: SponsorPhotosProps) {
   const [photos, setPhotos] = useState<Photo[]>([]);
+  const [statsParPhoto, setStatsParPhoto] = useState<Record<number, { vues: number; selections: number }>>({});
+  const [quota, setQuota] = useState<{ utilisees: number; limite: number | null; planLabel: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [categorie, setCategorie] = useState('general');
   const [uploading, setUploading] = useState(false);
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch('/api/sponsors/stats', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const map: Record<number, { vues: number; selections: number }> = {};
+      (data.stats || []).forEach((s: any) => {
+        map[s.photo_id] = { vues: parseInt(s.vues) || 0, selections: parseInt(s.selections) || 0 };
+      });
+      setStatsParPhoto(map);
+    } catch (error) {
+      console.error('Erreur chargement stats photos:', error);
+    }
+  };
 
   const fetchPhotos = async () => {
     try {
@@ -60,8 +79,21 @@ function SponsorPhotos({ token }: SponsorPhotosProps) {
     }
   };
 
+  const fetchQuota = async () => {
+    try {
+      const response = await fetch('/api/sponsors/moi', { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) return;
+      const data = await response.json();
+      setQuota({ utilisees: data.photos_utilisees ?? 0, limite: data.photos_limite ?? null, planLabel: data.photos_plan_label ?? '' });
+    } catch (error) {
+      console.error('Erreur chargement quota:', error);
+    }
+  };
+
   useEffect(() => {
     fetchPhotos();
+    fetchStats();
+    fetchQuota();
   }, []);
 
   const handleUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -88,6 +120,7 @@ function SponsorPhotos({ token }: SponsorPhotosProps) {
       alert('✅ Photo uploadée avec succès !');
       setCategorie('general');
       fetchPhotos();
+      fetchQuota();
     } catch (error) {
       console.error('Erreur upload:', error);
       alert('❌ Erreur lors de l\'upload');
@@ -107,9 +140,38 @@ function SponsorPhotos({ token }: SponsorPhotosProps) {
       if (!response.ok) throw new Error('Erreur suppression');
       alert('✅ Photo supprimée');
       fetchPhotos();
+      fetchQuota();
     } catch (error) {
       console.error('Erreur:', error);
       alert('❌ Erreur lors de la suppression');
+    }
+  };
+
+  // ── Modifier la catégorie d'une photo existante ─────────────────────────
+  const [categorieEnEdition, setCategorieEnEdition] = useState<Record<number, string>>({});
+  const [sauvegardeEnCours, setSauvegardeEnCours] = useState<number | null>(null);
+
+  const changerCategorieLocale = (photoId: number, nouvelleCategorie: string) => {
+    setCategorieEnEdition(prev => ({ ...prev, [photoId]: nouvelleCategorie }));
+  };
+
+  const sauvegarderCategorie = async (photo: Photo) => {
+    const nouvelleCategorie = categorieEnEdition[photo.id];
+    if (!nouvelleCategorie || nouvelleCategorie === photo.categorie) return;
+    setSauvegardeEnCours(photo.id);
+    try {
+      const response = await fetch(`/api/sponsors/photos/sponsor/photos/${photo.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ categorie: nouvelleCategorie }),
+      });
+      if (!response.ok) throw new Error('Erreur');
+      setPhotos(prev => prev.map(p => p.id === photo.id ? { ...p, categorie: nouvelleCategorie } : p));
+    } catch (error) {
+      console.error('Erreur changement catégorie:', error);
+      alert('❌ Erreur lors du changement de catégorie');
+    } finally {
+      setSauvegardeEnCours(null);
     }
   };
 
@@ -123,8 +185,33 @@ function SponsorPhotos({ token }: SponsorPhotosProps) {
     return <div style={{ padding: '40px', textAlign: 'center' }}>⏳ Chargement...</div>;
   }
 
+  const quotaAtteint = quota?.limite !== null && quota !== null && quota.utilisees >= (quota.limite as number);
+
   return (
     <div>
+      {/* Quota */}
+      {quota && (
+        <div style={{ marginBottom: '16px', padding: '12px 16px', background: '#fff', border: '1px solid #eee', borderRadius: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#555', marginBottom: '6px' }}>
+            <span>📸 {quota.utilisees} photo{quota.utilisees > 1 ? 's' : ''} — forfait {quota.planLabel}</span>
+            <span style={{ fontWeight: 700 }}>{quota.limite === null ? 'Illimité' : `/ ${quota.limite}`}</span>
+          </div>
+          {quota.limite !== null && (
+            <div style={{ width: '100%', height: '8px', background: '#f3f4f6', borderRadius: '20px', overflow: 'hidden' }}>
+              <div style={{
+                width: `${Math.min((quota.utilisees / quota.limite) * 100, 100)}%`, height: '100%',
+                background: quotaAtteint ? '#dc2626' : '#f59e0b', borderRadius: '20px', transition: 'width 0.4s ease',
+              }} />
+            </div>
+          )}
+          {quotaAtteint && (
+            <p style={{ fontSize: '12px', color: '#dc2626', margin: '6px 0 0' }}>
+              ⚠️ Quota atteint — passez à un forfait supérieur dans l'onglet Abonnement pour ajouter des photos.
+            </p>
+          )}
+        </div>
+      )}
+
       {/* Upload */}
       <div style={{
         border: '2px dashed #ddd',
@@ -166,19 +253,19 @@ function SponsorPhotos({ token }: SponsorPhotosProps) {
           <label style={{
             display: 'inline-block',
             padding: '10px 24px',
-            background: 'linear-gradient(135deg, #f59e0b, #d97706)',
-            color: '#000',
+            background: quotaAtteint ? '#e5e7eb' : 'linear-gradient(135deg, #f59e0b, #d97706)',
+            color: quotaAtteint ? '#999' : '#000',
             borderRadius: '8px',
-            cursor: uploading ? 'wait' : 'pointer',
+            cursor: (uploading || quotaAtteint) ? 'not-allowed' : 'pointer',
             fontWeight: 600,
             opacity: uploading ? 0.6 : 1,
           }}>
-            {uploading ? '⏳ Upload...' : 'Choisir une image'}
+            {uploading ? '⏳ Upload...' : quotaAtteint ? '🔒 Quota atteint' : 'Choisir une image'}
             <input
               type="file"
               accept="image/*"
               onChange={handleUpload}
-              disabled={uploading}
+              disabled={uploading || quotaAtteint}
               style={{ display: 'none' }}
             />
           </label>
@@ -229,6 +316,43 @@ function SponsorPhotos({ token }: SponsorPhotosProps) {
                 <p style={{ fontSize: '12px', color: '#666', margin: '0 0 8px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {photo.titre || 'Sans titre'}
                 </p>
+
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '8px', fontSize: '11px', color: '#555' }}>
+                  <span title="Nombre de fois que cette photo a été choisie par un gestionnaire pour son site">
+                    ✅ {statsParPhoto[photo.id]?.selections ?? 0} utilisation{(statsParPhoto[photo.id]?.selections ?? 0) > 1 ? 's' : ''}
+                  </span>
+                  <span title="Visible sur les sites où elle est utilisée — bientôt disponible">
+                    👁️ {statsParPhoto[photo.id]?.vues ?? 0} vues
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+                  <select
+                    value={categorieEnEdition[photo.id] ?? photo.categorie ?? 'general'}
+                    onChange={(e) => changerCategorieLocale(photo.id, e.target.value)}
+                    style={{
+                      flex: 1, padding: '6px 8px', border: '1px solid #e5e7eb', borderRadius: '6px',
+                      fontSize: '12px', background: '#fff', outline: 'none',
+                    }}
+                  >
+                    {CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>{cat.charAt(0).toUpperCase() + cat.slice(1)}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => sauvegarderCategorie(photo)}
+                    disabled={sauvegardeEnCours === photo.id || (categorieEnEdition[photo.id] ?? photo.categorie) === photo.categorie}
+                    style={{
+                      padding: '6px 10px', border: 'none', borderRadius: '6px', fontSize: '11px', fontWeight: 700,
+                      cursor: (categorieEnEdition[photo.id] && categorieEnEdition[photo.id] !== photo.categorie) ? 'pointer' : 'default',
+                      background: (categorieEnEdition[photo.id] && categorieEnEdition[photo.id] !== photo.categorie) ? '#16a34a' : '#e5e7eb',
+                      color: (categorieEnEdition[photo.id] && categorieEnEdition[photo.id] !== photo.categorie) ? '#fff' : '#999',
+                    }}
+                  >
+                    {sauvegardeEnCours === photo.id ? '⏳' : '✅'}
+                  </button>
+                </div>
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '11px', color: '#999' }}>
                     {formatDate(photo.created_at)}

@@ -3,6 +3,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const { authenticateToken, isAdmin, isCommanditaire } = require('../middleware/auth');
+const { PLANS_PHOTOS, PLAN_PHOTOS_DEFAUT } = require('../config/plansPhotos');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -353,13 +354,13 @@ router.post('/sponsor/upload', authenticateToken, isCommanditaire, upload.single
     }
 
     let maxPhotos = 10;
-    const forfait = sponsorResult.rows[0]?.forfait || 'basique';
-    if (forfait === 'standard') maxPhotos = 50;
-    if (forfait === 'premium') maxPhotos = 200;
+    const forfait = sponsorResult.rows[0]?.forfait || PLAN_PHOTOS_DEFAUT;
+    const planActuel = PLANS_PHOTOS[forfait] || PLANS_PHOTOS[PLAN_PHOTOS_DEFAUT];
+    maxPhotos = planActuel.maxPhotos; // null = illimité
 
-    if (parseInt(quotaCheck.rows[0].count) >= maxPhotos) {
+    if (maxPhotos !== null && parseInt(quotaCheck.rows[0].count) >= maxPhotos) {
       return res.status(403).json({ 
-        error: `Vous avez atteint votre quota de ${maxPhotos} photos actives.`
+        error: `Vous avez atteint votre quota de ${maxPhotos} photos actives pour le forfait "${planActuel.label}". Passez à un forfait supérieur pour en ajouter davantage.`
       });
     }
 
@@ -418,6 +419,57 @@ router.get('/sponsor/photos', authenticateToken, isCommanditaire, async (req, re
   } catch (error) {
     console.error('❌ Erreur récupération photos sponsor:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des photos' });
+  }
+});
+
+// PUT — Modifier une photo (catégorie / titre / description) — pas besoin de ré-uploader l'image
+router.put('/sponsor/photos/:id', authenticateToken, isCommanditaire, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sponsor_id = req.user.id;
+    const { categorie, titre, description, alt_text } = req.body;
+
+    const existing = await pool.query(
+      'SELECT id FROM sponsor_photos WHERE id = $1 AND sponsor_id = $2',
+      [id, sponsor_id]
+    );
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'Photo non trouvée' });
+    }
+
+    const result = await pool.query(
+      `UPDATE sponsor_photos SET
+        categorie = COALESCE($1, categorie),
+        titre = COALESCE($2, titre),
+        description = COALESCE($3, description),
+        alt_text = COALESCE($4, alt_text)
+       WHERE id = $5 AND sponsor_id = $6
+       RETURNING *`,
+      [categorie || null, titre || null, description || null, alt_text || null, id, sponsor_id]
+    );
+
+    res.json({ success: true, message: 'Photo mise à jour', photo: result.rows[0] });
+  } catch (error) {
+    console.error('❌ Erreur modification photo sponsor:', error);
+    res.status(500).json({ error: 'Erreur lors de la modification de la photo' });
+  }
+});
+
+// POST — Tracker qu'un gestionnaire a sélectionné cette photo pour son site
+router.post('/photo/:id/selection', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query(
+      `INSERT INTO sponsor_photo_stats (photo_id, date, vue_count, selection_count, click_count)
+       VALUES ($1, CURRENT_DATE, 0, 1, 0)
+       ON CONFLICT (photo_id, date)
+       DO UPDATE SET selection_count = sponsor_photo_stats.selection_count + 1`,
+      [id]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erreur tracking sélection photo:', error);
+    res.status(500).json({ error: 'Erreur lors du tracking' });
   }
 });
 

@@ -4,6 +4,52 @@ const router = express.Router();
 const pool = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 
+// ── UPLOAD D'IMAGES DE PUB — séparé du système Photos (sponsor_photos) ────
+// Les images de pub ne doivent JAMAIS créer d'entrée dans sponsor_photos
+// (cette table est la banque de photos gratuite pour les gestionnaires).
+const multer = require('multer');
+const { v4: uuidv4 } = require('uuid');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+
+const s3Client = new S3Client({
+  region: process.env.AWS_REGION || 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+  },
+});
+const BUCKET_NAME = process.env.AWS_S3_BUCKET_SPONSOR || 'evend-studio-sponsors-2026-296886269853-us-east-1-an';
+
+const uploadPub = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/webm'];
+    if (allowedTypes.includes(file.mimetype)) cb(null, true);
+    else cb(new Error('Format de fichier non supporté.'));
+  }
+});
+
+async function uploadPubToS3(file, sponsor_id) {
+  const key = `sponsors-pubs/${sponsor_id}/${uuidv4()}-${file.originalname}`;
+  await s3Client.send(new PutObjectCommand({
+    Bucket: BUCKET_NAME, Key: key, Body: file.buffer, ContentType: file.mimetype,
+  }));
+  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+}
+
+// POST — Upload d'une image/vidéo de PUB (ne touche PAS à sponsor_photos)
+router.post('/pubs/upload-image', authenticateToken, uploadPub.single('image'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu' });
+    const url = await uploadPubToS3(req.file, req.user.id);
+    res.json({ success: true, url_image: url });
+  } catch (error) {
+    console.error('❌ Erreur upload image pub:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'upload de l\'image' });
+  }
+});
+
 // ── MIDDLEWARE ──────────────────────────────────────────────────
 const verifierAdmin = (req, res, next) => {
   if (req.user?.role !== 'admin') {
@@ -23,7 +69,7 @@ router.get('/pubs', authenticateToken, async (req, res) => {
     const result = await pool.query(
       `SELECT 
         id, titre, description, url_image, url_lien,
-        actif, impressions, clics, type, effet, prix_par_click,
+        actif, statut, impressions, clics, type, effet, prix_par_click,
         budget_type, budget_montant, budget_depense,
         categories,
         roue_active,
@@ -124,6 +170,67 @@ router.post('/pubs', authenticateToken, async (req, res) => {
   }
 });
 
+// PUT — Modifier une pub (édition complète)
+router.put('/pubs/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sponsor_id = req.user.id;
+    const {
+      titre, description, url_lien, type, effet,
+      images, prix_par_click, budget_type, budget_montant,
+      categories,
+      roue_active, codes_promo_roue,
+      question, choix, compteur, code_promo, note, auteur
+    } = req.body;
+
+    const check = await pool.query(
+      'SELECT id, url_image FROM sponsor_pubs WHERE id = $1 AND sponsor_id = $2',
+      [id, sponsor_id]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ error: 'Publicité non trouvée' });
+    }
+
+    let extra_data = {};
+    if (type === 'interactive') {
+      extra_data = { question, choix };
+    } else if (type === 'social') {
+      extra_data = { compteur };
+    } else if (type === 'codepromo') {
+      extra_data = { code_promo };
+    } else if (type === 'temoignage') {
+      extra_data = { note, auteur };
+    }
+
+    // Si aucune nouvelle image fournie, on garde l'image existante
+    const nouvelleUrlImage = (images && images.length > 0) ? images[0] : check.rows[0].url_image;
+    const codesPromoArray = codes_promo_roue && codes_promo_roue.length > 0 ? codes_promo_roue : [];
+
+    const result = await pool.query(
+      `UPDATE sponsor_pubs SET
+        titre = $1, description = $2, url_image = $3, url_lien = $4,
+        type = $5, effet = $6, prix_par_click = $7, extra_data = $8,
+        budget_type = $9, budget_montant = $10,
+        categories = $11, roue_active = $12, codes_promo = $13,
+        updated_at = NOW()
+       WHERE id = $14 AND sponsor_id = $15
+       RETURNING *`,
+      [
+        titre, description, nouvelleUrlImage, url_lien,
+        type || 'basique', effet || null, prix_par_click || 0.50, JSON.stringify(extra_data),
+        budget_type || 'jour', budget_montant || 10,
+        categories || [], roue_active || false, codesPromoArray,
+        id, sponsor_id
+      ]
+    );
+
+    res.json({ success: true, message: 'Publicité modifiée avec succès', pub: result.rows[0] });
+  } catch (error) {
+    console.error('❌ Erreur modification pub:', error);
+    res.status(500).json({ error: 'Erreur lors de la modification de la publicité' });
+  }
+});
+
 // PUT — Activer/Désactiver une pub
 router.put('/pubs/:id/toggle', authenticateToken, async (req, res) => {
   try {
@@ -140,14 +247,14 @@ router.put('/pubs/:id/toggle', authenticateToken, async (req, res) => {
     }
 
     await pool.query(
-      `UPDATE sponsor_pubs SET actif = $1, updated_at = NOW()
-       WHERE id = $2 AND sponsor_id = $3`,
-      [actif, id, sponsor_id]
+      `UPDATE sponsor_pubs SET actif = $1, statut = $2, updated_at = NOW()
+       WHERE id = $3 AND sponsor_id = $4`,
+      [actif, actif ? 'active' : 'pause', id, sponsor_id]
     );
 
     res.json({
       success: true,
-      message: actif ? 'Publicité activée' : 'Publicité désactivée'
+      message: actif ? 'Publicité activée' : 'Publicité mise en pause'
     });
   } catch (error) {
     console.error('❌ Erreur toggle pub:', error);
@@ -251,6 +358,38 @@ router.get('/pubs/stats', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur stats pubs:', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des statistiques' });
+  }
+});
+
+// GET — Récupérer UNE pub du sponsor (pour pré-remplir le formulaire d'édition)
+// ⚠️ Doit rester APRÈS /pubs/stats, sinon /pubs/:id capte 'stats' comme un id.
+router.get('/pubs/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const sponsor_id = req.user.id;
+
+    const result = await pool.query(
+      `SELECT 
+        id, titre, description, url_image, url_lien,
+        actif, statut, impressions, clics, type, effet, prix_par_click, extra_data,
+        budget_type, budget_montant, budget_depense,
+        categories,
+        roue_active,
+        codes_promo AS codes_promo_roue,
+        created_at
+       FROM sponsor_pubs
+       WHERE id = $1 AND sponsor_id = $2`,
+      [id, sponsor_id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Publicité non trouvée' });
+    }
+
+    res.json({ pub: result.rows[0] });
+  } catch (error) {
+    console.error('❌ Erreur récupération pub:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération de la publicité' });
   }
 });
 
@@ -437,13 +576,13 @@ router.get('/verifier-budgets', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT 
-        sp.id, sp.budget_type, sp.budget_montant, sp.budget_depense,
+        sp.id, sp.statut, sp.budget_type, sp.budget_montant, sp.budget_depense,
         sp.budget_date_debut, sp.budget_date_fin,
         COALESCE(SUM(asp.clics * sp.prix_par_click), 0) as cout_estime
       FROM sponsor_pubs sp
       LEFT JOIN addon_pub_stats asp ON asp.pub_id = sp.id 
         AND asp.date >= DATE_TRUNC('day', NOW())
-      WHERE sp.actif = true
+      WHERE sp.actif = true OR sp.statut = 'budget_epuise'
       GROUP BY sp.id
     `);
 
@@ -452,25 +591,6 @@ router.get('/verifier-budgets', async (req, res) => {
     let budgetExpires = [];
 
     for (const pub of result.rows) {
-      const depense = parseFloat(pub.budget_depense || 0);
-      const coutEstime = parseFloat(pub.cout_estime || 0);
-      const totalDepense = Math.max(depense, coutEstime);
-
-      if (totalDepense >= pub.budget_montant) {
-        await pool.query(
-          'UPDATE sponsor_pubs SET actif = false WHERE id = $1',
-          [pub.id]
-        );
-        desactives++;
-        budgetExpires.push({
-          id: pub.id,
-          raison: 'budget_atteint',
-          depense: totalDepense,
-          budget: pub.budget_montant
-        });
-        continue;
-      }
-
       const debut = new Date(pub.budget_date_debut);
       let reset = false;
 
@@ -488,10 +608,14 @@ router.get('/verifier-budgets', async (req, res) => {
         if (diffAnnees >= 1) reset = true;
       }
 
+      // Nouvelle période : on réinitialise le budget ET on réactive si elle avait été
+      // coupée pour budget épuisé (mais pas si le sponsor l'avait lui-même mise en pause).
       if (reset) {
         await pool.query(
           `UPDATE sponsor_pubs SET 
             budget_depense = 0,
+            actif = CASE WHEN statut = 'budget_epuise' THEN true ELSE actif END,
+            statut = CASE WHEN statut = 'budget_epuise' THEN 'active' ELSE statut END,
             budget_date_debut = NOW(),
             budget_date_fin = NOW() + INTERVAL '1 ' || 
               CASE budget_type 
@@ -507,6 +631,25 @@ router.get('/verifier-budgets', async (req, res) => {
           id: pub.id,
           raison: 'reset_periode',
           type: pub.budget_type
+        });
+        continue; // période fraîche — pas de vérification de dépassement ce tour-ci
+      }
+
+      const depense = parseFloat(pub.budget_depense || 0);
+      const coutEstime = parseFloat(pub.cout_estime || 0);
+      const totalDepense = Math.max(depense, coutEstime);
+
+      if (totalDepense >= pub.budget_montant) {
+        await pool.query(
+          `UPDATE sponsor_pubs SET actif = false, statut = 'budget_epuise' WHERE id = $1`,
+          [pub.id]
+        );
+        desactives++;
+        budgetExpires.push({
+          id: pub.id,
+          raison: 'budget_atteint',
+          depense: totalDepense,
+          budget: pub.budget_montant
         });
       }
     }
