@@ -43,7 +43,7 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [monetisation, setMonetisation] = useState<{
-    taux_partage_pub: number; total_revenu_brut: number; total_revenu_gestionnaire: number; detail: MonetisationDetail[];
+    montant_par_clic: number; total_revenu_brut: number; total_revenu_gestionnaire: number; detail: MonetisationDetail[];
   } | null>(null);
   const [loadingMonetisation, setLoadingMonetisation] = useState(true);
   const [periode, setPeriode] = useState<'7' | '30' | '90'>('30');
@@ -324,16 +324,17 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
                 <div style={{ background: '#fff', padding: 20, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 12, color: '#666' }}>📊 Votre part actuelle</div>
-                  <div style={{ fontSize: 28, fontWeight: 700, color: '#f59e0b' }}>{monetisation.taux_partage_pub}%</div>
+                  <div style={{ fontSize: 12, color: '#666' }}>📊 Votre montant par clic</div>
+                  <div style={{ fontSize: 28, fontWeight: 700, color: '#f59e0b' }}>{monetisation.montant_par_clic.toFixed(2)}$</div>
                   <div style={{ fontSize: 11, color: '#999' }}>Défini par e-Vend Studio</div>
                 </div>
                 <div style={{ background: '#fff', padding: 20, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 12, color: '#666' }}>💰 Revenu total généré</div>
+                  <div style={{ fontSize: 12, color: '#666' }}>💰 Revenu généré pour les sponsors</div>
                   <div style={{ fontSize: 28, fontWeight: 700, color: '#2563eb' }}>{formatCurrency(monetisation.total_revenu_brut)}</div>
+                  <div style={{ fontSize: 11, color: '#999' }}>Informatif — n'affecte pas votre montant</div>
                 </div>
                 <div style={{ background: '#fff', padding: 20, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 12, color: '#666' }}>🏦 Votre part</div>
+                  <div style={{ fontSize: 12, color: '#666' }}>🏦 Ce que vous touchez</div>
                   <div style={{ fontSize: 28, fontWeight: 700, color: '#16a34a' }}>{formatCurrency(monetisation.total_revenu_gestionnaire)}</div>
                 </div>
               </div>
@@ -355,8 +356,8 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
                           <th style={{ textAlign: 'left', padding: '10px 14px', fontSize: 11, color: '#666' }}>Sponsor</th>
                           <th style={{ textAlign: 'center', padding: '10px 14px', fontSize: 11, color: '#666' }}>Impressions</th>
                           <th style={{ textAlign: 'center', padding: '10px 14px', fontSize: 11, color: '#666' }}>Clics</th>
-                          <th style={{ textAlign: 'center', padding: '10px 14px', fontSize: 11, color: '#666' }}>Revenu total</th>
-                          <th style={{ textAlign: 'center', padding: '10px 14px', fontSize: 11, color: '#666' }}>Votre part</th>
+                          <th style={{ textAlign: 'center', padding: '10px 14px', fontSize: 11, color: '#666' }}>Payé par le sponsor</th>
+                          <th style={{ textAlign: 'center', padding: '10px 14px', fontSize: 11, color: '#666' }}>Vous touchez</th>
                         </tr>
                       </thead>
                       <tbody>

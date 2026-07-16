@@ -34,6 +34,7 @@ import AdminForfaitsPhoto from './pages/admin/AdminForfaitsPhoto';
 import AdminForfaitsPub from './pages/admin/AdminForfaitsPub';
 import AdminPhotosSponsors from './pages/admin/AdminPhotosSponsors';
 import AdminPubsSponsors from './pages/admin/AdminPubsSponsors';
+import AdminMonetisationSponsors from './pages/admin/AdminMonetisationSponsors';
 import ListeProduits         from './pages/admin/ListeProduits';
 import GestionTagsEtTypes    from './pages/admin/GestionTagsEtTypes';
 import GestionBadges         from './pages/admin/GestionBadges';
@@ -608,7 +609,7 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
       case 'sponsors-pubs':
         return <AdminPubsSponsors />;
       case 'sponsors-monetisation':
-        return <div style={{ padding: 40, textAlign: 'center', color: THEME.textLight }}>💰 Monétisation — à construire (prochaine étape)</div>;
+        return <AdminMonetisationSponsors />;
       case 'sponsors-forfait-photo':
         return <AdminForfaitsPhoto />;
       case 'sponsors-forfait-pub':

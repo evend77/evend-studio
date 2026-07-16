@@ -51,20 +51,8 @@ const FORMATS: { id: TypePub; label: string; emoji: string; prix: number; descri
 ];
 
 // ── CATÉGORIES DE SITES ──────────────────────────────────────────────
-const CATEGORIES_SITES = [
-  { id: 'general', label: 'Général', emoji: '🌍' },
-  { id: 'ecommerce', label: 'E-commerce', emoji: '🛒' },
-  { id: 'vitrine', label: 'Vitrine', emoji: '🎨' },
-  { id: 'cours', label: 'Cours/École', emoji: '💃' },
-  { id: 'restaurant', label: 'Restauration', emoji: '🍽️' },
-  { id: 'beaute', label: 'Beauté', emoji: '💄' },
-  { id: 'jardin', label: 'Jardin/Bricolage', emoji: '🏠' },
-  { id: 'auto', label: 'Auto', emoji: '🚗' },
-  { id: 'sante', label: 'Santé', emoji: '🏥' },
-  { id: 'evenement', label: 'Événements', emoji: '🎭' },
-  { id: 'technologie', label: 'Technologie', emoji: '💻' },
-  { id: 'mode', label: 'Mode', emoji: '👗' },
-];
+// Les catégories viennent maintenant de la BD (gérées dans l'admin), plus du code en dur.
+// Voir le useEffect ci-dessous qui les charge via /api/admin/categories-pub/actives.
 
 function SponsorPubsCreer() {
   const paramsUrl = new URLSearchParams(window.location.search);
@@ -113,6 +101,14 @@ function SponsorPubsCreer() {
   const videoInputRef = useRef<HTMLInputElement>(null);
 
   const token = localStorage.getItem('sponsorToken') || localStorage.getItem('token');
+
+  const [categoriesSites, setCategoriesSites] = useState<{ id: string; label: string; emoji: string }[]>([]);
+  useEffect(() => {
+    fetch('/api/admin/categories-pub/actives', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : { categories: [] })
+      .then(d => setCategoriesSites((d.categories || []).map((c: any) => ({ id: c.cle, label: c.label, emoji: c.emoji }))))
+      .catch(() => setCategoriesSites([]));
+  }, []);
 
   // ── Mode édition : pré-remplir avec la pub existante ────────────────────
   useEffect(() => {
@@ -813,7 +809,7 @@ function SponsorPubsCreer() {
                   🎯 Cibler les catégories de sites
                 </label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '6px' }}>
-                  {CATEGORIES_SITES.map((cat) => (
+                  {categoriesSites.map((cat) => (
                     <button
                       key={cat.id}
                       type="button"

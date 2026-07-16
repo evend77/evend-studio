@@ -677,6 +677,9 @@ app.use('/api/gestionnaires', require('./routes/gestionnaires'));
 app.use('/api/gestionnaires', require('./routes/stripe_gestionnaire'));
 app.use('/api/gestionnaires/addon-pub-sponsor', require('./routes/gestionnaire_pubs'));
 app.use('/api/admin/sponsors', require('./routes/admin_plans_sponsors'));
+app.use('/api/admin/monetisation-pub', require('./routes/admin_monetisation_sponsors'));
+app.use('/api/admin/categories-pub', require('./routes/admin_categories_pub'));
+app.use('/api/admin/moderation-config', require('./routes/admin_moderation_config'));
 
 // =====================================================================
 // 📦 CRÉER / MODIFIER ANNONCE

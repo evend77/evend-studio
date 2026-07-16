@@ -148,13 +148,19 @@ router.get('/monetisation', authenticateToken, verifierGestionnaire, async (req,
     const { periode = '30' } = req.query;
 
     const gestionnaireResult = await pool.query(
-      'SELECT taux_partage_pub FROM gestionnaires WHERE id = $1',
+      'SELECT montant_par_clic FROM gestionnaires WHERE id = $1',
       [gestionnaire_id]
     );
     if (gestionnaireResult.rows.length === 0) {
       return res.status(404).json({ error: 'Gestionnaire non trouvé' });
     }
-    const tauxPartage = parseFloat(gestionnaireResult.rows[0].taux_partage_pub) || 70;
+    let montantParClic = gestionnaireResult.rows[0].montant_par_clic;
+    if (montantParClic === null) {
+      const cfg = await pool.query('SELECT montant_par_clic_defaut FROM configuration_monetisation_pub WHERE id = 1');
+      montantParClic = parseFloat(cfg.rows[0]?.montant_par_clic_defaut ?? 0.10);
+    } else {
+      montantParClic = parseFloat(montantParClic);
+    }
 
     const statsResult = await pool.query(
       `SELECT
@@ -173,16 +179,15 @@ router.get('/monetisation', authenticateToken, verifierGestionnaire, async (req,
     );
 
     const detail = statsResult.rows.map(r => {
-      const revenuBrut = parseFloat(r.revenu_brut) || 0;
-      const revenuGestionnaire = revenuBrut * (tauxPartage / 100);
+      const clics = parseInt(r.clics) || 0;
       return {
         pub_id: r.pub_id,
         titre: r.titre,
         sponsor_nom: r.sponsor_nom,
         impressions: parseInt(r.impressions) || 0,
-        clics: parseInt(r.clics) || 0,
-        revenu_brut: revenuBrut,
-        revenu_gestionnaire: revenuGestionnaire,
+        clics,
+        revenu_brut: parseFloat(r.revenu_brut) || 0, // ce que le sponsor paie (informatif)
+        revenu_gestionnaire: clics * montantParClic,  // ce que TOI tu reçois — montant fixe par clic
       };
     });
 
@@ -190,7 +195,7 @@ router.get('/monetisation', authenticateToken, verifierGestionnaire, async (req,
     const totalGestionnaire = detail.reduce((sum, d) => sum + d.revenu_gestionnaire, 0);
 
     res.json({
-      taux_partage_pub: tauxPartage,
+      montant_par_clic: montantParClic,
       periode_jours: parseInt(periode),
       total_revenu_brut: totalBrut,
       total_revenu_gestionnaire: totalGestionnaire,

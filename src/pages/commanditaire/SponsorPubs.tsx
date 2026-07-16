@@ -8,7 +8,7 @@ interface Pub {
   url_image: string;
   url_lien: string;
   actif: boolean;
-  statut: 'active' | 'pause' | 'budget_epuise' | 'en_attente';
+  statut: 'active' | 'pause' | 'budget_epuise' | 'en_attente' | 'rejete';
   impressions: number;
   clics: number;
   type: string;
@@ -36,7 +36,8 @@ const STATUT_INFO: Record<string, { label: string; couleur: string }> = {
   active: { label: '✅ ACTIVE', couleur: '#16a34a' },
   pause: { label: '⏸ EN PAUSE', couleur: '#f59e0b' },
   budget_epuise: { label: '💸 BUDGET ÉPUISÉ', couleur: '#dc2626' },
-  en_attente: { label: '⏳ EN ATTENTE', couleur: '#6b7280' },
+  en_attente: { label: '⏳ EN ATTENTE D\'APPROBATION', couleur: '#6b7280' },
+  rejete: { label: '🚫 REJETÉE', couleur: '#991b1b' },
 };
 
 function SponsorPubs({ token }: SponsorPubsProps) {

@@ -4,6 +4,7 @@ const router = express.Router();
 const pool = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { getTousLesPlansPub, versDictionnaire: versDictPub, PLAN_PUB_DEFAUT } = require('../config/plansPub');
+const { verifierModerationIA, doitEtreRejetee } = require('./moderationIA');
 
 // ── UPLOAD D'IMAGES DE PUB — séparé du système Photos (sponsor_photos) ────
 // Les images de pub ne doivent JAMAIS créer d'entrée dans sponsor_photos
@@ -166,22 +167,45 @@ router.post('/pubs', authenticateToken, async (req, res) => {
       ? codes_promo_roue 
       : [];
 
+    const urlImageFinale = images?.[0] || '';
+
+    // ── Modération : toute nouvelle pub part TOUJOURS en attente (jamais publiée
+    // directement, peu importe le toggle) — la Vérification IA, si activée, sert
+    // seulement à rejeter automatiquement les cas évidents pour te faire gagner du temps.
+    let statutInitial = 'en_attente';
+    try {
+      const configMod = await pool.query('SELECT * FROM configuration_moderation WHERE id = 1');
+      if (configMod.rows[0]?.verification_ai_active && urlImageFinale) {
+        const resultatIA = await verifierModerationIA(urlImageFinale, `${titre} ${description}`);
+        if (!resultatIA.erreur) {
+          if (doitEtreRejetee(resultatIA.scores, configMod.rows[0])) {
+            statutInitial = 'rejete';
+          }
+        } else {
+          console.error('⚠️ Modération IA indisponible, la pub reste en attente manuelle:', resultatIA.message);
+        }
+      }
+    } catch (e) {
+      console.error('⚠️ Erreur inattendue de modération IA (fallback en attente):', e.message);
+    }
+
     const result = await pool.query(
       `INSERT INTO sponsor_pubs 
-       (sponsor_id, titre, description, url_image, url_lien, actif,
+       (sponsor_id, titre, description, url_image, url_lien, actif, statut,
         type, effet, prix_par_click, extra_data,
         budget_type, budget_montant, budget_depense,
         categories,
         roue_active, codes_promo,
         created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, true, $6, $7, $8, $9, $10, $11, 0, $12, $13, $14, NOW(), NOW())
+       VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, 0, $13, $14, $15, NOW(), NOW())
        RETURNING *`,
       [
         sponsor_id,
         titre,
         description,
-        images?.[0] || '',
+        urlImageFinale,
         url_lien,
+        statutInitial,
         type || 'basique',
         effet || null,
         prix_par_click || 0.50,
@@ -196,7 +220,9 @@ router.post('/pubs', authenticateToken, async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Publicité créée avec succès',
+      message: statutInitial === 'rejete'
+        ? 'Publicité rejetée automatiquement par la vérification IA (contenu non conforme détecté)'
+        : 'Publicité créée — en attente d\'approbation par un administrateur',
       pub: result.rows[0]
     });
   } catch (error) {
@@ -274,11 +300,19 @@ router.put('/pubs/:id/toggle', authenticateToken, async (req, res) => {
     const sponsor_id = req.user.id;
 
     const check = await pool.query(
-      'SELECT id FROM sponsor_pubs WHERE id = $1 AND sponsor_id = $2',
+      'SELECT id, statut FROM sponsor_pubs WHERE id = $1 AND sponsor_id = $2',
       [id, sponsor_id]
     );
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Publicité non trouvée' });
+    }
+
+    if (actif && ['en_attente', 'rejete'].includes(check.rows[0].statut)) {
+      return res.status(403).json({
+        error: check.rows[0].statut === 'rejete'
+          ? 'Cette publicité a été rejetée et ne peut pas être réactivée. Contactez le support si vous pensez que c\'est une erreur.'
+          : 'Cette publicité est encore en attente d\'approbation par un administrateur.'
+      });
     }
 
     if (actif) {
@@ -588,24 +622,30 @@ router.get('/admin/all', authenticateToken, verifierAdmin, async (req, res) => {
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
     const offset = (page - 1) * limit;
     const search = (req.query.search || '').trim();
+    const statutFiltre = (req.query.statut || '').trim();
 
-    const paramsCount = search ? [search] : [];
-    const whereCount = search
-      ? `(sp.id::text = $1 OR sp.titre ILIKE '%' || $1 || '%' OR s.nom ILIKE '%' || $1 || '%')`
-      : '1=1';
+    // Construction dynamique des conditions et paramètres, dans l'ordre où ils sont ajoutés
+    const conditions = [];
+    const params = [];
+    if (search) {
+      params.push(search);
+      conditions.push(`(sp.id::text = $${params.length} OR sp.titre ILIKE '%' || $${params.length} || '%' OR s.nom ILIKE '%' || $${params.length} || '%')`);
+    }
+    if (statutFiltre) {
+      params.push(statutFiltre);
+      conditions.push(`sp.statut = $${params.length}`);
+    }
+    const whereSql = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+
     const countResult = await pool.query(
-      `SELECT COUNT(*) as total FROM sponsor_pubs sp JOIN sponsors s ON s.id = sp.sponsor_id WHERE ${whereCount}`,
-      paramsCount
+      `SELECT COUNT(*) as total FROM sponsor_pubs sp JOIN sponsors s ON s.id = sp.sponsor_id WHERE ${whereSql}`,
+      params
     );
     const total = parseInt(countResult.rows[0].total);
 
-    const paramsListe = search ? [search, limit, offset] : [limit, offset];
-    const whereListe = search
-      ? `(sp.id::text = $1 OR sp.titre ILIKE '%' || $1 || '%' OR s.nom ILIKE '%' || $1 || '%')`
-      : '1=1';
-    const limitIdx = search ? 2 : 1;
-    const offsetIdx = search ? 3 : 2;
-
+    const paramsListe = [...params, limit, offset];
+    const limitIdx = paramsListe.length - 1;
+    const offsetIdx = paramsListe.length;
     const result = await pool.query(
       `SELECT
         sp.id, sp.titre, sp.description, sp.url_image, sp.type, sp.actif, sp.statut,
@@ -614,7 +654,7 @@ router.get('/admin/all', authenticateToken, verifierAdmin, async (req, res) => {
         sp.sponsor_id, s.nom AS sponsor_nom, sp.created_at
        FROM sponsor_pubs sp
        JOIN sponsors s ON s.id = sp.sponsor_id
-       WHERE ${whereListe}
+       WHERE ${whereSql}
        ORDER BY sp.created_at DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       paramsListe
@@ -634,6 +674,38 @@ router.get('/admin/all', authenticateToken, verifierAdmin, async (req, res) => {
 });
 
 // PUT — Mettre en pause / réactiver une pub (admin) — cohérent avec le champ statut
+// PUT — Approuver une pub en attente (admin) — la publie
+router.put('/admin/:id/approuver', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `UPDATE sponsor_pubs SET actif = true, statut = 'active', updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Publicité non trouvée' });
+    res.json({ success: true, message: 'Publicité approuvée et publiée', pub: result.rows[0] });
+  } catch (error) {
+    console.error('❌ Erreur approbation pub admin:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'approbation' });
+  }
+});
+
+// PUT — Rejeter une pub en attente (admin) — reste en BD (pour référence/ID) mais jamais publiée
+router.put('/admin/:id/rejeter', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      `UPDATE sponsor_pubs SET actif = false, statut = 'rejete', updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Publicité non trouvée' });
+    res.json({ success: true, message: 'Publicité rejetée', pub: result.rows[0] });
+  } catch (error) {
+    console.error('❌ Erreur rejet pub admin:', error);
+    res.status(500).json({ error: 'Erreur lors du rejet' });
+  }
+});
+
 router.put('/admin/:id/pause', authenticateToken, verifierAdmin, async (req, res) => {
   try {
     const { id } = req.params;
