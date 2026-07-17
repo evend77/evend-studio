@@ -4,17 +4,12 @@ const router = express.Router();
 const pool = require('../db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, isAdmin } = require('../middleware/auth');
 const { getTousLesPlansPhotos, versDictionnaire: versDictPhotos, PLAN_PHOTOS_DEFAUT } = require('../config/plansPhotos');
 const { getTousLesPlansPub, versDictionnaire: versDictPub, PLAN_PUB_DEFAUT } = require('../config/plansPub');
 
 // ── MIDDLEWARE ──────────────────────────────────────────────────
-const verifierAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Accès réservé aux administrateurs' });
-  }
-  next();
-};
+// (isAdmin importé de ../middleware/auth — plus de réimplémentation locale)
 
 // ════════════════════════════════════════════════════════════════
 // 🔓 ROUTES PUBLIQUES
@@ -405,7 +400,7 @@ router.get('/stats', authenticateToken, async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 // GET — Liste de tous les sponsors (admin)
-router.get('/admin/liste', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/admin/liste', authenticateToken, isAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT 
@@ -427,7 +422,7 @@ router.get('/admin/liste', authenticateToken, verifierAdmin, async (req, res) =>
 });
 
 // PUT — Modifier un sponsor (admin)
-router.put('/admin/:id', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { nom, email, site_web, description, forfait, type_sponsor, active } = req.body;
@@ -463,7 +458,7 @@ router.put('/admin/:id', authenticateToken, verifierAdmin, async (req, res) => {
 });
 
 // DELETE — Supprimer un sponsor (admin)
-router.delete('/admin/:id', authenticateToken, verifierAdmin, async (req, res) => {
+router.delete('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -486,7 +481,7 @@ router.delete('/admin/:id', authenticateToken, verifierAdmin, async (req, res) =
 });
 
 // POST — Impersonation (l'admin accède au dashboard du sponsor)
-router.post('/admin/:id/impersonate', authenticateToken, verifierAdmin, async (req, res) => {
+router.post('/admin/:id/impersonate', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query('SELECT id, email FROM sponsors WHERE id = $1', [id]);
@@ -507,7 +502,7 @@ router.post('/admin/:id/impersonate', authenticateToken, verifierAdmin, async (r
 });
 
 // GET — Notes internes d'un sponsor
-router.get('/admin/:id/notes', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/admin/:id/notes', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
@@ -522,7 +517,7 @@ router.get('/admin/:id/notes', authenticateToken, verifierAdmin, async (req, res
 });
 
 // POST — Ajouter une note interne
-router.post('/admin/:id/notes', authenticateToken, verifierAdmin, async (req, res) => {
+router.post('/admin/:id/notes', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { contenu } = req.body;
@@ -542,7 +537,7 @@ router.post('/admin/:id/notes', authenticateToken, verifierAdmin, async (req, re
 });
 
 // DELETE — Supprimer une note interne
-router.delete('/admin/notes/:noteId', authenticateToken, verifierAdmin, async (req, res) => {
+router.delete('/admin/notes/:noteId', authenticateToken, isAdmin, async (req, res) => {
   try {
     await pool.query('DELETE FROM notes_sponsors WHERE id = $1', [req.params.noteId]);
     res.json({ success: true });
@@ -553,7 +548,7 @@ router.delete('/admin/notes/:noteId', authenticateToken, verifierAdmin, async (r
 });
 
 // PUT — Changer le mot de passe d'un sponsor (admin)
-router.put('/admin/:id/mot-de-passe', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/admin/:id/mot-de-passe', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { nouveau_mot_de_passe } = req.body;
@@ -576,7 +571,7 @@ router.put('/admin/:id/mot-de-passe', authenticateToken, verifierAdmin, async (r
 });
 
 // PUT — Changer le statut (actif/suspendu) — raccourci pratique en plus de PUT /admin/:id générique
-router.put('/admin/:id/statut', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/admin/:id/statut', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { statut } = req.body; // 'actif' | 'suspendu'

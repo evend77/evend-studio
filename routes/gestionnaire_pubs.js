@@ -1,19 +1,9 @@
 // routes/gestionnaire_pubs.js
-// ⚠️ Je n'ai pas vu le contenu de middleware/auth.js — je pars du principe que
-// authenticateToken pose req.user = { id, role } et que role === 'gestionnaire'
-// pour un gestionnaire connecté (même pattern que req.user.role === 'admin' dans
-// sponsors.js). À VÉRIFIER avant de brancher ces routes.
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateToken } = require('../middleware/auth');
-
-const verifierGestionnaire = (req, res, next) => {
-  if (req.user?.role !== 'gestionnaire') {
-    return res.status(403).json({ error: 'Accès réservé aux gestionnaires' });
-  }
-  next();
-};
+const { authenticateToken, isGestionnaire } = require('../middleware/auth');
+const { getMontantParClic } = require('../src/utils/monetisationPub');
 
 // ════════════════════════════════════════════════════════════════
 // 📋 PUBS QUI ROULENT SUR MON SITE (avec statut bloqué/actif)
@@ -22,7 +12,7 @@ const verifierGestionnaire = (req, res, next) => {
 // GET — Liste des pubs actives (toutes catégories confondues) + statut de blocage pour ce gestionnaire
 // Supporte la recherche (par ID exact, titre, ou nom de sponsor) et la pagination
 // (50 par page par défaut) — pensé pour tenir avec des milliers de pubs.
-router.get('/pubs', authenticateToken, verifierGestionnaire, async (req, res) => {
+router.get('/pubs', authenticateToken, isGestionnaire, async (req, res) => {
   try {
     const gestionnaire_id = req.user.id;
     const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -84,7 +74,7 @@ router.get('/pubs', authenticateToken, verifierGestionnaire, async (req, res) =>
 });
 
 // PUT — Bloquer / débloquer une pub précise
-router.put('/pubs/:pubId/bloquer', authenticateToken, verifierGestionnaire, async (req, res) => {
+router.put('/pubs/:pubId/bloquer', authenticateToken, isGestionnaire, async (req, res) => {
   try {
     const { pubId } = req.params;
     const { bloquer } = req.body; // true = bloquer, false = débloquer
@@ -111,7 +101,7 @@ router.put('/pubs/:pubId/bloquer', authenticateToken, verifierGestionnaire, asyn
 });
 
 // PUT — Bloquer / débloquer un sponsor au complet
-router.put('/sponsors/:sponsorId/bloquer', authenticateToken, verifierGestionnaire, async (req, res) => {
+router.put('/sponsors/:sponsorId/bloquer', authenticateToken, isGestionnaire, async (req, res) => {
   try {
     const { sponsorId } = req.params;
     const { bloquer } = req.body;
@@ -142,24 +132,14 @@ router.put('/sponsors/:sponsorId/bloquer', authenticateToken, verifierGestionnai
 // ════════════════════════════════════════════════════════════════
 
 // GET — Revenu généré par les pubs sur mon site
-router.get('/monetisation', authenticateToken, verifierGestionnaire, async (req, res) => {
+router.get('/monetisation', authenticateToken, isGestionnaire, async (req, res) => {
   try {
     const gestionnaire_id = req.user.id;
     const { periode = '30' } = req.query;
 
-    const gestionnaireResult = await pool.query(
-      'SELECT montant_par_clic FROM gestionnaires WHERE id = $1',
-      [gestionnaire_id]
-    );
-    if (gestionnaireResult.rows.length === 0) {
-      return res.status(404).json({ error: 'Gestionnaire non trouvé' });
-    }
-    let montantParClic = gestionnaireResult.rows[0].montant_par_clic;
+    const montantParClic = await getMontantParClic(gestionnaire_id);
     if (montantParClic === null) {
-      const cfg = await pool.query('SELECT montant_par_clic_defaut FROM configuration_monetisation_pub WHERE id = 1');
-      montantParClic = parseFloat(cfg.rows[0]?.montant_par_clic_defaut ?? 0.10);
-    } else {
-      montantParClic = parseFloat(montantParClic);
+      return res.status(404).json({ error: 'Gestionnaire non trouvé' });
     }
 
     const statsResult = await pool.query(
@@ -207,12 +187,49 @@ router.get('/monetisation', authenticateToken, verifierGestionnaire, async (req,
   }
 });
 
+// GET — Revenu pub pour une plage de dates EXACTE (utilisé par "Mes services" :
+// mois en cours = 1er du mois → aujourd'hui, historique = periode_debut/fin de la vraie facture)
+router.get('/monetisation-periode', authenticateToken, isGestionnaire, async (req, res) => {
+  try {
+    const gestionnaire_id = req.user.id;
+    const { debut, fin } = req.query;
+    if (!debut || !fin) {
+      return res.status(400).json({ error: 'Paramètres debut et fin requis (YYYY-MM-DD)' });
+    }
+
+    const montantParClic = await getMontantParClic(gestionnaire_id);
+    if (montantParClic === null) {
+      return res.status(404).json({ error: 'Gestionnaire non trouvé' });
+    }
+
+    const result = await pool.query(
+      `SELECT COALESCE(SUM(clics), 0) as clics, COALESCE(SUM(impressions), 0) as impressions
+       FROM addon_pub_stats
+       WHERE gestionnaire_id = $1 AND date >= $2::date AND date <= $3::date`,
+      [gestionnaire_id, debut, fin]
+    );
+
+    const clics = parseInt(result.rows[0].clics) || 0;
+    const impressions = parseInt(result.rows[0].impressions) || 0;
+
+    res.json({
+      debut, fin,
+      montant_par_clic: montantParClic,
+      clics, impressions,
+      revenu: clics * montantParClic,
+    });
+  } catch (error) {
+    console.error('❌ Erreur monétisation période:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération de la monétisation' });
+  }
+});
+
 // ════════════════════════════════════════════════════════════════
 // 🏷️ CATÉGORIES DE PUBS ACCEPTÉES SUR MON SITE
 // ════════════════════════════════════════════════════════════════
 
 // GET — Catégories actuellement autorisées (null/vide = toutes)
-router.get('/categories-autorisees', authenticateToken, verifierGestionnaire, async (req, res) => {
+router.get('/categories-autorisees', authenticateToken, isGestionnaire, async (req, res) => {
   try {
     const result = await pool.query(
       'SELECT categories_pub_autorisees FROM options_gestionnaire WHERE gestionnaire_id = $1',
@@ -226,7 +243,7 @@ router.get('/categories-autorisees', authenticateToken, verifierGestionnaire, as
 });
 
 // PUT — Modifier les catégories autorisées ([] = toutes acceptées)
-router.put('/categories-autorisees', authenticateToken, verifierGestionnaire, async (req, res) => {
+router.put('/categories-autorisees', authenticateToken, isGestionnaire, async (req, res) => {
   try {
     const { categories } = req.body; // tableau de clés, ex: ['cours', 'general']
     if (!Array.isArray(categories)) {

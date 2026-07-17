@@ -23,6 +23,62 @@ function SponsorAbonnement({ sponsorInfo, token }: SponsorAbonnementProps) {
   const [plansPub, setPlansPub] = useState<PlanAffiche[]>([]);
   const [chargementPlans, setChargementPlans] = useState(true);
 
+  // Portefeuille prépayé (finance les clics — obligatoire pour qu'une pub s'affiche)
+  const [solde, setSolde] = useState<number | null>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [montantsSuggeres, setMontantsSuggeres] = useState<number[]>([20, 50, 100, 250]);
+  const [montantPersonnalise, setMontantPersonnalise] = useState('');
+  const [chargementRecharge, setChargementRecharge] = useState(false);
+  const [afficherHistorique, setAfficherHistorique] = useState(false);
+
+  const chargerPortefeuille = async () => {
+    try {
+      const res = await fetch('/api/sponsors/portefeuille/solde', { headers: { Authorization: `Bearer ${token}` } });
+      const data = await res.json();
+      setSolde(data.solde ?? 0);
+      setTransactions(data.transactions || []);
+      if (data.montants_suggeres) setMontantsSuggeres(data.montants_suggeres);
+    } catch (e) {
+      console.error('Erreur chargement portefeuille:', e);
+    }
+  };
+
+  useEffect(() => { if (peutPubs) chargerPortefeuille(); }, [peutPubs]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const recharge = params.get('recharge');
+    if (recharge === 'succes') {
+      alert('✅ Recharge reçue ! Votre solde sera mis à jour dans quelques instants.');
+      setTimeout(chargerPortefeuille, 2000);
+    } else if (recharge === 'annule') {
+      alert('La recharge a été annulée.');
+    }
+    if (recharge) {
+      params.delete('recharge');
+      window.history.replaceState({}, '', `${window.location.pathname}?${params.toString()}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const recharger = async (montant: number) => {
+    if (!montant || montant < 5) return;
+    setChargementRecharge(true);
+    try {
+      const res = await fetch('/api/sponsors/portefeuille/recharger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ montant }),
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+      else alert(`❌ ${data.error || 'Erreur lors de la création du paiement'}`);
+    } catch (e) {
+      alert('❌ Erreur réseau lors de la recharge');
+    }
+    setChargementRecharge(false);
+  };
+
   useEffect(() => {
     const charger = async () => {
       try {
@@ -119,6 +175,77 @@ function SponsorAbonnement({ sponsorInfo, token }: SponsorAbonnementProps) {
 
   return (
     <div>
+      {peutPubs && (
+        <div style={{ background: '#fff', borderRadius: '12px', padding: '24px', border: '1px solid #eee', marginBottom: '24px' }}>
+          <h3 style={{ margin: '0 0 4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            💳 Portefeuille publicitaire
+          </h3>
+          <p style={{ fontSize: '12px', color: '#999', margin: '0 0 16px' }}>
+            Chaque clic sur vos pubs débite ce solde. Une pub ne s'affiche jamais si votre solde est à 0$.
+          </p>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', flexWrap: 'wrap', marginBottom: '18px' }}>
+            <div>
+              <div style={{ fontSize: '11px', color: '#999' }}>Solde disponible</div>
+              <div style={{ fontSize: '32px', fontWeight: 800, color: solde !== null && solde <= 0 ? '#dc2626' : '#16a34a' }}>
+                {solde !== null ? solde.toFixed(2) : '—'}$
+              </div>
+              {solde !== null && solde <= 0 && (
+                <div style={{ fontSize: '11px', color: '#dc2626', fontWeight: 600 }}>⚠️ Vos pubs sont en pause — rechargez pour les réactiver</div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+            {montantsSuggeres.map(m => (
+              <button key={m} onClick={() => recharger(m)} disabled={chargementRecharge}
+                style={{ padding: '10px 20px', borderRadius: '8px', border: '1.5px solid #f59e0b', background: '#fff', color: '#f59e0b', fontWeight: 700, fontSize: '14px', cursor: chargementRecharge ? 'wait' : 'pointer' }}>
+                +{m}$
+              </button>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <input
+              type="number" min={5} value={montantPersonnalise} onChange={e => setMontantPersonnalise(e.target.value)}
+              placeholder="Montant personnalisé ($)"
+              style={{ flex: 1, maxWidth: 220, padding: '10px 14px', border: '2px solid #e5e7eb', borderRadius: '8px', fontSize: '14px', outline: 'none' }}
+            />
+            <button
+              onClick={() => recharger(parseFloat(montantPersonnalise))}
+              disabled={chargementRecharge || !montantPersonnalise || parseFloat(montantPersonnalise) < 5}
+              style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #f59e0b, #d97706)', color: '#000', fontWeight: 700, fontSize: '14px', cursor: 'pointer', opacity: (!montantPersonnalise || parseFloat(montantPersonnalise) < 5) ? 0.5 : 1 }}
+            >
+              💳 Recharger
+            </button>
+          </div>
+          <p style={{ fontSize: '11px', color: '#bbb', margin: '6px 0 0' }}>Montant minimum : 5$</p>
+
+          <button onClick={() => setAfficherHistorique(v => !v)} style={{ marginTop: '16px', background: 'none', border: 'none', color: '#666', fontSize: '12px', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
+            {afficherHistorique ? 'Masquer' : 'Voir'} l'historique des transactions
+          </button>
+
+          {afficherHistorique && (
+            <div style={{ marginTop: '12px', border: '1px solid #eee', borderRadius: '8px', overflow: 'hidden' }}>
+              {transactions.length === 0 ? (
+                <div style={{ padding: '16px', textAlign: 'center', color: '#999', fontSize: '13px' }}>Aucune transaction pour le moment.</div>
+              ) : (
+                transactions.map(t => (
+                  <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 14px', borderBottom: '1px solid #f3f4f6', fontSize: '12px' }}>
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{t.type === 'recharge' ? '💳 Recharge' : t.type === 'remboursement' ? '↩️ Remboursement' : `🖱️ Clic${t.pub_titre ? ' — ' + t.pub_titre : ''}`}</div>
+                      <div style={{ color: '#999' }}>{new Date(t.created_at).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
+                    </div>
+                    <div style={{ fontWeight: 700, color: t.type === 'depense' ? '#dc2626' : '#16a34a' }}>
+                      {t.type === 'depense' ? '−' : '+'}{parseFloat(t.montant).toFixed(2)}$
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={{
         display: 'grid',
         gridTemplateColumns: peutPhotos && peutPubs ? '1fr 1fr' : '1fr',

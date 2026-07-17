@@ -65,6 +65,10 @@ function OngletConfig({ token, showToast }: { token: () => string | null; showTo
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
 
+  const [prixClicInput, setPrixClicInput] = useState('0.50');
+  const [prixImpressionInput, setPrixImpressionInput] = useState('0.01');
+  const [seuilVersementInput, setSeuilVersementInput] = useState('10.00');
+
   useDebounce(rechercheInput, 350, (v) => { setPage(1); setRecherche(v); });
 
   const charger = async () => {
@@ -76,6 +80,9 @@ function OngletConfig({ token, showToast }: { token: () => string | null; showTo
       const data = await res.json();
       setDefaut(data.defaut ?? 0.10);
       setDefautInput((data.defaut ?? 0.10).toFixed(2));
+      setPrixClicInput((data.prix_par_clic_defaut ?? 0.50).toFixed(2));
+      setPrixImpressionInput((data.prix_par_impression_defaut ?? 0.01).toFixed(2));
+      setSeuilVersementInput((data.seuil_versement_gestionnaire ?? 10).toFixed(2));
       setGestionnaires(data.gestionnaires || []);
       setTotalPages(data.totalPages || 1);
       setTotal(data.total || 0);
@@ -85,16 +92,21 @@ function OngletConfig({ token, showToast }: { token: () => string | null; showTo
 
   useEffect(() => { charger(); }, [page, recherche]);
 
-  const sauvegarderDefaut = async () => {
+  const sauvegarderTarifs = async () => {
     const montant = parseFloat(defautInput);
-    if (isNaN(montant) || montant < 0) return showToast('❌ Montant invalide', 'error');
+    const prixClic = parseFloat(prixClicInput);
+    const prixImpression = parseFloat(prixImpressionInput);
+    const seuil = parseFloat(seuilVersementInput);
+    if ([montant, prixClic, prixImpression, seuil].some(v => isNaN(v) || v < 0)) {
+      return showToast('❌ Une des valeurs est invalide', 'error');
+    }
     try {
       await fetch(`${API_BASE}/config/defaut`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
-        body: JSON.stringify({ montant }),
+        body: JSON.stringify({ montant, prix_par_clic: prixClic, prix_par_impression: prixImpression, seuil_versement: seuil }),
       });
       setDefaut(montant);
-      showToast('✅ Montant par défaut mis à jour', 'success');
+      showToast('✅ Tarifs mis à jour', 'success');
     } catch { showToast('❌ Erreur lors de la sauvegarde', 'error'); }
   };
 
@@ -115,13 +127,35 @@ function OngletConfig({ token, showToast }: { token: () => string | null; showTo
 
   return (
     <div>
-      <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 12, padding: 20, marginBottom: 24, maxWidth: 420 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 800, margin: '0 0 10px' }}>💵 Montant par défaut (par clic)</h3>
-        <p style={{ fontSize: 12, color: THEME.textLight, margin: '0 0 12px' }}>Utilisé pour tout gestionnaire sans montant personnalisé.</p>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <input type="number" min={0} step="0.01" value={defautInput} onChange={e => setDefautInput(e.target.value)}
-            style={{ flex: 1, padding: '9px 12px', border: `1.5px solid ${THEME.border}`, borderRadius: 8, fontSize: 13, outline: 'none' }} />
-          <button onClick={sauvegarderDefaut} style={{ padding: '9px 18px', border: 'none', borderRadius: 8, background: THEME.accent, color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>💾 Sauvegarder</button>
+      <div style={{ background: THEME.card, border: `1px solid ${THEME.border}`, borderRadius: 12, padding: 20, marginBottom: 24, maxWidth: 480 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 800, margin: '0 0 4px' }}>💵 Tarifs globaux</h3>
+        <p style={{ fontSize: 12, color: THEME.textLight, margin: '0 0 16px' }}>S'appliquent à toutes les nouvelles pubs créées et à tous les gestionnaires sans montant personnalisé.</p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: THEME.text, display: 'block', marginBottom: 4 }}>💰 Versé au gestionnaire par clic</label>
+            <input type="number" min={0} step="0.01" value={defautInput} onChange={e => setDefautInput(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: `1.5px solid ${THEME.border}`, borderRadius: 8, fontSize: 13, outline: 'none' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: THEME.text, display: 'block', marginBottom: 4 }}>🖱️ Coûte au sponsor par clic</label>
+            <input type="number" min={0} step="0.01" value={prixClicInput} onChange={e => setPrixClicInput(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: `1.5px solid ${THEME.border}`, borderRadius: 8, fontSize: 13, outline: 'none' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: THEME.text, display: 'block', marginBottom: 4 }}>👁️ Coûte au sponsor par apparition (même sans clic)</label>
+            <input type="number" min={0} step="0.01" value={prixImpressionInput} onChange={e => setPrixImpressionInput(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: `1.5px solid ${THEME.border}`, borderRadius: 8, fontSize: 13, outline: 'none' }} />
+          </div>
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 700, color: THEME.text, display: 'block', marginBottom: 4 }}>🏦 Versement minimum Stripe pour un gestionnaire</label>
+            <input type="number" min={0} step="0.01" value={seuilVersementInput} onChange={e => setSeuilVersementInput(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: `1.5px solid ${THEME.border}`, borderRadius: 8, fontSize: 13, outline: 'none' }} />
+            <p style={{ fontSize: 11, color: THEME.textLight, margin: '4px 0 0' }}>Le solde dû s'accumule tant que ce seuil n'est pas atteint.</p>
+          </div>
+          <button onClick={sauvegarderTarifs} style={{ padding: '10px 18px', border: 'none', borderRadius: 8, background: THEME.accent, color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+            💾 Sauvegarder les tarifs
+          </button>
         </div>
       </div>
 
@@ -152,7 +186,7 @@ function OngletConfig({ token, showToast }: { token: () => string | null; showTo
                 return (
                   <tr key={g.id} style={{ borderBottom: '1px solid #f5f5f5', backgroundColor: i % 2 === 0 ? 'white' : '#fafafa' }}>
                     <td style={{ padding: '10px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: 11 }}>#{g.id}</td>
-                    <td style={{ padding: '10px 8px', textAlign: 'left', fontSize: 12, fontWeight: 700 }}>{g.nom_boutique}</td>
+                    <td style={{ padding: '10px 8px', textAlign: 'left', fontSize: 12, fontWeight: 700 }}>{g.nom_boutique || <span style={{ color: THEME.textLight, fontStyle: 'italic', fontWeight: 400 }}>Sans nom</span>}</td>
                     <td style={{ padding: '10px 8px', textAlign: 'center', fontSize: 12 }}>{g.email}</td>
                     <td style={{ padding: '10px 8px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'center' }}>
@@ -270,7 +304,7 @@ function OngletSponsor({ token, showToast }: { token: () => string | null; showT
 // ══════════════════════════════════════════════════════════════════════
 // 🏪 ONGLET GESTIONNAIRE
 // ══════════════════════════════════════════════════════════════════════
-interface GestionnaireRevenu { id: number; nom_boutique: string; email: string; montant_par_clic: number; impressions_total: number; clics_total: number; clics_mois: number; revenu_total: number; revenu_mois: number; }
+interface GestionnaireRevenu { id: number; nom_boutique: string; email: string; montant_par_clic: number; impressions_total: number; clics_total: number; clics_mois: number; revenu_total: number; revenu_mois: number; solde_du: number; stripe_connecte: boolean; }
 
 function OngletGestionnaire({ token, showToast }: { token: () => string | null; showToast: (m: string, t: 'success' | 'error') => void }) {
   const [gestionnaires, setGestionnaires] = useState<GestionnaireRevenu[]>([]);
@@ -283,23 +317,52 @@ function OngletGestionnaire({ token, showToast }: { token: () => string | null; 
 
   useDebounce(rechercheInput, 350, (v) => { setPage(1); setRecherche(v); });
 
+  const charger = async () => {
+    setChargement(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: String(PAR_PAGE) });
+      if (recherche) params.set('search', recherche);
+      const res = await fetch(`${API_BASE}/gestionnaires-revenu?${params}`, { headers: { Authorization: `Bearer ${token()}` } });
+      const data = await res.json();
+      setGestionnaires(data.gestionnaires || []);
+      setTotalPages(data.totalPages || 1);
+      setTotal(data.total || 0);
+    } catch { showToast('❌ Erreur lors du chargement', 'error'); }
+    setChargement(false);
+  };
+
   useEffect(() => {
-    const charger = async () => {
-      setChargement(true);
-      try {
-        const params = new URLSearchParams({ page: String(page), limit: String(PAR_PAGE) });
-        if (recherche) params.set('search', recherche);
-        const res = await fetch(`${API_BASE}/gestionnaires-revenu?${params}`, { headers: { Authorization: `Bearer ${token()}` } });
-        const data = await res.json();
-        setGestionnaires(data.gestionnaires || []);
-        setTotalPages(data.totalPages || 1);
-        setTotal(data.total || 0);
-      } catch { showToast('❌ Erreur lors du chargement', 'error'); }
-      setChargement(false);
-    };
     charger();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, recherche]);
+
+  const [versementEnCours, setVersementEnCours] = useState<number | null>(null);
+
+  const verserMaintenant = async (g: GestionnaireRevenu) => {
+    if (!g.stripe_connecte) {
+      showToast('❌ Ce gestionnaire n\'a pas de compte Stripe Connect vérifié', 'error');
+      return;
+    }
+    if (!window.confirm(`Verser ${formatCurrency(g.solde_du)} à ${g.nom_boutique} maintenant, même si sous le seuil habituel ?`)) return;
+    setVersementEnCours(g.id);
+    try {
+      const res = await fetch(`${API_BASE}/gestionnaires/${g.id}/verser`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ ignorerSeuil: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error();
+      if (data.dernier_versement?.statut === 'envoye') {
+        showToast(`✅ ${formatCurrency(parseFloat(data.dernier_versement.montant))} versé à ${g.nom_boutique}`, 'success');
+      } else {
+        showToast(`⚠️ Le versement a échoué : ${data.dernier_versement?.erreur || 'raison inconnue'}`, 'error');
+      }
+      charger();
+    } catch {
+      showToast('❌ Erreur lors du versement', 'error');
+    }
+    setVersementEnCours(null);
+  };
 
   const totalMois = gestionnaires.reduce((s, g) => s + g.revenu_mois, 0);
 
@@ -322,7 +385,7 @@ function OngletGestionnaire({ token, showToast }: { token: () => string | null; 
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', zIndex: 5 }}>
               <tr style={{ borderBottom: `2px solid ${THEME.accent}` }}>
-                {['ID', 'Gestionnaire', 'Email', '$/clic', 'Impressions', 'Clics total', 'Clics ce mois', 'Revenu total', 'Revenu ce mois'].map(h => (
+                {['ID', 'Gestionnaire', 'Email', '$/clic', 'Impressions', 'Clics total', 'Clics ce mois', 'Revenu total', 'Revenu ce mois', 'Solde dû', 'Stripe', 'Action'].map(h => (
                   <th key={h} style={{ padding: '10px 8px', textAlign: 'center', fontSize: 10.5, fontWeight: 700, color: THEME.accent, textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
@@ -339,6 +402,27 @@ function OngletGestionnaire({ token, showToast }: { token: () => string | null; 
                   <td style={{ padding: '9px 8px', textAlign: 'center', fontSize: 12 }}>{g.clics_mois}</td>
                   <td style={{ padding: '9px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700 }}>{formatCurrency(g.revenu_total)}</td>
                   <td style={{ padding: '9px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: THEME.success }}>{formatCurrency(g.revenu_mois)}</td>
+                  <td style={{ padding: '9px 8px', textAlign: 'center', fontSize: 12, fontWeight: 700, color: g.solde_du > 0 ? THEME.warning : THEME.textLight }}>{formatCurrency(g.solde_du)}</td>
+                  <td style={{ padding: '9px 8px', textAlign: 'center' }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: g.stripe_connecte ? '#dcfce7' : '#fee2e2', color: g.stripe_connecte ? THEME.success : THEME.danger }}>
+                      {g.stripe_connecte ? '✅ Connecté' : '❌ Non connecté'}
+                    </span>
+                  </td>
+                  <td style={{ padding: '9px 8px', textAlign: 'center' }}>
+                    <button
+                      onClick={() => verserMaintenant(g)}
+                      disabled={g.solde_du <= 0 || !g.stripe_connecte || versementEnCours === g.id}
+                      title={!g.stripe_connecte ? 'Compte Stripe Connect non vérifié' : g.solde_du <= 0 ? 'Rien à verser' : 'Forcer un versement maintenant'}
+                      style={{
+                        padding: '5px 12px', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                        cursor: (g.solde_du > 0 && g.stripe_connecte) ? 'pointer' : 'not-allowed',
+                        background: (g.solde_du > 0 && g.stripe_connecte) ? THEME.accent : '#e5e7eb',
+                        color: (g.solde_du > 0 && g.stripe_connecte) ? 'white' : '#999',
+                      }}
+                    >
+                      {versementEnCours === g.id ? '⏳' : '💸 Verser'}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>

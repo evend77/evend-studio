@@ -2,17 +2,11 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, isAdmin } = require('../middleware/auth');
 
-const verifierAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Accès réservé aux administrateurs' });
-  }
-  next();
-};
 
 // GET — État actuel du toggle + seuils
-router.get('/', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/', authenticateToken, isAdmin, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM configuration_moderation WHERE id = 1');
     res.json(result.rows[0] || { verification_ai_active: false });
@@ -23,7 +17,7 @@ router.get('/', authenticateToken, verifierAdmin, async (req, res) => {
 });
 
 // PUT — Activer/désactiver le toggle (et ajuster les seuils si fournis)
-router.put('/', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { verification_ai_active, seuil_sexuel, seuil_violence, seuil_automutilation } = req.body;
     const result = await pool.query(

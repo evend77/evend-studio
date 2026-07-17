@@ -53,6 +53,9 @@ app.post('/api/dynadot/stripe-webhook', express.raw({ type: 'application/json' }
 // ✅ Webhook Studio Stripe — abonnements e-Vend Studio
 app.use('/api/webhooks-studio', webhooksStudioStripe);
 
+// ✅ Webhook Sponsors Stripe — recharges du portefeuille publicitaire
+app.use('/api/webhooks-sponsors', require('./routes/webhooks_sponsors_stripe'));
+
 // ✅ Webhook paiements École/Cours — comptes Connect des gestionnaires (réservations/abonnements)
 app.post('/api/webhooks/paiements-connect', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/paiements-connect', require('./routes/webhooks_paiements_stripe'));
@@ -262,6 +265,7 @@ app.use('/api/blacklist-contact', require('./routes/blacklist_contact'));
 app.use('/api/sponsors/photos', sponsorsPhotosRoutes);
 app.use('/api/sponsors', sponsorsRoutes);
 app.use('/api/sponsors', sponsorPubsRoutes);
+app.use('/api/sponsors/portefeuille', require('./routes/sponsors_portefeuille'));
 
 // =====================================================================
 // 🎨 SITES STUDIO (config du site du vendeur)

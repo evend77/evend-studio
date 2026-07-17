@@ -2,29 +2,26 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, isAdmin } = require('../middleware/auth');
 
-const verifierAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Accès réservé aux administrateurs' });
-  }
-  next();
-};
 
 // ════════════════════════════════════════════════════════════════
 // ⚙️ CONFIG — montant fixe par clic (global + par gestionnaire)
 // ════════════════════════════════════════════════════════════════
 
 // GET — Valeur par défaut + liste des gestionnaires (avec recherche/pagination)
-router.get('/config', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/config', authenticateToken, isAdmin, async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
     const offset = (page - 1) * limit;
     const search = (req.query.search || '').trim();
 
-    const cfg = await pool.query('SELECT montant_par_clic_defaut FROM configuration_monetisation_pub WHERE id = 1');
+    const cfg = await pool.query('SELECT * FROM configuration_monetisation_pub WHERE id = 1');
     const defaut = parseFloat(cfg.rows[0]?.montant_par_clic_defaut ?? 0.10);
+    const prixParClicDefaut = parseFloat(cfg.rows[0]?.prix_par_clic_defaut ?? 0.50);
+    const prixParImpressionDefaut = parseFloat(cfg.rows[0]?.prix_par_impression_defaut ?? 0.01);
+    const seuilVersementGestionnaire = parseFloat(cfg.rows[0]?.seuil_versement_gestionnaire ?? 10.00);
 
     const whereSearch = search ? `AND (g.nom_boutique ILIKE '%' || $1 || '%' OR g.email ILIKE '%' || $1 || '%' OR g.id::text = $1)` : '';
     const paramsCount = search ? [search] : [];
@@ -54,6 +51,9 @@ router.get('/config', authenticateToken, verifierAdmin, async (req, res) => {
 
     res.json({
       defaut,
+      prix_par_clic_defaut: prixParClicDefaut,
+      prix_par_impression_defaut: prixParImpressionDefaut,
+      seuil_versement_gestionnaire: seuilVersementGestionnaire,
       gestionnaires: result.rows.map(g => ({
         id: g.id, nom_boutique: g.nom_boutique, email: g.email,
         montant_par_clic: g.montant_par_clic === null ? null : parseFloat(g.montant_par_clic),
@@ -68,17 +68,30 @@ router.get('/config', authenticateToken, verifierAdmin, async (req, res) => {
 });
 
 // PUT — Modifier la valeur par défaut globale
-router.put('/config/defaut', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/config/defaut', authenticateToken, isAdmin, async (req, res) => {
   try {
-    const { montant } = req.body;
-    if (montant === undefined || isNaN(parseFloat(montant)) || parseFloat(montant) < 0) {
-      return res.status(400).json({ error: 'Montant invalide' });
+    const { montant, prix_par_clic, prix_par_impression, seuil_versement } = req.body;
+
+    const valeurs = { montant, prix_par_clic, prix_par_impression, seuil_versement };
+    for (const [cle, val] of Object.entries(valeurs)) {
+      if (val !== undefined && (isNaN(parseFloat(val)) || parseFloat(val) < 0)) {
+        return res.status(400).json({ error: `Valeur invalide pour ${cle}` });
+      }
     }
+
     await pool.query(
-      `UPDATE configuration_monetisation_pub SET montant_par_clic_defaut = $1, updated_at = NOW() WHERE id = 1`,
-      [montant]
+      `UPDATE configuration_monetisation_pub SET
+        montant_par_clic_defaut = COALESCE($1, montant_par_clic_defaut),
+        prix_par_clic_defaut = COALESCE($2, prix_par_clic_defaut),
+        prix_par_impression_defaut = COALESCE($3, prix_par_impression_defaut),
+        seuil_versement_gestionnaire = COALESCE($4, seuil_versement_gestionnaire),
+        updated_at = NOW()
+       WHERE id = 1`,
+      [montant ?? null, prix_par_clic ?? null, prix_par_impression ?? null, seuil_versement ?? null]
     );
-    res.json({ success: true, montant: parseFloat(montant) });
+
+    const result = await pool.query('SELECT * FROM configuration_monetisation_pub WHERE id = 1');
+    res.json({ success: true, config: result.rows[0] });
   } catch (error) {
     console.error('❌ Erreur modification défaut monétisation:', error);
     res.status(500).json({ error: 'Erreur lors de la modification du montant par défaut' });
@@ -87,7 +100,7 @@ router.put('/config/defaut', authenticateToken, verifierAdmin, async (req, res) 
 
 // PUT — Modifier (ou retirer) le montant personnalisé d'un gestionnaire précis
 // montant = null → revient à utiliser la valeur par défaut
-router.put('/config/:gestionnaireId', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/config/:gestionnaireId', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { gestionnaireId } = req.params;
     const { montant } = req.body;
@@ -110,7 +123,7 @@ router.put('/config/:gestionnaireId', authenticateToken, verifierAdmin, async (r
 // 📢 ONGLET SPONSOR — stats détaillées de toutes les pubs
 // ════════════════════════════════════════════════════════════════
 
-router.get('/sponsors-stats', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/sponsors-stats', authenticateToken, isAdmin, async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
@@ -169,7 +182,7 @@ router.get('/sponsors-stats', authenticateToken, verifierAdmin, async (req, res)
 // 🏪 ONGLET GESTIONNAIRE — revenu total + revenu du mois en cours
 // ════════════════════════════════════════════════════════════════
 
-router.get('/gestionnaires-revenu', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/gestionnaires-revenu', authenticateToken, isAdmin, async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
@@ -198,14 +211,17 @@ router.get('/gestionnaires-revenu', authenticateToken, verifierAdmin, async (req
         g.id,
         COALESCE(NULLIF(g.nom_boutique, ''), (SELECT s.slug FROM sites s WHERE s.gestionnaire_id = g.id LIMIT 1), g.email) AS nom_boutique,
         g.email, g.montant_par_clic,
+        og.stripe_account_id, og.stripe_verifie,
+        COALESCE(sgp.solde_du, 0) AS solde_du,
         COALESCE(SUM(aps.clics), 0) as clics_total,
         COALESCE(SUM(aps.clics) FILTER (WHERE aps.date >= date_trunc('month', CURRENT_DATE)), 0) as clics_mois,
         COALESCE(SUM(aps.impressions), 0) as impressions_total
        FROM gestionnaires g
        JOIN options_gestionnaire og ON og.gestionnaire_id = g.id
        LEFT JOIN addon_pub_stats aps ON aps.gestionnaire_id = g.id
+       LEFT JOIN soldes_gestionnaires_pub sgp ON sgp.gestionnaire_id = g.id
        WHERE og.pub_sponsor = true ${whereSearch}
-       GROUP BY g.id
+       GROUP BY g.id, og.stripe_account_id, og.stripe_verifie, sgp.solde_du
        ORDER BY clics_total DESC
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       paramsListe
@@ -223,6 +239,8 @@ router.get('/gestionnaires-revenu', authenticateToken, verifierAdmin, async (req
         clics_mois: clicsMois,
         revenu_total: clicsTotal * montant,
         revenu_mois: clicsMois * montant,
+        solde_du: parseFloat(g.solde_du) || 0,
+        stripe_connecte: !!(g.stripe_account_id && g.stripe_verifie),
       };
     });
 
@@ -230,6 +248,25 @@ router.get('/gestionnaires-revenu', authenticateToken, verifierAdmin, async (req
   } catch (error) {
     console.error('❌ Erreur revenu gestionnaires (admin):', error);
     res.status(500).json({ error: 'Erreur lors de la récupération des revenus' });
+  }
+});
+
+// POST — Forcer un versement maintenant (peut ignorer le seuil minimum si demandé)
+router.post('/gestionnaires/:gestionnaireId/verser', authenticateToken, isAdmin, async (req, res) => {
+  try {
+    const { gestionnaireId } = req.params;
+    const { verifierEtPayerGestionnaire } = require('../src/utils/versementsGestionnaires');
+
+    await verifierEtPayerGestionnaire(gestionnaireId, { ignorerSeuil: !!req.body?.ignorerSeuil });
+
+    const result = await pool.query(
+      'SELECT * FROM versements_gestionnaires WHERE gestionnaire_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [gestionnaireId]
+    );
+    res.json({ success: true, dernier_versement: result.rows[0] || null });
+  } catch (error) {
+    console.error('❌ Erreur versement manuel:', error);
+    res.status(500).json({ error: 'Erreur lors du versement' });
   }
 });
 

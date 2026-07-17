@@ -23,6 +23,7 @@ interface Abonnement {
   id: number;
   statut: string;
   essai_fin: string | null;
+  periode_debut: string | null;
   periode_fin: string | null;
   stripe_subscription_id: string | null;
   forfait_nom: string | null;
@@ -77,6 +78,9 @@ export default function MesServices({ gestionnaireId }: Props) {
   const [options, setOptions] = useState<OptionDispo[]>([]);
   const [factures, setFactures] = useState<FactureHistorique[]>([]);
   const [factureOuverte, setFactureOuverte] = useState<number | null>(null);
+  const [revenuPubMois, setRevenuPubMois] = useState<{ clics: number; revenu: number; montant_par_clic: number } | null>(null);
+  const [factureSelectionnee, setFactureSelectionnee] = useState<number | null>(null);
+  const [revenuPubFacture, setRevenuPubFacture] = useState<Record<number, { clics: number; revenu: number }>>({});
   const [vue, setVue] = useState<Vue>('services');
   const [chargement, setChargement] = useState(true);
   const [actionEnCours, setActionEnCours] = useState<string | null>(null);
@@ -153,6 +157,32 @@ export default function MesServices({ gestionnaireId }: Props) {
 
   useEffect(() => { charger(); }, []);
 
+  // Revenu pub du cycle de facturation en cours (periode_debut réel de Stripe → aujourd'hui).
+  // Pendant l'essai gratuit, aucun abonnement Stripe actif n'existe encore (periode_debut est
+  // null) — dans ce cas on retombe sur le 1er du mois calendaire, juste à titre informatif,
+  // puisqu'aucune facture ne sera de toute façon générée avant la fin de l'essai.
+  useEffect(() => {
+    if (!abonnement) return;
+    const chargerRevenuPubMois = async () => {
+      try {
+        const maintenant = new Date();
+        const debut = abonnement.periode_debut
+          ? abonnement.periode_debut.slice(0, 10)
+          : `${maintenant.getFullYear()}-${String(maintenant.getMonth() + 1).padStart(2, '0')}-01`;
+        const fin = maintenant.toISOString().slice(0, 10);
+        const res = await fetch(`/api/gestionnaires/addon-pub-sponsor/monetisation-periode?debut=${debut}&fin=${fin}`, {
+          headers: { Authorization: `Bearer ${token()}` },
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        setRevenuPubMois({ clics: data.clics, revenu: data.revenu, montant_par_clic: data.montant_par_clic });
+      } catch {
+        // silencieux — si l'add-on pub n'est pas activé, ça ne doit pas bloquer la page
+      }
+    };
+    chargerRevenuPubMois();
+  }, [abonnement]);
+
   const configurerPaiement = async () => {
     setActionEnCours('paiement');
     try {
@@ -220,9 +250,43 @@ export default function MesServices({ gestionnaireId }: Props) {
 
   const fmt = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 
+  const chargerRevenuPubFacture = async (facture: FactureHistorique) => {
+    if (!facture.periode_debut || !facture.periode_fin || revenuPubFacture[facture.id] !== undefined) return;
+    try {
+      const debut = facture.periode_debut.slice(0, 10);
+      const fin = facture.periode_fin.slice(0, 10);
+      const res = await fetch(`/api/gestionnaires/addon-pub-sponsor/monetisation-periode?debut=${debut}&fin=${fin}`, {
+        headers: { Authorization: `Bearer ${token()}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setRevenuPubFacture(prev => ({ ...prev, [facture.id]: { clics: data.clics, revenu: data.revenu } }));
+    } catch {
+      // silencieux
+    }
+  };
+
+  // Sélectionne automatiquement la facture la plus récente quand on arrive sur l'onglet
+  useEffect(() => {
+    if (vue === 'factures' && factures.length > 0 && factureSelectionnee === null) {
+      setFactureSelectionnee(factures[0].id);
+      chargerRevenuPubFacture(factures[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vue, factures]);
+
   const formatDate = (d: string | null) => {
     if (!d) return 'N/A';
     return new Date(d).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' });
+  };
+
+  // Reflète le vrai cycle Stripe (periode_debut → periode_fin), pas un mois calendaire —
+  // la facturation Studio est glissante, ancrée sur la date d'inscription du gestionnaire.
+  const nomMoisEnCours = () => {
+    if (abonnement?.periode_debut && abonnement?.periode_fin) {
+      return `${formatDate(abonnement.periode_debut)} – ${formatDate(abonnement.periode_fin)}`;
+    }
+    return new Date().toLocaleDateString('fr-CA', { year: 'numeric', month: 'long' }) + ' (essai)';
   };
 
   const statutBadge = (statut: string) => {
@@ -365,7 +429,7 @@ export default function MesServices({ gestionnaireId }: Props) {
           {/* Tableau de décomposition */}
           <div style={{ background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', marginBottom: 20 }}>
             <div style={{ padding: '14px 20px', background: '#f8fafc', borderBottom: '1px solid #e5e7eb', fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase' }}>
-              Détail du montant mensuel
+              Détail du mois en cours — {nomMoisEnCours()}
             </div>
 
             {lignes.length === 0 ? (
@@ -391,24 +455,47 @@ export default function MesServices({ gestionnaireId }: Props) {
             )}
 
             {/* Total */}
-            {totaux && (
-              <div style={{ padding: '16px 20px', borderTop: '2px solid #e5e7eb' }}>
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <div style={{ width: 280 }}>
-                    <div style={ligneTotaux}><span style={{ color: '#666' }}>Sous-total</span><span>{fmt(totaux.montant_ht)}</span></div>
-                    <div style={ligneTotaux}><span style={{ color: '#666' }}>TPS (5 %)</span><span>{fmt(totaux.tps)}</span></div>
-                    <div style={ligneTotaux}><span style={{ color: '#666' }}>TVQ (9,975 %)</span><span>{fmt(totaux.tvq)}</span></div>
-                    <div style={{ ...ligneTotaux, background: '#4F46E5', color: '#fff', padding: '10px 14px', borderRadius: 8, marginTop: 8, fontWeight: 800, fontSize: 16 }}>
-                      <span>Total / mois</span><span>{fmt(totaux.total)}</span>
+            {totaux && (() => {
+              const revenuPub = revenuPubMois?.revenu || 0;
+              const net = totaux.total - revenuPub;
+              return (
+                <div style={{ padding: '16px 20px', borderTop: '2px solid #e5e7eb' }}>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <div style={{ width: 320 }}>
+                      <div style={ligneTotaux}><span style={{ color: '#666' }}>Sous-total</span><span>{fmt(totaux.montant_ht)}</span></div>
+                      <div style={ligneTotaux}><span style={{ color: '#666' }}>TPS (5 %)</span><span>{fmt(totaux.tps)}</span></div>
+                      <div style={ligneTotaux}><span style={{ color: '#666' }}>TVQ (9,975 %)</span><span>{fmt(totaux.tvq)}</span></div>
+                      <div style={{ ...ligneTotaux, fontWeight: 700 }}><span style={{ color: '#666' }}>Total services / mois</span><span>{fmt(totaux.total)}</span></div>
+
+                      {revenuPubMois && (
+                        <>
+                          <div style={{ borderTop: '1px dashed #e5e7eb', margin: '10px 0 6px' }} />
+                          <div style={ligneTotaux}>
+                            <span style={{ color: '#666' }}>
+                              💰 Revenus publicitaires ({revenuPubMois.clics} clic{revenuPubMois.clics > 1 ? 's' : ''})
+                            </span>
+                            <span style={{ color: '#16a34a' }}>− {fmt(revenuPub)}</span>
+                          </div>
+                        </>
+                      )}
+
+                      <div style={{
+                        ...ligneTotaux,
+                        background: net >= 0 ? '#4F46E5' : '#16a34a', color: '#fff',
+                        padding: '10px 14px', borderRadius: 8, marginTop: 8, fontWeight: 800, fontSize: 16,
+                      }}>
+                        <span>{net >= 0 ? 'Net à payer / mois' : 'e-Vend Studio vous doit'}</span>
+                        <span>{fmt(Math.abs(net))}</span>
+                      </div>
                     </div>
                   </div>
+                  <p style={{ fontSize: 11, color: '#aaa', textAlign: 'right', marginTop: 10 }}>
+                    Facturé en dollars canadiens (CAD), taxes comprises.<br />
+                    {abonnement?.statut === 'actif' && abonnement?.periode_fin ? `Prochain paiement le ${formatDate(abonnement?.periode_fin)}.` : ''}
+                  </p>
                 </div>
-                <p style={{ fontSize: 11, color: '#aaa', textAlign: 'right', marginTop: 10 }}>
-                  Facturé en dollars canadiens (CAD), taxes comprises.<br />
-                  {abonnement?.statut === 'actif' && abonnement?.periode_fin ? `Prochain paiement le ${formatDate(abonnement?.periode_fin)}.` : ''}
-                </p>
-              </div>
-            )}
+              );
+            })()}
           </div>
         </>
       )}
@@ -458,60 +545,112 @@ export default function MesServices({ gestionnaireId }: Props) {
           </p>
         </div>
       )}
-      {/* ══════════ VUE FACTURES ══════════ */}
+      {/* ══════════ VUE FACTURES (HISTORIQUE) ══════════ */}
       {vue === 'factures' && (
-        <div style={{ background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
-          <div style={{ padding: '14px 20px', background: '#f8fafc', borderBottom: '1px solid #e5e7eb', fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase' }}>
-            Historique de facturation
+        factures.length === 0 ? (
+          <div style={{ background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>
+            Aucune facture pour le moment. Vos factures apparaîtront ici après votre premier paiement.
           </div>
-
-          {factures.length === 0 ? (
-            <div style={{ padding: 40, textAlign: 'center', color: '#888', fontSize: 13 }}>
-              Aucune facture pour le moment. Vos factures apparaîtront ici après votre premier paiement.
-            </div>
-          ) : (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <tbody>
+        ) : (
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            {/* Gauche : liste des mois */}
+            <div style={{ flex: '0 0 260px', background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
+              <div style={{ padding: '14px 18px', background: '#f8fafc', borderBottom: '1px solid #e5e7eb', fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase' }}>
+                Historique
+              </div>
+              <div style={{ maxHeight: 520, overflowY: 'auto' }}>
                 {factures.map(f => {
                   const fBadge = statutFactureBadge(f.statut);
+                  const selectionnee = factureSelectionnee === f.id;
                   return (
-                    <tr key={f.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '14px 20px' }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>
-                          {f.numero_facture || '—'}
-                        </div>
-                        <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>
-                          {formatDate(f.created_at)}
-                          {f.periode_debut && f.periode_fin && (
-                            <> · Période : {formatDate(f.periode_debut)} — {formatDate(f.periode_fin)}</>
-                          )}
-                        </div>
-                      </td>
-                      <td style={{ padding: '14px 20px' }}>
-                        <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: fBadge.bg, color: fBadge.couleur }}>
-                          {fBadge.label}
-                        </span>
-                      </td>
-                      <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 700, fontSize: 14, color: '#1a1a1a', whiteSpace: 'nowrap' }}>
-                        {f.montant_total !== null ? fmt(parseFloat(String(f.montant_total))) : '—'}
-                      </td>
-                      <td style={{ padding: '14px 20px', textAlign: 'right' }}>
-                        {f.statut === 'paye' && f.numero_facture ? (
-                          <button
-                            onClick={() => setFactureOuverte(f.id)}
-                            style={{ padding: '7px 14px', border: '1.5px solid #e5e7eb', background: '#fff', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', color: '#4F46E5', whiteSpace: 'nowrap' }}
-                          >
-                            🖨️ Voir facture
-                          </button>
-                        ) : null}
-                      </td>
-                    </tr>
+                    <div
+                      key={f.id}
+                      onClick={() => { setFactureSelectionnee(f.id); chargerRevenuPubFacture(f); }}
+                      style={{
+                        padding: '12px 18px', cursor: 'pointer', borderBottom: '1px solid #f3f4f6',
+                        background: selectionnee ? '#eef2ff' : 'transparent',
+                        borderLeft: selectionnee ? '3px solid #4F46E5' : '3px solid transparent',
+                      }}
+                    >
+                      <div style={{ fontSize: 13, fontWeight: 700, color: selectionnee ? '#4F46E5' : '#1a1a1a' }}>
+                        {f.periode_debut ? formatDate(f.periode_debut).replace(/^\d+ /, '') : formatDate(f.created_at)}
+                      </div>
+                      <div style={{ fontSize: 11, color: '#aaa', marginTop: 2 }}>{f.numero_facture || 'En traitement'}</div>
+                      <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 8px', borderRadius: 20, fontSize: 10, fontWeight: 700, background: fBadge.bg, color: fBadge.couleur }}>
+                        {fBadge.label}
+                      </span>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          )}
-        </div>
+              </div>
+            </div>
+
+            {/* Droite : détail du mois sélectionné */}
+            <div style={{ flex: '1 1 400px', minWidth: 300 }}>
+              {(() => {
+                const f = factures.find(x => x.id === factureSelectionnee);
+                if (!f) return (
+                  <div style={{ background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 12, padding: 40, textAlign: 'center', color: '#888' }}>
+                    Sélectionnez un mois à gauche pour voir le détail.
+                  </div>
+                );
+                const fBadge = statutFactureBadge(f.statut);
+                const revenuPub = revenuPubFacture[f.id];
+                const montantTotal = f.montant_total !== null ? parseFloat(String(f.montant_total)) : 0;
+                const net = revenuPub ? montantTotal - revenuPub.revenu : null;
+
+                return (
+                  <div style={{ background: '#fff', border: '1.5px solid #e5e7eb', borderRadius: 12, overflow: 'hidden' }}>
+                    <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a' }}>{f.numero_facture || 'Facture en traitement'}</div>
+                        <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+                          {f.periode_debut && f.periode_fin ? `Période : ${formatDate(f.periode_debut)} — ${formatDate(f.periode_fin)}` : formatDate(f.created_at)}
+                        </div>
+                      </div>
+                      <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, fontWeight: 700, background: fBadge.bg, color: fBadge.couleur }}>
+                        {fBadge.label}
+                      </span>
+                    </div>
+
+                    <div style={{ padding: '16px 20px' }}>
+                      <div style={ligneTotaux}><span style={{ color: '#666' }}>Montant des services (facturé)</span><span>{f.montant_total !== null ? fmt(montantTotal) : '—'}</span></div>
+
+                      {revenuPub ? (
+                        <div style={ligneTotaux}>
+                          <span style={{ color: '#666' }}>💰 Revenus publicitaires ({revenuPub.clics} clic{revenuPub.clics > 1 ? 's' : ''})</span>
+                          <span style={{ color: '#16a34a' }}>− {fmt(revenuPub.revenu)}</span>
+                        </div>
+                      ) : f.periode_debut && f.periode_fin ? (
+                        <div style={{ fontSize: 12, color: '#aaa', padding: '6px 0' }}>⏳ Chargement des revenus pub...</div>
+                      ) : null}
+
+                      {net !== null && (
+                        <div style={{
+                          ...ligneTotaux,
+                          background: net >= 0 ? '#4F46E5' : '#16a34a', color: '#fff',
+                          padding: '10px 14px', borderRadius: 8, marginTop: 10, fontWeight: 800, fontSize: 15,
+                        }}>
+                          <span>{net >= 0 ? 'Net payé ce mois-là' : 'e-Vend Studio vous devait'}</span>
+                          <span>{fmt(Math.abs(net))}</span>
+                        </div>
+                      )}
+
+                      {f.statut === 'paye' && f.numero_facture && (
+                        <button
+                          onClick={() => setFactureOuverte(f.id)}
+                          style={{ marginTop: 16, width: '100%', padding: '10px 0', border: '1.5px solid #e5e7eb', background: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', color: '#4F46E5' }}
+                        >
+                          🖨️ Voir la facture officielle
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        )
       )}
 
       {/* ── Popup facture (ouvrable depuis n'importe quel onglet) ── */}

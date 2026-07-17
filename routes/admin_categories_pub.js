@@ -2,14 +2,8 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, isAdmin } = require('../middleware/auth');
 
-const verifierAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Accès réservé aux administrateurs' });
-  }
-  next();
-};
 
 function genererCle(label) {
   return label.toLowerCase()
@@ -18,7 +12,7 @@ function genererCle(label) {
 }
 
 // GET — Toutes les catégories (actives ET inactives, pour la gestion admin)
-router.get('/', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/', authenticateToken, isAdmin, async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM categories_pub ORDER BY label ASC');
     res.json({ categories: result.rows });
@@ -40,7 +34,7 @@ router.get('/actives', authenticateToken, async (req, res) => {
 });
 
 // POST — Créer une nouvelle catégorie
-router.post('/', authenticateToken, verifierAdmin, async (req, res) => {
+router.post('/', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { label, emoji, ordre } = req.body;
     if (!label || !label.trim()) {
@@ -65,7 +59,7 @@ router.post('/', authenticateToken, verifierAdmin, async (req, res) => {
 });
 
 // PUT — Modifier une catégorie (label/emoji/ordre/actif) — la clé ne change jamais
-router.put('/:id', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { label, emoji, ordre, actif } = req.body;
@@ -90,7 +84,7 @@ router.put('/:id', authenticateToken, verifierAdmin, async (req, res) => {
 // Sans danger pour les pubs existantes : `categories` sur sponsor_pubs est juste un
 // tableau de texte libre, pas une contrainte de clé étrangère — une pub qui ciblait
 // cette catégorie continue de fonctionner, elle disparaît juste des choix futurs.
-router.delete('/:id', authenticateToken, verifierAdmin, async (req, res) => {
+router.delete('/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query('DELETE FROM categories_pub WHERE id = $1 RETURNING id', [id]);

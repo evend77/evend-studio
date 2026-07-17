@@ -14,6 +14,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const stripe  = require('stripe')(process.env.STRIPE_SECRET_KEY);
+const { verifierEtPayerGestionnaire } = require('../src/utils/versementsGestionnaires');
 
 const TAUX_TPS = 0.05;
 const TAUX_TVQ = 0.09975;
@@ -117,6 +118,9 @@ async function handleCheckoutCompleted(session) {
   );
 
   console.log(`   ✅ Abonnement ${abonnementId} activé (gestionnaire ${gestionnaireId})`);
+
+  // Vérifie si un versement pub est dû, maintenant que le premier cycle de facturation démarre
+  await verifierEtPayerGestionnaire(gestionnaireId);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -177,6 +181,9 @@ async function handlePaiementReussi(invoice) {
   );
 
   console.log(`   ✅ Paiement enregistré (${numeroFacture}) — gestionnaire ${abo.gestionnaire_id} | ${montantTotal}$ CAD`);
+
+  // Vérifie si le solde de revenus pub de ce gestionnaire atteint le seuil de versement
+  await verifierEtPayerGestionnaire(abo.gestionnaire_id);
 }
 
 // ─────────────────────────────────────────────────────────────

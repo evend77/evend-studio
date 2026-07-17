@@ -2,9 +2,10 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, isAdmin } = require('../middleware/auth');
 const { getTousLesPlansPub, versDictionnaire: versDictPub, PLAN_PUB_DEFAUT } = require('../config/plansPub');
 const { verifierModerationIA, doitEtreRejetee } = require('./moderationIA');
+const { getMontantParClic } = require('../src/utils/monetisationPub');
 
 // ── UPLOAD D'IMAGES DE PUB — séparé du système Photos (sponsor_photos) ────
 // Les images de pub ne doivent JAMAIS créer d'entrée dans sponsor_photos
@@ -65,12 +66,7 @@ router.post('/pubs/upload-image', authenticateToken, uploadPub.single('image'), 
 });
 
 // ── MIDDLEWARE ──────────────────────────────────────────────────
-const verifierAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Accès réservé aux administrateurs' });
-  }
-  next();
-};
+// (isAdmin importé de ../middleware/auth — plus de réimplémentation locale)
 
 // ════════════════════════════════════════════════════════════════
 // 📢 ROUTES SPONSOR
@@ -197,15 +193,24 @@ router.post('/pubs', authenticateToken, async (req, res) => {
       console.error('⚠️ Erreur inattendue de modération IA (fallback en attente):', e.message);
     }
 
+    // Le prix par clic/apparition n'est plus choisi par le sponsor ni par format —
+    // il vient du tarif global fixé par l'admin (page Monétisation), figé au moment
+    // de la création de cette pub précise (ne change pas rétroactivement après coup).
+    const tarifs = await pool.query(
+      'SELECT prix_par_clic_defaut, prix_par_impression_defaut FROM configuration_monetisation_pub WHERE id = 1'
+    );
+    const prixClicActuel = parseFloat(tarifs.rows[0]?.prix_par_clic_defaut ?? 0.50);
+    const prixImpressionActuel = parseFloat(tarifs.rows[0]?.prix_par_impression_defaut ?? 0.01);
+
     const result = await pool.query(
       `INSERT INTO sponsor_pubs 
        (sponsor_id, titre, description, url_image, url_lien, actif, statut, raison_blocage,
-        type, effet, prix_par_click, extra_data,
+        type, effet, prix_par_click, prix_par_impression, extra_data,
         budget_type, budget_montant, budget_depense,
         categories,
         roue_active, codes_promo,
         created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, $13, 0, $14, $15, $16, NOW(), NOW())
+       VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, $13, $14, 0, $15, $16, $17, NOW(), NOW())
        RETURNING *`,
       [
         sponsor_id,
@@ -217,7 +222,8 @@ router.post('/pubs', authenticateToken, async (req, res) => {
         raisonBlocageInitiale,
         type || 'basique',
         effet || null,
-        prix_par_click || 0.50,
+        prixClicActuel,
+        prixImpressionActuel,
         JSON.stringify(extra_data),
         budget_type || 'jour',
         budget_montant || 10,
@@ -560,11 +566,11 @@ router.get('/pub/random/:categorieSite', async (req, res) => {
         sp.id, sp.titre, sp.description, sp.url_image, sp.url_lien,
         sp.type, sp.effet, sp.extra_data, sp.categories,
         sp.roue_active, sp.codes_promo AS codes_promo_roue,
-        sp.sponsor_id, s.nom AS sponsor_nom
+        sp.sponsor_id, sp.prix_par_impression, s.nom AS sponsor_nom
       FROM sponsor_pubs sp
       JOIN sponsors s ON s.id = sp.sponsor_id
       LEFT JOIN options_gestionnaire og ON og.gestionnaire_id = $2
-      WHERE sp.actif = true AND s.active = true
+      WHERE sp.actif = true AND s.active = true AND s.solde_portefeuille > 0
         AND (sp.categories = '{}' OR $1 = ANY(sp.categories))
         AND ($2::int IS NULL OR NOT EXISTS (
           SELECT 1 FROM gestionnaire_pubs_bloquees b WHERE b.gestionnaire_id = $2 AND b.pub_id = sp.id
@@ -594,6 +600,32 @@ router.get('/pub/random/:categorieSite', async (req, res) => {
       [pub.id]
     );
 
+    // ── Débit du portefeuille pour l'apparition (impression), même sans clic ──
+    const prixImpression = parseFloat(pub.prix_par_impression) || 0;
+    if (prixImpression > 0) {
+      const soldeResult = await pool.query(
+        `UPDATE sponsors SET solde_portefeuille = solde_portefeuille - $1, updated_at = NOW()
+         WHERE id = $2 RETURNING solde_portefeuille`,
+        [prixImpression, pub.sponsor_id]
+      );
+      const nouveauSolde = parseFloat(soldeResult.rows[0]?.solde_portefeuille ?? 0);
+
+      await pool.query(
+        `INSERT INTO sponsor_transactions_portefeuille (sponsor_id, type, montant, description, pub_id)
+         VALUES ($1, 'depense', $2, 'Apparition sur un site', $3)`,
+        [pub.sponsor_id, prixImpression, pub.id]
+      );
+
+      if (nouveauSolde <= 0) {
+        await pool.query(
+          `UPDATE sponsor_pubs SET actif = false, statut = 'budget_epuise', updated_at = NOW()
+           WHERE sponsor_id = $1 AND statut = 'active'`,
+          [pub.sponsor_id]
+        );
+        console.log(`   💸 Portefeuille épuisé (apparition) — toutes les pubs du sponsor ${pub.sponsor_id} mises en pause`);
+      }
+    }
+
     if (gestionnaireId) {
       await pool.query(
         `INSERT INTO addon_pub_stats (gestionnaire_id, pub_id, impressions, clics, date)
@@ -617,10 +649,45 @@ router.post('/pub/:id/click', async (req, res) => {
     const { id } = req.params;
     const { gestionnaireId } = req.body;
 
-    await pool.query(
-      `UPDATE sponsor_pubs SET clics = clics + 1 WHERE id = $1`,
+    const pubResult = await pool.query(
+      'SELECT sponsor_id, prix_par_click, budget_depense FROM sponsor_pubs WHERE id = $1',
       [id]
     );
+    if (pubResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Publicité non trouvée' });
+    }
+    const { sponsor_id, prix_par_click } = pubResult.rows[0];
+    const prixClic = parseFloat(prix_par_click) || 0;
+
+    await pool.query(
+      `UPDATE sponsor_pubs SET clics = clics + 1, budget_depense = budget_depense + $2 WHERE id = $1`,
+      [id, prixClic]
+    );
+
+    // ── Débit RÉEL du portefeuille prépayé du sponsor (jamais juste un plafond théorique) ──
+    const soldeResult = await pool.query(
+      `UPDATE sponsors SET solde_portefeuille = solde_portefeuille - $1, updated_at = NOW()
+       WHERE id = $2 RETURNING solde_portefeuille`,
+      [prixClic, sponsor_id]
+    );
+    const nouveauSolde = parseFloat(soldeResult.rows[0]?.solde_portefeuille ?? 0);
+
+    await pool.query(
+      `INSERT INTO sponsor_transactions_portefeuille (sponsor_id, type, montant, description, pub_id)
+       VALUES ($1, 'depense', $2, 'Clic sur publicité', $3)`,
+      [sponsor_id, prixClic, id]
+    );
+
+    // Solde épuisé (ou négatif à cause d'un tout dernier clic) → on coupe TOUTES les pubs
+    // actives de ce sponsor immédiatement, pas juste celle-ci — le portefeuille est partagé.
+    if (nouveauSolde <= 0) {
+      await pool.query(
+        `UPDATE sponsor_pubs SET actif = false, statut = 'budget_epuise', updated_at = NOW()
+         WHERE sponsor_id = $1 AND statut = 'active'`,
+        [sponsor_id]
+      );
+      console.log(`   💸 Portefeuille épuisé — toutes les pubs du sponsor ${sponsor_id} mises en pause`);
+    }
 
     if (gestionnaireId) {
       await pool.query(
@@ -630,9 +697,23 @@ router.post('/pub/:id/click', async (req, res) => {
          DO UPDATE SET clics = addon_pub_stats.clics + 1`,
         [gestionnaireId, id]
       );
+
+      // ── Crédit RÉEL au solde dû au gestionnaire — seulement maintenant que l'argent
+      // a vraiment été prélevé sur le sponsor ci-dessus (jamais avant).
+      const montantParClic = await getMontantParClic(gestionnaireId);
+      if (montantParClic !== null) {
+        await pool.query(
+          `INSERT INTO soldes_gestionnaires_pub (gestionnaire_id, solde_du, updated_at)
+           VALUES ($1, $2, NOW())
+           ON CONFLICT (gestionnaire_id) DO UPDATE SET
+             solde_du = soldes_gestionnaires_pub.solde_du + $2,
+             updated_at = NOW()`,
+          [gestionnaireId, montantParClic]
+        );
+      }
     }
 
-    res.json({ success: true });
+    res.json({ success: true, solde_portefeuille_restant: Math.max(0, nouveauSolde) });
   } catch (error) {
     console.error('❌ Erreur track clic:', error);
     res.status(500).json({ error: 'Erreur lors du tracking du clic' });
@@ -695,7 +776,7 @@ router.post('/pub/:id/signaler', async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 // GET — Compteur rapide des signalements non traités (pour le badge du menu)
-router.get('/admin/signalements/compte', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/admin/signalements/compte', authenticateToken, isAdmin, async (req, res) => {
   try {
     const result = await pool.query(`SELECT COUNT(*) as total FROM signalements_pub WHERE statut = 'nouveau'`);
     res.json({ nouveaux: parseInt(result.rows[0].total) });
@@ -706,7 +787,7 @@ router.get('/admin/signalements/compte', authenticateToken, verifierAdmin, async
 });
 
 // GET — Liste des signalements (recherche + filtre statut + pagination)
-router.get('/admin/signalements', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/admin/signalements', authenticateToken, isAdmin, async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
@@ -768,7 +849,7 @@ router.get('/admin/signalements', authenticateToken, verifierAdmin, async (req, 
 });
 
 // PUT — Traiter un signalement (bloquer la pub ou l'autoriser) + note admin
-router.put('/admin/signalements/:id/traiter', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/admin/signalements/:id/traiter', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { action, note_admin } = req.body; // action: 'bloquer' | 'autoriser'
@@ -806,7 +887,7 @@ router.put('/admin/signalements/:id/traiter', authenticateToken, verifierAdmin, 
   }
 });
 
-router.get('/admin/all', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/admin/all', authenticateToken, isAdmin, async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
@@ -865,7 +946,7 @@ router.get('/admin/all', authenticateToken, verifierAdmin, async (req, res) => {
 
 // PUT — Mettre en pause / réactiver une pub (admin) — cohérent avec le champ statut
 // PUT — Approuver une pub en attente (admin) — la publie
-router.put('/admin/:id/approuver', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/admin/:id/approuver', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
@@ -881,7 +962,7 @@ router.put('/admin/:id/approuver', authenticateToken, verifierAdmin, async (req,
 });
 
 // PUT — Rejeter une pub en attente (admin) — reste en BD (pour référence/ID) mais jamais publiée
-router.put('/admin/:id/rejeter', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/admin/:id/rejeter', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { raison } = req.body;
@@ -897,7 +978,7 @@ router.put('/admin/:id/rejeter', authenticateToken, verifierAdmin, async (req, r
   }
 });
 
-router.put('/admin/:id/pause', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/admin/:id/pause', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { actif } = req.body;
@@ -914,7 +995,7 @@ router.put('/admin/:id/pause', authenticateToken, verifierAdmin, async (req, res
 });
 
 // PUT — Modifier une pub (admin) — édition générale (prix par clic, etc.)
-router.put('/admin/:id', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { actif, prix_par_click } = req.body;
@@ -946,7 +1027,7 @@ router.put('/admin/:id', authenticateToken, verifierAdmin, async (req, res) => {
 });
 
 // DELETE — Supprimer définitivement une pub (admin) — BD + image S3
-router.delete('/admin/:id', authenticateToken, verifierAdmin, async (req, res) => {
+router.delete('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const existing = await pool.query('SELECT url_image FROM sponsor_pubs WHERE id = $1', [id]);

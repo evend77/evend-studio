@@ -2,14 +2,8 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, isAdmin } = require('../middleware/auth');
 
-const verifierAdmin = (req, res, next) => {
-  if (req.user?.role !== 'admin') {
-    return res.status(403).json({ error: 'Accès réservé aux administrateurs' });
-  }
-  next();
-};
 
 // Génère une plan_key à partir du label (slug simple), en évitant les collisions
 async function genererPlanKey(table, label) {
@@ -31,7 +25,7 @@ async function genererPlanKey(table, label) {
 // ════════════════════════════════════════════════════════════════
 
 // GET — Liste complète (actifs ET inactifs, pour la gestion admin)
-router.get('/plans-photos', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/plans-photos', authenticateToken, isAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.id, p.plan_key, p.label, p.max_photos, p.prix, p.actif, p.ordre,
@@ -46,7 +40,7 @@ router.get('/plans-photos', authenticateToken, verifierAdmin, async (req, res) =
 });
 
 // POST — Créer un nouveau forfait photo
-router.post('/plans-photos', authenticateToken, verifierAdmin, async (req, res) => {
+router.post('/plans-photos', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { label, max_photos, prix, ordre } = req.body;
     if (!label || !label.trim()) {
@@ -67,7 +61,7 @@ router.post('/plans-photos', authenticateToken, verifierAdmin, async (req, res) 
 });
 
 // PUT — Modifier un forfait photo (label/limite/prix/ordre/actif) — plan_key ne change jamais
-router.put('/plans-photos/:id', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/plans-photos/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { label, max_photos, prix, ordre, actif } = req.body;
@@ -91,7 +85,7 @@ router.put('/plans-photos/:id', authenticateToken, verifierAdmin, async (req, re
 });
 
 // DELETE — Supprimer un forfait photo (bloqué si des sponsors y sont abonnés)
-router.delete('/plans-photos/:id', authenticateToken, verifierAdmin, async (req, res) => {
+router.delete('/plans-photos/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const plan = await pool.query('SELECT plan_key FROM plans_photos WHERE id = $1', [id]);
@@ -114,7 +108,7 @@ router.delete('/plans-photos/:id', authenticateToken, verifierAdmin, async (req,
 // 📢 FORFAITS PUB
 // ════════════════════════════════════════════════════════════════
 
-router.get('/plans-pub', authenticateToken, verifierAdmin, async (req, res) => {
+router.get('/plans-pub', authenticateToken, isAdmin, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT p.id, p.plan_key, p.label, p.max_pubs_actives, p.prix, p.actif, p.ordre,
@@ -128,7 +122,7 @@ router.get('/plans-pub', authenticateToken, verifierAdmin, async (req, res) => {
   }
 });
 
-router.post('/plans-pub', authenticateToken, verifierAdmin, async (req, res) => {
+router.post('/plans-pub', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { label, max_pubs_actives, prix, ordre } = req.body;
     if (!label || !label.trim()) {
@@ -148,7 +142,7 @@ router.post('/plans-pub', authenticateToken, verifierAdmin, async (req, res) => 
   }
 });
 
-router.put('/plans-pub/:id', authenticateToken, verifierAdmin, async (req, res) => {
+router.put('/plans-pub/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { label, max_pubs_actives, prix, ordre, actif } = req.body;
@@ -171,7 +165,7 @@ router.put('/plans-pub/:id', authenticateToken, verifierAdmin, async (req, res) 
   }
 });
 
-router.delete('/plans-pub/:id', authenticateToken, verifierAdmin, async (req, res) => {
+router.delete('/plans-pub/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const plan = await pool.query('SELECT plan_key FROM plans_pub WHERE id = $1', [id]);
