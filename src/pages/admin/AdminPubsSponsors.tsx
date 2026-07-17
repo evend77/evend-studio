@@ -39,7 +39,7 @@ const TYPE_ICONES: Record<string, string> = {
   codepromo: '🏷️', temoignage: '⭐',
 };
 
-const API_BASE = '/api/sponsors/pubs';
+const API_BASE = '/api/sponsors';
 const PAR_PAGE = 50;
 
 function formatDate(iso: string) {

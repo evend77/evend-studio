@@ -9,6 +9,7 @@ interface Pub {
   url_lien: string;
   actif: boolean;
   statut: 'active' | 'pause' | 'budget_epuise' | 'en_attente' | 'rejete';
+  raison_blocage: string | null;
   impressions: number;
   clics: number;
   type: string;
@@ -177,7 +178,7 @@ function SponsorPubs({ token }: SponsorPubsProps) {
         </div>
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
-          {pubs.map((pub) => (
+          {[...pubs].sort((a, b) => (a.statut === 'rejete' ? 1 : 0) - (b.statut === 'rejete' ? 1 : 0)).map((pub) => (
             <div key={pub.id} style={{
               borderRadius: '12px', overflow: 'hidden', background: '#fff',
               border: `1px solid ${pub.actif ? '#eee' : '#fca5a5'}`,
@@ -225,6 +226,11 @@ function SponsorPubs({ token }: SponsorPubsProps) {
                     Budget atteint — la pub redémarrera automatiquement à la prochaine période, ou réactivez-la manuellement.
                   </div>
                 )}
+                {pub.statut === 'rejete' && (
+                  <div style={{ fontSize: '11px', color: '#fff', marginBottom: '10px', background: '#991b1b', padding: '8px 10px', borderRadius: '6px', fontWeight: 600 }}>
+                    🚫 BLOQUÉE — {pub.raison_blocage || 'Contenu jugé non conforme.'}
+                  </div>
+                )}
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span style={{ fontSize: '11px', color: '#999' }}>{formatDate(pub.created_at)}</span>
@@ -245,8 +251,14 @@ function SponsorPubs({ token }: SponsorPubsProps) {
                       {pub.actif ? '⏸ Mettre en pause' : '▶️ Réactiver'}
                     </button>
                     <button
-                      onClick={() => supprimerPub(pub.id)}
-                      style={{ padding: '5px 10px', background: '#ef4444', border: 'none', borderRadius: '6px', color: '#fff', fontSize: '11px', cursor: 'pointer' }}
+                      onClick={() => pub.statut !== 'rejete' && supprimerPub(pub.id)}
+                      disabled={pub.statut === 'rejete'}
+                      title={pub.statut === 'rejete' ? 'Une publicité bloquée ne peut pas être supprimée' : undefined}
+                      style={{
+                        padding: '5px 10px', border: 'none', borderRadius: '6px', color: '#fff', fontSize: '11px',
+                        background: pub.statut === 'rejete' ? '#d1d5db' : '#ef4444',
+                        cursor: pub.statut === 'rejete' ? 'not-allowed' : 'pointer',
+                      }}
                     >
                       🗑️
                     </button>

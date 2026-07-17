@@ -22,6 +22,7 @@ export interface Sponsor {
   created_at: string;
   photos_actives?: number;
   pubs_actives?: number;
+  pubs_bloquees?: number;
   nbNotes?: number;
   notes?: NoteInterne[];
 }
@@ -269,6 +270,7 @@ function ListeSponsors({ onImpersonate, onNaviguerVers }: ListeSponsorsProps) {
         active: !!s.active, created_at: s.created_at,
         photos_actives: parseInt(s.photos_actives) || 0,
         pubs_actives: parseInt(s.pubs_actives) || 0,
+        pubs_bloquees: parseInt(s.pubs_bloquees) || 0,
         nbNotes: parseInt(s.nb_notes) || 0,
       })));
     } catch (e) {
@@ -392,8 +394,8 @@ function ListeSponsors({ onImpersonate, onNaviguerVers }: ListeSponsorsProps) {
   };
 
   const handleExportCSV = () => {
-    const headers = ['ID', 'Nom', 'Email', 'Type', 'Forfait photo', 'Forfait pub', 'Photos actives', 'Pubs actives', 'Statut', 'Inscription'];
-    const csvData = filtresEtTries.map(s => [s.id, s.nom, s.email, s.type_sponsor, s.forfait, s.forfait_pub, s.photos_actives, s.pubs_actives, s.active ? 'actif' : 'suspendu', formatDate(s.created_at)]);
+    const headers = ['ID', 'Nom', 'Email', 'Type', 'Forfait photo', 'Forfait pub', 'Photos actives', 'Pubs actives', 'Pubs bloquées', 'Statut', 'Inscription'];
+    const csvData = filtresEtTries.map(s => [s.id, s.nom, s.email, s.type_sponsor, s.forfait, s.forfait_pub, s.photos_actives, s.pubs_actives, s.pubs_bloquees, s.active ? 'actif' : 'suspendu', formatDate(s.created_at)]);
     const csvContent = [headers.join(','), ...csvData.map(row => row.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -472,7 +474,7 @@ function ListeSponsors({ onImpersonate, onNaviguerVers }: ListeSponsorsProps) {
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8fafc', zIndex: 5 }}>
               <tr style={{ borderBottom: `2px solid ${THEME.accent}` }}>
-                {['ID', 'Sponsor', 'E-mail', 'Type', 'Forfait photo', 'Forfait pub', 'Photos', 'Pubs', 'Statut'].map(h => (
+                {['ID', 'Sponsor', 'E-mail', 'Type', 'Forfait photo', 'Forfait pub', 'Photos', 'Pubs', 'Bloquées', 'Statut'].map(h => (
                   <th key={h} style={{ padding: '13px 8px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: THEME.accent, textTransform: 'uppercase' }}>{h}</th>
                 ))}
                 <th className="no-print" style={{ padding: '13px 8px', textAlign: 'center', fontSize: 11, fontWeight: 700, color: THEME.accent, textTransform: 'uppercase' }}>Actions</th>
@@ -499,6 +501,19 @@ function ListeSponsors({ onImpersonate, onNaviguerVers }: ListeSponsorsProps) {
                     <td style={{ padding: '14px 8px', textAlign: 'center', fontSize: 12, fontWeight: 600 }}>{s.forfait_pub || '—'}</td>
                     <td style={{ padding: '14px 8px', textAlign: 'center', fontSize: 12 }}>{s.photos_actives ?? 0}</td>
                     <td style={{ padding: '14px 8px', textAlign: 'center', fontSize: 12 }}>{s.pubs_actives ?? 0}</td>
+                    <td style={{ padding: '14px 8px', textAlign: 'center' }}>
+                      {(s.pubs_bloquees ?? 0) > 0 ? (
+                        <span style={{
+                          fontSize: 12, fontWeight: 800, padding: '2px 10px', borderRadius: 20,
+                          background: (s.pubs_bloquees ?? 0) >= 3 ? '#fecaca' : '#fef3c7',
+                          color: (s.pubs_bloquees ?? 0) >= 3 ? '#991b1b' : '#92400e',
+                        }} title={(s.pubs_bloquees ?? 0) >= 3 ? 'Beaucoup de pubs bloquées — à surveiller' : undefined}>
+                          {(s.pubs_bloquees ?? 0) >= 3 && '⚠️ '}{s.pubs_bloquees}
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: 12, color: '#ccc' }}>0</span>
+                      )}
+                    </td>
                     <td style={{ padding: '14px 8px', textAlign: 'center' }}>
                       <span className="statut-badge" style={{ fontSize: 11, fontWeight: 700, padding: '4px 8px', borderRadius: 20, backgroundColor: s.active ? '#dcfce7' : '#ffedd5', color: s.active ? THEME.success : THEME.warning }}>
                         {s.active ? '✅ Actif' : '🔒 Suspendu'}

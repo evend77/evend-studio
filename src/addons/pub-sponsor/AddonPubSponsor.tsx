@@ -62,6 +62,7 @@ export default function AddonPubSponsor({ theme, data }: { theme: AddonPubTheme;
   const [pub, setPub] = useState<PubApi | null>(null);
   const [chargement, setChargement] = useState(!!pubActive);
   const [roueOuverte, setRoueOuverte] = useState(false);
+  const [signalementOuvert, setSignalementOuvert] = useState(false);
 
   const chargerPub = () => {
     if (!pubActive) return;
@@ -205,9 +206,23 @@ export default function AddonPubSponsor({ theme, data }: { theme: AddonPubTheme;
         </div>
         <div style={{ padding: '6px 16px', borderTop: `1px solid ${theme.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontFamily: theme.fontTexte, fontSize: 10, color: theme.textDim }}>★ {pub.sponsor_nom}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); setSignalementOuvert(true); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: theme.fontTexte, fontSize: 9, color: theme.textDim, opacity: 0.7, padding: '2px 6px', textDecoration: 'underline' }}
+          >
+            🚩 Signaler
+          </button>
           <span style={{ fontFamily: 'monospace', fontSize: 9, color: theme.textDim, opacity: 0.6 }}>ID #{pub.id}</span>
         </div>
       </div>
+
+      {signalementOuvert && (
+        <ModalSignalement
+          pubId={pub.id}
+          onFermer={() => setSignalementOuvert(false)}
+          theme={theme}
+        />
+      )}
 
       {roueOuverte && (
         <RoueFortune
@@ -243,5 +258,101 @@ export default function AddonPubSponsor({ theme, data }: { theme: AddonPubTheme;
         }
       `}</style>
     </section>
+  );
+}
+
+// ── Modal de signalement (accessible à tout visiteur, aucune connexion requise) ──
+const MOTIFS_SIGNALEMENT = [
+  { valeur: 'photo_inappropriee', label: '📷 Photo inappropriée ou choquante' },
+  { valeur: 'texte_inapproprie', label: '✍️ Texte inapproprié ou offensant' },
+  { valeur: 'spam', label: '🚫 Spam ou publicité trompeuse' },
+  { valeur: 'contenu_violent', label: '⚠️ Contenu violent ou haineux' },
+  { valeur: 'contenu_sexuel', label: '🔞 Contenu à caractère sexuel' },
+  { valeur: 'arnaque', label: '💰 Arnaque ou fraude suspectée' },
+  { valeur: 'droits_auteur', label: '© Violation de droits d\'auteur / marque' },
+  { valeur: 'lien_suspect', label: '🔗 Lien suspect ou brisé' },
+  { valeur: 'autre', label: '❓ Autre' },
+];
+
+function ModalSignalement({ pubId, onFermer, theme }: { pubId: number; theme: AddonPubTheme; onFermer: () => void }) {
+  const [motif, setMotif] = useState('');
+  const [commentaire, setCommentaire] = useState('');
+  const [envoi, setEnvoi] = useState(false);
+  const [confirme, setConfirme] = useState(false);
+  const [erreur, setErreur] = useState('');
+
+  const soumettre = async () => {
+    if (!motif) { setErreur('Choisis un motif avant de soumettre.'); return; }
+    setErreur('');
+    setEnvoi(true);
+    try {
+      const res = await fetch(`/api/sponsors/pub/${pubId}/signaler`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ motif, commentaire }),
+      });
+      if (!res.ok) throw new Error();
+      setConfirme(true);
+      setTimeout(onFermer, 1800);
+    } catch {
+      setErreur('Erreur lors de l\'envoi — réessaie dans un instant.');
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  return (
+    <div
+      onClick={onFermer}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+    >
+      <div onClick={(e) => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 420, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.3)' }}>
+        {confirme ? (
+          <div style={{ padding: '40px 28px', textAlign: 'center' }}>
+            <p style={{ fontSize: 40, margin: '0 0 12px' }}>✅</p>
+            <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Merci, ton signalement a été envoyé.</p>
+            <p style={{ fontSize: 12, color: '#888', margin: '6px 0 0' }}>Notre équipe va l'examiner.</p>
+          </div>
+        ) : (
+          <>
+            <div style={{ padding: '18px 22px', borderBottom: '1px solid #eee' }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#1a1a1a' }}>🚩 Signaler cette publicité</h3>
+              <p style={{ margin: '4px 0 0', fontSize: 12, color: '#888' }}>Aide-nous à garder le contenu de qualité.</p>
+            </div>
+            <div style={{ padding: '18px 22px' }}>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#333', margin: '0 0 8px' }}>Pourquoi signales-tu cette pub ?</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 16 }}>
+                {MOTIFS_SIGNALEMENT.map(m => (
+                  <label key={m.valeur} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#333', cursor: 'pointer', padding: '4px 0' }}>
+                    <input type="radio" name="motif" checked={motif === m.valeur} onChange={() => setMotif(m.valeur)} />
+                    {m.label}
+                  </label>
+                ))}
+              </div>
+              <p style={{ fontSize: 12, fontWeight: 700, color: '#333', margin: '0 0 6px' }}>Commentaire (optionnel)</p>
+              <textarea
+                value={commentaire}
+                onChange={(e) => setCommentaire(e.target.value)}
+                rows={3}
+                maxLength={1000}
+                placeholder="Ajoute des détails si tu veux..."
+                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit' }}
+              />
+              {erreur && <p style={{ fontSize: 12, color: '#dc2626', margin: '8px 0 0' }}>{erreur}</p>}
+            </div>
+            <div style={{ padding: '14px 22px', borderTop: '1px solid #eee', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={onFermer} style={{ padding: '9px 18px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Annuler
+              </button>
+              <button onClick={soumettre} disabled={envoi}
+                style={{ padding: '9px 18px', border: 'none', borderRadius: 8, background: theme.primary, color: '#fff', fontSize: 13, fontWeight: 700, cursor: envoi ? 'wait' : 'pointer', opacity: envoi ? 0.6 : 1 }}>
+                {envoi ? 'Envoi...' : 'Soumettre'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }

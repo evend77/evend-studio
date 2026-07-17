@@ -83,7 +83,7 @@ router.get('/pubs', authenticateToken, async (req, res) => {
     const result = await pool.query(
       `SELECT 
         id, titre, description, url_image, url_lien,
-        actif, statut, impressions, clics, type, effet, prix_par_click,
+        actif, statut, raison_blocage, impressions, clics, type, effet, prix_par_click,
         budget_type, budget_montant, budget_depense,
         categories,
         roue_active,
@@ -173,13 +173,21 @@ router.post('/pubs', authenticateToken, async (req, res) => {
     // directement, peu importe le toggle) — la Vérification IA, si activée, sert
     // seulement à rejeter automatiquement les cas évidents pour te faire gagner du temps.
     let statutInitial = 'en_attente';
+    let raisonBlocageInitiale = null;
     try {
       const configMod = await pool.query('SELECT * FROM configuration_moderation WHERE id = 1');
-      if (configMod.rows[0]?.verification_ai_active && urlImageFinale) {
+      if (!configMod.rows[0]?.verification_ai_active) {
+        console.log(`ℹ️ Vérification IA désactivée — pub #${titre} envoyée en attente sans appel IA`);
+      } else if (!urlImageFinale) {
+        console.log(`ℹ️ Vérification IA activée mais aucune image à vérifier pour "${titre}" — en attente sans appel IA`);
+      } else {
         const resultatIA = await verifierModerationIA(urlImageFinale, `${titre} ${description}`);
         if (!resultatIA.erreur) {
-          if (doitEtreRejetee(resultatIA.scores, configMod.rows[0])) {
+          const rejetee = doitEtreRejetee(resultatIA.scores, configMod.rows[0]);
+          console.log(`✅ Vérification IA effectuée pour "${titre}" — scores:`, resultatIA.scores, `— rejetée auto: ${rejetee}`);
+          if (rejetee) {
             statutInitial = 'rejete';
+            raisonBlocageInitiale = 'Rejetée automatiquement par la vérification IA (contenu non conforme détecté)';
           }
         } else {
           console.error('⚠️ Modération IA indisponible, la pub reste en attente manuelle:', resultatIA.message);
@@ -191,13 +199,13 @@ router.post('/pubs', authenticateToken, async (req, res) => {
 
     const result = await pool.query(
       `INSERT INTO sponsor_pubs 
-       (sponsor_id, titre, description, url_image, url_lien, actif, statut,
+       (sponsor_id, titre, description, url_image, url_lien, actif, statut, raison_blocage,
         type, effet, prix_par_click, extra_data,
         budget_type, budget_montant, budget_depense,
         categories,
         roue_active, codes_promo,
         created_at, updated_at)
-       VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, 0, $13, $14, $15, NOW(), NOW())
+       VALUES ($1, $2, $3, $4, $5, false, $6, $7, $8, $9, $10, $11, $12, $13, 0, $14, $15, $16, NOW(), NOW())
        RETURNING *`,
       [
         sponsor_id,
@@ -206,6 +214,7 @@ router.post('/pubs', authenticateToken, async (req, res) => {
         urlImageFinale,
         url_lien,
         statutInitial,
+        raisonBlocageInitiale,
         type || 'basique',
         effet || null,
         prix_par_click || 0.50,
@@ -361,11 +370,17 @@ router.delete('/pubs/:id', authenticateToken, async (req, res) => {
     const sponsor_id = req.user.id;
 
     const check = await pool.query(
-      'SELECT id FROM sponsor_pubs WHERE id = $1 AND sponsor_id = $2',
+      'SELECT id, statut FROM sponsor_pubs WHERE id = $1 AND sponsor_id = $2',
       [id, sponsor_id]
     );
     if (check.rows.length === 0) {
       return res.status(404).json({ error: 'Publicité non trouvée' });
+    }
+
+    if (check.rows[0].statut === 'rejete') {
+      return res.status(403).json({
+        error: 'Cette publicité a été bloquée et ne peut pas être supprimée. Contactez le support si vous pensez que c\'est une erreur.'
+      });
     }
 
     await pool.query('DELETE FROM sponsor_pubs WHERE id = $1', [id]);
@@ -610,12 +625,173 @@ router.post('/pub/:id/click', async (req, res) => {
   }
 });
 
+// ── SIGNALEMENT (route publique — les visiteurs du site ne sont pas connectés) ──
+const MOTIFS_SIGNALEMENT = [
+  'photo_inappropriee', 'texte_inapproprie', 'spam', 'contenu_violent',
+  'contenu_sexuel', 'arnaque', 'droits_auteur', 'lien_suspect', 'autre',
+];
+
+const LABELS_MOTIFS = {
+  photo_inappropriee: 'Photo inappropriée ou choquante',
+  texte_inapproprie: 'Texte inapproprié ou offensant',
+  spam: 'Spam ou publicité trompeuse',
+  contenu_violent: 'Contenu violent ou haineux',
+  contenu_sexuel: 'Contenu à caractère sexuel',
+  arnaque: 'Arnaque ou fraude suspectée',
+  droits_auteur: 'Violation de droits d\'auteur / marque',
+  lien_suspect: 'Lien suspect ou brisé',
+  autre: 'Autre motif',
+};
+
+// POST — Signaler une pub (aucune authentification requise, accessible depuis le site public)
+router.post('/pub/:id/signaler', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { motif, commentaire } = req.body;
+
+    if (!motif || !MOTIFS_SIGNALEMENT.includes(motif)) {
+      return res.status(400).json({ error: 'Motif de signalement invalide' });
+    }
+
+    const pubExiste = await pool.query('SELECT id FROM sponsor_pubs WHERE id = $1', [id]);
+    if (pubExiste.rows.length === 0) {
+      return res.status(404).json({ error: 'Publicité non trouvée' });
+    }
+
+    await pool.query(
+      `INSERT INTO signalements_pub (pub_id, motif, commentaire) VALUES ($1, $2, $3)`,
+      [id, motif, (commentaire || '').slice(0, 1000)]
+    );
+
+    res.status(201).json({ success: true, message: 'Signalement envoyé, merci' });
+  } catch (error) {
+    console.error('❌ Erreur envoi signalement:', error);
+    res.status(500).json({ error: 'Erreur lors de l\'envoi du signalement' });
+  }
+});
+
 // ════════════════════════════════════════════════════════════════
 // 🔧 ADMIN ROUTES
 // ════════════════════════════════════════════════════════════════
 
 // GET — Toutes les pubs (admin), tous sponsors confondus
 // Recherche (ID, titre, nom de sponsor) + pagination (50/page) — pensé pour des milliers de pubs.
+// ════════════════════════════════════════════════════════════════
+// 🚩 SIGNALEMENTS (ADMIN)
+// ════════════════════════════════════════════════════════════════
+
+// GET — Compteur rapide des signalements non traités (pour le badge du menu)
+router.get('/admin/signalements/compte', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const result = await pool.query(`SELECT COUNT(*) as total FROM signalements_pub WHERE statut = 'nouveau'`);
+    res.json({ nouveaux: parseInt(result.rows[0].total) });
+  } catch (error) {
+    console.error('❌ Erreur compte signalements:', error);
+    res.status(500).json({ error: 'Erreur lors du comptage des signalements' });
+  }
+});
+
+// GET — Liste des signalements (recherche + filtre statut + pagination)
+router.get('/admin/signalements', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const page = Math.max(parseInt(req.query.page) || 1, 1);
+    const limit = Math.min(Math.max(parseInt(req.query.limit) || 50, 1), 100);
+    const offset = (page - 1) * limit;
+    const search = (req.query.search || '').trim();
+    const statutFiltre = (req.query.statut || '').trim();
+
+    const conditions = [];
+    const params = [];
+    if (search) {
+      params.push(search);
+      conditions.push(`(sig.id::text = $${params.length} OR sp.id::text = $${params.length} OR sp.titre ILIKE '%' || $${params.length} || '%' OR s.nom ILIKE '%' || $${params.length} || '%')`);
+    }
+    if (statutFiltre) {
+      params.push(statutFiltre);
+      conditions.push(`sig.statut = $${params.length}`);
+    }
+    const whereSql = conditions.length > 0 ? conditions.join(' AND ') : '1=1';
+
+    const countResult = await pool.query(
+      `SELECT COUNT(*) as total FROM signalements_pub sig
+       JOIN sponsor_pubs sp ON sp.id = sig.pub_id
+       JOIN sponsors s ON s.id = sp.sponsor_id
+       WHERE ${whereSql}`,
+      params
+    );
+    const total = parseInt(countResult.rows[0].total);
+
+    const paramsListe = [...params, limit, offset];
+    const limitIdx = paramsListe.length - 1;
+    const offsetIdx = paramsListe.length;
+
+    const result = await pool.query(
+      `SELECT
+        sig.id, sig.motif, sig.commentaire, sig.statut, sig.action_prise, sig.note_admin,
+        sig.created_at, sig.traite_at,
+        sp.id AS pub_id, sp.titre AS pub_titre, sp.description AS pub_description,
+        sp.url_image AS pub_image, sp.actif AS pub_actif, sp.statut AS pub_statut,
+        s.nom AS sponsor_nom,
+        (SELECT COUNT(*) FROM signalements_pub sig2 WHERE sig2.pub_id = sp.id) AS nb_signalements_pub
+       FROM signalements_pub sig
+       JOIN sponsor_pubs sp ON sp.id = sig.pub_id
+       JOIN sponsors s ON s.id = sp.sponsor_id
+       WHERE ${whereSql}
+       ORDER BY sig.statut ASC, sig.created_at DESC
+       LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
+      paramsListe
+    );
+
+    res.json({
+      signalements: result.rows,
+      total, page, limit,
+      totalPages: Math.max(Math.ceil(total / limit), 1),
+    });
+  } catch (error) {
+    console.error('❌ Erreur liste signalements:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des signalements' });
+  }
+});
+
+// PUT — Traiter un signalement (bloquer la pub ou l'autoriser) + note admin
+router.put('/admin/signalements/:id/traiter', authenticateToken, verifierAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { action, note_admin } = req.body; // action: 'bloquer' | 'autoriser'
+
+    if (!['bloquer', 'autoriser'].includes(action)) {
+      return res.status(400).json({ error: 'Action invalide' });
+    }
+
+    const signalement = await pool.query('SELECT pub_id, motif FROM signalements_pub WHERE id = $1', [id]);
+    if (signalement.rows.length === 0) {
+      return res.status(404).json({ error: 'Signalement non trouvé' });
+    }
+    const pubId = signalement.rows[0].pub_id;
+
+    if (action === 'bloquer') {
+      const raisonLisible = `Bloquée suite à un signalement : ${LABELS_MOTIFS[signalement.rows[0].motif] || 'Contenu non conforme'}`;
+      await pool.query(
+        `UPDATE sponsor_pubs SET actif = false, statut = 'rejete', raison_blocage = $1, updated_at = NOW() WHERE id = $2`,
+        [raisonLisible, pubId]
+      );
+    }
+    // 'autoriser' → on ne touche pas à la pub, elle reste comme elle était (jamais bloquée automatiquement)
+
+    await pool.query(
+      `UPDATE signalements_pub SET
+        statut = 'traite', action_prise = $1, note_admin = $2, traite_at = NOW()
+       WHERE id = $3`,
+      [action === 'bloquer' ? 'bloquee' : 'autorisee', note_admin || null, id]
+    );
+
+    res.json({ success: true, message: action === 'bloquer' ? 'Publicité bloquée' : 'Publicité autorisée à continuer' });
+  } catch (error) {
+    console.error('❌ Erreur traitement signalement:', error);
+    res.status(500).json({ error: 'Erreur lors du traitement du signalement' });
+  }
+});
+
 router.get('/admin/all', authenticateToken, verifierAdmin, async (req, res) => {
   try {
     const page = Math.max(parseInt(req.query.page) || 1, 1);
@@ -695,7 +871,7 @@ router.put('/admin/:id/rejeter', authenticateToken, verifierAdmin, async (req, r
   try {
     const { id } = req.params;
     const result = await pool.query(
-      `UPDATE sponsor_pubs SET actif = false, statut = 'rejete', updated_at = NOW() WHERE id = $1 RETURNING *`,
+      `UPDATE sponsor_pubs SET actif = false, statut = 'rejete', raison_blocage = COALESCE(raison_blocage, 'Rejetée par un administrateur'), updated_at = NOW() WHERE id = $1 RETURNING *`,
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Publicité non trouvée' });

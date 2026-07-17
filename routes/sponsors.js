@@ -413,6 +413,7 @@ router.get('/admin/liste', authenticateToken, verifierAdmin, async (req, res) =>
         created_at, updated_at,
         (SELECT COUNT(*) FROM sponsor_photos WHERE sponsor_id = sponsors.id AND active = true) as photos_actives,
         (SELECT COUNT(*) FROM sponsor_pubs WHERE sponsor_id = sponsors.id AND statut = 'active') as pubs_actives,
+        (SELECT COUNT(*) FROM sponsor_pubs WHERE sponsor_id = sponsors.id AND statut = 'rejete') as pubs_bloquees,
         (SELECT COUNT(*) FROM notes_sponsors WHERE sponsor_id = sponsors.id) as nb_notes
        FROM sponsors
        ORDER BY created_at DESC`

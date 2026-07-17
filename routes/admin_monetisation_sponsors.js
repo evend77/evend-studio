@@ -41,11 +41,13 @@ router.get('/config', authenticateToken, verifierAdmin, async (req, res) => {
     const offsetIdx = search ? 3 : 2;
 
     const result = await pool.query(
-      `SELECT g.id, g.nom_boutique, g.email, g.montant_par_clic
+      `SELECT g.id,
+        COALESCE(NULLIF(g.nom_boutique, ''), (SELECT s.slug FROM sites s WHERE s.gestionnaire_id = g.id LIMIT 1), g.email) AS nom_boutique,
+        g.email, g.montant_par_clic
        FROM gestionnaires g
        JOIN options_gestionnaire og ON og.gestionnaire_id = g.id
        WHERE og.pub_sponsor = true ${whereSearch}
-       ORDER BY g.nom_boutique
+       ORDER BY nom_boutique
        LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
       paramsListe
     );
@@ -193,7 +195,9 @@ router.get('/gestionnaires-revenu', authenticateToken, verifierAdmin, async (req
 
     const result = await pool.query(
       `SELECT
-        g.id, g.nom_boutique, g.email, g.montant_par_clic,
+        g.id,
+        COALESCE(NULLIF(g.nom_boutique, ''), (SELECT s.slug FROM sites s WHERE s.gestionnaire_id = g.id LIMIT 1), g.email) AS nom_boutique,
+        g.email, g.montant_par_clic,
         COALESCE(SUM(aps.clics), 0) as clics_total,
         COALESCE(SUM(aps.clics) FILTER (WHERE aps.date >= date_trunc('month', CURRENT_DATE)), 0) as clics_mois,
         COALESCE(SUM(aps.impressions), 0) as impressions_total

@@ -35,6 +35,7 @@ import AdminForfaitsPub from './pages/admin/AdminForfaitsPub';
 import AdminPhotosSponsors from './pages/admin/AdminPhotosSponsors';
 import AdminPubsSponsors from './pages/admin/AdminPubsSponsors';
 import AdminMonetisationSponsors from './pages/admin/AdminMonetisationSponsors';
+import AdminSignalementsSponsors from './pages/admin/AdminSignalementsSponsors';
 import ListeProduits         from './pages/admin/ListeProduits';
 import GestionTagsEtTypes    from './pages/admin/GestionTagsEtTypes';
 import GestionBadges         from './pages/admin/GestionBadges';
@@ -132,6 +133,7 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'sponsors-liste',       label: 'Liste sponsors',   icon: '📋' },
       { id: 'sponsors-photos',      label: 'Photos sponsors',  icon: '🖼️' },
       { id: 'sponsors-pubs',        label: 'Pub sponsor',      icon: '📢' },
+      { id: 'sponsors-signalements', label: 'Signalements',    icon: '🚩', badge: 0 },
       { id: 'sponsors-monetisation', label: 'Monétisation',    icon: '💰' },
       { id: 'sponsors-forfait-photo', label: 'Forfait photo',  icon: '📸' },
       { id: 'sponsors-forfait-pub',  label: 'Forfait pub',     icon: '📣' },
@@ -485,6 +487,7 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
   const [vendeurs, setVendeurs] = useState<Vendeur[]>([]);
   const [loading, setLoading] = useState(true);
   const [nbSignalementsNouveaux, setNbSignalementsNouveaux] = useState(0);
+  const [nbSignalementsPubNouveaux, setNbSignalementsPubNouveaux] = useState(0);
   const [footerText, setFooterText] = useState(`© Copyright ${new Date().getFullYear()} e-Vend Studio Administration — Accès restreint`);
   const [nomPlateforme, setNomPlateforme] = useState('e-Vend');
 
@@ -558,6 +561,23 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
     return () => clearInterval(interval);
   }, []);
 
+  // Badge signalements de pubs sponsors (système séparé, propre à Studio)
+  useEffect(() => {
+    const fetchCountPub = () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      fetch(`/api/sponsors/admin/signalements/compte`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => { if (data) setNbSignalementsPubNouveaux(data.nouveaux || 0); })
+        .catch(() => {});
+    };
+    fetchCountPub();
+    const interval = setInterval(fetchCountPub, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   const toggleSection = (id: string) => {
     setSectionOuverte(prev => prev === id ? null : id);
   };
@@ -608,6 +628,8 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
         return <AdminPhotosSponsors />;
       case 'sponsors-pubs':
         return <AdminPubsSponsors />;
+      case 'sponsors-signalements':
+        return <AdminSignalementsSponsors />;
       case 'sponsors-monetisation':
         return <AdminMonetisationSponsors />;
       case 'sponsors-forfait-photo':
@@ -887,9 +909,9 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = actif ? 'rgba(45,106,159,0.4)' : 'transparent'; }}>
                         <span style={{ fontSize: '13px', opacity: actif ? 1 : 0.55 }}>{ss.icon}</span>
                         <span style={{ fontSize: '12px', fontWeight: actif ? '700' : '400', color: actif ? 'white' : 'rgba(255,255,255,0.5)', flex: 1 }}>{ss.label}</span>
-                        {(ss.id === 'vendeurs-liste' ? nbSignalementsNouveaux : ss.badge) ? (
-                          <span style={{ backgroundColor: ss.id === 'vendeurs-liste' ? '#dc2626' : THEME.danger, color: 'white', fontSize: '9px', fontWeight: '800', padding: '1px 5px', borderRadius: '8px', minWidth: '16px', textAlign: 'center' }}>
-                            {ss.id === 'vendeurs-liste' ? `🚩${nbSignalementsNouveaux}` : ss.badge}
+                        {(ss.id === 'vendeurs-liste' ? nbSignalementsNouveaux : ss.id === 'sponsors-signalements' ? nbSignalementsPubNouveaux : ss.badge) ? (
+                          <span style={{ backgroundColor: (ss.id === 'vendeurs-liste' || ss.id === 'sponsors-signalements') ? '#dc2626' : THEME.danger, color: 'white', fontSize: '9px', fontWeight: '800', padding: '1px 5px', borderRadius: '8px', minWidth: '16px', textAlign: 'center' }}>
+                            {ss.id === 'vendeurs-liste' ? `🚩${nbSignalementsNouveaux}` : ss.id === 'sponsors-signalements' ? nbSignalementsPubNouveaux : ss.badge}
                           </span>
                         ) : null}
                         {actif && <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#60a5fa', flexShrink: 0 }} />}
