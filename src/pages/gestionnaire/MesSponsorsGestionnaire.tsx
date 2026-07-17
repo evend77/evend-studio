@@ -32,7 +32,7 @@ const API_BASE = '/api/gestionnaires/addon-pub-sponsor';
 const PAR_PAGE = 50;
 
 function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProps) {
-  const [onglet, setOnglet] = useState<'pubs' | 'monetisation'>('pubs');
+  const [onglet, setOnglet] = useState<'pubs' | 'categories' | 'monetisation'>('pubs');
   const [pubs, setPubs] = useState<PubGestionnaire[]>([]);
   const [loadingPubs, setLoadingPubs] = useState(true);
   const [recherche, setRecherche] = useState('');
@@ -47,6 +47,11 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
   } | null>(null);
   const [loadingMonetisation, setLoadingMonetisation] = useState(true);
   const [periode, setPeriode] = useState<'7' | '30' | '90'>('30');
+
+  const [toutesCategories, setToutesCategories] = useState<{ cle: string; label: string; emoji: string }[]>([]);
+  const [categoriesAutorisees, setCategoriesAutorisees] = useState<string[]>([]);
+  const [chargementCategories, setChargementCategories] = useState(true);
+  const [sauvegardeCategories, setSauvegardeCategories] = useState(false);
 
   const token = () => localStorage.getItem('token') || '';
 
@@ -93,6 +98,44 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
   };
 
   useEffect(() => { fetchMonetisation(); }, [periode]);
+
+  useEffect(() => {
+    const charger = async () => {
+      setChargementCategories(true);
+      try {
+        const [resToutes, resAutorisees] = await Promise.all([
+          fetch('/api/admin/categories-pub/actives', { headers: { Authorization: `Bearer ${token()}` } }),
+          fetch(`${API_BASE}/categories-autorisees`, { headers: { Authorization: `Bearer ${token()}` } }),
+        ]);
+        const dataToutes = await resToutes.json();
+        const dataAutorisees = await resAutorisees.json();
+        setToutesCategories(dataToutes.categories || []);
+        setCategoriesAutorisees(dataAutorisees.categories || []);
+      } catch (e) {
+        console.error('Erreur chargement catégories:', e);
+      }
+      setChargementCategories(false);
+    };
+    charger();
+  }, []);
+
+  const toggleCategorie = (cle: string) => {
+    setCategoriesAutorisees(prev => prev.includes(cle) ? prev.filter(c => c !== cle) : [...prev, cle]);
+  };
+
+  const enregistrerCategories = async (nouvelleListe: string[]) => {
+    setSauvegardeCategories(true);
+    try {
+      await fetch(`${API_BASE}/categories-autorisees`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ categories: nouvelleListe }),
+      });
+    } catch (e) {
+      console.error('Erreur sauvegarde catégories:', e);
+    }
+    setSauvegardeCategories(false);
+  };
 
   const bloquerPub = async (pubId: number, bloquer: boolean) => {
     setPubs(prev => prev.map(p => p.id === pubId ? { ...p, bloquee: bloquer } : p));
@@ -153,6 +196,17 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
           }}
         >
           📢 Publicités sur mon site
+        </button>
+        <button
+          onClick={() => setOnglet('categories')}
+          style={{
+            padding: '12px 20px', background: 'transparent', border: 'none',
+            borderBottom: onglet === 'categories' ? '3px solid #f59e0b' : '3px solid transparent',
+            color: onglet === 'categories' ? '#f59e0b' : '#666',
+            fontWeight: onglet === 'categories' ? 700 : 500, cursor: 'pointer', fontSize: 14,
+          }}
+        >
+          🏷️ Catégories acceptées
         </button>
         <button
           onClick={() => setOnglet('monetisation')}
@@ -295,6 +349,62 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
         </>
       )}
 
+      {/* ── ONGLET CATÉGORIES ───────────────────────────────────────── */}
+      {onglet === 'categories' && (
+        <div>
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: 20, marginBottom: 16 }}>
+            <p style={{ fontSize: 13, color: '#555', margin: '0 0 4px', lineHeight: 1.5 }}>
+              Choisissez les catégories de publicités que vous acceptez d'afficher sur votre site.
+              Si aucune case n'est cochée, <strong>toutes les catégories pertinentes sont acceptées</strong> (comportement par défaut).
+            </p>
+            <p style={{ fontSize: 12, color: '#999', margin: 0 }}>
+              Note : une pub dont le sponsor n'a choisi aucune catégorie spécifique ("toutes catégories") peut quand même s'afficher, peu importe votre sélection ici.
+            </p>
+          </div>
+
+          {chargementCategories ? (
+            <div style={{ padding: 40, textAlign: 'center', color: '#999' }}>⏳ Chargement...</div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 10 }}>
+              {toutesCategories.map(cat => {
+                const coche = categoriesAutorisees.includes(cat.cle);
+                return (
+                  <label key={cat.cle} onClick={() => { toggleCategorie(cat.cle); }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 10, cursor: 'pointer',
+                      border: `1.5px solid ${coche ? '#f59e0b' : '#e5e7eb'}`, background: coche ? '#fef3c7' : '#fff',
+                    }}>
+                    <input type="checkbox" checked={coche} readOnly style={{ pointerEvents: 'none' }} />
+                    <span style={{ fontSize: 13 }}>{cat.emoji} {cat.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+
+          <div style={{ marginTop: 20 }}>
+            <button
+              onClick={() => enregistrerCategories(categoriesAutorisees)}
+              disabled={sauvegardeCategories}
+              style={{
+                padding: '10px 24px', background: '#f59e0b', border: 'none', borderRadius: 8, color: '#fff',
+                fontSize: 13, fontWeight: 700, cursor: sauvegardeCategories ? 'wait' : 'pointer', opacity: sauvegardeCategories ? 0.6 : 1,
+              }}
+            >
+              {sauvegardeCategories ? '⏳ Sauvegarde...' : '💾 Sauvegarder mes préférences'}
+            </button>
+            {categoriesAutorisees.length > 0 && (
+              <button
+                onClick={() => { setCategoriesAutorisees([]); enregistrerCategories([]); }}
+                style={{ marginLeft: 10, padding: '10px 18px', background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Tout accepter (retirer les filtres)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── ONGLET MONÉTISATION ─────────────────────────────────────── */}
       {onglet === 'monetisation' && (
         <div>
@@ -329,11 +439,6 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
                   <div style={{ fontSize: 11, color: '#999' }}>Défini par e-Vend Studio</div>
                 </div>
                 <div style={{ background: '#fff', padding: 20, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-                  <div style={{ fontSize: 12, color: '#666' }}>💰 Revenu généré pour les sponsors</div>
-                  <div style={{ fontSize: 28, fontWeight: 700, color: '#2563eb' }}>{formatCurrency(monetisation.total_revenu_brut)}</div>
-                  <div style={{ fontSize: 11, color: '#999' }}>Informatif — n'affecte pas votre montant</div>
-                </div>
-                <div style={{ background: '#fff', padding: 20, borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
                   <div style={{ fontSize: 12, color: '#666' }}>🏦 Ce que vous touchez</div>
                   <div style={{ fontSize: 28, fontWeight: 700, color: '#16a34a' }}>{formatCurrency(monetisation.total_revenu_gestionnaire)}</div>
                 </div>
@@ -356,7 +461,6 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
                           <th style={{ textAlign: 'left', padding: '10px 14px', fontSize: 11, color: '#666' }}>Sponsor</th>
                           <th style={{ textAlign: 'center', padding: '10px 14px', fontSize: 11, color: '#666' }}>Impressions</th>
                           <th style={{ textAlign: 'center', padding: '10px 14px', fontSize: 11, color: '#666' }}>Clics</th>
-                          <th style={{ textAlign: 'center', padding: '10px 14px', fontSize: 11, color: '#666' }}>Payé par le sponsor</th>
                           <th style={{ textAlign: 'center', padding: '10px 14px', fontSize: 11, color: '#666' }}>Vous touchez</th>
                         </tr>
                       </thead>
@@ -367,7 +471,6 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
                             <td style={{ padding: '10px 14px', fontSize: 13, color: '#666' }}>{d.sponsor_nom}</td>
                             <td style={{ textAlign: 'center', padding: '10px 14px', fontSize: 13 }}>{d.impressions}</td>
                             <td style={{ textAlign: 'center', padding: '10px 14px', fontSize: 13 }}>{d.clics}</td>
-                            <td style={{ textAlign: 'center', padding: '10px 14px', fontSize: 13 }}>{formatCurrency(d.revenu_brut)}</td>
                             <td style={{ textAlign: 'center', padding: '10px 14px', fontSize: 13, fontWeight: 700, color: '#16a34a' }}>{formatCurrency(d.revenu_gestionnaire)}</td>
                           </tr>
                         ))}

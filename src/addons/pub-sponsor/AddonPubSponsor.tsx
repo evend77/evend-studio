@@ -67,8 +67,10 @@ export default function AddonPubSponsor({ theme, data }: { theme: AddonPubTheme;
   const chargerPub = () => {
     if (!pubActive) return;
     setChargement(true);
-    const url = `/api/sponsors/pub/random/${encodeURIComponent(categorieSite || 'general')}${gestionnaireId ? `?gestionnaireId=${gestionnaireId}` : ''}`;
-    fetch(url)
+    // "_t" (horodatage) casse le cache des CDN/proxys agressifs qui ignorent les en-têtes Cache-Control.
+    const anticache = `_t=${Date.now()}`;
+    const url = `/api/sponsors/pub/random/${encodeURIComponent(categorieSite || 'general')}?${gestionnaireId ? `gestionnaireId=${gestionnaireId}&` : ''}${anticache}`;
+    fetch(url, { cache: 'no-store' })
       .then(r => r.ok ? r.json() : { pub: null })
       .then(d => setPub(d.pub || null))
       .catch(() => setPub(null))

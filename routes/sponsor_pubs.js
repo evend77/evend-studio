@@ -546,6 +546,12 @@ router.post('/roue/:pubId/participer', async (req, res) => {
 // et pour tracker l'impression dans addon_pub_stats (revenu du gestionnaire).
 router.get('/pub/random/:categorieSite', async (req, res) => {
   try {
+    // Empêche Cloudflare/le navigateur de mettre cette réponse en cache — sinon
+    // le même "random" reste figé indéfiniment pour tous les visiteurs.
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+
     const { categorieSite } = req.params;
     const gestionnaireId = req.query.gestionnaireId ? parseInt(req.query.gestionnaireId) : null;
 
@@ -557,6 +563,7 @@ router.get('/pub/random/:categorieSite', async (req, res) => {
         sp.sponsor_id, s.nom AS sponsor_nom
       FROM sponsor_pubs sp
       JOIN sponsors s ON s.id = sp.sponsor_id
+      LEFT JOIN options_gestionnaire og ON og.gestionnaire_id = $2
       WHERE sp.actif = true AND s.active = true
         AND (sp.categories = '{}' OR $1 = ANY(sp.categories))
         AND ($2::int IS NULL OR NOT EXISTS (
@@ -565,6 +572,13 @@ router.get('/pub/random/:categorieSite', async (req, res) => {
         AND ($2::int IS NULL OR NOT EXISTS (
           SELECT 1 FROM gestionnaire_sponsors_bloques bs WHERE bs.gestionnaire_id = $2 AND bs.sponsor_id = sp.sponsor_id
         ))
+        AND (
+          $2::int IS NULL
+          OR og.categories_pub_autorisees IS NULL
+          OR array_length(og.categories_pub_autorisees, 1) IS NULL
+          OR sp.categories = '{}'
+          OR sp.categories && og.categories_pub_autorisees
+        )
       ORDER BY RANDOM() LIMIT 1
     `;
 

@@ -207,4 +207,42 @@ router.get('/monetisation', authenticateToken, verifierGestionnaire, async (req,
   }
 });
 
+// ════════════════════════════════════════════════════════════════
+// 🏷️ CATÉGORIES DE PUBS ACCEPTÉES SUR MON SITE
+// ════════════════════════════════════════════════════════════════
+
+// GET — Catégories actuellement autorisées (null/vide = toutes)
+router.get('/categories-autorisees', authenticateToken, verifierGestionnaire, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT categories_pub_autorisees FROM options_gestionnaire WHERE gestionnaire_id = $1',
+      [req.user.id]
+    );
+    res.json({ categories: result.rows[0]?.categories_pub_autorisees || [] });
+  } catch (error) {
+    console.error('❌ Erreur récupération catégories autorisées:', error);
+    res.status(500).json({ error: 'Erreur lors de la récupération des catégories' });
+  }
+});
+
+// PUT — Modifier les catégories autorisées ([] = toutes acceptées)
+router.put('/categories-autorisees', authenticateToken, verifierGestionnaire, async (req, res) => {
+  try {
+    const { categories } = req.body; // tableau de clés, ex: ['cours', 'general']
+    if (!Array.isArray(categories)) {
+      return res.status(400).json({ error: 'Format invalide' });
+    }
+    await pool.query(
+      `INSERT INTO options_gestionnaire (gestionnaire_id, categories_pub_autorisees)
+       VALUES ($1, $2)
+       ON CONFLICT (gestionnaire_id) DO UPDATE SET categories_pub_autorisees = $2`,
+      [req.user.id, categories.length > 0 ? categories : null]
+    );
+    res.json({ success: true });
+  } catch (error) {
+    console.error('❌ Erreur modification catégories autorisées:', error);
+    res.status(500).json({ error: 'Erreur lors de la modification des catégories' });
+  }
+});
+
 module.exports = router;
