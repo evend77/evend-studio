@@ -111,7 +111,7 @@ function PopupInscriptionCours({ theme, cours, siteId, onFermer, onInscrit }: { 
 
   return (
     <div onClick={onFermer} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.7)', zIndex:9998, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:theme.cardBg, border:`1px solid ${theme.primary}40`, borderRadius:14, padding:'28px 26px', maxWidth:420, width:'100%', position:'relative' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:`linear-gradient(rgba(255,255,255,.07), rgba(255,255,255,.07)), ${theme.bg}`, border:`1px solid ${theme.primary}40`, borderRadius:14, padding:'28px 26px', maxWidth:420, width:'100%', position:'relative', boxShadow:'0 24px 64px rgba(0,0,0,.5)' }}>
         <button onClick={onFermer} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:theme.textDim, fontSize:18, cursor:'pointer' }}>✕</button>
         {succes ? (
           <div style={{ textAlign:'center', padding:'20px 0' }}>
