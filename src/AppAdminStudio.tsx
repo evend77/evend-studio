@@ -1004,6 +1004,17 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
             </span>
           )}
         </div>
+        <div
+          style={{ position: 'relative', cursor: 'pointer', fontSize: '20px' }}
+          onClick={() => { setPageActive('sponsors-signalements'); setSectionOuverte('sponsors'); }}
+          title={nbSignalementsPubNouveaux > 0 ? `${nbSignalementsPubNouveaux} signalement(s) de pub non lu(s)` : 'Signalements de pubs sponsors'}>
+          🚩
+          {nbSignalementsPubNouveaux > 0 && (
+            <span style={{ position: 'absolute', top: '-6px', right: '-8px', backgroundColor: THEME.danger, borderRadius: '50%', minWidth: '16px', height: '16px', padding: '0 3px', fontSize: '9px', fontWeight: '900', color: 'white', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              {nbSignalementsPubNouveaux}
+            </span>
+          )}
+        </div>
         <SessionIndicator />
         <button 
           onClick={() => window.open('/', '_self')} 

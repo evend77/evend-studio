@@ -824,7 +824,7 @@ router.get('/admin/all', authenticateToken, verifierAdmin, async (req, res) => {
     const offsetIdx = paramsListe.length;
     const result = await pool.query(
       `SELECT
-        sp.id, sp.titre, sp.description, sp.url_image, sp.type, sp.actif, sp.statut,
+        sp.id, sp.titre, sp.description, sp.url_image, sp.url_lien, sp.type, sp.actif, sp.statut, sp.raison_blocage,
         sp.impressions, sp.clics, sp.prix_par_click,
         sp.budget_type, sp.budget_montant, sp.budget_depense,
         sp.sponsor_id, s.nom AS sponsor_nom, sp.created_at
@@ -855,7 +855,7 @@ router.put('/admin/:id/approuver', authenticateToken, verifierAdmin, async (req,
   try {
     const { id } = req.params;
     const result = await pool.query(
-      `UPDATE sponsor_pubs SET actif = true, statut = 'active', updated_at = NOW() WHERE id = $1 RETURNING *`,
+      `UPDATE sponsor_pubs SET actif = true, statut = 'active', raison_blocage = NULL, updated_at = NOW() WHERE id = $1 RETURNING *`,
       [id]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Publicité non trouvée' });
@@ -870,9 +870,10 @@ router.put('/admin/:id/approuver', authenticateToken, verifierAdmin, async (req,
 router.put('/admin/:id/rejeter', authenticateToken, verifierAdmin, async (req, res) => {
   try {
     const { id } = req.params;
+    const { raison } = req.body;
     const result = await pool.query(
-      `UPDATE sponsor_pubs SET actif = false, statut = 'rejete', raison_blocage = COALESCE(raison_blocage, 'Rejetée par un administrateur'), updated_at = NOW() WHERE id = $1 RETURNING *`,
-      [id]
+      `UPDATE sponsor_pubs SET actif = false, statut = 'rejete', raison_blocage = COALESCE($2, raison_blocage, 'Rejetée par un administrateur'), updated_at = NOW() WHERE id = $1 RETURNING *`,
+      [id, (raison || '').trim() || null]
     );
     if (result.rows.length === 0) return res.status(404).json({ error: 'Publicité non trouvée' });
     res.json({ success: true, message: 'Publicité rejetée', pub: result.rows[0] });

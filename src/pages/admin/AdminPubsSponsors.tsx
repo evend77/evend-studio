@@ -6,9 +6,11 @@ interface PubAdmin {
   titre: string;
   description: string;
   url_image: string;
+  url_lien: string;
   type: string;
   actif: boolean;
   statut: 'active' | 'pause' | 'budget_epuise' | 'en_attente' | 'rejete';
+  raison_blocage: string | null;
   impressions: number;
   clics: number;
   prix_par_click: number;
@@ -49,6 +51,106 @@ function formatCurrency(num: number) {
   return new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', minimumFractionDigits: 2 }).format(num || 0);
 }
 
+function ModalApercuPub({ pub, onFermer, onApprouver, onRejeter }: {
+  pub: PubAdmin;
+  onFermer: () => void;
+  onApprouver: (pub: PubAdmin) => void;
+  onRejeter: (pub: PubAdmin, raison: string) => void;
+}) {
+  const [modeRefus, setModeRefus] = useState(false);
+  const [raison, setRaison] = useState('');
+  const [envoi, setEnvoi] = useState(false);
+
+  const confirmerRefus = async () => {
+    if (!raison.trim()) return;
+    setEnvoi(true);
+    await onRejeter(pub, raison.trim());
+    setEnvoi(false);
+  };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 20 }}
+      onClick={e => e.target === e.currentTarget && onFermer()}>
+      <div style={{ backgroundColor: 'white', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.3)' }}>
+        <div style={{ position: 'relative' }}>
+          <img src={pub.url_image} alt={pub.titre} style={{ width: '100%', height: 260, objectFit: 'cover', display: 'block', borderTopLeftRadius: 16, borderTopRightRadius: 16 }} />
+          <button onClick={onFermer} style={{ position: 'absolute', top: 12, right: 12, background: 'rgba(0,0,0,0.6)', border: 'none', color: 'white', borderRadius: 8, width: 30, height: 30, cursor: 'pointer', fontSize: 15 }}>✕</button>
+          <span style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(0,0,0,0.6)', color: 'white', fontSize: 10, fontFamily: 'monospace', padding: '3px 8px', borderRadius: 4 }}>ID #{pub.id}</span>
+        </div>
+
+        <div style={{ padding: 22 }}>
+          <p style={{ fontSize: 10, fontWeight: 700, color: THEME.accent, textTransform: 'uppercase', letterSpacing: 1, margin: '0 0 4px' }}>{pub.type} · {pub.sponsor_nom}</p>
+          <h3 style={{ fontSize: 18, fontWeight: 800, margin: '0 0 8px' }}>{pub.titre}</h3>
+          <p style={{ fontSize: 13, color: THEME.textLight, margin: '0 0 14px', lineHeight: 1.5 }}>{pub.description}</p>
+
+          {pub.url_lien && (
+            <p style={{ fontSize: 11, color: THEME.textLight, margin: '0 0 14px', wordBreak: 'break-all' }}>
+              🔗 <a href={pub.url_lien} target="_blank" rel="noopener noreferrer" style={{ color: THEME.accent }}>{pub.url_lien}</a>
+            </p>
+          )}
+
+          <div style={{ display: 'flex', gap: 16, marginBottom: 16, fontSize: 12, color: THEME.textLight }}>
+            <span>👁️ {pub.impressions} impressions</span>
+            <span>🖱️ {pub.clics} clics</span>
+            <span>💰 {pub.prix_par_click.toFixed(2)}$/clic</span>
+          </div>
+
+          <span style={{
+            display: 'inline-block', fontSize: 11, fontWeight: 700, padding: '4px 10px', borderRadius: 20, marginBottom: 16,
+            backgroundColor: STATUT_INFO[pub.statut]?.bg, color: STATUT_INFO[pub.statut]?.color,
+          }}>
+            {STATUT_INFO[pub.statut]?.label || pub.statut}
+          </span>
+
+          {pub.raison_blocage && (
+            <div style={{ background: '#fecaca', borderRadius: 8, padding: 10, marginBottom: 16 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#991b1b', margin: 0 }}>🚫 Raison : {pub.raison_blocage}</p>
+            </div>
+          )}
+
+          {modeRefus ? (
+            <div>
+              <p style={{ fontSize: 12, fontWeight: 700, margin: '0 0 8px' }}>Pourquoi bloques-tu cette pub ?</p>
+              <textarea
+                value={raison} onChange={e => setRaison(e.target.value)} rows={3} autoFocus
+                placeholder="Cette raison sera visible par le sponsor..."
+                style={{ width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1.5px solid ${THEME.border}`, borderRadius: 8, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', marginBottom: 12 }}
+              />
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button onClick={() => setModeRefus(false)} style={{ flex: 1, padding: '10px 0', border: `1px solid ${THEME.border}`, borderRadius: 8, background: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  Annuler
+                </button>
+                <button onClick={confirmerRefus} disabled={!raison.trim() || envoi}
+                  style={{ flex: 1, padding: '10px 0', border: 'none', borderRadius: 8, background: THEME.danger, color: 'white', fontSize: 13, fontWeight: 700, cursor: raison.trim() ? 'pointer' : 'not-allowed', opacity: raison.trim() ? 1 : 0.5 }}>
+                  {envoi ? '...' : 'Confirmer le blocage'}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 10 }}>
+              {pub.statut === 'en_attente' && (
+                <button onClick={() => onApprouver(pub)}
+                  style={{ flex: 1, padding: '11px 0', border: 'none', borderRadius: 8, background: THEME.success, color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  ✅ Approuver
+                </button>
+              )}
+              {pub.statut !== 'rejete' && (
+                <button onClick={() => setModeRefus(true)}
+                  style={{ flex: 1, padding: '11px 0', border: 'none', borderRadius: 8, background: THEME.danger, color: 'white', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  {pub.statut === 'en_attente' ? '🚫 Refuser' : '🚫 Bloquer'}
+                </button>
+              )}
+              {pub.statut === 'rejete' && (
+                <p style={{ fontSize: 12, color: THEME.textLight, margin: 0, textAlign: 'center', width: '100%' }}>Cette pub est déjà bloquée.</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OngletPublicites() {
   const [pubs, setPubs] = useState<PubAdmin[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -59,6 +161,7 @@ function OngletPublicites() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [pubApercu, setPubApercu] = useState<PubAdmin | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [verifIA, setVerifIA] = useState(false);
@@ -122,22 +225,27 @@ function OngletPublicites() {
     try {
       const res = await fetch(`${API_BASE}/admin/${pub.id}/approuver`, { method: 'PUT', headers: { Authorization: `Bearer ${token()}` } });
       if (!res.ok) throw new Error();
-      setPubs(prev => prev.map(p => p.id === pub.id ? { ...p, actif: true, statut: 'active' } : p));
+      setPubs(prev => prev.map(p => p.id === pub.id ? { ...p, actif: true, statut: 'active', raison_blocage: null } : p));
       showToast('✅ Publicité approuvée et publiée', 'success');
+      setPubApercu(null);
     } catch {
       showToast('❌ Erreur lors de l\'approbation', 'error');
     }
   };
 
-  const rejeter = async (pub: PubAdmin) => {
-    if (!window.confirm(`Rejeter la pub #${pub.id} "${pub.titre}" ? Elle ne sera jamais publiée.`)) return;
+  const rejeter = async (pub: PubAdmin, raison?: string) => {
     try {
-      const res = await fetch(`${API_BASE}/admin/${pub.id}/rejeter`, { method: 'PUT', headers: { Authorization: `Bearer ${token()}` } });
+      const res = await fetch(`${API_BASE}/admin/${pub.id}/rejeter`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+        body: JSON.stringify({ raison: raison || null }),
+      });
       if (!res.ok) throw new Error();
-      setPubs(prev => prev.map(p => p.id === pub.id ? { ...p, actif: false, statut: 'rejete' } : p));
-      showToast('🚫 Publicité rejetée', 'success');
+      setPubs(prev => prev.map(p => p.id === pub.id ? { ...p, actif: false, statut: 'rejete', raison_blocage: raison || p.raison_blocage } : p));
+      showToast('🚫 Publicité bloquée', 'success');
+      setPubApercu(null);
     } catch {
-      showToast('❌ Erreur lors du rejet', 'error');
+      showToast('❌ Erreur lors du blocage', 'error');
     }
   };
 
@@ -225,7 +333,12 @@ function OngletPublicites() {
                 <tr key={pub.id} style={{ borderBottom: '1px solid #f5f5f5', backgroundColor: i % 2 === 0 ? 'white' : '#fafafa' }}>
                   <td style={{ padding: '10px 8px', textAlign: 'center', fontFamily: 'monospace', fontSize: 11, fontWeight: 600 }}>#{pub.id}</td>
                   <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                    <img src={pub.url_image} alt={pub.titre} style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 6 }} />
+                    <img
+                      src={pub.url_image} alt={pub.titre}
+                      onClick={() => setPubApercu(pub)}
+                      style={{ width: 48, height: 36, objectFit: 'cover', borderRadius: 6, cursor: 'pointer' }}
+                      title="Cliquer pour voir l'aperçu complet"
+                    />
                   </td>
                   <td style={{ padding: '10px 8px', textAlign: 'left', maxWidth: 160 }}>
                     <p style={{ fontSize: 12, fontWeight: 700, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pub.titre}</p>
@@ -285,6 +398,15 @@ function OngletPublicites() {
             Suivant →
           </button>
         </div>
+      )}
+
+      {pubApercu && (
+        <ModalApercuPub
+          pub={pubApercu}
+          onFermer={() => setPubApercu(null)}
+          onApprouver={approuver}
+          onRejeter={rejeter}
+        />
       )}
 
       {toast && (

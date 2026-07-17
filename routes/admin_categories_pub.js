@@ -20,7 +20,7 @@ function genererCle(label) {
 // GET — Toutes les catégories (actives ET inactives, pour la gestion admin)
 router.get('/', authenticateToken, verifierAdmin, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM categories_pub ORDER BY ordre');
+    const result = await pool.query('SELECT * FROM categories_pub ORDER BY label ASC');
     res.json({ categories: result.rows });
   } catch (error) {
     console.error('❌ Erreur liste catégories pub:', error);
@@ -31,7 +31,7 @@ router.get('/', authenticateToken, verifierAdmin, async (req, res) => {
 // GET — Catégories actives seulement (pour le formulaire de création de pub, côté sponsor)
 router.get('/actives', authenticateToken, async (req, res) => {
   try {
-    const result = await pool.query('SELECT cle, label, emoji FROM categories_pub WHERE actif = true ORDER BY ordre');
+    const result = await pool.query(`SELECT cle, label, emoji FROM categories_pub WHERE actif = true ORDER BY (cle = 'general') DESC, label ASC`);
     res.json({ categories: result.rows });
   } catch (error) {
     console.error('❌ Erreur liste catégories actives:', error);
