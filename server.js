@@ -267,6 +267,9 @@ app.use('/api/sponsors', sponsorsRoutes);
 app.use('/api/sponsors', sponsorPubsRoutes);
 app.use('/api/sponsors/portefeuille', require('./routes/sponsors_portefeuille'));
 
+// Add-on Analytique — tracking + stats isolées par gestionnaire
+app.use('/api/analytique', require('./routes/analytique'));
+
 // =====================================================================
 // 🎨 SITES STUDIO (config du site du vendeur)
 // =====================================================================

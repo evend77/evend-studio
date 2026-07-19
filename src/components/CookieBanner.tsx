@@ -57,8 +57,12 @@ function lireConsentement(): ConsentData | null {
 }
 
 // ─── Helper : sauvegarder le consentement ────────────────────────────────────
+// Émet aussi un événement window pour que d'autres scripts (ex: le hook
+// useAnalytics de l'add-on Analytique) sachent qu'un choix vient d'être fait,
+// sans que ce fichier ait besoin de connaître ces scripts.
 function sauvegarderConsentement(data: ConsentData) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch {}
+  try { window.dispatchEvent(new CustomEvent('evend-cookie-consent-updated', { detail: data })); } catch {}
 }
 
 // ─── Helper : position CSS ───────────────────────────────────────────────────

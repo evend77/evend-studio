@@ -15,7 +15,7 @@ interface AddonActif {
 }
 
 interface VendeurAddons {
-  vendeur_id:    number;
+  gestionnaire_id: number;
   nom_boutique:  string;
   nom:           string;
   email:         string;
@@ -178,14 +178,14 @@ export default function AddonsActives({ naviguerVers }: { naviguerVers?: (p: str
             <p style={{ margin: 0 }}>Aucun résultat</p>
           </div>
         ) : filtrés.map((v, idx) => (
-          <div key={v.vendeur_id}>
+          <div key={v.gestionnaire_id}>
             {/* Ligne vendeur */}
             <div
-              style={{ display: 'grid', gridTemplateColumns: '80px 2fr 2fr 1fr 1fr 120px', gap: '0', padding: '14px 20px', borderBottom: `1px solid ${T.border}`, background: expand === v.vendeur_id ? '#f0f7ff' : idx % 2 === 0 ? '#fff' : '#fafafa', alignItems: 'center', cursor: v.addons.length > 0 ? 'pointer' : 'default', transition: 'background 0.15s' }}
-              onClick={() => v.addons.length > 0 && setExpand(expand === v.vendeur_id ? null : v.vendeur_id)}
+              style={{ display: 'grid', gridTemplateColumns: '80px 2fr 2fr 1fr 1fr 120px', gap: '0', padding: '14px 20px', borderBottom: `1px solid ${T.border}`, background: expand === v.gestionnaire_id ? '#f0f7ff' : idx % 2 === 0 ? '#fff' : '#fafafa', alignItems: 'center', cursor: v.addons.length > 0 ? 'pointer' : 'default', transition: 'background 0.15s' }}
+              onClick={() => v.addons.length > 0 && setExpand(expand === v.gestionnaire_id ? null : v.gestionnaire_id)}
             >
               <div>
-                <span style={{ fontSize: '12px', fontWeight: 700, fontFamily: 'monospace', color: T.accent, background: T.accentLight, padding: '3px 8px', borderRadius: '6px' }}>#{v.vendeur_id}</span>
+                <span style={{ fontSize: '12px', fontWeight: 700, fontFamily: 'monospace', color: T.accent, background: T.accentLight, padding: '3px 8px', borderRadius: '6px' }}>#{v.gestionnaire_id}</span>
               </div>
               <div>
                 <p style={{ margin: 0, fontSize: '13px', fontWeight: 700, color: T.text }}>{v.nom_boutique || '—'}</p>
@@ -209,16 +209,16 @@ export default function AddonsActives({ naviguerVers }: { naviguerVers?: (p: str
               </div>
               <div>
                 {v.addons.length > 0 && (
-                  <button onClick={e => { e.stopPropagation(); setExpand(expand === v.vendeur_id ? null : v.vendeur_id); }}
+                  <button onClick={e => { e.stopPropagation(); setExpand(expand === v.gestionnaire_id ? null : v.gestionnaire_id); }}
                     style={{ padding: '5px 12px', border: `1px solid ${T.border}`, borderRadius: '8px', background: '#fff', fontSize: '12px', fontWeight: 600, cursor: 'pointer', color: T.accent }}>
-                    {expand === v.vendeur_id ? '▲ Fermer' : '▼ Voir'}
+                    {expand === v.gestionnaire_id ? '▲ Fermer' : '▼ Voir'}
                   </button>
                 )}
               </div>
             </div>
 
             {/* Détail add-ons expandé */}
-            {expand === v.vendeur_id && v.addons.length > 0 && (
+            {expand === v.gestionnaire_id && v.addons.length > 0 && (
               <div style={{ background: '#f0f7ff', borderBottom: `1px solid ${T.border}`, padding: '0 20px 16px 40px' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '8px' }}>
                   <thead>

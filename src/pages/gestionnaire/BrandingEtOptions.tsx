@@ -74,9 +74,16 @@ const ADDONS: AddonDef[] = [
     modeleRevenuPartage: true,
     guideUrl: 'https://www.e-vendstudio.ca/documents/guide-add-on-espace-sponsors',
   },
+  {
+    id: 'analytique', categorie: 'Statistiques', nom: 'Analytique',
+    icone: '📈', couleur: '#0ea5e9', prix: 5,
+    description: 'Suivez le trafic de votre site — visites, pages consultées, provenance géographique, appareils et sources de trafic. Respecte le consentement cookie de vos visiteurs (conforme Loi 25).',
+    necessiteConfirmation: true, detailsActifTexte: 'Consultez vos statistiques dans le menu Analytique',
+    guideUrl: '',
+  },
 ];
 
-const CATEGORIES_ORDRE = ['Branding', 'Marketing & Promotions', 'Sécurité & Conformité', 'Réservations', 'Abonnements', 'Publicité & Revenus'];
+const CATEGORIES_ORDRE = ['Branding', 'Marketing & Promotions', 'Sécurité & Conformité', 'Réservations', 'Abonnements', 'Publicité & Revenus', 'Statistiques'];
 
 // ─────────────────────────────────────────────────────────────────────────
 // CARTE D'ADD-ON — générique, sert pour tous les add-ons du catalogue
