@@ -64,7 +64,9 @@ async function handleRechargePortefeuille(session) {
     return;
   }
 
-  const montant = (session.amount_total || 0) / 100;
+  const montant = parseFloat(session.metadata?.montant) || (session.amount_total || 0) / 100;
+  const tps = parseFloat(session.metadata?.tps) || 0;
+  const tvq = parseFloat(session.metadata?.tvq) || 0;
   if (montant <= 0) {
     console.log('   ⚠️  Montant invalide — skip');
     return;
@@ -76,12 +78,12 @@ async function handleRechargePortefeuille(session) {
   );
 
   await pool.query(
-    `INSERT INTO sponsor_transactions_portefeuille (sponsor_id, type, montant, description, stripe_payment_intent_id)
-     VALUES ($1, 'recharge', $2, 'Recharge du portefeuille publicitaire', $3)`,
-    [sponsorId, montant, session.payment_intent]
+    `INSERT INTO sponsor_transactions_portefeuille (sponsor_id, type, montant, tps, tvq, description, stripe_payment_intent_id)
+     VALUES ($1, 'recharge', $2, $3, $4, 'Recharge du portefeuille publicitaire', $5)`,
+    [sponsorId, montant, tps, tvq, session.payment_intent]
   );
 
-  console.log(`   ✅ Portefeuille rechargé de ${montant}$ CAD — sponsor ${sponsorId}`);
+  console.log(`   ✅ Portefeuille rechargé de ${montant}$ CAD (+ ${(tps + tvq).toFixed(2)}$ de taxes) — sponsor ${sponsorId}`);
 }
 
 module.exports = router;

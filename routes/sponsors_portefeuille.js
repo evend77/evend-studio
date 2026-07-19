@@ -4,6 +4,7 @@ const router = express.Router();
 const pool = require('../db');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { authenticateToken } = require('../middleware/auth');
+const { calculerTaxes, getTauxTaxes } = require('../src/utils/monetisationPub');
 
 const FRONTEND_URL = process.env.FRONTEND_URL || 'https://e-vendstudio.ca';
 
@@ -35,6 +36,7 @@ router.get('/solde', authenticateToken, async (req, res) => {
     );
 
     const totalResult = await pool.query('SELECT COUNT(*) as total FROM sponsor_transactions_portefeuille WHERE sponsor_id = $1', [sponsor_id]);
+    const taux = await getTauxTaxes();
 
     res.json({
       solde: parseFloat(soldeResult.rows[0].solde_portefeuille),
@@ -43,6 +45,8 @@ router.get('/solde', authenticateToken, async (req, res) => {
       page,
       totalPages: Math.max(Math.ceil(parseInt(totalResult.rows[0].total) / limit), 1),
       montants_suggeres: MONTANTS_SUGGERES,
+      taux_tps: taux.tps,
+      taux_tvq: taux.tvq,
     });
   } catch (error) {
     console.error('❌ Erreur récupération solde portefeuille:', error);
@@ -65,26 +69,39 @@ router.post('/recharger', authenticateToken, async (req, res) => {
       return res.status(404).json({ error: 'Sponsor non trouvé' });
     }
     const sponsor = sponsorResult.rows[0];
+    const taxes = await calculerTaxes(montant);
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card'],
       customer_email: sponsor.email,
-      line_items: [{
-        price_data: {
-          currency: 'cad',
-          product_data: {
-            name: 'Recharge du portefeuille publicitaire e-Vend Studio',
-            description: `Ajout de ${montant.toFixed(2)}$ au solde disponible pour vos publicités`,
+      line_items: [
+        {
+          price_data: {
+            currency: 'cad',
+            product_data: {
+              name: 'Recharge du portefeuille publicitaire e-Vend Studio',
+              description: `Ajout de ${montant.toFixed(2)}$ au solde disponible pour vos publicités`,
+            },
+            unit_amount: Math.round(montant * 100),
           },
-          unit_amount: Math.round(montant * 100),
+          quantity: 1,
         },
-        quantity: 1,
-      }],
+        {
+          price_data: {
+            currency: 'cad',
+            product_data: { name: 'TPS + TVQ' },
+            unit_amount: Math.round((taxes.tps + taxes.tvq) * 100),
+          },
+          quantity: 1,
+        },
+      ],
       metadata: {
         type: 'recharge_portefeuille',
         sponsor_id: String(sponsor_id),
         montant: montant.toFixed(2),
+        tps: taxes.tps.toFixed(2),
+        tvq: taxes.tvq.toFixed(2),
       },
       success_url: `${FRONTEND_URL}/sponsor-dashboard?onglet=abonnement&recharge=succes`,
       cancel_url: `${FRONTEND_URL}/sponsor-dashboard?onglet=abonnement&recharge=annule`,

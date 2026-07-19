@@ -330,7 +330,8 @@ function ListeSponsors({ onImpersonate, onNaviguerVers }: ListeSponsorsProps) {
 
   const handleSupprimerNote = async (sponsor: Sponsor, noteId: number) => {
     try {
-      await fetch(`${API}/api/sponsors/admin/notes/${noteId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token()}` } });
+      const res = await fetch(`${API}/api/sponsors/admin/notes/${noteId}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token()}` } });
+      if (!res.ok) throw new Error();
       setSponsors(prev => prev.map(s => s.id === sponsor.id ? { ...s, notes: (s.notes || []).filter(n => n.id !== noteId), nbNotes: Math.max(0, (s.nbNotes || 1) - 1) } : s));
       setSponsorNotes(prev => prev ? { ...prev, notes: (prev.notes || []).filter(n => n.id !== noteId) } : prev);
       showToast('🗑️ Note supprimée', 'success');

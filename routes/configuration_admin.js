@@ -306,6 +306,14 @@ router.post('/', authenticateToken, isAdmin, async (req, res) => {
                 banniere_login_couleur_tx = $223,
                 banniere_login_hauteur = $224,
                 banniere_login_police = $225,
+
+                -- Taux de taxes (site complet — Studio, portefeuille sponsor, etc.) (226-227)
+                taux_tps = $226,
+                taux_tvq = $227,
+
+                -- Numéros de taxes de la plateforme (apparaissent sur les factures) (228-229)
+                no_tps_plateforme = $228,
+                no_tvq_plateforme = $229,
                 
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = 1
@@ -566,6 +574,14 @@ router.post('/', authenticateToken, isAdmin, async (req, res) => {
             data.banniereLoginCouleurTx ?? '#ffffff',
             data.banniereLoginHauteur ?? '36',
             data.banniereLoginPolice ?? '13',
+
+            // Taux de taxes (226-227)
+            data.tauxTps ?? 0.05,
+            data.tauxTvq ?? 0.09975,
+
+            // Numéros de taxes de la plateforme (228-229)
+            data.noTpsPlateforme ?? null,
+            data.noTvqPlateforme ?? null,
         ];
         
         console.log(`📊 Nombre de valeurs: ${values.length}`);

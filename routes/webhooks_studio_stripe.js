@@ -15,15 +15,9 @@ const router  = express.Router();
 const pool    = require('../db');
 const stripe  = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { verifierEtPayerGestionnaire } = require('../src/utils/versementsGestionnaires');
-
-const TAUX_TPS = 0.05;
-const TAUX_TVQ = 0.09975;
-
-function calculerTaxes(montantHT) {
-  const tps = Math.round(montantHT * TAUX_TPS * 100) / 100;
-  const tvq = Math.round(montantHT * TAUX_TVQ * 100) / 100;
-  return { tps, tvq, total: Math.round((montantHT + tps + tvq) * 100) / 100 };
-}
+const { calculerTaxes } = require('../src/utils/monetisationPub');
+// ⚠️ TAUX_TPS/TAUX_TVQ codés en dur retirés — les taux viennent maintenant de
+// configuration_monetisation_pub (configurable dans l'admin, page Monétisation).
 
 // ─────────────────────────────────────────────────────────────
 // HELPER — Générer un numéro de facture unique ABO-AAAA-NNNNN
@@ -162,7 +156,7 @@ async function handlePaiementReussi(invoice) {
   // Enregistrer le paiement dans l'historique, avec numéro de facture
   const montantTotal   = (invoice.amount_paid || 0) / 100;
   const montantHT      = Math.round(montantTotal / (1 + 0.05 + 0.09975) * 100) / 100;
-  const taxes          = calculerTaxes(montantHT);
+  const taxes          = await calculerTaxes(montantHT);
   const numeroFacture  = await genererNumeroFactureAbonnement();
 
   await pool.query(

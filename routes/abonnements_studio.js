@@ -14,21 +14,14 @@ const router   = express.Router();
 const pool     = require('../db');
 const stripe   = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { authenticateToken, isAdmin } = require('../middleware/auth');
+const { calculerTaxes, getTauxTaxes } = require('../src/utils/monetisationPub');
 
 const FRONTEND_URL    = process.env.FRONTEND_URL || 'https://e-vendstudio.ca';
 const FROM_EMAIL      = process.env.FROM_EMAIL   || 'contact@e-vendstudio.ca';
-const TAUX_TPS        = 0.05;
-const TAUX_TVQ        = 0.09975;
 const JOURS_ESSAI     = 14;
-
-// ─────────────────────────────────────────────────────────────
-// HELPER — Calcul des taxes
-// ─────────────────────────────────────────────────────────────
-function calculerTaxes(montantHT) {
-  const tps = Math.round(montantHT * TAUX_TPS * 100) / 100;
-  const tvq = Math.round(montantHT * TAUX_TVQ * 100) / 100;
-  return { tps, tvq, total: Math.round((montantHT + tps + tvq) * 100) / 100 };
-}
+// ⚠️ TAUX_TPS/TAUX_TVQ et calculerTaxes() codés en dur retirés — les taux
+// viennent maintenant de configuration_monetisation_pub (configurable dans
+// l'admin, page Monétisation), via le helper partagé importé ci-dessus.
 
 // ─────────────────────────────────────────────────────────────
 // HELPER — Récupérer ou créer le Customer Stripe
@@ -66,7 +59,7 @@ async function calculerMontantHT(abonnementId) {
 // (crée un nouveau Price si le montant a changé)
 // ─────────────────────────────────────────────────────────────
 async function syncStripePrice(abonnement, montantHT) {
-  const taxes   = calculerTaxes(montantHT);
+  const taxes   = await calculerTaxes(montantHT);
   const totalCents = Math.round(taxes.total * 100);
 
   let product;
@@ -130,7 +123,7 @@ router.get('/mon-abonnement', authenticateToken, async (req, res) => {
     );
 
     const montantHT = lignesRes.rows.reduce((sum, l) => sum + parseFloat(l.prix_ht || 0), 0);
-    const taxes = calculerTaxes(montantHT);
+    const taxes = await calculerTaxes(montantHT);
 
     const joursEssaiRestants = abo.statut === 'essai' && abo.essai_fin
       ? Math.max(0, Math.ceil((new Date(abo.essai_fin) - new Date()) / (1000 * 60 * 60 * 24)))
@@ -172,10 +165,17 @@ router.get('/options-disponibles', authenticateToken, async (req, res) => {
       optionsActivees = new Set(lignesRes.rows.map(r => r.code));
     }
 
+    const taux = await getTauxTaxes();
+    const calculerTaxesSync = (montantHT) => {
+      const tps = Math.round(montantHT * taux.tps * 100) / 100;
+      const tvq = Math.round(montantHT * taux.tvq * 100) / 100;
+      return { tps, tvq, total: Math.round((montantHT + tps + tvq) * 100) / 100 };
+    };
+
     const optionsAvecStatut = rows.map(o => ({
       ...o,
       activee: optionsActivees.has(o.code),
-      taxes: calculerTaxes(parseFloat(o.prix_ht)),
+      taxes: calculerTaxesSync(parseFloat(o.prix_ht)),
     }));
 
     res.json(optionsAvecStatut);

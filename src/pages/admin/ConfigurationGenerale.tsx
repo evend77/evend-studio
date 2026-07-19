@@ -425,6 +425,10 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
   const [utiliserPlansVendeur,     setUtiliserPlansVendeur]     = useState(false);
   const [maxProduits,              setMaxProduits]              = useState('50');
   const [nomPlateforme,            setNomPlateforme]            = useState('e-Vend');
+  const [tauxTps,                  setTauxTps]                  = useState(0.05);
+  const [tauxTvq,                  setTauxTvq]                  = useState(0.09975);
+  const [noTpsPlateforme,          setNoTpsPlateforme]          = useState('');
+  const [noTvqPlateforme,          setNoTvqPlateforme]          = useState('');
   const [shopifyDomain,            setShopifyDomain]            = useState('');
   const [emailContact,             setEmailContact]             = useState('support@evend.ca');
   const [storeEmail,               setStoreEmail]               = useState('evend.ca@outlook.com');
@@ -748,6 +752,10 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
           if (data.utiliser_plans_vendeur !== undefined) setUtiliserPlansVendeur(data.utiliser_plans_vendeur);
           if (data.max_produits !== undefined) setMaxProduits(data.max_produits);
           if (data.nom_plateforme !== undefined) setNomPlateforme(data.nom_plateforme);
+          if (data.taux_tps !== undefined) setTauxTps(parseFloat(data.taux_tps));
+          if (data.taux_tvq !== undefined) setTauxTvq(parseFloat(data.taux_tvq));
+          if (data.no_tps_plateforme !== undefined) setNoTpsPlateforme(data.no_tps_plateforme || '');
+          if (data.no_tvq_plateforme !== undefined) setNoTvqPlateforme(data.no_tvq_plateforme || '');
           if (data.shopify_domain !== undefined) setShopifyDomain(data.shopify_domain);
           if (data.email_contact !== undefined) setEmailContact(data.email_contact);
           if (data.store_email !== undefined) setStoreEmail(data.store_email);
@@ -1090,6 +1098,10 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
             utiliserPlansVendeur,
             maxProduits,
             nomPlateforme,
+            tauxTps,
+            tauxTvq,
+            noTpsPlateforme,
+            noTvqPlateforme,
             shopifyDomain,
             emailContact,
             storeEmail,
@@ -1554,6 +1566,45 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
               onChange={e => { setFooterText(e.target.value); marquerModifie(); }}
               placeholder="Copyright ($current_year) e-Vend Studio, Tous droits réservés"
               style={{ ...inputStyle, width: '280px' }} />
+          </ParamLigne>
+        </Section>
+
+        <Section titre="Taux de taxes" icon="💰">
+          <ParamLigne
+            label="Taux TPS (%)"
+            description="Taxe fédérale. Utilisé partout sur le site — abonnements Studio, portefeuille publicitaire des commanditaires, etc. Si le gouvernement change ce taux, ajustez-le ici, aucun redéploiement requis.">
+            <input type="number" step="0.001" min="0" value={(tauxTps * 100).toString()}
+              onChange={e => { setTauxTps((parseFloat(e.target.value) || 0) / 100); marquerModifie(); }}
+              placeholder="5"
+              style={{ ...inputStyle, width: '120px' }} />
+          </ParamLigne>
+
+          <ParamLigne
+            label="Taux TVQ (%)"
+            description="Taxe de vente du Québec. S'applique aux mêmes transactions que la TPS ci-dessus.">
+            <input type="number" step="0.001" min="0" value={(tauxTvq * 100).toString()}
+              onChange={e => { setTauxTvq((parseFloat(e.target.value) || 0) / 100); marquerModifie(); }}
+              placeholder="9.975"
+              style={{ ...inputStyle, width: '120px' }} />
+          </ParamLigne>
+
+          <ParamLigne
+            label="Numéro de TPS de e-Vend Studio"
+            description="Votre numéro d'inscription fédéral. Apparaît sur toutes les factures émises par la plateforme.">
+            <input type="text" value={noTpsPlateforme}
+              onChange={e => { setNoTpsPlateforme(e.target.value); marquerModifie(); }}
+              placeholder="123456789 RT0001"
+              style={{ ...inputStyle, width: '220px' }} />
+          </ParamLigne>
+
+          <ParamLigne
+            label="Numéro de TVQ de e-Vend Studio"
+            description="Votre numéro d'inscription au Québec. Apparaît sur toutes les factures émises par la plateforme."
+            derniere>
+            <input type="text" value={noTvqPlateforme}
+              onChange={e => { setNoTvqPlateforme(e.target.value); marquerModifie(); }}
+              placeholder="1234567890 TQ0001"
+              style={{ ...inputStyle, width: '220px' }} />
           </ParamLigne>
         </Section>
 

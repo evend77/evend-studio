@@ -1,4 +1,4 @@
-// src/pages/admin/AdminForfaitsPub.tsx
+// src/pages/admin/
 import React, { useState, useEffect } from 'react';
 
 interface PlanPub {
@@ -114,10 +114,11 @@ function AdminForfaitsPub() {
 
   const toggleActif = async (plan: PlanPub) => {
     try {
-      await fetch(`${API_BASE}/plans-pub/${plan.id}`, {
+      const res = await fetch(`${API_BASE}/plans-pub/${plan.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ actif: !plan.actif }),
       });
+      if (!res.ok) throw new Error();
       setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, actif: !p.actif } : p));
     } catch {
       showToast('❌ Erreur lors du changement de statut', 'error');

@@ -27,6 +27,8 @@ function SponsorAbonnement({ sponsorInfo, token }: SponsorAbonnementProps) {
   const [solde, setSolde] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [montantsSuggeres, setMontantsSuggeres] = useState<number[]>([20, 50, 100, 250]);
+  const [tauxTps, setTauxTps] = useState(0.05);
+  const [tauxTvq, setTauxTvq] = useState(0.09975);
   const [montantPersonnalise, setMontantPersonnalise] = useState('');
   const [chargementRecharge, setChargementRecharge] = useState(false);
   const [afficherHistorique, setAfficherHistorique] = useState(false);
@@ -38,6 +40,8 @@ function SponsorAbonnement({ sponsorInfo, token }: SponsorAbonnementProps) {
       setSolde(data.solde ?? 0);
       setTransactions(data.transactions || []);
       if (data.montants_suggeres) setMontantsSuggeres(data.montants_suggeres);
+      if (data.taux_tps !== undefined) setTauxTps(data.taux_tps);
+      if (data.taux_tvq !== undefined) setTauxTvq(data.taux_tvq);
     } catch (e) {
       console.error('Erreur chargement portefeuille:', e);
     }
@@ -218,7 +222,9 @@ function SponsorAbonnement({ sponsorInfo, token }: SponsorAbonnementProps) {
               💳 Recharger
             </button>
           </div>
-          <p style={{ fontSize: '11px', color: '#bbb', margin: '6px 0 0' }}>Montant minimum : 5$</p>
+          <p style={{ fontSize: '11px', color: '#bbb', margin: '6px 0 0' }}>
+            Montant minimum : 5$ — les taxes (TPS {(tauxTps * 100).toFixed(2)}% + TVQ {(tauxTvq * 100).toFixed(3)}%) s'ajoutent au montant choisi et sont facturées séparément; le montant plein est crédité à votre solde.
+          </p>
 
           <button onClick={() => setAfficherHistorique(v => !v)} style={{ marginTop: '16px', background: 'none', border: 'none', color: '#666', fontSize: '12px', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>
             {afficherHistorique ? 'Masquer' : 'Voir'} l'historique des transactions

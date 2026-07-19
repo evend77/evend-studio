@@ -183,10 +183,11 @@ function OngletPublicites() {
     const nouvelleValeur = !verifIA;
     setVerifIA(nouvelleValeur);
     try {
-      await fetch('/api/admin/moderation-config', {
+      const res = await fetch('/api/admin/moderation-config', {
         method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ verification_ai_active: nouvelleValeur }),
       });
+      if (!res.ok) throw new Error();
       showToast(nouvelleValeur ? '🤖 Vérification IA activée' : '✋ Vérification IA désactivée — tout redevient manuel', 'success');
     } catch {
       setVerifIA(!nouvelleValeur);
@@ -513,10 +514,11 @@ function OngletCategories() {
 
   const toggleActif = async (cat: CategoriePub) => {
     try {
-      await fetch(`/api/admin/categories-pub/${cat.id}`, {
+      const res = await fetch(`/api/admin/categories-pub/${cat.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ actif: !cat.actif }),
       });
+      if (!res.ok) throw new Error();
       setCategories(prev => prev.map(c => c.id === cat.id ? { ...c, actif: !c.actif } : c));
     } catch {
       showToast('❌ Erreur lors du changement de statut', 'error');

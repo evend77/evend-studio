@@ -114,10 +114,11 @@ function AdminForfaitsPhoto() {
 
   const toggleActif = async (plan: PlanPhoto) => {
     try {
-      await fetch(`${API_BASE}/plans-photos/${plan.id}`, {
+      const res = await fetch(`${API_BASE}/plans-photos/${plan.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ actif: !plan.actif }),
       });
+      if (!res.ok) throw new Error();
       setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, actif: !p.actif } : p));
     } catch {
       showToast('❌ Erreur lors du changement de statut', 'error');

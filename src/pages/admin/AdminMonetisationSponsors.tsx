@@ -101,13 +101,17 @@ function OngletConfig({ token, showToast }: { token: () => string | null; showTo
       return showToast('❌ Une des valeurs est invalide', 'error');
     }
     try {
-      await fetch(`${API_BASE}/config/defaut`, {
+      const res = await fetch(`${API_BASE}/config/defaut`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ montant, prix_par_clic: prixClic, prix_par_impression: prixImpression, seuil_versement: seuil }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
       setDefaut(montant);
       showToast('✅ Tarifs mis à jour', 'success');
-    } catch { showToast('❌ Erreur lors de la sauvegarde', 'error'); }
+    } catch (e: any) {
+      showToast(`❌ ${e.message || 'Erreur lors de la sauvegarde'}`, 'error');
+    }
   };
 
   const sauvegarderGestionnaire = async (g: GestionnaireConfig) => {
@@ -115,14 +119,18 @@ function OngletConfig({ token, showToast }: { token: () => string | null; showTo
     const montant = valeur === '' || valeur === undefined ? null : parseFloat(valeur);
     if (montant !== null && (isNaN(montant) || montant < 0)) return showToast('❌ Montant invalide', 'error');
     try {
-      await fetch(`${API_BASE}/config/${g.id}`, {
+      const res = await fetch(`${API_BASE}/config/${g.id}`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ montant }),
       });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `Erreur ${res.status}`);
       setGestionnaires(prev => prev.map(x => x.id === g.id ? { ...x, montant_par_clic: montant, utilise_defaut: montant === null } : x));
       setEditValues(prev => { const c = { ...prev }; delete c[g.id]; return c; });
       showToast(`✅ Montant mis à jour pour ${g.nom_boutique}`, 'success');
-    } catch { showToast('❌ Erreur lors de la sauvegarde', 'error'); }
+    } catch (e: any) {
+      showToast(`❌ ${e.message || 'Erreur lors de la sauvegarde'}`, 'error');
+    }
   };
 
   return (

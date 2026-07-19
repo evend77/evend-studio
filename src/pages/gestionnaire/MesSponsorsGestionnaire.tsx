@@ -126,13 +126,18 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
   const enregistrerCategories = async (nouvelleListe: string[]) => {
     setSauvegardeCategories(true);
     try {
-      await fetch(`${API_BASE}/categories-autorisees`, {
+      const res = await fetch(`${API_BASE}/categories-autorisees`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ categories: nouvelleListe }),
       });
-    } catch (e) {
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Erreur ${res.status}`);
+      }
+    } catch (e: any) {
       console.error('Erreur sauvegarde catégories:', e);
+      alert(`❌ La sauvegarde a échoué : ${e.message || 'erreur inconnue'}`);
     }
     setSauvegardeCategories(false);
   };
@@ -140,13 +145,15 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
   const bloquerPub = async (pubId: number, bloquer: boolean) => {
     setPubs(prev => prev.map(p => p.id === pubId ? { ...p, bloquee: bloquer } : p));
     try {
-      await fetch(`${API_BASE}/pubs/${pubId}/bloquer`, {
+      const res = await fetch(`${API_BASE}/pubs/${pubId}/bloquer`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ bloquer }),
       });
+      if (!res.ok) throw new Error(`Erreur ${res.status}`);
     } catch (e) {
       console.error('Erreur blocage pub:', e);
+      alert('❌ Le blocage/déblocage de la pub a échoué — la liste va se recharger.');
       fetchPubs(page, recherche);
     }
   };
@@ -154,13 +161,15 @@ function MesSponsorsGestionnaire({ gestionnaireId }: MesSponsorsGestionnaireProp
   const bloquerSponsor = async (sponsorId: number, bloquer: boolean) => {
     setPubs(prev => prev.map(p => p.sponsor_id === sponsorId ? { ...p, sponsor_bloque: bloquer } : p));
     try {
-      await fetch(`${API_BASE}/sponsors/${sponsorId}/bloquer`, {
+      const res = await fetch(`${API_BASE}/sponsors/${sponsorId}/bloquer`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
         body: JSON.stringify({ bloquer }),
       });
+      if (!res.ok) throw new Error(`Erreur ${res.status}`);
     } catch (e) {
       console.error('Erreur blocage sponsor:', e);
+      alert('❌ Le blocage/déblocage du sponsor a échoué — la liste va se recharger.');
       fetchPubs(page, recherche);
     }
   };

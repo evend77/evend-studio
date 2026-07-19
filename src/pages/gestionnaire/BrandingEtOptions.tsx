@@ -27,6 +27,7 @@ interface AddonDef {
   badge?: string;
   detailsActifTexte?: string;
   modeleRevenuPartage?: boolean; // true = pas de frais, le gestionnaire touche un % du revenu généré
+  guideUrl?: string; // lien vers le guide complet de l'add-on — vide tant que le guide n'existe pas
 }
 
 const ADDONS: AddonDef[] = [
@@ -35,30 +36,35 @@ const ADDONS: AddonDef[] = [
     icone: '🏷️', couleur: '#2563eb', prix: 2,
     description: 'Retirez le badge "Propulsé par e-Vend Studio" du footer de votre boutique.',
     necessiteConfirmation: false,
+    guideUrl: '',
   },
   {
     id: 'verificateur_age', categorie: 'Sécurité & Conformité', nom: "Vérificateur d'âge",
     icone: '🔞', couleur: '#ef4444', prix: 5,
     description: "Popup de vérification d'âge — 3 modes, écran de blocage si refus, entièrement personnalisable.",
     necessiteConfirmation: true, detailsActifTexte: 'Configurez les détails dans Configuration → Vérificateur d\'âge',
+    guideUrl: '',
   },
   {
     id: 'popup_annonce', categorie: 'Marketing & Promotions', nom: 'Popup Annonce',
     icone: '📢', couleur: '#e63946', prix: 3,
     description: 'Popup ou bannière configurable — promo, événement, fermeture. 3 formats, dates de début/fin.',
     necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Configuration → Popup Annonce',
+    guideUrl: '',
   },
   {
     id: 'reservation_ecole', categorie: 'Réservations', nom: 'Réservation — École/Cours',
     icone: '📅', couleur: '#6366f1', prix: 5,
     description: 'Créneaux de cours avec capacité, suivi des places en direct — Salle, Professeur, Niveau.',
     necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Mes Réservations Écoles → Créer des créneaux',
+    guideUrl: '',
   },
   {
     id: 'abonnement_ecole', categorie: 'Abonnements', nom: 'Abonnement — École/Cours',
     icone: '💳', couleur: '#a855f7', prix: 5,
     description: 'Forfaits récurrents (hebdomadaire, mensuel, annuel) — vos clients s\'abonnent directement sur votre site.',
     necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Abonnements clients → Mes forfaits',
+    guideUrl: '',
   },
   {
     id: 'pub_sponsor', categorie: 'Publicité & Revenus', nom: 'Espace Sponsors',
@@ -66,6 +72,7 @@ const ADDONS: AddonDef[] = [
     description: 'Affichez des publicités de commanditaires e-Vend sur votre site et touchez une part des revenus générés — vous gardez le contrôle : bloquez n\'importe quelle pub ou sponsor en un clic.',
     necessiteConfirmation: true, detailsActifTexte: 'Configurez dans Mes Sponsors → Publicités sur mon site',
     modeleRevenuPartage: true,
+    guideUrl: 'https://www.e-vendstudio.ca/documents/guide-add-on-espace-sponsors',
   },
 ];
 
@@ -88,12 +95,19 @@ function AddonCard({ addon, actif, onToggle, montantParClic }: { addon: AddonDef
           </div>
           {addon.modeleRevenuPartage ? (
             <p style={{ fontSize: 11, color: '#16a34a', fontWeight: 700, margin: '0 0 5px' }}>
-              💰 Gratuit — vous touchez {(montantParClic ?? 0.10).toFixed(2)}$ par clic sur les pubs affichées
+              💰 Gratuit — vous êtes rémunéré à chaque clic sur les pubs affichées
             </p>
           ) : (
             <p style={{ fontSize: 11, color: addon.couleur, fontWeight: 700, margin: '0 0 5px' }}>+{addon.prix.toFixed(2)} $/mois + tx</p>
           )}
           <p style={{ fontSize: 12, color: '#666', lineHeight: 1.5, margin: 0 }}>{addon.description}</p>
+          {addon.guideUrl && (
+            <a href={addon.guideUrl} target="_blank" rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: 11, fontWeight: 700, color: addon.couleur, textDecoration: 'none' }}>
+              📖 Voir le guide complet →
+            </a>
+          )}
         </div>
         <div onClick={onToggle}
           style={{ width: 40, height: 22, borderRadius: 11, background: actif ? addon.couleur : '#ddd', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, marginTop: 2 }}>
@@ -130,7 +144,7 @@ function ModalConfirmationAddon({ addon, onAnnuler, onConfirmer, montantParClic 
           <div style={{ background: `${addon.couleur}10`, border: `1px solid ${addon.couleur}30`, borderRadius: 12, padding: '13px 16px', marginBottom: 20 }}>
             {addon.modeleRevenuPartage ? (
               <p style={{ margin: 0, fontSize: 13, color: '#1a1a1a', lineHeight: 1.6 }}>
-                Aucun frais. Des publicités de commanditaires e-Vend apparaîtront sur votre site, et vous toucherez <strong style={{ color: addon.couleur }}>{(montantParClic ?? 0.10).toFixed(2)}$ par clic</strong> sur ces publicités. Vous pourrez bloquer n'importe quelle pub ou sponsor à tout moment.
+                Aucun frais. Des publicités de commanditaires e-Vend apparaîtront sur votre site, et vous serez <strong style={{ color: addon.couleur }}>rémunéré à chaque clic</strong> sur ces publicités. Vous pourrez bloquer n'importe quelle pub ou sponsor à tout moment.
               </p>
             ) : (
               <p style={{ margin: 0, fontSize: 13, color: '#1a1a1a', lineHeight: 1.6 }}>
@@ -256,7 +270,7 @@ export default function BrandingEtOptions({ gestionnaireId, onOptionsUpdated }: 
                   <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', border: `1px solid ${a.couleur}40`, borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 600, color: '#1a1a1a' }}>
                     <span>{a.icone}</span>{a.nom}
                     {!a.modeleRevenuPartage && <span style={{ color: a.couleur, fontWeight: 800 }}>{a.prix.toFixed(2)}$</span>}
-                    {a.modeleRevenuPartage && <span style={{ color: '#16a34a', fontWeight: 800 }}>+{montantParClic.toFixed(2)}$/clic</span>}
+                    {a.modeleRevenuPartage && <span style={{ color: '#16a34a', fontWeight: 800 }}>💰 rémunéré/clic</span>}
                   </span>
                 ))}
               </div>
@@ -287,7 +301,7 @@ export default function BrandingEtOptions({ gestionnaireId, onOptionsUpdated }: 
                 <div key={a.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#555' }}>
                   <span>{a.nom}</span>
                   {a.modeleRevenuPartage
-                    ? <span style={{ fontWeight: 600, color: '#16a34a' }}>vous touchez {montantParClic.toFixed(2)}$/clic</span>
+                    ? <span style={{ fontWeight: 600, color: '#16a34a' }}>rémunéré à chaque clic</span>
                     : <span style={{ fontWeight: 600, color: a.couleur }}>+{a.prix.toFixed(2)}$</span>}
                 </div>
               ))}
