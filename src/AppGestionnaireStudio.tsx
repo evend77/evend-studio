@@ -21,6 +21,7 @@ import GestionReservations   from './pages/studio/GestionReservations';
 import MesReservationsEcole  from './pages/gestionnaire/MesReservationsEcole';
 import MesAbonnementsEcole   from './pages/gestionnaire/MesAbonnementsEcole';
 import MesSponsorsGestionnaire from './pages/gestionnaire/MesSponsorsGestionnaire';
+import AnalytiqueGestionnaire from './pages/gestionnaire/AnalytiqueGestionnaire';
 import ConfigurationPaiements from './pages/gestionnaire/ConfigurationPaiements';
 import MesAcheteurs                  from './pages/studio/MesAcheteurs';
 import StudioConfigPage404   from './pages/gestionnaire/StudioConfigPage404';
@@ -603,6 +604,10 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     id: 'mes-sponsors', label: 'MES SPONSORS', icon: '⭐',
   };
 
+  const menuMesAnalytique: MenuItem = {
+    id: 'mes-analytique', label: 'ANALYTIQUE', icon: '📈',
+  };
+
   // ── Mes collaborateurs (commun à tous) ─────────────────────────────────────
   const menuSousVendeurs: MenuItem = {
     id: 'collaborateurs', label: 'MES COLLABORATEURS', icon: '🏪',
@@ -706,6 +711,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
       menuAddOn,
     ];
   } else if (estVitrine) {
@@ -736,6 +742,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
       menuAddOn,
     ];
   } else if (estReservation) {
@@ -775,6 +782,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
       menuAddOn,
     ];
   } else if (estCagnotte) {
@@ -813,6 +821,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
       menuAddOn,
     ];
   } else if (estVitrinePro) {
@@ -822,6 +831,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ...(options?.reservation_ecole ? [menuMesReservations] : []),
       ...(options?.abonnement_ecole ? [menuMesAbonnements] : []),
       ...(options?.pub_sponsor ? [menuMesSponsors] : []),
+      ...(options?.analytique ? [menuMesAnalytique] : []),
       menuSousVendeurs,
       menuBadges,
       menuBlogsSV,
@@ -884,6 +894,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
       menuAddOn,
     ];
   } else if (estEnchere) {
@@ -922,22 +933,23 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
       menuAddOn,
     ];
   } else if (estSimplisse) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesSimplisse,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioSimplisse,menuConfigMesPages,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesSimplisse,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioSimplisse,menuConfigMesPages,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,...(options?.analytique ? [menuMesAnalytique] : []),menuAddOn];
 
   } else if (estPremium) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesPremium,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioPremium,menuConfigPremium,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesPremium,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioPremium,menuConfigPremium,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,...(options?.analytique ? [menuMesAnalytique] : []),menuAddOn];
 
   } else if (estSimplisseMode) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesMode,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioMode,menuConfigMode,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesMode,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioMode,menuConfigMode,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,...(options?.analytique ? [menuMesAnalytique] : []),menuAddOn];
 
   } else if (estMultiVendeur) {
     menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVendeurs,menuSousVendeurs,menuBadges,menuBlogsSV,menuFaqsSV,menuChatSV,{ id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📦' },{ id:'annonces-creer',label:'Créer une annonce',icon:'➕' }] },{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' }] },menuStudioMV,menuConfigMV,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },itemPage404,itemPolitiques,itemSeo,itemCookies,itemPhotos,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie];
 
   } else if (estBeaute) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesBeaute,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioBeaute,menuConfigBeaute,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,menuAddOn];
+    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesBeaute,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioBeaute,menuConfigBeaute,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,...(options?.analytique ? [menuMesAnalytique] : []),menuAddOn];
 
   } else if (estBoutiqueSimple) {
     // Boutique Simple (mono-produit) : commandes + config basique
@@ -984,6 +996,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
       menuAddOn,
     ];
   } else {
@@ -1182,6 +1195,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mes-reservations') return <MesReservationsEcole gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'abonnements-clients') return <MesAbonnementsEcole gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mes-sponsors') return <MesSponsorsGestionnaire gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mes-analytique') return <AnalytiqueGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
