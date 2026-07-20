@@ -8,6 +8,7 @@ import { useSearchParams } from 'react-router-dom';
 import Page404Public                  from './Page404Public';
 import CookieBanner                   from '../components/CookieBanner';
 import { useAnalytics }               from '../hooks/useAnalytics';
+import ChatbotWidget                  from '../components/ChatbotWidget';
 import VerificateurAge                from '../components/VerificateurAge';
 import TemplateVitrine                from '../templates/TemplateVitrine';
 import TemplateReservation            from '../templates/TemplateReservation';
@@ -309,6 +310,9 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
 
       {/* Cookies — seulement en mode normal */}
       {!isDemo && vendeurId && <CookieBanner vendeurId={Number(vendeurId)} />}
+
+      {/* Chatbot — actif seulement si l'add-on est activé, jamais en mode démo */}
+      {!isDemo && vendeurId && !!options?.chatbot && <ChatbotWidget gestionnaireId={Number(vendeurId)} />}
 
       {/* Vérificateur d'âge — actif seulement si l'add-on est activé, jamais en mode démo */}
       {!isDemo && vendeurId && <VerificateurAge vendeurId={Number(vendeurId)} />}

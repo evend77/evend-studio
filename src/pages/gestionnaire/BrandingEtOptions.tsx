@@ -79,11 +79,18 @@ const ADDONS: AddonDef[] = [
     icone: '📈', couleur: '#0ea5e9', prix: 5,
     description: 'Suivez le trafic de votre site — visites, pages consultées, provenance géographique, appareils et sources de trafic. Respecte le consentement cookie de vos visiteurs (conforme Loi 25).',
     necessiteConfirmation: true, detailsActifTexte: 'Consultez vos statistiques dans le menu Analytique',
-    guideUrl: '',
+    guideUrl: 'https://www.e-vendstudio.ca/documents/guide-add-on-analytique',
+  },
+  {
+    id: 'chatbot', categorie: 'Support & Communication', nom: 'Chat bot',
+    icone: '💬', couleur: '#6366f1', prix: 5,
+    description: 'Un assistant virtuel sur votre site qui répond automatiquement aux questions de vos visiteurs — à partir de vos pages, produits et articles de blogue, ou de réponses que vous configurez vous-même. Sans intelligence artificielle : aucune donnée envoyée à un tiers.',
+    necessiteConfirmation: true, detailsActifTexte: 'Configurez vos réponses dans le menu Chat bot',
+    guideUrl: 'https://www.e-vendstudio.ca/documents/guide-add-on-chat-bot',
   },
 ];
 
-const CATEGORIES_ORDRE = ['Branding', 'Marketing & Promotions', 'Sécurité & Conformité', 'Réservations', 'Abonnements', 'Publicité & Revenus', 'Statistiques'];
+const CATEGORIES_ORDRE = ['Branding', 'Marketing & Promotions', 'Sécurité & Conformité', 'Réservations', 'Abonnements', 'Publicité & Revenus', 'Statistiques', 'Support & Communication'];
 
 // ─────────────────────────────────────────────────────────────────────────
 // CARTE D'ADD-ON — générique, sert pour tous les add-ons du catalogue

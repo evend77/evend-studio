@@ -270,6 +270,10 @@ app.use('/api/sponsors/portefeuille', require('./routes/sponsors_portefeuille'))
 // Add-on Analytique — tracking + stats isolées par gestionnaire
 app.use('/api/analytique', require('./routes/analytique'));
 
+// Add-on Chatbot (sans IA) — public (widget) + gestionnaire (config)
+app.use('/api/chatbot-public', require('./routes/chatbot_public'));
+app.use('/api/chatbot', require('./routes/chatbot_gestionnaire'));
+
 // =====================================================================
 // 🎨 SITES STUDIO (config du site du vendeur)
 // =====================================================================

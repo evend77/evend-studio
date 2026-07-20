@@ -268,6 +268,7 @@ router.get('/:id/options', async (req, res) => {
                 reservation_ecole: false,
                 pub_sponsor: false,
                 analytique: false,
+                chatbot: false,
             });
         }
         return res.json(result.rows[0]);
@@ -294,8 +295,8 @@ router.put('/:id/options', authenticateToken, async (req, res) => {
 
         await pool.query(
             `INSERT INTO options_gestionnaire
-               (gestionnaire_id, cacher_propulse, domaine_personnalise, verificateur_age, popup_annonce, reservation_ecole, reservation_ecole_paiement, abonnement_ecole, pub_sponsor, analytique)
-             VALUES ($1, COALESCE($2,false), COALESCE($3,false), COALESCE($4,false), COALESCE($5,false), COALESCE($6,false), COALESCE($7,false), COALESCE($8,false), COALESCE($9,false), COALESCE($10,false))
+               (gestionnaire_id, cacher_propulse, domaine_personnalise, verificateur_age, popup_annonce, reservation_ecole, reservation_ecole_paiement, abonnement_ecole, pub_sponsor, analytique, chatbot)
+             VALUES ($1, COALESCE($2,false), COALESCE($3,false), COALESCE($4,false), COALESCE($5,false), COALESCE($6,false), COALESCE($7,false), COALESCE($8,false), COALESCE($9,false), COALESCE($10,false), COALESCE($11,false))
              ON CONFLICT (gestionnaire_id) DO UPDATE SET
                cacher_propulse            = COALESCE($2, options_gestionnaire.cacher_propulse),
                domaine_personnalise       = COALESCE($3, options_gestionnaire.domaine_personnalise),
@@ -306,8 +307,9 @@ router.put('/:id/options', authenticateToken, async (req, res) => {
                abonnement_ecole           = COALESCE($8, options_gestionnaire.abonnement_ecole),
                pub_sponsor                = COALESCE($9, options_gestionnaire.pub_sponsor),
                analytique                 = COALESCE($10, options_gestionnaire.analytique),
+               chatbot                    = COALESCE($11, options_gestionnaire.chatbot),
                updated_at                 = NOW()`,
-            [gestionnaireId, val('cacher_propulse'), val('domaine_personnalise'), val('verificateur_age'), val('popup_annonce'), val('reservation_ecole'), val('reservation_ecole_paiement'), val('abonnement_ecole'), val('pub_sponsor'), val('analytique')]
+            [gestionnaireId, val('cacher_propulse'), val('domaine_personnalise'), val('verificateur_age'), val('popup_annonce'), val('reservation_ecole'), val('reservation_ecole_paiement'), val('abonnement_ecole'), val('pub_sponsor'), val('analytique'), val('chatbot')]
         );
 
         const result = await pool.query(
