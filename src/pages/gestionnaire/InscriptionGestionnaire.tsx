@@ -31,7 +31,7 @@ interface FormData {
 }
 
 interface InscriptionGestionnaireProps {
-  onSuccess?:        (gestionnaire: { id: number; seller_id: string; nom: string }) => void;
+  onSuccess?:        (gestionnaire: { id: number; seller_id: string; nom: string }, token?: string) => void;
   loginUrl?:         string;
   termsUrl?:         string;
 }
@@ -259,10 +259,10 @@ export default function InscriptionGestionnaire({
       const data = await response.json();
 
       if (response.ok) {
-        log.admin('Inscription réussie', `${data.gestionnaire?.seller_id} — ${form.email} [pending]`);
-        setGestionnaireCree(data.gestionnaire);
+        log.admin('Inscription réussie', `${data.vendeur?.seller_id} — ${form.email} [actif]`);
+        setGestionnaireCree(data.vendeur);
         if (onSuccess) {
-          onSuccess(data.gestionnaire);
+          onSuccess(data.vendeur, data.token);
         }
       } else {
         const msg = data.error || "Erreur lors de l'inscription.";

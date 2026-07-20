@@ -257,6 +257,63 @@ function ModalMotDePasse({ gestionnaireId, token, onClose, onSuccess }: { gestio
   );
 }
 
+// ── Modal changement de courriel ────────────────────────────────────────────
+// Appelle PUT /api/studio/mon-compte/:gestionnaireId/email (routes/studio_mon_compte.js) :
+// vérifie le mot de passe, vérifie l'unicité du nouvel email, remet
+// email_verifie = false + régénère un token, et renvoie le modèle #3.
+function ModalChangerEmail({ gestionnaireId, token, emailActuel, onClose, onSuccess }: { gestionnaireId: number; token: string | null; emailActuel: string; onClose: () => void; onSuccess: (nouvelEmail: string) => void }) {
+  const [motDePasse, setMotDePasse] = useState('');
+  const [nouvelEmail, setNouvelEmail] = useState('');
+  const [saving, setSaving]     = useState(false);
+  const [erreur, setErreur]     = useState('');
+
+  async function sauvegarder() {
+    setErreur('');
+    if (!nouvelEmail.includes('@')) { setErreur('Adresse courriel invalide.'); return; }
+    if (nouvelEmail.trim().toLowerCase() === emailActuel.trim().toLowerCase()) { setErreur('C\'est déjà votre adresse actuelle.'); return; }
+    if (!motDePasse) { setErreur('Entrez votre mot de passe actuel pour confirmer.'); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/studio/mon-compte/${gestionnaireId}/email`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ mot_de_passe_actuel: motDePasse, nouvel_email: nouvelEmail.trim().toLowerCase() }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setErreur(data.error || 'Erreur.'); return; }
+      onSuccess(nouvelEmail.trim().toLowerCase());
+      onClose();
+    } catch { setErreur('Erreur de connexion.'); }
+    finally { setSaving(false); }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: '#fff', borderRadius: '20px', padding: '28px', width: '100%', maxWidth: '440px', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+        <h2 style={{ margin: '0 0 20px', fontSize: '18px', fontWeight: 800, color: C.text }}>✉️ Changer l'adresse courriel</h2>
+        {erreur && <div style={{ background: C.redLight, border: `1px solid ${C.red}`, borderRadius: '8px', padding: '10px 14px', marginBottom: '16px', fontSize: '13px', color: C.red }}>❌ {erreur}</div>}
+        <div style={{ marginBottom: '14px' }}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.textLight, marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Nouvelle adresse courriel</label>
+          <input type="email" value={nouvelEmail} onChange={e => setNouvelEmail(e.target.value)} style={inp} placeholder="nouveau@courriel.ca" />
+        </div>
+        <div style={{ marginBottom: '14px' }}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: C.textLight, marginBottom: '5px', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Mot de passe actuel</label>
+          <input type="password" value={motDePasse} onChange={e => setMotDePasse(e.target.value)} style={inp} />
+        </div>
+        <p style={{ fontSize: '11px', color: C.textXLight, margin: '0 0 20px' }}>
+          Vous devrez confirmer cette nouvelle adresse par courriel avant de pouvoir remettre votre site en ligne.
+        </p>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '9px 20px', background: '#fff', border: `1px solid ${C.border}`, borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: C.textLight }}>Annuler</button>
+          <button onClick={sauvegarder} disabled={saving} style={{ padding: '9px 22px', background: 'linear-gradient(135deg, #c9a96e, #a07840)', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, color: '#fff', cursor: 'pointer' }}>
+            {saving ? '⏳ Envoi…' : '💾 Modifier'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Composant principal ──────────────────────────────────────────────────────
 interface Props { gestionnaireId: number; }
 
@@ -267,6 +324,7 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
   const [nom, setNom]                       = useState('');
   const [nomBoutique, setNomBoutique]       = useState('');
   const [email, setEmail]                   = useState('');
+  const [emailVerifie, setEmailVerifie]     = useState(true);
   const [telephone, setTelephone]           = useState('');
   const [numCivique, setNumCivique]         = useState('');
   const [rue, setRue]                       = useState('');
@@ -300,6 +358,7 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
   const [uploadingBanniere, setUploadingBanniere] = useState(false);
   const [toast, setToast]               = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
   const [showModalMdp, setShowModalMdp] = useState(false);
+  const [showModalEmail, setShowModalEmail] = useState(false);
   const [onglet, setOnglet]             = useState<'profil' | 'boutique' | 'entreprise' | 'securite'>('profil');
 
   // ── Table de référence des taux par province (préremplissage seulement) ────
@@ -325,6 +384,7 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
       const data = await res.json();
       const v    = data.vendeur;
       setNom(v.nom || ''); setNomBoutique(v.nom_boutique || ''); setEmail(v.email || '');
+      setEmailVerifie(v.email_verifie !== false);
       setTelephone(v.telephone || ''); setNumCivique(v.num_civique || ''); setRue(v.rue || '');
       setVille(v.ville || ''); setProvince(v.province || 'qc'); setCodePostal(v.code_postal || '');
       setPays(v.pays || 'canada'); setLogoUrl(v.logo_url || ''); setBanniereUrl(v.banniere_url || '');
@@ -474,6 +534,17 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
       <style>{`@keyframes fadeInUp { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }`}</style>
       {toast && <Toast msg={toast.msg} type={toast.type} />}
       {showModalMdp && <ModalMotDePasse gestionnaireId={gestionnaireId} token={token} onClose={() => setShowModalMdp(false)} onSuccess={() => showToast('Mot de passe modifié !', 'ok')} />}
+      {showModalEmail && (
+        <ModalChangerEmail
+          gestionnaireId={gestionnaireId} token={token} emailActuel={email}
+          onClose={() => setShowModalEmail(false)}
+          onSuccess={(nouvelEmail) => {
+            setEmail(nouvelEmail);
+            setEmailVerifie(false);
+            showToast('Courriel de vérification envoyé à votre nouvelle adresse !', 'ok');
+          }}
+        />
+      )}
 
       {/* ── En-tête ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px', flexWrap: 'wrap', gap: '16px' }}>
@@ -508,7 +579,7 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
               <Champ label="Nom complet">
                 <input style={inp} value={nom} onChange={e => setNom(e.target.value)} placeholder="Jean Tremblay" />
               </Champ>
-              <Champ label="Adresse courriel" hint="Non modifiable — contactez le support pour changer.">
+              <Champ label="Adresse courriel" hint="Non modifiable ici — rendez-vous dans l'onglet Sécurité pour la changer.">
                 <input style={{ ...inp, background: '#f1f5f9', color: C.textLight }} value={email} readOnly />
               </Champ>
               <Champ label="Téléphone">
@@ -701,6 +772,23 @@ export default function StudioMonCompte({ gestionnaireId }: Props) {
                 style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #c9a96e, #a07840)', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, color: '#fff', cursor: 'pointer', boxShadow: '0 4px 12px rgba(201,169,110,0.3)' }}
               >
                 Changer le mot de passe
+              </button>
+            </div>
+
+            <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <p style={{ margin: '0 0 4px', fontSize: '14px', fontWeight: 700, color: C.text }}>
+                  ✉️ Adresse courriel {emailVerifie
+                    ? <span style={{ fontSize: '11px', fontWeight: 700, color: '#16a34a', background: '#dcfce7', padding: '2px 8px', borderRadius: '10px', marginLeft: '6px' }}>✓ Vérifiée</span>
+                    : <span style={{ fontSize: '11px', fontWeight: 700, color: '#dc2626', background: '#fee2e2', padding: '2px 8px', borderRadius: '10px', marginLeft: '6px' }}>Non vérifiée</span>}
+                </p>
+                <p style={{ margin: 0, fontSize: '12px', color: C.textLight }}>Changer votre courriel exigera une nouvelle vérification.</p>
+              </div>
+              <button
+                onClick={() => setShowModalEmail(true)}
+                style={{ padding: '10px 20px', background: '#fff', border: `1.5px solid ${C.gold}`, borderRadius: '10px', fontSize: '13px', fontWeight: 700, color: C.gold, cursor: 'pointer' }}
+              >
+                Changer le courriel
               </button>
             </div>
 

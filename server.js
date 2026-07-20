@@ -10,6 +10,7 @@ const path    = require('path');
 const pool    = require('./db');
 const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
+const crypto  = require('crypto');
 const studioContactRoutes = require('./routes/studio_contact');
 const studioPage404       = require('./routes/studio_page404');
 const studioPolitiques    = require('./routes/studio_politiques');
@@ -139,6 +140,19 @@ const { authenticateToken } = require('./middleware/auth');
 // 🔐 AUTHENTIFICATION
 // =====================================================================
 
+// 📧 Courriel de vérification — service partagé (voir services/email.js)
+// ⚠️ NOTE : cette route /api/auth/inscription-studio semble être une inscription
+// "legacy" — le flow réellement utilisé par InscriptionGestionnaire.tsx est
+// POST /api/gestionnaires (routes/gestionnaires.js), qui gère déjà le token +
+// l'envoi du modèle #3. Ce hook est laissé ici par précaution, au cas où cette
+// route serait encore appelée ailleurs — à retirer si confirmé inutilisée.
+let envoyerEmailModeleShared = null;
+try {
+  ({ envoyerEmailModele: envoyerEmailModeleShared } = require('./services/email'));
+} catch (e) {
+  console.warn('⚠️ services/email.js introuvable — courriel de vérification non envoyé:', e.message);
+}
+
 // =====================================================================
 // 📝 INSCRIPTION GESTIONNAIRE STUDIO
 // =====================================================================
@@ -166,12 +180,16 @@ app.post('/api/auth/inscription-studio', async (req, res) => {
     // Hasher le mot de passe
     const hash = await bcrypt.hash(mot_de_passe, 12);
 
+    // ⚠️ Token de vérification de courriel (24h)
+    const tokenVerifEmail = crypto.randomBytes(32).toString('hex');
+    const expirationVerifEmail = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48h, aligné sur le modèle #3
+
     // Créer le vendeur
     const vendeurRes = await client.query(
-      `INSERT INTO gestionnaires (nom, nom_boutique, email, mot_de_passe, plan, statut, created_at)
-       VALUES ($1, $2, $3, $4, 'gratuit', 'actif', NOW())
+      `INSERT INTO gestionnaires (nom, nom_boutique, email, mot_de_passe, plan, statut, email_verifie, email_verification_token, email_verification_expire, created_at)
+       VALUES ($1, $2, $3, $4, 'gratuit', 'actif', false, $5, $6, NOW())
        RETURNING id, nom, email, plan, statut`,
-      [nom.trim(), nom_boutique.trim(), email.toLowerCase().trim(), hash]
+      [nom.trim(), nom_boutique.trim(), email.toLowerCase().trim(), hash, tokenVerifEmail, expirationVerifEmail]
     );
     const gestionnaire = vendeurRes.rows[0];
 
@@ -184,6 +202,16 @@ app.post('/api/auth/inscription-studio', async (req, res) => {
     );
 
     await client.query('COMMIT');
+
+    // 📧 Envoi du courriel de vérification (modèle #3) — ne bloque jamais l'inscription si ça échoue
+    if (envoyerEmailModeleShared) {
+      const lienVerification = `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/verifier-email?token=${tokenVerifEmail}`;
+      envoyerEmailModeleShared(3, gestionnaire.email, {
+        nom_vendeur: gestionnaire.nom,
+        nom_boutique_vendeur: nom_boutique.trim(),
+        lien_verification: lienVerification,
+      }).catch(mailErr => console.error('Échec envoi courriel de vérification:', mailErr.message));
+    }
 
     // Générer JWT
     const token = jwt.sign(
@@ -199,6 +227,7 @@ app.post('/api/auth/inscription-studio', async (req, res) => {
       nom_boutique: nom_boutique.trim(),
       plan:         gestionnaire.plan,
       statut:       gestionnaire.statut,
+      email_verifie: false,
       role:         'gestionnaire',
       site_template_id: template_id || null,
     };
@@ -332,6 +361,23 @@ app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (re
     return res.status(403).json({ message: 'Accès non autorisé.' });
   }
 
+  // 🔒 Même garde que /publier : cette route peut aussi passer publie à true
+  if (publie === true && req.user.role !== 'admin') {
+    const check = await pool.query(
+      `SELECT email_verifie FROM gestionnaires WHERE id = $1`,
+      [req.params.gestionnaireId]
+    );
+    if (check.rows.length === 0) {
+      return res.status(404).json({ message: 'Gestionnaire non trouvé.' });
+    }
+    if (!check.rows[0].email_verifie) {
+      return res.status(403).json({
+        message: 'Vérifiez votre adresse courriel avant de mettre votre site en ligne.',
+        code: 'EMAIL_NON_VERIFIE',
+      });
+    }
+  }
+
   try {
     const result = await pool.query(
       `INSERT INTO sites (gestionnaire_id, config, sous_type, template_id, slug, domaine_custom, publie, updated_at)
@@ -404,6 +450,25 @@ app.put('/api/studio/sites/:gestionnaireId/publier', authenticateToken, async (r
   }
   try {
     const { publie } = req.body;
+
+    // 🔒 Bloquer la mise en ligne tant que le courriel du gestionnaire n'est pas vérifié
+    // (les admins peuvent publier au nom d'un gestionnaire s'ils le jugent nécessaire)
+    if (publie === true && req.user.role !== 'admin') {
+      const check = await pool.query(
+        `SELECT email_verifie FROM gestionnaires WHERE id = $1`,
+        [req.params.gestionnaireId]
+      );
+      if (check.rows.length === 0) {
+        return res.status(404).json({ message: 'Gestionnaire non trouvé.' });
+      }
+      if (!check.rows[0].email_verifie) {
+        return res.status(403).json({
+          message: 'Vérifiez votre adresse courriel avant de mettre votre site en ligne.',
+          code: 'EMAIL_NON_VERIFIE',
+        });
+      }
+    }
+
     const result = await pool.query(
       `UPDATE sites SET publie = $1, updated_at = NOW()
        WHERE gestionnaire_id = $2 RETURNING publie`,
@@ -660,7 +725,7 @@ app.get('/api/gestionnaires/:id/stats', authenticateToken, async (req, res) => {
 app.get('/api/gestionnaires/moi', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT v.id, v.email, v.nom, v.plan, v.statut, v.created_at,
+      `SELECT v.id, v.email, v.nom, v.plan, v.statut, v.created_at, v.email_verifie,
               s.id as site_id, s.slug, s.sous_type, s.publie, s.template_id
        FROM gestionnaires v
        LEFT JOIN sites s ON s.gestionnaire_id = v.id

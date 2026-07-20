@@ -6,6 +6,8 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const bcrypt  = require('bcrypt');
+const crypto  = require('crypto');
+const jwt     = require('jsonwebtoken');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
 const { demarrerEssaiPourGestionnaire } = require('./abonnements_studio');
 // ⚠️ AJUSTER SI NÉCESSAIRE : nom/chemin réel du service d'envoi d'email par template.
@@ -98,20 +100,26 @@ router.post('/', async (req, res) => {
 
         const hashedPassword = await bcrypt.hash(mot_de_passe, 10);
 
+        // 🔒 Token de vérification de courriel (48h — aligné sur le modèle #3)
+        const tokenVerifEmail = crypto.randomBytes(32).toString('hex');
+        const expirationVerifEmail = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
         const colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'vendeurs'`);
         const existingCols = colCheck.rows.map(r => r.column_name);
 
         const insertCols = [
             'nom', 'email', 'mot_de_passe', 'nom_boutique', 'province',
             'zone_expedition', 'type_entreprise', 'telephone',
-            'plan', 'statut', 'date_inscription', 'total_ventes', 'commission', 'produits'
+            'plan', 'statut', 'date_inscription', 'total_ventes', 'commission', 'produits',
+            'email_verifie', 'email_verification_token', 'email_verification_expire'
         ];
         const insertVals = [
             nom, email, hashedPassword, nom_boutique, province,
             zone_expedition || null, type_entreprise || null, telephone || null,
             plan || 'Gratuit', 'actif', // e-Vend Studio : aucune approbation admin requise, compte actif dès l'inscription
             date_inscription || new Date().toISOString().split('T')[0],
-            0, 0, 0
+            0, 0, 0,
+            false, tokenVerifEmail, expirationVerifEmail
         ];
 
         const optionalCols = [
@@ -183,17 +191,111 @@ router.post('/', async (req, res) => {
             console.error('⚠️ Erreur démarrage essai automatique pour', vendeur.seller_id, ':', e.message);
         }
 
+        // ── Courriel de vérification d'adresse (#3) — ne doit jamais faire échouer l'inscription ──
+        if (envoyerEmailModele) {
+            const lienVerification = `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/verifier-email?token=${tokenVerifEmail}`;
+            envoyerEmailModele(3, vendeur.email, {
+                nom_vendeur: vendeur.nom,
+                nom_boutique_vendeur: vendeur.nom_boutique,
+                lien_verification: lienVerification,
+            }).catch(e => console.error('Erreur envoi email #3 (vérification courriel):', e.message));
+        }
+
         res.status(201).json({
             message: "Compte créé avec succès. Votre essai gratuit de 14 jours a commencé !",
+            token: jwt.sign(
+                { id: vendeur.id, email: vendeur.email, role: 'gestionnaire' },
+                process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
+                { expiresIn: process.env.JWT_EXPIRES || '7d' }
+            ),
             vendeur: {
                 id: vendeur.id, seller_id: vendeur.seller_id, nom: vendeur.nom,
-                email: vendeur.email, boutique: vendeur.nom_boutique,
-                statut: vendeur.statut, plan: vendeur.plan,
+                email: vendeur.email, boutique: vendeur.nom_boutique, nom_boutique: vendeur.nom_boutique,
+                statut: vendeur.statut, plan: vendeur.plan, email_verifie: false,
+                role: 'gestionnaire',
             },
         });
     } catch (err) {
         console.error('❌ Erreur POST /api/vendeurs:', err);
         res.status(500).json({ error: err.message || 'Erreur serveur' });
+    }
+});
+
+// GET /verifier-email/:token — clic sur le lien reçu par courriel (public, pas d'auth)
+router.get('/verifier-email/:token', async (req, res) => {
+    try {
+        const { token } = req.params;
+        const result = await pool.query(
+            `SELECT id, email_verification_expire FROM gestionnaires WHERE email_verification_token = $1`,
+            [token]
+        );
+        if (result.rows.length === 0) {
+            return res.status(400).json({ success: false, error: 'Lien de vérification invalide ou déjà utilisé.' });
+        }
+        const g = result.rows[0];
+        if (g.email_verification_expire && new Date(g.email_verification_expire) < new Date()) {
+            return res.status(400).json({ success: false, error: 'Ce lien de vérification a expiré. Demandez-en un nouveau depuis votre tableau de bord.' });
+        }
+        await pool.query(
+            `UPDATE gestionnaires SET email_verifie = true, email_verification_token = NULL, email_verification_expire = NULL WHERE id = $1`,
+            [g.id]
+        );
+        res.json({ success: true, message: 'Adresse courriel vérifiée avec succès !' });
+    } catch (err) {
+        console.error('Erreur GET /api/gestionnaires/verifier-email/:token:', err);
+        res.status(500).json({ success: false, error: 'Erreur serveur.' });
+    }
+});
+
+// POST /:id/renvoyer-verification — renvoie un nouveau lien (auth requise, cooldown 60s)
+router.post('/:id/renvoyer-verification', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (req.user.role !== 'admin' && req.user.id !== parseInt(id)) {
+            return res.status(403).json({ success: false, error: 'Accès non autorisé.' });
+        }
+
+        const check = await pool.query(
+            `SELECT email, nom, nom_boutique, email_verifie, email_verification_expire FROM gestionnaires WHERE id = $1`,
+            [id]
+        );
+        if (check.rows.length === 0) return res.status(404).json({ success: false, error: 'Gestionnaire non trouvé.' });
+        const g = check.rows[0];
+
+        if (g.email_verifie) {
+            return res.status(400).json({ success: false, error: 'Cette adresse courriel est déjà vérifiée.' });
+        }
+
+        // Cooldown 60s pour éviter le spam SES (on réutilise email_verification_expire :
+        // un lien tout juste régénéré expire dans ~48h, donc s'il reste > 47h58min, on vient d'en envoyer un)
+        if (g.email_verification_expire) {
+            const msRestant = new Date(g.email_verification_expire).getTime() - Date.now();
+            const msDepuisEnvoi = (48 * 60 * 60 * 1000) - msRestant;
+            if (msDepuisEnvoi >= 0 && msDepuisEnvoi < 60 * 1000) {
+                return res.status(429).json({ success: false, error: 'Veuillez patienter avant de redemander un courriel.' });
+            }
+        }
+
+        const tokenVerifEmail = crypto.randomBytes(32).toString('hex');
+        const expirationVerifEmail = new Date(Date.now() + 48 * 60 * 60 * 1000);
+        await pool.query(
+            `UPDATE gestionnaires SET email_verification_token = $1, email_verification_expire = $2 WHERE id = $3`,
+            [tokenVerifEmail, expirationVerifEmail, id]
+        );
+
+        if (envoyerEmailModele) {
+            const lienVerification = `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/verifier-email?token=${tokenVerifEmail}`;
+            await envoyerEmailModele(3, g.email, {
+                nom_vendeur: g.nom,
+                nom_boutique_vendeur: g.nom_boutique,
+                lien_verification: lienVerification,
+            });
+        }
+
+        res.json({ success: true, message: 'Courriel de vérification renvoyé.' });
+    } catch (err) {
+        console.error('Erreur POST /api/gestionnaires/:id/renvoyer-verification:', err);
+        res.status(500).json({ success: false, error: 'Erreur serveur.' });
     }
 });
 

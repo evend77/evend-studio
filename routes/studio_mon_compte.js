@@ -10,11 +10,19 @@ const express  = require('express');
 const router   = express.Router({ mergeParams: true });
 const pool     = require('../db');
 const bcrypt   = require('bcrypt');
+const crypto   = require('crypto');
 const multer   = require('multer');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 const path     = require('path');
 const { authenticateToken } = require('../middleware/auth');
+
+let envoyerEmailModele = null;
+try {
+  ({ envoyerEmailModele } = require('../services/email'));
+} catch (e) {
+  console.warn('⚠️ services/email.js introuvable — courriel de vérification non envoyé:', e.message);
+}
 
 // ─── S3 ───────────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
@@ -83,7 +91,7 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-         id, email, nom, nom_boutique, telephone,
+         id, email, email_verifie, nom, nom_boutique, telephone,
          num_civique, rue, ville, province, code_postal, pays,
          logo_url, banniere_url, description,
          politique_retours, politique_livraison,
@@ -209,6 +217,78 @@ router.put('/mot-de-passe', authenticateToken, async (req, res) => {
     res.json({ success: true, message: 'Mot de passe modifié avec succès.' });
   } catch (err) {
     console.error('PUT /studio/mon-compte/:gestionnaireId/mot-de-passe :', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =============================================================================
+// PUT /api/studio/mon-compte/:gestionnaireId/email
+// Changer l'adresse courriel — remet la vérification à zéro
+// Body : { mot_de_passe_actuel, nouvel_email }
+// =============================================================================
+router.put('/email', authenticateToken, async (req, res) => {
+  if (!verifierProprietaire(req, res)) return;
+
+  const { mot_de_passe_actuel, nouvel_email } = req.body;
+  const gestionnaireId = req.params.gestionnaireId;
+
+  if (!mot_de_passe_actuel || !nouvel_email) {
+    return res.status(400).json({ error: 'Le mot de passe actuel et le nouvel email sont requis.' });
+  }
+  const emailPropre = String(nouvel_email).trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailPropre)) {
+    return res.status(400).json({ error: 'Adresse courriel invalide.' });
+  }
+
+  try {
+    // Récupérer le hash + email actuel
+    const result = await pool.query(
+      `SELECT mot_de_passe, email, nom FROM gestionnaires WHERE id = $1`,
+      [gestionnaireId]
+    );
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Gestionnaire introuvable.' });
+
+    const g = result.rows[0];
+    const valide = await bcrypt.compare(mot_de_passe_actuel, g.mot_de_passe);
+    if (!valide) return res.status(400).json({ error: 'Mot de passe actuel incorrect.' });
+
+    if (emailPropre === g.email.trim().toLowerCase()) {
+      return res.status(400).json({ error: 'C\'est déjà votre adresse courriel actuelle.' });
+    }
+
+    // Vérifier que le nouvel email n'est pas déjà utilisé par un autre compte
+    const dejaPris = await pool.query(
+      `SELECT id FROM gestionnaires WHERE email = $1 AND id != $2`,
+      [emailPropre, gestionnaireId]
+    );
+    if (dejaPris.rows.length > 0) {
+      return res.status(409).json({ error: 'Cette adresse courriel est déjà utilisée par un autre compte.' });
+    }
+
+    // Nouveau token de vérification (48h — aligné sur le modèle #3)
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiration = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+    await pool.query(
+      `UPDATE gestionnaires SET
+         email = $1, email_verifie = false,
+         email_verification_token = $2, email_verification_expire = $3,
+         updated_at = NOW()
+       WHERE id = $4`,
+      [emailPropre, token, expiration, gestionnaireId]
+    );
+
+    if (envoyerEmailModele) {
+      const lienVerification = `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/verifier-email?token=${token}`;
+      envoyerEmailModele(3, emailPropre, {
+        nom_vendeur: g.nom,
+        lien_verification: lienVerification,
+      }).catch(e => console.error('Erreur envoi email #3 (changement courriel):', e.message));
+    }
+
+    res.json({ success: true, email: emailPropre, message: 'Adresse courriel mise à jour. Un courriel de vérification a été envoyé.' });
+  } catch (err) {
+    console.error('PUT /studio/mon-compte/:gestionnaireId/email :', err.message);
     res.status(500).json({ error: err.message });
   }
 });

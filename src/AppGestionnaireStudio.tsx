@@ -177,6 +177,7 @@ export interface GestionnaireUser {
   statut?:          string;
   plan?:            string;
   site_template_id?: string;
+  email_verifie?:   boolean;
 }
 
 interface StatsVendeur {
@@ -426,6 +427,62 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     } catch {}
     return { id: 0, email: '', nom: 'Gestionnaire', nom_boutique: null, role: 'gestionnaire' };
   });
+
+  // ── Bannière courriel non vérifié ────────────────────────────────────────
+  const HAUTEUR_BANNIERE_EMAIL = 48;
+  const [renvoiEnCours, setRenvoiEnCours] = useState(false);
+  const [renvoiMessage, setRenvoiMessage] = useState<string | null>(null);
+  const [renvoiCooldown, setRenvoiCooldown] = useState(0);
+
+  // Rafraîchit l'état email_verifie depuis le serveur (au montage + au retour sur l'onglet),
+  // pour que la bannière disparaisse même si la vérification a eu lieu dans un autre onglet.
+  const rafraichirStatutEmail = () => {
+    if (!gestionnaire?.id) return;
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE}/gestionnaires/moi`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && typeof data.email_verifie === 'boolean') {
+          setGestionnaire(prev => ({ ...prev, email_verifie: data.email_verifie }));
+        }
+      })
+      .catch(() => {});
+  };
+  useEffect(() => {
+    rafraichirStatutEmail();
+    const onFocus = () => rafraichirStatutEmail();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [gestionnaire?.id]);
+
+  useEffect(() => {
+    if (renvoiCooldown <= 0) return;
+    const t = setTimeout(() => setRenvoiCooldown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [renvoiCooldown]);
+
+  const renvoyerVerificationEmail = async () => {
+    if (renvoiEnCours || renvoiCooldown > 0) return;
+    setRenvoiEnCours(true);
+    setRenvoiMessage(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/gestionnaires/${gestionnaire.id}/renvoyer-verification`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setRenvoiMessage('✅ Courriel envoyé ! Vérifiez votre boîte de réception.');
+        setRenvoiCooldown(60);
+      } else {
+        setRenvoiMessage(data.error || 'Erreur lors de l\'envoi.');
+      }
+    } catch {
+      setRenvoiMessage('Erreur de connexion.');
+    }
+    setRenvoiEnCours(false);
+  };
 
   // Options add-ons du gestionnaire (cacher_propulse, verificateur_age, etc.)
   const [options, setOptions] = useState<Record<string, any>>({});
@@ -1307,7 +1364,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         />
       );
     }
-        if (pageActive === 'studio-domaine') return <MonDomaine gestionnaireId={gestionnaire.id} />;
+        if (pageActive === 'studio-domaine') return <MonDomaine gestionnaireId={gestionnaire.id} emailVerifie={gestionnaire.email_verifie !== false} />;
     if (pageActive === 'studio-import-evend') return <ImportEvend gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-config-pages') return <ConfigMesPagesSimplisse    gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-plan')         return <SimplissePlan              gestionnaireId={gestionnaire.id} />;
@@ -1651,13 +1708,39 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
               {banniereVendeurMessage}
             </div>
           )}
+          {gestionnaire.email_verifie === false && (
+            <div style={{
+              position: 'fixed',
+              top: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0)}px`,
+              left: isMobile ? '0px' : '280px', right: 0, zIndex: 898,
+              minHeight: `${HAUTEUR_BANNIERE_EMAIL}px`,
+              backgroundColor: '#dc2626', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap',
+              gap: '10px', fontSize: '13px', fontWeight: 600, padding: '8px 16px', textAlign: 'center',
+              transition: 'left 0.3s ease',
+            }}>
+              <span>🔒 Votre adresse courriel n'est pas vérifiée — vous ne pouvez pas mettre votre site en ligne tant qu'elle ne l'est pas.</span>
+              <button
+                onClick={renvoyerVerificationEmail}
+                disabled={renvoiEnCours || renvoiCooldown > 0}
+                style={{
+                  background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.5)',
+                  borderRadius: '6px', color: '#fff', padding: '4px 12px', fontSize: '12px', fontWeight: 700,
+                  cursor: (renvoiEnCours || renvoiCooldown > 0) ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                {renvoiEnCours ? '⏳ Envoi...' : renvoiCooldown > 0 ? `Renvoyer (${renvoiCooldown}s)` : '📧 Renvoyer le courriel'}
+              </button>
+              {renvoiMessage && <span style={{ fontSize: '12px', fontWeight: 400 }}>{renvoiMessage}</span>}
+            </div>
+          )}
           <BandeauEssai
             gestionnaireId={gestionnaire.id}
             isMobile={isMobile}
-            offsetTop={56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0)}
+            offsetTop={56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0)}
             onHauteur={setHauteurBandeauEssai}
           />
-          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + hauteurBandeauEssai}px`, backgroundColor: pageActive === 'studio-choisir-template' ? '#0d0d12' : undefined }}>
+          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0) + hauteurBandeauEssai}px`, backgroundColor: pageActive === 'studio-choisir-template' ? '#0d0d12' : undefined }}>
             {renderPage()}
           </div>
           <div className="footer-fixed" style={footerFixedStyle}>{footerText}</div>

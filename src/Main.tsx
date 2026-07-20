@@ -20,6 +20,7 @@ import InscriptionGestionnaire from './pages/gestionnaire/InscriptionGestionnair
 import MonDomaine            from './pages/gestionnaire/MonDomaine';
 import DomaineSucces         from './pages/DomaineSucces';
 import DomaineAnnule         from './pages/DomaineAnnule';
+import PageVerifierEmail     from './pages/PageVerifierEmail';
 // 👇 NOUVEAUX IMPORTS POUR COMMANDITAIRE
 import InscriptionCommanditaire from './pages/commanditaire/InscriptionCommanditaire';
 import AppSponsors from './AppSponsors';
@@ -174,6 +175,7 @@ export default function Main() {
         <Route path="/templates"    element={<PageTemplates />} />
         <Route path="/templates/:id" element={<PageTemplateDetail />} />
         <Route path="/site-preview" element={<SitePreview />} />
+        <Route path="/verifier-email" element={<PageVerifierEmail />} />
         <Route path="/paiement"          element={<PagePaiement mode="payer" />} />
         <Route path="/paiement-confirme" element={<PagePaiement mode="confirme" />} />
         <Route path="/paiement-annule"   element={<PagePaiement mode="annule" />} />
@@ -212,7 +214,7 @@ export default function Main() {
 
         <Route path="/inscription"  element={
           user ? <Navigate to="/dashboard" replace /> :
-          <InscriptionGestionnaire onSuccess={(g) => handleLogin('gestionnaire', g, '')} />
+          <InscriptionGestionnaire onSuccess={(g, token) => handleLogin('gestionnaire', g, token || '')} />
         } />
 
         <Route path="/login" element={
@@ -239,7 +241,7 @@ export default function Main() {
 
         <Route path="/mon-domaine" element={
           !user ? <Navigate to="/login" replace /> :
-          <MonDomaine gestionnaireId={user.id} />
+          <MonDomaine gestionnaireId={user.id} emailVerifie={user.email_verifie !== false} />
         } />
 
         <Route path="/domaine-succes" element={

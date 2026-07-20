@@ -339,10 +339,14 @@ router.post('/ask', async (req, res) => {
     }
 
     toutesSections.sort((a, b) => (b.score || 0) - (a.score || 0));
-    const sectionsFinales = toutesSections.slice(0, maxResultats).filter(s => (s.score || 0) >= scoreMinimum * 100 || s.pageType === 'produit');
-    // Note: score des sections texte = nb d'occurrences (entier), score_minimum de la config
-    // est pensé pour un rank 0-1 (héritage marketplace) — on le traite ici comme un seuil
-    // "au moins une occurrence pertinente" plutôt qu'une proportion, plus adapté au nouveau calcul.
+    // Le score brut est un nombre d'occurrences (1, 2, 3...), pas une proportion.
+    // On le normalise sur 0-1 (plafonné à 5 occurrences = score plein) pour qu'il
+    // se compare correctement au score_minimum configuré par le gestionnaire
+    // (échelle 0-1, voir onglet Sources). Avant ce correctif, le seuil exigeait
+    // ×100 occurrences minimum par erreur — presque aucun résultat ne passait.
+    const sectionsFinales = toutesSections
+      .filter(s => s.pageType === 'produit' || Math.min(1, (s.score || 0) / 5) >= scoreMinimum)
+      .slice(0, maxResultats);
 
     const transitionPhrases = cfg.transition_phrases?.length ? cfg.transition_phrases : ['📚 Voici ce que j\'ai trouvé :'];
     const erreurPhrases     = cfg.erreur_phrases?.length ? cfg.erreur_phrases : ['😕 Je n\'ai pas trouvé de réponse.'];
