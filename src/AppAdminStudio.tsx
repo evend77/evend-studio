@@ -503,7 +503,7 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/vendeurs`)
+    fetch(`${API_BASE}/gestionnaires`)
       .then(res => {
         if (!res.ok) {
           throw new Error(`Erreur HTTP: ${res.status}`);

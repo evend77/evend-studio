@@ -21,6 +21,7 @@ import MonDomaine            from './pages/gestionnaire/MonDomaine';
 import DomaineSucces         from './pages/DomaineSucces';
 import DomaineAnnule         from './pages/DomaineAnnule';
 import PageVerifierEmail     from './pages/PageVerifierEmail';
+import SiteSuspendu          from './pages/SiteSuspendu';
 // 👇 NOUVEAUX IMPORTS POUR COMMANDITAIRE
 import InscriptionCommanditaire from './pages/commanditaire/InscriptionCommanditaire';
 import AppSponsors from './AppSponsors';
@@ -41,7 +42,8 @@ export default function Main() {
   const [sousDomaineCheck, setSousDomaineCheck] = useState<{
     verifie: boolean;
     gestionnaireId: number | null;
-  }>({ verifie: false, gestionnaireId: null });
+    suspendu: boolean;
+  }>({ verifie: false, gestionnaireId: null, suspendu: false });
 
   const SOUS_DOMAINES_NON_CLIENTS = ['www', 'e-vendstudio', 'localhost'];
 
@@ -60,12 +62,12 @@ export default function Main() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.success && data?.gestionnaire_id) {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id, suspendu: !!data.site_suspendu });
           } else {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: null });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false });
           }
         })
-        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null }));
+        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false }));
       return;
     }
 
@@ -79,16 +81,16 @@ export default function Main() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.success && data?.gestionnaire_id) {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id, suspendu: !!data.site_suspendu });
           } else {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: null });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false });
           }
         })
-        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null }));
+        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false }));
       return;
     }
 
-    setSousDomaineCheck({ verifie: true, gestionnaireId: null });
+    setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false });
   }, []);
 
   useEffect(() => {
@@ -161,6 +163,9 @@ export default function Main() {
   }
 
   if (sousDomaineCheck.gestionnaireId) {
+    if (sousDomaineCheck.suspendu) {
+      return <SiteSuspendu />;
+    }
     return (
       <BrowserRouter>
         <SitePreview vendeurIdProp={sousDomaineCheck.gestionnaireId} hidePreviewBar />
@@ -214,7 +219,7 @@ export default function Main() {
 
         <Route path="/inscription"  element={
           user ? <Navigate to="/dashboard" replace /> :
-          <InscriptionGestionnaire onSuccess={(g, token) => handleLogin('gestionnaire', g, token || '')} />
+          <InscriptionGestionnaire />
         } />
 
         <Route path="/login" element={
@@ -241,7 +246,8 @@ export default function Main() {
 
         <Route path="/mon-domaine" element={
           !user ? <Navigate to="/login" replace /> :
-          <MonDomaine gestionnaireId={user.id} emailVerifie={user.email_verifie !== false} />
+          user.premiere_verification_faite === false ? <Navigate to="/dashboard" replace /> :
+          <MonDomaine gestionnaireId={user.id} />
         } />
 
         <Route path="/domaine-succes" element={

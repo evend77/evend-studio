@@ -91,7 +91,7 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT
-         id, email, email_verifie, nom, nom_boutique, telephone,
+         id, email, email_verifie, premiere_verification_faite, email_verification_expire, nom, nom_boutique, telephone,
          num_civique, rue, ville, province, code_postal, pays,
          logo_url, banniere_url, description,
          politique_retours, politique_livraison,

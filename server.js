@@ -10,7 +10,6 @@ const path    = require('path');
 const pool    = require('./db');
 const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
-const crypto  = require('crypto');
 const studioContactRoutes = require('./routes/studio_contact');
 const studioPage404       = require('./routes/studio_page404');
 const studioPolitiques    = require('./routes/studio_politiques');
@@ -35,6 +34,8 @@ const adminDomainesRoutes     = require('./routes/admin_domaines');
 const cronDomaineModule       = require('./routes/cron_domaine');
 const abonnementsStudioRoutes = require('./routes/abonnements_studio');
 const cronAbonnementsModule   = require('./routes/cron_abonnements_studio');
+const cronVerificationEmailModule = require('./routes/cron_verification_email');
+const modelesModule           = require('./routes/modelescouriels');
 const cronReservationsModule  = require('./routes/cron_reservations');
 const cronPaiementsModule     = require('./routes/cron_paiements_en_attente');
 const sponsorsPhotosRoutes = require('./routes/sponsorsphotos');
@@ -140,109 +141,14 @@ const { authenticateToken } = require('./middleware/auth');
 // 🔐 AUTHENTIFICATION
 // =====================================================================
 
-// 📧 Courriel de vérification — service partagé (voir services/email.js)
-// ⚠️ NOTE : cette route /api/auth/inscription-studio semble être une inscription
-// "legacy" — le flow réellement utilisé par InscriptionGestionnaire.tsx est
-// POST /api/gestionnaires (routes/gestionnaires.js), qui gère déjà le token +
-// l'envoi du modèle #3. Ce hook est laissé ici par précaution, au cas où cette
-// route serait encore appelée ailleurs — à retirer si confirmé inutilisée.
-let envoyerEmailModeleShared = null;
-try {
-  ({ envoyerEmailModele: envoyerEmailModeleShared } = require('./services/email'));
-} catch (e) {
-  console.warn('⚠️ services/email.js introuvable — courriel de vérification non envoyé:', e.message);
-}
-
 // =====================================================================
-// 📝 INSCRIPTION GESTIONNAIRE STUDIO
+// 🔐 AUTHENTIFICATION
 // =====================================================================
-app.post('/api/auth/inscription-studio', async (req, res) => {
-  const { nom, nom_boutique, email, mot_de_passe, type_entreprise, template_id } = req.body;
-
-  if (!nom || !email || !mot_de_passe || !nom_boutique) {
-    return res.status(400).json({ message: 'Tous les champs obligatoires doivent être remplis.' });
-  }
-  if (mot_de_passe.length < 8) {
-    return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 8 caractères.' });
-  }
-
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-
-    // Vérifier si l'email existe déjà
-    const existe = await client.query('SELECT id FROM gestionnaires WHERE email = $1', [email.toLowerCase()]);
-    if (existe.rows.length > 0) {
-      await client.query('ROLLBACK');
-      return res.status(409).json({ message: 'Cette adresse courriel est déjà utilisée.' });
-    }
-
-    // Hasher le mot de passe
-    const hash = await bcrypt.hash(mot_de_passe, 12);
-
-    // ⚠️ Token de vérification de courriel (24h)
-    const tokenVerifEmail = crypto.randomBytes(32).toString('hex');
-    const expirationVerifEmail = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48h, aligné sur le modèle #3
-
-    // Créer le vendeur
-    const vendeurRes = await client.query(
-      `INSERT INTO gestionnaires (nom, nom_boutique, email, mot_de_passe, plan, statut, email_verifie, email_verification_token, email_verification_expire, created_at)
-       VALUES ($1, $2, $3, $4, 'gratuit', 'actif', false, $5, $6, NOW())
-       RETURNING id, nom, email, plan, statut`,
-      [nom.trim(), nom_boutique.trim(), email.toLowerCase().trim(), hash, tokenVerifEmail, expirationVerifEmail]
-    );
-    const gestionnaire = vendeurRes.rows[0];
-
-    // Créer la ligne "sites" vide pour ce vendeur
-    await client.query(
-      `INSERT INTO sites (gestionnaire_id, slug, template_id, publie, config, updated_at)
-       VALUES ($1, $2, $3, false, '{}', NOW())
-       ON CONFLICT (gestionnaire_id) DO NOTHING`,
-      [gestionnaire.id, `boutique-${gestionnaire.id}`, template_id || null]
-    );
-
-    await client.query('COMMIT');
-
-    // 📧 Envoi du courriel de vérification (modèle #3) — ne bloque jamais l'inscription si ça échoue
-    if (envoyerEmailModeleShared) {
-      const lienVerification = `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/verifier-email?token=${tokenVerifEmail}`;
-      envoyerEmailModeleShared(3, gestionnaire.email, {
-        nom_vendeur: gestionnaire.nom,
-        nom_boutique_vendeur: nom_boutique.trim(),
-        lien_verification: lienVerification,
-      }).catch(mailErr => console.error('Échec envoi courriel de vérification:', mailErr.message));
-    }
-
-    // Générer JWT
-    const token = jwt.sign(
-      { id: gestionnaire.id, email: gestionnaire.email, role: 'gestionnaire' },
-      process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
-      { expiresIn: process.env.JWT_EXPIRES || '7d' }
-    );
-
-    const userData = {
-      id:           gestionnaire.id,
-      nom:          gestionnaire.nom,
-      email:        gestionnaire.email,
-      nom_boutique: nom_boutique.trim(),
-      plan:         gestionnaire.plan,
-      statut:       gestionnaire.statut,
-      email_verifie: false,
-      role:         'gestionnaire',
-      site_template_id: template_id || null,
-    };
-
-    console.log(`✅ Nouveau gestionnaire Studio inscrit: ${email} (ID: ${gestionnaire.id})`);
-    res.status(201).json({ success: true, token, vendeur: userData });
-
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('POST /api/auth/inscription-studio', err);
-    res.status(500).json({ message: "Erreur serveur lors de l'inscription." });
-  } finally {
-    client.release();
-  }
-});
+// ℹ️ La route legacy POST /api/auth/inscription-studio a été retirée le
+// 20 juillet 2026 : aucune référence trouvée dans le frontend (grep sur
+// tout le repo fourni), le flow réellement utilisé étant POST /api/gestionnaires
+// (routes/gestionnaires.js, appelé par InscriptionGestionnaire.tsx). Si un appel
+// externe la visait encore, restaurer depuis l'historique git.
 
 app.use('/api/auth', require('./routes/authStudio'));
 
@@ -284,6 +190,8 @@ app.use('/api/admin/domaines',     adminDomainesRoutes);
 app.use('/api/cron-domaine',       cronDomaineModule);
 app.use('/api/abonnements-studio', abonnementsStudioRoutes);
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
+app.use('/api/cron-verification-email', cronVerificationEmailModule);
+app.use('/api', modelesModule);
 app.use('/api/cron-reservations',  cronReservationsModule);
 app.use('/api/cron-paiements',     cronPaiementsModule);
 app.use('/api/admin/stripe', require('./routes/admin_stripe'));
@@ -361,16 +269,19 @@ app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (re
     return res.status(403).json({ message: 'Accès non autorisé.' });
   }
 
-  // 🔒 Même garde que /publier : cette route peut aussi passer publie à true
+  // 🔒 Blocage réservé aux comptes JAMAIS vérifiés (première inscription) —
+  // un changement d'email sur un compte déjà actif ne bloque PAS la publication
+  // ici; l'application se fait plutôt via la suspension automatique après 48h
+  // (voir routes/cron_verification_email.js).
   if (publie === true && req.user.role !== 'admin') {
     const check = await pool.query(
-      `SELECT email_verifie FROM gestionnaires WHERE id = $1`,
+      `SELECT premiere_verification_faite FROM gestionnaires WHERE id = $1`,
       [req.params.gestionnaireId]
     );
     if (check.rows.length === 0) {
       return res.status(404).json({ message: 'Gestionnaire non trouvé.' });
     }
-    if (!check.rows[0].email_verifie) {
+    if (!check.rows[0].premiere_verification_faite) {
       return res.status(403).json({
         message: 'Vérifiez votre adresse courriel avant de mettre votre site en ligne.',
         code: 'EMAIL_NON_VERIFIE',
@@ -451,17 +362,18 @@ app.put('/api/studio/sites/:gestionnaireId/publier', authenticateToken, async (r
   try {
     const { publie } = req.body;
 
-    // 🔒 Bloquer la mise en ligne tant que le courriel du gestionnaire n'est pas vérifié
-    // (les admins peuvent publier au nom d'un gestionnaire s'ils le jugent nécessaire)
+    // 🔒 Bloquer la première mise en ligne tant que le compte n'a JAMAIS été vérifié.
+    // Un changement d'email sur un compte déjà actif ne bloque pas ici — la suspension
+    // automatique après 48h (cron_verification_email.js) s'en charge si besoin.
     if (publie === true && req.user.role !== 'admin') {
       const check = await pool.query(
-        `SELECT email_verifie FROM gestionnaires WHERE id = $1`,
+        `SELECT premiere_verification_faite FROM gestionnaires WHERE id = $1`,
         [req.params.gestionnaireId]
       );
       if (check.rows.length === 0) {
         return res.status(404).json({ message: 'Gestionnaire non trouvé.' });
       }
-      if (!check.rows[0].email_verifie) {
+      if (!check.rows[0].premiere_verification_faite) {
         return res.status(403).json({
           message: 'Vérifiez votre adresse courriel avant de mettre votre site en ligne.',
           code: 'EMAIL_NON_VERIFIE',
@@ -725,7 +637,7 @@ app.get('/api/gestionnaires/:id/stats', authenticateToken, async (req, res) => {
 app.get('/api/gestionnaires/moi', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT v.id, v.email, v.nom, v.plan, v.statut, v.created_at, v.email_verifie,
+      `SELECT v.id, v.email, v.nom, v.plan, v.statut, v.created_at, v.email_verifie, v.premiere_verification_faite, v.email_verification_expire,
               s.id as site_id, s.slug, s.sous_type, s.publie, s.template_id
        FROM gestionnaires v
        LEFT JOIN sites s ON s.gestionnaire_id = v.id
@@ -818,6 +730,7 @@ if (process.env.NODE_ENV === 'production') {
 // =====================================================================
 cronDomaineModule.demarrer();
 cronAbonnementsModule.demarrer();
+cronVerificationEmailModule.demarrer();
 cronReservationsModule.demarrer();
 cronPaiementsModule.demarrer();
 

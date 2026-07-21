@@ -175,7 +175,7 @@ router.post('/login', async (req, res) => {
 
     // ── LOGIN GESTIONNAIRE (défaut) ──
     const result = await pool.query(
-      `SELECT id, email, mot_de_passe, nom, plan, statut, email_verifie FROM gestionnaires WHERE email = $1`,
+      `SELECT id, email, mot_de_passe, nom, plan, statut, email_verifie, premiere_verification_faite, email_verification_expire FROM gestionnaires WHERE email = $1`,
       [email.toLowerCase()]
     );
 
@@ -228,6 +228,8 @@ router.post('/login', async (req, res) => {
         plan:   gestionnaire.plan,
         statut: gestionnaire.statut,
         email_verifie: gestionnaire.email_verifie,
+        premiere_verification_faite: gestionnaire.premiere_verification_faite,
+        email_verification_expire: gestionnaire.email_verification_expire,
         role:   'gestionnaire',
       },
     });
@@ -270,7 +272,7 @@ router.get('/verify', async (req, res) => {
 
     // ── GESTIONNAIRE (ou ancien token 'vendeur') ──
     const r = await pool.query(
-      'SELECT id, email, nom, plan, statut, email_verifie FROM gestionnaires WHERE id = $1',
+      'SELECT id, email, nom, plan, statut, email_verifie, premiere_verification_faite, email_verification_expire FROM gestionnaires WHERE id = $1',
       [payload.id]
     );
     if (r.rows.length === 0) return res.status(401).json({ valid: false });
@@ -299,7 +301,7 @@ router.post('/login-studio', async (req, res) => {
   }
   try {
     const result = await pool.query(
-      `SELECT id, email, mot_de_passe, nom, plan, statut, email_verifie FROM gestionnaires WHERE email = $1`,
+      `SELECT id, email, mot_de_passe, nom, plan, statut, email_verifie, premiere_verification_faite, email_verification_expire FROM gestionnaires WHERE email = $1`,
       [email.toLowerCase()]
     );
     if (result.rows.length === 0) {
@@ -334,7 +336,9 @@ router.post('/login-studio', async (req, res) => {
     const token = genererToken({ id: gestionnaire.id, email: gestionnaire.email, role: 'gestionnaire', plan: gestionnaire.plan });
     return res.json({
       success: true, token,
-      user: { id: gestionnaire.id, email: gestionnaire.email, nom: gestionnaire.nom, plan: gestionnaire.plan, statut: gestionnaire.statut, email_verifie: gestionnaire.email_verifie, role: 'gestionnaire' },
+      user: { id: gestionnaire.id, email: gestionnaire.email, nom: gestionnaire.nom, plan: gestionnaire.plan, statut: gestionnaire.statut, email_verifie: gestionnaire.email_verifie,
+        premiere_verification_faite: gestionnaire.premiere_verification_faite,
+        email_verification_expire: gestionnaire.email_verification_expire, role: 'gestionnaire' },
     });
   } catch (err) {
     console.error('Erreur /api/auth/login-studio:', err);

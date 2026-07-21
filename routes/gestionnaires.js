@@ -30,19 +30,19 @@ router.get('/', async (req, res) => {
             SELECT v.*, COALESCE(p.nb_produits, 0) AS produits
             FROM gestionnaires v
             LEFT JOIN (
-                SELECT vendeur_id, COUNT(*) AS nb_produits FROM produits GROUP BY vendeur_id
-            ) p ON p.gestionnaire_id = g.id
+                SELECT vendeur_id AS gestionnaire_id, COUNT(*) AS nb_produits FROM produits GROUP BY vendeur_id
+            ) p ON p.gestionnaire_id = v.id
         `;
         let result;
         if (statut) {
             const statuts = statut.split(',').map(s => s.trim()).filter(Boolean);
-            result = await pool.query(baseQuery + ' WHERE g.statut = ANY($1) ORDER BY v.id', [statuts]);
+            result = await pool.query(baseQuery + ' WHERE v.statut = ANY($1) ORDER BY v.id', [statuts]);
         } else {
             result = await pool.query(baseQuery + ' ORDER BY v.id');
         }
         res.json(result.rows);
     } catch (err) {
-        console.error('Erreur GET /api/vendeurs:', err);
+        console.error('Erreur GET /api/gestionnaires:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -111,7 +111,7 @@ router.post('/', async (req, res) => {
             'nom', 'email', 'mot_de_passe', 'nom_boutique', 'province',
             'zone_expedition', 'type_entreprise', 'telephone',
             'plan', 'statut', 'date_inscription', 'total_ventes', 'commission', 'produits',
-            'email_verifie', 'email_verification_token', 'email_verification_expire'
+            'email_verifie', 'email_verification_token', 'email_verification_expire', 'premiere_verification_faite'
         ];
         const insertVals = [
             nom, email, hashedPassword, nom_boutique, province,
@@ -119,7 +119,7 @@ router.post('/', async (req, res) => {
             plan || 'Gratuit', 'actif', // e-Vend Studio : aucune approbation admin requise, compte actif dès l'inscription
             date_inscription || new Date().toISOString().split('T')[0],
             0, 0, 0,
-            false, tokenVerifEmail, expirationVerifEmail
+            false, tokenVerifEmail, expirationVerifEmail, false
         ];
 
         const optionalCols = [
@@ -174,22 +174,9 @@ router.post('/', async (req, res) => {
              JSON.stringify({ seller_id: vendeur.seller_id, nom, nom_boutique, statut: 'actif' }), 'info']
         ).catch(e => console.error('Erreur log inscription:', e));
 
-        // ── Démarrage automatique de l'essai gratuit 14 jours + email de bienvenue (#69) ──
-        // Ne doit JAMAIS faire échouer l'inscription : erreurs seulement loguées.
-        try {
-            const { forfait_id } = req.body; // optionnel, si le formulaire d'inscription en propose un
-            await demarrerEssaiPourGestionnaire(nouveauId, forfait_id || null);
-
-            if (envoyerEmailModele) {
-                envoyerEmailModele(69, vendeur.email, {
-                    nom: vendeur.nom,
-                    nom_boutique: vendeur.nom_boutique,
-                    seller_id: vendeur.seller_id,
-                }).catch(e => console.error('Erreur envoi email #69 (bienvenue/essai):', e.message));
-            }
-        } catch (e) {
-            console.error('⚠️ Erreur démarrage essai automatique pour', vendeur.seller_id, ':', e.message);
-        }
+        // ── L'essai gratuit démarre seulement à la première vérification d'email ──
+        // (voir GET /verifier-email/:token) — pas ici, pour ne pas faire courir
+        // le délai de 14 jours pendant que le compte est encore verrouillé.
 
         // ── Courriel de vérification d'adresse (#3) — ne doit jamais faire échouer l'inscription ──
         if (envoyerEmailModele) {
@@ -211,7 +198,8 @@ router.post('/', async (req, res) => {
             vendeur: {
                 id: vendeur.id, seller_id: vendeur.seller_id, nom: vendeur.nom,
                 email: vendeur.email, boutique: vendeur.nom_boutique, nom_boutique: vendeur.nom_boutique,
-                statut: vendeur.statut, plan: vendeur.plan, email_verifie: false,
+                statut: vendeur.statut, plan: vendeur.plan, email_verifie: false, premiere_verification_faite: false,
+                email_verification_expire: expirationVerifEmail,
                 role: 'gestionnaire',
             },
         });
@@ -226,7 +214,8 @@ router.get('/verifier-email/:token', async (req, res) => {
     try {
         const { token } = req.params;
         const result = await pool.query(
-            `SELECT id, email_verification_expire FROM gestionnaires WHERE email_verification_token = $1`,
+            `SELECT id, email, nom, nom_boutique, seller_id, email_verification_expire, premiere_verification_faite
+             FROM gestionnaires WHERE email_verification_token = $1`,
             [token]
         );
         if (result.rows.length === 0) {
@@ -236,11 +225,43 @@ router.get('/verifier-email/:token', async (req, res) => {
         if (g.email_verification_expire && new Date(g.email_verification_expire) < new Date()) {
             return res.status(400).json({ success: false, error: 'Ce lien de vérification a expiré. Demandez-en un nouveau depuis votre tableau de bord.' });
         }
+
+        const premierePassage = !g.premiere_verification_faite;
+
         await pool.query(
-            `UPDATE gestionnaires SET email_verifie = true, email_verification_token = NULL, email_verification_expire = NULL WHERE id = $1`,
+            `UPDATE gestionnaires
+             SET email_verifie = true, email_verification_token = NULL, email_verification_expire = NULL,
+                 premiere_verification_faite = true
+             WHERE id = $1`,
             [g.id]
         );
-        res.json({ success: true, message: 'Adresse courriel vérifiée avec succès !' });
+
+        if (premierePassage) {
+            // ── Première vérification de la vie du compte : démarrer l'essai + bienvenue (#1) ──
+            // Ne doit jamais faire échouer la vérification : erreurs seulement loguées.
+            try {
+                await demarrerEssaiPourGestionnaire(g.id, null);
+            } catch (e) {
+                console.error('⚠️ Erreur démarrage essai (après vérification) pour', g.seller_id, ':', e.message);
+            }
+            if (envoyerEmailModele) {
+                envoyerEmailModele(1, g.email, {
+                    nom_vendeur: g.nom,
+                    nom_boutique_vendeur: g.nom_boutique,
+                    plan_actuel: 'Gratuit',
+                    lien_dashboard: `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/dashboard`,
+                }).catch(e => console.error('Erreur envoi email #1 (bienvenue):', e.message));
+            }
+        } else {
+            // ── Reconfirmation après changement d'email sur un compte déjà actif ──
+            // Si le site avait été suspendu faute de reconfirmation dans les 48h, on le relève.
+            await pool.query(
+                `UPDATE sites SET site_suspendu_email = false, updated_at = NOW() WHERE gestionnaire_id = $1`,
+                [g.id]
+            ).catch(e => console.error('Erreur levée suspension site:', e.message));
+        }
+
+        res.json({ success: true, message: 'Adresse courriel vérifiée avec succès !', premiere_verification: premierePassage });
     } catch (err) {
         console.error('Erreur GET /api/gestionnaires/verifier-email/:token:', err);
         res.status(500).json({ success: false, error: 'Erreur serveur.' });

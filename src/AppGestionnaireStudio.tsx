@@ -178,6 +178,8 @@ export interface GestionnaireUser {
   plan?:            string;
   site_template_id?: string;
   email_verifie?:   boolean;
+  premiere_verification_faite?: boolean;
+  email_verification_expire?: string;
 }
 
 interface StatsVendeur {
@@ -330,6 +332,17 @@ interface AppGestionnaireProps {
   gestionnaireUser?: GestionnaireUser | null;
 }
 
+function formaterDeadlineFr(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long' });
+    const heure = d.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+    return `${date} à ${heure}`;
+  } catch {
+    return '';
+  }
+}
+
 function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = false }: AppGestionnaireProps) {
   const getToken = () => localStorage.getItem('token');
 
@@ -433,6 +446,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [renvoiEnCours, setRenvoiEnCours] = useState(false);
   const [renvoiMessage, setRenvoiMessage] = useState<string | null>(null);
   const [renvoiCooldown, setRenvoiCooldown] = useState(0);
+  const [deadlineVerifEmail, setDeadlineVerifEmail] = useState<string | null>(gestionnaire.email_verification_expire || null);
 
   // Rafraîchit l'état email_verifie depuis le serveur (au montage + au retour sur l'onglet),
   // pour que la bannière disparaisse même si la vérification a eu lieu dans un autre onglet.
@@ -443,7 +457,14 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data && typeof data.email_verifie === 'boolean') {
-          setGestionnaire(prev => ({ ...prev, email_verifie: data.email_verifie }));
+          setGestionnaire(prev => ({
+            ...prev,
+            email_verifie: data.email_verifie,
+            premiere_verification_faite: data.premiere_verification_faite,
+          }));
+        }
+        if (data?.email_verification_expire) {
+          setDeadlineVerifEmail(data.email_verification_expire);
         }
       })
       .catch(() => {});
@@ -1364,7 +1385,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         />
       );
     }
-        if (pageActive === 'studio-domaine') return <MonDomaine gestionnaireId={gestionnaire.id} emailVerifie={gestionnaire.email_verifie !== false} />;
+        if (pageActive === 'studio-domaine') return <MonDomaine gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-import-evend') return <ImportEvend gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-config-pages') return <ConfigMesPagesSimplisse    gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-plan')         return <SimplissePlan              gestionnaireId={gestionnaire.id} />;
@@ -1489,6 +1510,53 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
 
   return (
     <>
+      {gestionnaire.premiere_verification_faite === false && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 99999,
+          background: 'rgba(10,10,10,0.92)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
+        }}>
+          <div style={{
+            background: '#fff', borderRadius: '20px', padding: '40px 32px',
+            maxWidth: '440px', width: '100%', textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 18 }}>📧</div>
+            <h2 style={{ margin: '0 0 10px', fontSize: '19px', fontWeight: 800, color: '#1a2332' }}>
+              Confirmez votre adresse courriel
+            </h2>
+            <p style={{ margin: '0 0 24px', fontSize: '14px', color: '#64748b', lineHeight: 1.6 }}>
+              Un courriel a été envoyé à <strong>{gestionnaire.email}</strong>. Cliquez sur le lien
+              qu'il contient pour accéder à votre tableau de bord — c'est nécessaire une seule fois,
+              avant de commencer.
+            </p>
+            <button
+              onClick={renvoyerVerificationEmail}
+              disabled={renvoiEnCours || renvoiCooldown > 0}
+              style={{
+                width: '100%', padding: '12px', marginBottom: '12px',
+                background: (renvoiEnCours || renvoiCooldown > 0) ? '#9ca3af' : 'linear-gradient(135deg, #c9a96e, #a07840)',
+                border: 'none', borderRadius: '10px', color: '#fff', fontWeight: 700, fontSize: '14px',
+                cursor: (renvoiEnCours || renvoiCooldown > 0) ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {renvoiEnCours ? '⏳ Envoi...' : renvoiCooldown > 0 ? `Renvoyer (${renvoiCooldown}s)` : '📧 Renvoyer le courriel'}
+            </button>
+            {renvoiMessage && <p style={{ margin: '0 0 12px', fontSize: '13px', color: renvoiMessage.startsWith('✅') ? '#16a34a' : '#dc2626' }}>{renvoiMessage}</p>}
+            <button
+              onClick={rafraichirStatutEmail}
+              style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid #e2e8f0', borderRadius: '10px', color: '#64748b', fontWeight: 600, fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}
+            >
+              🔄 J'ai vérifié, actualiser
+            </button>
+            {onLogout && (
+              <button onClick={onLogout} style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+                Se déconnecter
+              </button>
+            )}
+          </div>
+        </div>
+      )}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
         html, body { margin: 0; padding: 0; }
@@ -1708,7 +1776,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
               {banniereVendeurMessage}
             </div>
           )}
-          {gestionnaire.email_verifie === false && (
+          {gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false && (
             <div style={{
               position: 'fixed',
               top: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0)}px`,
@@ -1719,7 +1787,10 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
               gap: '10px', fontSize: '13px', fontWeight: 600, padding: '8px 16px', textAlign: 'center',
               transition: 'left 0.3s ease',
             }}>
-              <span>🔒 Votre adresse courriel n'est pas vérifiée — vous ne pouvez pas mettre votre site en ligne tant qu'elle ne l'est pas.</span>
+              <span>
+                🔒 Vous devez confirmer votre nouvelle adresse courriel
+                {deadlineVerifEmail ? ` avant le ${formaterDeadlineFr(deadlineVerifEmail)}` : ''} — passé ce délai, votre site sera automatiquement suspendu.
+              </span>
               <button
                 onClick={renvoyerVerificationEmail}
                 disabled={renvoiEnCours || renvoiCooldown > 0}
@@ -1737,10 +1808,10 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           <BandeauEssai
             gestionnaireId={gestionnaire.id}
             isMobile={isMobile}
-            offsetTop={56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0)}
+            offsetTop={56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0)}
             onHauteur={setHauteurBandeauEssai}
           />
-          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0) + hauteurBandeauEssai}px`, backgroundColor: pageActive === 'studio-choisir-template' ? '#0d0d12' : undefined }}>
+          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0) + hauteurBandeauEssai}px`, backgroundColor: pageActive === 'studio-choisir-template' ? '#0d0d12' : undefined }}>
             {renderPage()}
           </div>
           <div className="footer-fixed" style={footerFixedStyle}>{footerText}</div>

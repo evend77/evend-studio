@@ -307,13 +307,15 @@ export default function InscriptionGestionnaire({
               </p>
             </div>
 
-            {/* Bannière pending */}
+            {/* Vérification de courriel requise */}
             <div style={S.pendingBox}>
               <p style={{ color:'#fbbf24', fontSize:'13px', fontWeight:'700', margin:'0 0 4px 0' }}>
-                ⏳ En attente d'approbation
+                📧 Vérifiez votre adresse courriel
               </p>
               <p style={{ color:'rgba(251,191,36,0.8)', fontSize:'12px', margin:0 }}>
-                Votre compte est en cours de vérification par l'équipe e-Vend Studio. Vous recevrez une confirmation sous 24–48h.
+                Un courriel de confirmation vient de vous être envoyé à <strong>{form.email}</strong>.
+                Cliquez sur le lien qu'il contient pour activer l'accès à votre tableau de bord —
+                c'est une étape obligatoire, une seule fois.
               </p>
             </div>
 

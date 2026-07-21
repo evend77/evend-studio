@@ -107,7 +107,7 @@ router.get('/domaine-perso/public/:domaine', async (req, res) => {
     const domaine = decodeURIComponent(req.params.domaine || '').toLowerCase().trim();
 
     const result = await pool.query(
-      `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie,
+      `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie, s.site_suspendu_email,
               g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description,
               d.statut AS domaine_statut
        FROM sites s
@@ -133,7 +133,11 @@ router.get('/domaine-perso/public/:domaine', async (req, res) => {
       });
     }
 
-    return res.json({ success: true, ...result.rows[0] });
+    return res.json({
+      success: true,
+      ...result.rows[0],
+      site_suspendu: result.rows[0].site_suspendu_email === true,
+    });
   } catch (err) {
     console.error('GET /studio/sites/domaine-perso/public/:domaine', err);
     return res.status(500).json({ success: false, error: err.message });
@@ -154,7 +158,7 @@ router.get('/sous-domaine/public/:slug', async (req, res) => {
     const slug = (req.params.slug || '').toLowerCase().trim();
 
     const result = await pool.query(
-      `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie,
+      `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie, s.site_suspendu_email,
               g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description
        FROM sites s
        JOIN gestionnaires g ON g.id = s.gestionnaire_id
@@ -167,7 +171,11 @@ router.get('/sous-domaine/public/:slug', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Aucun site trouvé pour ce sous-domaine.' });
     }
 
-    return res.json({ success: true, ...result.rows[0] });
+    return res.json({
+      success: true,
+      ...result.rows[0],
+      site_suspendu: result.rows[0].site_suspendu_email === true,
+    });
   } catch (err) {
     console.error('GET /studio/sites/sous-domaine/public/:slug', err);
     return res.status(500).json({ success: false, error: err.message });

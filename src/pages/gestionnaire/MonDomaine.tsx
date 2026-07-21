@@ -4,7 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import GuideDomaine from './GuideDomaine';
 
-interface Props { gestionnaireId: number; emailVerifie?: boolean; }
+interface Props { gestionnaireId: number; }
 
 interface DomaineAchete {
   id: number;
@@ -27,7 +27,7 @@ interface ResultatExtension {
   prix_total: number | null;
 }
 
-export default function MonDomaine({ gestionnaireId, emailVerifie = true }: Props) {
+export default function MonDomaine({ gestionnaireId }: Props) {
   const [guideOuvert, setGuideOuvert] = useState(false);
   const [sousDomaine, setSousDomaine] = useState('');
   const [domainePerso, setDomainePerso] = useState('');
@@ -198,10 +198,6 @@ export default function MonDomaine({ gestionnaireId, emailVerifie = true }: Prop
 
   // ── Acheter un domaine précis (choisi parmi les résultats multi-extensions) ──
   const acheterDomaine = async (domainComplet: string) => {
-    if (!emailVerifie) {
-      setMessageAchat({ type: 'error', texte: '🔒 Vérifiez votre adresse courriel avant d\'acheter un domaine. Consultez la bannière en haut de votre tableau de bord.' });
-      return;
-    }
     setDomaineEnAchat(domainComplet);
     setMessageAchat(null);
 
@@ -240,14 +236,6 @@ export default function MonDomaine({ gestionnaireId, emailVerifie = true }: Prop
   // ── Sauvegarder les domaines existants ─────────────────────────────────────
   const handleSave = async () => {
     setMessageErreur(null);
-
-    // Bloquer si l'adresse courriel n'est pas encore vérifiée
-    if (!emailVerifie) {
-      setMessageErreur('🔒 Vérifiez votre adresse courriel avant de mettre votre site en ligne. Consultez la bannière en haut de votre tableau de bord pour renvoyer le lien de vérification.');
-      setSauvegarde('err');
-      setTimeout(() => setSauvegarde('idle'), 4000);
-      return;
-    }
 
     // Bloquer localement si on sait déjà que le sous-domaine est pris/invalide
     if (sousDomaine && verifSousDomaine !== 'dispo' && verifSousDomaine !== 'idle') {
@@ -408,26 +396,6 @@ export default function MonDomaine({ gestionnaireId, emailVerifie = true }: Prop
 
       {guideOuvert && <GuideDomaine onFermer={() => setGuideOuvert(false)} />}
 
-      {!emailVerifie && (
-        <div style={{
-          display: 'flex', gap: 12, alignItems: 'flex-start',
-          background: '#fef2f2', border: '1.5px solid #ef4444', borderRadius: 12,
-          padding: '16px 20px', marginBottom: 28,
-        }}>
-          <span style={{ fontSize: 22, lineHeight: 1 }}>🔒</span>
-          <div>
-            <p style={{ margin: 0, fontWeight: 700, color: '#991b1b', fontSize: 14 }}>
-              Votre courriel n'est pas encore vérifié
-            </p>
-            <p style={{ margin: '4px 0 0', fontSize: 13, color: '#991b1b', lineHeight: 1.5 }}>
-              Vous pouvez explorer et configurer cette page, mais vous ne pourrez pas acheter un domaine
-              ou activer votre sous-domaine tant que votre adresse courriel n'est pas confirmée.
-              Consultez la bannière en haut du tableau de bord pour renvoyer le lien de vérification.
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* ── SECTION 1 : ACHETER UN DOMAINE ── */}
       <div style={{ 
         background: 'linear-gradient(135deg, #f0f4ff 0%, #fff 100%)', 
@@ -567,22 +535,21 @@ export default function MonDomaine({ gestionnaireId, emailVerifie = true }: Prop
                 {r.disponible && (
                   <button
                     onClick={() => acheterDomaine(r.domaine)}
-                    disabled={domaineEnAchat !== null || !emailVerifie}
-                    title={!emailVerifie ? 'Vérifiez votre adresse courriel avant d\'acheter un domaine.' : undefined}
+                    disabled={domaineEnAchat !== null}
                     style={{
                       padding: '10px 22px',
-                      background: !emailVerifie ? '#9ca3af' : '#10b981',
+                      background: '#10b981',
                       border: 'none',
                       borderRadius: 8,
                       color: '#fff',
                       fontWeight: 700,
                       fontSize: 13,
-                      cursor: (domaineEnAchat !== null || !emailVerifie) ? 'not-allowed' : 'pointer',
+                      cursor: domaineEnAchat !== null ? 'not-allowed' : 'pointer',
                       opacity: (domaineEnAchat !== null && domaineEnAchat !== r.domaine) ? 0.5 : 1,
                       whiteSpace: 'nowrap'
                     }}
                   >
-                    {!emailVerifie ? '🔒 Courriel non vérifié' : domaineEnAchat === r.domaine ? '⏳...' : '🛒 Acheter'}
+                    {domaineEnAchat === r.domaine ? '⏳...' : '🛒 Acheter'}
                   </button>
                 )}
               </div>
@@ -915,18 +882,16 @@ export default function MonDomaine({ gestionnaireId, emailVerifie = true }: Prop
 
       {/* ── BOUTON SAUVEGARDER ── TOUT EN BAS */}
       <button 
-        onClick={handleSave}
-        disabled={!emailVerifie}
-        title={!emailVerifie ? 'Vérifiez votre adresse courriel avant de mettre votre site en ligne.' : undefined}
+        onClick={handleSave} 
         style={{ 
           padding: '12px 32px', 
-          background: !emailVerifie ? '#9ca3af' : sauvegarde === 'ok' ? '#10b981' : sauvegarde === 'err' ? '#dc2626' : '#c9a96e', 
+          background: sauvegarde === 'ok' ? '#10b981' : sauvegarde === 'err' ? '#dc2626' : '#c9a96e', 
           border: 'none', 
           borderRadius: 8, 
           color: '#fff', 
           fontWeight: 600, 
           fontSize: 15, 
-          cursor: !emailVerifie ? 'not-allowed' : 'pointer', 
+          cursor: 'pointer', 
           transition: 'background .3s',
           width: '100%',
           maxWidth: 300,
@@ -934,7 +899,7 @@ export default function MonDomaine({ gestionnaireId, emailVerifie = true }: Prop
           margin: '0 auto 24px'
         }}
       >
-        {!emailVerifie ? '🔒 Courriel non vérifié' : sauvegarde === 'ok' ? '✅ Sauvegardé!' : sauvegarde === 'err' ? '❌ Erreur' : '💾 Sauvegarder les modifications'}
+        {sauvegarde === 'ok' ? '✅ Sauvegardé!' : sauvegarde === 'err' ? '❌ Erreur' : '💾 Sauvegarder les modifications'}
       </button>
 
       {/* ── FOOTER ── */}

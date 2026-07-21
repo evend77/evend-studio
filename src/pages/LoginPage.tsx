@@ -18,7 +18,6 @@ interface TabConfig {
   title: string;
   subtitle: string;
   features: string[];
-  action: string;
   signupLabel?: string;
   signupUrl?: string;
 }
@@ -40,9 +39,8 @@ const TABS: TabConfig[] = [
       'Rapports financiers détaillés',
       'Messagerie intégrée',
     ],
-    action: 'index.php?p=login_process&type=gestionnaire',
     signupLabel: "S'inscrire comme gestionnaire",
-    signupUrl: '/register',
+    signupUrl: '/inscription',
   },
   {
     id: 'administration',
@@ -59,7 +57,6 @@ const TABS: TabConfig[] = [
       'Rapports et statistiques',
       'Configuration système',
     ],
-    action: 'index.php?p=login_process&type=admin',
   },
 ];
 
@@ -1042,7 +1039,7 @@ export default function LoginPage({
   const handleSignupClick = (e: React.MouseEvent, t: TabConfig) => {
     // Rediriger vers la page d'inscription
     e.preventDefault();
-    window.location.href = '/register';
+    window.location.href = '/inscription';
   };
 
   // Succès 2FA
