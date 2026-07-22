@@ -21,6 +21,7 @@ import MonDomaine            from './pages/gestionnaire/MonDomaine';
 import DomaineSucces         from './pages/DomaineSucces';
 import DomaineAnnule         from './pages/DomaineAnnule';
 import PageVerifierEmail     from './pages/PageVerifierEmail';
+import PageReinitialiserMotDePasse from './pages/PageReinitialiserMotDePasse';
 import SiteSuspendu          from './pages/SiteSuspendu';
 import SiteMaintenance       from './pages/SiteMaintenance';
 // 👇 NOUVEAUX IMPORTS POUR COMMANDITAIRE
@@ -187,6 +188,7 @@ export default function Main() {
         <Route path="/templates/:id" element={<PageTemplateDetail />} />
         <Route path="/site-preview" element={<SitePreview />} />
         <Route path="/verifier-email" element={<PageVerifierEmail />} />
+        <Route path="/reinitialiser-mot-de-passe" element={<PageReinitialiserMotDePasse />} />
         <Route path="/paiement"          element={<PagePaiement mode="payer" />} />
         <Route path="/paiement-confirme" element={<PagePaiement mode="confirme" />} />
         <Route path="/paiement-annule"   element={<PagePaiement mode="annule" />} />

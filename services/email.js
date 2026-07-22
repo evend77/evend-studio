@@ -224,6 +224,14 @@ const TEMPLATES = {
       '#15803d'
     ),
   },
+  7: {
+    sujet: 'Réinitialisation de votre mot de passe — e-Vend Studio',
+    html: baseHTML(
+      'Réinitialisation de votre mot de passe — e-Vend Studio',
+      `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Vous avez demandé la réinitialisation de votre mot de passe.</p><a href='{$lien_reinitialisation}' class='btn'>🔑 Créer un nouveau mot de passe</a><p style='font-size:11px;color:#9ca3af;'>Lien valide 24h. Si vous n'êtes pas à l'origine de cette demande, ignorez ce courriel.</p></div>`,
+      '#7c3aed'
+    ),
+  },
   9: {
     sujet: 'Votre code de connexion e-Vend',
     html: baseHTML(

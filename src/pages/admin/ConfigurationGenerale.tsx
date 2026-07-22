@@ -656,6 +656,11 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
   const [groupingCustomFields, setGroupingCustomFields] = useState(false);
   const [f2aAdminActif, setF2aAdminActif] = useState(false);
   const [f2aAdminSaving, setF2aAdminSaving] = useState(false);
+  const [mdpActuel, setMdpActuel] = useState('');
+  const [mdpNouveau, setMdpNouveau] = useState('');
+  const [mdpConfirmation, setMdpConfirmation] = useState('');
+  const [mdpSaving, setMdpSaving] = useState(false);
+  const [mdpMessage, setMdpMessage] = useState<{ texte: string; erreur: boolean } | null>(null);
   const [googleTranslation, setGoogleTranslation] = useState(false);
   const [translationPanel, setTranslationPanel] = useState('both');
   const [rtlAlignment, setRtlAlignment] = useState(false);
@@ -749,6 +754,31 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
       // pas de toast dédié ici — le toggle revient visuellement à son état précédent
     } finally {
       setF2aAdminSaving(false);
+    }
+  };
+
+  const changerMotDePasseAdmin = async () => {
+    setMdpMessage(null);
+    if (!mdpActuel || !mdpNouveau) { setMdpMessage({ texte: 'Les deux champs sont requis.', erreur: true }); return; }
+    if (mdpNouveau.length < 8) { setMdpMessage({ texte: 'Le nouveau mot de passe doit contenir au moins 8 caractères.', erreur: true }); return; }
+    if (mdpNouveau !== mdpConfirmation) { setMdpMessage({ texte: 'Les mots de passe ne correspondent pas.', erreur: true }); return; }
+
+    setMdpSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/admin/config/2fa/mot-de-passe', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ mot_de_passe_actuel: mdpActuel, nouveau_mot_de_passe: mdpNouveau }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erreur.');
+      setMdpMessage({ texte: 'Mot de passe modifié avec succès !', erreur: false });
+      setMdpActuel(''); setMdpNouveau(''); setMdpConfirmation('');
+    } catch (e: any) {
+      setMdpMessage({ texte: e.message || 'Erreur lors du changement.', erreur: true });
+    } finally {
+      setMdpSaving(false);
     }
   };
 
@@ -3480,6 +3510,52 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
             <Toggle actif={f2aAdminActif} onChange={toggleF2aAdmin} />
           </ParamLigne>
           {f2aAdminSaving && <p style={{ fontSize: '11px', color: T.textLight, margin: '8px 0 0' }}>⏳ Mise à jour…</p>}
+        </Section>
+
+        <Section titre="Changer mon mot de passe" icon="🔑">
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: T.textLight, marginBottom: '6px', textTransform: 'uppercase' }}>
+              Mot de passe actuel
+            </label>
+            <input
+              type="password" value={mdpActuel} onChange={e => setMdpActuel(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: `1px solid ${T.border}`, borderRadius: '8px', fontSize: '14px' }}
+            />
+          </div>
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: T.textLight, marginBottom: '6px', textTransform: 'uppercase' }}>
+              Nouveau mot de passe
+            </label>
+            <input
+              type="password" value={mdpNouveau} onChange={e => setMdpNouveau(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: `1px solid ${T.border}`, borderRadius: '8px', fontSize: '14px' }}
+            />
+          </div>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: T.textLight, marginBottom: '6px', textTransform: 'uppercase' }}>
+              Confirmer le nouveau mot de passe
+            </label>
+            <input
+              type="password" value={mdpConfirmation} onChange={e => setMdpConfirmation(e.target.value)}
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: `1px solid ${T.border}`, borderRadius: '8px', fontSize: '14px' }}
+            />
+          </div>
+          {mdpMessage && (
+            <p style={{ fontSize: '13px', color: mdpMessage.erreur ? '#dc2626' : '#16a34a', margin: '0 0 14px' }}>
+              {mdpMessage.erreur ? '❌' : '✅'} {mdpMessage.texte}
+            </p>
+          )}
+          <button
+            onClick={changerMotDePasseAdmin}
+            disabled={mdpSaving}
+            style={{
+              padding: '10px 22px', background: mdpSaving ? '#cbd5e1' : T.accent, color: '#fff',
+              border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700,
+              cursor: mdpSaving ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {mdpSaving ? '⏳ Envoi…' : '💾 Changer le mot de passe'}
+          </button>
         </Section>
       </div>
     </div>

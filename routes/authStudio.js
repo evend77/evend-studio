@@ -300,6 +300,90 @@ router.get('/verify', async (req, res) => {
 });
 
 // ─── POST /api/auth/mot-de-passe-oublie ──────────────────────────────────────
+// ─── POST /api/auth/forgot-password ───────────────────────────────────────────
+// Body : { email, userType: 'gestionnaire' | 'administration' }
+// Toujours répondre pareil, que le courriel existe ou non (ne pas révéler
+// si un compte existe) — mais générer et envoyer un vrai lien quand il existe.
+router.post('/forgot-password', async (req, res) => {
+  const { email, userType } = req.body;
+  if (!email || !userType) {
+    return res.status(400).json({ message: 'Courriel requis.' });
+  }
+
+  const REPONSE_GENERIQUE = { success: true, message: 'Si ce courriel existe, un lien de réinitialisation vous a été envoyé.' };
+
+  try {
+    const table = userType === 'administration' ? 'admins' : 'gestionnaires';
+    const result = await pool.query(`SELECT id, nom, email FROM ${table} WHERE email = $1`, [email.toLowerCase()]);
+
+    if (result.rows.length === 0) {
+      // Ne pas révéler que le compte n'existe pas — même réponse que le succès.
+      return res.json(REPONSE_GENERIQUE);
+    }
+    const compte = result.rows[0];
+
+    const token = genererCodeOtp() + crypto.randomBytes(16).toString('hex'); // token plus long qu'un simple OTP
+    const expire = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    await pool.query(
+      `UPDATE ${table} SET reset_token = $1, reset_token_expire = $2 WHERE id = $3`,
+      [token, expire, compte.id]
+    );
+
+    if (envoyerEmailModele) {
+      const type = userType === 'administration' ? 'admin' : 'gestionnaire';
+      const lien = `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/reinitialiser-mot-de-passe?token=${token}&type=${type}`;
+      envoyerEmailModele(7, compte.email, {
+        nom_gestionnaire: compte.nom,
+        lien_reinitialisation: lien,
+      }).catch(e => console.error('Erreur envoi email #7 (réinitialisation):', e.message));
+    }
+
+    return res.json(REPONSE_GENERIQUE);
+  } catch (err) {
+    console.error('Erreur /api/auth/forgot-password:', err);
+    return res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// ─── POST /api/auth/reset-password ────────────────────────────────────────────
+// Body : { token, type: 'admin' | 'gestionnaire', nouveau_mot_de_passe }
+router.post('/reset-password', async (req, res) => {
+  const { token, type, nouveau_mot_de_passe } = req.body;
+  if (!token || !type || !nouveau_mot_de_passe) {
+    return res.status(400).json({ message: 'Champs manquants.' });
+  }
+  if (nouveau_mot_de_passe.length < 8) {
+    return res.status(400).json({ message: 'Le mot de passe doit contenir au moins 8 caractères.' });
+  }
+
+  try {
+    const table = type === 'admin' ? 'admins' : 'gestionnaires';
+    const result = await pool.query(
+      `SELECT id, reset_token_expire FROM ${table} WHERE reset_token = $1`,
+      [token]
+    );
+    if (result.rows.length === 0) {
+      return res.status(400).json({ message: 'Lien invalide ou déjà utilisé.' });
+    }
+    const compte = result.rows[0];
+    if (!compte.reset_token_expire || new Date(compte.reset_token_expire) < new Date()) {
+      return res.status(400).json({ message: 'Ce lien a expiré. Refaites une demande.' });
+    }
+
+    const hash = await bcrypt.hash(nouveau_mot_de_passe, 12);
+    await pool.query(
+      `UPDATE ${table} SET mot_de_passe = $1, reset_token = NULL, reset_token_expire = NULL WHERE id = $2`,
+      [hash, compte.id]
+    );
+
+    res.json({ success: true, message: 'Mot de passe réinitialisé avec succès.' });
+  } catch (err) {
+    console.error('Erreur /api/auth/reset-password:', err);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
 router.post('/mot-de-passe-oublie', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ message: 'Courriel requis.' });
