@@ -12,7 +12,7 @@ type Theme  = 'compte' | 'commandes' | 'paiements' | 'produits' | 'litiges' | 'o
 
 interface Template {
   id: number; nom: string; theme: Theme;
-  destinataire: 'vendeur' | 'acheteur'; canal: Canal;
+  destinataire: 'gestionnaire' | 'acheteur'; canal: Canal;
   actif: boolean; sujet: string; html: string;
   variables: { cle: string; desc: string }[];
 }
@@ -96,9 +96,9 @@ const VC = [
   { cle: '{$lien_dashboard}', desc: 'Lien tableau de bord' },
 ];
 const VV = [
-  { cle: '{$nom_vendeur}',          desc: 'Nom complet vendeur' },
-  { cle: '{$nom_boutique_vendeur}', desc: 'Nom boutique vendeur' },
-  { cle: '{$email_vendeur}',        desc: 'Courriel vendeur' },
+  { cle: '{$nom_gestionnaire}',          desc: 'Nom complet gestionnaire' },
+  { cle: '{$nom_boutique_gestionnaire}', desc: 'Nom boutique gestionnaire' },
+  { cle: '{$email_gestionnaire}',        desc: 'Courriel gestionnaire' },
   { cle: '{$plan_actuel}',          desc: 'Plan souscrit' },
 ];
 const VA = [
@@ -114,13 +114,13 @@ const VCO = [
 ];
 
 const SUJETS: Record<number, string> = {
-  1: 'Bienvenue sur e-Vend.ca, {$nom_vendeur} ! 🎉',
+  1: 'Bienvenue sur e-Vend.ca, {$nom_gestionnaire} ! 🎉',
   2: 'Bienvenue sur e-Vend.ca, {$nom_acheteur} ! 🎉',
   3: '🔐 Vérifiez votre adresse courriel — e-Vend.ca',
-  4: '✅ Votre compte vendeur e-Vend a été approuvé !',
+  4: '✅ Votre compte gestionnaire e-Vend a été approuvé !',
   5: '⚠️ Votre compte e-Vend a été suspendu',
   6: '✅ Votre compte e-Vend a été réactivé',
-  7: '🔑 Réinitialisation de votre mot de passe vendeur',
+  7: '🔑 Réinitialisation de votre mot de passe gestionnaire',
   8: '🔑 Réinitialisation de votre mot de passe e-Vend',
   9: '🔑 Votre code de connexion e-Vend : {$code_otp}',
   10: '📢 Message de l\'administration e-Vend',
@@ -141,6 +141,7 @@ const SUJETS: Record<number, string> = {
   25: '🧾 Facture abonnement {$plan_actuel} — {$date}',
   26: '❌ Échec du virement Stripe — Action requise',
   27: '❌ Échec du virement PayPal — Action requise',
+  28: 'Votre compte e-Vend Studio a été supprimé',
   31: '✅ Votre produit "{$nom_produit}" a été approuvé !',
   32: '❌ Votre produit "{$nom_produit}" a été refusé',
   33: '⚠️ Votre produit "{$nom_produit}" a été désactivé',
@@ -168,16 +169,16 @@ const SUJETS: Record<number, string> = {
   71: '🏖️ Mode vacances activé pour votre boutique',
   72: '📅 Votre mode vacances se termine dans 2 jours',
   73: '🎉 Bienvenue de retour ! Votre boutique est réactivée',
-  74: '🏖️ La boutique "{$nom_boutique_vendeur}" est en vacances',
+  74: '🏖️ La boutique "{$nom_boutique_gestionnaire}" est en vacances',
   80: '💰 Baisse de prix ! {$product_title}',
 };
 
 const TEMPLATES_INIT: Template[] = [
   {
-    id: 1, nom: 'Bienvenue nouveau vendeur', theme: 'compte' as Theme,
-    destinataire: 'vendeur', canal: 'email', actif: true,
+    id: 1, nom: 'Bienvenue nouveau gestionnaire', theme: 'compte' as Theme,
+    destinataire: 'gestionnaire', canal: 'email', actif: true,
     sujet: SUJETS[1],
-    html: baseHTML(SUJETS[1], `<p class='greeting'>Bonjour {$nom_vendeur} 👋</p><div class='content'><p>Bienvenue sur <strong>e-Vend.ca</strong> ! Votre compte vendeur a été créé.</p><div class='box'><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_vendeur}</span></div><div class='row'><span class='lbl'>Plan</span><span class='val'>{$plan_actuel}</span></div></div><a href='{$lien_dashboard}' class='btn'>Accéder à mon tableau de bord →</a></div>`, '#1d4ed8'),
+    html: baseHTML(SUJETS[1], `<p class='greeting'>Bonjour {$nom_gestionnaire} 👋</p><div class='content'><p>Bienvenue sur <strong>e-Vend.ca</strong> ! Votre compte gestionnaire a été créé.</p><div class='box'><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_gestionnaire}</span></div><div class='row'><span class='lbl'>Plan</span><span class='val'>{$plan_actuel}</span></div></div><a href='{$lien_dashboard}' class='btn'>Accéder à mon tableau de bord →</a></div>`, '#1d4ed8'),
     variables: [
     ...VC,
     ...VV,
@@ -195,10 +196,10 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
-    id: 3, nom: 'Vérification email vendeur', theme: 'compte' as Theme,
-    destinataire: 'vendeur', canal: 'email', actif: true,
+    id: 3, nom: 'Vérification email gestionnaire', theme: 'compte' as Theme,
+    destinataire: 'gestionnaire', canal: 'email', actif: true,
     sujet: SUJETS[3],
-    html: baseHTML(SUJETS[3], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Confirmez votre adresse courriel pour activer votre compte.</p><a href='{$lien_verification}' class='btn'>✅ Confirmer mon adresse</a><p style='font-size:11px;color:#9ca3af;'>Lien valide 48h. Si vous n'avez pas créé de compte, ignorez ce message.</p></div>`, '#1d4ed8'),
+    html: baseHTML(SUJETS[3], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Confirmez votre adresse courriel pour activer votre compte.</p><a href='{$lien_verification}' class='btn'>✅ Confirmer mon adresse</a><p style='font-size:11px;color:#9ca3af;'>Lien valide 48h. Si vous n'avez pas créé de compte, ignorez ce message.</p></div>`, '#1d4ed8'),
     variables: [
     ...VC,
     ...VV,
@@ -206,40 +207,40 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
-    id: 4, nom: 'Approbation compte vendeur', theme: 'compte' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    id: 4, nom: 'Approbation compte gestionnaire', theme: 'compte' as Theme,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[4],
-    html: baseHTML(SUJETS[4], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>🎉 Votre compte vendeur est <span class='badge-ok'>APPROUVÉ</span> !</p><div class='box'><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_vendeur}</span></div><div class='row'><span class='lbl'>Plan</span><span class='val'>{$plan_actuel}</span></div></div><a href='{$lien_dashboard}' class='btn'>Commencer à vendre →</a></div>`, '#15803d'),
+    html: baseHTML(SUJETS[4], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>🎉 Votre compte gestionnaire est <span class='badge-ok'>APPROUVÉ</span> !</p><div class='box'><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_gestionnaire}</span></div><div class='row'><span class='lbl'>Plan</span><span class='val'>{$plan_actuel}</span></div></div><a href='{$lien_dashboard}' class='btn'>Commencer à vendre →</a></div>`, '#15803d'),
     variables: [
     ...VC,
     ...VV,
     ],
   },
   {
-    id: 5, nom: 'Compte vendeur suspendu', theme: 'compte' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    id: 5, nom: 'Compte gestionnaire suspendu', theme: 'compte' as Theme,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[5],
-    html: baseHTML(SUJETS[5], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre compte est <span class='badge-warn'>SUSPENDU</span> temporairement.</p><div class='box'><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_vendeur}</span></div><div class='row'><span class='lbl'>Date</span><span class='val'>{$date}</span></div></div><a href='{$lien_dashboard}' class='btn'>Contacter le support →</a></div>`, '#d97706'),
+    html: baseHTML(SUJETS[5], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre compte est <span class='badge-warn'>SUSPENDU</span> temporairement.</p><div class='box'><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_gestionnaire}</span></div><div class='row'><span class='lbl'>Date</span><span class='val'>{$date}</span></div></div><a href='{$lien_dashboard}' class='btn'>Contacter le support →</a></div>`, '#d97706'),
     variables: [
     ...VC,
     ...VV,
     ],
   },
   {
-    id: 6, nom: 'Compte vendeur réactivé', theme: 'compte' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    id: 6, nom: 'Compte gestionnaire réactivé', theme: 'compte' as Theme,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[6],
-    html: baseHTML(SUJETS[6], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre compte est <span class='badge-ok'>RÉACTIVÉ</span>.</p><a href='{$lien_dashboard}' class='btn'>Accéder à ma boutique →</a></div>`, '#15803d'),
+    html: baseHTML(SUJETS[6], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre compte est <span class='badge-ok'>RÉACTIVÉ</span>.</p><a href='{$lien_dashboard}' class='btn'>Accéder à ma boutique →</a></div>`, '#15803d'),
     variables: [
     ...VC,
     ...VV,
     ],
   },
   {
-    id: 7, nom: 'Mot de passe oublié — vendeur', theme: 'compte' as Theme,
-    destinataire: 'vendeur', canal: 'email', actif: true,
+    id: 7, nom: 'Mot de passe oublié — gestionnaire', theme: 'compte' as Theme,
+    destinataire: 'gestionnaire', canal: 'email', actif: true,
     sujet: SUJETS[7],
-    html: baseHTML(SUJETS[7], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Vous avez demandé la réinitialisation de votre mot de passe vendeur.</p><a href='{$lien_reinitialisation}' class='btn'>🔑 Créer un nouveau mot de passe</a><p style='font-size:11px;color:#9ca3af;'>Lien valide 24h.</p></div>`, '#7c3aed'),
+    html: baseHTML(SUJETS[7], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Vous avez demandé la réinitialisation de votre mot de passe gestionnaire.</p><a href='{$lien_reinitialisation}' class='btn'>🔑 Créer un nouveau mot de passe</a><p style='font-size:11px;color:#9ca3af;'>Lien valide 24h.</p></div>`, '#7c3aed'),
     variables: [
     ...VC,
     ...VV,
@@ -259,9 +260,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 9, nom: 'Code OTP — 2 facteurs', theme: 'compte' as Theme,
-    destinataire: 'vendeur', canal: 'email', actif: true,
+    destinataire: 'gestionnaire', canal: 'email', actif: true,
     sujet: SUJETS[9],
-    html: baseHTML(SUJETS[9], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre code de connexion e-Vend :</p><div class='otp'><div class='otp-code'>{$code_otp}</div><div class='otp-note'>Valide 10 minutes · Ne partagez jamais ce code</div></div><p style='font-size:11px;color:#dc2626;'>⚠️ Si vous n'avez pas tenté de vous connecter, changez votre mot de passe.</p></div>`, '#1a2332'),
+    html: baseHTML(SUJETS[9], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre code de connexion e-Vend :</p><div class='otp'><div class='otp-code'>{$code_otp}</div><div class='otp-note'>Valide 10 minutes · Ne partagez jamais ce code</div></div><p style='font-size:11px;color:#dc2626;'>⚠️ Si vous n'avez pas tenté de vous connecter, changez votre mot de passe.</p></div>`, '#1a2332'),
     variables: [
     ...VC,
     ...VV,
@@ -270,19 +271,19 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 10, nom: 'Message admin interne', theme: 'compte' as Theme,
-    destinataire: 'vendeur', canal: 'interne', actif: true,
+    destinataire: 'gestionnaire', canal: 'interne', actif: true,
     sujet: SUJETS[10],
-    html: baseHTML(SUJETS[10], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Vous avez reçu un message de l'administration e-Vend.ca.</p><a href='{$lien_dashboard}' class='btn'>📬 Lire le message →</a></div>`, '#1d4ed8'),
+    html: baseHTML(SUJETS[10], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Vous avez reçu un message de l'administration e-Vend.ca.</p><a href='{$lien_dashboard}' class='btn'>📬 Lire le message →</a></div>`, '#1d4ed8'),
     variables: [
     ...VC,
     ...VV,
     ],
   },
   {
-    id: 11, nom: 'Nouvelle commande — vendeur', theme: 'commandes' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    id: 11, nom: 'Nouvelle commande — gestionnaire', theme: 'commandes' as Theme,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[11],
-    html: baseHTML(SUJETS[11], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>🎉 Nouvelle commande sur <strong>{$nom_boutique_vendeur}</strong> !</p><div class='box'><div class='row'><span class='lbl'>N°</span><span class='val'>#{$numero_commande}</span></div><div class='row'><span class='lbl'>Date</span><span class='val'>{$date_commande}</span></div><div class='row'><span class='lbl'>Montant</span><span class='val'>{$montant_total}</span></div><div class='row'><span class='lbl'>Livraison</span><span class='val'>{$adresse_livraison}</span></div></div><a href='{$lien_dashboard}' class='btn'>Traiter cette commande →</a></div>`, '#15803d'),
+    html: baseHTML(SUJETS[11], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>🎉 Nouvelle commande sur <strong>{$nom_boutique_gestionnaire}</strong> !</p><div class='box'><div class='row'><span class='lbl'>N°</span><span class='val'>#{$numero_commande}</span></div><div class='row'><span class='lbl'>Date</span><span class='val'>{$date_commande}</span></div><div class='row'><span class='lbl'>Montant</span><span class='val'>{$montant_total}</span></div><div class='row'><span class='lbl'>Livraison</span><span class='val'>{$adresse_livraison}</span></div></div><a href='{$lien_dashboard}' class='btn'>Traiter cette commande →</a></div>`, '#15803d'),
     variables: [
     ...VC,
     ...VV,
@@ -293,14 +294,14 @@ const TEMPLATES_INIT: Template[] = [
     id: 12, nom: 'Confirmation commande — acheteur', theme: 'commandes' as Theme,
     destinataire: 'acheteur', canal: 'email', actif: true,
     sujet: SUJETS[12],
-    html: baseHTML(SUJETS[12], `<p class='greeting'>Bonjour {$nom_acheteur},</p><div class='content'><p>Merci pour votre commande sur e-Vend.ca !</p><div class='box'><div class='row'><span class='lbl'>N°</span><span class='val'>#{$numero_commande}</span></div><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_vendeur}</span></div><div class='row'><span class='lbl'>Livraison</span><span class='val'>{$methode_livraison}</span></div><div class='row'><span class='lbl'>Total TTC</span><span class='val'><strong>{$total_avec_taxes}</strong></span></div></div><a href='{$lien_dashboard}' class='btn'>Suivre ma commande →</a></div>`, '#15803d'),
+    html: baseHTML(SUJETS[12], `<p class='greeting'>Bonjour {$nom_acheteur},</p><div class='content'><p>Merci pour votre commande sur e-Vend.ca !</p><div class='box'><div class='row'><span class='lbl'>N°</span><span class='val'>#{$numero_commande}</span></div><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_gestionnaire}</span></div><div class='row'><span class='lbl'>Livraison</span><span class='val'>{$methode_livraison}</span></div><div class='row'><span class='lbl'>Total TTC</span><span class='val'><strong>{$total_avec_taxes}</strong></span></div></div><a href='{$lien_dashboard}' class='btn'>Suivre ma commande →</a></div>`, '#15803d'),
     variables: [
     ...VC,
     ...VA,
     ...VCO,
     { cle: '{$total_avec_taxes}', desc: 'Total TTC' },
     { cle: '{$methode_livraison}', desc: 'Méthode livraison' },
-    { cle: '{$nom_boutique_vendeur}', desc: 'Boutique vendeur' },
+    { cle: '{$nom_boutique_gestionnaire}', desc: 'Boutique gestionnaire' },
     ],
   },
   {
@@ -317,10 +318,10 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
-    id: 14, nom: 'Confirmation expédition — vendeur', theme: 'commandes' as Theme,
-    destinataire: 'vendeur', canal: 'interne', actif: true,
+    id: 14, nom: 'Confirmation expédition — gestionnaire', theme: 'commandes' as Theme,
+    destinataire: 'gestionnaire', canal: 'interne', actif: true,
     sujet: SUJETS[14],
-    html: baseHTML(SUJETS[14], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Confirmation d'expédition enregistrée pour la commande <strong>#{$numero_commande}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Suivi</span><span class='val'>{$numero_suivi}</span></div><div class='row'><span class='lbl'>Transporteur</span><span class='val'>{$transporteur}</span></div></div><p style='font-size:11px;color:#6b7280;'>L'acheteur a été notifié automatiquement.</p></div>`, '#0891b2'),
+    html: baseHTML(SUJETS[14], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Confirmation d'expédition enregistrée pour la commande <strong>#{$numero_commande}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Suivi</span><span class='val'>{$numero_suivi}</span></div><div class='row'><span class='lbl'>Transporteur</span><span class='val'>{$transporteur}</span></div></div><p style='font-size:11px;color:#6b7280;'>L'acheteur a été notifié automatiquement.</p></div>`, '#0891b2'),
     variables: [
     ...VC,
     ...VV,
@@ -356,9 +357,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 17, nom: 'Rappel expédition — retard', theme: 'commandes' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[17],
-    html: baseHTML(SUJETS[17], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>⚠️ La commande <strong>#{$numero_commande}</strong> n'a pas encore été expédiée.</p><div class='box'><div class='row'><span class='lbl'>Jours écoulés</span><span class='val'><span class='badge-warn'>{$jours_attente} jours</span></span></div></div><a href='{$lien_dashboard}' class='btn'>Traiter cette commande →</a></div>`, '#d97706'),
+    html: baseHTML(SUJETS[17], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>⚠️ La commande <strong>#{$numero_commande}</strong> n'a pas encore été expédiée.</p><div class='box'><div class='row'><span class='lbl'>Jours écoulés</span><span class='val'><span class='badge-warn'>{$jours_attente} jours</span></span></div></div><a href='{$lien_dashboard}' class='btn'>Traiter cette commande →</a></div>`, '#d97706'),
     variables: [
     ...VC,
     ...VV,
@@ -394,7 +395,7 @@ const TEMPLATES_INIT: Template[] = [
     id: 20, nom: 'Téléchargement mis à jour', theme: 'commandes' as Theme,
     destinataire: 'acheteur', canal: 'email', actif: true,
     sujet: SUJETS[20],
-    html: baseHTML(SUJETS[20], `<p class='greeting'>Bonjour {$nom_acheteur},</p><div class='content'><p>Votre fichier numérique a été mis à jour par <strong>{$nom_boutique_vendeur}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Produit</span><span class='val'>{$nom_produit}</span></div><div class='row'><span class='lbl'>Version</span><span class='val'><span class='badge-ok'>{$version_produit}</span></span></div></div><a href='{$lien_telechargement}' class='btn'>💾 Télécharger la mise à jour →</a></div>`, '#7c3aed'),
+    html: baseHTML(SUJETS[20], `<p class='greeting'>Bonjour {$nom_acheteur},</p><div class='content'><p>Votre fichier numérique a été mis à jour par <strong>{$nom_boutique_gestionnaire}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Produit</span><span class='val'>{$nom_produit}</span></div><div class='row'><span class='lbl'>Version</span><span class='val'><span class='badge-ok'>{$version_produit}</span></span></div></div><a href='{$lien_telechargement}' class='btn'>💾 Télécharger la mise à jour →</a></div>`, '#7c3aed'),
     variables: [
     ...VC,
     ...VA,
@@ -405,10 +406,10 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
-    id: 21, nom: 'Virement reçu — vendeur', theme: 'paiements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    id: 21, nom: 'Virement reçu — gestionnaire', theme: 'paiements' as Theme,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[21],
-    html: baseHTML(SUJETS[21], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Un virement a été effectué sur votre compte.</p><div class='box'><div class='row'><span class='lbl'>Montant</span><span class='val'><strong>{$montant_paiement}</strong></span></div><div class='row'><span class='lbl'>Référence</span><span class='val'>{$numero_facture}</span></div><div class='row'><span class='lbl'>Commission déduite</span><span class='val'>-{$montant_commission} ({$taux_commission}%)</span></div></div><a href='{$lien_dashboard}' class='btn'>Voir mes finances →</a></div>`, '#a16207'),
+    html: baseHTML(SUJETS[21], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Un virement a été effectué sur votre compte.</p><div class='box'><div class='row'><span class='lbl'>Montant</span><span class='val'><strong>{$montant_paiement}</strong></span></div><div class='row'><span class='lbl'>Référence</span><span class='val'>{$numero_facture}</span></div><div class='row'><span class='lbl'>Commission déduite</span><span class='val'>-{$montant_commission} ({$taux_commission}%)</span></div></div><a href='{$lien_dashboard}' class='btn'>Voir mes finances →</a></div>`, '#a16207'),
     variables: [
     ...VC,
     ...VV,
@@ -434,12 +435,12 @@ const TEMPLATES_INIT: Template[] = [
     id: 23, nom: "Facture d'achat — acheteur", theme: 'paiements' as Theme,
     destinataire: 'acheteur', canal: 'email', actif: true,
     sujet: SUJETS[23],
-    html: baseHTML(SUJETS[23], `<p class='greeting'>Bonjour {$nom_acheteur},</p><div class='content'><p>Votre facture pour la commande <strong>#{$numero_commande}</strong>.</p><div class='box'><div class='row'><span class='lbl'>N° Facture</span><span class='val'>{$numero_facture}</span></div><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_vendeur}</span></div><div class='row'><span class='lbl'>Sous-total</span><span class='val'>{$sous_total}</span></div><div class='row'><span class='lbl'>TPS (5%)</span><span class='val'>{$tps}</span></div><div class='row'><span class='lbl'>TVQ (9.975%)</span><span class='val'>{$tvq}</span></div><div class='row'><span class='lbl'>Total TTC</span><span class='val'><strong>{$total_avec_taxes}</strong></span></div></div><a href='{$lien_facture}' class='btn'>📄 Télécharger la facture PDF →</a></div>`, '#a16207'),
+    html: baseHTML(SUJETS[23], `<p class='greeting'>Bonjour {$nom_acheteur},</p><div class='content'><p>Votre facture pour la commande <strong>#{$numero_commande}</strong>.</p><div class='box'><div class='row'><span class='lbl'>N° Facture</span><span class='val'>{$numero_facture}</span></div><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_gestionnaire}</span></div><div class='row'><span class='lbl'>Sous-total</span><span class='val'>{$sous_total}</span></div><div class='row'><span class='lbl'>TPS (5%)</span><span class='val'>{$tps}</span></div><div class='row'><span class='lbl'>TVQ (9.975%)</span><span class='val'>{$tvq}</span></div><div class='row'><span class='lbl'>Total TTC</span><span class='val'><strong>{$total_avec_taxes}</strong></span></div></div><a href='{$lien_facture}' class='btn'>📄 Télécharger la facture PDF →</a></div>`, '#a16207'),
     variables: [
     ...VC,
     ...VA,
     { cle: '{$numero_facture}', desc: 'N° facture' },
-    { cle: '{$nom_boutique_vendeur}', desc: 'Boutique' },
+    { cle: '{$nom_boutique_gestionnaire}', desc: 'Boutique' },
     { cle: '{$sous_total}', desc: 'Sous-total' },
     { cle: '{$tps}', desc: 'TPS 5%' },
     { cle: '{$tvq}', desc: 'TVQ 9.975%' },
@@ -448,10 +449,10 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
-    id: 24, nom: 'Facture commission — vendeur', theme: 'paiements' as Theme,
-    destinataire: 'vendeur', canal: 'email', actif: true,
+    id: 24, nom: 'Facture commission — gestionnaire', theme: 'paiements' as Theme,
+    destinataire: 'gestionnaire', canal: 'email', actif: true,
     sujet: SUJETS[24],
-    html: baseHTML(SUJETS[24], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre facture de commission.</p><div class='box'><div class='row'><span class='lbl'>N° Facture</span><span class='val'>{$numero_facture}</span></div><div class='row'><span class='lbl'>Taux</span><span class='val'>{$taux_commission}%</span></div><div class='row'><span class='lbl'>Commission</span><span class='val'><strong>{$montant_commission}</strong></span></div></div><a href='{$lien_facture}' class='btn'>📄 Télécharger PDF →</a></div>`, '#a16207'),
+    html: baseHTML(SUJETS[24], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre facture de commission.</p><div class='box'><div class='row'><span class='lbl'>N° Facture</span><span class='val'>{$numero_facture}</span></div><div class='row'><span class='lbl'>Taux</span><span class='val'>{$taux_commission}%</span></div><div class='row'><span class='lbl'>Commission</span><span class='val'><strong>{$montant_commission}</strong></span></div></div><a href='{$lien_facture}' class='btn'>📄 Télécharger PDF →</a></div>`, '#a16207'),
     variables: [
     ...VC,
     ...VV,
@@ -462,10 +463,10 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
-    id: 25, nom: 'Facture abonnement — vendeur', theme: 'paiements' as Theme,
-    destinataire: 'vendeur', canal: 'email', actif: true,
+    id: 25, nom: 'Facture abonnement — gestionnaire', theme: 'paiements' as Theme,
+    destinataire: 'gestionnaire', canal: 'email', actif: true,
     sujet: SUJETS[25],
-    html: baseHTML(SUJETS[25], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre facture d'abonnement <strong>{$plan_actuel}</strong>.</p><div class='box'><div class='row'><span class='lbl'>N° Facture</span><span class='val'>{$numero_facture}</span></div><div class='row'><span class='lbl'>Période</span><span class='val'>{$date} → {$date_renouvellement}</span></div><div class='row'><span class='lbl'>Montant HT</span><span class='val'>{$montant_paiement}</span></div><div class='row'><span class='lbl'>TPS (5%)</span><span class='val'>{$tps}</span></div><div class='row'><span class='lbl'>TVQ (9.975%)</span><span class='val'>{$tvq}</span></div><div class='row'><span class='lbl'>Total TTC</span><span class='val'><strong>{$total_ttc}</strong></span></div></div><a href='{$lien_facture}' class='btn'>📄 Télécharger PDF →</a></div>`, '#a16207'),
+    html: baseHTML(SUJETS[25], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre facture d'abonnement <strong>{$plan_actuel}</strong>.</p><div class='box'><div class='row'><span class='lbl'>N° Facture</span><span class='val'>{$numero_facture}</span></div><div class='row'><span class='lbl'>Période</span><span class='val'>{$date} → {$date_renouvellement}</span></div><div class='row'><span class='lbl'>Montant HT</span><span class='val'>{$montant_paiement}</span></div><div class='row'><span class='lbl'>TPS (5%)</span><span class='val'>{$tps}</span></div><div class='row'><span class='lbl'>TVQ (9.975%)</span><span class='val'>{$tvq}</span></div><div class='row'><span class='lbl'>Total TTC</span><span class='val'><strong>{$total_ttc}</strong></span></div></div><a href='{$lien_facture}' class='btn'>📄 Télécharger PDF →</a></div>`, '#a16207'),
     variables: [
     ...VC,
     ...VV,
@@ -479,9 +480,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 26, nom: 'Erreur paiement Stripe', theme: 'paiements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[26],
-    html: baseHTML(SUJETS[26], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>⚠️ Virement Stripe échoué pour <strong>{$nom_boutique_vendeur}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Montant</span><span class='val'>{$montant_paiement}</span></div><div class='row'><span class='lbl'>Erreur</span><span class='val'><span class='badge-err'>{$code_erreur}</span></span></div></div><a href='{$lien_dashboard}' class='btn'>Vérifier mon compte Stripe →</a></div>`, '#b91c1c'),
+    html: baseHTML(SUJETS[26], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>⚠️ Virement Stripe échoué pour <strong>{$nom_boutique_gestionnaire}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Montant</span><span class='val'>{$montant_paiement}</span></div><div class='row'><span class='lbl'>Erreur</span><span class='val'><span class='badge-err'>{$code_erreur}</span></span></div></div><a href='{$lien_dashboard}' class='btn'>Vérifier mon compte Stripe →</a></div>`, '#b91c1c'),
     variables: [
     ...VC,
     ...VV,
@@ -490,9 +491,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 27, nom: 'Erreur paiement PayPal', theme: 'paiements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[27],
-    html: baseHTML(SUJETS[27], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>⚠️ Virement PayPal échoué pour <strong>{$nom_boutique_vendeur}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Montant</span><span class='val'>{$montant_paiement}</span></div><div class='row'><span class='lbl'>Raison</span><span class='val'><span class='badge-err'>{$raison_echec}</span></span></div></div><a href='{$lien_dashboard}' class='btn'>Vérifier mon compte PayPal →</a></div>`, '#b91c1c'),
+    html: baseHTML(SUJETS[27], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>⚠️ Virement PayPal échoué pour <strong>{$nom_boutique_gestionnaire}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Montant</span><span class='val'>{$montant_paiement}</span></div><div class='row'><span class='lbl'>Raison</span><span class='val'><span class='badge-err'>{$raison_echec}</span></span></div></div><a href='{$lien_dashboard}' class='btn'>Vérifier mon compte PayPal →</a></div>`, '#b91c1c'),
     variables: [
     ...VC,
     ...VV,
@@ -500,10 +501,21 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
+    id: 28, nom: 'Compte gestionnaire supprimé', theme: 'compte' as Theme,
+    destinataire: 'gestionnaire', canal: 'email', actif: true,
+    sujet: SUJETS[28],
+    html: baseHTML(SUJETS[28], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre compte gestionnaire e-Vend Studio, ainsi que toutes les données associées (site, gabarit, contenu), ont été <span class='badge-err'>SUPPRIMÉS DÉFINITIVEMENT</span> le {$date}.</p><div class='box'><div class='row'><span class='lbl'>Raison</span><span class='val'>{$raison_suppression}</span></div></div><p>Pour toute question, communiquez avec l'équipe e-Vend Studio.</p></div>`, '#991b1b'),
+    variables: [
+    ...VC,
+    { cle: '{$nom_gestionnaire}', desc: 'Nom complet gestionnaire' },
+    { cle: '{$raison_suppression}', desc: 'Raison de la suppression du compte' },
+    ],
+  },
+  {
     id: 31, nom: 'Produit approuvé', theme: 'produits' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[31],
-    html: baseHTML(SUJETS[31], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>🎉 Votre produit est <span class='badge-ok'>APPROUVÉ</span> !</p><div class='box'><div class='row'><span class='lbl'>Produit</span><span class='val'>{$nom_produit}</span></div><div class='row'><span class='lbl'>SKU</span><span class='val'>{$sku_produit}</span></div></div><a href='{$lien_produit}' class='btn'>Voir mon produit →</a></div>`, '#15803d'),
+    html: baseHTML(SUJETS[31], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>🎉 Votre produit est <span class='badge-ok'>APPROUVÉ</span> !</p><div class='box'><div class='row'><span class='lbl'>Produit</span><span class='val'>{$nom_produit}</span></div><div class='row'><span class='lbl'>SKU</span><span class='val'>{$sku_produit}</span></div></div><a href='{$lien_produit}' class='btn'>Voir mon produit →</a></div>`, '#15803d'),
     variables: [
     ...VC,
     ...VV,
@@ -514,9 +526,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 32, nom: 'Produit refusé', theme: 'produits' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[32],
-    html: baseHTML(SUJETS[32], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre produit est <span class='badge-err'>REFUSÉ</span>.</p><div class='box'><div class='row'><span class='lbl'>Produit</span><span class='val'>{$nom_produit}</span></div><div class='row'><span class='lbl'>Motif</span><span class='val'>{$motif_refus}</span></div></div><a href='{$lien_dashboard}' class='btn'>Modifier et soumettre →</a></div>`, '#b91c1c'),
+    html: baseHTML(SUJETS[32], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre produit est <span class='badge-err'>REFUSÉ</span>.</p><div class='box'><div class='row'><span class='lbl'>Produit</span><span class='val'>{$nom_produit}</span></div><div class='row'><span class='lbl'>Motif</span><span class='val'>{$motif_refus}</span></div></div><a href='{$lien_dashboard}' class='btn'>Modifier et soumettre →</a></div>`, '#b91c1c'),
     variables: [
     ...VC,
     ...VV,
@@ -527,9 +539,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 33, nom: 'Produit désactivé', theme: 'produits' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[33],
-    html: baseHTML(SUJETS[33], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre produit est <span class='badge-warn'>DÉSACTIVÉ</span>.</p><div class='box'><div class='row'><span class='lbl'>Produit</span><span class='val'>{$nom_produit}</span></div><div class='row'><span class='lbl'>Raison</span><span class='val'>{$raison_desactivation}</span></div></div><a href='{$lien_dashboard}' class='btn'>Corriger et réactiver →</a></div>`, '#d97706'),
+    html: baseHTML(SUJETS[33], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre produit est <span class='badge-warn'>DÉSACTIVÉ</span>.</p><div class='box'><div class='row'><span class='lbl'>Produit</span><span class='val'>{$nom_produit}</span></div><div class='row'><span class='lbl'>Raison</span><span class='val'>{$raison_desactivation}</span></div></div><a href='{$lien_dashboard}' class='btn'>Corriger et réactiver →</a></div>`, '#d97706'),
     variables: [
     ...VC,
     ...VV,
@@ -539,9 +551,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 34, nom: 'Stock faible', theme: 'produits' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[34],
-    html: baseHTML(SUJETS[34], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>⚠️ Stock faible pour <strong>{$nom_produit}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Qté restante</span><span class='val'><span class='badge-warn'>{$quantite_restante} unités</span></span></div><div class='row'><span class='lbl'>Seuil</span><span class='val'>{$seuil_alerte} unités</span></div></div><a href='{$lien_produit}' class='btn'>Réapprovisionner →</a></div>`, '#d97706'),
+    html: baseHTML(SUJETS[34], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>⚠️ Stock faible pour <strong>{$nom_produit}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Qté restante</span><span class='val'><span class='badge-warn'>{$quantite_restante} unités</span></span></div><div class='row'><span class='lbl'>Seuil</span><span class='val'>{$seuil_alerte} unités</span></div></div><a href='{$lien_produit}' class='btn'>Réapprovisionner →</a></div>`, '#d97706'),
     variables: [
     ...VC,
     ...VV,
@@ -553,9 +565,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 35, nom: 'Publication future — rappel veille', theme: 'produits' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[35],
-    html: baseHTML(SUJETS[35], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>📅 Votre produit <strong>{$nom_produit}</strong> sera publié demain !</p><div class='box'><div class='row'><span class='lbl'>Date</span><span class='val'>{$date_publication}</span></div><div class='row'><span class='lbl'>Heure</span><span class='val'>{$heure_publication}</span></div></div><a href='{$lien_produit}' class='btn'>Vérifier mon produit →</a></div>`, '#c2410c'),
+    html: baseHTML(SUJETS[35], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>📅 Votre produit <strong>{$nom_produit}</strong> sera publié demain !</p><div class='box'><div class='row'><span class='lbl'>Date</span><span class='val'>{$date_publication}</span></div><div class='row'><span class='lbl'>Heure</span><span class='val'>{$heure_publication}</span></div></div><a href='{$lien_produit}' class='btn'>Vérifier mon produit →</a></div>`, '#c2410c'),
     variables: [
     ...VC,
     ...VV,
@@ -566,9 +578,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 36, nom: 'Produit futur publié', theme: 'produits' as Theme,
-    destinataire: 'vendeur', canal: 'interne', actif: true,
+    destinataire: 'gestionnaire', canal: 'interne', actif: true,
     sujet: SUJETS[36],
-    html: baseHTML(SUJETS[36], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre produit <strong>{$nom_produit}</strong> est <span class='badge-ok'>PUBLIÉ</span> automatiquement !</p><a href='{$lien_produit}' class='btn'>Voir en ligne →</a></div>`, '#15803d'),
+    html: baseHTML(SUJETS[36], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre produit <strong>{$nom_produit}</strong> est <span class='badge-ok'>PUBLIÉ</span> automatiquement !</p><a href='{$lien_produit}' class='btn'>Voir en ligne →</a></div>`, '#15803d'),
     variables: [
     ...VC,
     ...VV,
@@ -577,10 +589,10 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
-    id: 41, nom: 'Litige ouvert — vendeur', theme: 'litiges' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    id: 41, nom: 'Litige ouvert — gestionnaire', theme: 'litiges' as Theme,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[41],
-    html: baseHTML(SUJETS[41], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>⚠️ Un litige a été ouvert pour la commande <strong>#{$numero_commande}</strong>.</p><a href='{$lien_litige}' class='btn'>⚖️ Gérer ce litige →</a></div>`, '#b91c1c'),
+    html: baseHTML(SUJETS[41], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>⚠️ Un litige a été ouvert pour la commande <strong>#{$numero_commande}</strong>.</p><a href='{$lien_litige}' class='btn'>⚖️ Gérer ce litige →</a></div>`, '#b91c1c'),
     variables: [
     ...VC,
     ...VV,
@@ -630,10 +642,10 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
-    id: 45, nom: 'Retour RMA reçu — vendeur', theme: 'litiges' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    id: 45, nom: 'Retour RMA reçu — gestionnaire', theme: 'litiges' as Theme,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[45],
-    html: baseHTML(SUJETS[45], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Colis de retour reçu pour votre boutique.</p><div class='box'><div class='row'><span class='lbl'>N° RMA</span><span class='val'>{$numero_rma}</span></div><div class='row'><span class='lbl'>Commande</span><span class='val'>#{$numero_commande}</span></div></div><p>Inspectez le colis dans les <strong>48 heures</strong>.</p><a href='{$lien_dashboard}' class='btn'>Traiter ce retour →</a></div>`, '#7e22ce'),
+    html: baseHTML(SUJETS[45], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Colis de retour reçu pour votre boutique.</p><div class='box'><div class='row'><span class='lbl'>N° RMA</span><span class='val'>{$numero_rma}</span></div><div class='row'><span class='lbl'>Commande</span><span class='val'>#{$numero_commande}</span></div></div><p>Inspectez le colis dans les <strong>48 heures</strong>.</p><a href='{$lien_dashboard}' class='btn'>Traiter ce retour →</a></div>`, '#7e22ce'),
     variables: [
     ...VC,
     ...VV,
@@ -642,11 +654,11 @@ const TEMPLATES_INIT: Template[] = [
     ],
   },
   {
-    id: 51, nom: 'Nouvelle offre reçue — vendeur', theme: 'offres' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    id: 51, nom: 'Nouvelle offre reçue — gestionnaire', theme: 'offres' as Theme,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[51],
     html: baseHTML(SUJETS[51], `
-<p class='greeting'>Bonjour {$nom_vendeur},</p>
+<p class='greeting'>Bonjour {$nom_gestionnaire},</p>
 <div class='content'>
   <p>Vous avez reçu une nouvelle offre sur l'un de vos produits. Connectez-vous à votre tableau de bord pour accepter ou refuser.</p>
 
@@ -702,7 +714,7 @@ const TEMPLATES_INIT: Template[] = [
   <div class='felicitations'>
     <div class='f-icon'>🎉</div>
     <div class='f-titre'>Félicitations ! Votre offre a été acceptée !</div>
-    <div class='f-sous'>Le vendeur a dit oui à votre proposition — vous avez fait une excellente affaire !</div>
+    <div class='f-sous'>Le gestionnaire a dit oui à votre proposition — vous avez fait une excellente affaire !</div>
   </div>
 
   <div class='photo-produit'>
@@ -761,7 +773,7 @@ const TEMPLATES_INIT: Template[] = [
     html: baseHTML(SUJETS[53], `
 <p class='greeting'>Bonjour {$nom_acheteur},</p>
 <div class='content'>
-  <p>Malheureusement, le vendeur n'a pas pu accepter votre offre cette fois-ci. Ne vous découragez pas — vous pouvez faire une nouvelle offre ou acheter au prix affiché.</p>
+  <p>Malheureusement, le gestionnaire n'a pas pu accepter votre offre cette fois-ci. Ne vous découragez pas — vous pouvez faire une nouvelle offre ou acheter au prix affiché.</p>
 
   <div class='photo-produit'>
     <a href='{$lien_produit}'>
@@ -805,7 +817,7 @@ const TEMPLATES_INIT: Template[] = [
     html: baseHTML(SUJETS[54], `
 <p class='greeting'>Bonjour {$nom_acheteur},</p>
 <div class='content'>
-  <p>Le vendeur a examiné votre offre et vous propose une contre-offre. C'est une bonne nouvelle — il est intéressé à vendre !</p>
+  <p>Le gestionnaire a examiné votre offre et vous propose une contre-offre. C'est une bonne nouvelle — il est intéressé à vendre !</p>
 
   <div class='photo-produit'>
     <a href='{$lien_produit}'>
@@ -818,7 +830,7 @@ const TEMPLATES_INIT: Template[] = [
   <div class='box'>
     <div class='row'><span class='lbl'>Prix affiché</span><span class='val'>{$prix_original} $</span></div>
     <div class='row'><span class='lbl'>Votre offre initiale</span><span class='val'>{$montant_offre} $</span></div>
-    <div class='row'><span class='lbl'>💬 Contre-offre du vendeur</span><span class='val'><strong style="color:#7e22ce;font-size:15px;">{$montant_contre_offre} $</strong></span></div>
+    <div class='row'><span class='lbl'>💬 Contre-offre du gestionnaire</span><span class='val'><strong style="color:#7e22ce;font-size:15px;">{$montant_contre_offre} $</strong></span></div>
     <div class='row'><span class='lbl'>Valide jusqu'au</span><span class='val'><span class='badge-warn'>{$date_expiration_offre}</span></span></div>
   </div>
 
@@ -836,7 +848,7 @@ const TEMPLATES_INIT: Template[] = [
     { cle: '{$badge_variante}',        desc: 'Badge variante HTML' },
     { cle: '{$prix_original}',         desc: 'Prix affiché' },
     { cle: '{$montant_offre}',         desc: 'Offre initiale acheteur' },
-    { cle: '{$montant_contre_offre}',  desc: 'Contre-offre vendeur' },
+    { cle: '{$montant_contre_offre}',  desc: 'Contre-offre gestionnaire' },
     { cle: '{$date_expiration_offre}', desc: 'Expiration contre-offre' },
     { cle: '{$lien_offre}',            desc: 'Lien pour répondre' },
     { cle: '{$lien_produit}',          desc: 'Lien page produit' },
@@ -849,7 +861,7 @@ const TEMPLATES_INIT: Template[] = [
     html: baseHTML(SUJETS[55], `
 <p class='greeting'>Bonjour {$nom_acheteur},</p>
 <div class='content'>
-  <p>Votre offre a bien été transmise au vendeur. Vous recevrez une notification dès qu'il vous répond.</p>
+  <p>Votre offre a bien été transmise au gestionnaire. Vous recevrez une notification dès qu'il vous répond.</p>
 
   <div class='photo-produit'>
     <a href='{$lien_produit}'>
@@ -870,14 +882,14 @@ const TEMPLATES_INIT: Template[] = [
   {$bloc_message_envoye}
 
   <div style='background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:12px 16px;margin:16px 0;'>
-    <p style='font-size:12px;color:#0369a1;margin:0;'>📧 Vous recevrez un courriel dès que le vendeur répond à votre offre. Le délai de réponse habituel est de quelques heures.</p>
+    <p style='font-size:12px;color:#0369a1;margin:0;'>📧 Vous recevrez un courriel dès que le gestionnaire répond à votre offre. Le délai de réponse habituel est de quelques heures.</p>
   </div>
 
   <div style='text-align:center;margin:20px 0;'>
     <a href='{$lien_produit}' class='btn'>Voir le produit →</a>
   </div>
 
-  <div class='alerte-expiration'>⏰ Votre offre expire automatiquement dans {$heures_expiration} heures si le vendeur ne répond pas.</div>
+  <div class='alerte-expiration'>⏰ Votre offre expire automatiquement dans {$heures_expiration} heures si le gestionnaire ne répond pas.</div>
 </div>`, '#2d6a9f'),
     variables: [
     ...VC,
@@ -895,9 +907,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 61, nom: 'Renouvellement plan — rappel 7j', theme: 'abonnements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[61],
-    html: baseHTML(SUJETS[61], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>⏰ Votre abonnement <strong>{$plan_actuel}</strong> se renouvelle dans <strong>7 jours</strong>.</p><div class='box'><div class='row'><span class='lbl'>Date renouvellement</span><span class='val'>{$date_renouvellement}</span></div><div class='row'><span class='lbl'>Montant</span><span class='val'>{$montant_paiement}</span></div></div><a href='{$lien_abonnement}' class='btn'>Gérer mon abonnement →</a></div>`, '#1f2937'),
+    html: baseHTML(SUJETS[61], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>⏰ Votre abonnement <strong>{$plan_actuel}</strong> se renouvelle dans <strong>7 jours</strong>.</p><div class='box'><div class='row'><span class='lbl'>Date renouvellement</span><span class='val'>{$date_renouvellement}</span></div><div class='row'><span class='lbl'>Montant</span><span class='val'>{$montant_paiement}</span></div></div><a href='{$lien_abonnement}' class='btn'>Gérer mon abonnement →</a></div>`, '#1f2937'),
     variables: [
     ...VC,
     ...VV,
@@ -907,9 +919,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 62, nom: 'Plan changé — confirmation', theme: 'abonnements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[62],
-    html: baseHTML(SUJETS[62], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre plan a été modifié avec succès.</p><div class='box'><div class='row'><span class='lbl'>Ancien plan</span><span class='val'>{$ancien_plan}</span></div><div class='row'><span class='lbl'>Nouveau plan</span><span class='val'><span class='badge-ok'>{$plan_actuel}</span></span></div><div class='row'><span class='lbl'>Prochain renouvellement</span><span class='val'>{$date_renouvellement}</span></div></div></div>`, '#15803d'),
+    html: baseHTML(SUJETS[62], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre plan a été modifié avec succès.</p><div class='box'><div class='row'><span class='lbl'>Ancien plan</span><span class='val'>{$ancien_plan}</span></div><div class='row'><span class='lbl'>Nouveau plan</span><span class='val'><span class='badge-ok'>{$plan_actuel}</span></span></div><div class='row'><span class='lbl'>Prochain renouvellement</span><span class='val'>{$date_renouvellement}</span></div></div></div>`, '#15803d'),
     variables: [
     ...VC,
     ...VV,
@@ -919,9 +931,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 63, nom: 'Plan expiré', theme: 'abonnements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[63],
-    html: baseHTML(SUJETS[63], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre plan <strong>{$plan_actuel}</strong> est <span class='badge-err'>EXPIRÉ</span>.</p><p>Votre boutique est temporairement suspendue.</p><a href='{$lien_abonnement}' class='btn'>Renouveler mon abonnement →</a></div>`, '#d97706'),
+    html: baseHTML(SUJETS[63], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre plan <strong>{$plan_actuel}</strong> est <span class='badge-err'>EXPIRÉ</span>.</p><p>Votre boutique est temporairement suspendue.</p><a href='{$lien_abonnement}' class='btn'>Renouveler mon abonnement →</a></div>`, '#d97706'),
     variables: [
     ...VC,
     ...VV,
@@ -929,9 +941,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 64, nom: 'Paiement plan échoué', theme: 'abonnements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[64],
-    html: baseHTML(SUJETS[64], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>⚠️ Échec du paiement de l'abonnement <strong>{$plan_actuel}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Raison</span><span class='val'><span class='badge-err'>{$raison_echec}</span></span></div></div><a href='{$lien_paiement}' class='btn'>Mettre à jour le paiement →</a></div>`, '#b91c1c'),
+    html: baseHTML(SUJETS[64], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>⚠️ Échec du paiement de l'abonnement <strong>{$plan_actuel}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Raison</span><span class='val'><span class='badge-err'>{$raison_echec}</span></span></div></div><a href='{$lien_paiement}' class='btn'>Mettre à jour le paiement →</a></div>`, '#b91c1c'),
     variables: [
     ...VC,
     ...VV,
@@ -940,7 +952,7 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 65, nom: 'Domaine expiré', theme: 'abonnements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[65],
     html: baseHTML(SUJETS[65], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>⏰ Votre domaine personnalisé <strong>{$nom_domaine}</strong> arrive à échéance dans <strong>{$jours_restants} jours</strong>.</p><div class='box'><div class='row'><span class='lbl'>Domaine</span><span class='val'>{$nom_domaine}</span></div><div class='row'><span class='lbl'>Date d'expiration</span><span class='val'><span class='badge-warn'>{$date_expiration}</span></span></div><div class='row'><span class='lbl'>Montant du renouvellement</span><span class='val'>{$montant_renouvellement}</span></div></div><p><strong>⚠️ Important :</strong> si le domaine n'est pas renouvelé avant cette date, votre site <strong>{$nom_boutique_gestionnaire}</strong> sera automatiquement mis hors service jusqu'à ce que le renouvellement soit effectué.</p><a href='{$lien_renouvellement}' class='btn'>Renouveler maintenant →</a><p style='margin-top:16px; font-size:12px; color:#6b7280;'>Vous pouvez aussi activer le renouvellement automatique depuis votre section "Mon domaine" pour éviter ce genre de rappel à l'avenir.</p></div>`, '#d97706'),
     variables: [
@@ -956,7 +968,7 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 66, nom: 'Essai — rappel J-1', theme: 'abonnements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[66],
     html: baseHTML(SUJETS[66], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>⏰ Votre période d'essai gratuite <strong>e-Vend Studio</strong> se termine <strong>demain</strong> (le {$date_fin_essai}).</p><p>Pour continuer à utiliser votre site et conserver toutes vos données, configurez votre moyen de paiement avant la fin de l'essai.</p><a href='{$lien_paiement}' class='btn'>Configurer mon paiement →</a><p style='margin-top:16px; font-size:12px; color:#6b7280;'>Si vous ne configurez pas de paiement, vos données seront conservées 48h après la fin de l'essai, puis supprimées définitivement.</p></div>`, '#f59e0b'),
     variables: [
@@ -968,7 +980,7 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 67, nom: 'Essai — fin d\'essai (J0)', theme: 'abonnements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[67],
     html: baseHTML(SUJETS[67], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>🔔 Votre période d'essai gratuite <strong>e-Vend Studio</strong> est maintenant terminée.</p><p>Vous avez <strong>48 heures</strong> (jusqu'au {$date_suppression}) pour configurer votre paiement et conserver votre boutique. Passé ce délai, vos données seront <strong>supprimées définitivement</strong>.</p><a href='{$lien_paiement}' class='btn'>Conserver ma boutique →</a></div>`, '#dc2626'),
     variables: [
@@ -981,7 +993,7 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 68, nom: 'Essai — dernière chance avant suppression', theme: 'abonnements' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[68],
     html: baseHTML(SUJETS[68], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>🚨 <strong>Dernière chance.</strong> Votre boutique e-Vend Studio et toutes vos données seront <strong>supprimées définitivement dans les prochaines heures</strong> si vous n'agissez pas maintenant.</p><p>Cette action est irréversible. Une fois supprimées, vos données ne pourront pas être récupérées.</p><a href='{$lien_paiement}' class='btn' style='background:#dc2626;'>Sauvegarder ma boutique maintenant →</a></div>`, '#dc2626'),
     variables: [
@@ -992,9 +1004,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 71, nom: 'Mode vacances activé', theme: 'vacances' as Theme,
-    destinataire: 'vendeur', canal: 'interne', actif: true,
+    destinataire: 'gestionnaire', canal: 'interne', actif: true,
     sujet: SUJETS[71],
-    html: baseHTML(SUJETS[71], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Mode vacances activé pour <strong>{$nom_boutique_vendeur}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Début</span><span class='val'>{$date_debut_vacances}</span></div><div class='row'><span class='lbl'>Retour prévu</span><span class='val'>{$date_fin_vacances}</span></div></div></div>`, '#6b7280'),
+    html: baseHTML(SUJETS[71], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Mode vacances activé pour <strong>{$nom_boutique_gestionnaire}</strong>.</p><div class='box'><div class='row'><span class='lbl'>Début</span><span class='val'>{$date_debut_vacances}</span></div><div class='row'><span class='lbl'>Retour prévu</span><span class='val'>{$date_fin_vacances}</span></div></div></div>`, '#6b7280'),
     variables: [
     ...VC,
     ...VV,
@@ -1005,9 +1017,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 72, nom: 'Fin vacances dans 2 jours', theme: 'vacances' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[72],
-    html: baseHTML(SUJETS[72], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Votre mode vacances se termine dans <strong>2 jours</strong>.</p><div class='box'><div class='row'><span class='lbl'>Date de fin</span><span class='val'>{$date_fin_vacances}</span></div></div><a href='{$lien_dashboard}' class='btn'>Gérer mes vacances →</a></div>`, '#6b7280'),
+    html: baseHTML(SUJETS[72], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre mode vacances se termine dans <strong>2 jours</strong>.</p><div class='box'><div class='row'><span class='lbl'>Date de fin</span><span class='val'>{$date_fin_vacances}</span></div></div><a href='{$lien_dashboard}' class='btn'>Gérer mes vacances →</a></div>`, '#6b7280'),
     variables: [
     ...VC,
     ...VV,
@@ -1016,9 +1028,9 @@ const TEMPLATES_INIT: Template[] = [
   },
   {
     id: 73, nom: 'Retour vacances — boutique active', theme: 'vacances' as Theme,
-    destinataire: 'vendeur', canal: 'les_deux', actif: true,
+    destinataire: 'gestionnaire', canal: 'les_deux', actif: true,
     sujet: SUJETS[73],
-    html: baseHTML(SUJETS[73], `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>🎉 Votre boutique <strong>{$nom_boutique_vendeur}</strong> est <span class='badge-ok'>ACTIVE</span> !</p><a href='{$lien_dashboard}' class='btn'>Voir ma boutique →</a></div>`, '#15803d'),
+    html: baseHTML(SUJETS[73], `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>🎉 Votre boutique <strong>{$nom_boutique_gestionnaire}</strong> est <span class='badge-ok'>ACTIVE</span> !</p><a href='{$lien_dashboard}' class='btn'>Voir ma boutique →</a></div>`, '#15803d'),
     variables: [
     ...VC,
     ...VV,
@@ -1028,7 +1040,7 @@ const TEMPLATES_INIT: Template[] = [
     id: 74, nom: 'Boutique en vacances — acheteur', theme: 'vacances' as Theme,
     destinataire: 'acheteur', canal: 'email', actif: false,
     sujet: SUJETS[74],
-    html: baseHTML(SUJETS[74], `<p class='greeting'>Bonjour {$nom_acheteur},</p><div class='content'><p>La boutique <strong>{$nom_boutique_vendeur}</strong> est en mode vacances.</p><div class='box'><div class='row'><span class='lbl'>Retour prévu</span><span class='val'>{$date_fin_vacances}</span></div></div></div>`, '#6b7280'),
+    html: baseHTML(SUJETS[74], `<p class='greeting'>Bonjour {$nom_acheteur},</p><div class='content'><p>La boutique <strong>{$nom_boutique_gestionnaire}</strong> est en mode vacances.</p><div class='box'><div class='row'><span class='lbl'>Retour prévu</span><span class='val'>{$date_fin_vacances}</span></div></div></div>`, '#6b7280'),
     variables: [
     ...VC,
     ...VA,
@@ -1149,8 +1161,8 @@ export default function ModelesCourriel({ naviguerVers }: { naviguerVers: (p: st
     try {
       // Préparer les données de test
       const variablesTest = {
-        nom_vendeur: "Alexandre",
-        nom_boutique_vendeur: "Boutique Test",
+        nom_gestionnaire: "Alexandre",
+        nom_boutique_gestionnaire: "Boutique Test",
         plan_actuel: "Gratuit",
         nom_acheteur: "Jean Test",
         nom_produit: "Produit Test",
@@ -1352,8 +1364,8 @@ export default function ModelesCourriel({ naviguerVers }: { naviguerVers: (p: st
                             {t.nom}
                           </p>
                           <div style={{ display:'flex', gap:'3px', marginTop:'2px' }}>
-                            <span style={{ fontSize:'9px', backgroundColor: t.destinataire === 'vendeur' ? '#eff6ff' : '#fef3c7', color: t.destinataire === 'vendeur' ? '#1d4ed8' : '#92400e', padding:'1px 5px', borderRadius:'4px', fontWeight:'700' }}>
-                              {t.destinataire === 'vendeur' ? '🏪 V' : '🛒 A'}
+                            <span style={{ fontSize:'9px', backgroundColor: t.destinataire === 'gestionnaire' ? '#eff6ff' : '#fef3c7', color: t.destinataire === 'gestionnaire' ? '#1d4ed8' : '#92400e', padding:'1px 5px', borderRadius:'4px', fontWeight:'700' }}>
+                              {t.destinataire === 'gestionnaire' ? '🏪 V' : '🛒 A'}
                             </span>
                             <span style={{ fontSize:'9px', color:T.textLight, fontWeight:'700', padding:'1px 4px', backgroundColor:'#f3f4f6', borderRadius:'4px' }}>
                               {CANAL_ICO[t.canal]}
@@ -1385,7 +1397,7 @@ export default function ModelesCourriel({ naviguerVers }: { naviguerVers: (p: st
                   {THEMES[tpl.theme].icon} {THEMES[tpl.theme].label}
                 </span>
               </div>
-              <p style={{ fontSize:'11px', color:T.textLight, margin:0 }}>#{tpl.id} · {tpl.destinataire === 'vendeur' ? '🏪 Vendeur' : '🛒 Acheteur'}</p>
+              <p style={{ fontSize:'11px', color:T.textLight, margin:0 }}>#{tpl.id} · {tpl.destinataire === 'gestionnaire' ? '🏪 Gestionnaire' : '🛒 Acheteur'}</p>
             </div>
 
             <div style={{ display:'flex', gap:'8px', alignItems:'center', flexShrink:0 }}>

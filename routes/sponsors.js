@@ -7,6 +7,14 @@ const jwt = require('jsonwebtoken');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
 const { getTousLesPlansPhotos, versDictionnaire: versDictPhotos, PLAN_PHOTOS_DEFAUT } = require('../config/plansPhotos');
 const { getTousLesPlansPub, versDictionnaire: versDictPub, PLAN_PUB_DEFAUT } = require('../config/plansPub');
+const crypto = require('crypto');
+let envoyerEmailModele = null;
+try { ({ envoyerEmailModele } = require('../services/email')); }
+catch (e) { console.warn('⚠️ services/email.js introuvable (F2A sponsor):', e.message); }
+
+function genererCodeOtp() {
+  return String(crypto.randomInt(100000, 999999));
+}
 
 // ── MIDDLEWARE ──────────────────────────────────────────────────
 // (isAdmin importé de ../middleware/auth — plus de réimplémentation locale)
@@ -92,7 +100,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await pool.query(
-      `SELECT id, nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active, created_at
+      `SELECT id, nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active, created_at, two_factor_enabled
        FROM sponsors WHERE email = $1`,
       [email.toLowerCase()]
     );
@@ -110,6 +118,22 @@ router.post('/login', async (req, res) => {
 
     if (!sponsor.active) {
       return res.status(403).json({ error: 'Votre compte a été désactivé. Contactez le support.' });
+    }
+
+    if (sponsor.two_factor_enabled) {
+      const code = genererCodeOtp();
+      const expire = new Date(Date.now() + 10 * 60 * 1000);
+      await pool.query(
+        `UPDATE sponsors SET f2a_code = $1, f2a_code_expire = $2 WHERE id = $3`,
+        [code, expire, sponsor.id]
+      );
+      if (envoyerEmailModele) {
+        envoyerEmailModele(9, sponsor.email, {
+          nom_gestionnaire: sponsor.nom,
+          code_otp: code,
+        }).catch(e => console.error('Erreur envoi email #9 (code OTP sponsor):', e.message));
+      }
+      return res.json({ requires2FA: true, userId: sponsor.id });
     }
 
     const token = jwt.sign(
@@ -353,6 +377,33 @@ router.put('/mot-de-passe', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('❌ Erreur changement mot de passe sponsor:', error);
     res.status(500).json({ error: 'Erreur lors du changement de mot de passe' });
+  }
+});
+
+// GET/PUT — Vérification en 2 étapes (F2A) du sponsor connecté
+router.get('/2fa', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT two_factor_enabled FROM sponsors WHERE id = $1', [req.user.id]);
+    if (result.rows.length === 0) return res.status(404).json({ error: 'Sponsor non trouvé' });
+    res.json({ two_factor_enabled: !!result.rows[0].two_factor_enabled });
+  } catch (error) {
+    console.error('❌ Erreur lecture F2A sponsor:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+router.put('/2fa', authenticateToken, async (req, res) => {
+  try {
+    const { enabled } = req.body;
+    const result = await pool.query(
+      'UPDATE sponsors SET two_factor_enabled = $1 WHERE id = $2 RETURNING id',
+      [!!enabled, req.user.id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Sponsor non trouvé' });
+    res.json({ success: true, two_factor_enabled: !!enabled });
+  } catch (error) {
+    console.error('❌ Erreur mise à jour F2A sponsor:', error);
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 

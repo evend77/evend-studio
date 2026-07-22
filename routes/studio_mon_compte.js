@@ -281,7 +281,7 @@ router.put('/email', authenticateToken, async (req, res) => {
     if (envoyerEmailModele) {
       const lienVerification = `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/verifier-email?token=${token}`;
       envoyerEmailModele(3, emailPropre, {
-        nom_vendeur: g.nom,
+        nom_gestionnaire: g.nom,
         lien_verification: lienVerification,
       }).catch(e => console.error('Erreur envoi email #3 (changement courriel):', e.message));
     }

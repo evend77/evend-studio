@@ -163,6 +163,39 @@ export default function StudioConfigGenerale({ gestionnaireId }: Props) {
 
   const modifie = JSON.stringify(config) !== JSON.stringify(original);
 
+  // ── F2A (compte, séparé du config du site) ──────────────────────────────
+  const [f2aActif, setF2aActif] = useState(false);
+  const [f2aSaving, setF2aSaving] = useState(false);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/gestionnaires/moi`, {
+      credentials: 'include', headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data && typeof data.two_factor_enabled === 'boolean') setF2aActif(data.two_factor_enabled); })
+      .catch(() => {});
+  }, [gestionnaireId]);
+
+  async function toggleF2a() {
+    const nouvelEtat = !f2aActif;
+    setF2aSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/2fa`, {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ enabled: nouvelEtat }),
+      });
+      if (!res.ok) throw new Error();
+      setF2aActif(nouvelEtat);
+      setToast({ msg: nouvelEtat ? 'Vérification en 2 étapes activée !' : 'Vérification en 2 étapes désactivée.', type: 'ok' });
+    } catch {
+      setToast({ msg: 'Erreur lors de la modification.', type: 'err' });
+    } finally {
+      setF2aSaving(false);
+    }
+  }
+
   // ── Charger ──────────────────────────────────────────────────────────────
   const charger = useCallback(async () => {
     setLoading(true);
@@ -193,7 +226,7 @@ export default function StudioConfigGenerale({ gestionnaireId }: Props) {
         method: 'PUT',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ generale: config }),
+        body: JSON.stringify({ config: { generale: config } }),
       });
       if (!res.ok) throw new Error();
       setOriginal({ ...config });
@@ -475,6 +508,16 @@ export default function StudioConfigGenerale({ gestionnaireId }: Props) {
                 </div>
               </>
             )}
+          </Section>
+
+          <Section titre="Vérification en 2 étapes" icon="🔐">
+            <ParamLigne label="Activer la vérification en 2 étapes" desc="À chaque connexion, un code vous sera envoyé par courriel en plus de votre mot de passe." last>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 700, color: f2aActif ? C.green : C.textLight }}>{f2aActif ? '🔐 Actif' : '— Inactif'}</span>
+                <Toggle value={f2aActif} onChange={toggleF2a} />
+              </div>
+            </ParamLigne>
+            {f2aSaving && <p style={{ fontSize: '11px', color: C.textLight, margin: '8px 0 0' }}>⏳ Mise à jour…</p>}
           </Section>
         </div>
       )}

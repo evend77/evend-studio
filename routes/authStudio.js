@@ -7,6 +7,14 @@ const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
 const pool    = require('../db');
 const { genererLienPaiementPourGestionnaire } = require('./abonnements_studio');
+const crypto = require('crypto');
+let envoyerEmailModele = null;
+try { ({ envoyerEmailModele } = require('../services/email')); }
+catch (e) { console.warn('⚠️ services/email.js introuvable (F2A):', e.message); }
+
+function genererCodeOtp() {
+  return String(crypto.randomInt(100000, 999999));
+}
 
 const JWT_SECRET  = process.env.JWT_SECRET  || 'evend-studio-secret-change-en-prod';
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d';
@@ -175,7 +183,7 @@ router.post('/login', async (req, res) => {
 
     // ── LOGIN GESTIONNAIRE (défaut) ──
     const result = await pool.query(
-      `SELECT id, email, mot_de_passe, nom, plan, statut, email_verifie, premiere_verification_faite, email_verification_expire FROM gestionnaires WHERE email = $1`,
+      `SELECT id, email, mot_de_passe, nom, plan, statut, email_verifie, premiere_verification_faite, email_verification_expire, two_factor_enabled FROM gestionnaires WHERE email = $1`,
       [email.toLowerCase()]
     );
 
@@ -186,7 +194,16 @@ router.post('/login', async (req, res) => {
     const gestionnaire = result.rows[0];
 
     if (gestionnaire.statut === 'suspendu') {
-      return res.status(403).json({ message: 'Votre compte est suspendu. Contactez le support.' });
+      return res.status(403).json({
+        message: 'Votre compte a été suspendu par l\'équipe e-Vend Studio.',
+        code: 'COMPTE_SUSPENDU',
+      });
+    }
+    if (gestionnaire.statut === 'banni') {
+      return res.status(403).json({
+        message: 'Votre compte a été banni de la plateforme.',
+        code: 'COMPTE_BANNI',
+      });
     }
 
     const valide = await bcrypt.compare(password, gestionnaire.mot_de_passe);
@@ -301,7 +318,7 @@ router.post('/login-studio', async (req, res) => {
   }
   try {
     const result = await pool.query(
-      `SELECT id, email, mot_de_passe, nom, plan, statut, email_verifie, premiere_verification_faite, email_verification_expire FROM gestionnaires WHERE email = $1`,
+      `SELECT id, email, mot_de_passe, nom, plan, statut, email_verifie, premiere_verification_faite, email_verification_expire, two_factor_enabled FROM gestionnaires WHERE email = $1`,
       [email.toLowerCase()]
     );
     if (result.rows.length === 0) {
@@ -309,7 +326,16 @@ router.post('/login-studio', async (req, res) => {
     }
     const gestionnaire = result.rows[0];
     if (gestionnaire.statut === 'suspendu') {
-      return res.status(403).json({ message: 'Votre compte est suspendu. Contactez le support.' });
+      return res.status(403).json({
+        message: 'Votre compte a été suspendu par l\'équipe e-Vend Studio.',
+        code: 'COMPTE_SUSPENDU',
+      });
+    }
+    if (gestionnaire.statut === 'banni') {
+      return res.status(403).json({
+        message: 'Votre compte a été banni de la plateforme.',
+        code: 'COMPTE_BANNI',
+      });
     }
     const valide = await bcrypt.compare(mot_de_passe, gestionnaire.mot_de_passe);
     if (!valide) {
@@ -333,6 +359,23 @@ router.post('/login-studio', async (req, res) => {
       }
     }
 
+    // ── Authentification à deux facteurs ──
+    if (gestionnaire.two_factor_enabled) {
+      const code = genererCodeOtp();
+      const expire = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      await pool.query(
+        `UPDATE gestionnaires SET f2a_code = $1, f2a_code_expire = $2 WHERE id = $3`,
+        [code, expire, gestionnaire.id]
+      );
+      if (envoyerEmailModele) {
+        envoyerEmailModele(9, gestionnaire.email, {
+          nom_gestionnaire: gestionnaire.nom,
+          code_otp: code,
+        }).catch(e => console.error('Erreur envoi email #9 (code OTP):', e.message));
+      }
+      return res.json({ requires2FA: true, userId: gestionnaire.id });
+    }
+
     const token = genererToken({ id: gestionnaire.id, email: gestionnaire.email, role: 'gestionnaire', plan: gestionnaire.plan });
     return res.json({
       success: true, token,
@@ -347,6 +390,118 @@ router.post('/login-studio', async (req, res) => {
 });
 
 // POST /api/auth/login-admin → login admin
+// ─── POST /api/auth/verify-2fa ────────────────────────────────────────────────
+// Body : { userId, code, userType } — pour l'instant, seul userType='gestionnaire'
+// est géré ici (F2A admin non demandé, à faire séparément si besoin).
+router.post('/verify-2fa', async (req, res) => {
+  const { userId, code, userType } = req.body;
+  if (!userId || !code) {
+    return res.status(400).json({ message: 'Code requis.' });
+  }
+
+  try {
+    if (userType === 'admin') {
+      const result = await pool.query(
+        `SELECT id, email, nom, role, f2a_code, f2a_code_expire FROM admins WHERE id = $1`,
+        [userId]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Compte introuvable.' });
+      }
+      const admin = result.rows[0];
+
+      if (!admin.f2a_code || admin.f2a_code !== String(code).trim()) {
+        return res.status(400).json({ message: 'Code invalide ou expiré.' });
+      }
+      if (!admin.f2a_code_expire || new Date(admin.f2a_code_expire) < new Date()) {
+        return res.status(400).json({ message: 'Code invalide ou expiré.' });
+      }
+
+      await pool.query(`UPDATE admins SET f2a_code = NULL, f2a_code_expire = NULL WHERE id = $1`, [admin.id]);
+
+      const token = genererToken({ id: admin.id, email: admin.email, role: 'admin' });
+      return res.json({
+        success: true, token,
+        user: { id: admin.id, email: admin.email, nom: admin.nom, role: 'admin' },
+      });
+    }
+
+    if (userType === 'commanditaire') {
+      const result = await pool.query(
+        `SELECT id, nom, email, type_sponsor, site_web, description, forfait, active, f2a_code, f2a_code_expire FROM sponsors WHERE id = $1`,
+        [userId]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Compte introuvable.' });
+      }
+      const commanditaire = result.rows[0];
+
+      if (!commanditaire.f2a_code || commanditaire.f2a_code !== String(code).trim()) {
+        return res.status(400).json({ message: 'Code invalide ou expiré.' });
+      }
+      if (!commanditaire.f2a_code_expire || new Date(commanditaire.f2a_code_expire) < new Date()) {
+        return res.status(400).json({ message: 'Code invalide ou expiré.' });
+      }
+
+      await pool.query(`UPDATE sponsors SET f2a_code = NULL, f2a_code_expire = NULL WHERE id = $1`, [commanditaire.id]);
+
+      const token = genererToken({
+        id: commanditaire.id, email: commanditaire.email, role: 'commanditaire', type_sponsor: commanditaire.type_sponsor,
+      });
+      return res.json({
+        success: true, token,
+        user: {
+          id: commanditaire.id, email: commanditaire.email, nom: commanditaire.nom, role: 'commanditaire',
+          type_sponsor: commanditaire.type_sponsor, site_web: commanditaire.site_web,
+          description: commanditaire.description, forfait: commanditaire.forfait, active: commanditaire.active,
+        },
+      });
+    }
+
+    if (userType !== 'gestionnaire') {
+      return res.status(400).json({ message: 'Type de compte non supporté pour la F2A pour le moment.' });
+    }
+
+    const result = await pool.query(
+      `SELECT id, email, nom, plan, statut, email_verifie, premiere_verification_faite, email_verification_expire,
+              f2a_code, f2a_code_expire
+       FROM gestionnaires WHERE id = $1`,
+      [userId]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ message: 'Compte introuvable.' });
+    }
+    const gestionnaire = result.rows[0];
+
+    if (!gestionnaire.f2a_code || gestionnaire.f2a_code !== String(code).trim()) {
+      return res.status(400).json({ message: 'Code invalide ou expiré.' });
+    }
+    if (!gestionnaire.f2a_code_expire || new Date(gestionnaire.f2a_code_expire) < new Date()) {
+      return res.status(400).json({ message: 'Code invalide ou expiré.' });
+    }
+
+    // Code valide : on le consomme (usage unique) et on émet le vrai token.
+    await pool.query(
+      `UPDATE gestionnaires SET f2a_code = NULL, f2a_code_expire = NULL WHERE id = $1`,
+      [gestionnaire.id]
+    );
+
+    const token = genererToken({ id: gestionnaire.id, email: gestionnaire.email, role: 'gestionnaire', plan: gestionnaire.plan });
+    return res.json({
+      success: true, token,
+      user: {
+        id: gestionnaire.id, email: gestionnaire.email, nom: gestionnaire.nom, plan: gestionnaire.plan,
+        statut: gestionnaire.statut, email_verifie: gestionnaire.email_verifie,
+        premiere_verification_faite: gestionnaire.premiere_verification_faite,
+        email_verification_expire: gestionnaire.email_verification_expire, role: 'gestionnaire',
+      },
+    });
+  } catch (err) {
+    console.error('Erreur /api/auth/verify-2fa:', err);
+    res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
 router.post('/login-admin', async (req, res) => {
   const { code_utilisateur, mot_de_passe } = req.body;
   if (!code_utilisateur || !mot_de_passe) {
@@ -354,7 +509,7 @@ router.post('/login-admin', async (req, res) => {
   }
   try {
     const result = await pool.query(
-      `SELECT id, email, mot_de_passe, nom, role FROM admins WHERE email = $1`,
+      `SELECT id, email, mot_de_passe, nom, role, two_factor_enabled FROM admins WHERE email = $1`,
       [code_utilisateur.toLowerCase()]
     );
     if (result.rows.length === 0) {
@@ -365,6 +520,23 @@ router.post('/login-admin', async (req, res) => {
     if (!valide) {
       return res.status(401).json({ message: 'Identifiants incorrects.' });
     }
+
+    if (admin.two_factor_enabled) {
+      const code = genererCodeOtp();
+      const expire = new Date(Date.now() + 10 * 60 * 1000);
+      await pool.query(
+        `UPDATE admins SET f2a_code = $1, f2a_code_expire = $2 WHERE id = $3`,
+        [code, expire, admin.id]
+      );
+      if (envoyerEmailModele) {
+        envoyerEmailModele(9, admin.email, {
+          nom_gestionnaire: admin.nom,
+          code_otp: code,
+        }).catch(e => console.error('Erreur envoi email #9 (code OTP admin):', e.message));
+      }
+      return res.json({ requires2FA: true, userId: admin.id });
+    }
+
     const token = genererToken({ id: admin.id, email: admin.email, role: 'admin' });
     return res.json({
       success: true, token,
@@ -378,6 +550,11 @@ router.post('/login-admin', async (req, res) => {
 
 // ─── POST /api/auth/login-commanditaire ──────────────────────────────────────
 // Connexion commanditaire (alias)
+// ⚠️ NOTE : ModalLoginSponsor.tsx (le vrai formulaire de connexion) appelle
+// POST /api/sponsors/login (routes/sponsors.js), pas cette route-ci. Celle-ci
+// semble être un doublon legacy, comme /login-studio l'était pour les
+// gestionnaires. La F2A est bien branchée dans routes/sponsors.js pour le
+// flow réel — celle-ci est laissée par précaution, à confirmer/retirer.
 router.post('/login-commanditaire', async (req, res) => {
   const { email, mot_de_passe } = req.body;
   if (!email || !mot_de_passe) {
@@ -386,7 +563,7 @@ router.post('/login-commanditaire', async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT id, nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active
+      `SELECT id, nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active, two_factor_enabled
        FROM sponsors WHERE email = $1`,
       [email.toLowerCase()]
     );
@@ -404,6 +581,22 @@ router.post('/login-commanditaire', async (req, res) => {
     const valide = await bcrypt.compare(mot_de_passe, commanditaire.mot_de_passe);
     if (!valide) {
       return res.status(401).json({ message: 'Identifiants incorrects.' });
+    }
+
+    if (commanditaire.two_factor_enabled) {
+      const code = genererCodeOtp();
+      const expire = new Date(Date.now() + 10 * 60 * 1000);
+      await pool.query(
+        `UPDATE sponsors SET f2a_code = $1, f2a_code_expire = $2 WHERE id = $3`,
+        [code, expire, commanditaire.id]
+      );
+      if (envoyerEmailModele) {
+        envoyerEmailModele(9, commanditaire.email, {
+          nom_gestionnaire: commanditaire.nom,
+          code_otp: code,
+        }).catch(e => console.error('Erreur envoi email #9 (code OTP commanditaire):', e.message));
+      }
+      return res.json({ requires2FA: true, userId: commanditaire.id });
     }
 
     const token = genererToken({

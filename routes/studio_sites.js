@@ -108,7 +108,7 @@ router.get('/domaine-perso/public/:domaine', async (req, res) => {
 
     const result = await pool.query(
       `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie, s.site_suspendu_email,
-              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description,
+              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description, g.statut AS gestionnaire_statut,
               d.statut AS domaine_statut
        FROM sites s
        JOIN gestionnaires g ON g.id = s.gestionnaire_id
@@ -119,6 +119,13 @@ router.get('/domaine-perso/public/:domaine', async (req, res) => {
     );
 
     if (!result.rows.length) {
+      return res.status(404).json({ success: false, message: 'Aucun site trouvé pour ce domaine.' });
+    }
+
+    // Un gestionnaire suspendu ou banni par un administrateur : le site
+    // n'existe tout simplement plus publiquement, comme s'il n'avait jamais
+    // été créé — pas de page spéciale, juste 404.
+    if (['suspendu', 'banni'].includes(result.rows[0].gestionnaire_statut)) {
       return res.status(404).json({ success: false, message: 'Aucun site trouvé pour ce domaine.' });
     }
 
@@ -133,10 +140,15 @@ router.get('/domaine-perso/public/:domaine', async (req, res) => {
       });
     }
 
+    const modeMaintenanceGestionnaire = result.rows[0].config?.generale?.mode_maintenance === true;
+    const maintenance = modeMaintenanceGestionnaire || result.rows[0].gestionnaire_statut === 'en_maintenance';
+
     return res.json({
       success: true,
       ...result.rows[0],
       site_suspendu: result.rows[0].site_suspendu_email === true,
+      maintenance,
+      message_maintenance: modeMaintenanceGestionnaire ? (result.rows[0].config?.generale?.message_maintenance || null) : null,
     });
   } catch (err) {
     console.error('GET /studio/sites/domaine-perso/public/:domaine', err);
@@ -159,7 +171,7 @@ router.get('/sous-domaine/public/:slug', async (req, res) => {
 
     const result = await pool.query(
       `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie, s.site_suspendu_email,
-              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description
+              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description, g.statut AS gestionnaire_statut
        FROM sites s
        JOIN gestionnaires g ON g.id = s.gestionnaire_id
        WHERE s.sous_domaine = $1
@@ -171,10 +183,19 @@ router.get('/sous-domaine/public/:slug', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Aucun site trouvé pour ce sous-domaine.' });
     }
 
+    if (['suspendu', 'banni'].includes(result.rows[0].gestionnaire_statut)) {
+      return res.status(404).json({ success: false, message: 'Aucun site trouvé pour ce sous-domaine.' });
+    }
+
+    const modeMaintenanceGestionnaire = result.rows[0].config?.generale?.mode_maintenance === true;
+    const maintenance = modeMaintenanceGestionnaire || result.rows[0].gestionnaire_statut === 'en_maintenance';
+
     return res.json({
       success: true,
       ...result.rows[0],
       site_suspendu: result.rows[0].site_suspendu_email === true,
+      maintenance,
+      message_maintenance: modeMaintenanceGestionnaire ? (result.rows[0].config?.generale?.message_maintenance || null) : null,
     });
   } catch (err) {
     console.error('GET /studio/sites/sous-domaine/public/:slug', err);

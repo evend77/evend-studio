@@ -22,6 +22,7 @@ import DomaineSucces         from './pages/DomaineSucces';
 import DomaineAnnule         from './pages/DomaineAnnule';
 import PageVerifierEmail     from './pages/PageVerifierEmail';
 import SiteSuspendu          from './pages/SiteSuspendu';
+import SiteMaintenance       from './pages/SiteMaintenance';
 // 👇 NOUVEAUX IMPORTS POUR COMMANDITAIRE
 import InscriptionCommanditaire from './pages/commanditaire/InscriptionCommanditaire';
 import AppSponsors from './AppSponsors';
@@ -43,7 +44,9 @@ export default function Main() {
     verifie: boolean;
     gestionnaireId: number | null;
     suspendu: boolean;
-  }>({ verifie: false, gestionnaireId: null, suspendu: false });
+    maintenance: boolean;
+    messageMaintenance: string | null;
+  }>({ verifie: false, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null });
 
   const SOUS_DOMAINES_NON_CLIENTS = ['www', 'e-vendstudio', 'localhost'];
 
@@ -62,12 +65,12 @@ export default function Main() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.success && data?.gestionnaire_id) {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id, suspendu: !!data.site_suspendu });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id, suspendu: !!data.site_suspendu, maintenance: !!data.maintenance, messageMaintenance: data.message_maintenance || null });
           } else {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null });
           }
         })
-        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false }));
+        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null }));
       return;
     }
 
@@ -81,16 +84,16 @@ export default function Main() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.success && data?.gestionnaire_id) {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id, suspendu: !!data.site_suspendu });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id, suspendu: !!data.site_suspendu, maintenance: !!data.maintenance, messageMaintenance: data.message_maintenance || null });
           } else {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null });
           }
         })
-        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false }));
+        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null }));
       return;
     }
 
-    setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false });
+    setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null });
   }, []);
 
   useEffect(() => {
@@ -165,6 +168,9 @@ export default function Main() {
   if (sousDomaineCheck.gestionnaireId) {
     if (sousDomaineCheck.suspendu) {
       return <SiteSuspendu />;
+    }
+    if (sousDomaineCheck.maintenance) {
+      return <SiteMaintenance messagePersonnalise={sousDomaineCheck.messageMaintenance} />;
     }
     return (
       <BrowserRouter>

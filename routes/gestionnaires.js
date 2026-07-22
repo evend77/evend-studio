@@ -182,8 +182,8 @@ router.post('/', async (req, res) => {
         if (envoyerEmailModele) {
             const lienVerification = `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/verifier-email?token=${tokenVerifEmail}`;
             envoyerEmailModele(3, vendeur.email, {
-                nom_vendeur: vendeur.nom,
-                nom_boutique_vendeur: vendeur.nom_boutique,
+                nom_gestionnaire: vendeur.nom,
+                nom_boutique_gestionnaire: vendeur.nom_boutique,
                 lien_verification: lienVerification,
             }).catch(e => console.error('Erreur envoi email #3 (vérification courriel):', e.message));
         }
@@ -246,8 +246,8 @@ router.get('/verifier-email/:token', async (req, res) => {
             }
             if (envoyerEmailModele) {
                 envoyerEmailModele(1, g.email, {
-                    nom_vendeur: g.nom,
-                    nom_boutique_vendeur: g.nom_boutique,
+                    nom_gestionnaire: g.nom,
+                    nom_boutique_gestionnaire: g.nom_boutique,
                     plan_actuel: 'Gratuit',
                     lien_dashboard: `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/dashboard`,
                 }).catch(e => console.error('Erreur envoi email #1 (bienvenue):', e.message));
@@ -307,8 +307,8 @@ router.post('/:id/renvoyer-verification', authenticateToken, async (req, res) =>
         if (envoyerEmailModele) {
             const lienVerification = `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/verifier-email?token=${tokenVerifEmail}`;
             await envoyerEmailModele(3, g.email, {
-                nom_vendeur: g.nom,
-                nom_boutique_vendeur: g.nom_boutique,
+                nom_gestionnaire: g.nom,
+                nom_boutique_gestionnaire: g.nom_boutique,
                 lien_verification: lienVerification,
             });
         }
@@ -975,6 +975,27 @@ router.delete('/:id/reinitialiser-template', authenticateToken, async (req, res)
 
   console.log(`[reset-template] Reinitialisation complete pour gestionnaire ${gestionnaireId}`);
   res.json({ message: 'Template reinitialise avec succes' });
+});
+
+// PUT /:id/2fa — activer/désactiver la F2A soi-même (Config générale, onglet Avancé)
+// Body : { enabled: boolean }
+router.put('/:id/2fa', authenticateToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (req.user.role !== 'admin' && req.user.id !== parseInt(id)) {
+            return res.status(403).json({ error: 'Accès non autorisé.' });
+        }
+        const { enabled } = req.body;
+        const result = await pool.query(
+            `UPDATE gestionnaires SET two_factor_enabled = $1, updated_at = NOW() WHERE id = $2 RETURNING id`,
+            [!!enabled, id]
+        );
+        if (result.rowCount === 0) return res.status(404).json({ error: 'Gestionnaire non trouvé.' });
+        res.json({ success: true, two_factor_enabled: !!enabled });
+    } catch (err) {
+        console.error('PUT /gestionnaires/:id/2fa :', err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 module.exports = router;

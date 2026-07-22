@@ -40,6 +40,17 @@ body { background:#f0f2f5; font-family:'Segoe UI',Arial,sans-serif; padding:32px
 .greeting { font-size:15px; font-weight:700; color:#1a2332; margin-bottom:16px; }
 .content { font-size:13px; color:#374151; line-height:1.8; }
 .content p { margin-bottom:12px; }
+.box { background:#f8fafc; border-left:4px solid ${couleur}; border-radius:0 8px 8px 0; padding:14px 18px; margin:16px 0; }
+.row { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid #f3f4f6; font-size:12px; }
+.row:last-child { border-bottom:none; }
+.row .lbl { color:#6b7280; }
+.row .val { font-weight:700; color:#1a2332; }
+.badge-ok { background:#dcfce7; color:#16a34a; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.badge-warn { background:#ffedd5; color:#d97706; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.badge-err { background:#fee2e2; color:#dc2626; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+.otp { background:#1a2332; border-radius:12px; padding:24px; text-align:center; margin:20px 0; }
+.otp-code { font-size:40px; font-weight:900; letter-spacing:8px; color:#fbbf24; font-family:monospace; }
+.otp-note { font-size:11px; color:#9ca3af; margin-top:8px; }
 .btn { display:inline-block; background:${couleur}; color:white !important; padding:12px 24px; border-radius:8px; font-weight:800; font-size:13px; text-decoration:none; margin:16px 0; }
 .ftr { background:#f8fafc; border-radius:0 0 12px 12px; border:1px solid #e1e4e8; border-top:none; padding:18px 32px; text-align:center; }
 .ftr p { font-size:10px; color:#9ca3af; line-height:1.6; }
@@ -101,7 +112,7 @@ body { background:#f0f2f5; font-family:'Segoe UI',Arial,sans-serif; padding:32px
 </div>
 
 <div class="body">
-  <p class="greeting">Bienvenue, {$nom_vendeur} ! 🎉</p>
+  <p class="greeting">Bienvenue, {$nom_gestionnaire} ! 🎉</p>
   <p class="sous-greeting">Votre adresse courriel est confirmée — votre boutique est prête à prendre vie.</p>
 
   <div class="content">
@@ -110,7 +121,7 @@ body { background:#f0f2f5; font-family:'Segoe UI',Arial,sans-serif; padding:32px
       <div class="merci-icon">🙏</div>
       <div class="merci-titre">Merci de nous faire confiance</div>
       <div class="merci-sous">
-        Choisir e-Vend Studio pour bâtir <strong>{$nom_boutique_vendeur}</strong>, c'est choisir une équipe
+        Choisir e-Vend Studio pour bâtir <strong>{$nom_boutique_gestionnaire}</strong>, c'est choisir une équipe
         d'ici. On est fiers d'être québécois, et on est fiers de vous aider à faire rayonner votre
         commerce. Ensemble, on encourage l'achat local, un entrepreneur à la fois — et ça, c'est une
         équipe qu'on trouve pas mal belle. 💙
@@ -118,7 +129,7 @@ body { background:#f0f2f5; font-family:'Segoe UI',Arial,sans-serif; padding:32px
     </div>
 
     <div class="recap-bloc">
-      <div class="row"><span class="lbl">Boutique</span><span class="val">{$nom_boutique_vendeur}</span></div>
+      <div class="row"><span class="lbl">Boutique</span><span class="val">{$nom_boutique_gestionnaire}</span></div>
       <div class="row"><span class="lbl">Forfait actuel</span><span class="val">{$plan_actuel}</span></div>
       <div class="row"><span class="lbl">Statut</span><span class="val"><span class="badge-ok">✅ Courriel vérifié</span></span></div>
     </div>
@@ -173,7 +184,7 @@ body { background:#f0f2f5; font-family:'Segoe UI',Arial,sans-serif; padding:32px
     </div>
 
     <div class="signature">
-      <p>Bonne continuation, {$nom_vendeur} — on est vraiment contents de vous compter parmi nous ! 🌟</p>
+      <p>Bonne continuation, {$nom_gestionnaire} — on est vraiment contents de vous compter parmi nous ! 🌟</p>
       <br>
       <p><strong>L'équipe e-Vend Studio</strong><br>🇨🇦 Fièrement québécois</p>
     </div>
@@ -186,15 +197,47 @@ body { background:#f0f2f5; font-family:'Segoe UI',Arial,sans-serif; padding:32px
 
 const TEMPLATES = {
   1: {
-    sujet: 'Bienvenue chez e-Vend Studio, {$nom_vendeur} ! Merci de votre confiance 🎉',
+    sujet: 'Bienvenue chez e-Vend Studio, {$nom_gestionnaire} ! Merci de votre confiance 🎉',
     html: TEMPLATE_1_HTML,
   },
   3: {
     sujet: '🔐 Vérifiez votre adresse courriel — e-Vend.ca',
     html: baseHTML(
       '🔐 Vérifiez votre adresse courriel — e-Vend.ca',
-      `<p class='greeting'>Bonjour {$nom_vendeur},</p><div class='content'><p>Confirmez votre adresse courriel pour activer votre compte.</p><a href='{$lien_verification}' class='btn'>✅ Confirmer mon adresse</a><p style='font-size:11px;color:#9ca3af;'>Lien valide 48h. Si vous n'avez pas créé de compte, ignorez ce message.</p></div>`,
+      `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Confirmez votre adresse courriel pour activer votre compte.</p><a href='{$lien_verification}' class='btn'>✅ Confirmer mon adresse</a><p style='font-size:11px;color:#9ca3af;'>Lien valide 48h. Si vous n'avez pas créé de compte, ignorez ce message.</p></div>`,
       '#1d4ed8'
+    ),
+  },
+  5: {
+    sujet: '⚠️ Votre compte e-Vend Studio a été suspendu',
+    html: baseHTML(
+      '⚠️ Votre compte e-Vend Studio a été suspendu',
+      `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre compte gestionnaire est <span class='badge-warn'>SUSPENDU</span> temporairement par l'équipe e-Vend Studio.</p><div class='box'><div class='row'><span class='lbl'>Boutique</span><span class='val'>{$nom_boutique_gestionnaire}</span></div><div class='row'><span class='lbl'>Date</span><span class='val'>{$date}</span></div></div><p>Votre site n'est plus accessible publiquement et vous n'avez plus accès à votre tableau de bord pendant la suspension.</p><p>Pour toute question ou une demande de réactivation, communiquez avec l'équipe e-Vend Studio.</p></div>`,
+      '#d97706'
+    ),
+  },
+  6: {
+    sujet: '✅ Votre compte e-Vend Studio a été réactivé',
+    html: baseHTML(
+      '✅ Votre compte e-Vend Studio a été réactivé',
+      `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Bonne nouvelle : votre compte gestionnaire est <span class='badge-ok'>RÉACTIVÉ</span>. Votre site est de nouveau accessible publiquement.</p><a href='{$lien_dashboard}' class='btn'>Accéder à mon tableau de bord →</a></div>`,
+      '#15803d'
+    ),
+  },
+  9: {
+    sujet: 'Votre code de connexion e-Vend',
+    html: baseHTML(
+      'Votre code de connexion e-Vend',
+      `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre code de connexion e-Vend :</p><div class='otp'><div class='otp-code'>{$code_otp}</div><div class='otp-note'>Valide 10 minutes · Ne partagez jamais ce code</div></div><p style='font-size:11px;color:#dc2626;'>⚠️ Si vous n'avez pas tenté de vous connecter, changez votre mot de passe.</p></div>`,
+      '#1a2332'
+    ),
+  },
+  28: {
+    sujet: 'Votre compte e-Vend Studio a été supprimé',
+    html: baseHTML(
+      'Votre compte e-Vend Studio a été supprimé',
+      `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Votre compte gestionnaire e-Vend Studio, ainsi que toutes les données associées (site, gabarit, contenu), ont été <span class='badge-err'>SUPPRIMÉS DÉFINITIVEMENT</span> le {$date}.</p><div class='box'><div class='row'><span class='lbl'>Raison</span><span class='val'>{$raison_suppression}</span></div></div><p>Pour toute question, communiquez avec l'équipe e-Vend Studio.</p></div>`,
+      '#991b1b'
     ),
   },
   // Ajouter les autres numéros ici au besoin (69, etc.) en attendant le branchement BD.
@@ -214,7 +257,7 @@ function remplacerVariables(texte, variables) {
  * Envoie un courriel basé sur un modèle numéroté.
  * @param {number} numero - numéro du template (ex: 3 = vérification email)
  * @param {string} destinataire - adresse courriel du destinataire
- * @param {object} variables - clés SANS {$...}, ex: { nom_vendeur: 'Marie', lien_verification: 'https://...' }
+ * @param {object} variables - clés SANS {$...}, ex: { nom_gestionnaire: 'Marie', lien_verification: 'https://...' }
  */
 async function envoyerEmailModele(numero, destinataire, variables = {}) {
   let sujetSrc, htmlSrc;

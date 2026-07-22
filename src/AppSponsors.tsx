@@ -8,13 +8,41 @@ import SponsorStats from './pages/commanditaire/SponsorStats';
 function AppSponsors() {
   const [sponsorInfo, setSponsorInfo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [onglet, setOnglet] = useState<'photos' | 'pubs' | 'stats' | 'abonnement'>('photos');
+  const [onglet, setOnglet] = useState<'photos' | 'pubs' | 'stats' | 'abonnement' | 'configuration'>('photos');
   const [token, setToken] = useState<string>('');
+  const [f2aActif, setF2aActif] = useState(false);
+  const [f2aSaving, setF2aSaving] = useState(false);
 
   useEffect(() => {
     const t = localStorage.getItem('sponsorToken') || localStorage.getItem('token') || '';
     setToken(t);
   }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch('/api/sponsors/2fa', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data && typeof data.two_factor_enabled === 'boolean') setF2aActif(data.two_factor_enabled); })
+      .catch(() => {});
+  }, [token]);
+
+  const toggleF2a = async () => {
+    const nouvelEtat = !f2aActif;
+    setF2aSaving(true);
+    try {
+      const res = await fetch('/api/sponsors/2fa', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ enabled: nouvelEtat }),
+      });
+      if (!res.ok) throw new Error();
+      setF2aActif(nouvelEtat);
+    } catch {
+      // silencieux — le toggle reste à son état précédent si l'appel échoue
+    } finally {
+      setF2aSaving(false);
+    }
+  };
 
   const fetchSponsorInfo = async () => {
     try {
@@ -153,6 +181,21 @@ function AppSponsors() {
         >
           💳 Abonnement
         </button>
+        <button
+          onClick={() => setOnglet('configuration')}
+          style={{
+            padding: '12px 24px',
+            background: 'transparent',
+            border: 'none',
+            borderBottom: onglet === 'configuration' ? '3px solid #f59e0b' : '3px solid transparent',
+            color: onglet === 'configuration' ? '#f59e0b' : '#666',
+            fontWeight: onglet === 'configuration' ? 700 : 500,
+            cursor: 'pointer',
+            fontSize: '14px',
+          }}
+        >
+          ⚙️ Configuration
+        </button>
       </div>
 
       {/* Contenu des onglets */}
@@ -160,6 +203,37 @@ function AppSponsors() {
       {onglet === 'pubs' && peutPubs && <SponsorPubs token={token} />}
       {onglet === 'stats' && <SponsorStats token={token} />}
       {onglet === 'abonnement' && <SponsorAbonnement sponsorInfo={sponsorInfo} token={token} />}
+      {onglet === 'configuration' && (
+        <div style={{ maxWidth: '520px' }}>
+          <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: '14px', padding: '24px' }}>
+            <h2 style={{ margin: '0 0 4px', fontSize: '15px', fontWeight: 700, color: '#1e293b' }}>🔐 Vérification en 2 étapes</h2>
+            <p style={{ margin: '0 0 18px', fontSize: '13px', color: '#64748b', lineHeight: 1.6 }}>
+              À chaque connexion, un code vous sera envoyé par courriel en plus de votre mot de passe.
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '12px', fontWeight: 700, color: f2aActif ? '#16a34a' : '#94a3b8' }}>
+                {f2aActif ? '🔐 Activée' : '— Désactivée'}
+              </span>
+              <button
+                onClick={toggleF2a}
+                disabled={f2aSaving}
+                style={{
+                  position: 'relative', width: '46px', height: '26px', borderRadius: '13px', border: 'none',
+                  background: f2aActif ? '#16a34a' : '#cbd5e1', cursor: f2aSaving ? 'not-allowed' : 'pointer',
+                  transition: 'background 0.15s',
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: '3px', left: f2aActif ? '23px' : '3px',
+                  width: '20px', height: '20px', borderRadius: '50%', background: '#fff',
+                  transition: 'left 0.15s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+                }} />
+              </button>
+            </div>
+            {f2aSaving && <p style={{ fontSize: '11px', color: '#94a3b8', margin: '10px 0 0' }}>⏳ Mise à jour…</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -717,6 +717,73 @@ function CompteExpireModal({
   );
 }
 
+// ── Modal compte suspendu / banni ────────────────────────────────────────────
+function CompteSuspenduModal({
+  open,
+  onClose,
+  banni,
+}: {
+  open: boolean;
+  onClose: () => void;
+  banni: boolean;
+}) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  if (!open) return null;
+
+  return (
+    <div
+      ref={overlayRef}
+      onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 9999,
+        background: 'rgba(5, 10, 30, 0.75)', backdropFilter: 'blur(8px)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '20px', animation: 'fadeIn 0.2s ease',
+      }}
+    >
+      <div style={{
+        width: '100%', maxWidth: '440px', borderRadius: '20px', overflow: 'hidden',
+        boxShadow: '0 30px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.08)',
+        animation: 'slideUp 0.3s cubic-bezier(0.34,1.56,0.64,1)',
+        background: '#0d1428',
+      }}>
+        <div style={{
+          background: 'linear-gradient(135deg, #7f1d1d, #dc2626)',
+          padding: '28px 32px 24px', position: 'relative',
+        }}>
+          <button
+            onClick={onClose}
+            style={{
+              position: 'absolute', top: '16px', right: '16px',
+              background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: '50%',
+              width: '32px', height: '32px', color: '#fff', fontSize: '16px', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            ✕
+          </button>
+          <div style={{ fontSize: '36px', marginBottom: '8px' }}>{banni ? '⛔' : '🔒'}</div>
+          <h3 style={{ margin: 0, color: '#fff', fontSize: '20px', fontWeight: 700, fontFamily: "'Sora', sans-serif" }}>
+            {banni ? 'Compte banni' : 'Compte suspendu'}
+          </h3>
+        </div>
+
+        <div style={{ padding: '28px 32px' }}>
+          <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px', lineHeight: 1.6, marginBottom: '20px' }}>
+            {banni
+              ? 'Votre compte a été banni de la plateforme e-Vend Studio.'
+              : 'Votre compte a été suspendu par l\'équipe e-Vend Studio.'}
+          </p>
+          <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: '13px', lineHeight: 1.6, textAlign: 'center' }}>
+            Pour toute question ou demande de réactivation, communiquez avec l'équipe e-Vend Studio.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Modal Vérification 2FA ───────────────────────────────────────────────────
 function Verify2FAModal({
   open,
@@ -924,6 +991,8 @@ export default function LoginPage({
   const [compteExpireOpen, setCompteExpireOpen] = useState(false);
   const [compteExpireMessage, setCompteExpireMessage] = useState('');
   const [compteExpireUrl, setCompteExpireUrl] = useState<string | null>(null);
+  const [compteSuspenduOpen, setCompteSuspenduOpen] = useState(false);
+  const [compteBanni, setCompteBanni] = useState(false);
   const [banniereLoginHauteur, setBanniereLoginHauteur] = useState('36');
   const [banniereLoginPolice, setBanniereLoginPolice] = useState('13');
 
@@ -1003,7 +1072,12 @@ export default function LoginPage({
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (response.ok && data.requires2FA) {
+        // Compte avec F2A activée : pas de token encore, on ouvre la modale de code
+        setVerify2FAUserId(data.userId);
+        setVerify2FAUserType(activeTab);
+        setVerify2FAModalOpen(true);
+      } else if (response.ok) {
         // Stocker le token et l'utilisateur
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(data.user));
@@ -1024,6 +1098,9 @@ export default function LoginPage({
         setCompteExpireMessage(data.message || 'Votre période d\'essai est terminée.');
         setCompteExpireUrl(data.url_paiement || null);
         setCompteExpireOpen(true);
+      } else if (data.code === 'COMPTE_SUSPENDU' || data.code === 'COMPTE_BANNI') {
+        setCompteBanni(data.code === 'COMPTE_BANNI');
+        setCompteSuspenduOpen(true);
       } else {
         setErreur(data.message || 'Email ou mot de passe incorrect');
       }
@@ -1989,6 +2066,13 @@ export default function LoginPage({
         accent={tab.accent}
         message={compteExpireMessage}
         urlPaiement={compteExpireUrl}
+      />
+
+      {/* MODAL COMPTE SUSPENDU / BANNI */}
+      <CompteSuspenduModal
+        open={compteSuspenduOpen}
+        onClose={() => setCompteSuspenduOpen(false)}
+        banni={compteBanni}
       />
 
       {/* MODAL VÉRIFICATION 2FA */}

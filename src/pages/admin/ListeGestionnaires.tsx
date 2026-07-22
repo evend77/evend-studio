@@ -14,7 +14,7 @@ export interface Gestionnaire {
   email: string;
   nom_boutique: string;
   plan: string;
-  statut: 'actif' | 'suspendu' | 'banni';
+  statut: 'actif' | 'suspendu' | 'banni' | 'en_maintenance';
   aboStatut: 'essai' | 'actif' | 'annule' | 'impaye' | 'expire' | 'a_supprimer' | null;
   essaiFin: string | null;
   periodeFin: string | null;
@@ -75,7 +75,7 @@ interface ModaleConfirmationProps {
   isOpen: boolean;
   type: ActionType;
   gestionnaire: Gestionnaire | null;
-  onConfirm: () => void;
+  onConfirm: (raison?: string) => void;
   onCancel: () => void;
 }
 
@@ -122,10 +122,10 @@ function ModalNotes({
           </div>
 
           <div style={{ marginTop: '14px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '8px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontSize: '18px' }}>{gestionnaire.statut === 'actif' ? '✅' : gestionnaire.statut === 'suspendu' ? '🚫' : '⛔'}</span>
+            <span style={{ fontSize: '18px' }}>{gestionnaire.statut === 'actif' ? '✅' : gestionnaire.statut === 'suspendu' ? '🔒' : gestionnaire.statut === 'en_maintenance' ? '🚧' : '⛔'}</span>
             <div>
               <p style={{ fontSize: '11px', opacity: 0.6, margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Statut compte</p>
-              <p style={{ fontSize: '13px', fontWeight: '700', margin: 0 }}>{gestionnaire.statut === 'actif' ? 'Actif' : gestionnaire.statut === 'suspendu' ? 'Suspendu' : 'Banni'}</p>
+              <p style={{ fontSize: '13px', fontWeight: '700', margin: 0 }}>{gestionnaire.statut === 'actif' ? 'Actif' : gestionnaire.statut === 'suspendu' ? 'Suspendu' : gestionnaire.statut === 'en_maintenance' ? 'En maintenance' : 'Banni'}</p>
             </div>
             <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
               <p style={{ fontSize: '11px', opacity: 0.6, margin: 0 }}>Abonnement</p>
@@ -423,6 +423,7 @@ function ModaleMessage({ isOpen, gestionnaire, onCancel, onConfirm }: {
 // ── Modale de confirmation (suspendre / réactiver / supprimer) ──────────────────
 function ModaleConfirmation({ isOpen, type, gestionnaire, onConfirm, onCancel }: ModaleConfirmationProps) {
   const [confirmation, setConfirmation] = useState('');
+  const [raison, setRaison] = useState('');
 
   if (!isOpen || !type) return null;
 
@@ -432,6 +433,7 @@ function ModaleConfirmation({ isOpen, type, gestionnaire, onConfirm, onCancel }:
 
   const MOT_CONFIRMATION = 'CONFIRMER';
   const confirmationValide = confirmation === MOT_CONFIRMATION;
+  const raisonValide = raison.trim().length > 0;
 
   const getTitle = () => {
     if (isSupprimer) return 'SUPPRIMER CE GESTIONNAIRE';
@@ -504,6 +506,23 @@ function ModaleConfirmation({ isOpen, type, gestionnaire, onConfirm, onCancel }:
           {isSupprimer && (
             <div style={{ marginBottom: '20px' }}>
               <label style={{ fontSize: '13px', fontWeight: '600', color: THEME.text, display: 'block', marginBottom: '8px' }}>
+                Raison de la suppression <span style={{ color: THEME.danger }}>*</span>
+              </label>
+              <p style={{ fontSize: '11px', color: THEME.textLight, margin: '0 0 8px' }}>
+                Sera incluse dans le courriel envoyé au gestionnaire et conservée dans nos dossiers.
+              </p>
+              <textarea
+                value={raison} onChange={(e) => setRaison(e.target.value)}
+                placeholder="Ex : Fraude constatée sur les paiements, violation des conditions d'utilisation…"
+                rows={3}
+                style={{ width: '100%', padding: '12px 14px', border: `1px solid ${THEME.border}`, borderRadius: '8px', fontSize: '13px', outline: 'none', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'inherit' }}
+              />
+            </div>
+          )}
+
+          {isSupprimer && (
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ fontSize: '13px', fontWeight: '600', color: THEME.text, display: 'block', marginBottom: '8px' }}>
                 Tapez <strong style={{ color: THEME.danger }}>{MOT_CONFIRMATION}</strong> pour confirmer :
               </label>
               <input
@@ -523,9 +542,9 @@ function ModaleConfirmation({ isOpen, type, gestionnaire, onConfirm, onCancel }:
             Annuler
           </button>
           <button
-            onClick={onConfirm}
-            disabled={isSupprimer && !confirmationValide}
-            style={{ padding: '10px 20px', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: (isSupprimer && !confirmationValide) ? 'not-allowed' : 'pointer', backgroundColor: (isSupprimer && !confirmationValide) ? '#cccccc' : getButtonColor(), color: 'white' }}>
+            onClick={() => onConfirm(isSupprimer ? raison.trim() : undefined)}
+            disabled={isSupprimer && (!confirmationValide || !raisonValide)}
+            style={{ padding: '10px 20px', border: 'none', borderRadius: '8px', fontSize: '13px', fontWeight: '700', cursor: (isSupprimer && (!confirmationValide || !raisonValide)) ? 'not-allowed' : 'pointer', backgroundColor: (isSupprimer && (!confirmationValide || !raisonValide)) ? '#cccccc' : getButtonColor(), color: 'white' }}>
             Confirmer
           </button>
         </div>
@@ -543,9 +562,10 @@ function ModaleChangerStatut({ gestionnaire, onCancel, onConfirm }: {
   const [statutChoisi, setStatutChoisi] = useState('');
 
   const statuts = [
-    { value: 'actif',     label: '✅ Actif',    desc: 'Accès complet au tableau de bord', bg: '#dcfce7', color: '#16a34a' },
-    { value: 'suspendu',  label: '🔒 Suspendu', desc: 'Accès temporairement bloqué',      bg: '#ffedd5', color: '#ea580c' },
-    { value: 'banni',     label: '🚫 Banni',    desc: 'Banni définitivement de la plateforme', bg: '#f3e8ff', color: '#7c3aed' },
+    { value: 'actif',        label: '✅ Actif',         desc: 'Accès complet au tableau de bord', bg: '#dcfce7', color: '#16a34a' },
+    { value: 'suspendu',     label: '🔒 Suspendu',      desc: 'Accès bloqué, site non visible publiquement', bg: '#ffedd5', color: '#ea580c' },
+    { value: 'en_maintenance', label: '🚧 En maintenance', desc: 'Dashboard accessible, site public en maintenance', bg: '#fef3c7', color: '#b45309' },
+    { value: 'banni',        label: '🚫 Banni',         desc: 'Banni définitivement de la plateforme', bg: '#f3e8ff', color: '#7c3aed' },
   ];
 
   return (
@@ -738,10 +758,11 @@ function ListeGestionnaires({ onImpersonate, onNaviguerVers }: ListeGestionnaire
 
   const getStatutStyle = (statut: string) => {
     switch (statut) {
-      case 'actif':     return { bg: '#dcfce7', color: THEME.success, text: '✅ Actif' };
-      case 'suspendu':  return { bg: '#ffedd5', color: THEME.orange,  text: '🔒 Suspendu' };
-      case 'banni':     return { bg: '#f3e8ff', color: THEME.purple,  text: '🚫 Banni' };
-      default:          return { bg: '#f3f4f6', color: THEME.textLight, text: statut };
+      case 'actif':          return { bg: '#dcfce7', color: THEME.success, text: '✅ Actif' };
+      case 'suspendu':       return { bg: '#ffedd5', color: THEME.orange,  text: '🔒 Suspendu' };
+      case 'en_maintenance': return { bg: '#fef3c7', color: '#b45309',     text: '🚧 En maintenance' };
+      case 'banni':          return { bg: '#f3e8ff', color: THEME.purple,  text: '🚫 Banni' };
+      default:               return { bg: '#f3f4f6', color: THEME.textLight, text: statut };
     }
   };
 
@@ -874,13 +895,17 @@ function ListeGestionnaires({ onImpersonate, onNaviguerVers }: ListeGestionnaire
     }
   };
 
-  const handleConfirmation = async () => {
+  const handleConfirmation = async (raison?: string) => {
     const { type, gestionnaire } = modaleConfirmation;
     if (!type || !gestionnaire) { setModaleConfirmation({ isOpen: false, type: null, gestionnaire: null }); return; }
 
     if (type === 'supprimer') {
       try {
-        const res = await fetch(`${API}/api/admin/gestionnaires/${gestionnaire.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token()}` } });
+        const res = await fetch(`${API}/api/admin/gestionnaires/${gestionnaire.id}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token()}` },
+          body: JSON.stringify({ raison: raison || '' }),
+        });
         if (!res.ok) throw new Error();
         setGestionnaires(prev => prev.filter(g => g.id !== gestionnaire.id));
         showToast('✅ Gestionnaire supprimé avec succès', 'success');
@@ -1016,6 +1041,7 @@ function ListeGestionnaires({ onImpersonate, onNaviguerVers }: ListeGestionnaire
             { val: 'impaye',    label: '❌ Impayés' },
             { val: 'expire',    label: '⛔ Essai expiré' },
             { val: 'suspendu',  label: '🔒 Suspendus' },
+            { val: 'en_maintenance', label: '🚧 En maintenance' },
             { val: 'banni',     label: '🚫 Bannis' },
           ].map(({ val, label }) => (
             <button key={val} onClick={() => setFiltreStatut(val)}

@@ -36,6 +36,11 @@ const abonnementsStudioRoutes = require('./routes/abonnements_studio');
 const cronAbonnementsModule   = require('./routes/cron_abonnements_studio');
 const cronVerificationEmailModule = require('./routes/cron_verification_email');
 const modelesModule           = require('./routes/modelescouriels');
+const configPage404Module         = require('./routes/admin_config_404');
+const adminGestionnairesStatutModule = require('./routes/admin_gestionnaires_statut');
+const admin2faModule = require('./routes/admin_2fa');
+const configSiteSuspenduModule    = require('./routes/admin_config_site_suspendu');
+const configSiteMaintenanceModule = require('./routes/admin_config_site_maintenance');
 const cronReservationsModule  = require('./routes/cron_reservations');
 const cronPaiementsModule     = require('./routes/cron_paiements_en_attente');
 const sponsorsPhotosRoutes = require('./routes/sponsorsphotos');
@@ -192,6 +197,12 @@ app.use('/api/abonnements-studio', abonnementsStudioRoutes);
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
 app.use('/api/cron-verification-email', cronVerificationEmailModule);
 app.use('/api', modelesModule);
+app.use('/api/admin/config/page-404', configPage404Module);
+app.use('/api/admin/gestionnaires', adminGestionnairesStatutModule);
+app.use('/api/admin/config/2fa', admin2faModule);
+app.use('/api/admin/config/page-suspendu', configSiteSuspenduModule);
+app.use('/api/admin/config/page-maintenance', configSiteMaintenanceModule);
+app.use('/api', configPagesPubliquesModule);
 app.use('/api/cron-reservations',  cronReservationsModule);
 app.use('/api/cron-paiements',     cronPaiementsModule);
 app.use('/api/admin/stripe', require('./routes/admin_stripe'));
@@ -300,7 +311,7 @@ app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (re
          NOW()
        )
        ON CONFLICT (gestionnaire_id) DO UPDATE SET
-         config         = COALESCE($1::jsonb, sites.config),
+         config         = CASE WHEN $1::jsonb IS NOT NULL THEN COALESCE(sites.config, '{}'::jsonb) || $1::jsonb ELSE sites.config END,
          sous_type      = COALESCE($2, sites.sous_type),
          template_id    = COALESCE($3, sites.template_id),
          slug           = COALESCE($4, sites.slug),
@@ -637,7 +648,7 @@ app.get('/api/gestionnaires/:id/stats', authenticateToken, async (req, res) => {
 app.get('/api/gestionnaires/moi', authenticateToken, async (req, res) => {
   try {
     const result = await pool.query(
-      `SELECT v.id, v.email, v.nom, v.plan, v.statut, v.created_at, v.email_verifie, v.premiere_verification_faite, v.email_verification_expire,
+      `SELECT v.id, v.email, v.nom, v.plan, v.statut, v.created_at, v.email_verifie, v.premiere_verification_faite, v.email_verification_expire, v.two_factor_enabled,
               s.id as site_id, s.slug, s.sous_type, s.publie, s.template_id
        FROM gestionnaires v
        LEFT JOIN sites s ON s.gestionnaire_id = v.id

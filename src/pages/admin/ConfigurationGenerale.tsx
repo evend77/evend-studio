@@ -654,6 +654,8 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
 
   // ── État des paramètres (Avancé) ──────────────────────────────────────────
   const [groupingCustomFields, setGroupingCustomFields] = useState(false);
+  const [f2aAdminActif, setF2aAdminActif] = useState(false);
+  const [f2aAdminSaving, setF2aAdminSaving] = useState(false);
   const [googleTranslation, setGoogleTranslation] = useState(false);
   const [translationPanel, setTranslationPanel] = useState('both');
   const [rtlAlignment, setRtlAlignment] = useState(false);
@@ -721,6 +723,34 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
   };
 
   const marquerModifie = () => setModifie(true);
+
+  // ── F2A admin — séparé du reste de la config, bascule instantanée ──────────
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    fetch('/api/admin/config/2fa', { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data && typeof data.two_factor_enabled === 'boolean') setF2aAdminActif(data.two_factor_enabled); })
+      .catch(() => {});
+  }, []);
+
+  const toggleF2aAdmin = async () => {
+    const nouvelEtat = !f2aAdminActif;
+    setF2aAdminSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/admin/config/2fa', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ enabled: nouvelEtat }),
+      });
+      if (!res.ok) throw new Error();
+      setF2aAdminActif(nouvelEtat);
+    } catch {
+      // pas de toast dédié ici — le toggle revient visuellement à son état précédent
+    } finally {
+      setF2aAdminSaving(false);
+    }
+  };
 
   // ============================================
   // CHARGEMENT DE LA CONFIGURATION DEPUIS L'API ADMIN
@@ -3442,7 +3472,15 @@ export default function ConfigurationGenerale({ naviguerVers }: ConfigurationGen
         </Section>
       </div>
       <div>
-        {/* Espace pour d'autres paramètres avancés */}
+        <Section titre="Vérification en 2 étapes" icon="🔐">
+          <ParamLigne
+            label="Activer la F2A pour mon compte admin"
+            description="À chaque connexion, un code vous sera envoyé par courriel en plus de votre mot de passe."
+            derniere>
+            <Toggle actif={f2aAdminActif} onChange={toggleF2aAdmin} />
+          </ParamLigne>
+          {f2aAdminSaving && <p style={{ fontSize: '11px', color: T.textLight, margin: '8px 0 0' }}>⏳ Mise à jour…</p>}
+        </Section>
       </div>
     </div>
   );

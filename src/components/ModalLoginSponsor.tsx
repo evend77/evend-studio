@@ -15,6 +15,10 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'login' | 'register'>('login');
+  const [etape, setEtape] = useState<'identifiants' | 'code2fa'>('identifiants');
+  const [userId2fa, setUserId2fa] = useState<number | null>(null);
+  const [code2fa, setCode2fa] = useState('');
+  const [loading2fa, setLoading2fa] = useState(false);
 
   // ── INSCRIPTION (redirige vers la page d'inscription) ──────────────────
   const handleRegisterClick = () => {
@@ -40,6 +44,12 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
         throw new Error(data.error || 'Email ou mot de passe incorrect');
       }
 
+      if (data.requires2FA) {
+        setUserId2fa(data.userId);
+        setEtape('code2fa');
+        return;
+      }
+
       localStorage.setItem('sponsorToken', data.token);
       localStorage.setItem('sponsor', JSON.stringify(data.sponsor));
 
@@ -49,6 +59,36 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── VÉRIFICATION DU CODE F2A ─────────────────────────────────────────────
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading2fa(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/auth/verify-2fa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: userId2fa, code: code2fa, userType: 'commanditaire' }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Code invalide ou expiré');
+      }
+
+      localStorage.setItem('sponsorToken', data.token);
+      localStorage.setItem('sponsor', JSON.stringify(data.user));
+
+      onLoginSuccess(data.token, data.user);
+      onClose();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading2fa(false);
     }
   };
 
@@ -105,6 +145,7 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
         </div>
 
         {/* Formulaire */}
+        {etape === 'identifiants' ? (
         <form onSubmit={handleLogin}>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '6px', color: '#333' }}>
@@ -187,8 +228,82 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
             {loading ? '⏳...' : '🚀 Se connecter'}
           </button>
         </form>
+        ) : (
+        <form onSubmit={handleVerifyCode}>
+          <p style={{ fontSize: '14px', color: '#333', margin: '0 0 16px', lineHeight: 1.6 }}>
+            Un code de vérification vous a été envoyé par courriel. Entrez-le ci-dessous.
+          </p>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '6px', color: '#333' }}>
+              Code de vérification
+            </label>
+            <input
+              type="text"
+              value={code2fa}
+              onChange={(e) => setCode2fa(e.target.value)}
+              placeholder="123456"
+              required
+              autoFocus
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                border: '2px solid #e5e7eb',
+                borderRadius: '10px',
+                fontSize: '18px',
+                letterSpacing: '4px',
+                textAlign: 'center',
+                fontFamily: 'monospace',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#f59e0b'}
+              onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+            />
+          </div>
+
+          {error && (
+            <div style={{
+              padding: '10px 14px',
+              background: '#fee2e2',
+              borderRadius: '8px',
+              color: '#dc2626',
+              fontSize: '14px',
+              marginBottom: '16px',
+            }}>
+              ❌ {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading2fa}
+            style={{
+              width: '100%',
+              padding: '12px',
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#000',
+              fontSize: '16px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              opacity: loading2fa ? 0.7 : 1,
+            }}
+          >
+            {loading2fa ? '⏳...' : '✅ Vérifier le code'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEtape('identifiants'); setCode2fa(''); setError(''); }}
+            style={{ width: '100%', marginTop: '10px', padding: '8px', background: 'transparent', border: 'none', color: '#666', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            ← Retour
+          </button>
+        </form>
+        )}
 
         {/* Basculer vers l'inscription */}
+        {etape === 'identifiants' && (
         <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '14px', color: '#666' }}>
           Pas encore de compte commanditaire ?{' '}
           <button
@@ -205,6 +320,7 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
             S'inscrire
           </button>
         </div>
+        )}
       </div>
     </div>
   );
