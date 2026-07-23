@@ -303,13 +303,23 @@ async function envoyerEmailModele(numero, destinataire, variables = {}) {
   const sujetFinal = remplacerVariables(sujetSrc, variables);
   const htmlFinal  = remplacerVariables(htmlSrc, variables);
 
+  const source = process.env.FROM_EMAIL || 'contact@e-vend.ca';
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!destinataire || !EMAIL_REGEX.test(String(destinataire).trim())) {
+    throw new Error(`Adresse destinataire invalide ou vide pour le modèle #${numero} : "${destinataire}"`);
+  }
+  if (!EMAIL_REGEX.test(source)) {
+    throw new Error(`FROM_EMAIL invalide côté serveur : "${source}" — vérifie la variable d'environnement FROM_EMAIL sur Render.`);
+  }
+
   await ses.send(new SendEmailCommand({
-    Destination: { ToAddresses: [destinataire] },
+    Destination: { ToAddresses: [String(destinataire).trim()] },
     Message: {
       Subject: { Data: sujetFinal, Charset: 'UTF-8' },
       Body: { Html: { Data: htmlFinal, Charset: 'UTF-8' } },
     },
-    Source: process.env.FROM_EMAIL || 'contact@e-vend.ca',
+    Source: source,
   }));
 }
 

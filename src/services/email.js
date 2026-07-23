@@ -224,6 +224,14 @@ const TEMPLATES = {
       '#15803d'
     ),
   },
+  7: {
+    sujet: 'Réinitialisation de votre mot de passe — e-Vend Studio',
+    html: baseHTML(
+      'Réinitialisation de votre mot de passe — e-Vend Studio',
+      `<p class='greeting'>Bonjour {$nom_gestionnaire},</p><div class='content'><p>Vous avez demandé la réinitialisation de votre mot de passe.</p><a href='{$lien_reinitialisation}' class='btn'>🔑 Créer un nouveau mot de passe</a><p style='font-size:11px;color:#9ca3af;'>Lien valide 24h. Si vous n'êtes pas à l'origine de cette demande, ignorez ce courriel.</p></div>`,
+      '#7c3aed'
+    ),
+  },
   9: {
     sujet: 'Votre code de connexion e-Vend',
     html: baseHTML(
@@ -295,13 +303,23 @@ async function envoyerEmailModele(numero, destinataire, variables = {}) {
   const sujetFinal = remplacerVariables(sujetSrc, variables);
   const htmlFinal  = remplacerVariables(htmlSrc, variables);
 
+  const source = process.env.FROM_EMAIL || 'contact@e-vend.ca';
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!destinataire || !EMAIL_REGEX.test(String(destinataire).trim())) {
+    throw new Error(`Adresse destinataire invalide ou vide pour le modèle #${numero} : "${destinataire}"`);
+  }
+  if (!EMAIL_REGEX.test(source)) {
+    throw new Error(`FROM_EMAIL invalide côté serveur : "${source}" — vérifie la variable d'environnement FROM_EMAIL sur Render.`);
+  }
+
   await ses.send(new SendEmailCommand({
-    Destination: { ToAddresses: [destinataire] },
+    Destination: { ToAddresses: [String(destinataire).trim()] },
     Message: {
       Subject: { Data: sujetFinal, Charset: 'UTF-8' },
       Body: { Html: { Data: htmlFinal, Charset: 'UTF-8' } },
     },
-    Source: process.env.FROM_EMAIL || 'contact@e-vend.ca',
+    Source: source,
   }));
 }
 
