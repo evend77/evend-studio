@@ -1,4 +1,4 @@
-// routes/admin_config_site_suspendu.js
+// routes/admin_config_site_maintenance.js
 // GET  /api/admin/config/page-maintenance/public  — lecture publique (sans auth)
 // GET  /api/admin/config/page-maintenance         — lire la config (admin)
 // PUT  /api/admin/config/page-maintenance         — mettre à jour la config (admin)
