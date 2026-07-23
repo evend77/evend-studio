@@ -202,7 +202,6 @@ app.use('/api/admin/gestionnaires', adminGestionnairesStatutModule);
 app.use('/api/admin/config/2fa', admin2faModule);
 app.use('/api/admin/config/page-suspendu', configSiteSuspenduModule);
 app.use('/api/admin/config/page-maintenance', configSiteMaintenanceModule);
-app.use('/api', configPagesPubliquesModule);
 app.use('/api/cron-reservations',  cronReservationsModule);
 app.use('/api/cron-paiements',     cronPaiementsModule);
 app.use('/api/admin/stripe', require('./routes/admin_stripe'));
