@@ -5,8 +5,8 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import WishlistButton from '../components/WishlistButton';
 
-const API_BASE = 'https://evend-multivendeur-api.onrender.com/api';
-const DASHBOARD_URL = 'https://evend-multivendeur-api.onrender.com';
+const API_BASE = 'https://api.e-vend.ca/api';
+const DASHBOARD_URL = 'https://api.e-vend.ca';
 
 interface Produit {
   id: number;

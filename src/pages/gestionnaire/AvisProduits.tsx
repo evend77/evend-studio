@@ -46,7 +46,7 @@ const C = {
 };
 
 const getToken = () => localStorage.getItem('token');
-const API_BASE = 'https://evend-multivendeur-api.onrender.com/api';
+const API_BASE = 'https://api.e-vend.ca/api';
 
 // Composant étoiles
 const Etoiles = ({ note, taille = 16 }: { note: number; taille?: number }) => (

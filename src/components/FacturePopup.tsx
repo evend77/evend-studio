@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import { genererHTMLFactureDepuisFacture } from '../utils/factureGenerator';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 const C = {
   blue: '#3b82f6',

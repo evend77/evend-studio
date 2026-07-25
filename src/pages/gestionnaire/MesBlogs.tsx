@@ -12,7 +12,7 @@ const T = {
   success: '#008060', warning: '#d97706', danger: '#dc2626',
 };
 
-const API = 'https://evend-multivendeur-api.onrender.com/api';
+const API = 'https://api.e-vend.ca/api';
 
 interface Blog {
   id: number;

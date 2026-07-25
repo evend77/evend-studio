@@ -2,7 +2,7 @@
 // Config expédition vendeur — 4 modes + combine shipping + zones province
 import React, { useState, useEffect, useCallback } from 'react';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 const getToken = () => localStorage.getItem('token');
 

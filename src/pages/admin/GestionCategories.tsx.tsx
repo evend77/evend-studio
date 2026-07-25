@@ -32,7 +32,7 @@ const THEME = {
   purple:       '#7c3aed',
 };
 
-const API = 'https://evend-multivendeur-api.onrender.com/api/categories';
+const API = 'https://api.e-vend.ca/api/categories';
 const authHeaders = () => ({
   'Content-Type': 'application/json',
   'Authorization': `Bearer ${localStorage.getItem('token')}`,

@@ -380,7 +380,7 @@ export default function ComptesSuspendus({ naviguerVers }: ComptesSuspendusProps
       setErreurChargement(null);
 
       const token = getToken();
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/vendeurs/suspendus', {
+      const response = await fetch('https://api.e-vend.ca/api/vendeurs/suspendus', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
 
@@ -425,7 +425,7 @@ export default function ComptesSuspendus({ naviguerVers }: ComptesSuspendusProps
   const chargerNotes = async (compteId: number): Promise<NoteSuspension[]> => {
     try {
       const token = getToken();
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${compteId}/notes`, {
+      const response = await fetch(`https://api.e-vend.ca/api/vendeurs/${compteId}/notes`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!response.ok) throw new Error('Erreur chargement notes');
@@ -463,7 +463,7 @@ export default function ComptesSuspendus({ naviguerVers }: ComptesSuspendusProps
   const handleSupprimerNote = async (compte: CompteSuspendu, noteId: number) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`https://evend-multivendeur-api.onrender.com/api/notes/${noteId}`, {
+      const res = await fetch(`https://api.e-vend.ca/api/notes/${noteId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -481,7 +481,7 @@ export default function ComptesSuspendus({ naviguerVers }: ComptesSuspendusProps
   const handleAjouterNote = async (compte: CompteSuspendu, contenu: string) => {
     try {
       const token = getToken();
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${compte.id}/notes`, {
+      const response = await fetch(`https://api.e-vend.ca/api/vendeurs/${compte.id}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ contenu, auteur: 'Admin', type: 'suspension' }),
@@ -512,7 +512,7 @@ export default function ComptesSuspendus({ naviguerVers }: ComptesSuspendusProps
   const handleReactiver = async (compte: CompteSuspendu) => {
     try {
       const token = getToken();
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${compte.id}/reactiver`, {
+      const response = await fetch(`https://api.e-vend.ca/api/vendeurs/${compte.id}/reactiver`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       });

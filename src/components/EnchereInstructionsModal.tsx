@@ -51,7 +51,7 @@ const ETAPES = [
   window.evendProductId = '{{ product.id }}';
 </script>
 
-<script src="https://evend-multivendeur-api.onrender.com/public/evend-auction-widget.js" defer></script>`,
+<script src="https://api.e-vend.ca/public/evend-auction-widget.js" defer></script>`,
     codeLangue: 'Liquid + HTML',
     codeInstructions: 'Collez ce code juste avant </body> dans theme.liquid :',
   },

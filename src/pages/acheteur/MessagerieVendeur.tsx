@@ -11,7 +11,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 const C = {
   blue: '#3b82f6', blueDark: '#1e40af', purple: '#8b5cf6',
   green: '#10b981', red: '#ef4444', amber: '#f59e0b',

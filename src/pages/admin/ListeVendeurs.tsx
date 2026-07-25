@@ -1349,7 +1349,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
   const handleOuvrirNotes = async (vendeur: Vendeur) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeur.id}/notes`, {
+      const res = await fetch(`https://api.e-vend.ca/api/vendeurs/${vendeur.id}/notes`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Erreur chargement notes');
@@ -1370,7 +1370,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
   const handleAjouterNote = async (vendeur: Vendeur, contenu: string) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeur.id}/notes`, {
+      const res = await fetch(`https://api.e-vend.ca/api/vendeurs/${vendeur.id}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ contenu, auteur: 'Admin', type: 'admin' }),
@@ -1396,7 +1396,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
   const handleSupprimerNote = async (vendeur: Vendeur, noteId: number) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`https://evend-multivendeur-api.onrender.com/api/notes/${noteId}`, {
+      const res = await fetch(`https://api.e-vend.ca/api/notes/${noteId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` },
       });
@@ -1415,7 +1415,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
     setVendeurSignalements({ vendeur, signalements: [], loading: true });
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeur.id}/signalements`, {
+      const res = await fetch(`https://api.e-vend.ca/api/vendeurs/${vendeur.id}/signalements`, {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!res.ok) throw new Error('Erreur chargement signalements');
@@ -1423,7 +1423,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
       setVendeurSignalements({ vendeur, signalements: data, loading: false });
       // Marquer les "nouveaux" comme "vu" automatiquement
       data.filter(s => s.statut === 'nouveau').forEach(s => {
-        fetch(`https://evend-multivendeur-api.onrender.com/api/signalements/${s.id}`, {
+        fetch(`https://api.e-vend.ca/api/signalements/${s.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({ statut: 'vu' }),
@@ -1440,7 +1440,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
   const handleStatutSignalement = async (signalementId: number, statut: string, noteAdmin?: string) => {
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`https://evend-multivendeur-api.onrender.com/api/signalements/${signalementId}`, {
+      const res = await fetch(`https://api.e-vend.ca/api/signalements/${signalementId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ statut, note_admin: noteAdmin }),
@@ -1588,7 +1588,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
           
           if (type === 'supprimer') {
             // Suppression
-            fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeurId}`, {
+            fetch(`https://api.e-vend.ca/api/vendeurs/${vendeurId}`, {
               method: 'DELETE',
               headers: { 'Authorization': `Bearer ${token}` }
             })
@@ -1606,7 +1606,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
               });
           } else {
             // Changement de statut (activer/désactiver)
-            fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeurId}/statut`, {
+            fetch(`https://api.e-vend.ca/api/vendeurs/${vendeurId}/statut`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({ statut: nouveauStatut }),
@@ -1640,7 +1640,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
     if (!vendeur) return;
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeur.id}/mot-de-passe`, {
+      const res = await fetch(`https://api.e-vend.ca/api/vendeurs/${vendeur.id}/mot-de-passe`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ nouveau_mot_de_passe: nouveauMotDePasse }),
@@ -1667,7 +1667,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
     const token = localStorage.getItem('token');
     const nouvelEtat = !vendeur.twoFactorEnabled;
     try {
-      const res = await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeur.id}/2fa`, {
+      const res = await fetch(`https://api.e-vend.ca/api/vendeurs/${vendeur.id}/2fa`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ enabled: nouvelEtat }),
@@ -2355,7 +2355,7 @@ function ListeVendeurs({ onImpersonate, onNaviguerVers, vendeurs: vendeursFromPr
             const token = localStorage.getItem('token');
 
             // Appel API direct avec raison/gravité
-            fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeurCible.id}/statut`, {
+            fetch(`https://api.e-vend.ca/api/vendeurs/${vendeurCible.id}/statut`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
               body: JSON.stringify({ statut: nouveauStatut, raison_suspension: raison, gravite, note_admin: note }),

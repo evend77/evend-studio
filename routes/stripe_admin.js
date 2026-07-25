@@ -845,7 +845,7 @@ router.post('/webhook/register', authenticateToken, isAdmin, async (req, res) =>
 
     const stripe    = require('stripe')(stripeKey);
     const webhookUrl = process.env.WEBHOOK_URL ||
-      'https://evend-multivendeur-api.onrender.com/api/webhooks/stripe';
+      'https://api.e-vend.ca/api/webhooks/stripe';
 
     // Events selon le type de webhook
     const eventsPrincipal = [

@@ -49,7 +49,7 @@ export default function ChoisirForfaitVendeur({ vendeurCree, onForfaitChoisi }: 
   const [enCours, setEnCours]       = useState(false);
 
   useEffect(() => {
-    fetch('https://evend-multivendeur-api.onrender.com/api/plans')
+    fetch('https://api.e-vend.ca/api/plans')
       .then(r => r.json())
       .then((data: Plan[]) => {
         const liste = Array.isArray(data)
@@ -107,7 +107,7 @@ export default function ChoisirForfaitVendeur({ vendeurCree, onForfaitChoisi }: 
     setEnCours(true);
     try {
       if (vendeurCree.id) {
-        await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeurCree.id}`, {
+        await fetch(`https://api.e-vend.ca/api/vendeurs/${vendeurCree.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ plan: planChoisi.nom }),

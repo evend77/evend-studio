@@ -8,7 +8,7 @@ const THEME = {
   danger: '#dc2626', success: '#16a34a', warning: '#d97706', purple: '#7c3aed',
 };
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 const getToken = () => localStorage.getItem('token');
 
 // ─────────────────────────────────────────────────────────────────────────────

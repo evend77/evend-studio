@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  const API_BASE = 'https://evend-multivendeur-api.onrender.com';
+  const API_BASE = 'https://api.e-vend.ca';
 
   // ── Attendre que le DOM soit prêt ────────────────────────────────────────
   if (document.readyState === 'loading') {

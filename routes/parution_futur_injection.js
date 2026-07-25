@@ -33,7 +33,7 @@ router.post('/inject', async (req, res) => {
             domain = result.rows[0].shop_domain;
         }
 
-        const renderUrl = process.env.RENDER_URL || 'evend-multivendeur-api.onrender.com';
+        const renderUrl = process.env.RENDER_URL || 'api.e-vend.ca';
         const PARUTION_URL = `https://${renderUrl}/${SCRIPT_NAME}`;
 
         const baseUrl = `https://${domain}/admin/api/2024-10`;
@@ -107,7 +107,7 @@ router.delete('/uninstall', async (req, res) => {
             domain = result.rows[0].shop_domain;
         }
 
-        const renderUrl = process.env.RENDER_URL || 'evend-multivendeur-api.onrender.com';
+        const renderUrl = process.env.RENDER_URL || 'api.e-vend.ca';
         const PARUTION_URL = `https://${renderUrl}/${SCRIPT_NAME}`;
 
         const listRes = await fetch(`https://${domain}/admin/api/2024-10/script_tags.json`, {

@@ -1,4 +1,4 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://evend-multivendeur-api.onrender.com/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://api.e-vend.ca/api';
 
 const getToken = () => localStorage.getItem('token');
 

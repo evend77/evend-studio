@@ -37,7 +37,7 @@ interface FormRed {
   dateFin: string;
 }
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 const FORM_VIDE: FormRed = {
   typeRemise: '',

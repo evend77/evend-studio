@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const API_BASE = 'https://evend-multivendeur-api.onrender.com/api';
+const API_BASE = 'https://api.e-vend.ca/api';
 const INACTIVITE_MS = 30 * 60 * 1000; // 30 minutes
 const VERIF_INTERVAL_MS = 60 * 1000;   // Vérifier toutes les 60 secondes
 const RENOUVELLEMENT_MS = 5 * 60 * 1000; // Renouveler si < 5 min restantes

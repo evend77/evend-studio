@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect } from 'react';
 
-const API_BASE = 'https://evend-multivendeur-api.onrender.com/api';
+const API_BASE = 'https://api.e-vend.ca/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface TypeProduit {

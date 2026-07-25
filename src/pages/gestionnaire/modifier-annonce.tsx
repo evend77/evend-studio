@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-const API_PRODUITS = 'https://evend-multivendeur-api.onrender.com/api/produits-vendeur';
+const API_PRODUITS = 'https://api.e-vend.ca/api/produits-vendeur';
 const authHeaders = () => ({
   'Content-Type': 'application/json',
   Authorization: `Bearer ${localStorage.getItem('token')}`,

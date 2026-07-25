@@ -722,6 +722,37 @@ app.get('/api/test', async (req, res) => {
 });
 
 // =====================================================================
+// 🔒 CADDY — Point de vérification pour le certificat SSL "on-demand"
+// Caddy appelle cette route avant d'émettre un certificat pour un domaine.
+// On autorise seulement : e-vendstudio.ca, ses sous-domaines de vendeurs,
+// et les domaines personnalisés déjà enregistrés dans la table `domaines`.
+// Sans ça, n'importe qui pourrait pointer un domaine random vers le VPS
+// et forcer l'émission de certificats à répétition (abus / rate limit).
+// =====================================================================
+app.get('/caddy/ask', async (req, res) => {
+  const domain = (req.query.domain || '').toLowerCase();
+
+  if (domain === 'e-vendstudio.ca' || domain === 'www.e-vendstudio.ca') {
+    return res.sendStatus(200);
+  }
+  if (/^[a-z0-9-]+\.e-vendstudio\.ca$/.test(domain)) {
+    return res.sendStatus(200);
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT 1 FROM domaines WHERE domaine = $1 OR domaine = $2 LIMIT 1`,
+      [domain, domain.replace(/^www\./, '')]
+    );
+    if (result.rows.length > 0) return res.sendStatus(200);
+  } catch (err) {
+    console.error('Erreur vérification caddy/ask:', err.message);
+  }
+
+  res.sendStatus(403);
+});
+
+// =====================================================================
 // 🌐 FRONTEND (PRODUCTION)
 // =====================================================================
 
@@ -768,6 +799,7 @@ app.listen(port, () => {
   console.log(`💝 Dons:         GET  /api/dons/vendeur`);
   console.log(`👑 Admin:        GET  /api/admin/gestionnaires`);
   console.log(`🧪 Test BD:      GET  /api/test`);
+  console.log(`🔒 Caddy ask:    GET  /caddy/ask?domain=...`);
   console.log(`🔗 Dynadot:      POST /api/dynadot/check-availability`);
   console.log(`💳 Dynadot:      POST /api/dynadot/create-checkout`);
   console.log(`✅ Dynadot:      GET  /api/dynadot/verify-payment`);

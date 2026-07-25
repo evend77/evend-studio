@@ -86,7 +86,7 @@ const ETAPES = [
     ],
     tip: '⚠️ Soyez prudent dans cet éditeur — ne modifiez que l\'endroit indiqué. En cas de doute, faites une copie du contenu avant.',
     code: `<!-- Widget parution future e-Vend -->
-<script src="https://evend-multivendeur-api.onrender.com/parution-futur-widget.js" defer></script>`,
+<script src="https://api.e-vend.ca/parution-futur-widget.js" defer></script>`,
     codeLangue: 'HTML',
     codeInstructions: 'Collez ce code juste avant </body> dans theme.liquid :',
   },

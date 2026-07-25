@@ -3,13 +3,13 @@
  * Script injecté automatiquement dans toutes les boutiques via Shopify Script Tags API
  * Détecte la page de remerciement et affiche les boutons de paiement
  *
- * URL: https://evend-multivendeur-api.onrender.com/public/checkout-button.js
+ * URL: https://api.e-vend.ca/public/checkout-button.js
  * Version: 1.0.0
  */
 (function () {
   'use strict';
 
-  var EVEND_API = 'https://evend-multivendeur-api.onrender.com';
+  var EVEND_API = 'https://api.e-vend.ca';
 
   // ── Détecter si on est sur la page de remerciement ─────────────────────
   function estPageRemerciement() {

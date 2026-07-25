@@ -138,7 +138,7 @@ function PopupVendeurs({ vendeurs, onClose, onUpdateStatus }: { vendeurs: any[];
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/admin/paypal/vendeurs/${vendeurId}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/admin/paypal/vendeurs/${vendeurId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -564,7 +564,7 @@ export default function ConfigurationPaypal({ naviguerVers }: { naviguerVers?: (
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/admin/paypal', {
+      const response = await fetch('https://api.e-vend.ca/api/admin/paypal', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -584,7 +584,7 @@ export default function ConfigurationPaypal({ naviguerVers }: { naviguerVers?: (
   const chargerVendeurs = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/admin/paypal/vendeurs', {
+      const response = await fetch('https://api.e-vend.ca/api/admin/paypal/vendeurs', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -602,7 +602,7 @@ export default function ConfigurationPaypal({ naviguerVers }: { naviguerVers?: (
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/admin/paypal', {
+      const response = await fetch('https://api.e-vend.ca/api/admin/paypal', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

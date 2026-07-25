@@ -685,7 +685,7 @@ function AppVendeur({ onLogout, vendeurUser }: AppVendeurProps) {
     if (!vendeur?.id) return;
     const chargerFonctionnalites = async () => {
       try {
-        const res = await fetch(`https://evend-multivendeur-api.onrender.com/api/plans/vendeur/${vendeur.id}/plan-actif`, {
+        const res = await fetch(`https://api.e-vend.ca/api/plans/vendeur/${vendeur.id}/plan-actif`, {
           headers: { Authorization: `Bearer ${getToken()}` }
         });
         if (!res.ok) return;

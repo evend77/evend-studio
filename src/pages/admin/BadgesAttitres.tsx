@@ -66,8 +66,8 @@ function ModalAttribuerBadge({
     setLoading(true);
 
     Promise.all([
-      fetch('https://evend-multivendeur-api.onrender.com/api/vendeurs', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
-      fetch('https://evend-multivendeur-api.onrender.com/api/badges', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      fetch('https://api.e-vend.ca/api/vendeurs', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
+      fetch('https://api.e-vend.ca/api/badges', { headers: { Authorization: `Bearer ${token}` } }).then(r => r.json()),
     ])
       .then(([v, b]) => {
         setVendeurs(Array.isArray(v) ? v : []);
@@ -368,7 +368,7 @@ export default function BadgesAttitres() {
     try {
       setLoading(true);
       const token = getToken();
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/vendeurs/badges', {
+      const response = await fetch('https://api.e-vend.ca/api/vendeurs/badges', {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (!response.ok) throw new Error(`Erreur ${response.status}`);
@@ -435,7 +435,7 @@ export default function BadgesAttitres() {
   const handleSauvegardeBadges = async (vendeurId: number, badgeIds: string[]) => {
     try {
       const token = getToken();
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeurId}/badges`, {
+      const response = await fetch(`https://api.e-vend.ca/api/vendeurs/${vendeurId}/badges`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ badge_ids: badgeIds }),
@@ -462,7 +462,7 @@ export default function BadgesAttitres() {
     setActionSuppr(() => async () => {
       try {
         const token = getToken();
-        const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${vendeur.vendeur_id}/badges`, {
+        const response = await fetch(`https://api.e-vend.ca/api/vendeurs/${vendeur.vendeur_id}/badges`, {
           method: 'DELETE',
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -490,7 +490,7 @@ export default function BadgesAttitres() {
         const token = getToken();
         await Promise.all(
           selectionnes.map(id =>
-            fetch(`https://evend-multivendeur-api.onrender.com/api/vendeurs/${id}/badges`, {
+            fetch(`https://api.e-vend.ca/api/vendeurs/${id}/badges`, {
               method: 'DELETE',
               headers: { Authorization: `Bearer ${token}` },
             })

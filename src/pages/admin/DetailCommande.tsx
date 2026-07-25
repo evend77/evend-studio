@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Commande } from './GestionCommandes';
 import { log } from '../../services/logger';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 const getToken = () => localStorage.getItem('token');
 
 const THEME = {

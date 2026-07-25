@@ -48,7 +48,7 @@ interface StatistiquesBadges {
   };
 }
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 // Fonction pour récupérer le token
 const getToken = () => localStorage.getItem('token');

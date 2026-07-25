@@ -680,7 +680,7 @@ function InscriptionVendeur() {
   useEffect(() => {
     const fetchPlans = async () => {
       try {
-        const response = await fetch('https://evend-multivendeur-api.onrender.com/api/plans');
+        const response = await fetch('https://api.e-vend.ca/api/plans');
         const plans = await response.json();
         // Sélectionner le plan gratuit par défaut
         const planGratuit = plans.find((p: any) => parseFloat(p.prix_ht) === 0);
@@ -793,7 +793,7 @@ function InscriptionVendeur() {
       formData.append('type', type);
       formData.append('vendeur_id', vendeurId?.toString() || '');
       
-      const uploadRes = await fetch('https://evend-multivendeur-api.onrender.com/api/upload', {
+      const uploadRes = await fetch('https://api.e-vend.ca/api/upload', {
         method: 'POST',
         headers: { 
           Authorization: `Bearer ${token}`
@@ -952,7 +952,7 @@ function InscriptionVendeur() {
     setSaving(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('https://evend-multivendeur-api.onrender.com/api/vendeurs', {
+      const res = await fetch('https://api.e-vend.ca/api/vendeurs', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json', 

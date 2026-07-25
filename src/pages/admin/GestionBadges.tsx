@@ -520,7 +520,7 @@ export default function GestionBadges() {
       setLoading(true);
       const token = getToken();
       
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/badges', {
+      const response = await fetch('https://api.e-vend.ca/api/badges', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -588,7 +588,7 @@ export default function GestionBadges() {
     try {
       const token = getToken();
       
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/badges/${id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/badges/${id}`, {
         method: 'PUT',
         headers: { 
           'Content-Type': 'application/json',
@@ -648,8 +648,8 @@ export default function GestionBadges() {
     try {
       const token = getToken();
       const url = id 
-        ? `https://evend-multivendeur-api.onrender.com/api/badges/${id}`
-        : 'https://evend-multivendeur-api.onrender.com/api/badges';
+        ? `https://api.e-vend.ca/api/badges/${id}`
+        : 'https://api.e-vend.ca/api/badges';
       
       const method = id ? 'PUT' : 'POST';
       
@@ -716,7 +716,7 @@ export default function GestionBadges() {
     
     try {
       const token = getToken();
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/badges/${badgeASupprimer.id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/badges/${badgeASupprimer.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

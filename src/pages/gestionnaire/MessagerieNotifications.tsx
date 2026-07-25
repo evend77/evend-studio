@@ -7,7 +7,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Page } from '@shopify/polaris';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type TypeNotif = 'info' | 'succes' | 'avertissement' | 'urgent' | 'maintenance';

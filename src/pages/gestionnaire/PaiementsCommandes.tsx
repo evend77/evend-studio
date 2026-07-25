@@ -69,7 +69,7 @@ interface PaiementsData {
 }
 
 // ✅ CORRIGÉ : URL fixe ou variable d'env (selon ton build)
-const API_BASE = 'https://evend-multivendeur-api.onrender.com';
+const API_BASE = 'https://api.e-vend.ca';
 
 const THEME = {
   accent:      '#1a472a',

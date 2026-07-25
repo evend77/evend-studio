@@ -5,7 +5,7 @@ import { Page } from '@shopify/polaris';
 // ✅ Helper token — niveau module (accessible partout dans le fichier)
 const getToken = () => localStorage.getItem('token');
 
-const API_BASE = (window as any).REACT_APP_API_URL || 'https://evend-multivendeur-api.onrender.com/api';
+const API_BASE = (window as any).REACT_APP_API_URL || 'https://api.e-vend.ca/api';
 
 const T = {
   accent: '#537373', accentLight: '#eef3f3',

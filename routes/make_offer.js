@@ -192,7 +192,7 @@ router.post('/', async (req, res) => {
 
     const heuresExp = cfg.duree_expiration_heures || 48;
     const titreEmail = produit_titre || `Produit #${annonce_id}`;
-    const urlEmail = produit_url || `${process.env.FRONTEND_URL || 'https://evend-multivendeur-api.onrender.com'}/produit/${annonce_id}`;
+    const urlEmail = produit_url || `${process.env.FRONTEND_URL || 'https://api.e-vend.ca'}/produit/${annonce_id}`;
 
     // Email vendeur
     if (cfg.email_vendeur_nouvelle_offre && vendeurEmail && !doitAutoAccepter) {
@@ -299,7 +299,7 @@ router.post('/:id/accepter', async (req, res) => {
     );
 
     // Lien produit e-Vend (remplace le code promo Shopify)
-    const produitUrl = `${process.env.FRONTEND_URL || 'https://evend-multivendeur-api.onrender.com'}/produit/${offre.annonce_id}`;
+    const produitUrl = `${process.env.FRONTEND_URL || 'https://api.e-vend.ca'}/produit/${offre.annonce_id}`;
 
     const cfg = await getConfig();
     if (cfg.email_acheteur_accepte) {
@@ -345,7 +345,7 @@ router.post('/:id/refuser', async (req, res) => {
     await db.query(`UPDATE make_offers SET statut = 'refuse', refused_at = NOW(), updated_at = NOW() WHERE id = $1`, [offreId]);
 
     const cfg = await getConfig();
-    const produitUrl = `${process.env.FRONTEND_URL || 'https://evend-multivendeur-api.onrender.com'}/produit/${offre.annonce_id}`;
+    const produitUrl = `${process.env.FRONTEND_URL || 'https://api.e-vend.ca'}/produit/${offre.annonce_id}`;
     if (cfg.email_acheteur_refuse) {
       let produitImageUrl = null;
       try { const imgRes = await db.query(`SELECT image FROM produits WHERE id::text = $1 LIMIT 1`, [String(offre.annonce_id)]); produitImageUrl = imgRes.rows[0]?.image || null; } catch {}

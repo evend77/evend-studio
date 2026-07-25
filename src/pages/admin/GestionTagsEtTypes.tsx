@@ -1300,14 +1300,14 @@ export default function GestionTagsEtTypes() {
         log.admin('Page visitée', 'Gestion des tags et types', {});
 
         // Charger les tags
-        const tagsResponse = await fetch('https://evend-multivendeur-api.onrender.com/api/tags');
+        const tagsResponse = await fetch('https://api.e-vend.ca/api/tags');
         if (!tagsResponse.ok) throw new Error(`Erreur chargement tags (${tagsResponse.status})`);
         const tagsRaw = await tagsResponse.json();
         const tagsData = Array.isArray(tagsRaw) ? tagsRaw : (tagsRaw?.data ?? tagsRaw?.tags ?? []);
         setTags(tagsData);
 
         // Charger les types
-        const typesResponse = await fetch('https://evend-multivendeur-api.onrender.com/api/types');
+        const typesResponse = await fetch('https://api.e-vend.ca/api/types');
         if (!typesResponse.ok) {
           console.warn(`⚠️ API types a retourné ${typesResponse.status} — page affichée sans types`);
           setTypes([]);
@@ -1370,7 +1370,7 @@ export default function GestionTagsEtTypes() {
     if (action === 'activer') {
       try {
         await Promise.all(selection.map(id => 
-          fetch(`https://evend-multivendeur-api.onrender.com/api/${onglet}/${id}`, {
+          fetch(`https://api.e-vend.ca/api/${onglet}/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ statut: 'actif' })
@@ -1392,7 +1392,7 @@ export default function GestionTagsEtTypes() {
     } else if (action === 'desactiver') {
       try {
         await Promise.all(selection.map(id => 
-          fetch(`https://evend-multivendeur-api.onrender.com/api/${onglet}/${id}`, {
+          fetch(`https://api.e-vend.ca/api/${onglet}/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ statut: 'inactif' })
@@ -1425,7 +1425,7 @@ export default function GestionTagsEtTypes() {
       if (modalConfirmation.type === 'supprimer_bulk') {
         try {
           await Promise.all(selection.map(id => 
-            fetch(`https://evend-multivendeur-api.onrender.com/api/${onglet}/${id}`, {
+            fetch(`https://api.e-vend.ca/api/${onglet}/${id}`, {
               method: 'DELETE'
             })
           ));
@@ -1450,7 +1450,7 @@ export default function GestionTagsEtTypes() {
   // Création
   const handleCreerTag = async (nouveauTag: Omit<Tag, 'id' | 'dateCreation'>) => {
     try {
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/tags', {
+      const response = await fetch('https://api.e-vend.ca/api/tags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nouveauTag)
@@ -1468,7 +1468,7 @@ export default function GestionTagsEtTypes() {
 
   const handleCreerType = async (nouveauType: Omit<TypeProduit, 'id' | 'dateCreation'>) => {
     try {
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/types', {
+      const response = await fetch('https://api.e-vend.ca/api/types', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(nouveauType)
@@ -1487,7 +1487,7 @@ export default function GestionTagsEtTypes() {
   // Modification
   const handleModifierTag = async (id: string, updatedTag: Partial<Tag>) => {
     try {
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/tags/${id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/tags/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedTag)
@@ -1505,7 +1505,7 @@ export default function GestionTagsEtTypes() {
 
   const handleModifierType = async (id: string, updatedType: Partial<TypeProduit>) => {
     try {
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/types/${id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/types/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updatedType)
@@ -1524,7 +1524,7 @@ export default function GestionTagsEtTypes() {
   // Changer statut individuel
   const handleChangerStatut = async (item: Tag | TypeProduit, nouveauStatut: 'actif' | 'inactif') => {
     try {
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/${onglet}/${item.id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/${onglet}/${item.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ statut: nouveauStatut })

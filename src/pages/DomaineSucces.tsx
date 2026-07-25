@@ -65,7 +65,7 @@ export default function DomaineSucces({ gestionnaireId }: Props) {
           setStatus('success');
           setMessage(`✅ Félicitations ! Le domaine ${domain} vous appartient maintenant.`);
           setDnsInstructions(data.dns_instructions || 
-            `CNAME www → evend-studio.onrender.com\nA @ → 216.24.57.1`
+            `A @ → 144.217.85.111\nA www → 144.217.85.111`
           );
           
           // Démarrer le compte à rebours vers le dashboard

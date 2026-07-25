@@ -32,7 +32,7 @@ interface StatsCommissions {
   nb_produits: number;
 }
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 function ListeCommissions() {
   const [commissions, setCommissions] = useState<Commission[]>([]);

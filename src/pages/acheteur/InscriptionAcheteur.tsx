@@ -16,7 +16,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 // ─── Couleurs thème VERT acheteur ─────────────────────────────────────────────
 const ACCENT       = '#10b981';
@@ -458,7 +458,7 @@ export default function InscriptionAcheteur({
       }
     } catch (err) {
       console.error('❌ Erreur inscription:', err);
-      setErreur('Impossible de joindre le serveur. Vérifiez que le backend tourne sur https://evend-multivendeur-api.onrender.com');
+      setErreur('Impossible de joindre le serveur. Vérifiez que le backend tourne sur https://api.e-vend.ca');
     } finally {
       setSubmitting(false);
     }

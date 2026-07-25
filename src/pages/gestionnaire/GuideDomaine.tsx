@@ -255,7 +255,7 @@ export default function GuideDomaine({ onFermer }: Props) {
               <p style={{ fontWeight: 700, marginTop: 20, marginBottom: 10 }}>Comment faire :</p>
               <EtapesVisuelles etapes={[
                 { num: 1, titre: 'Entrer le domaine avec www', desc: 'Dans "J\'ai déjà un domaine", tapez-le avec le www devant (ex: www.mondomaine.com).' },
-                { num: 2, titre: 'Configurer le DNS', desc: 'Chez votre fournisseur de domaine, ajoutez l\'enregistrement CNAME indiqué (voir instructions ci-dessous).' },
+                { num: 2, titre: 'Configurer le DNS', desc: 'Chez votre fournisseur de domaine, ajoutez l\'enregistrement DNS indiqué (voir instructions ci-dessous).' },
                 { num: 3, titre: 'Attendre la validation', desc: 'La propagation DNS prend généralement de quelques minutes à quelques heures.' },
                 { num: 4, titre: 'Domaine actif', desc: 'Le statut passe à "Actif et sécurisé" une fois la validation complétée — SSL inclus automatiquement.' },
               ]} couleur="#f59e0b" />
@@ -286,15 +286,15 @@ export default function GuideDomaine({ onFermer }: Props) {
                 la plupart l'offrent gratuitement (voir "Domain Forwarding" ci-dessous selon le fournisseur).
               </div>
 
-              {/* Diagramme CNAME */}
+              {/* Diagramme DNS */}
               <div style={{ background: '#f8fafc', borderRadius: 12, padding: 20, margin: '20px 0' }}>
                 <p style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', marginBottom: 12 }}>
                   L'enregistrement DNS à créer
                 </p>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'stretch' }}>
-                  <ChampDNS label="Type" valeur="CNAME" />
+                  <ChampDNS label="Type" valeur="A" />
                   <ChampDNS label="Nom / Hôte" valeur="www" />
-                  <ChampDNS label="Valeur / Cible" valeur="evend-studio.onrender.com" large />
+                  <ChampDNS label="Valeur / Cible" valeur="144.217.85.111" large />
                   <ChampDNS label="TTL" valeur="Automatique / 3600" />
                 </div>
               </div>
@@ -328,13 +328,13 @@ export default function GuideDomaine({ onFermer }: Props) {
                   </p>
                 )}
                 <p style={{ margin: '10px 0 0', fontSize: 12, color: '#888' }}>
-                  Une fois dans la section DNS, ajoutez un enregistrement avec les valeurs indiquées ci-dessus (Type: CNAME, Nom: www, Valeur: evend-studio.onrender.com).
+                  Une fois dans la section DNS, ajoutez un enregistrement avec les valeurs indiquées ci-dessus (Type: A, Nom: www, Valeur: 144.217.85.111).
                 </p>
               </div>
 
               <div style={boiteInfo('#fef2f2', '#ef4444', '#991b1b')}>
                 ⚠️ Ces instructions ne couvrent pas tous les fournisseurs existants. Si le vôtre n'est pas listé, cherchez une section
-                "DNS", "Zone DNS" ou "Gestion des domaines" dans son panneau de contrôle — le principe (ajouter un CNAME) reste le même partout.
+                "DNS", "Zone DNS" ou "Gestion des domaines" dans son panneau de contrôle — le principe (ajouter un enregistrement A) reste le même partout.
               </div>
             </div>
           )}

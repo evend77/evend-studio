@@ -7,7 +7,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 type Cible = 'vendeurs' | 'acheteurs' | 'tous';
 type Mode = 'individuel' | 'broadcast' | 'selection';

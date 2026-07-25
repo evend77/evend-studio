@@ -32,7 +32,7 @@ interface Statistiques {
   push_envoyes: number;
 }
 
-const API_BASE = 'https://evend-multivendeur-api.onrender.com/api';
+const API_BASE = 'https://api.e-vend.ca/api';
 
 const ListeAlertesPrix: React.FC = () => {
   const [alertes, setAlertes] = useState<PriceAlert[]>([]);

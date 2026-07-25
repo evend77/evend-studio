@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import type { AbonnementVendeur } from './AbonnementsActifs';
 import { FONCTIONNALITES_MASTER } from '../../shared/plansData';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 // ── Thème ─────────────────────────────────────────────────────────────────────
 const THEME = {

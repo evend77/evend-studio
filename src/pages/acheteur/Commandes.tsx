@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react';
 import FacturePopup from '../../components/FacturePopup';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 // Types
 type StatutCommande = 'Confirmée' | 'Préparation pour expédition' | 'Expédiée' | 'Livrée' | 'Annulée' | 'Attente approbation' | 'En attente de paiement' | 'Paiement reçu' | 'Acceptée' | 'En traitement' | 'Traitée' | 'Refusée' | 'Partiellement livrée' | 'Remboursée' | 'En cours de livraison';

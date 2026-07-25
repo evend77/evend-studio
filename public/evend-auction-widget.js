@@ -8,7 +8,7 @@
   }
   window.evendWidgetLoaded = true;
 
-  var API_BASE = 'https://evend-multivendeur-api.onrender.com/api';
+  var API_BASE = 'https://api.e-vend.ca/api';
   var POLL_INTERVAL = 30000;
   var pollTimer = null;
   var enchereId = null;
@@ -584,7 +584,7 @@
     
     console.log('📥 Chargement du modal...');
     var script = document.createElement('script');
-    script.src = 'https://evend-multivendeur-api.onrender.com/js/price-drop-modal.js';
+    script.src = 'https://api.e-vend.ca/js/price-drop-modal.js';
     script.onload = function() {
       console.log('✅ Modal chargé');
       setTimeout(function() {

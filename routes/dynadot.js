@@ -4,10 +4,16 @@ const router = express.Router();
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const { authenticateToken } = require('../middleware/auth');
 const pool = require('../db');
-const renderService = require('../services/renderService');
+// ⚠️ renderService retiré — plus nécessaire. Caddy (on-demand TLS) accepte
+// automatiquement n'importe quel domaine qui pointe vers le VPS, sans avoir
+// besoin de l'enregistrer explicitement à l'avance comme le faisait Render.
 
 const DYNADOT_API_KEY = process.env.DYNADOT_API_KEY;
 const DYNADOT_API_URL = 'https://api.dynadot.com/api3.json';
+
+// 🌐 IP publique du VPS OVHcloud (Beauharnois, QC) — remplace l'ancien
+// endpoint Render (evend-studio.onrender.com / 216.24.57.1)
+const VPS_IP = '144.217.85.111';
 
 // ── Extensions autorisées à la vente ────────────────────────────────────────
 // On limite aux extensions dont le prix reste stable et prévisible entre
@@ -270,14 +276,14 @@ router.get('/verify-payment', authenticateToken, async (req, res) => {
       return res.json({
         success: true,
         message: 'Paiement confirmé. Le domaine est en cours d\'enregistrement.',
-        dns_instructions: 'CNAME www → evend-studio.onrender.com (configuré automatiquement)'
+        dns_instructions: `A record @ et www → ${VPS_IP} (configuré automatiquement)`
       });
     }
 
     res.json({
       success: true,
       message: `Domaine ${domain} enregistré avec succès !`,
-      dns_instructions: 'CNAME www → evend-studio.onrender.com (configuré automatiquement)'
+      dns_instructions: `A record @ et www → ${VPS_IP} (configuré automatiquement)`
     });
 
   } catch (error) {
@@ -599,29 +605,25 @@ router.post('/stripe-webhook', express.raw({ type: 'application/json' }), async 
           [insertDomaine.rows[0].id, taxes.montantAvantTaxes, taxes.tps, taxes.tvq, montantTotal, session.id || null]
         );
 
-        // 🌐 Configurer le DNS automatiquement chez Dynadot (CNAME www + A apex vers Render)
+        // 🌐 Configurer le DNS automatiquement chez Dynadot (A records @ et www vers le VPS)
         await configurerDNS(domain);
 
-        // 🔗 Connecter le domaine au site du gestionnaire (comme le flux manuel "Mon Domaine")
+        // 🔗 Connecter le domaine au site du gestionnaire dans notre BD.
+        // ⚠️ Plus besoin d'appeler Render ici — Caddy (on-demand TLS) émettra
+        // automatiquement un certificat pour ce domaine dès la première visite,
+        // sans configuration préalable de notre côté.
         const domaineAvecWww = domain.startsWith('www.') ? domain : `www.${domain}`;
-        const resultatRender = await renderService.ajouterDomainePerso(domaineAvecWww);
 
-        if (resultatRender.success) {
-          await pool.query(
-            `UPDATE sites
-             SET domaine_perso = $1,
-                 cf_hostname_id = $2,
-                 domaine_statut = 'en_attente',
-                 updated_at = NOW()
-             WHERE gestionnaire_id = $3`,
-            [domaineAvecWww, resultatRender.domaine?.id || null, gestionnaireId]
-          );
-          console.log(`✅ Domaine ${domain} enregistré chez Dynadot ET connecté sur Render !`);
-        } else {
-          console.error(`❌ Domaine acheté et DNS configuré, mais échec de connexion Render:`, resultatRender.erreur);
-          // Le domaine reste utilisable manuellement via "Mon Domaine" — le gestionnaire
-          // pourra retenter la connexion depuis l'interface si besoin.
-        }
+        await pool.query(
+          `UPDATE sites
+           SET domaine_perso = $1,
+               domaine_statut = 'en_attente',
+               updated_at = NOW()
+           WHERE gestionnaire_id = $2`,
+          [domaineAvecWww, gestionnaireId]
+        );
+        console.log(`✅ Domaine ${domain} enregistré chez Dynadot ET connecté au VPS !`);
+
       } else {
         console.error(`❌ Erreur enregistrement Dynadot:`, registerResult.error);
         // Envoyer un email admin pour erreur
@@ -726,7 +728,10 @@ async function renouvelerDomaineDynadot(domain, years = 1) {
 }
 
 // =====================================================================
-// 🌐 Fonction : Configurer le DNS automatiquement
+// 🌐 Fonction : Configurer le DNS automatiquement chez Dynadot
+// Pointe le domaine directement vers le VPS OVHcloud (Beauharnois, QC)
+// au lieu de Render — aucun intermédiaire (Cloudflare, etc.) nécessaire,
+// Dynadot gère nativement le DNS des domaines qu'il vend.
 // =====================================================================
 async function configurerDNS(domain) {
   try {
@@ -734,17 +739,17 @@ async function configurerDNS(domain) {
       key: DYNADOT_API_KEY,
       command: 'set_dns',
       domain: domain,
-      // www → CNAME vers Render (le domaine principal du service)
-      record_0_type: 'CNAME',
+      // www → A record vers le VPS
+      record_0_type: 'A',
       record_0_name: 'www',
-      record_0_value: 'evend-studio.onrender.com',
+      record_0_value: VPS_IP,
       record_0_ttl: '3600',
-      // Domaine racine (@) → A record vers l'IP de Render (les CNAME ne
-      // fonctionnent pas sur un domaine racine — limitation standard du DNS).
-      // Render redirige automatiquement la racine vers le www.
+      // Domaine racine (@) → A record vers le VPS
+      // (les CNAME ne fonctionnent pas sur un domaine racine — limitation
+      // standard du DNS, donc les deux utilisent un A record vers la même IP)
       record_1_type: 'A',
       record_1_name: '@',
-      record_1_value: '216.24.57.1',
+      record_1_value: VPS_IP,
       record_1_ttl: '3600',
     });
 
@@ -755,7 +760,7 @@ async function configurerDNS(domain) {
     });
 
     const data = await response.json();
-    console.log(`✅ DNS configuré pour ${domain} (www + racine vers Render):`, data);
+    console.log(`✅ DNS configuré pour ${domain} (www + racine vers le VPS ${VPS_IP}):`, data);
     return { success: true };
 
   } catch (error) {

@@ -33,7 +33,7 @@ const ETAPES = [
   window.evendProductId = '{{ product.id }}';
 </script>
 
-<script src="https://evend-multivendeur-api.onrender.com/public/evend-auction-widget.js" defer></script>`,
+<script src="https://api.e-vend.ca/public/evend-auction-widget.js" defer></script>`,
     codeLangue: 'Liquid + HTML',
     codeInstructions: 'Seulement si absent — ajoutez ce code juste avant </body> :',
   },
@@ -52,7 +52,7 @@ const ETAPES = [
     ],
     tip: '⚠️ Ce script doit être placé après le script evend-auction-widget.js, pas avant. L\'ordre est important.',
     code: `<!-- Modal alerte baisse de prix e-Vend -->
-<script src="https://evend-multivendeur-api.onrender.com/js/price-drop-modal.js" defer></script>`,
+<script src="https://api.e-vend.ca/js/price-drop-modal.js" defer></script>`,
     codeLangue: 'HTML',
     codeInstructions: 'Ajoutez cette ligne après le script evend-auction-widget.js dans theme.liquid :',
   },

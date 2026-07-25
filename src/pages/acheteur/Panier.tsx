@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 
-const API_BASE = "https://evend-multivendeur-api.onrender.com/api";
+const API_BASE = "https://api.e-vend.ca/api";
 const MINIMUM_GLOBAL = 10;
 
 interface ArticlePanier {
@@ -500,7 +500,7 @@ export default function Panier({ naviguer }: PanierProps) {
                         <>
                           {/* MOBILE: image + infos + boutons en ligne */}
                           <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "14px 16px" }}>
-                            <a href={`https://evend-multivendeur-api.onrender.com/produit/${article.produit_shopify_id}`}
+                            <a href={`https://api.e-vend.ca/produit/${article.produit_shopify_id}`}
                               target="_blank" rel="noopener noreferrer"
                               style={{ display: "block", width: "76px", height: "76px", flexShrink: 0 }}>
                               {article.image_url
@@ -548,7 +548,7 @@ export default function Panier({ naviguer }: PanierProps) {
                         <>
                           {/* DESKTOP: image cliquable */}
                           <div style={s.imgContainer}>
-                            <a href={`https://evend-multivendeur-api.onrender.com/produit/${article.produit_shopify_id}`}
+                            <a href={`https://api.e-vend.ca/produit/${article.produit_shopify_id}`}
                               target="_blank" rel="noopener noreferrer"
                               style={{ display: "block", width: "100%", height: "100%" }}>
                               {article.image_url
@@ -876,7 +876,7 @@ export default function Panier({ naviguer }: PanierProps) {
                 {/* Image */}
                 <div style={{ ...s.plusTardImg, aspectRatio: isMobile ? "1/1" : "4/3" }}>
                   <a
-                    href={`https://evend-multivendeur-api.onrender.com/produit/${article.produit_shopify_id}`}
+                    href={`https://api.e-vend.ca/produit/${article.produit_shopify_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     style={{ display: 'block', width: '100%', height: '100%' }}

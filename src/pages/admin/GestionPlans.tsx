@@ -102,7 +102,7 @@ export default function GestionPlans({ naviguerVers }: GestionPlansProps) {
   const chargerPlans = async () => {
     try {
       setLoading(true);
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/plans');
+      const response = await fetch('https://api.e-vend.ca/api/plans');
       if (!response.ok) throw new Error('Erreur chargement');
       const data = await response.json();
       
@@ -181,7 +181,7 @@ export default function GestionPlans({ naviguerVers }: GestionPlansProps) {
     try {
       console.log(`🔄 Changement statut: ${plan.nom} (${plan.statut} → ${nouveauStatut})`);
       
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/plans/${id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/plans/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildPlanData(plan, { statut: nouveauStatut }))
@@ -232,7 +232,7 @@ export default function GestionPlans({ naviguerVers }: GestionPlansProps) {
     if (!planASupprimer) return;
     
     try {
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/plans/${planASupprimer.id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/plans/${planASupprimer.id}`, {
         method: 'DELETE'
       });
       if (!response.ok) throw new Error('Erreur suppression');
@@ -256,7 +256,7 @@ export default function GestionPlans({ naviguerVers }: GestionPlansProps) {
     if (!plan) return;
     
     try {
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/plans/${id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/plans/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildPlanData(plan, { recommande: !plan.recommande }))
@@ -284,7 +284,7 @@ export default function GestionPlans({ naviguerVers }: GestionPlansProps) {
     if (!plan) return;
     
     try {
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/plans/${id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/plans/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildPlanData(plan, { visible_vendeur: !plan.visibleVendeur }))

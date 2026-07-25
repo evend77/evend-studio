@@ -15,7 +15,7 @@
 (function () {
   'use strict';
 
-  const EVEND_API_BASE = 'https://evend-multivendeur-api.onrender.com';
+  const EVEND_API_BASE = 'https://api.e-vend.ca';
 
   // Utiliser window.evendProductId injecté par theme.liquid
   const shopifyProductId = window.evendProductId || null;

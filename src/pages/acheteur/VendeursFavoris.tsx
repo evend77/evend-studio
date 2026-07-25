@@ -467,7 +467,7 @@ export default function VendeursFavoris({ naviguer }: { naviguer: (page: string,
     
     try {
       console.log('🔵 Appel à /api/auth/verify');
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/auth/verify', {
+      const response = await fetch('https://api.e-vend.ca/api/auth/verify', {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await response.json();
@@ -496,7 +496,7 @@ export default function VendeursFavoris({ naviguer }: { naviguer: (page: string,
     }
 
     try {
-      const url = `https://evend-multivendeur-api.onrender.com/api/favoris/acheteur/${acheteurId}/vendeurs`;
+      const url = `https://api.e-vend.ca/api/favoris/acheteur/${acheteurId}/vendeurs`;
       console.log('🔵 Appel API:', url);
       const response = await fetch(url, {
         headers: {
@@ -534,7 +534,7 @@ export default function VendeursFavoris({ naviguer }: { naviguer: (page: string,
   const chargerSuggestions = async () => {
     console.log('🔵 chargerSuggestions - DÉBUT');
     try {
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/vendeurs/populaires?limit=10');
+      const response = await fetch('https://api.e-vend.ca/api/vendeurs/populaires?limit=10');
       console.log('🔵 Suggestions statut:', response.status);
       if (response.ok) {
         const data = await response.json();
@@ -575,7 +575,7 @@ export default function VendeursFavoris({ naviguer }: { naviguer: (page: string,
     if (!acheteurId) return;
 
     try {
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/favoris/vendeur/${vendeurId}/favori`, {
+      const response = await fetch(`https://api.e-vend.ca/api/favoris/vendeur/${vendeurId}/favori`, {
         method: 'DELETE',
         headers: {
           'x-acheteur-id': acheteurId.toString()
@@ -598,7 +598,7 @@ export default function VendeursFavoris({ naviguer }: { naviguer: (page: string,
     if (!acheteurId) return;
 
     try {
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/favoris/vendeur/${vendeur.id}/favori`, {
+      const response = await fetch(`https://api.e-vend.ca/api/favoris/vendeur/${vendeur.id}/favori`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

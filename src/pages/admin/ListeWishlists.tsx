@@ -43,7 +43,7 @@ interface Statistiques {
   wishlists_partagees: number;
 }
 
-const API_BASE = 'https://evend-multivendeur-api.onrender.com/api';
+const API_BASE = 'https://api.e-vend.ca/api';
 
 const ListeWishlists: React.FC = () => {
   const [wishlists, setWishlists] = useState<Wishlist[]>([]);

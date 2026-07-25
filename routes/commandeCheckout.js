@@ -10,7 +10,7 @@ const { SESClient, SendEmailCommand } = require("@aws-sdk/client-ses");
 
 router.use(authenticateToken);
 
-const FRONTEND_URL = process.env.FRONTEND_URL || "https://evend-multivendeur-api.onrender.com";
+const FRONTEND_URL = process.env.FRONTEND_URL || "https://api.e-vend.ca";
 const COMMISSION_PERCENT = 0.05; // 5% commission e-Vend
 
 // POST /api/checkout/creer-commande

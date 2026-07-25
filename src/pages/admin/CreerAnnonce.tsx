@@ -14,7 +14,7 @@ import {
 } from '@shopify/polaris';
 import Cropper from 'react-easy-crop';
 
-const API_BASE = 'https://evend-multivendeur-api.onrender.com/api';
+const API_BASE = 'https://api.e-vend.ca/api';
 const authHeaders = () => ({
   'Content-Type': 'application/json',
   'Authorization': `Bearer ${localStorage.getItem('token')}`,

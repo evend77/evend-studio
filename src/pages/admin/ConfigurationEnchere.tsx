@@ -982,7 +982,7 @@ export default function ConfigurationEnchere({ naviguerVers }: { naviguerVers?: 
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/admin/encheres', {
+      const response = await fetch('https://api.e-vend.ca/api/admin/encheres', {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -1011,7 +1011,7 @@ export default function ConfigurationEnchere({ naviguerVers }: { naviguerVers?: 
     setSaving(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/admin/encheres', {
+      const response = await fetch('https://api.e-vend.ca/api/admin/encheres', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

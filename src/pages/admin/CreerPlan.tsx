@@ -189,14 +189,14 @@ export default function CreerPlan({ naviguerVers, planAEditer }: CreerPlanProps)
       let response;
       if (estEdition && planAEditer) {
         // MODIFICATION : PUT /api/plans/:id
-        response = await fetch(`https://evend-multivendeur-api.onrender.com/api/plans/${planAEditer.id}`, {
+        response = await fetch(`https://api.e-vend.ca/api/plans/${planAEditer.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(planData)
         });
       } else {
         // CRÉATION : POST /api/plans
-        response = await fetch('https://evend-multivendeur-api.onrender.com/api/plans', {
+        response = await fetch('https://api.e-vend.ca/api/plans', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(planData)

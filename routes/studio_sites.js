@@ -346,8 +346,8 @@ router.put('/:gestionnaireId/domaine', authenticateToken, async (req, res) => {
         ? {
             type: 'CNAME',
             hote: domaine_perso.startsWith('www.') ? 'www' : '@',
-            valeur: 'evend-studio.onrender.com',
-            message: `Configurez un enregistrement CNAME pour ${domaine_perso} pointant vers evend-studio.onrender.com`,
+            valeur: '144.217.85.111',
+            message: `Configurez un enregistrement CNAME pour ${domaine_perso} pointant vers 144.217.85.111 (A record)`,
           }
         : null,
     });
@@ -396,7 +396,7 @@ router.get('/:gestionnaireId/domaine/statut', authenticateToken, async (req, res
     const certificatEmis = d.domainType || d.certificate; // selon la forme exacte retournée par l'API
 
     let statut = 'en_attente';
-    let message = 'En attente de vérification DNS. Assurez-vous que le CNAME pointe bien vers evend-studio.onrender.com.';
+    let message = 'En attente de vérification DNS. Assurez-vous que le A record pointe bien vers 144.217.85.111.';
 
     if (verifie) {
       statut = 'actif';

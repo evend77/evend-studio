@@ -220,7 +220,7 @@ export default function JournauxAudits({ naviguerVers }: JournauxAuditsProps) {
     setLoading(true);
     const token = localStorage.getItem('token');
     try {
-      const res = await fetch('https://evend-multivendeur-api.onrender.com/api/audit/logs', {
+      const res = await fetch('https://api.e-vend.ca/api/audit/logs', {
         headers: { 'Authorization': `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -277,7 +277,7 @@ export default function JournauxAudits({ naviguerVers }: JournauxAuditsProps) {
     showToast(`📄 Export téléchargé — ${logsFiltres.length} entrées`, 'success');
     // Log export envoyé via API
     const token = localStorage.getItem('token');
-    fetch('https://evend-multivendeur-api.onrender.com/api/audit/logs', {
+    fetch('https://api.e-vend.ca/api/audit/logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ action: 'EXPORT_LOGS', details: `${logsFiltres.length} entrées exportées`, niveau: 'info' }),

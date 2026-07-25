@@ -2,7 +2,7 @@
 (function() {
     'use strict';
     
-    const API_BASE = 'https://evend-multivendeur-api.onrender.com/api';
+    const API_BASE = 'https://api.e-vend.ca/api';
     
     console.log('✅ price-drop-modal.js chargé');
     

@@ -5,7 +5,7 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 
-const API = 'https://evend-multivendeur-api.onrender.com';
+const API = 'https://api.e-vend.ca';
 
 interface Conversation {
   id: number;

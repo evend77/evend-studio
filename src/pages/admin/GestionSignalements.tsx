@@ -86,7 +86,7 @@ export default function GestionSignalements({ filtre, naviguerVers }: Props) {
       const token = localStorage.getItem('token');
       
       // Construire l'URL avec les paramètres
-      const baseUrl = `https://evend-multivendeur-api.onrender.com/api/signalements`;
+      const baseUrl = `https://api.e-vend.ca/api/signalements`;
       const params = new URLSearchParams();
       
       console.log('🔍 DÉBUT FETCH:');
@@ -151,7 +151,7 @@ export default function GestionSignalements({ filtre, naviguerVers }: Props) {
   const fetchNouveauxCount = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('https://evend-multivendeur-api.onrender.com/api/signalements/count', {
+      const response = await fetch('https://api.e-vend.ca/api/signalements/count', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -194,7 +194,7 @@ export default function GestionSignalements({ filtre, naviguerVers }: Props) {
       
       console.log('✏️ Mise à jour statut:', { id, nouveauStatut, noteAdmin });
       
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/signalements/${id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/signalements/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -233,7 +233,7 @@ export default function GestionSignalements({ filtre, naviguerVers }: Props) {
       
       console.log('🗑️ Suppression signalement:', id);
       
-      const response = await fetch(`https://evend-multivendeur-api.onrender.com/api/signalements/${id}`, {
+      const response = await fetch(`https://api.e-vend.ca/api/signalements/${id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`

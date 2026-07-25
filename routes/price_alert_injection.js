@@ -31,7 +31,7 @@ router.post('/inject-price-alert-button', async (req, res) => {
         const baseUrl = `https://${domain}/admin/api/2024-10`;
         const headers = { 'Content-Type': 'application/json', 'X-Shopify-Access-Token': token };
         
-        const renderUrl = process.env.RENDER_URL || 'evend-multivendeur-api.onrender.com';
+        const renderUrl = process.env.RENDER_URL || 'api.e-vend.ca';
         const WIDGET_URL = `https://${renderUrl}/evend-auction-widget.js`;
         const MODAL_URL = `https://${renderUrl}/js/price-drop-modal.js`;
         
@@ -141,7 +141,7 @@ router.delete('/uninstall-price-alert', async (req, res) => {
             domain = result.rows[0].shop_domain;
         }
         
-        const renderUrl = process.env.RENDER_URL || 'evend-multivendeur-api.onrender.com';
+        const renderUrl = process.env.RENDER_URL || 'api.e-vend.ca';
         const WIDGET_URL = `https://${renderUrl}/evend-auction-widget.js`;
         const MODAL_URL = `https://${renderUrl}/js/price-drop-modal.js`;
         

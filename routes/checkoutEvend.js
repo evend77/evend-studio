@@ -543,7 +543,7 @@ router.post('/creer-commande', async (req, res) => {
         });
       }
 
-      const frontendUrl = process.env.FRONTEND_URL || 'https://evend-multivendeur-api.onrender.com';
+      const frontendUrl = process.env.FRONTEND_URL || 'https://api.e-vend.ca';
 
       // ✅ CRITICAL FIX: stripeAccount passé comme SECOND paramètre
       // PAS dans le constructeur Stripe !

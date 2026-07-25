@@ -95,7 +95,7 @@ export default function AbonnementsActifs({ naviguerVers }: AbonnementsActifsPro
         
         log.admin('Page visitée', 'Abonnements actifs', {});
         
-        const response = await fetch('https://evend-multivendeur-api.onrender.com/api/abonnements');
+        const response = await fetch('https://api.e-vend.ca/api/abonnements');
         
         if (!response.ok) {
           throw new Error(`Erreur HTTP: ${response.status}`);
