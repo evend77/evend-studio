@@ -83,7 +83,8 @@ app.use((req, res, next) => {
   if (
     req.path === '/api/dynadot/stripe-webhook' ||
     req.path === '/api/webhooks/dynadot' ||
-    req.path === '/api/webhooks/paiements-connect'
+    req.path === '/api/webhooks/paiements-connect' ||
+    req.path === '/caddy/ask'
   ) {
     return next();
   }
