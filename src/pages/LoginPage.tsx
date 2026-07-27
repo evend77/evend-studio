@@ -825,6 +825,7 @@ function Verify2FAModal({
       const response = await fetch(`${API_URL}/api/auth/verify-2fa`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ userId, code, userType: apiUserType }),
       });
 
@@ -1067,10 +1068,20 @@ export default function LoginPage({
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // reçoit et stocke le cookie httpOnly posé par le serveur
         body: body,
       });
 
       const data = await response.json();
+
+      // Compte bloqué par rate limiting (5 tentatives échouées)
+      if (response.status === 403 && data.blocked === true) {
+        setUnlockEmail(email);
+        setUnlockUserType(activeTab);
+        setUnlockModalOpen(true);
+        setErreur('');
+        return;
+      }
 
       if (response.ok && data.requires2FA) {
         // Compte avec F2A activée : pas de token encore, on ouvre la modale de code
@@ -1078,10 +1089,10 @@ export default function LoginPage({
         setVerify2FAUserType(activeTab);
         setVerify2FAModalOpen(true);
       } else if (response.ok) {
-        // Stocker le token et l'utilisateur
-        localStorage.setItem('token', data.token);
+        // Le cookie httpOnly est déjà posé par le serveur (Set-Cookie sur cette
+        // réponse) — on ne stocke plus le JWT ici. On garde 'user' pour l'UI.
         localStorage.setItem('user', JSON.stringify(data.user));
-        
+
         // Rediriger vers le dashboard vendeur
         if (activeTab === 'gestionnaire') {
           window.location.href = '/dashboard';
@@ -1121,7 +1132,8 @@ export default function LoginPage({
 
   // Succès 2FA
   const handle2FASuccess = (token: string, user: any) => {
-    localStorage.setItem('token', token);
+    // Le cookie httpOnly est déjà posé par le serveur au moment du /verify-2fa —
+    // on ne stocke plus le JWT ici, seulement 'user' pour l'UI.
     localStorage.setItem('user', JSON.stringify(user));
     if (onLogin) {
       onLogin(verify2FAUserType, user, token);
