@@ -9,6 +9,21 @@ const jwt     = require('jsonwebtoken');
 const { authenticateToken } = require('../middleware/auth');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025';
+const { verifierCompteBloque, gererTentativeEchouee } = require('./authStudio');
+
+// Cookie host-only, scopé par site — cohérent avec le système marketplace.
+const EST_PRODUCTION = process.env.NODE_ENV === 'production';
+function optionsCookieAcheteur() {
+  return {
+    httpOnly: true,
+    secure: EST_PRODUCTION,
+    sameSite: 'lax',
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+  };
+}
+function nomCookieAcheteur(siteId) {
+  return `acheteur_studio_token_${siteId}`;
+}
 
 // ─── Helper token acheteur ────────────────────────────────────────────────────
 function genererTokenAcheteur(acheteur) {
@@ -45,6 +60,7 @@ router.post('/inscription', async (req, res) => {
 
     const acheteur = result.rows[0];
     const token = genererTokenAcheteur(acheteur);
+    res.cookie(nomCookieAcheteur(site_id), token, optionsCookieAcheteur());
     res.status(201).json({ success: true, token, acheteur });
   } catch (err) {
     console.error('POST inscription acheteur:', err);
@@ -58,12 +74,19 @@ router.post('/connexion', async (req, res) => {
   if (!site_id || !email || !mot_de_passe) {
     return res.status(400).json({ message: 'Champs obligatoires manquants.' });
   }
+  const userTypeKey = `acheteur_studio_${site_id}`;
   try {
+    const blocage = await verifierCompteBloque(email, userTypeKey);
+    if (blocage) {
+      return res.status(403).json({ blocked: true, message: blocage.message });
+    }
+
     const result = await pool.query(
       'SELECT * FROM acheteurs_studio WHERE site_id = $1 AND email = $2',
       [site_id, email.toLowerCase()]
     );
     if (!result.rows.length) {
+      await gererTentativeEchouee(email, userTypeKey, null);
       return res.status(401).json({ message: 'Email ou mot de passe incorrect.' });
     }
     const acheteur = result.rows[0];
@@ -72,8 +95,11 @@ router.post('/connexion', async (req, res) => {
     }
     const valide = await bcrypt.compare(mot_de_passe, acheteur.mot_de_passe);
     if (!valide) {
+      await gererTentativeEchouee(email, userTypeKey, `${acheteur.prenom || ''} ${acheteur.nom || ''}`.trim());
       return res.status(401).json({ message: 'Email ou mot de passe incorrect.' });
     }
+
+    await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), userTypeKey]);
 
     await pool.query(
       'UPDATE acheteurs_studio SET derniere_connexion = NOW() WHERE id = $1',
@@ -81,6 +107,7 @@ router.post('/connexion', async (req, res) => {
     );
 
     const token = genererTokenAcheteur(acheteur);
+    res.cookie(nomCookieAcheteur(site_id), token, optionsCookieAcheteur());
     res.json({
       success: true, token,
       acheteur: { id: acheteur.id, prenom: acheteur.prenom, nom: acheteur.nom, email: acheteur.email, site_id: acheteur.site_id }
@@ -91,9 +118,19 @@ router.post('/connexion', async (req, res) => {
   }
 });
 
+// ─── POST /api/acheteurs-studio/deconnexion ──────────────────────────────────
+router.post('/deconnexion', (req, res) => {
+  const { site_id } = req.body;
+  if (site_id) res.clearCookie(nomCookieAcheteur(site_id), optionsCookieAcheteur());
+  res.json({ success: true });
+});
+
 // ─── GET /api/acheteurs-studio/moi ───────────────────────────────────────────
 router.get('/moi', async (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
+  const { site_id } = req.query;
+  const cookieToken = site_id && req.cookies && req.cookies[nomCookieAcheteur(site_id)];
+  const headerToken = req.headers.authorization?.split(' ')[1];
+  const token = cookieToken || headerToken;
   if (!token) return res.status(401).json({ message: 'Non authentifié.' });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
@@ -110,7 +147,10 @@ router.get('/moi', async (req, res) => {
 
 // ─── GET /api/acheteurs-studio/mes-commandes ─────────────────────────────────
 router.get('/mes-commandes', async (req, res) => {
-  const token = req.headers.authorization?.split(' ')[1];
+  const { site_id } = req.query;
+  const cookieToken = site_id && req.cookies && req.cookies[nomCookieAcheteur(site_id)];
+  const headerToken = req.headers.authorization?.split(' ')[1];
+  const token = cookieToken || headerToken;
   if (!token) return res.status(401).json({ message: 'Non authentifié.' });
   try {
     const payload = jwt.verify(token, JWT_SECRET);

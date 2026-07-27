@@ -189,7 +189,6 @@ interface Acheteur {
   prenom: string;
   nom: string;
   email: string;
-  token: string;
 }
 
 interface Commande {
@@ -238,6 +237,11 @@ export default function TemplateBoutiqueComplete({ config: configProp, siteId, v
   const [inscMdp, setInscMdp] = useState('');
   const [authErreur, setAuthErreur] = useState('');
   const [authCharge, setAuthCharge] = useState(false);
+  const [compteBloque, setCompteBloque] = useState(false);
+  const [codeDeblocage, setCodeDeblocage] = useState('');
+  const [loadingDeblocage, setLoadingDeblocage] = useState(false);
+  const [loadingRenvoi, setLoadingRenvoi] = useState(false);
+  const [messageDeblocage, setMessageDeblocage] = useState('');
 
   // ─── STATE PANIER ────────────────────────────────────────────────────────────
   const [panier, setPanier] = useState<ItemPanier[]>([]);
@@ -322,16 +326,21 @@ export default function TemplateBoutiqueComplete({ config: configProp, siteId, v
       const res = await fetch('/api/acheteurs-studio/connexion', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email: loginEmail, mot_de_passe: loginMdp, site_id: siteId }),
       });
       const data = await res.json();
       if (res.ok && data.token) {
-        const a: Acheteur = { id: data.acheteur.id, prenom: data.acheteur.prenom, nom: data.acheteur.nom, email: data.acheteur.email, token: data.token };
+        // Le cookie httpOnly (scopé à ce site) est déjà posé par le serveur —
+        // on ne garde plus le JWT ici, seulement les infos d'affichage.
+        const a: Acheteur = { id: data.acheteur.id, prenom: data.acheteur.prenom, nom: data.acheteur.nom, email: data.acheteur.email };
         setAcheteur(a);
         sessionStorage.setItem('evend_acheteur', JSON.stringify(a));
         allerA('accueil');
+      } else if (res.status === 403 && data.blocked) {
+        setCompteBloque(true);
       } else {
-        setAuthErreur(data.error || 'Identifiants invalides.');
+        setAuthErreur(data.error || data.message || 'Identifiants invalides.');
       }
     } catch {
       setAuthErreur('Erreur réseau. Réessayez.');
@@ -348,16 +357,17 @@ export default function TemplateBoutiqueComplete({ config: configProp, siteId, v
       const res = await fetch('/api/acheteurs-studio/inscription', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ prenom: inscPrenom, nom: inscNom, email: inscEmail, mot_de_passe: inscMdp, site_id: siteId, vendeur_id: vendeurId }),
       });
       const data = await res.json();
       if (res.ok && data.token) {
-        const a: Acheteur = { id: data.acheteur.id, prenom: data.acheteur.prenom, nom: data.acheteur.nom, email: data.acheteur.email, token: data.token };
+        const a: Acheteur = { id: data.acheteur.id, prenom: data.acheteur.prenom, nom: data.acheteur.nom, email: data.acheteur.email };
         setAcheteur(a);
         sessionStorage.setItem('evend_acheteur', JSON.stringify(a));
         allerA('accueil');
       } else {
-        setAuthErreur(data.error || 'Erreur lors de l\'inscription.');
+        setAuthErreur(data.error || data.message || 'Erreur lors de l\'inscription.');
       }
     } catch {
       setAuthErreur('Erreur réseau. Réessayez.');
@@ -367,9 +377,56 @@ export default function TemplateBoutiqueComplete({ config: configProp, siteId, v
   };
 
   const deconnexion = () => {
+    fetch('/api/acheteurs-studio/deconnexion', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ site_id: siteId }),
+    }).catch(() => {});
     setAcheteur(null);
     sessionStorage.removeItem('evend_acheteur');
     allerA('accueil');
+  };
+
+  // Doit correspondre exactement à userTypeKey côté serveur (acheteurs-studio.js)
+  const userTypeKeyAcheteur = `acheteur_studio_${siteId}`;
+
+  const handleUnlock = async () => {
+    setLoadingDeblocage(true); setAuthErreur(''); setMessageDeblocage('');
+    try {
+      const res = await fetch('/api/auth/unlock-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, userType: userTypeKeyAcheteur, code: codeDeblocage }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || 'Code invalide ou expiré');
+      setMessageDeblocage('Compte débloqué. Vous pouvez vous reconnecter.');
+      setCodeDeblocage('');
+      setTimeout(() => { setCompteBloque(false); setMessageDeblocage(''); }, 2000);
+    } catch (err: any) {
+      setAuthErreur(err.message);
+    } finally {
+      setLoadingDeblocage(false);
+    }
+  };
+
+  const handleResendUnlockCode = async () => {
+    setLoadingRenvoi(true); setAuthErreur(''); setMessageDeblocage('');
+    try {
+      const res = await fetch('/api/auth/resend-unlock-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: loginEmail, userType: userTypeKeyAcheteur }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.message || "Erreur lors de l'envoi du code");
+      setMessageDeblocage('Un nouveau code a été envoyé par courriel.');
+    } catch (err: any) {
+      setAuthErreur(err.message);
+    } finally {
+      setLoadingRenvoi(false);
+    }
   };
 
   // ─── PANIER ──────────────────────────────────────────────────────────────────
@@ -436,7 +493,8 @@ export default function TemplateBoutiqueComplete({ config: configProp, siteId, v
 
       const res = await fetch('/api/boutique-studio/creer-commande', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${acheteur.token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           site_id: siteId,
           vendeur_id: vendeurId,
@@ -469,14 +527,14 @@ export default function TemplateBoutiqueComplete({ config: configProp, siteId, v
     if (!acheteur) return;
     setCommandesCharge(true);
     try {
-      const res = await fetch('/api/acheteurs-studio/mes-commandes', {
-        headers: { Authorization: `Bearer ${acheteur.token}` },
+      const res = await fetch(`/api/acheteurs-studio/mes-commandes?site_id=${siteId}`, {
+        credentials: 'include',
       });
       const data = await res.json();
       if (res.ok) setCommandes(data.commandes || []);
     } catch {}
     finally { setCommandesCharge(false); }
-  }, [acheteur]);
+  }, [acheteur, siteId]);
 
   useEffect(() => {
     if (page === 'dashboard') chargerCommandes();
@@ -968,6 +1026,8 @@ export default function TemplateBoutiqueComplete({ config: configProp, siteId, v
       {page === 'connexion' && (
         <div className="fade-in" style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 16px' }}>
           <div style={{ background: '#fff', borderRadius: 20, padding: isMobile ? '32px 24px' : '48px 40px', width: '100%', maxWidth: 420, boxShadow: '0 8px 40px rgba(0,0,0,0.1)' }}>
+            {!compteBloque ? (
+            <>
             <h2 style={{ fontSize: 26, fontWeight: 800, color: cs, marginBottom: 8 }}>Connexion</h2>
             <p style={{ fontSize: 14, color: '#888', marginBottom: 28 }}>Accédez à votre compte et votre historique d'achats.</p>
 
@@ -989,6 +1049,38 @@ export default function TemplateBoutiqueComplete({ config: configProp, siteId, v
                 Créer un compte
               </span>
             </p>
+            </>
+            ) : (
+            <>
+            <h2 style={{ fontSize: 26, fontWeight: 800, color: '#dc2626', marginBottom: 8 }}>🔒 Compte bloqué</h2>
+            <p style={{ fontSize: 14, color: '#888', marginBottom: 20 }}>
+              Trop de tentatives de connexion échouées. Un code de déblocage a été envoyé par courriel à <strong>{loginEmail}</strong>.
+            </p>
+
+            {authErreur && <div style={{ background: '#fee2e2', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>{authErreur}</div>}
+            {messageDeblocage && <div style={{ background: '#dcfce7', color: '#16a34a', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>{messageDeblocage}</div>}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <input style={{ ...inputStyle, textAlign: 'center', letterSpacing: 4, fontFamily: 'monospace', fontSize: 18 }}
+                type="text" placeholder="123456" value={codeDeblocage} onChange={e => setCodeDeblocage(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleUnlock()} />
+              <button style={{ ...btnPrimaire, width: '100%', padding: '14px', fontSize: 15, borderRadius: 12 }}
+                onClick={handleUnlock} disabled={loadingDeblocage}>
+                {loadingDeblocage ? '⏳ Vérification...' : '🔓 Débloquer mon compte'}
+              </button>
+            </div>
+
+            <p style={{ textAlign: 'center', marginTop: 16, fontSize: 13 }}>
+              <span style={{ color: cp, fontWeight: 700, cursor: loadingRenvoi ? 'default' : 'pointer' }} onClick={loadingRenvoi ? undefined : handleResendUnlockCode}>
+                {loadingRenvoi ? 'Envoi...' : 'Renvoyer le code'}
+              </span>
+            </p>
+            <p style={{ textAlign: 'center', marginTop: 6, fontSize: 13, color: '#888', cursor: 'pointer' }}
+              onClick={() => { setCompteBloque(false); setCodeDeblocage(''); setAuthErreur(''); setMessageDeblocage(''); }}>
+              ← Retour
+            </p>
+            </>
+            )}
           </div>
         </div>
       )}

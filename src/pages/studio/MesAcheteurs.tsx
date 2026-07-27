@@ -65,6 +65,7 @@ export default function MesAcheteurs({ vendeurId }: { vendeurId: number }) {
 
   useEffect(() => {
     fetch(`${API_BASE}/acheteurs-studio/vendeur`, {
+      credentials: 'include',
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(r => r.ok ? r.json() : null)
@@ -78,6 +79,7 @@ export default function MesAcheteurs({ vendeurId }: { vendeurId: number }) {
     setLoadingCommandes(true);
     try {
       const res = await fetch(`${API_BASE}/acheteurs-studio/${a.id}/commandes`, {
+        credentials: 'include',
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -89,6 +91,7 @@ export default function MesAcheteurs({ vendeurId }: { vendeurId: number }) {
   const changerStatut = async (id: number, statut: string) => {
     await fetch(`${API_BASE}/acheteurs-studio/${id}/statut`, {
       method: 'PUT',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ statut }),
     });

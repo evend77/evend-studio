@@ -4,7 +4,20 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
+const jwt     = require('jsonwebtoken');
 const { authenticateToken } = require('../middleware/auth');
+
+const JWT_SECRET = process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025';
+
+// ─── Helper Stripe plateforme (pour la vérification de signature webhook) ────
+async function getPlatformStripeKey() {
+  const cfg = await pool.query('SELECT * FROM configuration_stripe_admin WHERE id = 1');
+  if (!cfg.rows.length) throw new Error('Config Stripe manquante.');
+  const row = cfg.rows[0];
+  let stripeKey = row.sandbox ? row.dev_secret_key : row.prod_secret_key;
+  try { const { dechiffrer } = require('../services/chiffrement'); stripeKey = dechiffrer(stripeKey); } catch {}
+  return stripeKey;
+}
 
 // ─── Helper Stripe vendeur ────────────────────────────────────────────────────
 async function getStripeKey(vendeurId) {
@@ -34,12 +47,28 @@ router.post('/creer-commande', async (req, res) => {
     nom_client, email_client, telephone,
     adresse_livraison,
     produit_nom, variante, quantite, prix_unitaire,
-    acheteur_id,
     notes,
   } = req.body;
 
   if (!site_id || !vendeur_id || !nom_client || !email_client || !produit_nom || !prix_unitaire) {
     return res.status(400).json({ message: 'Champs obligatoires manquants.' });
+  }
+
+  // 🔒 On ne fait jamais confiance à un acheteur_id envoyé par le client —
+  // n'importe qui pourrait mettre l'ID de quelqu'un d'autre dans le body et
+  // se faire passer pour lui. On dérive le vrai acheteur_id (s'il y en a un)
+  // du cookie de session, jamais du body. Sans session valide, la commande
+  // est traitée comme "invité" (acheteur_id = null) — le guest checkout
+  // reste possible, mais aucune usurpation n'est possible.
+  let acheteur_id = null;
+  const cookieToken = site_id && req.cookies && req.cookies[`acheteur_studio_token_${site_id}`];
+  const headerToken = req.headers.authorization?.split(' ')[1];
+  const token = cookieToken || headerToken;
+  if (token) {
+    try {
+      const payload = jwt.verify(token, JWT_SECRET);
+      acheteur_id = payload.id;
+    } catch { /* token absent/invalide → commande invité */ }
   }
 
   try {
@@ -151,24 +180,43 @@ router.put('/commandes/:id/statut', authenticateToken, async (req, res) => {
 
 // ─── Webhook Stripe pour boutique studio ─────────────────────────────────────
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const sig = req.headers['stripe-signature'];
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET_STUDIO;
+
+  if (!webhookSecret) {
+    console.error('❌ STRIPE_WEBHOOK_SECRET_STUDIO manquant — webhook refusé par sécurité (aucune commande ne peut être validée sans lui).');
+    return res.status(500).send('Webhook non configuré.');
+  }
+
+  let event;
   try {
-    const sig = req.headers['stripe-signature'];
-    // Traitement simplifié — confirmer la commande
-    const body = JSON.parse(req.body.toString());
-    if (body.type === 'checkout.session.completed') {
-      const commandeId = body.data.object.metadata?.commande_id;
+    const stripeKey = await getPlatformStripeKey();
+    const stripe = require('stripe')(stripeKey);
+    // 🔒 Vérifie que la requête vient bien de Stripe (signature HMAC) — avant,
+    // n'importe qui pouvait poster un faux événement et faire valider
+    // gratuitement n'importe quelle commande.
+    event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+  } catch (err) {
+    console.error('❌ Signature webhook Stripe invalide:', err.message);
+    return res.status(400).send('Signature invalide.');
+  }
+
+  try {
+    if (event.type === 'checkout.session.completed') {
+      const commandeId = event.data.object.metadata?.commande_id;
       if (commandeId) {
         await pool.query(
           `UPDATE commandes_studio SET statut = 'complete',
            stripe_payment_intent = $1 WHERE id = $2`,
-          [body.data.object.payment_intent, commandeId]
+          [event.data.object.payment_intent, commandeId]
         );
         console.log(`✅ Commande boutique #${commandeId} complétée`);
       }
     }
     res.json({ received: true });
   } catch (err) {
-    res.status(400).send('Webhook error');
+    console.error('Erreur traitement webhook boutique-studio:', err.message);
+    res.status(500).send('Erreur traitement webhook.');
   }
 });
 

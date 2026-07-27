@@ -40,7 +40,8 @@ import ListeProduits         from './pages/admin/ListeProduits';
 import GestionTagsEtTypes    from './pages/admin/GestionTagsEtTypes';
 import GestionBadges         from './pages/admin/GestionBadges';
 import BadgesAttitres        from './pages/admin/BadgesAttitres';
-import InscriptionVendeur    from './pages/admin/InscriptionVendeur';
+// (import InscriptionVendeur retiré — fonctionnalité "admin crée un compte
+// vendeur" abandonnée, tout passe désormais par les formulaires d'inscription officiels)
 import GestionCategories    from './pages/admin/GestionCategories';
 import ListeAcheteurs        from './pages/admin/ListeAcheteurs';
 import GestionSignalements   from './pages/admin/GestionSignalements';
@@ -651,8 +652,6 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
         return <ApprobationsEnAttente naviguerVers={naviguerVers} />;
       case 'vendeurs-suspendus':
         return <ComptesSuspendus naviguerVers={naviguerVers} />;
-      case 'vendeurs-creer':
-        return <InscriptionVendeur />;
 
       case 'produits':
       case 'produits-liste':
@@ -1153,7 +1152,9 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                   <button onClick={() => setModalImpersonateSponsorOuvert(false)} style={{ backgroundColor: 'white', color: '#666', border: '1px solid #ddd', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Annuler</button>
                   <button onClick={() => {
-                    localStorage.setItem('sponsorToken', sponsorAImpersonner.token);
+                    // Le cookie httpOnly a déjà été posé par le serveur au
+                    // moment de l'appel à /api/sponsors/admin/:id/impersonate
+                    // — plus besoin (et plus question) de stocker le JWT ici.
                     setModalImpersonateSponsorOuvert(false);
                     window.location.href = '/sponsor-dashboard';
                   }} style={{ backgroundColor: THEME.accent, color: 'white', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
