@@ -12,6 +12,7 @@ const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
 const pool    = require('../db');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
+const { COOKIE_OPTIONS } = require('./authStudio');
 
 const JWT_SECRET  = process.env.JWT_SECRET  || 'evend-studio-secret-change-en-prod';
 const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d';
@@ -259,6 +260,10 @@ router.post('/:id/impersonate', authenticateToken, isAdmin, async (req, res) => 
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES }
     );
+    // Remplace le cookie de session admin par celui du gestionnaire impersonné —
+    // sinon les appels API pendant l'impersonation continueraient de
+    // s'authentifier comme admin via le cookie (le middleware le lit en priorité).
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
 
     pool.query(
       `INSERT INTO audit_logs (action, utilisateur, details, niveau) VALUES ($1,$2,$3,$4)`,
@@ -272,6 +277,44 @@ router.post('/:id/impersonate', authenticateToken, isAdmin, async (req, res) => 
     });
   } catch (err) {
     console.error('❌ POST /:id/impersonate:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/admin/gestionnaires/stop-impersonation
+// Remet le cookie de session sur le compte admin d'origine.
+// Protégé par authenticateToken seulement (pas isAdmin) : pendant
+// l'impersonation, le token courant a role='gestionnaire' — c'est
+// justement le claim impersonated_by dedans qui prouve qu'un admin
+// est derrière.
+// ─────────────────────────────────────────────────────────────
+router.post('/stop-impersonation', authenticateToken, async (req, res) => {
+  try {
+    const adminId = req.user.impersonated_by;
+    if (!adminId) {
+      return res.status(400).json({ error: "Aucune impersonation active sur cette session." });
+    }
+
+    const aRes = await pool.query(`SELECT id, email, nom, role FROM admins WHERE id = $1`, [adminId]);
+    if (!aRes.rows.length) return res.status(404).json({ error: 'Administrateur introuvable.' });
+    const admin = aRes.rows[0];
+
+    const token = jwt.sign({ id: admin.id, email: admin.email, role: 'admin' }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
+
+    pool.query(
+      `INSERT INTO audit_logs (action, utilisateur, details, niveau) VALUES ($1,$2,$3,$4)`,
+      ['FIN_IMPERSONATION_GESTIONNAIRE', admin.email || admin.id,
+       JSON.stringify({ gestionnaire_id: req.user.id }), 'info']
+    ).catch(() => {});
+
+    res.json({
+      token,
+      user: { id: admin.id, email: admin.email, nom: admin.nom, role: 'admin' },
+    });
+  } catch (err) {
+    console.error('❌ POST /stop-impersonation:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

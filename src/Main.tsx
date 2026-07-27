@@ -98,10 +98,15 @@ export default function Main() {
   }, []);
 
   useEffect(() => {
+    // Rétrocompatibilité : un onglet resté ouvert depuis avant la migration
+    // peut encore avoir un token en localStorage — on l'envoie en plus, au cas
+    // où. Mais on ne conditionne plus l'appel à sa présence : le cookie
+    // httpOnly (posé par le serveur au login) est illisible en JS, donc la
+    // seule façon de savoir si la session est valide est de demander au serveur.
     const token = localStorage.getItem('token');
-    if (!token) { setLoading(false); return; }
     fetch(`${API_BASE}/auth/verify`, {
-      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -112,45 +117,50 @@ export default function Main() {
       .finally(() => setLoading(false));
   }, []);
 
-  const handleLogin = (_type: string, userData: any, token: string) => {
-    localStorage.setItem('token', token);
+  const handleLogin = (_type: string, userData: any, _token: string) => {
+    // Le cookie httpOnly est déjà posé par le serveur via Set-Cookie sur la
+    // réponse de /login — on ne stocke plus le JWT ici. On garde seulement
+    // les infos d'affichage (non sensibles) pour éviter un flash "pas connecté"
+    // au prochain chargement, le temps que /auth/verify reconfirme la session.
     localStorage.setItem('user', JSON.stringify(userData));
     setUser(userData);
   };
 
   const handleLogout = () => {
+    fetch(`${API_BASE}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     setUser(null);
   };
 
   // ── Impersonation admin → gestionnaire ──────────────────────────────────────
-  const handleImpersonateGestionnaire = (gestionnaire: any, token: string) => {
-    const tokenAdmin = localStorage.getItem('token');
-    const userAdmin  = localStorage.getItem('user');
-    if (tokenAdmin) localStorage.setItem('admin_token_backup', tokenAdmin);
-    if (userAdmin)  localStorage.setItem('admin_user_backup', userAdmin);
-
-    localStorage.setItem('token', token);
+  // Le cookie httpOnly a déjà été remplacé par le serveur (Set-Cookie sur la
+  // réponse de /impersonate) — plus besoin de manipuler de JWT ici. On garde
+  // juste un indicateur non sensible pour savoir afficher le bandeau
+  // "retour au compte admin".
+  const handleImpersonateGestionnaire = (gestionnaire: any, _token: string) => {
+    localStorage.setItem('impersonation_active', 'true');
     localStorage.setItem('user', JSON.stringify(gestionnaire));
     setUser(gestionnaire);
   };
 
   const handleStopImpersonationGestionnaire = () => {
-    const tokenAdmin = localStorage.getItem('admin_token_backup');
-    const userAdmin  = localStorage.getItem('admin_user_backup');
-
-    localStorage.removeItem('admin_token_backup');
-    localStorage.removeItem('admin_user_backup');
-
-    if (tokenAdmin && userAdmin) {
-      localStorage.setItem('token', tokenAdmin);
-      localStorage.setItem('user', userAdmin);
-      setUser(JSON.parse(userAdmin));
-      window.location.href = '/admin';
-    } else {
-      handleLogout();
-    }
+    fetch(`${API_BASE}/admin/gestionnaires/stop-impersonation`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        localStorage.removeItem('impersonation_active');
+        if (data?.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+          setUser(data.user);
+          window.location.href = '/admin';
+        } else {
+          handleLogout();
+        }
+      })
+      .catch(() => handleLogout());
   };
 
   if (!sousDomaineCheck.verifie || loading) {
@@ -238,9 +248,9 @@ export default function Main() {
           !user ? <Navigate to="/login" replace /> :
           user.role === 'gestionnaire' ? (
             <AnyGestionnaire
-              onLogout={localStorage.getItem('admin_token_backup') ? handleStopImpersonationGestionnaire : handleLogout}
+              onLogout={localStorage.getItem('impersonation_active') ? handleStopImpersonationGestionnaire : handleLogout}
               gestionnaireUser={user}
-              isAdminImpersonation={!!localStorage.getItem('admin_token_backup')}
+              isAdminImpersonation={!!localStorage.getItem('impersonation_active')}
             />
           ) :
           <Navigate to="/admin" replace />

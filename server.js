@@ -10,6 +10,7 @@ const path    = require('path');
 const pool    = require('./db');
 const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 const studioContactRoutes = require('./routes/studio_contact');
 const studioPage404       = require('./routes/studio_page404');
 const studioPolitiques    = require('./routes/studio_politiques');
@@ -122,6 +123,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(cookieParser());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // ✅ BLOG PLATEFORME

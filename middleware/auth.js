@@ -4,8 +4,13 @@ const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025';
 
 function authenticateToken(req, res, next) {
+  // Priorité au cookie httpOnly ; fallback sur le header Authorization
+  // (compatibilité transitoire, le temps que le frontend migre — 201 fichiers
+  // font encore des fetch() avec le token dans le header).
+  const cookieToken = req.cookies && req.cookies['evend_studio_token'];
   const authHeader = req.headers['authorization'];
-  const token = authHeader && authHeader.split(' ')[1];
+  const headerToken = authHeader && authHeader.split(' ')[1];
+  const token = cookieToken || headerToken;
 
   if (!token) {
     return res.status(401).json({ message: 'Token manquant.' });

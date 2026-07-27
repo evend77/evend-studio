@@ -24,7 +24,111 @@ function genererToken(payload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES });
 }
 
-// ─── POST /api/auth/inscription ──────────────────────────────────────────────
+// ─── COOKIE OPTIONS: cookie httpOnly sécurisé pour le JWT ────────────────────
+// En dev (localhost), un cookie avec domain=".e-vendstudio.ca" n'est jamais
+// envoyé par le navigateur — on omet domain/secure pour que ça marche en local.
+const EST_PRODUCTION = process.env.NODE_ENV === 'production';
+const COOKIE_OPTIONS = {
+  httpOnly: true,
+  secure: EST_PRODUCTION,
+  // 'lax' suffit et protège contre le CSRF : frontend et API sont sur le même
+  // site (e-vendstudio.ca), pas besoin de 'none' (qui autorise l'envoi du
+  // cookie depuis n'importe quel site tiers — inutile ici, et risqué).
+  sameSite: 'lax',
+  domain: EST_PRODUCTION ? '.e-vendstudio.ca' : undefined,
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+};
+router.COOKIE_OPTIONS = COOKIE_OPTIONS; // ré-exporté pour admin_gestionnaires.js (impersonation)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 🔒 RATE LIMITING / ANTI-BRUTEFORCE — porté depuis evend-multivendeur
+// (routes/auth.js) où ce système existe déjà et fonctionne. Studio avait le
+// UI (UnlockAccountModal dans LoginPage.tsx) mais jamais le backend.
+// ═══════════════════════════════════════════════════════════════════════════
+const MAX_TENTATIVES        = 5;
+const FENETRE_RESET_MINUTES = 15; // au-delà, on repart le compteur à zéro
+const DUREE_BLOCAGE_MINUTES = 10;
+
+// Vérifie si le compte (email + userType) est actuellement bloqué.
+// Retourne null si non bloqué, ou { message } si bloqué (à renvoyer tel quel).
+async function verifierCompteBloque(email, userType) {
+  const blockCheck = await pool.query(
+    `SELECT blocked_until FROM login_attempts
+     WHERE email = $1 AND user_type = $2 AND blocked_until > NOW()
+     ORDER BY id DESC LIMIT 1`,
+    [email.toLowerCase(), userType]
+  );
+  if (blockCheck.rows.length === 0) return null;
+
+  const blockedUntil = new Date(blockCheck.rows[0].blocked_until);
+  const minutesLeft = Math.ceil((blockedUntil - new Date()) / 60000);
+  return {
+    message: `Compte bloqué pour cause de trop nombreuses tentatives. Veuillez réessayer dans ${minutesLeft} minute(s), ou débloquez-le avec le code envoyé par courriel.`,
+  };
+}
+
+// Enregistre une tentative échouée. Au 5e échec dans la fenêtre de 15 minutes,
+// bloque le compte 10 minutes et envoie un code de déblocage par courriel.
+async function gererTentativeEchouee(email, userType, nom) {
+  try {
+    const emailLower = email.toLowerCase();
+    const attemptRecord = await pool.query(
+      `SELECT * FROM login_attempts WHERE email = $1 AND user_type = $2 ORDER BY id DESC LIMIT 1`,
+      [emailLower, userType]
+    );
+
+    let attemptCount = 1;
+    let recordId = null;
+
+    if (attemptRecord.rows.length > 0) {
+      const record = attemptRecord.rows[0];
+      const minutesSinceLast = (Date.now() - new Date(record.last_attempt).getTime()) / 60000;
+
+      if (minutesSinceLast > FENETRE_RESET_MINUTES) {
+        await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [emailLower, userType]);
+      } else {
+        attemptCount = record.attempt_count + 1;
+        recordId = record.id;
+      }
+    }
+
+    if (recordId) {
+      await pool.query(
+        `UPDATE login_attempts SET attempt_count = $1, last_attempt = NOW() WHERE id = $2`,
+        [attemptCount, recordId]
+      );
+    } else {
+      const insertResult = await pool.query(
+        `INSERT INTO login_attempts (email, user_type, attempt_count, last_attempt)
+         VALUES ($1, $2, $3, NOW()) RETURNING id`,
+        [emailLower, userType, attemptCount]
+      );
+      recordId = insertResult.rows[0].id;
+    }
+
+    if (attemptCount >= MAX_TENTATIVES) {
+      const otpCode = genererCodeOtp();
+      const blockedUntil = new Date(Date.now() + DUREE_BLOCAGE_MINUTES * 60000);
+      const codeExpiresAt = new Date(Date.now() + DUREE_BLOCAGE_MINUTES * 60000);
+
+      await pool.query(
+        `UPDATE login_attempts SET blocked_until = $1, unlock_code = $2, code_expires_at = $3 WHERE id = $4`,
+        [blockedUntil, otpCode, codeExpiresAt, recordId]
+      );
+
+      if (envoyerEmailModele) {
+        envoyerEmailModele(29, emailLower, {
+          nom_utilisateur: nom || 'utilisateur',
+          code_otp: otpCode,
+        }).catch(e => console.error('Erreur envoi email #29 (déblocage compte):', e.message));
+      }
+    }
+  } catch (err) {
+    console.error('❌ Erreur gererTentativeEchouee:', err.message);
+  }
+}
+
+
 // Inscription d'un nouveau gestionnaire Studio
 router.post('/inscription', async (req, res) => {
   const { nom, email, mot_de_passe } = req.body;
@@ -69,6 +173,7 @@ router.post('/inscription', async (req, res) => {
       role:  'gestionnaire',
       plan:  gestionnaire.plan,
     });
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
 
     return res.status(201).json({
       success: true,
@@ -98,7 +203,15 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ message: 'Courriel et mot de passe requis.' });
   }
 
+  const userType = type === 'administration' ? 'admin' : type === 'commanditaire' ? 'commanditaire' : 'gestionnaire';
+
   try {
+    // 🔒 Rate limiting : compte actuellement bloqué ?
+    const blocage = await verifierCompteBloque(email, userType);
+    if (blocage) {
+      return res.status(403).json({ success: false, blocked: true, message: blocage.message });
+    }
+
     // ── LOGIN ADMIN ──
     if (type === 'administration') {
       const result = await pool.query(
@@ -107,20 +220,25 @@ router.post('/login', async (req, res) => {
       );
 
       if (result.rows.length === 0) {
+        await gererTentativeEchouee(email, userType, null);
         return res.status(401).json({ message: 'Identifiants incorrects.' });
       }
 
       const admin = result.rows[0];
       const valide = await bcrypt.compare(password, admin.mot_de_passe);
       if (!valide) {
+        await gererTentativeEchouee(email, userType, admin.nom);
         return res.status(401).json({ message: 'Identifiants incorrects.' });
       }
+
+      await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), userType]);
 
       const token = genererToken({
         id:    admin.id,
         email: admin.email,
         role:  'admin',
       });
+      res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
 
       return res.json({
         success: true,
@@ -143,6 +261,7 @@ router.post('/login', async (req, res) => {
       );
 
       if (result.rows.length === 0) {
+        await gererTentativeEchouee(email, userType, null);
         return res.status(401).json({ message: 'Identifiants incorrects.' });
       }
 
@@ -154,8 +273,11 @@ router.post('/login', async (req, res) => {
 
       const valide = await bcrypt.compare(password, commanditaire.mot_de_passe);
       if (!valide) {
+        await gererTentativeEchouee(email, userType, commanditaire.nom);
         return res.status(401).json({ message: 'Identifiants incorrects.' });
       }
+
+      await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), userType]);
 
       const token = genererToken({
         id:    commanditaire.id,
@@ -163,6 +285,7 @@ router.post('/login', async (req, res) => {
         role:  'commanditaire',
         type_sponsor: commanditaire.type_sponsor,
       });
+      res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
 
       return res.json({
         success: true,
@@ -188,6 +311,7 @@ router.post('/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      await gererTentativeEchouee(email, userType, null);
       return res.status(401).json({ message: 'Courriel ou mot de passe incorrect.' });
     }
 
@@ -208,8 +332,11 @@ router.post('/login', async (req, res) => {
 
     const valide = await bcrypt.compare(password, gestionnaire.mot_de_passe);
     if (!valide) {
+      await gererTentativeEchouee(email, userType, gestionnaire.nom);
       return res.status(401).json({ message: 'Courriel ou mot de passe incorrect.' });
     }
+
+    await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), userType]);
 
     if (gestionnaire.statut === 'expire' || gestionnaire.statut === 'a_supprimer') {
       try {
@@ -234,6 +361,7 @@ router.post('/login', async (req, res) => {
       role:  'gestionnaire',
       plan:  gestionnaire.plan,
     });
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
 
     return res.json({
       success: true,
@@ -259,12 +387,15 @@ router.post('/login', async (req, res) => {
 // ─── GET /api/auth/verify ────────────────────────────────────────────────────
 // Vérifier si le token est encore valide (admin, gestionnaire ou commanditaire)
 router.get('/verify', async (req, res) => {
+  const cookieToken = req.cookies && req.cookies['evend_studio_token'];
   const authHeader = req.headers.authorization;
-  if (!authHeader?.startsWith('Bearer ')) {
+  const headerToken = authHeader?.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+  const token = cookieToken || headerToken;
+
+  if (!token) {
     return res.status(401).json({ valid: false, message: 'Token manquant.' });
   }
 
-  const token = authHeader.split(' ')[1];
   try {
     const payload = jwt.verify(token, JWT_SECRET);
 
@@ -401,11 +532,17 @@ router.post('/login-studio', async (req, res) => {
     return res.status(400).json({ message: 'Courriel et mot de passe requis.' });
   }
   try {
+    const blocage = await verifierCompteBloque(email, 'gestionnaire');
+    if (blocage) {
+      return res.status(403).json({ success: false, blocked: true, message: blocage.message });
+    }
+
     const result = await pool.query(
       `SELECT id, email, mot_de_passe, nom, plan, statut, email_verifie, premiere_verification_faite, email_verification_expire, two_factor_enabled FROM gestionnaires WHERE email = $1`,
       [email.toLowerCase()]
     );
     if (result.rows.length === 0) {
+      await gererTentativeEchouee(email, 'gestionnaire', null);
       return res.status(401).json({ message: 'Courriel ou mot de passe incorrect.' });
     }
     const gestionnaire = result.rows[0];
@@ -423,8 +560,11 @@ router.post('/login-studio', async (req, res) => {
     }
     const valide = await bcrypt.compare(mot_de_passe, gestionnaire.mot_de_passe);
     if (!valide) {
+      await gererTentativeEchouee(email, 'gestionnaire', gestionnaire.nom);
       return res.status(401).json({ message: 'Courriel ou mot de passe incorrect.' });
     }
+
+    await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), 'gestionnaire']);
 
     if (gestionnaire.statut === 'expire' || gestionnaire.statut === 'a_supprimer') {
       try {
@@ -461,6 +601,7 @@ router.post('/login-studio', async (req, res) => {
     }
 
     const token = genererToken({ id: gestionnaire.id, email: gestionnaire.email, role: 'gestionnaire', plan: gestionnaire.plan });
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
     return res.json({
       success: true, token,
       user: { id: gestionnaire.id, email: gestionnaire.email, nom: gestionnaire.nom, plan: gestionnaire.plan, statut: gestionnaire.statut, email_verifie: gestionnaire.email_verifie,
@@ -504,6 +645,7 @@ router.post('/verify-2fa', async (req, res) => {
       await pool.query(`UPDATE admins SET f2a_code = NULL, f2a_code_expire = NULL WHERE id = $1`, [admin.id]);
 
       const token = genererToken({ id: admin.id, email: admin.email, role: 'admin' });
+      res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
       return res.json({
         success: true, token,
         user: { id: admin.id, email: admin.email, nom: admin.nom, role: 'admin' },
@@ -532,6 +674,7 @@ router.post('/verify-2fa', async (req, res) => {
       const token = genererToken({
         id: commanditaire.id, email: commanditaire.email, role: 'commanditaire', type_sponsor: commanditaire.type_sponsor,
       });
+      res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
       return res.json({
         success: true, token,
         user: {
@@ -571,6 +714,7 @@ router.post('/verify-2fa', async (req, res) => {
     );
 
     const token = genererToken({ id: gestionnaire.id, email: gestionnaire.email, role: 'gestionnaire', plan: gestionnaire.plan });
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
     return res.json({
       success: true, token,
       user: {
@@ -592,18 +736,27 @@ router.post('/login-admin', async (req, res) => {
     return res.status(400).json({ message: 'Identifiants requis.' });
   }
   try {
+    const blocage = await verifierCompteBloque(code_utilisateur, 'admin');
+    if (blocage) {
+      return res.status(403).json({ success: false, blocked: true, message: blocage.message });
+    }
+
     const result = await pool.query(
       `SELECT id, email, mot_de_passe, nom, role, two_factor_enabled FROM admins WHERE email = $1`,
       [code_utilisateur.toLowerCase()]
     );
     if (result.rows.length === 0) {
+      await gererTentativeEchouee(code_utilisateur, 'admin', null);
       return res.status(401).json({ message: 'Identifiants incorrects.' });
     }
     const admin = result.rows[0];
     const valide = await bcrypt.compare(mot_de_passe, admin.mot_de_passe);
     if (!valide) {
+      await gererTentativeEchouee(code_utilisateur, 'admin', admin.nom);
       return res.status(401).json({ message: 'Identifiants incorrects.' });
     }
+
+    await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [code_utilisateur.toLowerCase(), 'admin']);
 
     if (admin.two_factor_enabled) {
       const code = genererCodeOtp();
@@ -622,6 +775,7 @@ router.post('/login-admin', async (req, res) => {
     }
 
     const token = genererToken({ id: admin.id, email: admin.email, role: 'admin' });
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
     return res.json({
       success: true, token,
       user: { id: admin.id, email: admin.email, nom: admin.nom, role: 'admin' },
@@ -646,6 +800,11 @@ router.post('/login-commanditaire', async (req, res) => {
   }
 
   try {
+    const blocage = await verifierCompteBloque(email, 'commanditaire');
+    if (blocage) {
+      return res.status(403).json({ success: false, blocked: true, message: blocage.message });
+    }
+
     const result = await pool.query(
       `SELECT id, nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active, two_factor_enabled
        FROM sponsors WHERE email = $1`,
@@ -653,6 +812,7 @@ router.post('/login-commanditaire', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      await gererTentativeEchouee(email, 'commanditaire', null);
       return res.status(401).json({ message: 'Identifiants incorrects.' });
     }
 
@@ -664,8 +824,11 @@ router.post('/login-commanditaire', async (req, res) => {
 
     const valide = await bcrypt.compare(mot_de_passe, commanditaire.mot_de_passe);
     if (!valide) {
+      await gererTentativeEchouee(email, 'commanditaire', commanditaire.nom);
       return res.status(401).json({ message: 'Identifiants incorrects.' });
     }
+
+    await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), 'commanditaire']);
 
     if (commanditaire.two_factor_enabled) {
       const code = genererCodeOtp();
@@ -689,6 +852,7 @@ router.post('/login-commanditaire', async (req, res) => {
       role:  'commanditaire',
       type_sponsor: commanditaire.type_sponsor,
     });
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
 
     return res.json({
       success: true,
@@ -708,6 +872,107 @@ router.post('/login-commanditaire', async (req, res) => {
   } catch (err) {
     console.error('Erreur /api/auth/login-commanditaire:', err);
     return res.status(500).json({ message: 'Erreur serveur.' });
+  }
+});
+
+// ─── POST /api/auth/logout ─────────────────────────────────────────────────
+// Efface le cookie httpOnly. Le frontend continue de faire son propre
+// localStorage.removeItem('token') en parallèle tant que la migration
+// complète du frontend n'est pas faite.
+router.post('/logout', (req, res) => {
+  res.clearCookie('evend_studio_token', {
+    httpOnly: COOKIE_OPTIONS.httpOnly,
+    secure: COOKIE_OPTIONS.secure,
+    sameSite: COOKIE_OPTIONS.sameSite,
+    domain: COOKIE_OPTIONS.domain,
+  });
+  return res.json({ success: true, message: 'Déconnecté.' });
+});
+
+// ─── POST /api/auth/unlock-account ─────────────────────────────────────────
+// Débloque un compte via le code envoyé par courriel (template #29).
+// Note : LoginPage.tsx envoie userType='administration' (nom de l'onglet),
+// alors que /login stocke 'admin' dans login_attempts.user_type — on
+// normalise ici pour que les deux se rejoignent.
+router.post('/unlock-account', async (req, res) => {
+  try {
+    const { email, userType, code } = req.body;
+    if (!email || !userType || !code) {
+      return res.status(400).json({ success: false, message: 'Tous les champs sont requis.' });
+    }
+    const type = userType === 'administration' ? 'admin' : userType;
+
+    const result = await pool.query(
+      `SELECT * FROM login_attempts
+       WHERE email = $1 AND user_type = $2 AND unlock_code = $3
+       AND code_expires_at > NOW() AND blocked_until > NOW()
+       ORDER BY id DESC LIMIT 1`,
+      [email.toLowerCase(), type, code]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Code invalide ou expiré.' });
+    }
+
+    await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), type]);
+
+    return res.json({ success: true, message: 'Compte débloqué avec succès. Veuillez vous reconnecter.' });
+  } catch (err) {
+    console.error('❌ Erreur /api/auth/unlock-account:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur.' });
+  }
+});
+
+// ─── POST /api/auth/resend-unlock-code ─────────────────────────────────────
+// Renvoie un nouveau code de déblocage (prolonge aussi le blocage de 10 min,
+// comme evend-multivendeur — évite qu'un renvoi laisse le compte se
+// débloquer tout seul avant que le nouveau code arrive).
+router.post('/resend-unlock-code', async (req, res) => {
+  try {
+    const { email, userType } = req.body;
+    if (!email || !userType) {
+      return res.status(400).json({ success: false, message: 'Courriel requis.' });
+    }
+    const type = userType === 'administration' ? 'admin' : userType;
+    const emailLower = email.toLowerCase();
+
+    const result = await pool.query(
+      `SELECT * FROM login_attempts WHERE email = $1 AND user_type = $2 AND blocked_until > NOW() ORDER BY id DESC LIMIT 1`,
+      [emailLower, type]
+    );
+    if (result.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Aucun compte bloqué trouvé.' });
+    }
+    const record = result.rows[0];
+
+    const newOtpCode = genererCodeOtp();
+    const nouvelleExpiration = new Date(Date.now() + DUREE_BLOCAGE_MINUTES * 60000);
+
+    await pool.query(
+      `UPDATE login_attempts SET unlock_code = $1, code_expires_at = $2, blocked_until = $3 WHERE id = $4`,
+      [newOtpCode, nouvelleExpiration, nouvelleExpiration, record.id]
+    );
+
+    const table = type === 'admin' ? 'admins' : type === 'commanditaire' ? 'sponsors' : 'gestionnaires';
+    let nom = null;
+    try {
+      const userResult = await pool.query(`SELECT nom FROM ${table} WHERE email = $1`, [emailLower]);
+      if (userResult.rows.length > 0) nom = userResult.rows[0].nom;
+    } catch (e) { /* ignore — champ nom optionnel dans l'email */ }
+
+    if (envoyerEmailModele) {
+      try {
+        await envoyerEmailModele(29, emailLower, { nom_utilisateur: nom || 'utilisateur', code_otp: newOtpCode });
+      } catch (emailErr) {
+        console.error('❌ Erreur renvoi email #29:', emailErr.message);
+        return res.status(500).json({ success: false, message: "Erreur lors de l'envoi du code." });
+      }
+    }
+
+    return res.json({ success: true, message: 'Un nouveau code a été envoyé par courriel.' });
+  } catch (err) {
+    console.error('❌ Erreur /api/auth/resend-unlock-code:', err.message);
+    res.status(500).json({ success: false, message: 'Erreur serveur.' });
   }
 });
 

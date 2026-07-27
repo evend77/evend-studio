@@ -142,6 +142,7 @@ const SUJETS: Record<number, string> = {
   26: '❌ Échec du virement Stripe — Action requise',
   27: '❌ Échec du virement PayPal — Action requise',
   28: 'Votre compte e-Vend Studio a été supprimé',
+  29: '🔒 Code de déblocage de votre compte — e-Vend Studio',
   31: '✅ Votre produit "{$nom_produit}" a été approuvé !',
   32: '❌ Votre produit "{$nom_produit}" a été refusé',
   33: '⚠️ Votre produit "{$nom_produit}" a été désactivé',
@@ -509,6 +510,17 @@ const TEMPLATES_INIT: Template[] = [
     ...VC,
     { cle: '{$nom_gestionnaire}', desc: 'Nom complet gestionnaire' },
     { cle: '{$raison_suppression}', desc: 'Raison de la suppression du compte' },
+    ],
+  },
+  {
+    id: 29, nom: 'Code de déblocage — compte verrouillé', theme: 'compte' as Theme,
+    destinataire: 'gestionnaire', canal: 'email', actif: true,
+    sujet: SUJETS[29],
+    html: baseHTML(SUJETS[29], `<p class='greeting'>Bonjour {$nom_utilisateur},</p><div class='content'><p>Votre compte a été temporairement bloqué après plusieurs tentatives de connexion échouées. Voici votre code de déblocage :</p><div class='otp'><div class='otp-code'>{$code_otp}</div><div class='otp-note'>Valide 10 minutes · Ne partagez jamais ce code</div></div><p style='font-size:11px;color:#dc2626;'>⚠️ Si vous n'êtes pas à l'origine de ces tentatives de connexion, changez votre mot de passe dès que possible.</p></div>`, '#991b1b'),
+    variables: [
+    { cle: '{$date}', desc: "Date d'envoi" },
+    { cle: '{$nom_utilisateur}', desc: 'Nom du gestionnaire, admin ou commanditaire' },
+    { cle: '{$code_otp}', desc: 'Code de déblocage à 6 chiffres' },
     ],
   },
   {
