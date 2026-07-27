@@ -260,20 +260,26 @@ function SessionIndicator({ statut }: { statut?: string }) {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const intervalRef = useRef<any>(null);
 
-  const verifierToken = () => {
-    const token = localStorage.getItem('token');
-    if (!token) { setIsConnected(false); return; }
+  // Le JWT est maintenant dans un cookie httpOnly — impossible (et inutile)
+  // de le décoder côté client. On demande simplement au serveur si la
+  // session est valide ; le cookie est envoyé automatiquement (même origine).
+  const verifierSession = async () => {
     try {
-      const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-      setIsConnected(Date.now() < payload.exp * 1000);
+      const token = localStorage.getItem('token'); // rétrocompat, anciens onglets
+      const res = await fetch('/api/auth/verify', {
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const data = await res.json().catch(() => null);
+      setIsConnected(res.ok && data?.valid === true);
     } catch {
       setIsConnected(false);
     }
   };
 
   useEffect(() => {
-    verifierToken();
-    intervalRef.current = setInterval(verifierToken, 60000);
+    verifierSession();
+    intervalRef.current = setInterval(verifierSession, 60000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
