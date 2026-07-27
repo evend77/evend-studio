@@ -158,6 +158,20 @@ export default function PageAccueil() {
           .home-slide { padding: 40px 0 !important; }
           .testimonial-section { padding: 32px 0 !important; }
         }
+
+        .hero-section {
+          padding-top: 110px;
+        }
+        @media (max-width: 768px) {
+          .hero-section {
+            padding-top: 130px;
+          }
+        }
+        @media (max-width: 480px) {
+          .hero-section {
+            padding-top: 120px;
+          }
+        }
         
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: #0a0a0a; }
@@ -191,8 +205,7 @@ export default function PageAccueil() {
             >
               ⭐ Commanditaire
             </button>
-            <button style={s.btnOutline} onClick={ouvrirLogin}>Connexion</button>
-            <button style={s.btnPrimary} onClick={ouvrirLogin}>Commencer →</button>
+            <button style={s.btnPrimary} onClick={ouvrirLogin}>Mon compte →</button>
           </div>
 
           <button
@@ -218,14 +231,13 @@ export default function PageAccueil() {
             >
               ⭐ Commanditaire
             </button>
-            <button style={s.btnOutlineMobile} onClick={ouvrirLogin}>Connexion</button>
-            <button style={s.btnPrimaryMobile} onClick={ouvrirLogin}>Commencer</button>
+            <button style={s.btnPrimaryMobile} onClick={ouvrirLogin}>Mon compte →</button>
           </div>
         )}
       </nav>
 
       {/* ═══════════════ SLIDE 2: HERO ═══════════════ */}
-      <section ref={heroRef} style={s.hero}>
+      <section ref={heroRef} className="hero-section" style={s.hero}>
         <div style={s.heroOverlay} />
         <div style={s.heroContent}>
           <div className="fade-up" style={s.heroBadge}>
