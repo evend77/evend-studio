@@ -5,6 +5,7 @@ const pool = require('../db');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
+const { COOKIE_OPTIONS, verifierCompteBloque, gererTentativeEchouee } = require('./authStudio');
 const { getTousLesPlansPhotos, versDictionnaire: versDictPhotos, PLAN_PHOTOS_DEFAUT } = require('../config/plansPhotos');
 const { getTousLesPlansPub, versDictionnaire: versDictPub, PLAN_PUB_DEFAUT } = require('../config/plansPub');
 const crypto = require('crypto');
@@ -68,6 +69,7 @@ router.post('/inscription', async (req, res) => {
       process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
       { expiresIn: '30d' }
     );
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
 
     res.status(201).json({
       success: true,
@@ -99,6 +101,11 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
 
+    const blocage = await verifierCompteBloque(email, 'commanditaire');
+    if (blocage) {
+      return res.status(403).json({ success: false, blocked: true, message: blocage.message });
+    }
+
     const result = await pool.query(
       `SELECT id, nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active, created_at, two_factor_enabled
        FROM sponsors WHERE email = $1`,
@@ -106,6 +113,7 @@ router.post('/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      await gererTentativeEchouee(email, 'commanditaire', null);
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
     }
 
@@ -113,12 +121,15 @@ router.post('/login', async (req, res) => {
 
     const validPassword = await bcrypt.compare(mot_de_passe, sponsor.mot_de_passe);
     if (!validPassword) {
+      await gererTentativeEchouee(email, 'commanditaire', sponsor.nom);
       return res.status(401).json({ error: 'Email ou mot de passe incorrect' });
     }
 
     if (!sponsor.active) {
       return res.status(403).json({ error: 'Votre compte a été désactivé. Contactez le support.' });
     }
+
+    await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), 'commanditaire']);
 
     if (sponsor.two_factor_enabled) {
       const code = genererCodeOtp();
@@ -141,6 +152,7 @@ router.post('/login', async (req, res) => {
       process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
       { expiresIn: '30d' }
     );
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
 
     res.json({
       success: true,
@@ -541,14 +553,44 @@ router.post('/admin/:id/impersonate', authenticateToken, isAdmin, async (req, re
     }
     const sponsor = result.rows[0];
     const token = jwt.sign(
-      { id: sponsor.id, email: sponsor.email, role: 'commanditaire' },
+      { id: sponsor.id, email: sponsor.email, role: 'commanditaire', impersonated_by: req.user.id },
       process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
       { expiresIn: '2h' }
     );
+    // Remplace le cookie de session admin par celui du sponsor impersonné —
+    // sinon les appels API pendant l'impersonation continueraient de
+    // s'authentifier comme admin via le cookie.
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
     res.json({ token });
   } catch (error) {
     console.error('❌ Erreur impersonation sponsor:', error);
     res.status(500).json({ error: 'Erreur lors de l\'accès au dashboard du sponsor' });
+  }
+});
+
+// POST — Revenir de l'impersonation sponsor vers le compte admin d'origine.
+// Protégé par authenticateToken seulement (le token courant a role='commanditaire'
+// pendant l'impersonation) — le claim impersonated_by prouve qu'un admin est derrière.
+router.post('/admin/stop-impersonation', authenticateToken, async (req, res) => {
+  try {
+    const adminId = req.user.impersonated_by;
+    if (!adminId) {
+      return res.status(400).json({ error: 'Aucune impersonation active sur cette session.' });
+    }
+    const aRes = await pool.query('SELECT id, email, nom FROM admins WHERE id = $1', [adminId]);
+    if (!aRes.rows.length) return res.status(404).json({ error: 'Administrateur introuvable.' });
+    const admin = aRes.rows[0];
+
+    const token = jwt.sign(
+      { id: admin.id, email: admin.email, role: 'admin' },
+      process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
+      { expiresIn: process.env.JWT_EXPIRES || '7d' }
+    );
+    res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
+    res.json({ token, user: { id: admin.id, email: admin.email, nom: admin.nom, role: 'admin' } });
+  } catch (error) {
+    console.error('❌ Erreur stop-impersonation sponsor:', error);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 

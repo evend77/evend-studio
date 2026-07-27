@@ -282,10 +282,10 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
       setLoading(true);
       try {
         const [statsRes, cmdRes, msgRes, notifRes] = await Promise.allSettled([
-          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/stats`, { headers }),
-          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/commandes`, { headers }),
-          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/messages`, { headers }),
-          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/notifications`, { headers }),
+          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/stats`, { credentials: 'include', headers }),
+          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/commandes`, { credentials: 'include', headers }),
+          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/messages`, { credentials: 'include', headers }),
+          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/notifications`, { credentials: 'include', headers }),
         ]);
 
         if (statsRes.status === 'fulfilled' && statsRes.value.ok) setStats(await statsRes.value.json());
@@ -324,6 +324,7 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
   };
 
   const deconnecter = () => {
+    fetch(`${API_BASE}/marketplace/${gestionnaireId}/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
     localStorage.removeItem(`mv_token_${gestionnaireId}`);
     localStorage.removeItem(`mv_compte_${gestionnaireId}`);
     naviguerTemplate({ page: 'accueil' });

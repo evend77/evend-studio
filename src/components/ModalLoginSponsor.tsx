@@ -15,10 +15,14 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [etape, setEtape] = useState<'identifiants' | 'code2fa'>('identifiants');
+  const [etape, setEtape] = useState<'identifiants' | 'code2fa' | 'bloque'>('identifiants');
   const [userId2fa, setUserId2fa] = useState<number | null>(null);
   const [code2fa, setCode2fa] = useState('');
   const [loading2fa, setLoading2fa] = useState(false);
+  const [codeDeblocage, setCodeDeblocage] = useState('');
+  const [loadingDeblocage, setLoadingDeblocage] = useState(false);
+  const [loadingRenvoi, setLoadingRenvoi] = useState(false);
+  const [messageDeblocage, setMessageDeblocage] = useState('');
 
   // ── INSCRIPTION (redirige vers la page d'inscription) ──────────────────
   const handleRegisterClick = () => {
@@ -36,10 +40,18 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
       const response = await fetch('/api/sponsors/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email, mot_de_passe: motDePasse })
       });
 
       const data = await response.json();
+
+      if (response.status === 403 && data.blocked === true) {
+        setEtape('bloque');
+        setError('');
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(data.error || 'Email ou mot de passe incorrect');
       }
@@ -50,7 +62,8 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
         return;
       }
 
-      localStorage.setItem('sponsorToken', data.token);
+      // Le cookie httpOnly est déjà posé par le serveur — on ne stocke plus
+      // le JWT ici, seulement les infos d'affichage non sensibles.
       localStorage.setItem('sponsor', JSON.stringify(data.sponsor));
 
       onLoginSuccess(data.token, data.sponsor);
@@ -72,6 +85,7 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
       const response = await fetch('/api/auth/verify-2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ userId: userId2fa, code: code2fa, userType: 'commanditaire' }),
       });
 
@@ -80,7 +94,8 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
         throw new Error(data.message || 'Code invalide ou expiré');
       }
 
-      localStorage.setItem('sponsorToken', data.token);
+      // Le cookie httpOnly est déjà posé par le serveur (/verify-2fa dans
+      // authStudio.js, déjà migré) — on ne stocke plus le JWT ici.
       localStorage.setItem('sponsor', JSON.stringify(data.user));
 
       onLoginSuccess(data.token, data.user);
@@ -92,7 +107,57 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
     }
   };
 
+  // ── DÉBLOCAGE DU COMPTE (après 5 tentatives échouées) ────────────────────
+  const handleUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoadingDeblocage(true);
+    setError('');
+    setMessageDeblocage('');
+
+    try {
+      const response = await fetch('/api/auth/unlock-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, userType: 'commanditaire', code: codeDeblocage }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Code invalide ou expiré');
+      }
+      setMessageDeblocage('Compte débloqué. Vous pouvez vous reconnecter.');
+      setCodeDeblocage('');
+      setTimeout(() => { setEtape('identifiants'); setMessageDeblocage(''); }, 2000);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingDeblocage(false);
+    }
+  };
+
+  const handleResendUnlockCode = async () => {
+    setLoadingRenvoi(true);
+    setError('');
+    setMessageDeblocage('');
+    try {
+      const response = await fetch('/api/auth/resend-unlock-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, userType: 'commanditaire' }),
+      });
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || "Erreur lors de l'envoi du code");
+      }
+      setMessageDeblocage('Un nouveau code a été envoyé par courriel.');
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingRenvoi(false);
+    }
+  };
+
   if (!isOpen) return null;
+
 
   return (
     <div
@@ -228,7 +293,7 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
             {loading ? '⏳...' : '🚀 Se connecter'}
           </button>
         </form>
-        ) : (
+        ) : etape === 'code2fa' ? (
         <form onSubmit={handleVerifyCode}>
           <p style={{ fontSize: '14px', color: '#333', margin: '0 0 16px', lineHeight: 1.6 }}>
             Un code de vérification vous a été envoyé par courriel. Entrez-le ci-dessous.
@@ -296,6 +361,109 @@ function ModalLoginSponsor({ isOpen, onClose, onLoginSuccess }: ModalLoginSponso
             type="button"
             onClick={() => { setEtape('identifiants'); setCode2fa(''); setError(''); }}
             style={{ width: '100%', marginTop: '10px', padding: '8px', background: 'transparent', border: 'none', color: '#666', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }}
+          >
+            ← Retour
+          </button>
+        </form>
+        ) : (
+        <form onSubmit={handleUnlock}>
+          <div style={{
+            padding: '10px 14px',
+            background: '#fef3c7',
+            border: '1px solid #fcd34d',
+            borderRadius: '8px',
+            color: '#92400e',
+            fontSize: '13px',
+            marginBottom: '16px',
+            lineHeight: 1.6,
+          }}>
+            🔒 Compte bloqué pour cause de trop nombreuses tentatives. Un code de déblocage a été envoyé par courriel à <strong>{email}</strong>.
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', fontSize: '14px', fontWeight: 600, marginBottom: '6px', color: '#333' }}>
+              Code de déblocage
+            </label>
+            <input
+              type="text"
+              value={codeDeblocage}
+              onChange={(e) => setCodeDeblocage(e.target.value)}
+              placeholder="123456"
+              required
+              autoFocus
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                border: '2px solid #e5e7eb',
+                borderRadius: '10px',
+                fontSize: '18px',
+                letterSpacing: '4px',
+                textAlign: 'center',
+                fontFamily: 'monospace',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#f59e0b'}
+              onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+            />
+          </div>
+
+          {error && (
+            <div style={{
+              padding: '10px 14px',
+              background: '#fee2e2',
+              borderRadius: '8px',
+              color: '#dc2626',
+              fontSize: '14px',
+              marginBottom: '16px',
+            }}>
+              ❌ {error}
+            </div>
+          )}
+
+          {messageDeblocage && (
+            <div style={{
+              padding: '10px 14px',
+              background: '#dcfce7',
+              borderRadius: '8px',
+              color: '#16a34a',
+              fontSize: '14px',
+              marginBottom: '16px',
+            }}>
+              ✅ {messageDeblocage}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loadingDeblocage}
+            style={{
+              width: '100%',
+              padding: '12px',
+              background: 'linear-gradient(135deg, #f59e0b, #d97706)',
+              border: 'none',
+              borderRadius: '10px',
+              color: '#000',
+              fontSize: '16px',
+              fontWeight: 700,
+              cursor: 'pointer',
+              opacity: loadingDeblocage ? 0.7 : 1,
+            }}
+          >
+            {loadingDeblocage ? '⏳...' : '🔓 Débloquer mon compte'}
+          </button>
+          <button
+            type="button"
+            onClick={handleResendUnlockCode}
+            disabled={loadingRenvoi}
+            style={{ width: '100%', marginTop: '10px', padding: '8px', background: 'transparent', border: 'none', color: '#f59e0b', fontSize: '13px', fontWeight: 600, cursor: loadingRenvoi ? 'not-allowed' : 'pointer', textDecoration: 'underline' }}
+          >
+            {loadingRenvoi ? '⏳ Envoi...' : 'Renvoyer le code'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { setEtape('identifiants'); setCodeDeblocage(''); setError(''); setMessageDeblocage(''); }}
+            style={{ width: '100%', marginTop: '6px', padding: '8px', background: 'transparent', border: 'none', color: '#666', fontSize: '13px', cursor: 'pointer', textDecoration: 'underline' }}
           >
             ← Retour
           </button>

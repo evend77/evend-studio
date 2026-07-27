@@ -128,6 +128,11 @@ async function gererTentativeEchouee(email, userType, nom) {
   }
 }
 
+// Ré-exportées pour sponsors.js (et tout autre fichier de login futur) —
+// même système de rate limiting, table login_attempts partagée par user_type.
+router.verifierCompteBloque   = verifierCompteBloque;
+router.gererTentativeEchouee  = gererTentativeEchouee;
+
 
 // Inscription d'un nouveau gestionnaire Studio
 router.post('/inscription', async (req, res) => {

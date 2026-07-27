@@ -222,7 +222,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     const charger = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/collaborateurs/${compte.id}/stats`, { headers: getHeaders() });
+        const res = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/collaborateurs/${compte.id}/stats`, { credentials: 'include', headers: getHeaders() });
         if (res.ok) setStats(await res.json());
       } catch {}
       setLoading(false);
@@ -237,7 +237,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (!compte?.id) return;
     const charger = async () => {
       try {
-        const res = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/collaborateurs/${compte.id}/messages/non-lus`, { headers: getHeaders() });
+        const res = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/collaborateurs/${compte.id}/messages/non-lus`, { credentials: 'include', headers: getHeaders() });
         if (res.ok) setNonLus(await res.json());
       } catch {}
     };
@@ -262,6 +262,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   };
 
   const deconnecter = () => {
+    fetch(`${API_BASE}/marketplace/${gestionnaireId}/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
     localStorage.removeItem(`mv_token_${gestionnaireId}`);
     localStorage.removeItem(`mv_compte_${gestionnaireId}`);
     naviguerTemplate({ page: 'accueil' });

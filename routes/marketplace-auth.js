@@ -10,6 +10,26 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const { verifierCompteBloque, gererTentativeEchouee } = require('./authStudio');
+
+// Cookie host-only (pas d'attribut domain) : chaque site (sous-domaine ou
+// domaine perso) reçoit son cookie séparément, isolé automatiquement par le
+// navigateur. Le nom du cookie est en plus scopé par gestionnaireId, pour
+// gérer aussi le cas où plusieurs boutiques sont prévisualisées depuis le
+// même host (ex: e-vendstudio.ca/site-preview?vendeurId=X en mode admin).
+const EST_PRODUCTION = process.env.NODE_ENV === 'production';
+function optionsCookieMarketplace() {
+  return {
+    httpOnly: true,
+    secure: EST_PRODUCTION,
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+    // pas de "domain" — host-only par design
+  };
+}
+function nomCookieMarketplace(gestionnaireId) {
+  return `mv_token_${gestionnaireId}`;
+}
 
 router.post('/:gestionnaireId/acheteurs/inscription', async (req, res) => {
   try {
@@ -85,6 +105,15 @@ router.post('/:gestionnaireId/login', async (req, res) => {
       return res.status(400).json({ message: 'Type de compte invalide' });
     }
 
+    // Clé de blocage scopée par boutique + type — un même email peut avoir
+    // des comptes distincts sur plusieurs marketplaces, il ne faut pas que
+    // le blocage sur l'une affecte les autres.
+    const userTypeKey = `${type}_${gestionnaireId}`;
+    const blocage = await verifierCompteBloque(email, userTypeKey);
+    if (blocage) {
+      return res.status(403).json({ blocked: true, message: blocage.message });
+    }
+
     const table = type === 'acheteur' ? 'marketplace_acheteurs' : 'marketplace_collaborateurs';
     const result = await pool.query(
       `SELECT * FROM ${table} WHERE gestionnaire_id = $1 AND email = $2`,
@@ -92,12 +121,15 @@ router.post('/:gestionnaireId/login', async (req, res) => {
     );
 
     if (result.rows.length === 0) {
+      await gererTentativeEchouee(email, userTypeKey, null);
       return res.status(401).json({ message: 'Courriel ou mot de passe incorrect' });
     }
 
     const compte = result.rows[0];
     const motDePasseValide = await bcrypt.compare(password, compte.mot_de_passe);
     if (!motDePasseValide) {
+      const nomCompte = type === 'acheteur' ? `${compte.prenom || ''} ${compte.nom || ''}`.trim() : compte.nom_responsable;
+      await gererTentativeEchouee(email, userTypeKey, nomCompte);
       return res.status(401).json({ message: 'Courriel ou mot de passe incorrect' });
     }
 
@@ -105,11 +137,14 @@ router.post('/:gestionnaireId/login', async (req, res) => {
       return res.status(403).json({ message: 'Votre compte collaborateur est encore en attente d\'approbation' });
     }
 
+    await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), userTypeKey]);
+
     const token = jwt.sign(
       { id: compte.id, type, gestionnaireId: Number(gestionnaireId) },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
+    res.cookie(nomCookieMarketplace(gestionnaireId), token, optionsCookieMarketplace());
 
     delete compte.mot_de_passe;
     res.json({ token, compte: { ...compte, type } });
@@ -121,12 +156,36 @@ router.post('/:gestionnaireId/login', async (req, res) => {
 
 module.exports = router;
 
+// POST /:gestionnaireId/logout — efface le cookie de session marketplace
+router.post('/:gestionnaireId/logout', (req, res) => {
+  const { gestionnaireId } = req.params;
+  res.clearCookie(nomCookieMarketplace(gestionnaireId), optionsCookieMarketplace());
+  res.json({ success: true });
+});
+
 // ─── Middleware JWT marketplace ───────────────────────────────────────────────
+// Priorité au cookie httpOnly (scopé par gestionnaireId), fallback header.
+// 🔒 CORRECTIF SÉCURITÉ : vérifie aussi que le token appartient bien à la
+// boutique demandée dans l'URL — avant, n'importe quel compte marketplace
+// valide (peu importe la boutique) passait cette vérification, ce qui
+// permettait à un acheteur/collaborateur de boutique A d'appeler les routes
+// de boutique B en devinant/itérant des IDs numériques dans l'URL.
 function authMarketplace(req, res, next) {
-  const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ message: 'Non authentifie' });
+  const { gestionnaireId } = req.params;
+  const cookieToken = req.cookies && req.cookies[nomCookieMarketplace(gestionnaireId)];
+  const authHeader = req.headers.authorization;
+  const headerToken = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  const token = cookieToken || headerToken;
+
+  if (!token) return res.status(401).json({ message: 'Non authentifie' });
+
   try {
-    const payload = jwt.verify(auth.slice(7), JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
+
+    if (payload.gestionnaireId !== Number(gestionnaireId)) {
+      return res.status(403).json({ message: 'Ce compte n\'appartient pas à cette boutique.' });
+    }
+
     req.mvUser = payload;
     next();
   } catch { res.status(401).json({ message: 'Token invalide ou expire' }); }
@@ -136,6 +195,9 @@ function authMarketplace(req, res, next) {
 router.get('/:gestionnaireId/acheteurs/:acheteurId/profil', authMarketplace, async (req, res) => {
   try {
     const { gestionnaireId, acheteurId } = req.params;
+    if (req.mvUser.type !== 'acheteur' || req.mvUser.id !== Number(acheteurId)) {
+      return res.status(403).json({ message: 'Acces refuse.' });
+    }
     const r = await pool.query(
       'SELECT id, prenom, nom, email, telephone, infolettre, created_at FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2',
       [acheteurId, gestionnaireId]
@@ -149,6 +211,9 @@ router.get('/:gestionnaireId/acheteurs/:acheteurId/profil', authMarketplace, asy
 router.get('/:gestionnaireId/acheteurs/:acheteurId/stats', authMarketplace, async (req, res) => {
   try {
     const { gestionnaireId, acheteurId } = req.params;
+    if (req.mvUser.type !== 'acheteur' || req.mvUser.id !== Number(acheteurId)) {
+      return res.status(403).json({ message: 'Acces refuse.' });
+    }
     const [total, enCours, livrees, depense] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM marketplace_commandes WHERE acheteur_id=$1 AND gestionnaire_id=$2', [acheteurId, gestionnaireId]),
       pool.query("SELECT COUNT(*) FROM marketplace_commandes WHERE acheteur_id=$1 AND gestionnaire_id=$2 AND statut NOT IN ('livree','annulee')", [acheteurId, gestionnaireId]),
@@ -168,6 +233,9 @@ router.get('/:gestionnaireId/acheteurs/:acheteurId/stats', authMarketplace, asyn
 router.get('/:gestionnaireId/acheteurs/:acheteurId/commandes', authMarketplace, async (req, res) => {
   try {
     const { gestionnaireId, acheteurId } = req.params;
+    if (req.mvUser.type !== 'acheteur' || req.mvUser.id !== Number(acheteurId)) {
+      return res.status(403).json({ message: 'Acces refuse.' });
+    }
     const r = await pool.query(
       'SELECT id, numero_commande, date_commande, statut, total FROM marketplace_commandes WHERE acheteur_id=$1 AND gestionnaire_id=$2 ORDER BY date_commande DESC LIMIT 50',
       [acheteurId, gestionnaireId]
@@ -180,6 +248,9 @@ router.get('/:gestionnaireId/acheteurs/:acheteurId/commandes', authMarketplace, 
 router.get('/:gestionnaireId/acheteurs/:acheteurId/messages', authMarketplace, async (req, res) => {
   try {
     const { gestionnaireId, acheteurId } = req.params;
+    if (req.mvUser.type !== 'acheteur' || req.mvUser.id !== Number(acheteurId)) {
+      return res.status(403).json({ message: 'Acces refuse.' });
+    }
     const r = await pool.query(
       'SELECT id, expediteur_nom, contenu, date_envoi AS date, lu, type FROM marketplace_messages WHERE destinataire_id=$1 AND gestionnaire_id=$2 ORDER BY date_envoi DESC LIMIT 20',
       [acheteurId, gestionnaireId]
@@ -192,6 +263,9 @@ router.get('/:gestionnaireId/acheteurs/:acheteurId/messages', authMarketplace, a
 router.get('/:gestionnaireId/acheteurs/:acheteurId/notifications', authMarketplace, async (req, res) => {
   try {
     const { gestionnaireId, acheteurId } = req.params;
+    if (req.mvUser.type !== 'acheteur' || req.mvUser.id !== Number(acheteurId)) {
+      return res.status(403).json({ message: 'Acces refuse.' });
+    }
     const r = await pool.query(
       'SELECT id, titre, message, created_at AS date, lu FROM marketplace_notifications WHERE acheteur_id=$1 AND gestionnaire_id=$2 ORDER BY created_at DESC LIMIT 30',
       [acheteurId, gestionnaireId]
@@ -204,6 +278,9 @@ router.get('/:gestionnaireId/acheteurs/:acheteurId/notifications', authMarketpla
 router.get('/:gestionnaireId/collaborateurs/:collabId/stats', authMarketplace, async (req, res) => {
   try {
     const { gestionnaireId, collabId } = req.params;
+    if (req.mvUser.type !== 'collaborateur' || req.mvUser.id !== Number(collabId)) {
+      return res.status(403).json({ message: 'Acces refuse.' });
+    }
     const [total, enAttente, livrees, revenus, produits, actifs, rupture, avis] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM marketplace_commandes WHERE collaborateur_id=$1 AND gestionnaire_id=$2', [collabId, gestionnaireId]),
       pool.query("SELECT COUNT(*) FROM marketplace_commandes WHERE collaborateur_id=$1 AND gestionnaire_id=$2 AND statut='en_attente'", [collabId, gestionnaireId]),
@@ -232,6 +309,9 @@ router.get('/:gestionnaireId/collaborateurs/:collabId/stats', authMarketplace, a
 router.get('/:gestionnaireId/collaborateurs/:collabId/messages/non-lus', authMarketplace, async (req, res) => {
   try {
     const { gestionnaireId, collabId } = req.params;
+    if (req.mvUser.type !== 'collaborateur' || req.mvUser.id !== Number(collabId)) {
+      return res.status(403).json({ message: 'Acces refuse.' });
+    }
     const r = await pool.query(
       "SELECT COUNT(*) FILTER (WHERE type='acheteur') AS acheteurs, COUNT(*) FILTER (WHERE type='gestionnaire') AS gestionnaire, COUNT(*) AS total FROM marketplace_messages WHERE destinataire_id=$1 AND gestionnaire_id=$2 AND lu=false",
       [collabId, gestionnaireId]

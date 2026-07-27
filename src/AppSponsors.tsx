@@ -14,13 +14,19 @@ function AppSponsors() {
   const [f2aSaving, setF2aSaving] = useState(false);
 
   useEffect(() => {
+    // Rétrocompatibilité : un onglet ouvert avant la migration peut encore
+    // avoir un token en localStorage. On l'envoie en plus si présent, mais
+    // on ne bloque plus rien sur son absence — le cookie httpOnly gère
+    // l'authentification réelle désormais.
     const t = localStorage.getItem('sponsorToken') || localStorage.getItem('token') || '';
     setToken(t);
   }, []);
 
   useEffect(() => {
-    if (!token) return;
-    fetch('/api/sponsors/2fa', { headers: { Authorization: `Bearer ${token}` } })
+    fetch('/api/sponsors/2fa', {
+      credentials: 'include',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data && typeof data.two_factor_enabled === 'boolean') setF2aActif(data.two_factor_enabled); })
       .catch(() => {});
@@ -32,7 +38,8 @@ function AppSponsors() {
     try {
       const res = await fetch('/api/sponsors/2fa', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ enabled: nouvelEtat }),
       });
       if (!res.ok) throw new Error();
@@ -48,7 +55,8 @@ function AppSponsors() {
     try {
       const t = localStorage.getItem('sponsorToken') || localStorage.getItem('token') || '';
       const response = await fetch('/api/sponsors/moi', {
-        headers: { Authorization: `Bearer ${t}` }
+        credentials: 'include',
+        headers: t ? { Authorization: `Bearer ${t}` } : {},
       });
       if (!response.ok) throw new Error('Erreur');
       const data = await response.json();
@@ -77,8 +85,22 @@ function AppSponsors() {
   const peutPhotos = sponsorInfo?.type_sponsor === 'photos' || sponsorInfo?.type_sponsor === 'both';
   const peutPubs = sponsorInfo?.type_sponsor === 'pub' || sponsorInfo?.type_sponsor === 'both';
 
-  if (loading || !token) {
+  if (loading) {
     return <div style={{ padding: '40px', textAlign: 'center' }}>⏳ Chargement...</div>;
+  }
+
+  if (!sponsorInfo) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <p>Session expirée ou non connectée.</p>
+        <button
+          onClick={() => window.location.href = '/'}
+          style={{ marginTop: '12px', padding: '10px 20px', background: '#f59e0b', border: 'none', borderRadius: '8px', color: '#000', fontWeight: 700, cursor: 'pointer' }}
+        >
+          ← Retour à l'accueil
+        </button>
+      </div>
+    );
   }
 
   return (

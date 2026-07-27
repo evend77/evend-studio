@@ -46,8 +46,16 @@ export default function MarketplaceLogin({ vendeurId, isDemo, config = {}, navig
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [erreur, setErreur] = useState('');
+  const [etape, setEtape] = useState<'identifiants' | 'bloque'>('identifiants');
+  const [codeDeblocage, setCodeDeblocage] = useState('');
+  const [loadingDeblocage, setLoadingDeblocage] = useState(false);
+  const [loadingRenvoi, setLoadingRenvoi] = useState(false);
+  const [messageDeblocage, setMessageDeblocage] = useState('');
 
   const accent = type === 'acheteur' ? ACCENT_ACHETEUR : ACCENT_COLLABORATEUR;
+  // Doit correspondre exactement à la clé utilisée côté serveur dans
+  // marketplace-auth.js : `${type}_${gestionnaireId}`.
+  const userTypeKey = `${type}_${gestionnaireId}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,11 +75,21 @@ export default function MarketplaceLogin({ vendeurId, isDemo, config = {}, navig
       const res = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ type, email, password }),
       });
       const data = await res.json();
+
+      if (res.status === 403 && data.blocked === true) {
+        setEtape('bloque');
+        setErreur('');
+        return;
+      }
+
       if (res.ok) {
-        localStorage.setItem(`mv_token_${gestionnaireId}`, data.token);
+        // Le cookie httpOnly (scopé à cette boutique) est déjà posé par le
+        // serveur — on ne stocke plus le JWT ici, seulement les infos
+        // d'affichage non sensibles.
         localStorage.setItem(`mv_compte_${gestionnaireId}`, JSON.stringify(data.compte));
         naviguer({ page: type === 'acheteur' ? 'dashboard-acheteur' : 'dashboard-collaborateur' });
       } else {
@@ -81,6 +99,54 @@ export default function MarketplaceLogin({ vendeurId, isDemo, config = {}, navig
       setErreur('Impossible de joindre le serveur');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ── DÉBLOCAGE DU COMPTE (après 5 tentatives échouées) ────────────────────
+  const handleUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoadingDeblocage(true);
+    setErreur('');
+    setMessageDeblocage('');
+    try {
+      const res = await fetch(`${API_BASE}/auth/unlock-account`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, userType: userTypeKey, code: codeDeblocage }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Code invalide ou expiré');
+      }
+      setMessageDeblocage('Compte débloqué. Vous pouvez vous reconnecter.');
+      setCodeDeblocage('');
+      setTimeout(() => { setEtape('identifiants'); setMessageDeblocage(''); }, 2000);
+    } catch (err: any) {
+      setErreur(err.message);
+    } finally {
+      setLoadingDeblocage(false);
+    }
+  };
+
+  const handleResendUnlockCode = async () => {
+    setLoadingRenvoi(true);
+    setErreur('');
+    setMessageDeblocage('');
+    try {
+      const res = await fetch(`${API_BASE}/auth/resend-unlock-code`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, userType: userTypeKey }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "Erreur lors de l'envoi du code");
+      }
+      setMessageDeblocage('Un nouveau code a été envoyé par courriel.');
+    } catch (err: any) {
+      setErreur(err.message);
+    } finally {
+      setLoadingRenvoi(false);
     }
   };
 
@@ -118,6 +184,8 @@ export default function MarketplaceLogin({ vendeurId, isDemo, config = {}, navig
         </div>
 
         <div style={s.cardBody}>
+          {etape === 'identifiants' ? (
+          <>
           <h1 style={s.titre}>{type === 'acheteur' ? 'Connexion acheteur' : 'Connexion collaborateur'}</h1>
           <p style={s.sousTitre}>
             {type === 'acheteur' ? 'Accedez a vos commandes et favoris' : 'Gerez votre boutique collaborative sur cette marketplace'}
@@ -168,6 +236,55 @@ export default function MarketplaceLogin({ vendeurId, isDemo, config = {}, navig
               {type === 'acheteur' ? 'Creer un compte acheteur' : 'Devenir collaborateur'}
             </span>
           </p>
+          </>
+          ) : (
+          <>
+          <h1 style={s.titre}>🔒 Compte bloqué</h1>
+          <p style={s.sousTitre}>
+            Trop de tentatives de connexion echouees. Un code de deblocage a ete envoye par courriel a <strong>{email}</strong>.
+          </p>
+
+          {erreur && <div style={s.erreurBox}>⚠️ {erreur}</div>}
+          {messageDeblocage && (
+            <div style={{ ...s.erreurBox, background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.35)', color: '#86efac' }}>
+              ✅ {messageDeblocage}
+            </div>
+          )}
+
+          <form onSubmit={handleUnlock}>
+            <div style={s.champ}>
+              <label style={s.label}>Code de deblocage</label>
+              <input
+                type="text"
+                value={codeDeblocage}
+                onChange={e => setCodeDeblocage(e.target.value)}
+                placeholder="123456"
+                autoFocus
+                className="login-input"
+                style={{ ...s.input, textAlign: 'center', letterSpacing: '4px', fontFamily: 'monospace', fontSize: 18 }}
+              />
+            </div>
+
+            <button type="submit" disabled={loadingDeblocage} style={{ ...s.submitBtn, background: loadingDeblocage ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${accent}, ${accent}cc)`, color: type === 'acheteur' ? '#000' : '#fff' }}>
+              {loadingDeblocage ? 'Verification...' : '🔓 Debloquer mon compte'}
+            </button>
+          </form>
+
+          <p style={{ ...s.bas, marginTop: 16 }}>
+            <span style={{ color: accent, cursor: loadingRenvoi ? 'default' : 'pointer', fontWeight: 700 }} onClick={loadingRenvoi ? undefined : handleResendUnlockCode}>
+              {loadingRenvoi ? 'Envoi...' : 'Renvoyer le code'}
+            </span>
+          </p>
+          <p style={s.bas}>
+            <span
+              style={{ color: 'rgba(255,255,255,0.5)', cursor: 'pointer' }}
+              onClick={() => { setEtape('identifiants'); setCodeDeblocage(''); setErreur(''); setMessageDeblocage(''); }}
+            >
+              ← Retour
+            </span>
+          </p>
+          </>
+          )}
         </div>
       </div>
 
