@@ -12,6 +12,7 @@
 const express = require('express');
 const router  = express.Router({ mergeParams: true });
 const pool    = require('../db');
+const { nettoyerHtml } = require('../utils/sanitize');
 const { authenticateToken } = require('../middleware/auth');
 
 // ─── Helper propriétaire ──────────────────────────────────────────────────────
@@ -141,7 +142,7 @@ router.post('/', authenticateToken, async (req, res) => {
         vendeurId,
         slug,
         titre.trim(),
-        contenu ?? '',
+        nettoyerHtml(contenu) ?? '',
         meta_description ?? '',
         actif !== false,
         afficher_dans_menu !== false,
@@ -198,7 +199,7 @@ router.patch('/:slug', authenticateToken, async (req, res) => {
         RETURNING *`,
       [
         titre?.trim() || null,
-        contenu ?? null,
+        nettoyerHtml(contenu) ?? null,
         meta_description ?? null,
         actif ?? null,
         afficher_dans_menu ?? null,

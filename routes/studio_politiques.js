@@ -8,6 +8,7 @@
 const express = require('express');
 const router  = express.Router({ mergeParams: true });
 const pool    = require('../db');
+const { nettoyerHtml } = require('../utils/sanitize');
 const { authenticateToken } = require('../middleware/auth');
 
 // ─── 6 politiques fixes pour chaque site vendeur ─────────────────────────────
@@ -139,7 +140,7 @@ router.put('/:slug', authenticateToken, async (req, res) => {
              titre      = EXCLUDED.titre,
              updated_at = NOW()
        RETURNING slug, titre, contenu, updated_at`,
-      [vendeurId, slug, titreAUtiliser, contenu ?? '']
+      [vendeurId, slug, titreAUtiliser, nettoyerHtml(contenu) ?? '']
     );
 
     res.json({ success: true, politique: result.rows[0] });

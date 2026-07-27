@@ -6,6 +6,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const bcrypt  = require('bcrypt');
+const { nettoyerHtml } = require('../utils/sanitize');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
 
 // GET /profil — profil du vendeur connecté
@@ -95,10 +96,10 @@ router.put('/profil', authenticateToken, async (req, res) => {
         addCol('ville',                      ville || null);
         addCol('code_postal',                code_postal || null);
         addCol('pays',                       pays || null);
-        addCol('description',                description || null);
-        addCol('description_longue',         description || null);
-        addCol('politique_retours',          politique_retours || null);
-        addCol('politique_livraison',        politique_livraison || null);
+        addCol('description',                nettoyerHtml(description) || null);
+        addCol('description_longue',         nettoyerHtml(description) || null);
+        addCol('politique_retours',          nettoyerHtml(politique_retours) || null);
+        addCol('politique_livraison',        nettoyerHtml(politique_livraison) || null);
         addCol('jours_remboursement',        jours_remboursement ? parseInt(jours_remboursement) : null);
         addCol('est_entreprise_enregistree', est_entreprise_enregistree !== undefined ? est_entreprise_enregistree : null);
         addCol('province_entreprise',        province_entreprise || null);

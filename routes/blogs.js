@@ -2,6 +2,7 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
+const { nettoyerHtml } = require('../utils/sanitize');
 const { authenticateToken } = require('../middleware/auth');
 
 // ── GET /api/blogs/mes-blogs — tous les blogs du vendeur connecté ────────────
@@ -61,7 +62,7 @@ router.post('/', authenticateToken, async (req, res) => {
             `INSERT INTO blogs (vendeur_id, titre, contenu, statut, tags, date_publication)
              VALUES ($1, $2, $3, $4, $5, $6)
              RETURNING *`,
-            [req.user.id, titre.trim(), contenu.trim(), statut, tagsStr, datePublication]
+            [req.user.id, titre.trim(), nettoyerHtml(contenu.trim()), statut, tagsStr, datePublication]
         );
         const blog = { ...result.rows[0], tags: result.rows[0].tags ? result.rows[0].tags.split(',').map(t => t.trim()).filter(Boolean) : [] };
         console.log('✅ Blog créé:', blog.id, '|', blog.titre, '| statut:', blog.statut);
@@ -91,7 +92,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
         let idx = 1;
 
         if (titre !== undefined)   { sets.push(`titre = $${idx++}`);   vals.push(titre.trim()); }
-        if (contenu !== undefined) { sets.push(`contenu = $${idx++}`); vals.push(contenu.trim()); }
+        if (contenu !== undefined) { sets.push(`contenu = $${idx++}`); vals.push(nettoyerHtml(contenu.trim())); }
         if (tags !== undefined) {
             const tagsStr = Array.isArray(tags) ? tags.join(',') : tags;
             sets.push(`tags = $${idx++}`);
