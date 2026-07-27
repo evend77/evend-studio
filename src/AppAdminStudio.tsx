@@ -114,7 +114,7 @@ const NAV_ITEMS: NavItem[] = [
   },
 
   {
-    id: 'gestionnaires', label: 'Gestionnaires', icon: '🧑‍💼',
+    id: 'gestionnaires', label: 'Gestionnaires', icon: '🧑',
     sousSections: [
       { id: 'gestionnaires-liste', label: 'Liste des gestionnaires', icon: '📋' },
     ],
