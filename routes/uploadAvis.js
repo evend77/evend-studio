@@ -7,6 +7,7 @@ const multer = require('multer');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { authenticateToken, isAcheteur } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
+const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 // Configuration multer (mémoire, pas de stockage disque)
 const storage = multer.memoryStorage();
@@ -41,21 +42,21 @@ const s3 = new S3Client({
 const deletePhotoFromS3 = async (photoUrl) => {
   try {
     if (!photoUrl || !BUCKET) return false;
-    
+
     // Extraire la clé (key) de l'URL
     const match = photoUrl.match(/\.amazonaws\.com\/(.+)$/);
     const key = match ? match[1] : null;
-    
+
     if (!key) {
       console.log(`⚠️ Impossible d'extraire la clé de: ${photoUrl}`);
       return false;
     }
-    
+
     const command = new DeleteObjectCommand({
       Bucket: BUCKET,
       Key: key,
     });
-    
+
     await s3.send(command);
     console.log(`🗑️ Photo supprimée de S3: ${key}`);
     return true;
@@ -76,17 +77,17 @@ const deleteAllPhotosFromAvis = async (db, avisId) => {
       `SELECT photos FROM avis_produits WHERE id = $1`,
       [avisId]
     );
-    
+
     const photos = result.rows[0]?.photos || [];
-    
+
     if (photos.length === 0) return 0;
-    
+
     let deletedCount = 0;
     for (const photoUrl of photos) {
       const deleted = await deletePhotoFromS3(photoUrl);
       if (deleted) deletedCount++;
     }
-    
+
     console.log(`🗑️ ${deletedCount}/${photos.length} photo(s) supprimées pour l'avis ${avisId}`);
     return deletedCount;
   } catch (error) {
@@ -111,10 +112,20 @@ router.post('/upload-photo', authenticateToken, isAcheteur, upload.single('photo
       return res.status(500).json({ success: false, message: 'Configuration S3 manquante' });
     }
 
+    // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
+    // fileFilter ne regarde que le Content-Type déclaré par le client,
+    // qui peut être falsifié. Ces photos sont affichées publiquement sur
+    // les fiches produits, vues par tous les visiteurs.
+    const verif = await verifierTypeFichier(req.file.buffer, ['jpg', 'jpeg', 'png', 'webp']);
+    if (!verif.ok) {
+      console.warn(`⚠️ Upload rejeté (avis produit) : contenu réel ne correspond pas à une image autorisée (détecté: ${verif.mimeDetecte || 'inconnu'})`);
+      return res.status(400).json({ success: false, message: 'Le fichier envoyé n\'est pas une image valide.' });
+    }
+
     const acheteurId = req.user.id;
     const timestamp = Date.now();
     const randomString = uuidv4();
-    const extension = req.file.mimetype.split('/')[1];
+    const extension = verif.extensionDetectee; // extension réelle détectée, pas déclarée par le client
     const key = `avis-produits/${acheteurId}/${timestamp}_${randomString}.${extension}`;
 
     console.log(`📸 Upload S3: ${key} (${req.file.size} bytes)`);
@@ -123,7 +134,7 @@ router.post('/upload-photo', authenticateToken, isAcheteur, upload.single('photo
       Bucket: BUCKET,
       Key: key,
       Body: req.file.buffer,
-      ContentType: req.file.mimetype,
+      ContentType: verif.mimeDetecte,
       ACL: 'public-read',
     });
 
@@ -131,25 +142,25 @@ router.post('/upload-photo', authenticateToken, isAcheteur, upload.single('photo
 
     // URL avec us-east-1 forcé (comme dans upload_image.js)
     const url = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${key}`;
-    
+
     console.log(`✅ Photo uploadée: ${url}`);
-    
-    res.json({ 
-      success: true, 
+
+    res.json({
+      success: true,
       url,
       message: 'Photo uploadée avec succès'
     });
 
   } catch (error) {
     console.error('❌ Erreur upload S3:', error.message);
-    res.status(500).json({ 
-      success: false, 
+    res.status(500).json({
+      success: false,
       message: error.message || 'Erreur lors de l\'upload'
     });
   }
 });
 
-module.exports = { 
+module.exports = {
   router,
   deletePhotoFromS3,
   deleteAllPhotosFromAvis
