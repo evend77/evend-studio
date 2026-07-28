@@ -62,9 +62,8 @@ export default function MonDomaine({ gestionnaireId }: Props) {
   useEffect(() => {
     const chargerSite = async () => {
       try {
-        const token = localStorage.getItem('token');
         const res = await fetch(`/api/studio/sites/${gestionnaireId}`, {
-          headers: { Authorization: `Bearer ${token}` }
+          credentials: 'include'
         });
 
         if (res.ok) {
@@ -84,9 +83,8 @@ export default function MonDomaine({ gestionnaireId }: Props) {
   useEffect(() => {
     const chargerDomaines = async () => {
       try {
-        const token = localStorage.getItem('token');
         const res = await fetch(`/api/dynadot/domaines/${gestionnaireId}`, {
-          headers: { Authorization: `Bearer ${token}` }
+          credentials: 'include'
         });
         
         if (res.ok) {
@@ -140,9 +138,8 @@ export default function MonDomaine({ gestionnaireId }: Props) {
 
     const verifierStatut = async () => {
       try {
-        const token = localStorage.getItem('token');
         const res = await fetch(`/api/studio/sites/${gestionnaireId}/domaine/statut`, {
-          headers: { Authorization: `Bearer ${token}` },
+          credentials: 'include',
         });
         if (res.ok) {
           const data = await res.json();
@@ -160,7 +157,9 @@ export default function MonDomaine({ gestionnaireId }: Props) {
 
   // ── Vérifier la disponibilité sur toutes les extensions sûres à la fois ────
   const verifierDisponibilite = async () => {
-    const nom = nomBaseRecherche.trim().toLowerCase().replace(/\.[a-z]+$/, ''); // au cas où l'utilisateur tape avec une extension
+    const nom = nomBaseRecherche.trim().toLowerCase()
+      .replace(/^www\./, '')       // au cas où l'utilisateur tape "www." par erreur
+      .replace(/\.[a-z]+$/, '');   // au cas où l'utilisateur tape avec une extension
     if (!nom) {
       setMessageAchat({ type: 'info', texte: 'Veuillez entrer un nom de domaine.' });
       return;
@@ -171,10 +170,10 @@ export default function MonDomaine({ gestionnaireId }: Props) {
     setMessageAchat(null);
 
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch('/api/dynadot/check-availability-multi', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ nomBase: nom })
       });
 
@@ -202,10 +201,10 @@ export default function MonDomaine({ gestionnaireId }: Props) {
     setMessageAchat(null);
 
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch('/api/dynadot/create-checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ 
           domain: domainComplet, 
           years: 1,
@@ -246,10 +245,9 @@ export default function MonDomaine({ gestionnaireId }: Props) {
     }
 
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`/api/studio/sites/${gestionnaireId}/domaine`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ sous_domaine: sousDomaine, domaine_perso: domainePerso }),
       });
@@ -305,10 +303,9 @@ export default function MonDomaine({ gestionnaireId }: Props) {
   const renouvelerMaintenant = async (domaineId: number) => {
     setActionEnCours(domaineId);
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`/api/dynadot/domaines/${domaineId}/renouveler-maintenant`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       const data = await res.json();
       if (data.url) {
@@ -327,10 +324,9 @@ export default function MonDomaine({ gestionnaireId }: Props) {
   const activerRenouvellementAuto = async (domaineId: number) => {
     setActionEnCours(domaineId);
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`/api/dynadot/domaines/${domaineId}/setup-renouvellement-auto`, {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
       });
       const data = await res.json();
       if (data.url) {
@@ -349,10 +345,10 @@ export default function MonDomaine({ gestionnaireId }: Props) {
   const desactiverRenouvellementAuto = async (domaineId: number) => {
     setActionEnCours(domaineId);
     try {
-      const token = localStorage.getItem('token');
       const res = await fetch(`/api/dynadot/domaines/${domaineId}/renouvellement-auto`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ actif: false }),
       });
       if (res.ok) {

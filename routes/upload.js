@@ -36,6 +36,16 @@ const storageBlog = multer.diskStorage({
 const uploadBlog = multer({
     storage: storageBlog,
     limits: { fileSize: 5 * 1024 * 1024 },
+    // 🔒 CORRIGÉ : aucune validation de type n'existait avant — n'importe
+    // quel fichier pouvait être uploadé (pas juste des images), stocké
+    // localement avec son extension d'origine préservée.
+    fileFilter: function (req, file, cb) {
+        const allowed = /jpeg|jpg|png|gif|webp/;
+        const ext = allowed.test(path.extname(file.originalname).toLowerCase());
+        const mime = allowed.test(file.mimetype);
+        if (ext && mime) return cb(null, true);
+        cb(new Error('Fichier non autorisé. Formats acceptés : JPG, PNG, GIF, WEBP'));
+    },
 });
 
 // ── Stockage messagerie → AWS S3 ─────────────────────────────────────────────
@@ -77,27 +87,37 @@ router.post('/blog-image', authenticateToken, uploadBlog.single('image'), (req, 
 router.post('/', authenticateToken, uploadMessagerie.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Aucun fichier' });
-        
+
         const fileUrl = req.file.location;
-        const { type, vendeur_id } = req.body;
-        
+        const { type } = req.body;
+
+        // 🔒 CORRIGÉ : le vendeur_id venait du corps de la requête, jamais
+        // vérifié contre l'utilisateur réellement connecté — n'importe quel
+        // compte authentifié pouvait écraser la bannière/le logo d'un autre
+        // vendeur en envoyant son ID à la place. On utilise maintenant
+        // l'identité du token (req.user), sauf pour un admin qui peut agir
+        // au nom d'un vendeur via le body (ex: écran d'administration).
+        const vendeur_id = (req.user.role === 'admin' && req.body.vendeur_id)
+            ? req.body.vendeur_id
+            : req.user.id;
+
         console.log('✅ Upload réussi - URL:', fileUrl);
         console.log('📦 Données reçues - type:', type, 'vendeur_id:', vendeur_id);
-        
+
         // SI C'EST UNE BANNIÈRE OU UN LOGO, SAUVEGARDER DANS LA DB
         if (vendeur_id && (type === 'banner' || type === 'logo')) {
             const field = type === 'banner' ? 'banniere_url' : 'logo_url';
-            
+
             console.log(`📝 Sauvegarde en DB: UPDATE vendeurs SET ${field} = '${fileUrl}' WHERE id = ${vendeur_id}`);
-            
+
             const result = await db.query(
                 `UPDATE vendeurs SET ${field} = $1 WHERE id = $2 RETURNING *`,
                 [fileUrl, vendeur_id]
             );
-            
+
             console.log('✅ DB mise à jour:', result.rows[0]?.id ? 'Succès' : 'Échec');
         }
-        
+
         res.json({
             success: true,
             url: fileUrl,
