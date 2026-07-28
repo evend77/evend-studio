@@ -37,9 +37,37 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 2222
           script: |
+            set -e
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            docker pull ghcr.io/evend77/evend-studio:latest
+
+            # 🔒 On vérifie que le pull réussit VRAIMENT (extraction complète
+            # des couches) avant de toucher au conteneur actuel qui fonctionne.
+            # Avant ce correctif, un échec silencieux du pull (bug connu de
+            # containerd sur node_modules/.bin) faisait quand même arrêter et
+            # supprimer l'ancien conteneur, puis relancer avec l'ancienne
+            # image en cache — un déploiement "réussi" qui ne déployait rien.
+            if ! docker pull ghcr.io/evend77/evend-studio:latest; then
+              echo "❌ Échec du docker pull — ancien conteneur laissé intact, déploiement annulé."
+              exit 1
+            fi
+
             docker stop studio-app || true
             docker rm studio-app || true
-            docker run -d --name studio-app --network host --env-file ~/evend-studio/.env ghcr.io/evend77/evend-studio:latest
+
+            # --restart unless-stopped : le conteneur repart automatiquement
+            # si Docker redémarre (ex: après un `systemctl restart docker`),
+            # au lieu de rester arrêté silencieusement comme avant.
+            docker run -d --name studio-app --network host --restart unless-stopped \
+              --env-file ~/evend-studio/.env ghcr.io/evend77/evend-studio:latest
+
+            # Vérifie que le nouveau conteneur tourne vraiment après quelques
+            # secondes, sinon on le signale clairement dans les logs du run.
+            sleep 5
+            if [ "$(docker inspect -f '{{.State.Running}}' studio-app 2>/dev/null)" != "true" ]; then
+              echo "❌ Le conteneur studio-app ne tourne pas après le déploiement !"
+              docker logs studio-app --tail 50 || true
+              exit 1
+            fi
+
+            echo "✅ studio-app démarré et actif."
             docker image prune -f
