@@ -14,6 +14,7 @@ const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/cl
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
+const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 const MAX_PHOTOS = 25;
 
@@ -30,9 +31,13 @@ const BUCKET = process.env.AWS_S3_BUCKET;
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 }, // 10 Mo
+  // 🔒 SVG retiré : ce endpoint est accessible à tout gestionnaire connecté
+  // (pas seulement admin) et les photos sont affichées publiquement sur les
+  // sites vendeurs — un SVG piégé (script embarqué) serait exécuté chez les
+  // visiteurs du site, pas juste dans un dashboard de confiance.
   fileFilter: (_req, file, cb) => {
-    const ok = /^image\/(jpeg|jpg|png|gif|webp|svg\+xml)$/i.test(file.mimetype);
-    cb(ok ? null : new Error('Format non supporté. Accepté : JPG, PNG, GIF, WebP, SVG.'), ok);
+    const ok = /^image\/(jpeg|jpg|png|gif|webp)$/i.test(file.mimetype);
+    cb(ok ? null : new Error('Format non supporté. Accepté : JPG, PNG, GIF, WebP.'), ok);
   },
 });
 
@@ -104,14 +109,23 @@ router.post('/upload', authenticateToken, (req, res) => {
 
       // Upload vers S3
       const { buffer, mimetype, originalname, size } = req.file;
-      const ext    = path.extname(originalname).toLowerCase() || '.jpg';
+
+      // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
+      // fileFilter ne regarde que le Content-Type déclaré par le client.
+      const verif = await verifierTypeFichier(buffer, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+      if (!verif.ok) {
+        console.warn(`⚠️ Upload rejeté (photo gestionnaire) : contenu réel ne correspond pas à une image autorisée (détecté: ${verif.mimeDetecte || 'inconnu'})`);
+        return res.status(400).json({ error: 'Le fichier envoyé n\'est pas une image valide.' });
+      }
+
+      const ext    = '.' + verif.extensionDetectee; // extension réelle détectée
       const s3Key  = `studio/photos-site/gestionnaire_${gestionnaireId}/${uuidv4()}${ext}`;
 
       await s3.send(new PutObjectCommand({
         Bucket:      BUCKET,
         Key:         s3Key,
         Body:        buffer,
-        ContentType: mimetype,
+        ContentType: verif.mimeDetecte,
       }));
 
       const url = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`;
@@ -121,7 +135,7 @@ router.post('/upload', authenticateToken, (req, res) => {
         `INSERT INTO photos_site_gestionnaire (gestionnaire_id, url, s3_key, nom, taille, type)
          VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [vendeurId, url, s3Key, originalname, size, mimetype]
+        [gestionnaireId, url, s3Key, originalname, size, mimetype]
       );
 
       // Retourner le nouveau total
@@ -149,13 +163,13 @@ router.post('/upload', authenticateToken, (req, res) => {
 router.delete('/:id', authenticateToken, async (req, res) => {
   if (!verifierProprietaire(req, res)) return;
 
-  const { vendeurId, id } = req.params;
+  const { gestionnaireId, id } = req.params;
 
   try {
     // Récupérer la clé S3 avant suppression
     const photo = await pool.query(
-      `SELECT s3_key FROM photos_site_gestionnaire WHERE id = $1 AND vendeur_id = $2`,
-      [id, vendeurId]
+      `SELECT s3_key FROM photos_site_gestionnaire WHERE id = $1 AND gestionnaire_id = $2`,
+      [id, gestionnaireId]
     );
     if (photo.rows.length === 0) return res.status(404).json({ error: 'Photo introuvable.' });
 

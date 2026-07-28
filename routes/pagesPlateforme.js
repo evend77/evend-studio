@@ -8,6 +8,7 @@ const { authenticateToken, isAdmin } = require('../middleware/auth');
 const multer  = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
+const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 // ── Client S3 (même config que upload_image.js) ──────────────────────────────
 const s3 = new S3Client({
@@ -97,16 +98,25 @@ router.post('/upload-media', authenticateToken, isAdmin, uploadMedia.single('fil
   try {
     if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu' });
 
-    const { buffer, mimetype, originalname } = req.file;
-    const isVideo = mimetype.startsWith('video/');
-    const ext     = (originalname.split('.').pop() || 'jpg').toLowerCase();
+    const { buffer, originalname } = req.file;
+
+    // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
+    // fileFilter ne regarde que le Content-Type déclaré par le client.
+    const verif = await verifierTypeFichier(buffer, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'ogg']);
+    if (!verif.ok) {
+      console.warn(`⚠️ Upload rejeté (média page) : contenu réel non conforme (détecté: ${verif.mimeDetecte || 'inconnu'})`);
+      return res.status(400).json({ error: 'Le fichier envoyé n\'est pas une image ou vidéo valide.' });
+    }
+
+    const isVideo = verif.mimeDetecte.startsWith('video/');
+    const ext     = verif.extensionDetectee;
     const s3Key   = `pages/${isVideo ? 'videos' : 'images'}/${uuidv4()}.${ext}`;
 
     await s3.send(new PutObjectCommand({
       Bucket:      BUCKET,
       Key:         s3Key,
       Body:        buffer,
-      ContentType: mimetype,
+      ContentType: verif.mimeDetecte,
     }));
 
     const url = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${s3Key}`;

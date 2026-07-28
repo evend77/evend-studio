@@ -17,7 +17,7 @@ router.get("/", async (req, res) => {
     const result = await pool.query(
       `SELECT 
         p.id,
-        p.produit_shopify_id,
+        p.produit_id,
         p.variant_id,
         p.titre,
         p.image_url,
@@ -70,7 +70,7 @@ router.post("/", async (req, res) => {
     // Si le produit existe déjà dans le panier → incrémenter la quantité
     const existant = await pool.query(
       `SELECT id, quantite FROM panier 
-       WHERE acheteur_id = $1 AND produit_shopify_id = $2`,
+       WHERE acheteur_id = $1 AND produit_id = $2`,
       [acheteurId, produit_id.toString()]
     );
 
@@ -86,7 +86,7 @@ router.post("/", async (req, res) => {
     // Sinon → insérer
     const insert = await pool.query(
       `INSERT INTO panier 
-        (acheteur_id, produit_shopify_id, variant_id, titre, image_url, prix, quantite, vendeur_id)
+        (acheteur_id, produit_id, variant_id, titre, image_url, prix, quantite, vendeur_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id`,
       [acheteurId, produit_id.toString(), null, titreFinal, imageFinal, parseFloat(prix), parseInt(quantite), vendeur_id]
@@ -163,7 +163,7 @@ router.get("/plus-tard", async (req, res) => {
     const result = await pool.query(
       `SELECT 
         pt.id,
-        pt.produit_shopify_id,
+        pt.produit_id,
         pt.titre,
         pt.image_url,
         pt.prix,
@@ -200,15 +200,15 @@ router.post("/:id/plus-tard", async (req, res) => {
 
     // Vérifier si déjà dans plus-tard
     const existant = await pool.query(
-      `SELECT id FROM panier_plus_tard WHERE acheteur_id = $1 AND produit_shopify_id = $2`,
-      [acheteurId, a.produit_shopify_id]
+      `SELECT id FROM panier_plus_tard WHERE acheteur_id = $1 AND produit_id = $2`,
+      [acheteurId, a.produit_id]
     );
 
     if (existant.rows.length === 0) {
       await pool.query(
-        `INSERT INTO panier_plus_tard (acheteur_id, vendeur_id, produit_shopify_id, titre, image_url, prix)
+        `INSERT INTO panier_plus_tard (acheteur_id, vendeur_id, produit_id, titre, image_url, prix)
          VALUES ($1, $2, $3, $4, $5, $6)`,
-        [acheteurId, a.vendeur_id, a.produit_shopify_id, a.titre, a.image_url, a.prix]
+        [acheteurId, a.vendeur_id, a.produit_id, a.titre, a.image_url, a.prix]
       );
     }
 
@@ -239,8 +239,8 @@ router.post("/plus-tard/:id/remettre", async (req, res) => {
 
     // Vérifier si déjà dans panier
     const existant = await pool.query(
-      `SELECT id, quantite FROM panier WHERE acheteur_id = $1 AND produit_shopify_id = $2`,
-      [acheteurId, a.produit_shopify_id]
+      `SELECT id, quantite FROM panier WHERE acheteur_id = $1 AND produit_id = $2`,
+      [acheteurId, a.produit_id]
     );
 
     if (existant.rows.length > 0) {
@@ -252,9 +252,9 @@ router.post("/plus-tard/:id/remettre", async (req, res) => {
     } else {
       // Insérer dans le panier
       await pool.query(
-        `INSERT INTO panier (acheteur_id, vendeur_id, produit_shopify_id, titre, image_url, prix, quantite)
+        `INSERT INTO panier (acheteur_id, vendeur_id, produit_id, titre, image_url, prix, quantite)
          VALUES ($1, $2, $3, $4, $5, $6, 1)`,
-        [acheteurId, a.vendeur_id, a.produit_shopify_id, a.titre, a.image_url, a.prix]
+        [acheteurId, a.vendeur_id, a.produit_id, a.titre, a.image_url, a.prix]
       );
     }
 

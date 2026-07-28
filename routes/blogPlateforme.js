@@ -7,6 +7,7 @@ const { authenticateToken, isAdmin } = require('../middleware/auth');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const multer   = require('multer');
 const { v4: uuidv4 } = require('uuid');
+const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 // ─── S3 Config ────────────────────────────────────────────────────────────
 const s3 = new S3Client({
@@ -30,14 +31,24 @@ const upload = multer({
 });
 
 async function uploadS3(buffer, originalname, mimetype) {
-  const ext = originalname.split('.').pop() || 'jpg';
+  // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
+  // fileFilter ne regarde que le Content-Type déclaré par le client.
+  const verif = await verifierTypeFichier(buffer, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+  if (!verif.ok) {
+    console.warn(`⚠️ Upload rejeté (blog) : contenu réel non conforme (détecté: ${verif.mimeDetecte || 'inconnu'})`);
+    const err = new Error('Le fichier envoyé n\'est pas une image valide.');
+    err.status = 400;
+    throw err;
+  }
+
+  const ext = verif.extensionDetectee; // extension réelle détectée
   const key = `blog/${Date.now()}-${uuidv4()}.${ext}`;
   
   await s3.send(new PutObjectCommand({
     Bucket: BUCKET,
     Key: key,
     Body: buffer,
-    ContentType: mimetype,
+    ContentType: verif.mimeDetecte,
   }));
   
   return `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
@@ -297,7 +308,7 @@ router.post('/admin/upload-image', upload.single('image'), async (req, res) => {
     res.json({ url });
   } catch (err) {
     console.error('❌ Erreur upload S3:', err.message);
-    res.status(500).json({ error: 'Erreur upload: ' + err.message });
+    res.status(err.status || 500).json({ error: err.status ? err.message : 'Erreur upload: ' + err.message });
   }
 });
 

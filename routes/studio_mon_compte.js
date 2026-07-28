@@ -16,6 +16,7 @@ const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/cl
 const { v4: uuidv4 } = require('uuid');
 const path     = require('path');
 const { authenticateToken } = require('../middleware/auth');
+const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 let envoyerEmailModele = null;
 try {
@@ -56,13 +57,23 @@ function verifierProprietaire(req, res) {
 
 // ─── Helper upload S3 ─────────────────────────────────────────────────────────
 async function uploadVersS3(file, gestionnaireId, type) {
-  const ext   = path.extname(file.originalname).toLowerCase() || '.jpg';
+  // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
+  // fileFilter ne regarde que le Content-Type déclaré par le client.
+  const verif = await verifierTypeFichier(file.buffer, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+  if (!verif.ok) {
+    console.warn(`⚠️ Upload rejeté (${type} gestionnaire) : contenu réel non conforme (détecté: ${verif.mimeDetecte || 'inconnu'})`);
+    const err = new Error('Le fichier envoyé n\'est pas une image valide.');
+    err.status = 400;
+    throw err;
+  }
+
+  const ext   = '.' + verif.extensionDetectee; // extension réelle détectée
   const s3Key = `studio/comptes/gestionnaire_${gestionnaireId}_${type}_${uuidv4()}${ext}`;
   await s3.send(new PutObjectCommand({
     Bucket:      BUCKET,
     Key:         s3Key,
     Body:        file.buffer,
-    ContentType: file.mimetype,
+    ContentType: verif.mimeDetecte,
   }));
   return {
     url:    `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`,
@@ -279,7 +290,7 @@ router.put('/email', authenticateToken, async (req, res) => {
     );
 
     if (envoyerEmailModele) {
-      const lienVerification = `${process.env.FRONTEND_URL || 'https://e-vend.ca'}/verifier-email?token=${token}`;
+      const lienVerification = `${process.env.FRONTEND_URL || 'https://e-vendstudio.ca'}/verifier-email?token=${token}`;
       envoyerEmailModele(3, emailPropre, {
         nom_gestionnaire: g.nom,
         lien_verification: lienVerification,
@@ -317,7 +328,7 @@ router.post('/logo', authenticateToken, (req, res) => {
       res.json({ success: true, logo_url: url });
     } catch (e) {
       console.error('❌ Erreur upload logo :', e.message);
-      res.status(500).json({ error: e.message });
+      res.status(e.status || 500).json({ error: e.message });
     }
   });
 });
@@ -346,7 +357,7 @@ router.post('/banniere', authenticateToken, (req, res) => {
       res.json({ success: true, banniere_url: url });
     } catch (e) {
       console.error('❌ Erreur upload bannière :', e.message);
-      res.status(500).json({ error: e.message });
+      res.status(e.status || 500).json({ error: e.message });
     }
   });
 });

@@ -11,6 +11,7 @@ const { v4: uuidv4 } = require('uuid');
 
 // ── AWS S3 CONFIGURATION ──────────────────────────────────────
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -40,12 +41,23 @@ const upload = multer({
 
 // ── UTILITAIRES ─────────────────────────────────────────────────
 async function uploadToS3(file, folder = 'sponsors') {
+  // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
+  // fileFilter ne regarde que le Content-Type déclaré par le client,
+  // falsifiable. Ces photos sont affichées publiquement sur les sites.
+  const verif = await verifierTypeFichier(file.buffer, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+  if (!verif.ok) {
+    console.warn(`⚠️ Upload rejeté (photo sponsor) : contenu réel non conforme (détecté: ${verif.mimeDetecte || 'inconnu'})`);
+    const err = new Error('Le fichier envoyé n\'est pas une image valide.');
+    err.status = 400;
+    throw err;
+  }
+
   const key = `${folder}/${uuidv4()}-${file.originalname}`;
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
     Body: file.buffer,
-    ContentType: file.mimetype,
+    ContentType: verif.mimeDetecte,
   });
   await s3Client.send(command);
   return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
@@ -292,7 +304,7 @@ router.post('/', authenticateToken, isAdmin, upload.single('image'), async (req,
     });
   } catch (error) {
     console.error('❌ Erreur ajout photo sponsor:', error);
-    res.status(500).json({ error: 'Erreur lors de l\'ajout de la photo' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Erreur lors de l\'ajout de la photo' });
   }
 });
 
@@ -347,7 +359,7 @@ router.put('/:id', authenticateToken, isAdmin, upload.single('image'), async (re
     });
   } catch (error) {
     console.error('❌ Erreur modification photo sponsor:', error);
-    res.status(500).json({ error: 'Erreur lors de la modification' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Erreur lors de la modification' });
   }
 });
 
@@ -433,7 +445,7 @@ router.post('/sponsor/upload', authenticateToken, isCommanditaire, upload.single
     });
   } catch (error) {
     console.error('❌ Erreur upload photo sponsor:', error);
-    res.status(500).json({ error: 'Erreur lors de l\'upload de la photo' });
+    res.status(error.status || 500).json({ error: error.status ? error.message : 'Erreur lors de l\'upload de la photo' });
   }
 });
 

@@ -10,6 +10,7 @@ const pool     = require('../db');
 const multer   = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { authenticateToken, isAdmin } = require('../middleware/auth');
+const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 
 // ─── S3 (même config que upload_image.js) ────────────────────────────────────
@@ -47,7 +48,7 @@ router.get('/public', async (_req, res) => {
                 titre:        'Page introuvable',
                 sous_titre:   "Oups ! La page que vous cherchez n'existe pas ou a été déplacée.",
                 texte_bouton: "Retour à l'accueil",
-                url_bouton:   'https://e-vend.ca',
+                url_bouton:   'https://e-vendstudio.ca',
                 image_url:    '',
             });
         }
@@ -132,15 +133,38 @@ router.post('/image', authenticateToken, isAdmin, (req, res) => {
         }
 
         try {
-            const { buffer, mimetype, originalname } = req.file;
-            const ext    = (originalname.split('.').pop() || 'jpg').toLowerCase();
-            const s3Key  = `config/page404/page404_${Date.now()}.${ext}`;
+            const { buffer, originalname } = req.file;
+
+            // 🔒 Vérification du VRAI contenu du fichier — le fileFilter ne
+            // regarde que le Content-Type déclaré par le client, falsifiable.
+            // Route réservée aux admins (isAdmin), donc SVG reste accepté,
+            // mais avec un contrôle de contenu minimal (le SVG est du texte
+            // XML, sans signature binaire — les "magic bytes" ne s'y
+            // appliquent pas comme pour un JPEG/PNG).
+            const debutFichier = buffer.slice(0, 500).toString('utf8').trim().toLowerCase();
+            const ressembleSVG = debutFichier.includes('<svg') || (debutFichier.startsWith('<?xml') && debutFichier.includes('svg'));
+
+            let extensionFinale, mimeFinal;
+            if (ressembleSVG) {
+                extensionFinale = 'svg';
+                mimeFinal = 'image/svg+xml';
+            } else {
+                const verif = await verifierTypeFichier(buffer, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+                if (!verif.ok) {
+                    console.warn(`⚠️ Upload rejeté (config 404) : contenu réel non conforme (détecté: ${verif.mimeDetecte || 'inconnu'})`);
+                    return res.status(400).json({ error: 'Le fichier envoyé n\'est pas une image valide.' });
+                }
+                extensionFinale = verif.extensionDetectee;
+                mimeFinal = verif.mimeDetecte;
+            }
+
+            const s3Key  = `config/page404/page404_${Date.now()}.${extensionFinale}`;
 
             await s3.send(new PutObjectCommand({
                 Bucket:      BUCKET,
                 Key:         s3Key,
                 Body:        buffer,
-                ContentType: mimetype,
+                ContentType: mimeFinal,
             }));
 
             const imageUrl = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${s3Key}`;

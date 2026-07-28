@@ -11,6 +11,7 @@ const pool    = require('../db');
 const multer  = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { authenticateToken } = require('../middleware/auth');
+const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 // ─── Valeurs par défaut ───────────────────────────────────────────────────────
 // Appliquées quand un vendeur n'a pas encore configuré sa page 404.
@@ -39,9 +40,12 @@ const s3 = new S3Client({
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024 }, // 2 Mo
+  // 🔒 SVG retiré : accessible à tout gestionnaire connecté (pas seulement
+  // admin) et l'image est affichée publiquement sur la page 404 du site —
+  // un SVG piégé (script embarqué) s'exécuterait chez les visiteurs.
   fileFilter: (_req, file, cb) => {
-    const ok = /^image\/(jpeg|png|gif|webp|svg\+xml)$/i.test(file.mimetype);
-    cb(ok ? null : new Error('Fichier non support\u00e9. Accept\u00e9\u00a0: JPG, PNG, GIF, WebP, SVG.'), ok);
+    const ok = /^image\/(jpeg|png|gif|webp)$/i.test(file.mimetype);
+    cb(ok ? null : new Error('Fichier non support\u00e9. Accept\u00e9\u00a0: JPG, PNG, GIF, WebP.'), ok);
   },
 });
 
@@ -208,14 +212,23 @@ router.post('/image', authenticateToken, (req, res) => {
 
     try {
       const { buffer, mimetype, originalname } = req.file;
-      const ext    = (originalname.split('.').pop() || 'jpg').toLowerCase();
+
+      // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
+      // fileFilter ne regarde que le Content-Type déclaré par le client.
+      const verif = await verifierTypeFichier(buffer, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
+      if (!verif.ok) {
+        console.warn(`⚠️ Upload rejeté (page 404) : contenu réel non conforme (détecté: ${verif.mimeDetecte || 'inconnu'})`);
+        return res.status(400).json({ error: 'Le fichier envoyé n\'est pas une image valide.' });
+      }
+
+      const ext    = verif.extensionDetectee; // extension réelle détectée
       const s3Key  = `studio/page404/gestionnaire_${gestionnaireId}_${Date.now()}.${ext}`;
 
       await s3.send(new PutObjectCommand({
         Bucket:      BUCKET,
         Key:         s3Key,
         Body:        buffer,
-        ContentType: mimetype,
+        ContentType: verif.mimeDetecte,
       }));
 
       const imageUrl = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${s3Key}`;

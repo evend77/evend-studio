@@ -13,6 +13,7 @@ const { getMontantParClic } = require('../src/utils/monetisationPub');
 const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 const s3Client = new S3Client({
   region: process.env.AWS_REGION || 'us-east-1',
@@ -33,10 +34,10 @@ const uploadPub = multer({
   }
 });
 
-async function uploadPubToS3(file, sponsor_id) {
+async function uploadPubToS3(file, sponsor_id, mimeVerifie) {
   const key = `sponsors-pubs/${sponsor_id}/${uuidv4()}-${file.originalname}`;
   await s3Client.send(new PutObjectCommand({
-    Bucket: BUCKET_NAME, Key: key, Body: file.buffer, ContentType: file.mimetype,
+    Bucket: BUCKET_NAME, Key: key, Body: file.buffer, ContentType: mimeVerifie || file.mimetype,
   }));
   return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
 }
@@ -57,7 +58,17 @@ async function deletePubImageFromS3(url) {
 router.post('/pubs/upload-image', authenticateToken, uploadPub.single('image'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu' });
-    const url = await uploadPubToS3(req.file, req.user.id);
+
+    // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
+    // fileFilter ne regarde que le Content-Type déclaré par le client,
+    // falsifiable. Ces pubs sont affichées publiquement sur les sites.
+    const verif = await verifierTypeFichier(req.file.buffer, ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm']);
+    if (!verif.ok) {
+      console.warn(`⚠️ Upload rejeté (image/vidéo pub) : contenu réel non conforme (détecté: ${verif.mimeDetecte || 'inconnu'})`);
+      return res.status(400).json({ error: 'Le fichier envoyé n\'est pas une image ou vidéo valide.' });
+    }
+
+    const url = await uploadPubToS3(req.file, req.user.id, verif.mimeDetecte);
     res.json({ success: true, url_image: url });
   } catch (error) {
     console.error('❌ Erreur upload image pub:', error);

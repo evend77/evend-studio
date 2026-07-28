@@ -12,6 +12,7 @@ const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/cl
 const { v4: uuidv4 } = require('uuid');
 const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
+const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 // ─── S3 ───────────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
@@ -118,6 +119,14 @@ router.post('/', authenticateToken, (req, res) => {
       let og_image_key = undefined;
 
       if (req.file) {
+        // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
+        // fileFilter ne regarde que le Content-Type déclaré par le client.
+        const verif = await verifierTypeFichier(req.file.buffer, ['jpg', 'jpeg', 'png', 'webp']);
+        if (!verif.ok) {
+          console.warn(`⚠️ Upload rejeté (image OG SEO) : contenu réel non conforme (détecté: ${verif.mimeDetecte || 'inconnu'})`);
+          return res.status(400).json({ error: 'Le fichier envoyé n\'est pas une image valide.' });
+        }
+
         // Supprimer l'ancienne image S3
         if (ancienneKey && BUCKET) {
           try {
@@ -127,13 +136,13 @@ router.post('/', authenticateToken, (req, res) => {
           }
         }
         // Upload nouvelle image
-        const ext      = path.extname(req.file.originalname) || '.jpg';
+        const ext      = '.' + verif.extensionDetectee; // extension réelle détectée
         const s3Key    = `studio/seo/gestionnaire_${gestionnaireId}_og_${uuidv4()}${ext}`;
         await s3.send(new PutObjectCommand({
           Bucket:      BUCKET,
           Key:         s3Key,
           Body:        req.file.buffer,
-          ContentType: req.file.mimetype,
+          ContentType: verif.mimeDetecte,
         }));
         og_image_url = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`;
         og_image_key = s3Key;
@@ -169,7 +178,7 @@ router.post('/', authenticateToken, (req, res) => {
          RETURNING *`,
         [
           ...values,
-          vendeurId,
+          gestionnaireId,
           titre_accueil    ?? '',
           meta_description ?? '',
           og_image_url     ?? '',
