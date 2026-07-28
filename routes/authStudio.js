@@ -49,6 +49,15 @@ const MAX_TENTATIVES        = 5;
 const FENETRE_RESET_MINUTES = 15; // au-delà, on repart le compteur à zéro
 const DUREE_BLOCAGE_MINUTES = 10;
 
+// Protection sur /unlock-account et /resend-unlock-code (deviner le code
+// ne connecte jamais directement — juste un raccourci pour sauter l'attente
+// — mais il faut quand même empêcher le brute-force du code et le spam
+// de courriels via AWS SES).
+const MAX_TENTATIVES_DEBLOCAGE   = 5;  // essais de code avant pénalité
+const PENALITE_DEBLOCAGE_MINUTES = 15; // prolongation du blocage après échec répété
+const MAX_RENVOIS                = 3;  // renvois de code max par cycle de blocage
+const COOLDOWN_RENVOI_SECONDES   = 60; // délai minimum entre 2 renvois
+
 // Vérifie si le compte (email + userType) est actuellement bloqué.
 // Retourne null si non bloqué, ou { message } si bloqué (à renvoyer tel quel).
 async function verifierCompteBloque(email, userType) {
@@ -906,20 +915,48 @@ router.post('/unlock-account', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Tous les champs sont requis.' });
     }
     const type = userType === 'administration' ? 'admin' : userType;
+    const emailLower = email.toLowerCase();
 
-    const result = await pool.query(
-      `SELECT * FROM login_attempts
-       WHERE email = $1 AND user_type = $2 AND unlock_code = $3
-       AND code_expires_at > NOW() AND blocked_until > NOW()
-       ORDER BY id DESC LIMIT 1`,
-      [email.toLowerCase(), type, code]
+    // On cherche le blocage actif peu importe le code, pour pouvoir compter
+    // les mauvais essais (au lieu de laisser deviner sans limite).
+    const blocRes = await pool.query(
+      `SELECT * FROM login_attempts WHERE email = $1 AND user_type = $2 AND blocked_until > NOW() ORDER BY id DESC LIMIT 1`,
+      [emailLower, type]
     );
+    if (blocRes.rows.length === 0) {
+      return res.status(400).json({ success: false, message: 'Aucun compte bloqué trouvé, ou le blocage a expiré.' });
+    }
+    const record = blocRes.rows[0];
 
-    if (result.rows.length === 0) {
-      return res.status(400).json({ success: false, message: 'Code invalide ou expiré.' });
+    const codeValide = record.unlock_code === code
+      && record.code_expires_at && new Date(record.code_expires_at) > new Date();
+
+    if (!codeValide) {
+      const nouvellesTentatives = record.unlock_attempts + 1;
+
+      if (nouvellesTentatives >= MAX_TENTATIVES_DEBLOCAGE) {
+        // Trop d'essais : code invalidé, blocage prolongé — décourage le
+        // brute-force sans pour autant enfermer la personne indéfiniment.
+        const nouveauBlocage = new Date(Date.now() + PENALITE_DEBLOCAGE_MINUTES * 60000);
+        await pool.query(
+          `UPDATE login_attempts SET unlock_attempts = 0, unlock_code = NULL, code_expires_at = NULL, blocked_until = $1 WHERE id = $2`,
+          [nouveauBlocage, record.id]
+        );
+        return res.status(429).json({
+          success: false,
+          blocked: true,
+          message: `Trop de tentatives de code. Le blocage est prolongé de ${PENALITE_DEBLOCAGE_MINUTES} minutes. Demandez un nouveau code pour réessayer.`,
+        });
+      }
+
+      await pool.query(`UPDATE login_attempts SET unlock_attempts = $1 WHERE id = $2`, [nouvellesTentatives, record.id]);
+      return res.status(400).json({
+        success: false,
+        message: `Code invalide ou expiré. Il vous reste ${MAX_TENTATIVES_DEBLOCAGE - nouvellesTentatives} tentative(s).`,
+      });
     }
 
-    await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), type]);
+    await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [emailLower, type]);
 
     return res.json({ success: true, message: 'Compte débloqué avec succès. Veuillez vous reconnecter.' });
   } catch (err) {
@@ -950,11 +987,29 @@ router.post('/resend-unlock-code', async (req, res) => {
     }
     const record = result.rows[0];
 
+    // Empêche le spam-clic : délai minimum entre 2 renvois
+    if (record.last_resend_at) {
+      const secondesDepuis = (Date.now() - new Date(record.last_resend_at).getTime()) / 1000;
+      if (secondesDepuis < COOLDOWN_RENVOI_SECONDES) {
+        const attente = Math.ceil(COOLDOWN_RENVOI_SECONDES - secondesDepuis);
+        return res.status(429).json({ success: false, message: `Veuillez attendre ${attente} seconde(s) avant de redemander un code.` });
+      }
+    }
+
+    // Limite le nombre total de renvois par cycle de blocage (protège la
+    // boîte courriel de la victime et le quota AWS SES)
+    if (record.resend_count >= MAX_RENVOIS) {
+      return res.status(429).json({ success: false, message: 'Nombre maximal de renvois atteint pour ce blocage. Veuillez attendre son expiration.' });
+    }
+
     const newOtpCode = genererCodeOtp();
     const nouvelleExpiration = new Date(Date.now() + DUREE_BLOCAGE_MINUTES * 60000);
 
     await pool.query(
-      `UPDATE login_attempts SET unlock_code = $1, code_expires_at = $2, blocked_until = $3 WHERE id = $4`,
+      `UPDATE login_attempts
+       SET unlock_code = $1, code_expires_at = $2, blocked_until = $3,
+           resend_count = resend_count + 1, last_resend_at = NOW()
+       WHERE id = $4`,
       [newOtpCode, nouvelleExpiration, nouvelleExpiration, record.id]
     );
 
