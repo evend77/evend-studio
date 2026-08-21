@@ -7,12 +7,10 @@ import MesServices         from './pages/gestionnaire/MesServices';
 import ImportEvend          from './pages/gestionnaire/ImportEvend';
 import ModalUnsplash from './components/ModalUnsplash';
 import BandeauEssai  from './components/BandeauEssai';
+import ConfigStoreEffects from './pages/gestionnaire/ConfigStoreEffects';
 
 // ── Imports composants vendeur présents dans e-Vend Studio ──
-// SUPPRIMER les lignes des fichiers qui n'existent pas dans ton projet
-// et garder seulement ce que tu as réellement copié.
-// Liste minimale pour que ça compile sans erreur :
-const API_BASE = '/api'; // e-Vend Studio API
+const API_BASE = '/api';
 
 // ── e-Vend Studio ──
 import MaCagnotte                   from './pages/studio/MaCagnotte';
@@ -59,7 +57,6 @@ import ConfigMultiVendeurPremium   from './pages/gestionnaire/ConfigMultiVendeur
 
 // =====================================================================
 // 🚧 PAGES EN CONSTRUCTION — placeholders compilables
-// Chaque composant sera remplacé par la vraie page progressivement
 // =====================================================================
 
 function PageEnConstruction({ titre, icone = '🚧', description }: { titre: string; icone?: string; description?: string }) {
@@ -78,7 +75,6 @@ function PageEnConstruction({ titre, icone = '🚧', description }: { titre: str
 }
 
 // ── Placeholders pages gestionnaire ────────────────────────────────────────────────
-// CreerAnnonce — importé
 
 const MonCompte           = ({ vendeurId }: any) =>
   <PageEnConstruction titre="Mon compte" icone="👤" description="Gérez vos informations personnelles et votre profil gestionnaire." />;
@@ -243,7 +239,7 @@ interface MenuItem {
 }
 
 // =====================================================================
-// COMPOSANTS UTILITAIRES (inchangés)
+// COMPOSANTS UTILITAIRES
 // =====================================================================
 const tooltipStyle: React.CSSProperties = {
   position: 'absolute', bottom: '-32px', left: '50%',
@@ -254,18 +250,15 @@ const tooltipStyle: React.CSSProperties = {
 };
 
 // =====================================================================
-// COMPOSANT INDICATEUR DE SESSION (inchangé)
+// COMPOSANT INDICATEUR DE SESSION
 // =====================================================================
 function SessionIndicator({ statut }: { statut?: string }) {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const intervalRef = useRef<any>(null);
 
-  // Le JWT est maintenant dans un cookie httpOnly — impossible (et inutile)
-  // de le décoder côté client. On demande simplement au serveur si la
-  // session est valide ; le cookie est envoyé automatiquement (même origine).
   const verifierSession = async () => {
     try {
-      const token = localStorage.getItem('token'); // rétrocompat, anciens onglets
+      const token = localStorage.getItem('token');
       const res = await fetch('/api/auth/verify', {
         credentials: 'include',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -330,7 +323,7 @@ function SessionIndicator({ statut }: { statut?: string }) {
 }
 
 // =====================================================================
-// APP GESTIONNAIRE PRINCIPALE (inchangée, sauf le fr remplacé par {})
+// APP GESTIONNAIRE PRINCIPALE
 // =====================================================================
 interface AppGestionnaireProps {
   isAdminImpersonation?: boolean;
@@ -357,8 +350,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [modalOuvert, setModalOuvert] = useState(false);
   const [message, setMessage] = useState('');
   const [nonLus, setNonLus] = useState({ acheteurs: 0, admin: 0, notifs: 0, contact: 0, total: 0 });
-
-  // 👇 NOUVEAU STATE POUR LE MODAL UNSplash
   const [modalPhotoOuvert, setModalPhotoOuvert] = useState(false);
 
   useEffect(() => {
@@ -381,7 +372,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [isMobile, setIsMobile] = useState(false);
   const [menuOuvert, setMenuOuvert] = useState<string | null>(null);
   const [footerText, setFooterText] = useState(`© Copyright ${new Date().getFullYear()} e-Vend Studio, Tous droits réservés`);
-  // States pour le bouton reset config (doivent être au niveau root pour survivre aux re-renders)
   const [resetConfirm, setResetConfirm] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [resetDone,    setResetDone]    = useState(false);
@@ -454,8 +444,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [renvoiCooldown, setRenvoiCooldown] = useState(0);
   const [deadlineVerifEmail, setDeadlineVerifEmail] = useState<string | null>(gestionnaire.email_verification_expire || null);
 
-  // Rafraîchit l'état email_verifie depuis le serveur (au montage + au retour sur l'onglet),
-  // pour que la bannière disparaisse même si la vérification a eu lieu dans un autre onglet.
   const rafraichirStatutEmail = () => {
     if (!gestionnaire?.id) return;
     const token = localStorage.getItem('token');
@@ -511,7 +499,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     setRenvoiEnCours(false);
   };
 
-  // Options add-ons du gestionnaire (cacher_propulse, verificateur_age, etc.)
+  // Options add-ons du gestionnaire
   const [options, setOptions] = useState<Record<string, any>>({});
   const rechargerOptions = () => {
     if (!gestionnaire?.id) return;
@@ -526,7 +514,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (gestionnaireUser) setGestionnaire(gestionnaireUser);
   }, [gestionnaireUser]);
 
-  // ── Charger le template_id du site Studio (une seule fois) ──────────────
+  // ── Charger le template_id du site Studio ──────────────────────────────
   const [templateCharge, setTemplateCharge] = useState(false);
   useEffect(() => {
     if (!gestionnaire?.id || templateCharge) return;
@@ -598,7 +586,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const fermerModal = useCallback(() => setModalOuvert(false), []);
   const envoyerMessage = useCallback(() => { setMessage(''); fermerModal(); }, [fermerModal]);
 
-  // 👇 FONCTION POUR SÉLECTIONNER UNE PHOTO UNSplash
   const handleSelectPhoto = (photo) => {
     const url = photo.urls.regular;
     console.log('📷 Photo sélectionnée:', url);
@@ -674,17 +661,17 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     ]
   };
 
-  // ── Mes réservations école (add-on réservation_ecole, sans sous-menu) ──────
+  // ── Mes réservations école ──────────────────────────────────────────────
   const menuMesReservations: MenuItem = {
     id: 'mes-reservations', label: 'MES RÉSERVATIONS ÉCOLES', icon: '📅',
   };
 
-  // ── Mes abonnements clients (add-on abonnement_ecole, sans sous-menu) ──────
+  // ── Mes abonnements clients ─────────────────────────────────────────────
   const menuMesAbonnements: MenuItem = {
     id: 'abonnements-clients', label: 'ABONNEMENTS CLIENTS', icon: '💳',
   };
 
-  // ── Mes sponsors (add-on pub_sponsor, sans sous-menu) ──────────────────────
+  // ── Mes sponsors ─────────────────────────────────────────────────────────
   const menuMesSponsors: MenuItem = {
     id: 'mes-sponsors', label: 'MES SPONSORS', icon: '⭐',
   };
@@ -697,7 +684,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     id: 'mes-chatbot', label: 'CHAT BOT', icon: '💬',
   };
 
-  // ── Mes collaborateurs (commun à tous) ─────────────────────────────────────
+  // 🔥 NOUVEAU MENU EFFETS VISUELS 🔥
+  const menuMesEffetsVisuels: MenuItem = {
+    id: 'mes-effets-visuels', label: 'EFFETS VISUELS', icon: '✨',
+  };
+
+  // ── Mes collaborateurs ──────────────────────────────────────────────────
   const menuSousVendeurs: MenuItem = {
     id: 'collaborateurs', label: 'MES COLLABORATEURS', icon: '🏪',
     sousMenu: [
@@ -706,7 +698,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     ]
   };
 
-  // ── Badges (commun à tous) ────────────────────────────────────────────────
+  // ── Badges ────────────────────────────────────────────────────────────────
   const menuBadges: MenuItem = {
     id: 'badges', label: 'BADGES', icon: '🏅',
     sousMenu: [
@@ -715,7 +707,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     ]
   };
 
-  // ── Blog collaborateurs ────────────────────────────────────────────────────
+  // ── Blog collaborateurs ───────────────────────────────────────────────────
   const menuBlogsSV: MenuItem = {
     id: 'blogs-collaborateurs', label: 'BLOGS COLLABORATEURS', icon: '📝',
   };
@@ -728,7 +720,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     id: 'chat-acheteur-sv', label: 'CHAT ACHETEUR-COLLAB', icon: '💬',
   };
 
-  // ── Profil (commun à tous) ────────────────────────────────────────────────
+  // ── Profil ────────────────────────────────────────────────────────────────
   const menuProfil: MenuItem = {
     id: 'profil', label: 'PROFIL', icon: '👤',
     sousMenu: [
@@ -741,7 +733,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     ]
   };
 
-  // ── Messagerie (commun à tous) ────────────────────────────────────────────
+  // ── Messagerie ────────────────────────────────────────────────────────────
   const menuMessagerie: MenuItem = {
     id: 'messagerie', label: 'MESSAGERIE', icon: '✉️',
     badge: nonLus.total > 0 ? nonLus.total : undefined,
@@ -753,13 +745,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     ]
   };
 
-  // ── Add-ons (commun à tous) ───────────────────────────────────────────────
+  // ── Add-ons ───────────────────────────────────────────────────────────────
   const menuAddOn: MenuItem = {
     id: 'addon', label: 'ADD-ONS', icon: '🧩',
   };
 
-  // 🟢 Branding & options — visible sur tous les templates SAUF multivendeur
-  // (le multivendeur aura son propre système d'add-ons séparé plus tard)
+  // 🟢 Branding & options
   const menuBrandingOptions: MenuItem = {
     id: 'branding-options', label: 'Branding & options', icon: '⚙️',
   };
@@ -783,12 +774,10 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-branding',label:'Branding & options',icon:'⚙️' }] };
   const menuVendeurs: MenuItem     = { id:'vendeurs',label:'MES VENDEURS',icon:'👥',sousMenu:[{ id:'vendeurs-liste',label:'Liste des vendeurs',icon:'👥' },{ id:'vendeurs-demandes',label:'Demandes en attente',icon:'📥' },{ id:'vendeurs-paiements',label:'Paiements vendeurs',icon:'💰' }] };
 
-
   // ── Construction du menu selon le template ────────────────────────────────
   let menuItems: MenuItem[];
 
   if (aucunTemplate) {
-    // Pas encore de template → menu minimal, forcer le choix
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       menuSousVendeurs,
@@ -800,11 +789,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
-      ...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
       menuAddOn,
     ];
   } else if (estVitrine) {
-    // Vitrine : pas de transactions — juste l'outil de config du site
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       menuSousVendeurs,
@@ -831,11 +821,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
-      ...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
       menuAddOn,
     ];
   } else if (estReservation) {
-    // Réservation : réservations + disponibilités au centre
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       {
@@ -871,11 +862,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
-      ...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
       menuAddOn,
     ];
   } else if (estCagnotte) {
-    // Cagnotte : juste les dons reçus
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       {
@@ -910,17 +902,20 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
-      ...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
       menuAddOn,
     ];
   } else if (estVitrinePro) {
-    // Vitrine Pro Premium — menu réduit comme vitrine
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       ...(options?.reservation_ecole ? [menuMesReservations] : []),
       ...(options?.abonnement_ecole ? [menuMesAbonnements] : []),
       ...(options?.pub_sponsor ? [menuMesSponsors] : []),
-      ...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
       menuSousVendeurs,
       menuBadges,
       menuBlogsSV,
@@ -948,7 +943,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuAddOn,
     ];
   } else if (estSalon) {
-    // Salon de Coiffure — avec réservations en ligne
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       {
@@ -983,11 +977,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
-      ...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
       menuAddOn,
     ];
   } else if (estEnchere) {
-    // Enchères → menu minimaliste : config du site + mes enchères
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       {
@@ -1022,26 +1017,154 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
-      ...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
       menuAddOn,
     ];
   } else if (estSimplisse) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesSimplisse,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioSimplisse,menuConfigMesPages,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),menuAddOn];
-
+    menuItems = [
+      { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
+      menuVosAnnoncesSimplisse,
+      { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
+        { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
+        { id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },
+        { id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },
+        { id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }
+      ]},
+      { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
+      menuStudioSimplisse,
+      menuConfigMesPages,
+      { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
+        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
+        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
+      ]},
+      menuProfil,
+      menuMessagerie,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuAddOn
+    ];
   } else if (estPremium) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesPremium,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioPremium,menuConfigPremium,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),menuAddOn];
-
+    menuItems = [
+      { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
+      menuVosAnnoncesPremium,
+      { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
+        { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
+        { id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },
+        { id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },
+        { id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }
+      ]},
+      { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
+      menuStudioPremium,
+      menuConfigPremium,
+      { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
+        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
+        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
+      ]},
+      menuProfil,
+      menuMessagerie,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuAddOn
+    ];
   } else if (estSimplisseMode) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesMode,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioMode,menuConfigMode,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),menuAddOn];
-
+    menuItems = [
+      { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
+      menuVosAnnoncesMode,
+      { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
+        { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
+        { id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },
+        { id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },
+        { id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }
+      ]},
+      { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
+      menuStudioMode,
+      menuConfigMode,
+      { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
+        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
+        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
+      ]},
+      menuProfil,
+      menuMessagerie,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuAddOn
+    ];
   } else if (estMultiVendeur) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVendeurs,menuSousVendeurs,menuBadges,menuBlogsSV,menuFaqsSV,menuChatSV,{ id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📦' },{ id:'annonces-creer',label:'Créer une annonce',icon:'➕' }] },{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' }] },menuStudioMV,menuConfigMV,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },itemPage404,itemPolitiques,itemSeo,itemCookies,itemPhotos,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie];
-
+    menuItems = [
+      { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
+      menuVendeurs,
+      menuSousVendeurs,
+      menuBadges,
+      menuBlogsSV,
+      menuFaqsSV,
+      menuChatSV,
+      { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[
+        { id:'annonces-liste',label:'Liste des produits',icon:'📦' },
+        { id:'annonces-creer',label:'Créer une annonce',icon:'➕' }
+      ]},
+      { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
+        { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
+        { id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' }
+      ]},
+      menuStudioMV,
+      menuConfigMV,
+      { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
+        itemConfigGenerale,itemConfigPaiements,
+        { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        itemPage404,itemPolitiques,itemSeo,itemCookies,itemPhotos,
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
+      ]},
+      menuProfil,
+      menuMessagerie,
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+    ];
   } else if (estBeaute) {
-    menuItems = [{ id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },menuVosAnnoncesBeaute,{ id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[{ id:'commandes-liste',label:'Liste des commandes',icon:'📋' },{ id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },{ id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },{ id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }] },{ id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }] },menuStudioBeaute,menuConfigBeaute,{ id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[itemConfigGenerale,itemConfigMV,itemConfigPaiements,{ id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },{ id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos, itemFormulaireContact,...(options?.verificateur_age ? [itemVerificateurAge] : []),...(options?.popup_annonce ? [itemPopupAnnonce] : [])] },menuProfil,menuMessagerie,...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),menuAddOn];
-
+    menuItems = [
+      { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
+      menuVosAnnoncesBeaute,
+      { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
+        { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
+        { id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },
+        { id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },
+        { id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }
+      ]},
+      { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
+      menuStudioBeaute,
+      menuConfigBeaute,
+      { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
+        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
+        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
+      ]},
+      menuProfil,
+      menuMessagerie,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuAddOn
+    ];
   } else if (estBoutiqueSimple) {
-    // Boutique Simple (mono-produit) : commandes + config basique
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       {
@@ -1085,7 +1208,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
       menuBrandingOptions,
-      ...(options?.analytique ? [menuMesAnalytique] : []),...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
       menuAddOn,
     ];
   } else {
@@ -1165,6 +1290,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuMessagerie,
       menuBrandingOptions,
+      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
       menuAddOn,
       menuSousVendeurs,
       menuBadges,
@@ -1286,6 +1412,10 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mes-sponsors') return <MesSponsorsGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mes-analytique') return <AnalytiqueGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mes-chatbot') return <ChatbotConfig gestionnaireId={gestionnaire.id} />;
+    
+    // 🔥 NOUVEAU - PAGE EFFETS VISUELS 🔥
+    if (pageActive === 'mes-effets-visuels') return <ConfigStoreEffects gestionnaireId={gestionnaire.id} />;
+    
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
@@ -1320,7 +1450,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'profil-badges') return <MesBadges />;
     if (pageActive === 'profil-factures') return <FacturesVendeur naviguerVers={setPageActive} />;
     if (pageActive === 'connecter-boutique') return <ConnecterBoutique onRetour={() => setPageActive('dashboard')} vendorId={gestionnaire.id.toString()} />;
-    // import-ebay supprimé — pas disponible dans Studio
 
     // ── Routes e-Vend Studio ──
     if (pageActive === 'studio-choisir-template') return (
@@ -1336,10 +1465,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         .catch(err => console.error('Erreur fetch template:', err));
         setTemplateIdChoisi(templateId);
         setGestionnaire(prev => ({ ...prev, site_template_id: templateId }));
-        // boutique-complete → dashboard (config via menus existants)
-        // tous les autres → configurateur dédié
         if (templateId === 'boutique-complete') {
-          // boutique-complete → dashboard directement (menus existants)
           setPageActive('dashboard');
         } else if (templateId.startsWith('boutique-simplisse-mode')) {
           setPageActive('mode-config-pages');
@@ -1352,7 +1478,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         } else if (templateId.startsWith('multi-vendeur-premium')) {
           setPageActive('mv-premium-plan');
         } else if (['enchere-flash', 'enchere-galerie', 'enchere-live'].includes(templateId)) {
-          // enchères → config template (+ aperçu)
           setPageActive('studio-config-template');
         } else {
           setPageActive('studio-config-template');
@@ -1360,7 +1485,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       }} />
     );
     if (pageActive === 'studio-config-template') {
-      // Pas de template choisi — rediriger vers le choix plutot que d'ouvrir vitrine par defaut
       if (aucunTemplate) {
         return (
           <div style={{ maxWidth: 600, margin: '80px auto', padding: '0 24px', fontFamily: "'Inter', sans-serif", textAlign: 'center' }}>
@@ -1391,7 +1515,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         />
       );
     }
-        if (pageActive === 'studio-domaine') return <MonDomaine gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'studio-domaine') return <MonDomaine gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-import-evend') return <ImportEvend gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-config-pages') return <ConfigMesPagesSimplisse    gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-plan')         return <SimplissePlan              gestionnaireId={gestionnaire.id} />;
@@ -1409,7 +1533,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mv-premium-branding')    return <AddOn />;
     if (pageActive === 'beaute-branding')        return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'annonces-creer')         return <CreerAnnonce onRetour={() => setPageActive('annonces-liste')} gestionnaireId={gestionnaire.id} />;
-    if (pageActive === 'studio-apercu') return null; // géré par onClick (nouvel onglet)
+    if (pageActive === 'studio-apercu') return null;
     if (pageActive === 'studio-page-404') return <StudioConfigPage404 gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-mes-politiques') return <StudioMesPolitiques gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-mes-pages')      return <StudioMesPages      gestionnaireId={gestionnaire.id} />;
@@ -1460,7 +1584,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     }}>
       {isMobile && <button onClick={() => setMenuMobileOuvert(!menuMobileOuvert)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer', padding: '8px' }}>☰</button>}
       <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '20px', marginLeft: 'auto' }}>
-        {/* 👇 BOUTON PHOTOS */}
         <button 
           onClick={() => setModalPhotoOuvert(true)}
           style={{
@@ -1480,7 +1603,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         >
           <span>📷</span> Photos
         </button>
-        {/* Notif messages */}
         <button onClick={() => setPageActive('messagerie')} title="Vos messages"
           style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, display: 'flex', alignItems: 'center' }}>
           🔔
@@ -1490,7 +1612,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
             </span>
           )}
         </button>
-        {/* Voir ma boutique */}
         <button onClick={ouvrirBoutiqueNouvelOnglet} title="Voir mon site"
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22 }}>
           👁️
@@ -1824,14 +1945,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         </div>
       </div>
 
-      {/* 👇 MODALE UNSplash */}
       <ModalUnsplash 
         isOpen={modalPhotoOuvert}
         onClose={() => setModalPhotoOuvert(false)}
         onSelectPhoto={handleSelectPhoto}
       />
 
-      {/* Modal messagerie */}
       {modalOuvert && (
         <div onClick={fermerModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
@@ -1859,7 +1978,3 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
 }
 
 export default AppGestionnaire;
-
-// ══════════════════════════════════════════════════════════════
-// PAGES STUDIO — Placeholders à développer
-// ══════════════════════════════════════════════════════════════
