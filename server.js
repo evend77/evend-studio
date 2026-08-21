@@ -49,6 +49,9 @@ const sponsorPubsRoutes = require('./routes/sponsor_pubs');
 
 const sponsorsRoutes = require('./routes/sponsors');
 
+// ✨ STORE EFFECTS - Effets visuels (neige, confettis, curseurs, etc.)
+const storeEffectsRoutes = require('./routes/store-effects');
+
 const app  = express();
 const port = process.env.PORT || 5000;
 
@@ -141,6 +144,9 @@ app.use('/api/webhooks/dynadot', require('./routes/webhooks-dynadot'));
 
 // ✅ ADD-ONS (NOUVEAU) 
 app.use('/api/addons', require('./routes/addons'));
+
+// ✨ STORE EFFECTS - Effets visuels (neige, confettis, curseurs, etc.)
+app.use('/api/store-effects', storeEffectsRoutes);
 
 // ── MIDDLEWARE AUTH ───────────────────────────────────────────────────
 const { authenticateToken } = require('./middleware/auth');
@@ -816,6 +822,8 @@ app.listen(port, () => {
   console.log(`🧩 Add-ons:      POST /api/addons/admin/addons`);
   console.log(`🧩 Add-ons:      PUT  /api/addons/admin/addons/:id`);
   console.log(`🧩 Add-ons:      POST /api/addons/admin/addons/:id/toggle`);
+  console.log(`✨ Store Effects: GET  /api/store-effects/config/:gestionnaireId`);
+  console.log(`✨ Store Effects: PUT  /api/store-effects/config/:gestionnaireId`);
   console.log(`📬 Contact:      POST /api/studio/contact  (formulaires templates)`);
   console.log(`🔍 Page 404:     GET  /api/studio/page-404/:vendeurId/public`);
   console.log(`🔍 Page 404:     PUT  /api/studio/page-404/:vendeurId`);
