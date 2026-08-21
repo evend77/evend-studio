@@ -684,7 +684,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     id: 'mes-chatbot', label: 'CHAT BOT', icon: '💬',
   };
 
-  // 🔥 NOUVEAU MENU EFFETS VISUELS 🔥
+  // 🔥 NOUVEAU MENU EFFETS VISUELS
   const menuMesEffetsVisuels: MenuItem = {
     id: 'mes-effets-visuels', label: 'EFFETS VISUELS', icon: '✨',
   };
@@ -791,7 +791,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuBrandingOptions,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn,
     ];
   } else if (estVitrine) {
@@ -823,7 +823,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuBrandingOptions,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn,
     ];
   } else if (estReservation) {
@@ -864,7 +864,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuBrandingOptions,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn,
     ];
   } else if (estCagnotte) {
@@ -904,7 +904,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuBrandingOptions,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn,
     ];
   } else if (estVitrinePro) {
@@ -915,7 +915,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ...(options?.pub_sponsor ? [menuMesSponsors] : []),
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT ICI
       menuSousVendeurs,
       menuBadges,
       menuBlogsSV,
@@ -979,7 +979,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuBrandingOptions,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn,
     ];
   } else if (estEnchere) {
@@ -1019,7 +1019,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuBrandingOptions,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn,
     ];
   } else if (estSimplisse) {
@@ -1047,7 +1047,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuMessagerie,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn
     ];
   } else if (estPremium) {
@@ -1075,7 +1075,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuMessagerie,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn
     ];
   } else if (estSimplisseMode) {
@@ -1103,7 +1103,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuMessagerie,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn
     ];
   } else if (estMultiVendeur) {
@@ -1134,7 +1134,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       menuProfil,
       menuMessagerie,
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
     ];
   } else if (estBeaute) {
     menuItems = [
@@ -1161,7 +1161,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuMessagerie,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn
     ];
   } else if (estBoutiqueSimple) {
@@ -1210,7 +1210,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuBrandingOptions,
       ...(options?.analytique ? [menuMesAnalytique] : []),
       ...(options?.chatbot ? [menuMesChatbot] : []),
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn,
     ];
   } else {
@@ -1290,7 +1290,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuMessagerie,
       menuBrandingOptions,
-      ...(options?.effets_visuels ? [menuMesEffetsVisuels] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn,
       menuSousVendeurs,
       menuBadges,
@@ -1301,6 +1301,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id: 'creer', label: 'CRÉER UNE ANNONCE', icon: '➕' },
     ];
   }
+
+  // ... le reste du fichier (menuStyle, mainContentStyle, topBarFixedStyle, footerFixedStyle, renderPage, topBarContent, return)
+  // ⚠️ Je continue avec la suite du fichier...
 
   const menuStyle: React.CSSProperties = {
     width: isMobile ? (menuMobileOuvert ? '280px' : '0px') : '280px',
@@ -1412,10 +1415,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mes-sponsors') return <MesSponsorsGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mes-analytique') return <AnalytiqueGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mes-chatbot') return <ChatbotConfig gestionnaireId={gestionnaire.id} />;
-    
-    // 🔥 NOUVEAU - PAGE EFFETS VISUELS 🔥
     if (pageActive === 'mes-effets-visuels') return <ConfigStoreEffects gestionnaireId={gestionnaire.id} />;
-    
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
