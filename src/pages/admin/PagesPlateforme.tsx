@@ -26,6 +26,38 @@ const T = {
   danger: '#dc2626', success: '#16a34a', warning: '#d97706',
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ISOLATION DU CONTENU DES PAGES
+// Le HTML d'une page (ex. « À propos ») peut contenir ses propres <style>,
+// <nav>, <header>, position:fixed, etc. Injecté directement dans l'admin
+// (dangerouslySetInnerHTML / contentEditable), ce CSS s'appliquait à TOUTE
+// l'application et écrasait le menu de gauche et la barre du haut.
+// → L'aperçu et l'éditeur visuel affichent maintenant le contenu dans une
+//   <iframe> : son CSS reste enfermé dedans.
+// ─────────────────────────────────────────────────────────────────────────────
+const CSS_BASE_IFRAME = `
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body { padding: 20px; box-sizing: border-box; font-family: system-ui, sans-serif; font-size: 14px; line-height: 1.7; color: ${T.text}; min-height: 480px; outline: none; }
+  h1 { font-size:26px;font-weight:800;margin:0 0 20px;color:${T.text};border-bottom:2px solid ${T.accent};padding-bottom:10px; }
+  h2 { font-size:18px;font-weight:700;margin:24px 0 10px;color:${T.text};border-bottom:1px solid ${T.border};padding-bottom:6px; }
+  h3 { font-size:15px;font-weight:700;margin:16px 0 6px;color:${T.text}; }
+  p { margin:0 0 12px;line-height:1.7;color:${T.textLight}; }
+  ul, ol { margin:0 0 12px;padding-left:24px; }
+  li { margin-bottom:4px;color:${T.textLight};line-height:1.6; }
+  a { color:${T.accent};text-decoration:underline; }
+  strong { color:${T.text}; }
+  img { max-width:100%;height:auto;display:block;border-radius:6px;margin:12px 0; }
+  video, iframe { max-width:100%;display:block;border-radius:6px;margin:12px 0;border:none; }
+`;
+
+// Page complète affichée dans l'iframe d'aperçu (lecture seule)
+function construireDocApercu(html: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>${CSS_BASE_IFRAME}</style></head><body>${html}</body></html>`;
+}
+
+// Squelette vide de l'iframe de l'éditeur visuel (le contenu est injecté au chargement)
+const DOC_EDITEUR_VISUEL = `<!doctype html><html><head><meta charset="utf-8"><style>${CSS_BASE_IFRAME}</style></head><body></body></html>`;
+
 export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: string) => void }) {
   const [pages, setPages] = useState<PagePlateforme[]>([]);
   const [ongletActif, setOngletActif] = useState(0);
@@ -62,7 +94,8 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
   
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const visuelTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const contentEditableRef = useRef<HTMLDivElement>(null);
+  const visuelFrameRef = useRef<HTMLIFrameElement>(null);
+  const [hauteurApercu, setHauteurApercu] = useState(520);
   const cursorPosRef = useRef<{ start: number; end: number }>({ start: 0, end: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const token = localStorage.getItem('token');
@@ -79,18 +112,39 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
 
   useEffect(() => { fetchPages(); }, []);
 
-  // Injecter le HTML dans le contentEditable quand on change de page ou de mode
-  useEffect(() => {
-    if (modeEdition !== 'visuel') return;
-    if (!contentEditableRef.current) return;
+  // ── Éditeur visuel (iframe en designMode) ─────────────────────────────────
+  // Document de l'iframe de l'éditeur visuel (null si pas affichée)
+  function docVisuel(): Document | null {
+    return visuelFrameRef.current?.contentDocument ?? null;
+  }
+
+  // HTML courant de l'éditeur visuel (null si l'iframe n'est pas prête)
+  function lireHtmlVisuel(): string | null {
+    const doc = docVisuel();
+    return doc?.body ? doc.body.innerHTML : null;
+  }
+
+  // Exécuter une commande de mise en forme (gras, italique, liste…) dans l'iframe
+  function execVisuel(commande: string) {
+    const doc = docVisuel();
+    if (!doc) return;
+    doc.defaultView?.focus();
+    doc.execCommand(commande);
+  }
+
+  // Appelé quand l'iframe de l'éditeur visuel a fini de charger : on y injecte
+  // le contenu de la page, on active l'édition et on synchronise la frappe.
+  function initialiserEditeurVisuel() {
+    const doc = docVisuel();
     const slug = pages[ongletActif]?.slug;
-    if (!slug) return;
-    const html = contenuEdite[slug] || '';
-    // Ne pas écraser si déjà identique (évite de resetter le curseur pendant la frappe)
-    if (contentEditableRef.current.innerHTML !== html) {
-      contentEditableRef.current.innerHTML = html;
-    }
-  }, [ongletActif, modeEdition]);
+    if (!doc || !doc.body || !slug) return;
+    doc.body.innerHTML = contenuEdite[slug] || '';
+    doc.designMode = 'on';
+    doc.addEventListener('input', () => {
+      const html = doc.body.innerHTML;
+      setContenuEdite(prev => ({ ...prev, [slug]: html }));
+    });
+  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // CONVERSION HTML <-> TEXTE VISUEL
@@ -210,8 +264,8 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
     
     let contenuASauvegarder: string;
     if (modeEdition === 'visuel') {
-      // Lire le HTML directement du div contentEditable
-      contenuASauvegarder = contentEditableRef.current?.innerHTML || contenuEdite[pageActuelle.slug] || '';
+      // Lire le HTML directement de l'iframe de l'éditeur visuel
+      contenuASauvegarder = lireHtmlVisuel() ?? contenuEdite[pageActuelle.slug] ?? '';
     } else {
       contenuASauvegarder = contenuEdite[pageActuelle.slug] || '';
     }
@@ -332,6 +386,9 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
     
     setContenuEdite(prev => ({ ...prev, [pageActuelle.slug]: modeleHtml }));
     setTexteVisuel(prev => ({ ...prev, [pageActuelle.slug]: htmlVersTexte(modeleHtml) }));
+    // Si l'éditeur visuel est affiché, y injecter le modèle tout de suite
+    const doc = docVisuel();
+    if (doc?.body) doc.body.innerHTML = modeleHtml;
   }
 
   const savedSelectionRef = useRef<Range | null>(null);
@@ -342,7 +399,7 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
       if (ta) cursorPosRef.current = { start: ta.selectionStart, end: ta.selectionEnd };
     } else {
       // Sauvegarder la sélection du navigateur AVANT que le modal vole le focus
-      const sel = window.getSelection();
+      const sel = docVisuel()?.getSelection();
       if (sel && sel.rangeCount > 0) {
         savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
       }
@@ -424,16 +481,17 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
       }, 20);
     } else {
       // Mode visuel : restaurer la sélection sauvegardée, puis insérer
-      const el = contentEditableRef.current;
-      if (el) {
-        el.focus();
-        const sel = window.getSelection();
+      const doc = docVisuel();
+      if (doc) {
+        doc.defaultView?.focus();
+        const sel = doc.getSelection();
         if (sel && savedSelectionRef.current) {
           sel.removeAllRanges();
           sel.addRange(savedSelectionRef.current);
         }
-        document.execCommand('insertHTML', false, balise);
-        setContenuEdite(prev => ({ ...prev, [pageActuelle.slug]: el.innerHTML }));
+        doc.execCommand('insertHTML', false, balise);
+        const html = doc.body.innerHTML;
+        setContenuEdite(prev => ({ ...prev, [pageActuelle.slug]: html }));
       }
     }
 
@@ -1265,8 +1323,8 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
                   style={modeEdition === 'html' ? s.modeTabActif : s.modeTab}
                   onClick={() => {
                     if (modeEdition === 'visuel') {
-                      // Synchroniser le HTML depuis le contentEditable avant de switcher
-                      const html = contentEditableRef.current?.innerHTML || contenuEdite[pageActuelle.slug] || '';
+                      // Synchroniser le HTML depuis l'éditeur visuel avant de switcher
+                      const html = lireHtmlVisuel() ?? contenuEdite[pageActuelle.slug] ?? '';
                       setContenuEdite(prev => ({ ...prev, [pageActuelle.slug]: html }));
                     }
                     setModeEdition('html');
@@ -1279,7 +1337,7 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
                   style={modeEdition === 'apercu' ? s.modeTabActif : s.modeTab}
                   onClick={() => {
                     if (modeEdition === 'visuel') {
-                      const html = contentEditableRef.current?.innerHTML || contenuEdite[pageActuelle.slug] || '';
+                      const html = lireHtmlVisuel() ?? contenuEdite[pageActuelle.slug] ?? '';
                       setContenuEdite(prev => ({ ...prev, [pageActuelle.slug]: html }));
                     }
                     setModeEdition('apercu');
@@ -1296,21 +1354,21 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
                     <span style={s.toolbarLabel}>Formatage :</span>
                     <button
                       style={s.toolbarBtn}
-                      onClick={() => { document.execCommand('bold'); contentEditableRef.current?.focus(); }}
+                      onClick={() => execVisuel('bold')}
                       title="Gras"
                     >
                       <strong>G</strong>
                     </button>
                     <button
                       style={s.toolbarBtn}
-                      onClick={() => { document.execCommand('italic'); contentEditableRef.current?.focus(); }}
+                      onClick={() => execVisuel('italic')}
                       title="Italique"
                     >
                       <em>I</em>
                     </button>
                     <button
                       style={s.toolbarBtn}
-                      onClick={() => { document.execCommand('insertUnorderedList'); contentEditableRef.current?.focus(); }}
+                      onClick={() => execVisuel('insertUnorderedList')}
                       title="Liste à puces"
                     >
                       • Liste
@@ -1335,30 +1393,17 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
                       Écrivez et les images s'affichent en place
                     </span>
                   </div>
-                  <div
-                    ref={contentEditableRef}
-                    contentEditable
-                    suppressContentEditableWarning
-                    className="visuel-editor page-content"
-                    style={{
-                      minHeight: '520px',
-                      padding: '20px',
-                      border: 'none',
-                      outline: 'none',
-                      fontSize: '14px',
-                      fontFamily: 'system-ui, sans-serif',
-                      lineHeight: '1.7',
-                      color: T.text,
-                      background: '#fff',
-                      overflowY: 'auto',
-                      boxSizing: 'border-box',
-                    }}
-                    onInput={() => {
-                      const html = contentEditableRef.current?.innerHTML || '';
-                      setContenuEdite(prev => ({ ...prev, [pageActuelle.slug]: html }));
-                    }}
-                    // NE PAS utiliser dangerouslySetInnerHTML ici (reset le curseur à chaque render)
-                    // Le contenu initial est injecté via useEffect ci-dessous
+                  {/* Iframe isolée : le CSS/HTML de la page reste enfermé ici et ne touche plus au menu admin.
+                      srcDoc constant (squelette vide) → pas de rechargement à chaque frappe ;
+                      le contenu est injecté dans onLoad. key = remontage propre quand on change de page. */}
+                  <iframe
+                    key={`visuel-${pageActuelle.id}`}
+                    ref={visuelFrameRef}
+                    title="Éditeur visuel"
+                    sandbox="allow-same-origin"
+                    srcDoc={DOC_EDITEUR_VISUEL}
+                    onLoad={initialiserEditeurVisuel}
+                    style={{ width: '100%', height: '560px', border: 'none', display: 'block', background: '#fff' }}
                   />
                 </div>
               )}
@@ -1436,10 +1481,17 @@ export default function PagesPlateforme({ naviguerVers }: { naviguerVers?: (p: s
                       Ce que verront les visiteurs
                     </span>
                   </div>
-                  <div 
-                    className="page-content apercu-content"
-                    style={s.apercuContent}
-                    dangerouslySetInnerHTML={{ __html: contenuApercu || '<p style="color: #999; text-align: center; padding: 40px;">Aucun contenu à afficher</p>' }}
+                  {/* Aperçu dans une iframe isolée (aucun script, CSS enfermé) */}
+                  <iframe
+                    key={`apercu-${pageActuelle.id}`}
+                    title="Aperçu de la page"
+                    sandbox="allow-same-origin"
+                    srcDoc={construireDocApercu(contenuApercu || '<p style="color:#999;text-align:center;padding:40px;">Aucun contenu à afficher</p>')}
+                    onLoad={e => {
+                      const h = e.currentTarget.contentDocument?.documentElement?.scrollHeight;
+                      if (h) setHauteurApercu(Math.max(520, h));
+                    }}
+                    style={{ width: '100%', height: `${hauteurApercu}px`, border: 'none', display: 'block', background: '#fff' }}
                   />
                 </div>
               )}

@@ -528,6 +528,7 @@ app.use('/api/chat-admin-collab/:gestionnaireId',    require('./routes/chat_admi
 
 app.use('/api/politiquesPlateforme', require('./routes/politiquesPlateforme'));
 app.use('/api/pagesPlateforme',      require('./routes/pagesPlateforme'));
+app.use('/api/menus',            require('./routes/menus'));
 app.use('/api/studio/sites', studioSites);
 app.use('/api/produits/gestionnaire', require('./routes/produits_gestionnaire'));
 app.use('/api/marketplace', require('./routes/marketplace-auth'));
