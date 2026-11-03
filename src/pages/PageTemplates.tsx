@@ -3,6 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import MenuPublic from '../components/MenuPublic';
+import BasDePage from '../components/BasDePage';
 
 // ─── PHOTOS par catégorie (Pexels libre de droits) ───────────────────────────
 export const PHOTOS: Record<string, string> = {
@@ -714,7 +716,6 @@ export default function PageTemplates() {
   const navigate = useNavigate();
   const [filtreCategorie, setFiltreCategorie] = useState<string>('tous');
   const [recherche, setRecherche] = useState('');
-  const [menuMobile, setMenuMobile] = useState(false);
   const [prixParTemplate, setPrixParTemplate] = useState<Record<string, string>>({});
 
   // Prix réels configurés dans le dashboard admin — si l'appel échoue,
@@ -805,34 +806,8 @@ export default function PageTemplates() {
         }
       `}</style>
 
-      {/* ── NAV ─────────────────────────────────────────────────────────────── */}
-      <nav style={{ position: 'fixed', top: 0, width: '100%', zIndex: 100, background: 'rgba(0,0,0,0.92)', backdropFilter: 'blur(20px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-        <div style={{ maxWidth: 1400, margin: '0 auto', padding: '0 24px', height: 68, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }} onClick={() => navigate('/')}>
-            <span style={{ fontSize: 22, fontWeight: 800, background: 'linear-gradient(135deg,#c9a96e,#e8c87a)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>e</span>
-            <span className="nav-logo-text" style={{ fontSize: 13, fontWeight: 700, letterSpacing: '2px', color: '#fff' }}>VEND STUDIO</span>
-          </div>
-
-          <div className="nav-links-desktop" style={{ display: 'flex', gap: 32 }}>
-            {[['/', 'Accueil'], ['/templates', 'Templates'], ['/blog', 'Blog']].map(([href, label]) => (
-              <span key={href} onClick={() => navigate(href)} style={{ color: href === '/templates' ? '#c9a96e' : 'rgba(255,255,255,0.6)', fontSize: 14, fontWeight: 500, cursor: 'pointer' }}>
-                {label}
-              </span>
-            ))}
-          </div>
-
-          <div className="nav-cta-buttons" style={{ display: 'flex', gap: 10 }}>
-            <button className="nav-btn-login" onClick={() => navigate('/login')}
-              style={{ padding: '8px 20px', background: 'transparent', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 30, color: '#fff', fontSize: 14, cursor: 'pointer' }}>
-              Connexion
-            </button>
-            <button className="nav-btn-signup" onClick={() => navigate('/inscription')}
-              style={{ padding: '8px 20px', background: '#c9a96e', border: 'none', borderRadius: 30, color: '#000', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
-              Démarrer →
-            </button>
-          </div>
-        </div>
-      </nav>
+      {/* ── MENU DU HAUT (géré dans Paramètres > Menu) ─────────────────────── */}
+      <MenuPublic reserverEspace={false} />
 
       {/* ── HERO ────────────────────────────────────────────────────────────── */}
       <header style={{ paddingTop: 68, position: 'relative', textAlign: 'center', overflow: 'hidden' }}>
@@ -978,19 +953,8 @@ export default function PageTemplates() {
         </main>
       </div>
 
-      {/* ── FOOTER ──────────────────────────────────────────────────────────── */}
-      <footer style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '32px 24px', textAlign: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 16 }}>
-          <span style={{ fontSize: 18, fontWeight: 800, color: '#c9a96e' }}>e</span>
-          <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '2px', color: 'rgba(255,255,255,0.5)' }}>VEND STUDIO</span>
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 28, marginBottom: 16, flexWrap: 'wrap' }}>
-          {[['/', 'Accueil'], ['/templates', 'Templates'], ['/blog', 'Blog'], ['/login', 'Connexion'], ['/inscription', 'S\'inscrire']].map(([href, label]) => (
-            <span key={href} onClick={() => navigate(href)} style={{ fontSize: 13, color: 'rgba(255,255,255,0.35)', cursor: 'pointer' }}>{label}</span>
-          ))}
-        </div>
-        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>© 2026 e-Vend Studio — Créez votre site en ligne facilement</p>
-      </footer>
+      {/* ── BAS DE PAGE (géré dans Paramètres > Menu) ──────────────────────── */}
+      <BasDePage />
     </div>
   );
 }

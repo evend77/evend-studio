@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../hooks/usePageSeo';
+import MenuPublic from '../components/MenuPublic';
+import BasDePage from '../components/BasDePage';
 
 const API_BASE = '/api';
 
@@ -35,7 +37,7 @@ export default function ContactPlateforme() {
   usePageSeo({
     titre: 'Contactez-nous | e-Vend Studio',
     description: 'Une question ? Une suggestion ? Contactez l\'équipe e-Vend Studio. Nous vous répondrons dans les plus brefs délais.',
-    url: 'https://e-vend.ca/contact',
+    url: 'https://e-vendstudio.ca/contact',
   });
 
   useEffect(() => {
@@ -234,18 +236,8 @@ export default function ContactPlateforme() {
         </>
       )}
 
-      {/* Navigation */}
-      <nav style={s.nav}>
-        <div style={s.navInner}>
-          <div style={s.navLogo} onClick={() => navigate('/')}>
-            <div style={s.logoIcon}>e</div>
-            <span style={s.logoText}>e-Vend Studio</span>
-          </div>
-          <button onClick={() => navigate('/')} style={s.btnBack}>
-            ← Retour
-          </button>
-        </div>
-      </nav>
+      {/* Menu du haut (géré dans Paramètres > Menu) */}
+      <MenuPublic />
 
       {/* Hero section */}
       <div style={s.hero}>
@@ -390,9 +382,8 @@ export default function ContactPlateforme() {
         </div>
       </main>
 
-      <footer style={s.footer}>
-        <p style={s.footerText}>© 2026 e-Vend Studio · Le marché d'ici, pour les gens d'ici 🇨🇦</p>
-      </footer>
+      {/* Bas de page (géré dans Paramètres > Menu) */}
+      <BasDePage />
     </div>
   );
 }
@@ -410,13 +401,13 @@ const s: Record<string, React.CSSProperties> = {
   popupOverlay: {
     position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
     background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
-    zIndex: 1000, animation: 'fadeUp 0.2s ease',
+    zIndex: 1200, animation: 'fadeUp 0.2s ease',
   },
   popup: {
     position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
     background: '#0d1729', border: '1px solid rgba(251,191,36,0.3)',
     borderRadius: '20px', padding: '32px', minWidth: '320px', maxWidth: '450px',
-    textAlign: 'center', zIndex: 1001, animation: 'popupIn 0.3s ease',
+    textAlign: 'center', zIndex: 1201, animation: 'popupIn 0.3s ease',
   },
   popupClose: {
     position: 'absolute', top: '12px', right: '16px',

@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../hooks/usePageSeo';
+import MenuPublic from '../components/MenuPublic';
+import BasDePage from '../components/BasDePage';
 
 const API_BASE = '/api/blogPlateforme';
 
@@ -33,9 +35,9 @@ export default function BlogArticle() {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   usePageSeo(article ? {
-    titre: article.seo_titre || `${article.titre} | e-Vend.ca`,
-    description: article.seo_description || article.extrait || `Lisez l'article de ${article.auteur} sur e-Vend : ${article.titre}`,
-    url: `https://e-vend.ca/blog/${slug}`,
+    titre: article.seo_titre || `${article.titre} | e-Vend Studio`,
+    description: article.seo_description || article.extrait || `Lisez l'article de ${article.auteur} sur e-Vend Studio : ${article.titre}`,
+    url: `https://e-vendstudio.ca/blog/${slug}`,
   } : {});
 
   useEffect(() => {
@@ -119,18 +121,8 @@ export default function BlogArticle() {
         </button>
       )}
 
-      <nav style={s.nav}>
-        <div style={s.navInner}>
-          <div style={s.navLogo} onClick={() => navigate('/')}>
-            <div style={s.logoIcon}>e</div>
-            <span style={s.logoText}>e-Vend Studio</span>
-          </div>
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <button onClick={() => navigate('/blog')} style={s.btnBlog}>← Blog</button>
-            <button onClick={() => navigate(-1)} style={s.btnBack}>Retour</button>
-          </div>
-        </div>
-      </nav>
+      {/* Menu du haut (géré dans Paramètres > Menu) */}
+      <MenuPublic />
 
       <main style={s.main}>
         <div style={s.container}>
@@ -208,9 +200,8 @@ export default function BlogArticle() {
         </div>
       </main>
 
-      <footer style={s.footer}>
-        <p style={s.footerText}>© 2026 e-Vend Studio · Le marché d'ici, pour les gens d'ici 🇨🇦</p>
-      </footer>
+      {/* Bas de page (géré dans Paramètres > Menu) */}
+      <BasDePage />
     </div>
   );
 }

@@ -12,6 +12,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../hooks/usePageSeo';
 import { TEMPLATES, PHOTOS, GROUPES, CATEGORIES, templatesDeCategorie } from './PageTemplates';
+import MenuPublic from '../components/MenuPublic';
+import BasDePage from '../components/BasDePage';
 
 const API_BASE = '/api';
 
@@ -46,7 +48,7 @@ export default function PageTemplateDetail() {
   usePageSeo(t ? {
     titre: `${t.nom} — Template ${estGratuit ? 'gratuit' : prixFinal} | e-Vend Studio`,
     description: guide?.meta_description || t.description,
-    url: `https://e-vend.ca/templates/${t.id}`,
+    url: `https://e-vendstudio.ca/templates/${t.id}`,
   } : {});
 
   useEffect(() => {
@@ -78,12 +80,16 @@ export default function PageTemplateDetail() {
 
   if (!t) {
     return (
-      <div style={{ minHeight: '100vh', background: '#000', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, fontFamily: "'Inter', sans-serif" }}>
-        <p style={{ fontSize: 48 }}>🔍</p>
-        <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.5)' }}>Template introuvable</p>
-        <button onClick={() => navigate('/templates')} style={{ padding: '10px 24px', background: '#c9a96e', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer' }}>
-          ← Voir tous les templates
-        </button>
+      <div style={{ minHeight: '100vh', background: '#000', color: '#fff', display: 'flex', flexDirection: 'column', fontFamily: "'Inter', sans-serif" }}>
+        <MenuPublic />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, padding: '48px 24px' }}>
+          <p style={{ fontSize: 48 }}>🔍</p>
+          <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.5)' }}>Template introuvable</p>
+          <button onClick={() => navigate('/templates')} style={{ padding: '10px 24px', background: '#c9a96e', border: 'none', borderRadius: 8, color: '#000', fontWeight: 700, cursor: 'pointer' }}>
+            ← Voir tous les templates
+          </button>
+        </div>
+        <BasDePage />
       </div>
     );
   }
@@ -112,18 +118,8 @@ export default function PageTemplateDetail() {
         }
       `}</style>
 
-      {/* ── NAV minimale ─────────────────────────────────────────────────── */}
-      <nav style={{ borderBottom: '1px solid rgba(255,255,255,0.06)', position: 'sticky', top: 0, background: 'rgba(0,0,0,0.9)', backdropFilter: 'blur(10px)', zIndex: 50 }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto', padding: '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div onClick={() => navigate('/')} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-            <span style={{ fontSize: 18, fontWeight: 800, color: '#c9a96e' }}>e</span>
-            <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: 2, color: 'rgba(255,255,255,0.5)' }}>VEND STUDIO</span>
-          </div>
-          <button onClick={() => navigate('/templates')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', fontSize: 13, cursor: 'pointer' }}>
-            ← Tous les templates
-          </button>
-        </div>
-      </nav>
+      {/* ── MENU DU HAUT (géré dans Paramètres > Menu) ───────────────────── */}
+      <MenuPublic />
 
       {/* ── Fil d'Ariane — bon pour le SEO et la navigation interne ────────── */}
       <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 24px 0' }}>
@@ -218,9 +214,8 @@ export default function PageTemplateDetail() {
         </div>
       </section>
 
-      <footer style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '24px', textAlign: 'center' }}>
-        <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.2)' }}>© 2026 e-Vend Studio</p>
-      </footer>
+      {/* ── BAS DE PAGE (géré dans Paramètres > Menu) ────────────────────── */}
+      <BasDePage />
     </div>
   );
 }

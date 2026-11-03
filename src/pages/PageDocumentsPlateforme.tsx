@@ -1,10 +1,12 @@
 // src/pages/PageDocumentsPlateforme.tsx
-// Page publique d'affichage d'un document/guide e-Vend
+// Page publique d'affichage d'un document/guide e-Vend Studio
 // Route : /documents/:slug
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../hooks/usePageSeo';
+import MenuPublic from '../components/MenuPublic';
+import BasDePage from '../components/BasDePage';
 
 const API_BASE = '/api';
 
@@ -23,23 +25,18 @@ interface AutreDocument {
 export default function PageDocumentsPlateforme() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
-  const articleRef = useRef<HTMLElement>(null);
 
   const [document, setDocument] = useState<Document | null>(null);
-
-  // ── SEO dynamique ──────────────────────────────────────────────────────
-  usePageSeo(document ? {
-    titre:       document.titre + ' | e-Vend Studio',
-    description: document.contenu
-      ? document.contenu.replace(/<[^>]+>/g, '').slice(0, 160)
-      : 'Consultez le guide ' + document.titre + ' de e-Vend Studio.',
-    url:         'https://e-vend.ca/documents/' + slug,
-  } : {});
   const [autres, setAutres] = useState<AutreDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [erreur, setErreur] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  usePageSeo(document ? {
+    titre: document.titre + ' | e-Vend Studio',
+    description: 'Consultez le guide ' + document.titre + ' de e-Vend Studio.',
+    url: 'https://e-vendstudio.ca/documents/' + slug,
+  } : {});
 
   useEffect(() => {
     if (!slug) {
@@ -66,15 +63,6 @@ export default function PageDocumentsPlateforme() {
       .catch(() => {});
   }, []);
 
-  // Détecter le scroll pour afficher/masquer la flèche
-  useEffect(() => {
-    const handleScroll = () => {
-      setShowScrollTop(window.scrollY > 300);
-    };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
-
   // Fermer le drawer si on clique dehors
   useEffect(() => {
     if (!drawerOpen) return;
@@ -99,10 +87,6 @@ export default function PageDocumentsPlateforme() {
       window.document.body.style.overflow = '';
     };
   }, [drawerOpen]);
-
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
 
   const formatDate = (iso: string) => {
     try {
@@ -137,39 +121,6 @@ export default function PageDocumentsPlateforme() {
           from { opacity: 0; }
           to   { opacity: 1; }
         }
-        @keyframes bounceUp {
-          0% { opacity: 0; transform: translateY(20px) scale(0.8); }
-          50% { transform: translateY(-5px) scale(1.05); }
-          100% { opacity: 1; transform: translateY(0) scale(1); }
-        }
-
-        /* Contenu principal - empêcher le débordement */
-        .document-contenu {
-          overflow-x: hidden;
-          word-wrap: break-word;
-          word-break: break-word;
-        }
-        .document-contenu img {
-          max-width: 100%;
-          height: auto;
-          border-radius: 12px;
-        }
-        .document-contenu table {
-          display: block;
-          overflow-x: auto;
-          white-space: nowrap;
-        }
-        .document-contenu pre,
-        .document-contenu code {
-          white-space: pre-wrap;
-          word-wrap: break-word;
-          max-width: 100%;
-        }
-        .document-contenu iframe,
-        .document-contenu video {
-          max-width: 100%;
-          height: auto;
-        }
 
         .document-contenu h1,
         .document-contenu h2,
@@ -187,7 +138,7 @@ export default function PageDocumentsPlateforme() {
         .document-contenu ul,
         .document-contenu ol { color: rgba(255,255,255,0.72); padding-left: 1.6em; margin-bottom: 1.1em; }
         .document-contenu li { margin-bottom: 0.45em; line-height: 1.7; font-size: 0.97rem; }
-        .document-contenu a  { color: #fbbf24; text-decoration: underline; word-break: break-all; }
+        .document-contenu a  { color: #fbbf24; text-decoration: underline; }
         .document-contenu a:hover { color: #fde68a; }
         .document-contenu strong { color: rgba(255,255,255,0.9); font-weight: 600; }
         .document-contenu em { color: rgba(255,255,255,0.6); font-style: italic; }
@@ -199,7 +150,6 @@ export default function PageDocumentsPlateforme() {
           border-radius: 0 8px 8px 0;
           color: rgba(255,255,255,0.65);
           font-style: italic;
-          overflow-x: auto;
         }
         .document-contenu hr {
           border: none;
@@ -207,24 +157,15 @@ export default function PageDocumentsPlateforme() {
           margin: 2em 0;
         }
         .document-contenu table {
-          width: 100%;
-          border-collapse: collapse;
-          margin: 1.2em 0;
-          font-size: 0.9rem;
-          display: block;
-          overflow-x: auto;
+          width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.9rem;
         }
         .document-contenu th {
-          background: rgba(251,191,36,0.12);
-          color: #fbbf24;
-          padding: 10px 14px;
-          text-align: left;
-          font-weight: 600;
+          background: rgba(251,191,36,0.12); color: #fbbf24;
+          padding: 10px 14px; text-align: left; font-weight: 600;
           border-bottom: 1px solid rgba(255,255,255,0.1);
         }
         .document-contenu td {
-          padding: 9px 14px;
-          color: rgba(255,255,255,0.7);
+          padding: 9px 14px; color: rgba(255,255,255,0.7);
           border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
@@ -261,30 +202,8 @@ export default function PageDocumentsPlateforme() {
           gap: 48px;
           align-items: start;
         }
-        .desktop-sidebar { 
-          display: block;
-          position: sticky;
-          top: 80px;
-          max-height: calc(100vh - 100px);
-          overflow-y: auto;
-        }
+        .desktop-sidebar { display: block; }
         .mobile-menu-bar { display: none; }
-
-        /* Scrollbar personnalisée pour la sidebar */
-        .desktop-sidebar::-webkit-scrollbar {
-          width: 4px;
-        }
-        .desktop-sidebar::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.05);
-          border-radius: 4px;
-        }
-        .desktop-sidebar::-webkit-scrollbar-thumb {
-          background: rgba(251,191,36,0.4);
-          border-radius: 4px;
-        }
-        .desktop-sidebar::-webkit-scrollbar-thumb:hover {
-          background: rgba(251,191,36,0.6);
-        }
 
         @media (max-width: 768px) {
           .page-layout {
@@ -293,7 +212,9 @@ export default function PageDocumentsPlateforme() {
           }
           .desktop-sidebar { display: none; }
           .mobile-menu-bar { display: flex; }
-          
+        }
+
+        @media (max-width: 768px) {
           .document-contenu h1 { font-size: 1.35rem; }
           .document-contenu h2 { font-size: 1.15rem; }
           .document-contenu h3 { font-size: 1rem; }
@@ -302,39 +223,11 @@ export default function PageDocumentsPlateforme() {
           .document-contenu table { font-size: 0.82rem; }
           .document-contenu th,
           .document-contenu td { padding: 7px 10px; }
-          
-          /* Ajustement des marges sur mobile */
-          .document-contenu {
-            padding: 0 4px;
-          }
         }
       `}</style>
 
-      {/* Flèche de retour en haut */}
-      {showScrollTop && (
-        <button
-          onClick={scrollToTop}
-          style={s.scrollTopButton}
-          className="scroll-top-btn"
-          aria-label="Retour en haut"
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 4L12 20M12 4L18 10M12 4L6 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-      )}
-
-      <nav style={s.nav}>
-        <div style={s.navInner}>
-          <div style={s.navLogo} onClick={() => navigate('/')}>
-            <div style={s.logoIcon}>e</div>
-            <span style={s.logoText}>e-Vend Studio</span>
-          </div>
-          <button className="btn-back" onClick={() => navigate('/')} style={s.btnBack}>
-            ← Retour
-          </button>
-        </div>
-      </nav>
+      {/* Menu du haut (géré dans Paramètres > Menu) */}
+      <MenuPublic />
 
       {/* Barre mobile */}
       <div
@@ -360,7 +253,7 @@ export default function PageDocumentsPlateforme() {
         <div style={s.drawerOverlay} onClick={() => setDrawerOpen(false)} />
       )}
 
-      {/* Drawer mobile */}
+      {/* Drawer */}
       <div
         id="documents-drawer"
         style={{
@@ -371,7 +264,7 @@ export default function PageDocumentsPlateforme() {
       >
         <div style={s.drawerHandle} />
         <p style={s.drawerLabel}>Guides et documentation</p>
-        <nav style={s.drawerNav}>
+        <nav>
           {listeDocuments.map(doc => (
             <a
               key={doc.slug}
@@ -390,10 +283,10 @@ export default function PageDocumentsPlateforme() {
       <main style={s.main}>
         <div className="page-layout">
 
-          {/* Sidebar desktop avec scroll indépendant */}
+          {/* Sidebar desktop */}
           <aside className="desktop-sidebar" style={s.sidebar}>
             <p style={s.sidebarLabel}>Guides et documentation</p>
-            <nav style={s.sidebarNav}>
+            <nav>
               {listeDocuments.map(doc => (
                 <a
                   key={doc.slug}
@@ -408,7 +301,7 @@ export default function PageDocumentsPlateforme() {
           </aside>
 
           {/* Article */}
-          <article style={s.article} ref={articleRef}>
+          <article style={s.article}>
 
             {/* LOADING */}
             {loading && (
@@ -496,9 +389,8 @@ export default function PageDocumentsPlateforme() {
         </div>
       </main>
 
-      <footer style={s.footer}>
-        <p style={s.footerText}>© 2026 e-Vend Studio · Le marché d'ici, pour les gens d'ici 🇨🇦</p>
-      </footer>
+      {/* Bas de page (géré dans Paramètres > Menu) */}
+      <BasDePage />
     </div>
   );
 }
@@ -549,29 +441,9 @@ const s: Record<string, React.CSSProperties> = {
     transition: 'color 0.2s', padding: '6px 0',
   },
 
-  scrollTopButton: {
-    position: 'fixed',
-    bottom: '30px',
-    right: '30px',
-    width: '48px',
-    height: '48px',
-    borderRadius: '50%',
-    background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-    border: 'none',
-    cursor: 'pointer',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 100,
-    boxShadow: '0 4px 15px rgba(251,191,36,0.3)',
-    transition: 'all 0.3s ease',
-    animation: 'bounceUp 0.3s ease-out',
-    color: '#000',
-  } as React.CSSProperties,
-
   mobileMenuBar: {
     position: 'sticky',
-    top: '60px',
+    top: '68px',
     zIndex: 40,
     background: 'rgba(6,13,31,0.97)',
     backdropFilter: 'blur(10px)',
@@ -649,21 +521,17 @@ const s: Record<string, React.CSSProperties> = {
     borderLeft: '3px solid transparent',
     transition: 'all 0.18s',
   },
-  drawerNav: {
-    paddingBottom: '20px',
-  },
 
   main: { flex: 1, padding: '40px 20px 80px' },
 
   sidebar: {
+    position: 'sticky',
+    top: '88px',
     background: 'rgba(255,255,255,0.025)',
     border: '1px solid rgba(255,255,255,0.07)',
     borderRadius: '14px',
     padding: '20px 0',
-    overflowY: 'auto',
-    position: 'sticky',
-    top: '80px',
-    maxHeight: 'calc(100vh - 100px)',
+    overflow: 'hidden',
   },
   sidebarLabel: {
     fontSize: '10px',
@@ -682,15 +550,9 @@ const s: Record<string, React.CSSProperties> = {
     borderLeft: '3px solid transparent',
     transition: 'all 0.18s',
   },
-  sidebarNav: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-  },
 
   article: {
     minHeight: '60vh',
-    overflowX: 'hidden',
-    width: '100%',
   },
   breadcrumb: {
     display: 'flex', alignItems: 'center', gap: '8px',

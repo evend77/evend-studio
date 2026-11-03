@@ -34,7 +34,7 @@ export default function PagePolitique() {
     description: politique.contenu
       ? politique.contenu.replace(/<[^>]+>/g, '').slice(0, 160)
       : 'Consultez la politique ' + politique.titre + ' de e-Vend Studio.',
-    url:         'https://e-vend.ca/politiques/' + slug,
+    url:         'https://e-vendstudio.ca/politiques/' + slug,
   } : {});
   const [autres, setAutres] = useState<AutrePolitique[]>([]);
   const [loading, setLoading] = useState(true);

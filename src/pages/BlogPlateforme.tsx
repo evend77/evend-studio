@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../hooks/usePageSeo';
+import MenuPublic from '../components/MenuPublic';
+import BasDePage from '../components/BasDePage';
 
 const API_BASE = '/api/blogPlateforme';
 
@@ -28,9 +30,9 @@ export default function Blog() {
   const [showScrollTop, setShowScrollTop] = useState(false);
 
   usePageSeo({
-    titre: 'Blog | e-Vend.ca',
-    description: 'Découvrez nos articles, conseils et actualités pour les vendeurs et acheteurs sur e-Vend.',
-    url: 'https://e-vend.ca/blog',
+    titre: 'Blog | e-Vend Studio',
+    description: 'Découvrez nos articles, conseils et actualités pour réussir sur e-Vend Studio.',
+    url: 'https://e-vendstudio.ca/blog',
   });
 
   useEffect(() => {
@@ -115,15 +117,8 @@ export default function Blog() {
         </button>
       )}
 
-      <nav style={s.nav}>
-        <div style={s.navInner}>
-          <div style={s.navLogo} onClick={() => navigate('/')}>
-            <div style={s.logoIcon}>e</div>
-            <span style={s.logoText}>e-Vend Studio</span>
-          </div>
-          <button onClick={() => navigate(-1)} style={s.btnBack}>← Retour</button>
-        </div>
-      </nav>
+      {/* Menu du haut (géré dans Paramètres > Menu) */}
+      <MenuPublic />
 
       <div style={s.hero}>
         <div style={s.heroInner}>
@@ -193,9 +188,8 @@ export default function Blog() {
         </div>
       </main>
 
-      <footer style={s.footer}>
-        <p style={s.footerText}>© 2026 e-Vend Studio · Le marché d'ici, pour les gens d'ici 🇨🇦</p>
-      </footer>
+      {/* Bas de page (géré dans Paramètres > Menu) */}
+      <BasDePage />
     </div>
   );
 }

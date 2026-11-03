@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../hooks/usePageSeo';
+import MenuPublic from '../components/MenuPublic';
+import BasDePage from '../components/BasDePage';
 
 const API_BASE = '/api';
 
@@ -28,7 +30,7 @@ export default function FaqPlateforme() {
   usePageSeo({
     titre: 'FAQ - Foire aux questions | e-Vend Studio',
     description: 'Toutes les réponses à vos questions sur e-Vend Studio : inscription, boutiques, paiements, abonnements et support.',
-    url: 'https://e-vend.ca/faq',
+    url: 'https://e-vendstudio.ca/faq',
   });
 
   useEffect(() => {
@@ -150,18 +152,8 @@ export default function FaqPlateforme() {
         </button>
       )}
 
-      {/* Navigation */}
-      <nav style={s.nav}>
-        <div style={s.navInner}>
-          <div style={s.navLogo} onClick={() => navigate('/')}>
-            <div style={s.logoIcon}>e</div>
-            <span style={s.logoText}>e-Vend Studio</span>
-          </div>
-          <button onClick={() => navigate('/')} style={s.btnBack}>
-            ← Retour
-          </button>
-        </div>
-      </nav>
+      {/* Menu du haut (géré dans Paramètres > Menu) */}
+      <MenuPublic />
 
       {/* Hero section */}
       <div style={s.hero}>
@@ -280,9 +272,8 @@ export default function FaqPlateforme() {
         </div>
       </main>
 
-      <footer style={s.footer}>
-        <p style={s.footerText}>© 2026 e-Vend Studio · Le marché d'ici, pour les gens d'ici 🇨🇦</p>
-      </footer>
+      {/* Bas de page (géré dans Paramètres > Menu) */}
+      <BasDePage />
     </div>
   );
 }
