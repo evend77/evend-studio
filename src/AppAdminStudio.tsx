@@ -91,16 +91,6 @@ interface NavItem {
   sousSections?: SousSection[];
 }
 
-// ── Données mock vendeurs (fallback si API indisponible) ────────────────────
-const VENDEURS_MOCK: Vendeur[] = [
-  { id: 1, nom: 'Marie Tremblay',    email: 'marie@example.com',  nom_boutique: 'Artisanat Marie',   plan: 'Plan Or',        statut: 'actif',      dateInscription: '2026-01-15', totalVentes: 1240.50, commission: 124.05, produits: 34, sellerId: 'VEN-2026-001', gravite: 'faible' },
-  { id: 2, nom: 'Jean Bouchard',     email: 'jean@example.com',   nom_boutique: 'Tech Jean',         plan: 'Plan Extrême',   statut: 'actif',      dateInscription: '2026-01-22', totalVentes: 5820.00, commission: 523.80, produits: 128, sellerId: 'VEN-2026-002', gravite: 'faible' },
-  { id: 3, nom: 'Sophie Lavoie',     email: 'sophie@example.com', nom_boutique: 'Mode Sophie',       plan: 'Plan Bronze',    statut: 'en_attente', dateInscription: '2026-02-10', totalVentes: 0,       commission: 0,      produits: 3, sellerId: 'VEN-2026-003', gravite: 'faible' },
-  { id: 4, nom: 'Pierre Gagnon',     email: 'pierre@example.com', nom_boutique: 'Pierre Antiquités', plan: 'Plan Fondateur', statut: 'actif',      dateInscription: '2026-02-01', totalVentes: 320.00,  commission: 32.00,  produits: 12, sellerId: 'VEN-2026-004', gravite: 'faible' },
-  { id: 5, nom: 'Alex Vendeur Test', email: 'alex@evend.ca',      nom_boutique: 'Boutique Test',     plan: 'Plan Fondateur', statut: 'actif',      dateInscription: '2026-02-20', totalVentes: 73.96,   commission: 7.40,   produits: 5, sellerId: 'VEN-2026-005', gravite: 'faible' },
-  { id: 6, nom: 'Lucie Martin',      email: 'lucie@example.com',  nom_boutique: 'Bijoux Lucie',      plan: 'Plan Argent',    statut: 'suspendu',   dateInscription: '2026-01-30', totalVentes: 890.00,  commission: 97.90,  produits: 67, sellerId: 'VEN-2026-006', gravite: 'grave' },
-];
-
 // ── Navigation ─────────────────────────────────────────────────────────────
 const NAV_ITEMS: NavItem[] = [
   { id: 'dashboard', label: 'Tableau de bord', icon: '📊' },
@@ -121,10 +111,10 @@ const NAV_ITEMS: NavItem[] = [
   },
 
   {
-    id: 'vendeurs', label: 'Vendeurs', icon: '🏪', badge: 1,
+    id: 'vendeurs', label: 'Vendeurs', icon: '🏪',
     sousSections: [
-      { id: 'vendeurs-liste',        label: 'Liste des vendeurs',      icon: '📋', badge: 0 },
-      { id: 'vendeurs-approbations', label: 'Approbations en attente', icon: '⏳', badge: 1 },
+      { id: 'vendeurs-liste',        label: 'Liste des vendeurs',      icon: '📋' },
+      { id: 'vendeurs-approbations', label: 'Approbations en attente', icon: '⏳' },
       { id: 'vendeurs-suspendus',    label: 'Comptes suspendus',       icon: '🚫' },
     ],
   },
@@ -134,7 +124,7 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'sponsors-liste',       label: 'Liste sponsors',   icon: '📋' },
       { id: 'sponsors-photos',      label: 'Photos sponsors',  icon: '🖼️' },
       { id: 'sponsors-pubs',        label: 'Pub sponsor',      icon: '📢' },
-      { id: 'sponsors-signalements', label: 'Signalements',    icon: '🚩', badge: 0 },
+      { id: 'sponsors-signalements', label: 'Signalements',    icon: '🚩' },
       { id: 'sponsors-monetisation', label: 'Monétisation',    icon: '💰' },
       { id: 'sponsors-forfait-photo', label: 'Forfait photo',  icon: '📸' },
       { id: 'sponsors-forfait-pub',  label: 'Forfait pub',     icon: '📣' },
@@ -193,18 +183,18 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    id: 'messagerie', label: 'Messagerie', icon: '✉️', badge: 5,
+    id: 'messagerie', label: 'Messagerie', icon: '✉️',
     sousSections: [
       { id: 'messagerie-notifications', label: 'Notifications',        icon: '📢' },
-      { id: 'messagerie-vendeurs',      label: 'Chat — Vendeurs',      icon: '🏪', badge: 2 },
-      { id: 'messagerie-acheteurs',     label: 'Chat — Acheteurs',     icon: '🛒', badge: 3 },
+      { id: 'messagerie-vendeurs',      label: 'Chat — Vendeurs',      icon: '🏪' },
+      { id: 'messagerie-acheteurs',     label: 'Chat — Acheteurs',     icon: '🛒' },
       { id: 'messagerie-litiges',       label: 'Surveillance Litiges', icon: '⚖️' },
     ],
   },
   {
-    id: 'signalements', label: 'Signalements', icon: '🚩', badge: 3,
+    id: 'signalements', label: 'Signalements', icon: '🚩',
     sousSections: [
-      { id: 'signalements-liste',         label: 'Tous les signalements', icon: '📋', badge: 3 },
+      { id: 'signalements-liste',         label: 'Tous les signalements', icon: '📋' },
       { id: 'signalements-en-cours',      label: 'En cours de traitement', icon: '⏳' },
       { id: 'signalements-resolus',       label: 'Résolus / Archivés',     icon: '✅' },
       { id: 'signalements-statistiques',  label: 'Statistiques',           icon: '📊' },
@@ -265,22 +255,18 @@ function SessionIndicator() {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const intervalRef = useRef<any>(null);
 
+  // La session est un cookie httpOnly (illisible en JS) : seul le serveur peut dire si elle est valide.
+  // On ne dépend donc plus de la présence d'un jeton dans localStorage.
   const verifierToken = async () => {
     const token = localStorage.getItem('token');
-    
-    if (!token) {
-      setIsConnected(false);
-      return;
-    }
-
     try {
       const response = await fetch(`${API_BASE}/auth/verify`, {
-        headers: { 'Authorization': `Bearer ${token}` }
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       });
-      
       setIsConnected(response.ok);
     } catch (error) {
-      console.error('Erreur vérification token:', error);
+      console.error('Erreur vérification session:', error);
       setIsConnected(false);
     }
   };
@@ -354,6 +340,21 @@ function DashboardStats({ naviguerVers, vendeurs }: { naviguerVers: (p: string) 
   const totalCommissions = vendeurs.reduce((s, v) => s + (Number(v.commission) || 0), 0);
   const vendActifs       = vendeurs.filter(v => v.statut === 'actif').length;
   const enAttente        = vendeurs.filter(v => v.statut === 'en_attente' || v.statut === 'pending').length;
+  const activite = [...vendeurs]
+    .filter(v => v.dateInscription)
+    .sort((a, b) => b.dateInscription.localeCompare(a.dateInscription))
+    .slice(0, 5)
+    .map(v => {
+      const suspendu = v.statut === 'suspendu';
+      const actif = v.statut === 'actif';
+      return {
+        id: v.id,
+        date: v.dateInscription,
+        texte: `${v.nom} a créé un compte${v.nom_boutique ? ` (${v.nom_boutique})` : ''} — ${actif ? 'actif' : suspendu ? 'suspendu' : "en attente d'approbation"}`,
+        couleur: actif ? THEME.success : suspendu ? THEME.danger : THEME.warning,
+        icon: actif ? '✅' : suspendu ? '🚨' : '⏳',
+      };
+    });
 
   return (
     <div style={{ padding: '28px 32px', maxWidth: '1200px' }}>
@@ -362,10 +363,10 @@ function DashboardStats({ naviguerVers, vendeurs }: { naviguerVers: (p: string) 
         <p style={{ fontSize: '13px', color: THEME.textLight, margin: 0 }}>Vue d'ensemble de la plateforme e-Vend Studio</p>
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        <KPICard icon="💰" titre="Revenus totaux"           valeur={`${totalVentes.toFixed(0)} $`}      sousTitre="Toutes boutiques" couleur={THEME.success} tendance={{ val: '+12%', positif: true }} />
-        <KPICard icon="🏦" titre="Commissions perçues"      valeur={`${totalCommissions.toFixed(0)} $`} sousTitre="Ce mois-ci"       couleur={THEME.accent}  tendance={{ val: '+8%',  positif: true }} />
+        <KPICard icon="💰" titre="Revenus totaux"           valeur={`${totalVentes.toFixed(0)} $`}      sousTitre="Toutes boutiques" couleur={THEME.success} />
+        <KPICard icon="🏦" titre="Commissions perçues"      valeur={`${totalCommissions.toFixed(0)} $`} sousTitre="Cumul"            couleur={THEME.accent} />
         <KPICard icon="🏪" titre="Vendeurs actifs"          valeur={String(vendActifs)}                  sousTitre={`${vendeurs.length} au total`} couleur={THEME.warning} />
-        <KPICard icon="⏳" titre="En attente d'approbation" valeur={String(enAttente)}                   sousTitre="Nouveaux vendeurs" couleur={THEME.danger} tendance={{ val: `${enAttente} nouveau`, positif: false }} />
+        <KPICard icon="⏳" titre="En attente d'approbation" valeur={String(enAttente)}                   sousTitre="Nouveaux vendeurs" couleur={THEME.danger} tendance={enAttente > 0 ? { val: `${enAttente} nouveau${enAttente > 1 ? 'x' : ''}`, positif: false } : undefined} />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
@@ -375,6 +376,7 @@ function DashboardStats({ naviguerVers, vendeurs }: { naviguerVers: (p: string) 
             <h3 style={{ fontSize: '13px', fontWeight: '700', margin: 0, color: THEME.accent, textTransform: 'uppercase', letterSpacing: '0.5px' }}>🏪 Vendeurs récents</h3>
             <button onClick={() => naviguerVers('vendeurs-liste')} style={{ fontSize: '12px', color: THEME.accent, background: 'none', border: 'none', cursor: 'pointer', fontWeight: '600' }}>Voir tous →</button>
           </div>
+          {vendeurs.length === 0 && <p style={{ padding: '16px 20px', margin: 0, fontSize: '12px', color: '#aaa' }}>Aucun vendeur pour le moment.</p>}
           {vendeurs.slice(0, 5).map((v, i) => (
             <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: i < 4 ? `1px solid #f5f5f5` : 'none', backgroundColor: i % 2 === 0 ? 'white' : '#fafafa' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -422,21 +424,18 @@ function DashboardStats({ naviguerVers, vendeurs }: { naviguerVers: (p: string) 
         </div>
       </div>
 
-      {/* Activité récente */}
+      {/* Dernières inscriptions (données réelles) */}
       <div style={{ backgroundColor: THEME.card, borderRadius: '12px', border: `1px solid ${THEME.border}`, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
         <div style={{ padding: '16px 20px', borderBottom: `2px solid ${THEME.accent}`, backgroundColor: '#f8fafc' }}>
-          <h3 style={{ fontSize: '13px', fontWeight: '700', margin: 0, color: THEME.accent, textTransform: 'uppercase', letterSpacing: '0.5px' }}>🕐 Activité récente</h3>
+          <h3 style={{ fontSize: '13px', fontWeight: '700', margin: 0, color: THEME.accent, textTransform: 'uppercase', letterSpacing: '0.5px' }}>🕐 Dernières inscriptions</h3>
         </div>
-        {[
-          { heure: '08:42', texte: "Sophie Lavoie a créé un nouveau compte vendeur — en attente d'approbation", couleur: THEME.warning,   icon: '⏳' },
-          { heure: '07:15', texte: 'Jean Bouchard a traité une commande de 340,00 $',                           couleur: THEME.success,   icon: '✅' },
-          { heure: '06:50', texte: 'Lucie Martin — compte suspendu pour activité suspecte',                    couleur: THEME.danger,    icon: '🚨' },
-          { heure: '06:30', texte: "Nouveau plan \"Plan Platine\" créé par l'administrateur",                  couleur: THEME.accent,    icon: '⭐' },
-          { heure: '05:55', texte: 'Marie Tremblay a mis à jour 8 produits',                                   couleur: THEME.textLight, icon: '📦' },
-        ].map((a, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 20px', borderBottom: i < 4 ? '1px solid #f8f8f8' : 'none' }}>
+        {activite.length === 0 && (
+          <p style={{ padding: '16px 20px', margin: 0, fontSize: '12px', color: '#aaa' }}>Aucune inscription pour le moment.</p>
+        )}
+        {activite.map((a, i) => (
+          <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 20px', borderBottom: i < activite.length - 1 ? '1px solid #f8f8f8' : 'none' }}>
             <span style={{ fontSize: '16px', flexShrink: 0 }}>{a.icon}</span>
-            <span style={{ fontSize: '11px', color: '#aaa', minWidth: '38px', fontWeight: '600' }}>{a.heure}</span>
+            <span style={{ fontSize: '11px', color: '#aaa', minWidth: '74px', fontWeight: '600' }}>{a.date}</span>
             <div style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: a.couleur, flexShrink: 0 }} />
             <span style={{ fontSize: '12px', color: THEME.text }}>{a.texte}</span>
           </div>
@@ -504,7 +503,7 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
   }, []);
 
   useEffect(() => {
-    fetch(`${API_BASE}/gestionnaires`)
+    fetch(`${API_BASE}/gestionnaires`, { credentials: 'include' })
       .then(res => {
         if (!res.ok) {
           throw new Error(`Erreur HTTP: ${res.status}`);
@@ -536,7 +535,8 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
       .catch(err => {
         console.error('❌ Erreur chargement vendeurs:', err);
         setLoading(false);
-        setVendeurs(VENDEURS_MOCK);
+        // Pas de fausses données en cas d'échec : liste vide, plus honnête qu'une fausse liste convaincante.
+        setVendeurs([]);
       });
   }, []);
 
@@ -549,9 +549,9 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
   useEffect(() => {
     const fetchCount = () => {
       const token = localStorage.getItem('token');
-      if (!token) return;
       fetch(`${API_BASE}/signalements/count`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       })
         .then(r => r.ok ? r.json() : null)
         .then(data => { if (data) setNbSignalementsNouveaux(data.nouveaux || 0); })
@@ -566,9 +566,9 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
   useEffect(() => {
     const fetchCountPub = () => {
       const token = localStorage.getItem('token');
-      if (!token) return;
       fetch(`/api/sponsors/admin/signalements/compte`, {
-        headers: { 'Authorization': `Bearer ${token}` },
+        credentials: 'include',
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
       })
         .then(r => r.ok ? r.json() : null)
         .then(data => { if (data) setNbSignalementsPubNouveaux(data.nouveaux || 0); })
@@ -578,6 +578,22 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
     const interval = setInterval(fetchCountPub, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // ── Cercles rouges : uniquement de vrais compteurs ────────────────────────
+  // (la Messagerie n'en a pas encore : il faudra une route serveur qui compte les messages non lus)
+  const nbEnAttente = vendeurs.filter(v => v.statut === 'en_attente' || v.statut === 'pending').length;
+  const badgeSection = (id: string): number => {
+    if (id === 'vendeurs') return nbEnAttente + nbSignalementsNouveaux;
+    if (id === 'signalements') return nbSignalementsNouveaux;
+    return 0;
+  };
+  const badgeSousSection = (id: string): number => {
+    if (id === 'vendeurs-liste') return nbSignalementsNouveaux;
+    if (id === 'vendeurs-approbations') return nbEnAttente;
+    if (id === 'sponsors-signalements') return nbSignalementsPubNouveaux;
+    if (id === 'signalements-liste') return nbSignalementsNouveaux;
+    return 0;
+  };
 
   const toggleSection = (id: string) => {
     setSectionOuverte(prev => prev === id ? null : id);
@@ -879,9 +895,9 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
                 onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = sectionActive && !item.sousSections ? THEME.sidebarActive : sectionActive ? 'rgba(45,106,159,0.15)' : 'transparent'; }}>
                 <span style={{ fontSize: '16px', flexShrink: 0 }}>{item.icon}</span>
                 <span style={{ fontSize: '13px', fontWeight: sectionActive ? '700' : '500', color: sectionActive ? 'white' : 'rgba(255,255,255,0.65)', flex: 1 }}>{item.label}</span>
-                {(item.id === 'vendeurs' ? (item.badge || 0) + nbSignalementsNouveaux : item.badge) ? (
+                {badgeSection(item.id) > 0 ? (
                   <span style={{ backgroundColor: THEME.danger, color: 'white', fontSize: '10px', fontWeight: '800', padding: '2px 6px', borderRadius: '10px', minWidth: '18px', textAlign: 'center' }}>
-                    {item.id === 'vendeurs' ? (item.badge || 0) + nbSignalementsNouveaux : item.badge}
+                    {badgeSection(item.id)}
                   </span>
                 ) : null}
                 {item.sousSections && (
@@ -908,9 +924,9 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = actif ? 'rgba(45,106,159,0.4)' : 'transparent'; }}>
                         <span style={{ fontSize: '13px', opacity: actif ? 1 : 0.55 }}>{ss.icon}</span>
                         <span style={{ fontSize: '12px', fontWeight: actif ? '700' : '400', color: actif ? 'white' : 'rgba(255,255,255,0.5)', flex: 1 }}>{ss.label}</span>
-                        {(ss.id === 'vendeurs-liste' ? nbSignalementsNouveaux : ss.id === 'sponsors-signalements' ? nbSignalementsPubNouveaux : ss.badge) ? (
+                        {badgeSousSection(ss.id) > 0 ? (
                           <span style={{ backgroundColor: (ss.id === 'vendeurs-liste' || ss.id === 'sponsors-signalements') ? '#dc2626' : THEME.danger, color: 'white', fontSize: '9px', fontWeight: '800', padding: '1px 5px', borderRadius: '8px', minWidth: '16px', textAlign: 'center' }}>
-                            {ss.id === 'vendeurs-liste' ? `🚩${nbSignalementsNouveaux}` : ss.id === 'sponsors-signalements' ? nbSignalementsPubNouveaux : ss.badge}
+                            {ss.id === 'vendeurs-liste' ? `🚩${badgeSousSection(ss.id)}` : badgeSousSection(ss.id)}
                           </span>
                         ) : null}
                         {actif && <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#60a5fa', flexShrink: 0 }} />}
