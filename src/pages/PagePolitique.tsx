@@ -5,6 +5,8 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../hooks/usePageSeo';
+import MenuPublic from '../components/MenuPublic';
+import BasDePage from '../components/BasDePage';
 
 const API_BASE = '/api';
 
@@ -263,18 +265,8 @@ export default function PagePolitique() {
         }
       `}</style>
 
-      {/* ── Barre de navigation ── */}
-      <nav style={s.nav}>
-        <div style={s.navInner}>
-          <div style={s.navLogo} onClick={() => navigate('/')}>
-            <div style={s.logoIcon}>e</div>
-            <span style={s.logoText}>e-Vend Studio</span>
-          </div>
-          <button className="btn-back" onClick={() => navigate('/')} style={s.btnBack}>
-            ← Retour
-          </button>
-        </div>
-      </nav>
+      {/* ── Menu du haut (géré dans Paramètres > Menu) ── */}
+      <MenuPublic />
 
       {/* ── Barre mobile "menu politiques" ── */}
       <div
@@ -425,10 +417,8 @@ export default function PagePolitique() {
         </div>
       </main>
 
-      {/* ── Footer ── */}
-      <footer style={s.footer}>
-        <p style={s.footerText}>© 2026 e-Vend Studio · Le marché d'ici, pour les gens d'ici 🇨🇦</p>
-      </footer>
+      {/* ── Bas de page (géré dans Paramètres > Menu) ── */}
+      <BasDePage />
     </div>
   );
 }
@@ -484,7 +474,7 @@ const s: Record<string, React.CSSProperties> = {
   // Barre mobile
   mobileMenuBar: {
     position: 'sticky',
-    top: '60px',
+    top: '68px',
     zIndex: 40,
     background: 'rgba(6,13,31,0.97)',
     backdropFilter: 'blur(10px)',
@@ -570,7 +560,7 @@ const s: Record<string, React.CSSProperties> = {
   // Sidebar desktop
   sidebar: {
     position: 'sticky',
-    top: '80px',
+    top: '88px',
     background: 'rgba(255,255,255,0.025)',
     border: '1px solid rgba(255,255,255,0.07)',
     borderRadius: '14px',

@@ -1,10 +1,10 @@
 // src/pages/PageAccueil.tsx
 // e-Vend Studio — Plateforme de création de boutiques en ligne simplifiée
 
-import { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
 import { TEMPLATES as TOUS_LES_TEMPLATES, PHOTOS as PHOTOS_TEMPLATES, GROUPES as GROUPES_TEMPLATES } from './PageTemplates';
-import ModalLoginSponsor from '../components/ModalLoginSponsor';
+import MenuPublic from '../components/MenuPublic';
+import BasDePage from '../components/BasDePage';
 
 // Photothèque libre de droits (Unsplash + Pexels via CDN)
 const PHOTOS = {
@@ -23,33 +23,11 @@ interface Template {
 }
 
 export default function PageAccueil() {
-  const navigate = useNavigate();
-  const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
-  const [modalSponsorOuvert, setModalSponsorOuvert] = useState(false);
   const heroRef = useRef<HTMLDivElement>(null);
 
   // ✅ OUVRE LOGIN
   const ouvrirLogin = () => {
     window.open('/login', '_blank', 'noopener,noreferrer');
-  };
-
-  // ✅ OUVRE BLOG
-  const ouvrirBlog = () => {
-    window.open('/blog', '_blank', 'noopener,noreferrer');
-  };
-
-  const ouvrirFaq = () => {
-    window.open('/faq', '_blank', 'noopener,noreferrer');
-  };
-
-  const ouvrirDocuments = () => {
-    window.open('/documents', '_blank', 'noopener,noreferrer');
-  };
-
-  // ✅ GESTION LOGIN SPONSOR
-  const handleSponsorLogin = (token: string, sponsor: any) => {
-    console.log('✅ Sponsor connecté:', sponsor);
-    window.location.href = '/sponsor-dashboard';
   };
 
   // Sélection vedette
@@ -178,63 +156,8 @@ export default function PageAccueil() {
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
       `}</style>
 
-      {/* ═══════════════ SLIDE 1: NAVIGATION ═══════════════ */}
-      <nav style={s.nav}>
-        <div style={s.navInner}>
-          <div style={s.logo} onClick={() => navigate('/')}>
-            <span style={s.logoMark}>e</span>
-            <span style={s.logoMarkUnion}>⨀</span>
-            <span style={s.logoText}>VEND STUDIO</span>
-          </div>
-
-          <div className="nav-desktop" style={s.navLinks}>
-            <a href="#templates" style={s.navLink} onClick={(e) => { e.preventDefault(); document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }); }}>Templates</a>
-            <a href="#features" style={s.navLink} onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); }}>Fonctionnalités</a>
-            <button onClick={ouvrirBlog} style={{ ...s.navLink, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px' }}>Blog</button>
-            <button onClick={ouvrirFaq} style={{ ...s.navLink, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px' }}>FAQ</button>
-            <button onClick={ouvrirDocuments} style={{ ...s.navLink, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: '14px' }}>Documents</button>
-          </div>
-
-          <div className="nav-desktop" style={s.navButtons}>
-            {/* 👇 NOUVEAU BOUTON COMMANDITAIRE */}
-            <button 
-              style={s.btnSponsor} 
-              onClick={() => setModalSponsorOuvert(true)}
-              onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.05)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-            >
-              ⭐ Commanditaire
-            </button>
-            <button style={s.btnPrimary} onClick={ouvrirLogin}>Mon compte →</button>
-          </div>
-
-          <button
-            className="hamburger"
-            onClick={() => setMenuMobileOuvert(!menuMobileOuvert)}
-            style={{ display: 'none', background: 'none', border: 'none', fontSize: '28px', color: '#fff', cursor: 'pointer' }}
-          >
-            {menuMobileOuvert ? '✕' : '☰'}
-          </button>
-        </div>
-
-        {menuMobileOuvert && (
-          <div style={s.mobileMenu}>
-            <a href="#templates" style={s.mobileLink} onClick={(e) => { e.preventDefault(); document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }); setMenuMobileOuvert(false); }}>Templates</a>
-            <a href="#features" style={s.mobileLink} onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); setMenuMobileOuvert(false); }}>Fonctionnalités</a>
-            <button onClick={() => { ouvrirBlog(); setMenuMobileOuvert(false); }} style={{ ...s.mobileLink, background: 'none', border: 'none', textAlign: 'left', fontSize: '16px', cursor: 'pointer' }}>Blog</button>
-            <button onClick={() => { ouvrirFaq(); setMenuMobileOuvert(false); }} style={{ ...s.mobileLink, background: 'none', border: 'none', textAlign: 'left', fontSize: '16px', cursor: 'pointer' }}>FAQ</button>
-            <button onClick={() => { ouvrirDocuments(); setMenuMobileOuvert(false); }} style={{ ...s.mobileLink, background: 'none', border: 'none', textAlign: 'left', fontSize: '16px', cursor: 'pointer' }}>Documents</button>
-            {/* 👇 BOUTON COMMANDITAIRE DANS MENU MOBILE */}
-            <button 
-              onClick={() => { setModalSponsorOuvert(true); setMenuMobileOuvert(false); }} 
-              style={{ ...s.mobileLink, background: 'linear-gradient(135deg, #f59e0b, #d97706)', border: 'none', borderRadius: '8px', textAlign: 'center', fontSize: '16px', cursor: 'pointer', padding: '10px', color: '#000', fontWeight: 700 }}
-            >
-              ⭐ Commanditaire
-            </button>
-            <button style={s.btnPrimaryMobile} onClick={ouvrirLogin}>Mon compte →</button>
-          </div>
-        )}
-      </nav>
+      {/* ═══════════════ SLIDE 1: MENU DU HAUT (géré dans Paramètres > Menu) ═══════════════ */}
+      <MenuPublic reserverEspace={false} />
 
       {/* ═══════════════ SLIDE 2: HERO ═══════════════ */}
       <section ref={heroRef} className="hero-section" style={s.hero}>
@@ -469,36 +392,8 @@ export default function PageAccueil() {
         </div>
       </section>
 
-      {/* ═══════════════ FOOTER ═══════════════ */}
-      <footer style={s.footer}>
-        <div style={s.footerInner}>
-          <div style={s.footerLogo}>
-            <span style={s.footerLogoMark}>e</span>
-            <span style={s.footerLogoUnion}>⨀</span>
-            <span>VEND STUDIO</span>
-          </div>
-          <div style={s.footerLinks}>
-            <a href="#templates" onClick={(e) => { e.preventDefault(); document.getElementById('templates')?.scrollIntoView({ behavior: 'smooth' }); }}>Templates</a>
-            <a href="#features" onClick={(e) => { e.preventDefault(); document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' }); }}>Fonctionnalités</a>
-            <button onClick={ouvrirBlog} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>Blog</button>
-            <button onClick={ouvrirFaq} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>FAQ</button>
-            <button onClick={ouvrirDocuments} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>Documents</button>
-            <button onClick={() => window.open('/contact', '_blank', 'noopener,noreferrer')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>Contact</button>
-            <button onClick={() => window.open('/politiques/conditions-utilisation', '_blank', 'noopener,noreferrer')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '14px', fontFamily: 'inherit' }}>Nos Politiques</button>
-          </div>
-          <div style={s.socialIcons}>
-            <span>📘</span> <span>📷</span> <span>🐦</span>
-          </div>
-          <p style={s.footerCopy}>© 2026 e-Vend Studio — La solution de boutique en ligne 100% canadienne</p>
-        </div>
-      </footer>
-
-      {/* ═══════════════ MODAL LOGIN SPONSOR ═══════════════ */}
-      <ModalLoginSponsor
-        isOpen={modalSponsorOuvert}
-        onClose={() => setModalSponsorOuvert(false)}
-        onLoginSuccess={handleSponsorLogin}
-      />
+      {/* ═══════════════ BAS DE PAGE (géré dans Paramètres > Menu) ═══════════════ */}
+      <BasDePage />
     </div>
   );
 }

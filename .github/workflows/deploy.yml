@@ -40,13 +40,32 @@ jobs:
             set -e
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
+            IMAGE="ghcr.io/evend77/evend-studio:latest"
+            IMAGE_PREVIOUS="ghcr.io/evend77/evend-studio:previous"
+
+            # 🆕 FILET DE SÉCURITÉ — on sauvegarde l'image ACTUELLEMENT EN
+            # PRODUCTION sous un tag ":previous" avant d'y toucher. Sans ça,
+            # un déploiement qui plante supprimait l'ancien conteneur (qui
+            # fonctionnait) puis échouait à démarrer le nouveau — résultat :
+            # plus AUCUN conteneur en vie, et aucun moyen de revenir en
+            # arrière sans intervention manuelle sur le serveur. Avec ce
+            # tag, le bloc de rollback plus bas peut restaurer la version
+            # qui tournait juste avant, automatiquement.
+            if docker inspect studio-app > /dev/null 2>&1; then
+              RUNNING_IMAGE_ID=$(docker inspect -f '{{.Image}}' studio-app)
+              docker tag "$RUNNING_IMAGE_ID" "$IMAGE_PREVIOUS"
+              echo "📌 Image actuelle sauvegardée comme filet de secours : $IMAGE_PREVIOUS"
+            else
+              echo "ℹ️ Aucun conteneur studio-app existant — pas de filet de secours pour ce déploiement."
+            fi
+
             # 🔒 On vérifie que le pull réussit VRAIMENT (extraction complète
             # des couches) avant de toucher au conteneur actuel qui fonctionne.
             # Avant ce correctif, un échec silencieux du pull (bug connu de
             # containerd sur node_modules/.bin) faisait quand même arrêter et
             # supprimer l'ancien conteneur, puis relancer avec l'ancienne
             # image en cache — un déploiement "réussi" qui ne déployait rien.
-            if ! docker pull ghcr.io/evend77/evend-studio:latest; then
+            if ! docker pull "$IMAGE"; then
               echo "❌ Échec du docker pull — ancien conteneur laissé intact, déploiement annulé."
               exit 1
             fi
@@ -58,16 +77,54 @@ jobs:
             # si Docker redémarre (ex: après un `systemctl restart docker`),
             # au lieu de rester arrêté silencieusement comme avant.
             docker run -d --name studio-app --network host --restart unless-stopped \
-              --env-file ~/evend-studio/.env ghcr.io/evend77/evend-studio:latest
+              --env-file ~/evend-studio/.env "$IMAGE"
 
-            # Vérifie que le nouveau conteneur tourne vraiment après quelques
-            # secondes, sinon on le signale clairement dans les logs du run.
-            sleep 5
-            if [ "$(docker inspect -f '{{.State.Running}}' studio-app 2>/dev/null)" != "true" ]; then
-              echo "❌ Le conteneur studio-app ne tourne pas après le déploiement !"
+            # ── Vérification de santé réelle ─────────────────────────────
+            # Un conteneur qui crash-boucle est brièvement "Running" entre deux
+            # redémarrages automatiques : un simple instantané peut tomber pile
+            # sur ce flash et déclarer un faux succès. On vérifie donc DEUX
+            # choses, sur plusieurs essais : que Docker n'a pas eu à redémarrer
+            # le conteneur (RestartCount), et que l'app répond vraiment en HTTP.
+            # Le port est lu dans le .env de Studio (5000 par défaut, comme server.js),
+            # car Studio et e-Vend tournent tous deux en --network host.
+            # Toute réponse HTTP sous 500 prouve que l'app est démarrée — y compris
+            # un 401 de la protection par mot de passe du site (SITE_AUTH_*).
+            APP_PORT=$(grep -E '^PORT=' ~/evend-studio/.env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"'"'" || true)
+            APP_PORT=${APP_PORT:-5000}
+            echo "⏳ Vérification de la santé du conteneur sur le port $APP_PORT (jusqu'à 30 secondes)..."
+            SUCCES=false
+            for i in 1 2 3 4 5 6 7 8 9 10; do
+              sleep 3
+              RESTARTS=$(docker inspect -f '{{.RestartCount}}' studio-app 2>/dev/null || echo "999")
+              if [ "$RESTARTS" != "0" ]; then
+                echo "❌ Le conteneur a redémarré $RESTARTS fois — il plante en boucle."
+                docker logs studio-app --tail 50 || true
+                break
+              fi
+              CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://localhost:$APP_PORT/" || true)
+              if [ -n "$CODE" ] && [ "$CODE" != "000" ] && [ "${CODE#5}" = "$CODE" ]; then
+                echo "✅ L'app répond en HTTP (code $CODE, essai $i/10)."
+                SUCCES=true
+                break
+              fi
+              echo "… essai $i/10 : pas encore de réponse HTTP (code ${CODE:-aucun}), on réessaie."
+            done
+
+            if [ "$SUCCES" != "true" ]; then
+              echo "❌ studio-app ne démarre pas correctement avec la nouvelle image."
               docker logs studio-app --tail 50 || true
+              if docker image inspect "$IMAGE_PREVIOUS" > /dev/null 2>&1; then
+                echo "⏪ Restauration automatique de studio-app avec la version précédente..."
+                docker stop studio-app || true
+                docker rm studio-app || true
+                docker run -d --name studio-app --network host --restart unless-stopped \
+                  --env-file ~/evend-studio/.env "$IMAGE_PREVIOUS"
+                echo "✅ studio-app restauré avec l'ancienne image — site de nouveau en ligne. Le nouveau code n'a PAS été déployé, corrige le problème et repousse."
+              else
+                echo "⚠️ Aucune version précédente disponible pour restaurer automatiquement — intervention manuelle requise sur le serveur."
+              fi
               exit 1
             fi
 
-            echo "✅ studio-app démarré et actif."
+            echo "✅ studio-app démarré, stable, et répond aux requêtes."
             docker image prune -f
