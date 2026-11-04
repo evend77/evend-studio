@@ -74,6 +74,11 @@ app.use('/api/webhooks/paiements-connect', require('./routes/webhooks_paiements_
 // ✅ Webhook Dynadot (NOUVEAU)
 app.post('/api/webhooks/dynadot', express.raw({ type: 'application/json' }));
 
+// ✅ Webhook Amazon SES (via SNS) — rebonds permanents et plaintes : désactive
+// automatiquement l'abonné de l'infolettre. Monté AVANT la protection par mot de passe
+// ci-dessous : Amazon ne peut pas s'authentifier (il est protégé par un code secret dans l'URL).
+app.use('/api/webhooks/ses', require('./routes/webhooksSes'));
+
 // 🔒 Protection par mot de passe (temporaire, le temps du développement)
 // Les webhooks Stripe/Dynadot ci-dessus restent exclus (Stripe n'envoie pas d'auth)
 const AUTH_USER = process.env.SITE_AUTH_USER;
