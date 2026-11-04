@@ -1,24 +1,25 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const multerS3 = require('multer-s3');
-const { S3Client } = require('@aws-sdk/client-s3');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const path = require('path');
 const fs = require('fs');
 const { authenticateToken } = require('../middleware/auth');
 const db = require('../db'); // Pour la base de donnees
 require('dotenv').config();
 
-// ── Client S3 ────────────────────────────────────────────────────────────────
+// ── Client R2 ────────────────────────────────────────────────────────────────
 const s3Client = new S3Client({
-    region: process.env.AWS_S3_REGION || 'us-east-1',
+    region: 'auto',
+    endpoint: process.env.R2_ENDPOINT,
     credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+        secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
     },
 });
 
-const S3_BUCKET = process.env.AWS_S3_BUCKET || 'evend-messagerie-photo';
+const BUCKET_PROFILS = process.env.R2_BUCKET_PROFILES; // public : profils.e-vend.ca (logos, bannières)
+const BUCKET_CHAT    = process.env.R2_BUCKET_CHAT;     // privé : messagerie
 
 // ── Stockage blog (local, inchangé) ─────────────────────────────────────────
 const storageBlog = multer.diskStorage({
@@ -48,20 +49,9 @@ const uploadBlog = multer({
     },
 });
 
-// ── Stockage messagerie → AWS S3 ─────────────────────────────────────────────
+// ── Stockage messagerie / logo / bannière → R2 (reçu en mémoire puis envoyé) ──
 const uploadMessagerie = multer({
-    storage: multerS3({
-        s3: s3Client,
-        bucket: S3_BUCKET,
-        key: function (req, file, cb) {
-            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-            const ext = path.extname(file.originalname).toLowerCase();
-            // Déterminer le dossier selon le type
-            const folder = req.body.type === 'banner' ? 'banners' : (req.body.type === 'logo' ? 'logos' : 'messagerie');
-            cb(null, `${folder}/msg-${uniqueSuffix}${ext}`);
-        },
-        contentType: multerS3.AUTO_CONTENT_TYPE,
-    }),
+    storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 }, // 10MB max
     fileFilter: function (req, file, cb) {
         const allowed = /jpeg|jpg|png|gif|webp|pdf/;
@@ -83,13 +73,35 @@ router.post('/blog-image', authenticateToken, uploadBlog.single('image'), (req, 
     }
 });
 
-// ── POST /api/upload — messagerie (images + PDF → S3) ────────────────────────
+// ── POST /api/upload — messagerie (images + PDF → R2) ────────────────────────
 router.post('/', authenticateToken, uploadMessagerie.single('file'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Aucun fichier' });
 
-        const fileUrl = req.file.location;
         const { type } = req.body;
+
+        // Logo / bannière → bucket public (adresse https://profils.e-vend.ca/...).
+        // Messagerie → bucket privé : on garde la clé seule, comme e-Vend (pas d'adresse publique).
+        const estPublic = (type === 'banner' || type === 'logo');
+        const bucket    = estPublic ? BUCKET_PROFILS : BUCKET_CHAT;
+        if (!bucket) {
+            console.error('❌ Bucket R2 non défini dans .env (R2_BUCKET_PROFILES / R2_BUCKET_CHAT)');
+            return res.status(500).json({ error: 'Configuration R2 manquante' });
+        }
+
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext    = path.extname(req.file.originalname).toLowerCase();
+        const folder = type === 'banner' ? 'banners' : (type === 'logo' ? 'logos' : 'messagerie');
+        const cle    = `studio/${folder}/msg-${uniqueSuffix}${ext}`;
+
+        await s3Client.send(new PutObjectCommand({
+            Bucket:      bucket,
+            Key:         cle,
+            Body:        req.file.buffer,
+            ContentType: req.file.mimetype,
+        }));
+
+        const fileUrl = estPublic ? `https://profils.e-vend.ca/${cle}` : cle;
 
         // 🔒 CORRIGÉ : le vendeur_id venait du corps de la requête, jamais
         // vérifié contre l'utilisateur réellement connecté — n'importe quel

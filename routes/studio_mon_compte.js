@@ -3,8 +3,8 @@
 // GET  /api/studio/mon-compte/:gestionnaireId         — charger le profil complet
 // PUT  /api/studio/mon-compte/:gestionnaireId         — sauvegarder le profil
 // PUT  /api/studio/mon-compte/:gestionnaireId/mot-de-passe — changer le mot de passe
-// POST /api/studio/mon-compte/:gestionnaireId/logo    — uploader le logo vers S3
-// POST /api/studio/mon-compte/:gestionnaireId/banniere — uploader la bannière vers S3
+// POST /api/studio/mon-compte/:gestionnaireId/logo    — uploader le logo vers R2
+// POST /api/studio/mon-compte/:gestionnaireId/banniere — uploader la bannière vers R2
 
 const express  = require('express');
 const router   = express.Router({ mergeParams: true });
@@ -25,15 +25,16 @@ try {
   console.warn('⚠️ services/email.js introuvable — courriel de vérification non envoyé:', e.message);
 }
 
-// ─── S3 ───────────────────────────────────────────────────────────────────────
+// ─── Client R2 ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
-const BUCKET = process.env.AWS_S3_BUCKET;
+const BUCKET = process.env.R2_BUCKET_PROFILES; // profils.e-vend.ca
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -55,8 +56,8 @@ function verifierProprietaire(req, res) {
   return true;
 }
 
-// ─── Helper upload S3 ─────────────────────────────────────────────────────────
-async function uploadVersS3(file, gestionnaireId, type) {
+// ─── Helper upload R2 ─────────────────────────────────────────────────────────
+async function uploadVersR2(file, gestionnaireId, type) {
   // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
   // fileFilter ne regarde que le Content-Type déclaré par le client.
   const verif = await verifierTypeFichier(file.buffer, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
@@ -76,7 +77,7 @@ async function uploadVersS3(file, gestionnaireId, type) {
     ContentType: verif.mimeDetecte,
   }));
   return {
-    url:    `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`,
+    url:    `https://profils.e-vend.ca/${s3Key}`,
     s3Key,
   };
 }
@@ -84,12 +85,12 @@ async function uploadVersS3(file, gestionnaireId, type) {
 async function supprimerS3(urlActuelle) {
   if (!urlActuelle || !BUCKET) return;
   try {
-    // Extraire la clé S3 depuis l'URL
+    // Extraire la clé R2 depuis l'URL
     const url    = new URL(urlActuelle);
     const s3Key  = url.pathname.slice(1); // retire le slash initial
     await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: s3Key }));
   } catch (e) {
-    console.warn('⚠️ Impossible de supprimer l\'ancienne image S3 :', e.message);
+    console.warn('⚠️ Impossible de supprimer l\'ancienne image R2 :', e.message);
   }
 }
 
@@ -306,7 +307,7 @@ router.put('/email', authenticateToken, async (req, res) => {
 
 // =============================================================================
 // POST /api/studio/mon-compte/:gestionnaireId/logo
-// Uploader le logo vers S3
+// Uploader le logo vers R2
 // =============================================================================
 router.post('/logo', authenticateToken, (req, res) => {
   if (!verifierProprietaire(req, res)) return;
@@ -317,11 +318,11 @@ router.post('/logo', authenticateToken, (req, res) => {
 
     const { gestionnaireId } = req.params;
     try {
-      // Supprimer l'ancien logo S3
+      // Supprimer l'ancien logo R2
       const ancien = await pool.query(`SELECT logo_url FROM gestionnaires WHERE id = $1`, [gestionnaireId]);
       if (ancien.rows[0]?.logo_url) await supprimerS3(ancien.rows[0].logo_url);
 
-      const { url } = await uploadVersS3(req.file, gestionnaireId, 'logo');
+      const { url } = await uploadVersR2(req.file, gestionnaireId, 'logo');
       await pool.query(`UPDATE gestionnaires SET logo_url = $1, updated_at = NOW() WHERE id = $2`, [url, gestionnaireId]);
 
       console.log(`🖼️  Logo gestionnaire ${gestionnaireId} uploadé : ${url}`);
@@ -335,7 +336,7 @@ router.post('/logo', authenticateToken, (req, res) => {
 
 // =============================================================================
 // POST /api/studio/mon-compte/:gestionnaireId/banniere
-// Uploader la bannière vers S3
+// Uploader la bannière vers R2
 // =============================================================================
 router.post('/banniere', authenticateToken, (req, res) => {
   if (!verifierProprietaire(req, res)) return;
@@ -346,11 +347,11 @@ router.post('/banniere', authenticateToken, (req, res) => {
 
     const { gestionnaireId } = req.params;
     try {
-      // Supprimer l'ancienne bannière S3
+      // Supprimer l'ancienne bannière R2
       const ancien = await pool.query(`SELECT banniere_url FROM gestionnaires WHERE id = $1`, [gestionnaireId]);
       if (ancien.rows[0]?.banniere_url) await supprimerS3(ancien.rows[0].banniere_url);
 
-      const { url } = await uploadVersS3(req.file, gestionnaireId, 'banniere');
+      const { url } = await uploadVersR2(req.file, gestionnaireId, 'banniere');
       await pool.query(`UPDATE gestionnaires SET banniere_url = $1, updated_at = NOW() WHERE id = $2`, [url, gestionnaireId]);
 
       console.log(`🖼️  Bannière gestionnaire ${gestionnaireId} uploadée : ${url}`);

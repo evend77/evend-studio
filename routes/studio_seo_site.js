@@ -14,15 +14,16 @@ const path = require('path');
 const { authenticateToken } = require('../middleware/auth');
 const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
-// ─── S3 ───────────────────────────────────────────────────────────────────────
+// ─── Client R2 ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
-const BUCKET = process.env.AWS_S3_BUCKET;
+const BUCKET = process.env.R2_BUCKET_PRODUITS; // media.e-vend.ca
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -95,7 +96,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
 // =============================================================================
 // POST /api/studio/seo-site/:vendeurId
-// Sauvegarder la config SEO + upload image OG vers S3
+// Sauvegarder la config SEO + upload image OG vers R2
 // FormData : { titre_accueil, meta_description, og_image?, supprimer_image? }
 // =============================================================================
 router.post('/', authenticateToken, (req, res) => {
@@ -108,7 +109,7 @@ router.post('/', authenticateToken, (req, res) => {
     const { titre_accueil, meta_description, supprimer_image } = req.body;
 
     try {
-      // Config actuelle (pour supprimer l'ancienne image S3)
+      // Config actuelle (pour supprimer l'ancienne image R2)
       const current     = await pool.query(
         `SELECT og_image_key FROM seo_site_gestionnaire WHERE gestionnaire_id = $1`,
         [gestionnaireId]
@@ -127,12 +128,12 @@ router.post('/', authenticateToken, (req, res) => {
           return res.status(400).json({ error: 'Le fichier envoyé n\'est pas une image valide.' });
         }
 
-        // Supprimer l'ancienne image S3
+        // Supprimer l'ancienne image R2
         if (ancienneKey && BUCKET) {
           try {
             await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: ancienneKey }));
           } catch (e) {
-            console.warn('⚠️ Impossible de supprimer l\'ancienne image S3 :', e.message);
+            console.warn('⚠️ Impossible de supprimer l\'ancienne image R2 :', e.message);
           }
         }
         // Upload nouvelle image
@@ -144,7 +145,7 @@ router.post('/', authenticateToken, (req, res) => {
           Body:        req.file.buffer,
           ContentType: verif.mimeDetecte,
         }));
-        og_image_url = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`;
+        og_image_url = `https://media.e-vend.ca/${s3Key}`;
         og_image_key = s3Key;
         console.log(`🖼️  Image OG gestionnaire ${gestionnaireId} uploadée : ${og_image_url}`);
 
@@ -153,7 +154,7 @@ router.post('/', authenticateToken, (req, res) => {
           try {
             await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: ancienneKey }));
           } catch (e) {
-            console.warn('⚠️ Impossible de supprimer l\'image S3 :', e.message);
+            console.warn('⚠️ Impossible de supprimer l\'image R2 :', e.message);
           }
         }
         og_image_url = '';

@@ -9,19 +9,21 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 
-// ── AWS S3 CONFIGURATION ──────────────────────────────────────
+// ── CLOUDFLARE R2 ─────────────────────────────────────────────
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
 
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_SPONSOR || 'evend-studio-sponsors-2026-296886269853-us-east-1-an';
+const BUCKET_NAME = process.env.R2_BUCKET_SPONSORS; // photos-sponsors-e-vend (sponsors.e-vend.ca)
+const URL_PUBLIQUE = 'https://sponsors.e-vend.ca/';
 
 // ── MULTER ──────────────────────────────────────────────────────
 const storage = multer.memoryStorage();
@@ -40,7 +42,7 @@ const upload = multer({
 });
 
 // ── UTILITAIRES ─────────────────────────────────────────────────
-async function uploadToS3(file, folder = 'sponsors') {
+async function uploadToR2(file, folder = 'sponsors') {
   // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
   // fileFilter ne regarde que le Content-Type déclaré par le client,
   // falsifiable. Ces photos sont affichées publiquement sur les sites.
@@ -52,7 +54,7 @@ async function uploadToS3(file, folder = 'sponsors') {
     throw err;
   }
 
-  const key = `${folder}/${uuidv4()}-${file.originalname}`;
+  const key = `studio/${folder}/${uuidv4()}-${file.originalname}`;
   const command = new PutObjectCommand({
     Bucket: BUCKET_NAME,
     Key: key,
@@ -60,12 +62,12 @@ async function uploadToS3(file, folder = 'sponsors') {
     ContentType: verif.mimeDetecte,
   });
   await s3Client.send(command);
-  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+  return `${URL_PUBLIQUE}${key}`;
 }
 
-async function deleteFromS3(url) {
+async function deleteFromR2(url) {
   if (!url) return;
-  const baseUrl = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/`;
+  const baseUrl = URL_PUBLIQUE;
   if (!url.startsWith(baseUrl)) return;
   const key = url.replace(baseUrl, '');
   const command = new DeleteObjectCommand({
@@ -282,7 +284,7 @@ router.post('/', authenticateToken, isAdmin, upload.single('image'), async (req,
 
     let url_image = null;
     if (req.file) {
-      url_image = await uploadToS3(req.file, 'sponsors');
+      url_image = await uploadToR2(req.file, 'sponsors');
     } else if (url_original) {
       url_image = url_original;
     } else {
@@ -320,8 +322,8 @@ router.put('/:id', authenticateToken, isAdmin, upload.single('image'), async (re
 
     let url_image = existing.rows[0].url_image;
     if (req.file) {
-      await deleteFromS3(url_image);
-      url_image = await uploadToS3(req.file, 'sponsors');
+      await deleteFromR2(url_image);
+      url_image = await uploadToR2(req.file, 'sponsors');
     } else if (url_original) {
       url_image = url_original;
     }
@@ -372,7 +374,7 @@ router.delete('/:id', authenticateToken, isAdmin, async (req, res) => {
       return res.status(404).json({ error: 'Photo non trouvée' });
     }
 
-    await deleteFromS3(existing.rows[0].url_image);
+    await deleteFromR2(existing.rows[0].url_image);
     await pool.query('DELETE FROM sponsor_photos WHERE id = $1', [id]);
 
     res.json({
@@ -428,7 +430,7 @@ router.post('/sponsor/upload', authenticateToken, isCommanditaire, upload.single
       });
     }
 
-    const url_image = await uploadToS3(req.file, `sponsors/${sponsor_id}`);
+    const url_image = await uploadToR2(req.file, `sponsors/${sponsor_id}`);
 
     const result = await pool.query(
       `INSERT INTO sponsor_photos 
@@ -550,7 +552,7 @@ router.delete('/sponsor/photos/:id', authenticateToken, isCommanditaire, async (
       return res.status(404).json({ error: 'Photo non trouvée' });
     }
 
-    await deleteFromS3(existing.rows[0].url_image);
+    await deleteFromR2(existing.rows[0].url_image);
     await pool.query('DELETE FROM sponsor_photos WHERE id = $1', [id]);
 
     res.json({

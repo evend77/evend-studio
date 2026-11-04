@@ -3,7 +3,7 @@
 // GET  /api/studio/page-404/:gestionnaireId/public   — lecture publique (sans auth) appelée par le site du vendeur
 // GET  /api/studio/page-404/:vendeurId          — lecture pour le dashboard gestionnaire (auth requise)
 // PUT  /api/studio/page-404/:vendeurId          — sauvegarder la config (auth requise)
-// POST /api/studio/page-404/:gestionnaireId/image    — uploader une image vers S3 (auth requise)
+// POST /api/studio/page-404/:gestionnaireId/image    — uploader une image vers R2 (auth requise)
 
 const express = require('express');
 const router  = express.Router({ mergeParams: true });
@@ -26,14 +26,15 @@ const DEFAUTS_PAGE404 = {
   image_url:     '',
 };
 
-// ─── S3 ───────────────────────────────────────────────────────────────────────
-const BUCKET = process.env.AWS_S3_BUCKET;
+// ─── Client R2 ────────────────────────────────────────────────────────────────
+const BUCKET = process.env.R2_BUCKET_PRODUITS; // media.e-vend.ca
 
 const s3 = new S3Client({
-  region: 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
 
@@ -191,7 +192,7 @@ router.put('/', authenticateToken, async (req, res) => {
 
 // =============================================================================
 // POST /api/studio/page-404/:gestionnaireId/image
-// Upload image vers S3 — retourne { image_url }
+// Upload image vers R2 — retourne { image_url }
 // =============================================================================
 router.post('/image', authenticateToken, (req, res) => {
   if (!verifierProprietaire(req, res)) return;
@@ -231,13 +232,13 @@ router.post('/image', authenticateToken, (req, res) => {
         ContentType: verif.mimeDetecte,
       }));
 
-      const imageUrl = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${s3Key}`;
+      const imageUrl = `https://media.e-vend.ca/${s3Key}`;
       console.log(`🖼️  Image page 404 gestionnaire ${gestionnaireId} uploadée : ${imageUrl}`);
 
       res.json({ success: true, image_url: imageUrl });
 
     } catch (s3err) {
-      console.error('❌ Erreur S3 upload page 404 studio :', s3err.message);
+      console.error('❌ Erreur R2 upload page 404 studio :', s3err.message);
       res.status(500).json({ error: s3err.message });
     }
   });

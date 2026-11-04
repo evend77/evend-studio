@@ -15,14 +15,17 @@ const { v4: uuidv4 } = require('uuid');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
+// ── Client R2 ──
 const s3Client = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
-const BUCKET_NAME = process.env.AWS_S3_BUCKET_SPONSOR || 'evend-studio-sponsors-2026-296886269853-us-east-1-an';
+const BUCKET_NAME = process.env.R2_BUCKET_SPONSORS; // photos-sponsors-e-vend (sponsors.e-vend.ca)
+const URL_PUBLIQUE = 'https://sponsors.e-vend.ca/';
 
 const uploadPub = multer({
   storage: multer.memoryStorage(),
@@ -34,23 +37,23 @@ const uploadPub = multer({
   }
 });
 
-async function uploadPubToS3(file, sponsor_id, mimeVerifie) {
-  const key = `sponsors-pubs/${sponsor_id}/${uuidv4()}-${file.originalname}`;
+async function uploadPubToR2(file, sponsor_id, mimeVerifie) {
+  const key = `studio/sponsors-pubs/${sponsor_id}/${uuidv4()}-${file.originalname}`;
   await s3Client.send(new PutObjectCommand({
     Bucket: BUCKET_NAME, Key: key, Body: file.buffer, ContentType: mimeVerifie || file.mimetype,
   }));
-  return `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+  return `${URL_PUBLIQUE}${key}`;
 }
 
-async function deletePubImageFromS3(url) {
+async function deletePubImageFromR2(url) {
   if (!url) return;
-  const base = `https://${BUCKET_NAME}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/`;
+  const base = URL_PUBLIQUE;
   if (!url.startsWith(base)) return; // image pas sur notre bucket (ex: ancienne URL), on ignore
   const key = url.replace(base, '');
   try {
     await s3Client.send(new DeleteObjectCommand({ Bucket: BUCKET_NAME, Key: key }));
   } catch (e) {
-    console.error('⚠️ Erreur suppression image pub sur S3 (ignorée):', e.message);
+    console.error('⚠️ Erreur suppression image pub sur R2 (ignorée):', e.message);
   }
 }
 
@@ -68,7 +71,7 @@ router.post('/pubs/upload-image', authenticateToken, uploadPub.single('image'), 
       return res.status(400).json({ error: 'Le fichier envoyé n\'est pas une image ou vidéo valide.' });
     }
 
-    const url = await uploadPubToS3(req.file, req.user.id, verif.mimeDetecte);
+    const url = await uploadPubToR2(req.file, req.user.id, verif.mimeDetecte);
     res.json({ success: true, url_image: url });
   } catch (error) {
     console.error('❌ Erreur upload image pub:', error);
@@ -1037,7 +1040,7 @@ router.put('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
   }
 });
 
-// DELETE — Supprimer définitivement une pub (admin) — BD + image S3
+// DELETE — Supprimer définitivement une pub (admin) — BD + image R2
 router.delete('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
   try {
     const { id } = req.params;
@@ -1045,7 +1048,7 @@ router.delete('/admin/:id', authenticateToken, isAdmin, async (req, res) => {
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Publicité non trouvée' });
     }
-    await deletePubImageFromS3(existing.rows[0].url_image);
+    await deletePubImageFromR2(existing.rows[0].url_image);
     await pool.query('DELETE FROM sponsor_pubs WHERE id = $1', [id]);
     res.json({ success: true, message: 'Publicité supprimée' });
   } catch (error) {

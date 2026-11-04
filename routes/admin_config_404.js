@@ -2,7 +2,7 @@
 // GET  /api/admin/config/page-404/public  — lecture publique (sans auth)
 // GET  /api/admin/config/page-404         — lire la config (admin)
 // PUT  /api/admin/config/page-404         — mettre à jour la config (admin)
-// POST /api/admin/config/page-404/image   — uploader une image vers S3 (admin)
+// POST /api/admin/config/page-404/image   — uploader une image vers R2 (admin)
 
 const express  = require('express');
 const router   = express.Router();
@@ -13,18 +13,19 @@ const { authenticateToken, isAdmin } = require('../middleware/auth');
 const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
 
-// ─── S3 (même config que upload_image.js) ────────────────────────────────────
-const BUCKET = process.env.AWS_S3_BUCKET;
+// ─── Client R2 ────────────────────────────────────────────────────────────────
+const BUCKET = process.env.R2_BUCKET_ADMIN; // admin-media.e-vend.ca
 
 const s3 = new S3Client({
-    region: 'us-east-1',
-    credentials: {
-        accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-    },
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  },
 });
 
-// Multer en mémoire — buffer envoyé directement à S3
+// Multer en mémoire — buffer envoyé directement à R2
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 2 * 1024 * 1024 }, // 2 Mo
@@ -117,7 +118,7 @@ router.put('/', authenticateToken, isAdmin, async (req, res) => {
 
 // =============================================================================
 // POST /api/admin/config/page-404/image
-// Upload image vers S3 — retourne { image_url }
+// Upload image vers R2 — retourne { image_url }
 // =============================================================================
 router.post('/image', authenticateToken, isAdmin, (req, res) => {
     upload.single('file')(req, res, async (err) => {
@@ -167,13 +168,13 @@ router.post('/image', authenticateToken, isAdmin, (req, res) => {
                 ContentType: mimeFinal,
             }));
 
-            const imageUrl = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${s3Key}`;
-            console.log(`🖼️ Image 404 uploadée sur S3: ${imageUrl}`);
+            const imageUrl = `https://admin-media.e-vend.ca/${s3Key}`;
+            console.log(`🖼️ Image 404 uploadée sur R2: ${imageUrl}`);
 
             res.json({ success: true, image_url: imageUrl });
 
         } catch (s3err) {
-            console.error('❌ Erreur S3 upload page 404:', s3err.message);
+            console.error('❌ Erreur R2 upload page 404:', s3err.message);
             res.status(500).json({ error: s3err.message });
         }
     });

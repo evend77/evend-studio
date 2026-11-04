@@ -1,7 +1,7 @@
 // routes/studio_photos_vendeur.js
 //
 // GET    /api/studio/photos-vendeur/:vendeurId         — liste des photos (auth)
-// POST   /api/studio/photos-vendeur/:gestionnaireId/upload  — uploader une photo vers S3 (auth)
+// POST   /api/studio/photos-vendeur/:gestionnaireId/upload  — uploader une photo vers R2 (auth)
 // DELETE /api/studio/photos-vendeur/:gestionnaireId/:id     — supprimer une photo (auth)
 //
 // Limite : 25 photos max par site vendeur
@@ -17,15 +17,16 @@ const { authenticateToken } = require('../middleware/auth');
 
 const MAX_PHOTOS = 25;
 
-// ─── S3 ───────────────────────────────────────────────────────────────────────
+// ─── Client R2 ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
-const BUCKET = process.env.AWS_S3_BUCKET;
+const BUCKET = process.env.R2_BUCKET_PRODUITS; // media.e-vend.ca
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -79,7 +80,7 @@ router.get('/', authenticateToken, async (req, res) => {
 
 // =============================================================================
 // POST /api/studio/photos-vendeur/:gestionnaireId/upload
-// Uploader une photo vers S3 — bloqué si quota 25 atteint
+// Uploader une photo vers R2 — bloqué si quota 25 atteint
 // =============================================================================
 router.post('/upload', authenticateToken, (req, res) => {
   if (!verifierProprietaire(req, res)) return;
@@ -106,7 +107,7 @@ router.post('/upload', authenticateToken, (req, res) => {
         });
       }
 
-      // Upload vers S3
+      // Upload vers R2
       const { buffer, mimetype, originalname, size } = req.file;
       const ext    = path.extname(originalname).toLowerCase() || '.jpg';
       const s3Key  = `studio/photos-site/gestionnaire_${gestionnaireId}/${uuidv4()}${ext}`;
@@ -118,7 +119,7 @@ router.post('/upload', authenticateToken, (req, res) => {
         ContentType: mimetype,
       }));
 
-      const url = `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${s3Key}`;
+      const url = `https://media.e-vend.ca/${s3Key}`;
 
       // Sauvegarder en BD
       const result = await pool.query(
@@ -140,7 +141,7 @@ router.post('/upload', authenticateToken, (req, res) => {
       });
 
     } catch (s3err) {
-      console.error('❌ Erreur S3 upload photo vendeur :', s3err.message);
+      console.error('❌ Erreur R2 upload photo vendeur :', s3err.message);
       res.status(500).json({ error: s3err.message });
     }
   });
@@ -148,7 +149,7 @@ router.post('/upload', authenticateToken, (req, res) => {
 
 // =============================================================================
 // DELETE /api/studio/photos-vendeur/:gestionnaireId/:id
-// Supprimer une photo (BD + S3)
+// Supprimer une photo (BD + R2)
 // =============================================================================
 router.delete('/:id', authenticateToken, async (req, res) => {
   if (!verifierProprietaire(req, res)) return;
@@ -156,7 +157,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
   const { gestionnaireId, id } = req.params;
 
   try {
-    // Récupérer la clé S3 avant suppression
+    // Récupérer la clé R2 avant suppression
     const photo = await pool.query(
       `SELECT s3_key FROM photos_site_gestionnaire WHERE id = $1 AND gestionnaire_id = $2`,
       [id, gestionnaireId]
@@ -165,12 +166,12 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
     const s3Key = photo.rows[0].s3_key;
 
-    // Supprimer de S3
+    // Supprimer de R2
     if (s3Key && BUCKET) {
       try {
         await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: s3Key }));
       } catch (e) {
-        console.warn('⚠️ Impossible de supprimer la photo S3 :', e.message);
+        console.warn('⚠️ Impossible de supprimer la photo R2 :', e.message);
       }
     }
 

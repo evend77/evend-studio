@@ -7,14 +7,15 @@ const { authenticateToken, isVendeur } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
-const BUCKET = process.env.AWS_S3_BUCKET;
+const BUCKET = process.env.R2_BUCKET_PRODUITS; // media.e-vend.ca
 
-// us-east-1 hardcodé — c'est la région du bucket evend-ca-storage-2026
+// ── Client R2 ──
 const s3 = new S3Client({
-  region: 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
 
@@ -49,7 +50,7 @@ router.post('/', authenticateToken, isVendeur, upload.single('image'), async (re
     console.log(`📸 Upload image reçu: ${originalname} (${mimetype}, ${buffer.length} bytes)`);
 
     const ext   = verif.extensionDetectee; // extension réelle détectée, pas celle du nom de fichier
-    const s3Key = `produits/${vendeurId}/${uuidv4()}.${ext}`;
+    const s3Key = `studio/produits/${vendeurId}/${uuidv4()}.${ext}`;
 
     await s3.send(new PutObjectCommand({
       Bucket:      BUCKET,
@@ -58,8 +59,8 @@ router.post('/', authenticateToken, isVendeur, upload.single('image'), async (re
       ContentType: verif.mimeDetecte,
     }));
 
-    const imageUrl = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${s3Key}`;
-    console.log(`✅ Image uploadée sur S3: ${imageUrl}`);
+    const imageUrl = `https://media.e-vend.ca/${s3Key}`;
+    console.log(`✅ Image uploadée sur R2: ${imageUrl}`);
 
     return res.json({ success: true, image_url: imageUrl, filename: originalname });
 

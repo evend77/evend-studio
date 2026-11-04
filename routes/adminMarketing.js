@@ -26,16 +26,17 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 
 // ce routeur est monté sur /api/admin, qui contient aussi d'autres routes.
 router.use('/marketing', authenticateToken, isAdmin, attendreTables);
 
-// ── Client S3 — même config que pagesPlateforme.js (aperçus d'images/PDF) ──
+// ── Client R2 — aperçus d'images/PDF de l'historique ──
 const s3 = new S3Client({
-  region: 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
-const BUCKET = process.env.AWS_S3_BUCKET;
-const urlS3 = cle => `https://${BUCKET}.s3.us-east-1.amazonaws.com/${cle}`;
+const BUCKET = process.env.R2_BUCKET_ADMIN; // admin-media.e-vend.ca
+const urlR2 = cle => `https://admin-media.e-vend.ca/${cle}`;
 
 // ── Expéditeur : même ADRESSE d'envoi que le reste de Studio (FROM_EMAIL),
 // avec un nom d'affichage propre aux campagnes marketing.
@@ -135,14 +136,14 @@ router.post('/marketing/envoyer', upload.fields([{ name: 'images' }, { name: 'do
           console.warn(`⚠️ Image marketing rejetée pour l'aperçu (type non conforme) : ${img.originalname}`);
           continue;
         }
-        const s3Key = `marketing/${uuidv4()}.${verif.extensionDetectee}`;
+        const s3Key = `studio/marketing/${uuidv4()}.${verif.extensionDetectee}`;
         await s3.send(new PutObjectCommand({
           Bucket: BUCKET,
           Key: s3Key,
           Body: img.buffer,
           ContentType: verif.mimeDetecte,
         }));
-        imagesApercu.push({ nom: img.originalname, url: urlS3(s3Key) });
+        imagesApercu.push({ nom: img.originalname, url: urlR2(s3Key) });
       } catch (err) {
         // Un échec d'upload R2 ne doit jamais empêcher l'envoi de la
         // campagne elle-même (qui n'en dépend pas) — juste l'aperçu de
@@ -159,14 +160,14 @@ router.post('/marketing/envoyer', upload.fields([{ name: 'images' }, { name: 'do
       try {
         const verif = await verifierTypeFichier(d.buffer, ['pdf']);
         if (verif.ok) {
-          const s3Key = `marketing/${uuidv4()}.pdf`;
+          const s3Key = `studio/marketing/${uuidv4()}.pdf`;
           await s3.send(new PutObjectCommand({
             Bucket: BUCKET,
             Key: s3Key,
             Body: d.buffer,
             ContentType: 'application/pdf',
           }));
-          url = urlS3(s3Key);
+          url = urlR2(s3Key);
         }
       } catch (err) {
         console.error(`[marketing] Échec upload R2 pour le document "${d.originalname}":`, err.message);

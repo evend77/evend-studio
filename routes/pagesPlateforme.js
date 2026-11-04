@@ -10,15 +10,16 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
-// ── Client S3 (même config que upload_image.js) ──────────────────────────────
+// ── Client R2 ────────────────────────────────────────────────────────────────
 const s3 = new S3Client({
-  region: 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
-const BUCKET = process.env.AWS_S3_BUCKET;
+const BUCKET = process.env.R2_BUCKET_ADMIN; // photos-videos-admin-pour-site
 
 const uploadMedia = multer({
   storage: multer.memoryStorage(),
@@ -93,7 +94,7 @@ router.get('/public/with-content', async (req, res) => {
   }
 });
 
-// POST /api/pages/upload-media — Upload image ou vidéo vers S3 (admin)
+// POST /api/pages/upload-media — Upload image ou vidéo vers R2 (admin)
 router.post('/upload-media', authenticateToken, isAdmin, uploadMedia.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Aucun fichier reçu' });
@@ -110,7 +111,7 @@ router.post('/upload-media', authenticateToken, isAdmin, uploadMedia.single('fil
 
     const isVideo = verif.mimeDetecte.startsWith('video/');
     const ext     = verif.extensionDetectee;
-    const s3Key   = `pages/${isVideo ? 'videos' : 'images'}/${uuidv4()}.${ext}`;
+    const s3Key   = `studio/pages/${isVideo ? 'videos' : 'images'}/${uuidv4()}.${ext}`;
 
     await s3.send(new PutObjectCommand({
       Bucket:      BUCKET,
@@ -119,7 +120,7 @@ router.post('/upload-media', authenticateToken, isAdmin, uploadMedia.single('fil
       ContentType: verif.mimeDetecte,
     }));
 
-    const url = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${s3Key}`;
+    const url = `https://admin-media.e-vend.ca/${s3Key}`;
     console.log(`✅ Média page uploadé: ${url}`);
 
     res.json({ success: true, url, type: isVideo ? 'video' : 'image' });

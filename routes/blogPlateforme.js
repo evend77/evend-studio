@@ -9,16 +9,16 @@ const multer   = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { verifierTypeFichier } = require('../utils/verifierTypeFichier');
 
-// ─── S3 Config ────────────────────────────────────────────────────────────
+// ─── Client R2 ────────────────────────────────────────────────────────────
 const s3 = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
-
-const BUCKET = process.env.AWS_S3_BUCKET || 'evend-ca-storage-2026';
+const BUCKET = process.env.R2_BUCKET_ADMIN; // photos-videos-admin-pour-site
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -30,7 +30,9 @@ const upload = multer({
   },
 });
 
-async function uploadS3(buffer, originalname, mimetype) {
+async function uploadR2(buffer, originalname, mimetype) {
+  if (!BUCKET) throw new Error('Configuration R2 manquante (R2_BUCKET_ADMIN)');
+
   // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
   // fileFilter ne regarde que le Content-Type déclaré par le client.
   const verif = await verifierTypeFichier(buffer, ['jpg', 'jpeg', 'png', 'gif', 'webp']);
@@ -42,7 +44,7 @@ async function uploadS3(buffer, originalname, mimetype) {
   }
 
   const ext = verif.extensionDetectee; // extension réelle détectée
-  const key = `blog/${Date.now()}-${uuidv4()}.${ext}`;
+  const key = `studio/blog/${Date.now()}-${uuidv4()}.${ext}`;
   
   await s3.send(new PutObjectCommand({
     Bucket: BUCKET,
@@ -51,7 +53,7 @@ async function uploadS3(buffer, originalname, mimetype) {
     ContentType: verif.mimeDetecte,
   }));
   
-  return `https://${BUCKET}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+  return `https://admin-media.e-vend.ca/${key}`;
 }
 
 function genererSlug(titre) {
@@ -303,11 +305,11 @@ router.post('/admin/upload-image', upload.single('image'), async (req, res) => {
   console.log('📸 Fichier reçu:', req.file.originalname, req.file.mimetype, req.file.size);
 
   try {
-    const url = await uploadS3(req.file.buffer, req.file.originalname, req.file.mimetype);
+    const url = await uploadR2(req.file.buffer, req.file.originalname, req.file.mimetype);
     console.log('✅ Upload réussi:', url);
     res.json({ url });
   } catch (err) {
-    console.error('❌ Erreur upload S3:', err.message);
+    console.error('❌ Erreur upload R2:', err.message);
     res.status(err.status || 500).json({ error: err.status ? err.message : 'Erreur upload: ' + err.message });
   }
 });

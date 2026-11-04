@@ -12,21 +12,23 @@ const jwt     = require('jsonwebtoken');
 const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 
 const s3 = new S3Client({
-  region: process.env.AWS_REGION || 'us-east-1',
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId:     process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
+const BUCKET = process.env.R2_BUCKET_PROFILES; // logos / bannières (profils.e-vend.ca)
 
-async function supprimerS3SiPresent(url) {
-  if (!url) return;
+async function supprimerR2SiPresent(url) {
+  if (!url || !BUCKET) return;
   try {
     const u = new URL(url);
     const key = u.pathname.slice(1);
-    await s3.send(new DeleteObjectCommand({ Bucket: process.env.AWS_S3_BUCKET, Key: key }));
+    await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
   } catch (e) {
-    console.warn('⚠️ Suppression S3 impossible pour', url, ':', e.message);
+    console.warn('⚠️ Suppression R2 impossible pour', url, ':', e.message);
   }
 }
 const { authenticateToken, isAdmin } = require('../middleware/auth');
@@ -153,7 +155,7 @@ router.post('/:id/impersonate', authenticateToken, isAdmin, async (req, res) => 
 //   1. Récupérer les infos (avant qu'elles disparaissent)
 //   2. Envoyer le courriel #28 (compte supprimé)
 //   3. Archiver id/email/nom/raison dans gestionnaires_supprimes
-//   4. Supprimer les fichiers S3 connus (logo, bannière)
+//   4. Supprimer les fichiers R2 connus (logo, bannière)
 //   5. DELETE FROM gestionnaires — le ON DELETE CASCADE sur les FK s'occupe
 //      de tout le reste (sites, produits, commandes, domaines, etc.)
 router.delete('/:id', authenticateToken, isAdmin, async (req, res) => {
@@ -199,9 +201,9 @@ router.delete('/:id', authenticateToken, isAdmin, async (req, res) => {
     // ⚠️ Limite connue : les photos de produits ou autres fichiers uploadés
     // ailleurs dans l'app ne sont pas couvertes ici faute de visibilité sur
     // toutes les tables qui en stockent — à compléter si d'autres emplacements
-    // S3 sont identifiés.
-    await supprimerS3SiPresent(g.logo_url);
-    await supprimerS3SiPresent(g.banniere_url);
+    // R2 sont identifiés.
+    await supprimerR2SiPresent(g.logo_url);
+    await supprimerR2SiPresent(g.banniere_url);
 
     // 🔥 Suppression réelle — cascade sur toutes les FK liées
     await pool.query(`DELETE FROM gestionnaires WHERE id = $1`, [id]);

@@ -1,5 +1,5 @@
 // routes/uploadAvis.js
-// Upload des photos pour les avis produits (acheteur → S3)
+// Upload des photos pour les avis produits (acheteur → R2)
 
 const express = require('express');
 const router = express.Router();
@@ -24,27 +24,28 @@ const upload = multer({
   }
 });
 
-// Client S3 - IDENTIQUE à upload_image.js (us-east-1 hardcodé)
-const BUCKET = process.env.AWS_S3_BUCKET;
+// Client R2
+const BUCKET = process.env.R2_BUCKET_AVIS; // photos-avis-e-vend
 
 const s3 = new S3Client({
-  region: 'us-east-1',  // ← FORCÉ à us-east-1 comme dans upload_image.js
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
   credentials: {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
 
 /**
- * Supprimer une photo de S3 à partir de son URL
- * @param {string} photoUrl - URL complète de la photo sur S3
+ * Supprimer une photo de R2 à partir de son URL
+ * @param {string} photoUrl - URL complète de la photo (avis.e-vend.ca)
  */
 const deletePhotoFromS3 = async (photoUrl) => {
   try {
     if (!photoUrl || !BUCKET) return false;
 
-    // Extraire la clé (key) de l'URL
-    const match = photoUrl.match(/\.amazonaws\.com\/(.+)$/);
+    // Extraire la clé (key) de l'URL — domaine personnalisé avis.e-vend.ca
+    const match = photoUrl.match(/avis\.e-vend\.ca\/(.+)$/);
     const key = match ? match[1] : null;
 
     if (!key) {
@@ -58,10 +59,10 @@ const deletePhotoFromS3 = async (photoUrl) => {
     });
 
     await s3.send(command);
-    console.log(`🗑️ Photo supprimée de S3: ${key}`);
+    console.log(`🗑️ Photo supprimée de R2: ${key}`);
     return true;
   } catch (error) {
-    console.error('❌ Erreur suppression S3:', error.message);
+    console.error('❌ Erreur suppression R2:', error.message);
     return false;
   }
 };
@@ -99,7 +100,7 @@ const deleteAllPhotosFromAvis = async (db, avisId) => {
 /**
  * POST /api/avis-produits/upload-photo
  * Upload une seule photo pour un avis
- * Retourne l'URL publique S3
+ * Retourne l'URL publique R2
  */
 router.post('/upload-photo', authenticateToken, isAcheteur, upload.single('photo'), async (req, res) => {
   try {
@@ -108,8 +109,8 @@ router.post('/upload-photo', authenticateToken, isAcheteur, upload.single('photo
     }
 
     if (!BUCKET) {
-      console.error('❌ AWS_S3_BUCKET non défini dans .env');
-      return res.status(500).json({ success: false, message: 'Configuration S3 manquante' });
+      console.error('❌ R2_BUCKET_AVIS non défini dans .env');
+      return res.status(500).json({ success: false, message: 'Configuration R2 manquante' });
     }
 
     // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
@@ -126,22 +127,22 @@ router.post('/upload-photo', authenticateToken, isAcheteur, upload.single('photo
     const timestamp = Date.now();
     const randomString = uuidv4();
     const extension = verif.extensionDetectee; // extension réelle détectée, pas déclarée par le client
-    const key = `avis-produits/${acheteurId}/${timestamp}_${randomString}.${extension}`;
+    const key = `studio/avis-produits/${acheteurId}/${timestamp}_${randomString}.${extension}`;
 
-    console.log(`📸 Upload S3: ${key} (${req.file.size} bytes)`);
+    console.log(`📸 Upload R2: ${key} (${req.file.size} bytes)`);
 
     const command = new PutObjectCommand({
       Bucket: BUCKET,
       Key: key,
       Body: req.file.buffer,
       ContentType: verif.mimeDetecte,
-      ACL: 'public-read',
+      // Pas d'ACL : R2 ne les supporte pas. L'accès public passe par le domaine
+      // personnalisé du bucket (avis.e-vend.ca), pas par objet.
     });
 
     await s3.send(command);
 
-    // URL avec us-east-1 forcé (comme dans upload_image.js)
-    const url = `https://${BUCKET}.s3.us-east-1.amazonaws.com/${key}`;
+    const url = `https://avis.e-vend.ca/${key}`;
 
     console.log(`✅ Photo uploadée: ${url}`);
 
@@ -152,7 +153,7 @@ router.post('/upload-photo', authenticateToken, isAcheteur, upload.single('photo
     });
 
   } catch (error) {
-    console.error('❌ Erreur upload S3:', error.message);
+    console.error('❌ Erreur upload R2:', error.message);
     res.status(500).json({
       success: false,
       message: error.message || 'Erreur lors de l\'upload'
