@@ -1,3 +1,4 @@
+// 📁 CHEMIN : src/AppGestionnaireStudio.tsx
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Dashboard          from './pages/gestionnaire/Dashboard';
 import PageChoisirTemplate        from './pages/gestionnaire/PageChoisirTemplate';
@@ -54,6 +55,7 @@ import MessagerieFormulaireContact  from './pages/gestionnaire/MessagerieFormula
 import ConfigPopupAnnonce           from './pages/gestionnaire/ConfigPopupAnnonce';
 import MVPremiumPlan               from './pages/gestionnaire/MVPremiumPlan';
 import ConfigMultiVendeurPremium   from './pages/gestionnaire/ConfigMultiVendeurPremium';
+import StripeGestionnaire          from './pages/gestionnaire/StripeGestionnaire';
 
 // =====================================================================
 // 🚧 PAGES EN CONSTRUCTION — placeholders compilables
@@ -629,6 +631,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const itemFormulaireContact = { id: 'config-formulaire-contact', label: 'Formulaire de contact', icon: '📋' };
   const itemConfigGenerale: SousMenuItem = { id: 'config-generale',     label: 'Config générale',    icon: '⚙️' };
   const itemConfigMV: SousMenuItem       = { id: 'config-multivendeur', label: 'Config multivendeur', icon: '🏪' };
+  const itemConfigStripeMV: SousMenuItem = { id: 'config-stripe-multivendeur', label: 'Config Stripe Multivendeur', icon: '💳' };
   const itemConfigPaiements: SousMenuItem = { id: 'config-paiements',   label: 'Config paiement',     icon: '💳' };
 
   // ── Groupe du template actif ──────────────────────────────────────────────
@@ -807,7 +810,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [
           itemConfigGenerale,
-          itemConfigMV,
+          itemConfigMV,itemConfigStripeMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
@@ -848,7 +851,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [
           itemConfigGenerale,
-          itemConfigMV,
+          itemConfigMV,itemConfigStripeMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
@@ -888,7 +891,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [
           itemConfigGenerale,
-          itemConfigMV,
+          itemConfigMV,itemConfigStripeMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
@@ -926,7 +929,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [
           itemConfigGenerale,
-          itemConfigMV,
+          itemConfigMV,itemConfigStripeMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
@@ -963,7 +966,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [
           itemConfigGenerale,
-          itemConfigMV,
+          itemConfigMV,itemConfigStripeMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
@@ -1003,7 +1006,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [
           itemConfigGenerale,
-          itemConfigMV,
+          itemConfigMV,itemConfigStripeMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404,
@@ -1036,7 +1039,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuStudioSimplisse,
       menuConfigMesPages,
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
-        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        itemConfigGenerale,itemConfigMV,itemConfigStripeMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
         itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
@@ -1064,7 +1067,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuStudioPremium,
       menuConfigPremium,
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
-        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        itemConfigGenerale,itemConfigMV,itemConfigStripeMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
         itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
@@ -1092,7 +1095,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuStudioMode,
       menuConfigMode,
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
-        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        itemConfigGenerale,itemConfigMV,itemConfigStripeMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
         itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
@@ -1150,7 +1153,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuStudioBeaute,
       menuConfigBeaute,
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
-        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        itemConfigGenerale,itemConfigMV,itemConfigStripeMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
         itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
@@ -1192,7 +1195,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [
           itemConfigGenerale,
-          itemConfigMV,
+          itemConfigMV,itemConfigStripeMV,
           itemConfigPaiements,
           { id: 'config-expedition',       label: "Méthode d'expédition",    icon: '🚚' },
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',     icon: '📧' },
@@ -1251,7 +1254,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [
           itemConfigGenerale,
-          itemConfigMV,
+          itemConfigMV,itemConfigStripeMV,
           itemConfigPaiements,
           { id: 'config-expedition',       label: "Méthode d'expédition",    icon: '🚚' },
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',     icon: '📧' },
@@ -1545,6 +1548,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'studio-photos-vendeur') return <StudioGestionPhotosVendeur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-generale')       return <StudioConfigGenerale      gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-multivendeur')   return <StudioConfigMultivendeur  gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-stripe-multivendeur') return <StripeGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'profil-compte')         return <StudioMonCompte           gestionnaireId={gestionnaire.id} />;
 
     // ── Premier login : aucun template choisi → forcer le choix ────────────
