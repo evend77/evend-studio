@@ -1,3 +1,4 @@
+// 📁 CHEMIN : src/pages/gestionnaire/StudioConfigMultivendeur.tsx
 /**
  * StudioConfigMultivendeur.tsx — e-Vend Studio
  * Chemin : src/pages/gestionnaire/StudioConfigMultivendeur.tsx
@@ -12,6 +13,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import StripeGestionnaire from './StripeGestionnaire';
 
 const API_BASE = (window as any).API_BASE || '/api';
 
@@ -261,7 +263,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
   const [config, setConfig]     = useState<ConfigMV>(DEFAUTS);
   const [original, setOriginal] = useState<ConfigMV>(DEFAUTS);
   const [loading, setLoading]   = useState(true);
-  const [onglet, setOnglet]     = useState<'generalite' | 'vendeur' | 'produits' | 'commande' | 'commission' | 'avance'>('generalite');
+  const [onglet, setOnglet]     = useState<'generalite' | 'vendeur' | 'produits' | 'commande' | 'commission' | 'stripe' | 'avance'>('generalite');
   const [toast, setToast]       = useState<{ msg: string; type: 'success' | 'danger' } | null>(null);
   const [modalConfirm, setModalConfirm] = useState<{ titre: string; message: string; action: () => void } | null>(null);
   const [modifie, setModifie]   = useState(false);
@@ -337,12 +339,12 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
             <p style={{ margin: 0, fontSize: '13px', color: T.textLight }}>Paramètres avancés de votre marketplace multivendeur</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        {onglet !== 'stripe' && <div style={{ display: 'flex', gap: '10px' }}>
           {modifie && <button onClick={() => { setConfig({ ...original }); setModifie(false); }} style={{ padding: '9px 18px', background: '#fff', border: `1px solid ${T.border}`, borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: T.textLight }}>Annuler</button>}
           <button onClick={sauvegarder} disabled={!modifie} style={{ padding: '9px 22px', background: modifie ? 'linear-gradient(135deg, #c9a96e, #a07840)' : '#cbd5e1', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, color: modifie ? '#fff' : '#94a3b8', cursor: modifie ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>
             {modifie ? '💾 Sauvegarder' : '✅ À jour'}
           </button>
-        </div>
+        </div>}
       </div>
 
       {/* Onglets */}
@@ -353,6 +355,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
           { id: 'produits',    label: '📦 Produits' },
           { id: 'commande',    label: '🛒 Commandes' },
           { id: 'commission',  label: '💰 Commission' },
+          { id: 'stripe',      label: '💳 Config Stripe Connect' },
           { id: 'avance',      label: '⚙️ Avancé' },
         ].map(o => <Onglet key={o.id} label={o.label} actif={onglet === o.id as any} onClick={() => setOnglet(o.id as any)} />)}
       </div>
@@ -998,6 +1001,9 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
           </Section>
         </div>
       )}
+
+      {/* ══ CONFIG STRIPE CONNECT ══ */}
+      {onglet === 'stripe' && <StripeGestionnaire gestionnaireId={gestionnaireId} />}
 
       {/* ══ AVANCÉ ══ */}
       {onglet === 'avance' && (
