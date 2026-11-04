@@ -1,4 +1,4 @@
-// hooks/usePageSeo.ts
+// CHEMIN : src/hooks/usePageSeo.ts
 // Met à jour dynamiquement toutes les balises SEO selon la page active
 // À appeler dans chaque page avec ses propres valeurs
 //
@@ -11,9 +11,9 @@
 
 import { useEffect } from 'react';
 
-const TITRE_DEFAUT      = 'e-Vend.ca | Acheter et vendre localement au Canada';
-const DESCRIPTION_DEFAUT = 'e-Vend est une marketplace canadienne et québécoise pour acheter et vendre localement des produits uniques, facilement et en toute sécurité.';
-const URL_DEFAUT        = 'https://e-vend.ca';
+const TITRE_DEFAUT      = 'e-Vend Studio | Crée ton site web et ta boutique en ligne';
+const DESCRIPTION_DEFAUT = "Crée ton site web, ta boutique en ligne ou ton site vitrine sans programmer. e-Vend Studio, la plateforme québécoise pour entrepreneurs d'ici.";
+const URL_DEFAUT        = 'https://e-vendstudio.ca';
 const IMAGE_DEFAUT      = 'https://admin-media.e-vend.ca/studio/logos/1793759632517-1780672555025-ti-cast_clin_d_oeuil.jpg';
 
 interface PageSeoOptions {

@@ -1,3 +1,4 @@
+// CHEMIN : server.js  (à la racine du projet)
 // =====================================================================
 // e-Vend Studio API — server.js
 // Port: 5000
@@ -54,6 +55,23 @@ const storeEffectsRoutes = require('./routes/store-effects');
 
 const app  = express();
 const port = process.env.PORT || 5000;
+
+// 🔍 SEO : Google doit pouvoir LIRE l'API pour afficher les pages React,
+// mais ne doit jamais INDEXER les réponses JSON.
+app.use('/api', (req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  next();
+});
+
+// 🔍 SEO : toujours servir le site sur e-vendstudio.ca (sans www) pour éviter les doublons.
+// (trust proxy : nécessaire derrière nginx pour que req.hostname soit le vrai domaine)
+app.set('trust proxy', 1);
+app.use((req, res, next) => {
+  if (req.method === 'GET' && req.hostname.startsWith('www.')) {
+    return res.redirect(301, 'https://e-vendstudio.ca' + req.originalUrl);
+  }
+  next();
+});
 
 // ── MIDDLEWARE ────────────────────────────────────────────────────────
 
@@ -493,6 +511,8 @@ app.use('/api/chat-admin-collab/:gestionnaireId',    require('./routes/chat_admi
 
 app.use('/api/politiquesPlateforme', require('./routes/politiquesPlateforme'));
 app.use('/api/pagesPlateforme',      require('./routes/pagesPlateforme'));
+app.use('/api/seoPlateforme',        require('./routes/seoPlateforme'));
+app.use('/sitemap.xml',              require('./routes/sitemap'));
 // 🖼️ Gestionnaire de photos admin (Logos / Divers / Audio) — Cloudflare R2
 app.use('/api/images',               require('./routes/images'));
 // 📋 Menus du site (principal, pied de page) — public + gestion admin
@@ -742,10 +762,287 @@ app.get('/caddy/ask', async (req, res) => {
 // =====================================================================
 
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, 'build')));
-  app.get('*', (req, res, next) => {
-    if (req.path.startsWith('/api/')) return next();
-    res.sendFile(path.join(__dirname, 'build', 'index.html'));
+  // index:false → '/' passe par notre route ci-dessous (SEO + contenu pour les robots)
+  app.use(express.static(path.join(__dirname, 'build'), {
+    index: false,
+    setHeaders: (res, filePath) => {
+      // Les fichiers de /static/ ont un nom unique à chaque build → cache 1 an sans risque
+      if (/[\\/]build[\\/]static[\\/]/.test(filePath)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
+
+  // ── 🔍 SEO / SSR LÉGER ─────────────────────────────────────────────────
+  // Le site est une app React : le HTML de départ est vide. Pour Google et les
+  // autres robots, on injecte le vrai contenu dans <div id="root"> (BOT_REGEX).
+  // Les humains reçoivent le site normal, seules les balises <title>/<meta> sont à jour.
+  const fsSeo = require('fs');
+  const SITE_URL = 'https://e-vendstudio.ca';
+  const BOT_REGEX = /google-inspectiontool|storebot-google|googlebot|googleother|bingbot|yandex|baiduspider|duckduckbot|slurp|facebookexternalhit|twitterbot|linkedinbot|whatsapp|telegrambot|discordbot|gptbot|ccbot|claudebot|applebot|semrushbot|ahrefsbot|perplexitybot|oai-searchbot|chatgpt-user|google-extended|bytespider|deepseekbot/i;
+
+  const escapeHtml = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  // Texte brut à partir d'un contenu HTML
+  const nettoyerTexteBrut = (html) => String(html || '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ').trim();
+
+  // Contenu visible pour les robots uniquement
+  const injecterDansRoot = (html, contenu, estRobot) =>
+    estRobot ? html.replace('<div id="root"></div>', '<div id="root">' + contenu + '</div>') : html;
+
+  const poserMeta = (html, attr, nom, valeur) => {
+    const tag = `<meta ${attr}="${nom}" content="${escapeHtml(valeur)}">`;
+    const re = new RegExp(`<meta[^>]*${attr}=["']${nom}["'][^>]*>`, 'i');
+    return re.test(html) ? html.replace(re, tag) : html.replace('</head>', `  ${tag}\n</head>`);
+  };
+  const poserCanonical = (html, url) => {
+    const tag = `<link rel="canonical" href="${escapeHtml(url)}">`;
+    const re = /<link[^>]*rel=["']canonical["'][^>]*>/i;
+    return re.test(html) ? html.replace(re, tag) : html.replace('</head>', `  ${tag}\n</head>`);
+  };
+  const poserTitre = (html, titre) => {
+    const tag = `<title>${escapeHtml(titre)}</title>`;
+    return /<title>[\s\S]*?<\/title>/i.test(html)
+      ? html.replace(/<title>[\s\S]*?<\/title>/i, tag)
+      : html.replace('</head>', `  ${tag}\n</head>`);
+  };
+
+  // Applique titre / description / url / image à toutes les balises concernées
+  function appliquerSeo(html, { titre, desc, url, image }) {
+    if (titre) {
+      html = poserTitre(html, titre);
+      html = poserMeta(html, 'property', 'og:title', titre);
+      html = poserMeta(html, 'name', 'twitter:title', titre);
+    }
+    if (desc) {
+      html = poserMeta(html, 'name', 'description', desc);
+      html = poserMeta(html, 'property', 'og:description', desc);
+      html = poserMeta(html, 'name', 'twitter:description', desc);
+    }
+    if (url) {
+      html = poserCanonical(html, url);
+      html = poserMeta(html, 'property', 'og:url', url);
+    }
+    if (image) {
+      html = poserMeta(html, 'property', 'og:image', image);
+      html = poserMeta(html, 'name', 'twitter:image', image);
+    }
+    return html;
+  }
+
+  const coupe = (s, n) => {
+    const t = String(s || '').trim();
+    return t.length <= n ? t : t.slice(0, n - 1).replace(/\s+\S*$/, '') + '…';
+  };
+
+  // SEO de l'accueil (réglages de l'admin), cache 60 s
+  let seoCache = { at: 0, data: null };
+  async function lireSeoAccueil() {
+    if (Date.now() - seoCache.at < 60000) return seoCache.data;
+    try {
+      const r = await pool.query(`SELECT titre_accueil, meta_description, og_image_url FROM seo_plateforme WHERE id = 1`);
+      seoCache = { at: Date.now(), data: r.rows[0] || null };
+    } catch (e) {
+      seoCache = { at: Date.now(), data: null };
+    }
+    return seoCache.data;
+  }
+
+  const TITRE_ACCUEIL_DEFAUT = 'e-Vend Studio | Crée ton site web et ta boutique en ligne';
+  const DESC_ACCUEIL_DEFAUT  = "Crée ton site web, ta boutique en ligne ou ton site vitrine sans programmer. e-Vend Studio, la plateforme québécoise pour entrepreneurs d'ici.";
+
+  app.get('*', async (req, res, next) => {
+    if (req.path.startsWith('/api/') || req.path.startsWith('/auth/') || req.path.startsWith('/uploads/')) {
+      return next();
+    }
+
+    try {
+      let html = fsSeo.readFileSync(path.join(__dirname, 'build', 'index.html'), 'utf8');
+      const estRobot = BOT_REGEX.test(req.headers['user-agent'] || '');
+      // Code HTTP : 404 quand la page demandée n'existe pas (évite les "soft 404")
+      let statutHttp = 200;
+      const chemin = req.path.length > 1 ? req.path.replace(/\/+$/, '') : req.path;
+
+      // ── Accueil ─────────────────────────────────────────────────────────
+      if (chemin === '/' || chemin === '/index.html') {
+        try {
+          const seo = (await lireSeoAccueil()) || {};
+          const titre = seo.titre_accueil || TITRE_ACCUEIL_DEFAUT;
+          const desc  = seo.meta_description || DESC_ACCUEIL_DEFAUT;
+          html = appliquerSeo(html, { titre, desc, url: SITE_URL, image: seo.og_image_url });
+
+          if (estRobot) {
+            // Les liens du menu sont dessinés par React → on les donne aussi aux robots
+            const docs = await pool.query(`SELECT slug, titre FROM pages_plateforme WHERE actif = true ORDER BY titre ASC`);
+            let pols = { rows: [] };
+            try { pols = await pool.query(`SELECT slug, titre FROM politiques_plateforme WHERE actif = true ORDER BY id`); } catch (e) {}
+            html = injecterDansRoot(html, `
+              <h1>${escapeHtml(titre)}</h1>
+              <p>${escapeHtml(desc)}</p>
+              <nav>
+                <ul>
+                  <li><a href="/blog">Blog</a></li>
+                  <li><a href="/faq">FAQ</a></li>
+                  <li><a href="/documents">Documents</a></li>
+                </ul>
+                <ul>${docs.rows.map((d) => `<li><a href="/documents/${escapeHtml(d.slug)}">${escapeHtml(d.titre)}</a></li>`).join('')}</ul>
+                <ul>${pols.rows.map((p) => `<li><a href="/politiques/${escapeHtml(p.slug)}">${escapeHtml(p.titre)}</a></li>`).join('')}</ul>
+              </nav>`, true);
+          }
+        } catch (e) {
+          console.warn('⚠️ SSR accueil :', e.message);
+        }
+      }
+
+      // ── Liste des documents : /documents ────────────────────────────────
+      else if (chemin === '/documents') {
+        try {
+          const r = await pool.query(`SELECT slug, titre, meta_description FROM pages_plateforme WHERE actif = true ORDER BY titre ASC`);
+          html = appliquerSeo(html, {
+            titre: 'Documents et guides | e-Vend Studio',
+            desc: 'Guides et documentation d\'e-Vend Studio : à propos, fonctionnement de la plateforme et informations utiles.',
+            url: SITE_URL + '/documents',
+          });
+          html = injecterDansRoot(html, `
+            <h1>Documents et guides</h1>
+            <ul>${r.rows.map((d) => `<li><a href="/documents/${escapeHtml(d.slug)}">${escapeHtml(d.titre)}</a>${d.meta_description ? ' — ' + escapeHtml(d.meta_description) : ''}</li>`).join('')}</ul>`, estRobot);
+        } catch (e) { console.warn('⚠️ SSR documents :', e.message); }
+      }
+
+      // ── Un document : /documents/:slug ──────────────────────────────────
+      else if (/^\/documents\/[^/]+$/.test(chemin)) {
+        try {
+          const slug = decodeURIComponent(chemin.split('/')[2]);
+          const r = await pool.query(`SELECT slug, titre, contenu, meta_description FROM pages_plateforme WHERE slug = $1 AND actif = true`, [slug]);
+          if (r.rows.length === 0) {
+            statutHttp = 404;
+          } else {
+            const d = r.rows[0];
+            const texte = nettoyerTexteBrut(d.contenu);
+            html = appliquerSeo(html, {
+              titre: `${d.titre} | e-Vend Studio`,
+              desc: coupe(d.meta_description || texte, 160),
+              url: `${SITE_URL}/documents/${d.slug}`,
+            });
+            html = injecterDansRoot(html, `<h1>${escapeHtml(d.titre)}</h1><div>${escapeHtml(texte)}</div>`, estRobot);
+          }
+        } catch (e) { console.warn('⚠️ SSR document :', e.message); }
+      }
+
+      // ── Une politique : /politiques/:slug ───────────────────────────────
+      else if (/^\/politiques\/[^/]+$/.test(chemin)) {
+        try {
+          const slug = decodeURIComponent(chemin.split('/')[2]);
+          const r = await pool.query(`SELECT slug, titre, contenu FROM politiques_plateforme WHERE slug = $1 AND actif = true`, [slug]);
+          if (r.rows.length === 0) {
+            statutHttp = 404;
+          } else {
+            const p = r.rows[0];
+            const texte = nettoyerTexteBrut(p.contenu);
+            html = appliquerSeo(html, {
+              titre: `${p.titre} | e-Vend Studio`,
+              desc: coupe(texte, 160),
+              url: `${SITE_URL}/politiques/${p.slug}`,
+            });
+            html = injecterDansRoot(html, `<h1>${escapeHtml(p.titre)}</h1><div>${escapeHtml(texte)}</div>`, estRobot);
+          }
+        } catch (e) { console.warn('⚠️ SSR politique :', e.message); }
+      }
+
+      // ── FAQ : /faq (questions/réponses lisibles par les robots + schéma FAQPage) ──
+      else if (chemin === '/faq') {
+        try {
+          const r = await pool.query(`SELECT question, reponse, categorie FROM faq_plateforme WHERE active = true ORDER BY ordre ASC, id ASC`);
+          html = appliquerSeo(html, {
+            titre: 'Foire aux questions (FAQ) | e-Vend Studio',
+            desc: 'Réponses aux questions fréquentes sur e-Vend Studio : création de site, abonnements, paiements, domaines et support.',
+            url: SITE_URL + '/faq',
+          });
+          const qr = r.rows.map((q) => ({ question: q.question, reponse: nettoyerTexteBrut(q.reponse), categorie: q.categorie }));
+          if (qr.length > 0) {
+            const schema = {
+              '@context': 'https://schema.org', '@type': 'FAQPage',
+              mainEntity: qr.map((q) => ({ '@type': 'Question', name: q.question, acceptedAnswer: { '@type': 'Answer', text: q.reponse } })),
+            };
+            html = html.replace('</head>', `  <script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>\n</head>`);
+          }
+          html = injecterDansRoot(html, `
+            <h1>Foire aux questions</h1>
+            ${qr.map((q) => `<h2>${escapeHtml(q.question)}</h2><p>${escapeHtml(q.reponse)}</p>`).join('')}`, estRobot);
+        } catch (e) { console.warn('⚠️ SSR FAQ :', e.message); }
+      }
+
+      // ── Liste du blog : /blog ───────────────────────────────────────────
+      else if (chemin === '/blog') {
+        try {
+          const r = await pool.query(
+            `SELECT titre, slug, extrait FROM blog_admin WHERE statut = 'publie' AND visible = true
+              ORDER BY date_publication DESC NULLS LAST, created_at DESC LIMIT 100`
+          );
+          html = appliquerSeo(html, {
+            titre: 'Blog | e-Vend Studio',
+            desc: 'Conseils et actualités pour créer et faire croître ton site web et ta boutique en ligne avec e-Vend Studio.',
+            url: SITE_URL + '/blog',
+          });
+          html = injecterDansRoot(html, `
+            <h1>Blog e-Vend Studio</h1>
+            <ul>${r.rows.map((a) => `<li><a href="/blog/${escapeHtml(a.slug)}">${escapeHtml(a.titre)}</a>${a.extrait ? ' — ' + escapeHtml(a.extrait) : ''}</li>`).join('')}</ul>`, estRobot);
+        } catch (e) { console.warn('⚠️ SSR blog :', e.message); }
+      }
+
+      // ── Un article : /blog/:slug ────────────────────────────────────────
+      else if (/^\/blog\/[^/]+$/.test(chemin)) {
+        try {
+          const slug = decodeURIComponent(chemin.split('/')[2]);
+          const r = await pool.query(
+            `SELECT a.titre, a.slug, a.extrait, a.contenu, a.image_couverture, a.auteur,
+                    a.date_publication, a.updated_at, c.nom AS categorie_nom
+               FROM blog_admin a LEFT JOIN blog_categories c ON c.id = a.categorie_id
+              WHERE a.slug = $1 AND a.statut = 'publie' AND a.visible = true`, [slug]);
+          if (r.rows.length === 0) {
+            statutHttp = 404;
+          } else {
+            const a = r.rows[0];
+            const texte = nettoyerTexteBrut(a.contenu);
+            const desc = coupe(a.extrait || texte, 160);
+            const url = `${SITE_URL}/blog/${a.slug}`;
+            const image = a.image_couverture ? encodeURI(a.image_couverture) : '';
+            html = appliquerSeo(html, { titre: `${a.titre} | Blog e-Vend Studio`, desc, url, image });
+
+            const schema = {
+              '@context': 'https://schema.org', '@type': 'BlogPosting',
+              headline: a.titre, description: desc, image: image ? [image] : [],
+              author: { '@type': 'Organization', name: a.auteur || 'e-Vend Studio' },
+              datePublished: a.date_publication, dateModified: a.updated_at || a.date_publication,
+              mainEntityOfPage: url,
+            };
+            html = html.replace('</head>', `  <script type="application/ld+json">${JSON.stringify(schema).replace(/</g, '\\u003c')}</script>\n</head>`);
+            html = injecterDansRoot(html, `
+              <h1>${escapeHtml(a.titre)}</h1>
+              ${a.categorie_nom ? `<p>Catégorie : ${escapeHtml(a.categorie_nom)}</p>` : ''}
+              ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(a.titre)}">` : ''}
+              <div>${escapeHtml(texte)}</div>`, estRobot);
+          }
+        } catch (e) { console.warn('⚠️ SSR article :', e.message); }
+      }
+
+      // Style minimal (robots seulement) pour que le rendu de Google soit lisible
+      if (estRobot) {
+        html = html.replace('</head>', '  <style>body{background:#060d1f;color:#fff;font-family:system-ui,sans-serif;margin:0;padding:24px;line-height:1.6}a{color:#fbbf24;text-decoration:none}h1{font-size:24px;margin:0 0 12px}img{max-width:280px;border-radius:8px;display:block;margin:12px 0}</style>\n</head>');
+      }
+
+      res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.status(statutHttp).send(html);
+    } catch (err) {
+      console.error('⚠️ SSR error :', err.message);
+      res.sendFile(path.join(__dirname, 'build', 'index.html'));
+    }
   });
 } else {
   app.get('/', (req, res) => res.send('🚀 e-Vend Studio API — Port ' + port));

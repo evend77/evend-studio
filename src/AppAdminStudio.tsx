@@ -1,3 +1,4 @@
+// CHEMIN : src/AppAdminStudio.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import GestionPlans          from './pages/admin/GestionPlans';
 import CreerPlan             from './pages/admin/CreerPlan';
@@ -50,6 +51,7 @@ import GestionSignalements   from './pages/admin/GestionSignalements';
 import IntegrationCode from './pages/admin/IntegrationCode';
 import AdminAddons from './pages/admin/AdminAddons';
 import GuidesAddons from './pages/admin/GuidesAddons';
+import ReferencementSEO from './pages/admin/ReferencementSEO';
 import AddonsActives from './pages/admin/AddonsActives';
 import PageAdminTemplatesPrix from './pages/admin/PageAdminTemplatesPrix';
 import StatistiquesSignalements from './pages/admin/StatistiquesSignalements';
@@ -813,6 +815,7 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
       case 'parametres-cookies':
         return <GestionCookies naviguerVers={naviguerVers} />;
       case 'parametres-seo':
+        return <ReferencementSEO naviguerVers={naviguerVers} />;
       case 'parametres-config-pages':
         return <PageEnConstruction titre={pageActive.replace('parametres-', '').replace(/-/g, ' ')} />;
 
