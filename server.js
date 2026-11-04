@@ -528,7 +528,13 @@ app.use('/api/chat-admin-collab/:gestionnaireId',    require('./routes/chat_admi
 
 app.use('/api/politiquesPlateforme', require('./routes/politiquesPlateforme'));
 app.use('/api/pagesPlateforme',      require('./routes/pagesPlateforme'));
-app.use('/api/menus',            require('./routes/menus'));
+// 🆕 Infolettre : inscription publique + désabonnement (/api/infolettre), gestion des abonnés
+// et campagnes marketing (/api/admin/infolettre, /api/admin/marketing) + réponse manuelle (/api/admin/repondre-client)
+// — Messagerie > E-mail marketing / E-mail manuel
+app.use('/api/infolettre',           require('./routes/infolettre'));
+app.use('/api/admin',                require('./routes/adminInfolettre'));
+app.use('/api/admin',                require('./routes/adminMarketing'));
+app.use('/api/admin',                require('./routes/adminRepondreClient'));
 app.use('/api/studio/sites', studioSites);
 app.use('/api/produits/gestionnaire', require('./routes/produits_gestionnaire'));
 app.use('/api/marketplace', require('./routes/marketplace-auth'));

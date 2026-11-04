@@ -16,6 +16,8 @@ import Notifications         from './pages/admin/Notifications';
 import ChatVendeurs          from './pages/admin/ChatVendeurs';
 import ChatAcheteurs         from './pages/admin/ChatAcheteurs';
 import SurveillanceLitiges   from './pages/admin/SurveillanceLitiges';
+import Marketing             from './pages/admin/Marketing';
+import ReponseClient         from './pages/admin/ReponseClient';
 import JournauxAudits        from './pages/admin/JournauxAudits';
 import ConfigurationGenerale from './pages/admin/ConfigurationGenerale';
 import ConfigurationEnchere  from './pages/admin/ConfigurationEnchere';
@@ -189,6 +191,8 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'messagerie-vendeurs',      label: 'Chat — Vendeurs',      icon: '🏪' },
       { id: 'messagerie-acheteurs',     label: 'Chat — Acheteurs',     icon: '🛒' },
       { id: 'messagerie-litiges',       label: 'Surveillance Litiges', icon: '⚖️' },
+      { id: 'messagerie-email-manuel',  label: 'E-mail manuel',        icon: '✉️' },
+      { id: 'messagerie-email-marketing', label: 'E-mail marketing',   icon: '📧' },
     ],
   },
   {
@@ -733,6 +737,10 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
         return <ChatAcheteurs naviguerVers={naviguerVers} />;
       case 'messagerie-litiges':
         return <SurveillanceLitiges naviguerVers={naviguerVers} />;
+      case 'messagerie-email-manuel':
+        return <ReponseClient />;
+      case 'messagerie-email-marketing':
+        return <Marketing />;
 
       case 'signalements':
       case 'signalements-liste':

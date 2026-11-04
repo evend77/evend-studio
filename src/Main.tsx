@@ -16,6 +16,7 @@ import FaqPlateforme         from './pages/FaqPlateforme';
 import ContactPlateforme     from './pages/ContactPlateforme';
 import PagePolitique              from './pages/PagePolitique';
 import PageDocumentsPlateforme    from './pages/PageDocumentsPlateforme';
+import DesabonnementInfolettre    from './pages/DesabonnementInfolettre';
 import InscriptionGestionnaire from './pages/gestionnaire/InscriptionGestionnaire';
 import MonDomaine            from './pages/gestionnaire/MonDomaine';
 import DomaineSucces         from './pages/DomaineSucces';
@@ -211,6 +212,7 @@ export default function Main() {
         <Route path="/politiques/:slug"   element={<PagePolitique />} />
         <Route path="/documents"           element={<PageDocumentsPlateforme />} />
         <Route path="/documents/:slug"     element={<PageDocumentsPlateforme />} />
+        <Route path="/desabonnement"       element={<DesabonnementInfolettre />} />
         <Route path="/sponsor/photos" element={<MesPhotosSponsor />} />
         <Route path="/sponsor/pubs/creer" element={<SponsorPubsCreer />} />
         

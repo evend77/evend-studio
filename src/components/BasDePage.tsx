@@ -3,6 +3,7 @@
 //   - Liens : menu « Pied de page » de l'admin (Paramètres > Menu). Si le serveur ne répond pas,
 //     les liens par défaut de useMenuPublic s'affichent.
 //   - « Nos politiques » : liste déroulante des politiques du site (/api/politiquesPlateforme/public).
+//   - Section d'inscription à l'infolettre (POST /api/infolettre) au-dessus du logo.
 //
 // Utilisation :   <BasDePage />   en bas de la page.
 
@@ -11,6 +12,7 @@ import { useMenuPublic, ItemMenu, urlSure } from '../hooks/useMenuPublic';
 import { useAllerA } from '../utils/liensMenu';
 import { lireJsonCache } from '../utils/cachePublic';
 import LogoStudio from './LogoStudio';
+import InscriptionInfolettre from './InscriptionInfolettre';
 
 const API_BASE = '/api';
 
@@ -146,6 +148,8 @@ export default function BasDePage() {
 
       <footer className="sv-pied" style={{ padding: '48px 0', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.3)', fontFamily: "'DM Sans', system-ui, sans-serif", color: '#fff' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px', textAlign: 'center' }}>
+          <InscriptionInfolettre />
+
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}>
             <LogoStudio petit />
           </div>

@@ -172,6 +172,7 @@ const SUJETS: Record<number, string> = {
   73: '🎉 Bienvenue de retour ! Votre boutique est réactivée',
   74: '🏖️ La boutique "{$nom_boutique_gestionnaire}" est en vacances',
   80: '💰 Baisse de prix ! {$product_title}',
+  103: "Réponse de l'équipe e-Vend Studio",
 };
 
 const TEMPLATES_INIT: Template[] = [
@@ -1091,6 +1092,17 @@ const TEMPLATES_INIT: Template[] = [
       { cle: '{$prix_cible}',       desc: "Prix cible de l'acheteur" },
       { cle: '{$message_acheteur}', desc: "Note optionnelle de l'acheteur" },
       { cle: '{$product_url}',      desc: 'URL du produit Shopify' },
+    ],
+  },
+  {
+    id: 103, nom: 'Réponse manuelle admin — client', theme: 'compte' as Theme,
+    destinataire: 'acheteur', canal: 'email', actif: true,
+    sujet: SUJETS[103],
+    html: baseHTML(SUJETS[103], `<p class='greeting'>Bonjour,</p><div class='content'><div class='box'><strong>Votre message :</strong><br>{$message_client}</div><p><strong>Notre réponse :</strong></p><p>{$message_reponse}</p><div class='hr'></div><p style='font-size:11px;color:#9ca3af;'>Pour répondre, vous pouvez simplement répondre à ce courriel.</p></div>`, '#2d6a9f'),
+    variables: [
+      ...VC,
+      { cle: '{$message_client}',  desc: 'Message original du client, collé manuellement' },
+      { cle: '{$message_reponse}', desc: 'Ta réponse (peut contenir des images intégrées)' },
     ],
   },
 ];
