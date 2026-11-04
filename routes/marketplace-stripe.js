@@ -176,7 +176,6 @@ router.post('/:gid/collaborateurs/:collabId/stripe/connect', authCollaborateur, 
       [collabId, gid, env]
     );
     let compteId = existant.rows[0] ? existant.rows[0].stripe_account_id : null;
-    let recree = false;
     if (compteId) {
       try {
         await stripe.accounts.retrieve(compteId);
@@ -184,7 +183,6 @@ router.post('/:gid/collaborateurs/:collabId/stripe/connect', authCollaborateur, 
         if (!compteIntrouvable(e)) throw e;
         await pool.query('DELETE FROM collaborateurs_stripe WHERE id = $1', [existant.rows[0].id]);
         compteId = null;
-        recree = true;
       }
     }
 
@@ -248,9 +246,11 @@ router.post('/:gid/collaborateurs/:collabId/stripe/connect', authCollaborateur, 
         };
       }
 
-      // Clé d'idempotence : un double-clic ne crée pas deux comptes Stripe.
+      // Clé d'idempotence : un double-clic (même minute) ne crée pas deux comptes Stripe.
+      // Elle change chaque minute, pour qu'un compte supprimé chez Stripe puisse être recréé
+      // (sinon Stripe renverrait pendant 24 h le même compte supprimé).
       const compte = await stripe.accounts.create(params, {
-        idempotencyKey: `studio-${gid}-${collabId}-${env}${recree ? `-${Date.now()}` : ''}`,
+        idempotencyKey: `studio-${gid}-${collabId}-${env}-${Math.floor(Date.now() / 60000)}`,
       });
       compteId = compte.id;
 

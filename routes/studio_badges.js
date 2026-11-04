@@ -1,372 +1,472 @@
-// routes/studio_badges.js
+// CHEMIN : routes/studio_badges.js
 //
-// ── Gestion des badges (créés par le gestionnaire) ──
-// GET    /api/studio/badges/:gestionnaireId              — liste des badges
-// POST   /api/studio/badges/:gestionnaireId              — créer un badge
-// PUT    /api/studio/badges/:gestionnaireId/:id          — modifier un badge
-// DELETE /api/studio/badges/:gestionnaireId/:id          — supprimer un badge
-// PUT    /api/studio/badges/:gestionnaireId/bulk/statut  — changer statut en masse
-// DELETE /api/studio/badges/:gestionnaireId/bulk         — supprimer en masse
+// Badges du GESTIONNAIRE (template multi-vendeur) et leur attribution aux
+// collaborateurs (marketplace_collaborateurs) et aux acheteurs (marketplace_acheteurs).
+// Monté sur : /api/studio/badges/:gestionnaireId
 //
-// ── Attribution des badges aux collaborateurs ──
-// GET    /api/studio/badges/:gestionnaireId/attribues              — badges attribués par collaborateur
-// POST   /api/studio/badges/:gestionnaireId/attribuer              — attribuer badges à un collaborateur
-// DELETE /api/studio/badges/:gestionnaireId/attribuer/:collaborateurId/:badgeId — retirer un badge
+// ── Gestion des badges ──
+// GET    /                                        — liste des badges
+// POST   /                                        — créer un badge
+// PUT    /bulk/statut                             — changer le statut en masse   { ids, statut }
+// DELETE /bulk                                    — supprimer en masse           { ids }
+// PUT    /:id                                     — modifier un badge
+// DELETE /:id                                     — supprimer un badge (retiré aussi de tous ceux qui l'avaient)
+//
+// ── Attribution aux collaborateurs ──
+// GET    /attribues                               — badges attribués, par collaborateur
+// POST   /attribuer                               — { collaborateur_id, badge_ids } (remplace les existants)
+// DELETE /attribuer/:collaborateurId/:badgeId     — retirer un badge
+//
+// ── Attribution aux acheteurs ──
+// GET    /attribues-acheteurs                     — badges attribués, par acheteur
+// POST   /attribuer-acheteur                      — { acheteur_id, badge_ids } (remplace les existants)
+// DELETE /attribuer-acheteur/:acheteurId/:badgeId — retirer un badge
 
 const express = require('express');
 const router  = express.Router({ mergeParams: true });
 const pool    = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 
-// ─── Helper propriétaire ──────────────────────────────────────────────────────
+const STATUTS_BADGE = ['actif', 'inactif'];
+const REGEX_ID_BADGE = /^[A-Za-z0-9_-]{1,40}$/;
+
+// ─── Sécurité : gestionnaire connecté, et on n'agit QUE sur son propre site ───
+// Renvoie l'id du gestionnaire, ou null (réponse déjà envoyée).
 function verifierProprietaire(req, res) {
-  const gestionnaireIdToken = parseInt(req.user?.id, 10);
-  const gestionnaireIdParam = parseInt(req.params.gestionnaireId, 10);
-  if (gestionnaireIdToken !== gestionnaireIdParam) {
+  const idToken = parseInt(req.user && req.user.id, 10);
+  const idParam = parseInt(req.params.gestionnaireId, 10);
+  if (!req.user || req.user.role !== 'gestionnaire' || !Number.isInteger(idParam) || idToken !== idParam) {
     res.status(403).json({ error: 'Accès refusé.' });
-    return false;
+    return null;
   }
-  return true;
+  return idParam;
 }
 
-// ─── Helper : générer un ID badge unique ──────────────────────────────────────
-async function genererIdBadge(gestionnaireId) {
-  const result = await pool.query(
-    `SELECT COUNT(*) AS total FROM badges_gestionnaire WHERE vendeur_id = $1`,
-    [gestionnaireId]
+const entier = (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
+const idBadge = (v) => (typeof v === 'string' && REGEX_ID_BADGE.test(v) ? v : null);
+
+// Liste d'identifiants de badges valides, sans doublon ; null si un élément est invalide.
+function listeIdsBadges(v) {
+  if (!Array.isArray(v)) return null;
+  const ids = v.map(idBadge);
+  if (ids.some(x => !x)) return null;
+  return [...new Set(ids)];
+}
+
+const texte = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+
+// ─── Numéro de badge : BDG-<gestionnaire>-<nnn>, toujours le plus grand + 1 ───
+// (l'ancien « nombre de badges + 1 » réutilisait un numéro après une suppression)
+async function genererIdBadge(gid) {
+  const r = await pool.query(
+    `SELECT COALESCE(MAX(SPLIT_PART(id, '-', 3)::int), 0) + 1 AS suivant
+       FROM badges_gestionnaire
+      WHERE gestionnaire_id = $1 AND id ~ ('^BDG-' || $1::text || '-[0-9]+$')`,
+    [gid]
   );
-  const n = parseInt(result.rows[0].total, 10) + 1;
-  return `BDG-${gestionnaireId}-${String(n).padStart(3, '0')}`;
+  return `BDG-${gid}-${String(r.rows[0].suivant).padStart(3, '0')}`;
+}
+
+// Les badges demandés appartiennent-ils tous à CE gestionnaire ?
+async function badgesDuSite(ids, gid) {
+  if (ids.length === 0) return true;
+  const r = await pool.query(
+    'SELECT COUNT(*)::int AS n FROM badges_gestionnaire WHERE id = ANY($1::text[]) AND gestionnaire_id = $2',
+    [ids, gid]
+  );
+  return r.rows[0].n === ids.length;
+}
+
+async function existeDuSite(table, id, gid) {
+  const r = await pool.query(`SELECT 1 FROM ${table} WHERE id = $1 AND gestionnaire_id = $2`, [id, gid]);
+  return r.rowCount > 0;
 }
 
 // =============================================================================
-// GET /api/studio/badges/:gestionnaireId
-// Liste tous les badges du gestionnaire
+// GET / — liste tous les badges du gestionnaire
 // =============================================================================
 router.get('/', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
   try {
-    const result = await pool.query(
+    const r = await pool.query(
       `SELECT b.*,
-              COUNT(DISTINCT bsv.collaborateur_id) AS nb_attribues
+              COUNT(DISTINCT bc.collaborateur_id)::int AS nb_attribues
          FROM badges_gestionnaire b
-         LEFT JOIN badges_sous_vendeur bsv ON bsv.badge_id = b.id
-        WHERE b.vendeur_id = $1
+         LEFT JOIN badges_collaborateur bc ON bc.badge_id = b.id
+        WHERE b.gestionnaire_id = $1
         GROUP BY b.id
         ORDER BY b.niveau ASC, b.nom ASC`,
-      [req.params.gestionnaireId]
+      [gid]
     );
-    res.json(result.rows);
+    res.json(r.rows);
   } catch (err) {
-    console.error('GET /studio/badges/:gestionnaireId :', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('GET /studio/badges :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// POST /api/studio/badges/:gestionnaireId
-// Créer un badge
+// POST / — créer un badge
 // =============================================================================
 router.post('/', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
-  const { nom, description, statut, icone, couleur, niveau, critere, type_badge } = req.body;
-  if (!nom?.trim()) return res.status(400).json({ error: 'Le nom du badge est requis.' });
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const b = req.body || {};
+  const nom = texte(b.nom, 100);
+  if (!nom) return res.status(400).json({ error: 'Le nom du badge est requis.' });
+  const statut = b.statut === undefined ? 'actif' : b.statut;
+  if (!STATUTS_BADGE.includes(statut)) return res.status(400).json({ error: 'Statut invalide.' });
 
-  try {
-    const id = await genererIdBadge(req.params.gestionnaireId);
-    const result = await pool.query(
-      `INSERT INTO badges_gestionnaire (id, vendeur_id, nom, description, statut, icone, couleur, niveau, critere, type_badge)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
-      [id, req.params.gestionnaireId, nom.trim(), description || '', statut || 'actif', icone || '🏅', couleur || '#FFD700', niveau || 1, critere || '', type_badge || 'les-deux']
-    );
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error('POST /studio/badges/:gestionnaireId :', err.message);
-    res.status(500).json({ error: err.message });
+  // En cas de création simultanée, la base refuse le doublon : on recalcule et on réessaie.
+  for (let essai = 0; essai < 3; essai++) {
+    try {
+      const id = await genererIdBadge(gid);
+      const r = await pool.query(
+        `INSERT INTO badges_gestionnaire (id, gestionnaire_id, nom, description, statut, icone, couleur, niveau, critere, type_badge)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+        [id, gid, nom, texte(b.description, 2000), statut, texte(b.icone, 20) || '🏅',
+         texte(b.couleur, 30) || '#FFD700', entier(b.niveau) || 1, texte(b.critere, 500),
+         texte(b.type_badge, 30) || 'les-deux']
+      );
+      return res.status(201).json(r.rows[0]);
+    } catch (err) {
+      if (err.code === '23505' && essai < 2) continue;
+      console.error('POST /studio/badges :', err.message);
+      return res.status(500).json({ error: 'Erreur serveur.' });
+    }
   }
 });
 
 // =============================================================================
-// PUT /api/studio/badges/:gestionnaireId/bulk/statut
-// Changer statut en masse
+// PUT /bulk/statut — changer le statut en masse   (déclaré AVANT /:id)
 // =============================================================================
 router.put('/bulk/statut', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
-  const { ids, statut } = req.body;
-  if (!ids?.length || !['actif', 'inactif'].includes(statut)) {
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const ids = listeIdsBadges(req.body && req.body.ids);
+  const statut = req.body && req.body.statut;
+  if (!ids || ids.length === 0 || !STATUTS_BADGE.includes(statut)) {
     return res.status(400).json({ error: 'Données invalides.' });
   }
   try {
-    await pool.query(
-      `UPDATE badges_gestionnaire SET statut = $1 WHERE id = ANY($2) AND vendeur_id = $3`,
-      [statut, ids, req.params.gestionnaireId]
+    const r = await pool.query(
+      'UPDATE badges_gestionnaire SET statut = $1 WHERE id = ANY($2::text[]) AND gestionnaire_id = $3',
+      [statut, ids, gid]
     );
-    res.json({ success: true });
+    res.json({ success: true, modifies: r.rowCount });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('PUT /studio/badges/bulk/statut :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// DELETE /api/studio/badges/:gestionnaireId/bulk
-// Supprimer en masse
+// DELETE /bulk — supprimer en masse   (déclaré AVANT /:id)
 // =============================================================================
 router.delete('/bulk', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
-  const { ids } = req.body;
-  if (!ids?.length) return res.status(400).json({ error: 'Liste d\'IDs requise.' });
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const ids = listeIdsBadges(req.body && req.body.ids);
+  if (!ids || ids.length === 0) return res.status(400).json({ error: "Liste d'IDs requise." });
+  const client = await pool.connect();
   try {
-    await pool.query(
-      `DELETE FROM badges_gestionnaire WHERE id = ANY($1) AND vendeur_id = $2`,
-      [ids, req.params.gestionnaireId]
+    await client.query('BEGIN');
+    // Seuls les badges de CE gestionnaire sont concernés ; on les retire d'abord de ceux qui les portent.
+    const miens = await client.query(
+      'SELECT id FROM badges_gestionnaire WHERE id = ANY($1::text[]) AND gestionnaire_id = $2',
+      [ids, gid]
     );
-    res.json({ success: true });
+    const idsMiens = miens.rows.map(x => x.id);
+    await client.query('DELETE FROM badges_collaborateur WHERE badge_id = ANY($1::text[])', [idsMiens]);
+    await client.query('DELETE FROM badges_acheteur WHERE badge_id = ANY($1::text[])', [idsMiens]);
+    const r = await client.query(
+      'DELETE FROM badges_gestionnaire WHERE id = ANY($1::text[]) AND gestionnaire_id = $2',
+      [idsMiens, gid]
+    );
+    await client.query('COMMIT');
+    res.json({ success: true, supprimes: r.rowCount });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('DELETE /studio/badges/bulk :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  } finally {
+    client.release();
   }
 });
 
 // =============================================================================
-// PUT /api/studio/badges/:gestionnaireId/:id
-// Modifier un badge
+// PUT /:id — modifier un badge
 // =============================================================================
 router.put('/:id', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
-  const { nom, description, statut, icone, couleur, niveau, critere, type_badge } = req.body;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const id = idBadge(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Identifiant invalide.' });
+  const b = req.body || {};
+
+  const champs = [];
+  const vals = [];
+  const ajouter = (colonne, valeur) => { vals.push(valeur); champs.push(`${colonne} = $${vals.length}`); };
+
+  if (b.nom !== undefined) {
+    const nom = texte(b.nom, 100);
+    if (!nom) return res.status(400).json({ error: 'Le nom du badge est requis.' });
+    ajouter('nom', nom);
+  }
+  if (b.description !== undefined) ajouter('description', texte(b.description, 2000));
+  if (b.statut !== undefined) {
+    if (!STATUTS_BADGE.includes(b.statut)) return res.status(400).json({ error: 'Statut invalide.' });
+    ajouter('statut', b.statut);
+  }
+  if (b.icone !== undefined) ajouter('icone', texte(b.icone, 20));
+  if (b.couleur !== undefined) ajouter('couleur', texte(b.couleur, 30));
+  if (b.niveau !== undefined) {
+    const niveau = entier(b.niveau);
+    if (!niveau) return res.status(400).json({ error: 'Niveau invalide.' });
+    ajouter('niveau', niveau);
+  }
+  if (b.critere !== undefined) ajouter('critere', texte(b.critere, 500));
+  if (b.type_badge !== undefined) ajouter('type_badge', texte(b.type_badge, 30));
+
+  if (!champs.length) return res.status(400).json({ error: 'Aucune donnée.' });
 
   try {
-    const champs = [];
-    const vals   = [];
-    let p = 1;
-    if (nom         !== undefined) { champs.push(`nom=$${p++}`);         vals.push(nom); }
-    if (description !== undefined) { champs.push(`description=$${p++}`); vals.push(description); }
-    if (statut      !== undefined) { champs.push(`statut=$${p++}`);      vals.push(statut); }
-    if (icone       !== undefined) { champs.push(`icone=$${p++}`);       vals.push(icone); }
-    if (couleur     !== undefined) { champs.push(`couleur=$${p++}`);     vals.push(couleur); }
-    if (niveau      !== undefined) { champs.push(`niveau=$${p++}`);      vals.push(niveau); }
-    if (critere     !== undefined) { champs.push(`critere=$${p++}`);     vals.push(critere); }
-    if (type_badge  !== undefined) { champs.push(`type_badge=$${p++}`);  vals.push(type_badge); }
-
-    if (!champs.length) return res.status(400).json({ error: 'Aucune donnée.' });
-
-    vals.push(req.params.id, req.params.gestionnaireId);
-    const result = await pool.query(
+    vals.push(id, gid);
+    const r = await pool.query(
       `UPDATE badges_gestionnaire SET ${champs.join(', ')}
-       WHERE id = $${p} AND vendeur_id = $${p + 1}
-       RETURNING *`,
+        WHERE id = $${vals.length - 1} AND gestionnaire_id = $${vals.length}
+        RETURNING *`,
       vals
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Badge introuvable.' });
-    res.json(result.rows[0]);
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Badge introuvable.' });
+    res.json(r.rows[0]);
   } catch (err) {
-    console.error('PUT /studio/badges/:gestionnaireId/:id :', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('PUT /studio/badges/:id :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// DELETE /api/studio/badges/:gestionnaireId/:id
-// Supprimer un badge
+// DELETE /:id — supprimer un badge
 // =============================================================================
 router.delete('/:id', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const id = idBadge(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Identifiant invalide.' });
+  const client = await pool.connect();
   try {
-    const result = await pool.query(
-      `DELETE FROM badges_gestionnaire WHERE id = $1 AND vendeur_id = $2 RETURNING id`,
-      [req.params.id, req.params.gestionnaireId]
+    await client.query('BEGIN');
+    const existe = await client.query(
+      'SELECT 1 FROM badges_gestionnaire WHERE id = $1 AND gestionnaire_id = $2', [id, gid]
     );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Badge introuvable.' });
+    if (existe.rowCount === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Badge introuvable.' });
+    }
+    await client.query('DELETE FROM badges_collaborateur WHERE badge_id = $1', [id]);
+    await client.query('DELETE FROM badges_acheteur WHERE badge_id = $1', [id]);
+    await client.query('DELETE FROM badges_gestionnaire WHERE id = $1 AND gestionnaire_id = $2', [id, gid]);
+    await client.query('COMMIT');
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('DELETE /studio/badges/:id :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  } finally {
+    client.release();
   }
 });
 
 // =============================================================================
-// GET /api/studio/badges/:gestionnaireId/attribues
-// Badges attribués par collaborateur
+// GET /attribues — badges attribués, par collaborateur
 // =============================================================================
 router.get('/attribues', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
   try {
-    const site = await pool.query(`SELECT id FROM sites WHERE gestionnaire_id = $1`, [req.params.gestionnaireId]);
-    if (!site.rows.length) return res.json([]);
-    const siteId = site.rows[0].id;
-
-    const result = await pool.query(
+    const r = await pool.query(
       `SELECT
-         sv.id AS collaborateur_id,
-         sv.nom AS collaborateur_nom,
-         sv.email AS collaborateur_email,
-         sv.nom_boutique AS boutique_nom,
+         c.id AS collaborateur_id,
+         c.nom_responsable AS collaborateur_nom,
+         c.email AS collaborateur_email,
+         c.nom_boutique AS boutique_nom,
          COALESCE(
            json_agg(
-             json_build_object(
-               'id',      b.id,
-               'nom',     b.nom,
-               'icone',   b.icone,
-               'couleur', b.couleur,
-               'niveau',  b.niveau,
-               'statut',  b.statut
-             )
+             json_build_object('id', b.id, 'nom', b.nom, 'icone', b.icone,
+                               'couleur', b.couleur, 'niveau', b.niveau, 'statut', b.statut)
            ) FILTER (WHERE b.id IS NOT NULL),
            '[]'
          ) AS badges
-       FROM collaborateurs sv
-       LEFT JOIN badges_sous_vendeur bsv ON bsv.collaborateur_id = sv.id
-       LEFT JOIN badges_vendeur b ON b.id = bsv.badge_id
-       WHERE sv.site_id = $1
-       GROUP BY sv.id
-       ORDER BY sv.nom ASC`,
-      [siteId]
+       FROM marketplace_collaborateurs c
+       LEFT JOIN badges_collaborateur bc ON bc.collaborateur_id = c.id
+       LEFT JOIN badges_gestionnaire b ON b.id = bc.badge_id AND b.gestionnaire_id = c.gestionnaire_id
+       WHERE c.gestionnaire_id = $1
+       GROUP BY c.id
+       ORDER BY c.nom_responsable ASC`,
+      [gid]
     );
-    res.json(result.rows);
+    res.json(r.rows);
   } catch (err) {
-    console.error('GET /studio/badges/:gestionnaireId/attribues :', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('GET /studio/badges/attribues :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
+// Remplace l'ensemble des badges d'un collaborateur ou d'un acheteur (en une seule transaction).
+async function remplacerAttributions(table, colonne, personneId, badgeIds) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM ${table} WHERE ${colonne} = $1`, [personneId]);
+    for (const badgeId of badgeIds) {
+      await client.query(`INSERT INTO ${table} (badge_id, ${colonne}) VALUES ($1, $2)`, [badgeId, personneId]);
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 // =============================================================================
-// POST /api/studio/badges/:gestionnaireId/attribuer
-// Attribuer une liste de badges à un collaborateur (remplace les existants)
+// POST /attribuer — attribuer une liste de badges à un collaborateur (remplace les existants)
 // Body : { collaborateur_id, badge_ids: string[] }
 // =============================================================================
 router.post('/attribuer', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
-  const { collaborateur_id, badge_ids } = req.body;
-  if (!collaborateur_id) return res.status(400).json({ error: 'collaborateur_id requis.' });
-
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const collabId = entier(req.body && req.body.collaborateur_id);
+  const badgeIds = listeIdsBadges((req.body && req.body.badge_ids) || []);
+  if (!collabId) return res.status(400).json({ error: 'collaborateur_id requis.' });
+  if (!badgeIds) return res.status(400).json({ error: 'badge_ids invalide.' });
   try {
-    // Supprimer les attributions existantes
-    await pool.query(
-      `DELETE FROM badges_collaborateur WHERE collaborateur_id = $1`,
-      [collaborateur_id]
-    );
-
-    // Insérer les nouvelles
-    if (badge_ids?.length) {
-      const values = badge_ids.map((bid, i) =>
-        `($${i * 2 + 1}, $${i * 2 + 2})`
-      ).join(', ');
-      const params = badge_ids.flatMap(bid => [bid, collaborateur_id]);
-      await pool.query(
-        `INSERT INTO badges_collaborateur (badge_id, sous_vendeur_id) VALUES ${values}
-         ON CONFLICT DO NOTHING`,
-        params
-      );
+    if (!await existeDuSite('marketplace_collaborateurs', collabId, gid)) {
+      return res.status(404).json({ error: 'Collaborateur introuvable.' });
     }
-
+    if (!await badgesDuSite(badgeIds, gid)) {
+      return res.status(400).json({ error: 'Un ou plusieurs badges sont introuvables.' });
+    }
+    await remplacerAttributions('badges_collaborateur', 'collaborateur_id', collabId, badgeIds);
     res.json({ success: true });
   } catch (err) {
-    console.error('POST /studio/badges/:gestionnaireId/attribuer :', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('POST /studio/badges/attribuer :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// DELETE /api/studio/badges/:gestionnaireId/attribuer/:collaborateurId/:badgeId
-// Retirer un badge d'un collaborateur
+// DELETE /attribuer/:collaborateurId/:badgeId — retirer un badge d'un collaborateur
 // =============================================================================
 router.delete('/attribuer/:collaborateurId/:badgeId', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const collabId = entier(req.params.collaborateurId);
+  const badgeId = idBadge(req.params.badgeId);
+  if (!collabId || !badgeId) return res.status(400).json({ error: 'Identifiant invalide.' });
   try {
+    if (!await existeDuSite('marketplace_collaborateurs', collabId, gid)) {
+      return res.status(404).json({ error: 'Collaborateur introuvable.' });
+    }
     await pool.query(
-      `DELETE FROM badges_collaborateur WHERE collaborateur_id = $1 AND badge_id = $2`,
-      [req.params.collaborateurId, req.params.badgeId]
+      'DELETE FROM badges_collaborateur WHERE collaborateur_id = $1 AND badge_id = $2',
+      [collabId, badgeId]
     );
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('DELETE /studio/badges/attribuer :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// GET /api/studio/badges/:gestionnaireId/attribues-acheteurs
-// Badges attribués par acheteur
+// GET /attribues-acheteurs — badges attribués, par acheteur
 // =============================================================================
 router.get('/attribues-acheteurs', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
   try {
-    const site = await pool.query(`SELECT id FROM sites WHERE gestionnaire_id = $1`, [req.params.gestionnaireId]);
-    if (!site.rows.length) return res.json([]);
-    const siteId = site.rows[0].id;
-
-    const result = await pool.query(
+    const r = await pool.query(
       `SELECT
          a.id AS acheteur_id,
-         a.nom AS acheteur_nom,
+         TRIM(CONCAT_WS(' ', a.prenom, a.nom)) AS acheteur_nom,
          a.email AS acheteur_email,
          COALESCE(
            json_agg(
-             json_build_object(
-               'id',      b.id,
-               'nom',     b.nom,
-               'icone',   b.icone,
-               'couleur', b.couleur,
-               'niveau',  b.niveau,
-               'statut',  b.statut
-             )
+             json_build_object('id', b.id, 'nom', b.nom, 'icone', b.icone,
+                               'couleur', b.couleur, 'niveau', b.niveau, 'statut', b.statut)
            ) FILTER (WHERE b.id IS NOT NULL),
            '[]'
          ) AS badges
-       FROM acheteurs_studio a
+       FROM marketplace_acheteurs a
        LEFT JOIN badges_acheteur ba ON ba.acheteur_id = a.id
-       LEFT JOIN badges_vendeur b ON b.id = ba.badge_id
-       WHERE a.site_id = $1
+       LEFT JOIN badges_gestionnaire b ON b.id = ba.badge_id AND b.gestionnaire_id = a.gestionnaire_id
+       WHERE a.gestionnaire_id = $1
        GROUP BY a.id
-       ORDER BY a.nom ASC`,
-      [siteId]
+       ORDER BY TRIM(CONCAT_WS(' ', a.prenom, a.nom)) ASC`,
+      [gid]
     );
-    res.json(result.rows);
+    res.json(r.rows);
   } catch (err) {
-    console.error('GET /studio/badges/:gestionnaireId/attribues-acheteurs :', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('GET /studio/badges/attribues-acheteurs :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// POST /api/studio/badges/:gestionnaireId/attribuer-acheteur
-// Attribuer des badges à un acheteur
+// POST /attribuer-acheteur — attribuer des badges à un acheteur (remplace les existants)
 // Body : { acheteur_id, badge_ids }
 // =============================================================================
 router.post('/attribuer-acheteur', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
-  const { acheteur_id, badge_ids } = req.body;
-  if (!acheteur_id) return res.status(400).json({ error: 'acheteur_id requis.' });
-
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const acheteurId = entier(req.body && req.body.acheteur_id);
+  const badgeIds = listeIdsBadges((req.body && req.body.badge_ids) || []);
+  if (!acheteurId) return res.status(400).json({ error: 'acheteur_id requis.' });
+  if (!badgeIds) return res.status(400).json({ error: 'badge_ids invalide.' });
   try {
-    await pool.query(`DELETE FROM badges_acheteur WHERE acheteur_id = $1`, [acheteur_id]);
-
-    if (badge_ids?.length) {
-      const values = badge_ids.map((bid, i) => `($${i * 2 + 1}, $${i * 2 + 2})`).join(', ');
-      const params = badge_ids.flatMap(bid => [bid, acheteur_id]);
-      await pool.query(
-        `INSERT INTO badges_acheteur (badge_id, acheteur_id) VALUES ${values} ON CONFLICT DO NOTHING`,
-        params
-      );
+    if (!await existeDuSite('marketplace_acheteurs', acheteurId, gid)) {
+      return res.status(404).json({ error: 'Acheteur introuvable.' });
     }
+    if (!await badgesDuSite(badgeIds, gid)) {
+      return res.status(400).json({ error: 'Un ou plusieurs badges sont introuvables.' });
+    }
+    await remplacerAttributions('badges_acheteur', 'acheteur_id', acheteurId, badgeIds);
     res.json({ success: true });
   } catch (err) {
-    console.error('POST /studio/badges/:gestionnaireId/attribuer-acheteur :', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('POST /studio/badges/attribuer-acheteur :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// DELETE /api/studio/badges/:gestionnaireId/attribuer-acheteur/:acheteurId/:badgeId
-// Retirer un badge d'un acheteur
+// DELETE /attribuer-acheteur/:acheteurId/:badgeId — retirer un badge d'un acheteur
 // =============================================================================
 router.delete('/attribuer-acheteur/:acheteurId/:badgeId', authenticateToken, async (req, res) => {
-  if (!verifierProprietaire(req, res)) return;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const acheteurId = entier(req.params.acheteurId);
+  const badgeId = idBadge(req.params.badgeId);
+  if (!acheteurId || !badgeId) return res.status(400).json({ error: 'Identifiant invalide.' });
   try {
+    if (!await existeDuSite('marketplace_acheteurs', acheteurId, gid)) {
+      return res.status(404).json({ error: 'Acheteur introuvable.' });
+    }
     await pool.query(
-      `DELETE FROM badges_acheteur WHERE acheteur_id = $1 AND badge_id = $2`,
-      [req.params.acheteurId, req.params.badgeId]
+      'DELETE FROM badges_acheteur WHERE acheteur_id = $1 AND badge_id = $2',
+      [acheteurId, badgeId]
     );
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('DELETE /studio/badges/attribuer-acheteur :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 

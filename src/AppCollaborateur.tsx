@@ -1,12 +1,13 @@
-// src/AppCollaborateur.tsx
+// CHEMIN : src/AppCollaborateur.tsx
 // e-Vend Studio — Dashboard collaborateur (vendeur inscrit sur la marketplace d'un gestionnaire)
 // Adapte depuis AppVendeur.tsx — token scope par gestionnaireId
-// Token : mv_token_${gestionnaireId} / mv_compte_${gestionnaireId}
+// Session : cookie httpOnly mv_token_<id> (illisible côté navigateur) ; infos d'affichage : mv_compte_<id>
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
+import CollaborateurStripe from './pages/collaborateur/CollaborateurStripe';
 
 const API_BASE = '/api';
 
@@ -38,13 +39,12 @@ interface Props {
 function SessionIndicator({ gestionnaireId }: { gestionnaireId: number }) {
   const [ok, setOk] = useState<boolean | null>(null);
   const ref = useRef<any>(null);
-  const verifier = () => {
-    const token = localStorage.getItem(`mv_token_${gestionnaireId}`);
-    if (!token) { setOk(false); return; }
+  // Le jeton est dans un cookie httpOnly (illisible ici) : on demande au serveur si la session est valide.
+  const verifier = async () => {
     try {
-      const p = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-      setOk(Date.now() < p.exp * 1000);
-    } catch { setOk(false); }
+      const res = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/me`, { credentials: 'include' });
+      setOk(res.ok);
+    } catch { /* réseau indisponible : on garde l'état précédent */ }
   };
   useEffect(() => {
     verifier();
@@ -191,29 +191,32 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const accent = config.couleur_accent || '#3b82f6';
   const nomSite = config.nom_boutique || 'Ma Marketplace';
 
-  const [pageActive, setPageActive]   = useState('dashboard');
+  // Retour de Stripe (?stripe=success|refresh) : on ouvre directement la page Paiements Stripe.
+  const retourStripe = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('stripe');
+
+  const [pageActive, setPageActive]   = useState(retourStripe ? 'config-stripe' : 'dashboard');
   const [isMobile,   setIsMobile]     = useState(false);
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
-  const [menuOuvert, setMenuOuvert]   = useState<string | null>(null);
+  const [menuOuvert, setMenuOuvert]   = useState<string | null>(retourStripe ? 'configuration' : null);
   const [heure,      setHeure]        = useState(new Date());
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
 
-  const [compte, setCompte]   = useState<CompteCollaborateur | null>(null);
+  // Infos d'affichage du compte (le vrai jeton est dans le cookie httpOnly).
+  const [compte]   = useState<CompteCollaborateur | null>(() => {
+    try {
+      const saved = localStorage.getItem(`mv_compte_${vendeurId || config.gestionnaire_id || 0}`);
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
   const [stats,  setStats]    = useState<StatsCollaborateur | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const getToken = () => localStorage.getItem(`mv_token_${gestionnaireId}`);
-  const getHeaders = () => ({ Authorization: `Bearer ${getToken()}`, 'Content-Type': 'application/json' });
-
-  // Charger compte depuis localStorage
-  useEffect(() => {
-    const saved = localStorage.getItem(`mv_compte_${gestionnaireId}`);
-    if (saved) { try { setCompte(JSON.parse(saved)); } catch {} }
-  }, [gestionnaireId]);
+  // Le cookie httpOnly est envoyé automatiquement (credentials: 'include') : aucun jeton à joindre.
+  const getHeaders = () => ({ 'Content-Type': 'application/json' });
 
   // Rediriger si pas connecte
   useEffect(() => {
-    if (!getToken() && compte === null) naviguerTemplate({ page: 'login' });
+    if (compte === null) naviguerTemplate({ page: 'login' });
   }, [compte, gestionnaireId]);
 
   // Charger stats
@@ -303,7 +306,13 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
         { id: 'profil-avis',    label: 'Mes avis clients',  icon: '⭐' },
       ]
     },
-    { id: 'config-generale', label: 'CONFIGURATION', icon: '⚙️' },
+    {
+      id: 'configuration', label: 'CONFIGURATION', icon: '⚙️',
+      sousMenu: [
+        { id: 'config-generale', label: 'Configuration generale', icon: '⚙️' },
+        { id: 'config-stripe',   label: 'Paiements Stripe',       icon: '💳' },
+      ]
+    },
   ];
 
   const renderPage = () => {
@@ -320,6 +329,8 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'profil-compte')     return <PageStub titre="Mon compte"          emoji="👤" />;
     if (pageActive === 'profil-boutique')   return <PageStub titre="Ma boutique"         emoji="🏪" />;
     if (pageActive === 'profil-avis')       return <PageStub titre="Mes avis clients"    emoji="⭐" />;
+    if (pageActive === 'config-stripe' && compte)
+      return <CollaborateurStripe gestionnaireId={gestionnaireId} collaborateurId={compte.id} accent={accent} isMobile={isMobile} />;
     if (pageActive === 'config-generale')   return <PageStub titre="Configuration"       emoji="⚙️" />;
     return null;
   };
