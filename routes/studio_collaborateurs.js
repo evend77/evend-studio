@@ -1,14 +1,20 @@
-// routes/studio_collaborateurs.js
+// CHEMIN : routes/studio_collaborateurs.js
 //
-// GET    /api/studio/collaborateurs/:gestionnaireId              — liste des collaborateurs du site
-// POST   /api/studio/collaborateurs/:gestionnaireId              — créer un collaborateur
-// GET    /api/studio/collaborateurs/:gestionnaireId/:id          — détail d'un collaborateur
-// PUT    /api/studio/collaborateurs/:gestionnaireId/:id/statut   — changer le statut
-// PUT    /api/studio/collaborateurs/:gestionnaireId/:id/mot-de-passe — reset mdp
-// DELETE /api/studio/collaborateurs/:gestionnaireId/:id          — supprimer
-// GET    /api/studio/collaborateurs/:gestionnaireId/:id/notes    — notes internes
-// POST   /api/studio/collaborateurs/:gestionnaireId/:id/notes    — ajouter une note
-// DELETE /api/studio/collaborateurs/:gestionnaireId/:id/notes/:noteId — supprimer une note
+// Gestion des collaborateurs par le GESTIONNAIRE (template multi-vendeur).
+// Source unique : table marketplace_collaborateurs (celle de l'inscription, de la
+// connexion, du panier, des commandes et de Stripe), rattachée par gestionnaire_id.
+// Monté sur : /api/studio/collaborateurs/:gestionnaireId
+//
+// GET    /                         — liste des collaborateurs du site
+// POST   /                         — créer un collaborateur
+// DELETE /bulk                     — supprimer plusieurs collaborateurs   { ids }
+// PUT    /bulk/statut              — changer le statut de plusieurs        { ids, statut }
+// PUT    /:id/statut               — changer le statut (approuver = 'actif') { statut }
+// PUT    /:id/mot-de-passe         — réinitialiser le mot de passe         { nouveau_mot_de_passe }
+// DELETE /:id                      — supprimer
+// GET    /:id/notes                — notes internes
+// POST   /:id/notes                — ajouter une note                      { contenu, auteur? }
+// DELETE /:id/notes/:noteId        — supprimer une note
 
 const express = require('express');
 const router  = express.Router({ mergeParams: true });
@@ -16,294 +22,302 @@ const pool    = require('../db');
 const bcrypt  = require('bcrypt');
 const { authenticateToken } = require('../middleware/auth');
 
-// ─── Helper propriétaire ──────────────────────────────────────────────────────
-async function verifierProprietaire(req, res) {
-  const gestionnaireIdToken = parseInt(req.user?.id, 10);
-  const gestionnaireIdParam = parseInt(req.params.gestionnaireId, 10);
-  if (gestionnaireIdToken !== gestionnaireIdParam) {
+const STATUTS_VALIDES = ['actif', 'suspendu', 'pending', 'rejected', 'banni', 'vacances'];
+
+// ─── Sécurité : gestionnaire connecté, et on n'agit QUE sur son propre site ───
+// Renvoie l'id du gestionnaire, ou null (réponse déjà envoyée).
+function verifierProprietaire(req, res) {
+  const idToken = parseInt(req.user && req.user.id, 10);
+  const idParam = parseInt(req.params.gestionnaireId, 10);
+  if (!req.user || req.user.role !== 'gestionnaire' || !Number.isInteger(idParam) || idToken !== idParam) {
     res.status(403).json({ error: 'Accès refusé.' });
-    return false;
+    return null;
   }
-  return true;
+  return idParam;
 }
 
-// ─── Helper : trouver le site du gestionnaire ─────────────────────────────────
-async function getSiteId(gestionnaireId) {
-  const result = await pool.query(
-    `SELECT id FROM sites WHERE vendeur_id = $1`, [gestionnaireId]
+const entier = (v) => {
+  const n = Number(v);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
+function listeIds(v) {
+  if (!Array.isArray(v)) return null;
+  const ids = v.map(entier).filter(Boolean);
+  return ids.length > 0 && ids.length === v.length ? ids : null;
+}
+
+// Le collaborateur appartient-il bien à CE gestionnaire ?
+async function collaborateurDuSite(id, gid) {
+  const r = await pool.query(
+    'SELECT 1 FROM marketplace_collaborateurs WHERE id = $1 AND gestionnaire_id = $2',
+    [id, gid]
   );
-  return result.rows[0]?.id ?? null;
+  return r.rowCount > 0;
 }
 
 // =============================================================================
-// GET /api/studio/collaborateurs/:gestionnaireId
-// Liste tous les collaborateurs du site avec stats
+// GET / — liste des collaborateurs du site, avec le nombre de notes
 // =============================================================================
 router.get('/', authenticateToken, async (req, res) => {
-  if (!await verifierProprietaire(req, res)) return;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
   try {
-    const siteId = await getSiteId(req.params.gestionnaireId);
-    if (!siteId) return res.status(404).json({ error: 'Site introuvable.' });
-
     const result = await pool.query(
       `SELECT
-         sv.id,
-         sv.email,
-         sv.nom,
-         sv.nom_boutique,
-         sv.telephone,
-         sv.statut,
-         sv.plan,
-         sv.logo_url,
-         sv.description,
-         sv.created_at,
-         sv.updated_at,
-         COUNT(DISTINCT n.id) AS nb_notes
-       FROM collaborateurs sv
-       LEFT JOIN notes_sous_vendeur n ON n.sous_vendeur_id = sv.id
-       WHERE sv.site_id = $1
-       GROUP BY sv.id
-       ORDER BY sv.created_at DESC`,
-      [siteId]
+         c.id,
+         c.email,
+         c.nom_responsable AS nom,
+         c.nom_boutique,
+         c.telephone,
+         c.type_entreprise,
+         c.statut,
+         NULL::text         AS plan,
+         NULL::text         AS logo_url,
+         NULL::text         AS description,
+         c.created_at,
+         c.created_at       AS updated_at,
+         COUNT(n.id)::int   AS nb_notes
+       FROM marketplace_collaborateurs c
+       LEFT JOIN notes_collaborateur n ON n.collaborateur_id = c.id
+       WHERE c.gestionnaire_id = $1
+       GROUP BY c.id
+       ORDER BY c.created_at DESC`,
+      [gid]
     );
-
     res.json({ collaborateurs: result.rows, total: result.rows.length });
   } catch (err) {
-    console.error('GET /studio/collaborateurs/:gestionnaireId :', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('GET /studio/collaborateurs :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// POST /api/studio/collaborateurs/:gestionnaireId
-// Créer un nouveau collaborateur
-// Body : { email, mot_de_passe, nom, nom_boutique, telephone }
+// POST / — créer un collaborateur (statut 'pending')
+// Body : { email, mot_de_passe, nom, nom_boutique, telephone, type_entreprise }
 // =============================================================================
 router.post('/', authenticateToken, async (req, res) => {
-  if (!await verifierProprietaire(req, res)) return;
-  const { email, mot_de_passe, nom, nom_boutique, telephone } = req.body;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const { mot_de_passe, nom, nom_boutique, telephone, type_entreprise } = req.body || {};
+  const email = typeof req.body?.email === 'string' ? req.body.email.trim() : '';
 
   if (!email || !mot_de_passe) {
     return res.status(400).json({ error: 'Email et mot de passe requis.' });
   }
 
   try {
-    const siteId = await getSiteId(req.params.gestionnaireId);
-    if (!siteId) return res.status(404).json({ error: 'Site introuvable.' });
-
-    // Vérifier doublon email sur ce site
     const doublon = await pool.query(
-      `SELECT id FROM collaborateurs WHERE site_id = $1 AND email = $2`,
-      [siteId, email]
+      'SELECT id FROM marketplace_collaborateurs WHERE gestionnaire_id = $1 AND email = $2',
+      [gid, email]
     );
     if (doublon.rows.length > 0) {
       return res.status(409).json({ error: 'Un collaborateur avec cet email existe déjà sur ce site.' });
     }
 
-    const hash = await bcrypt.hash(mot_de_passe, 12);
+    const hash = await bcrypt.hash(String(mot_de_passe), 12);
     const result = await pool.query(
-      `INSERT INTO collaborateurs (site_id, email, mot_de_passe, nom, nom_boutique, telephone, statut)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-       RETURNING id, email, nom, nom_boutique, statut, created_at`,
-      [siteId, email, hash, nom ?? '', nom_boutique ?? '', telephone ?? '']
+      `INSERT INTO marketplace_collaborateurs
+         (gestionnaire_id, nom_responsable, nom_boutique, email, mot_de_passe, telephone, type_entreprise, statut)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending')
+       RETURNING id, email, nom_responsable AS nom, nom_boutique, statut, created_at`,
+      [gid, nom ?? '', nom_boutique ?? '', email, hash, telephone ?? '', type_entreprise ?? '']
     );
-
     res.status(201).json({ success: true, collaborateur: result.rows[0] });
   } catch (err) {
-    console.error('POST /studio/collaborateurs/:gestionnaireId :', err.message);
-    res.status(500).json({ error: err.message });
+    console.error('POST /studio/collaborateurs :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// PUT /api/studio/collaborateurs/:gestionnaireId/:id/statut
-// Changer le statut d'un collaborateur
-// Body : { statut }
-// =============================================================================
-router.put('/:id/statut', authenticateToken, async (req, res) => {
-  if (!await verifierProprietaire(req, res)) return;
-  const { statut } = req.body;
-  const STATUTS_VALIDES = ['actif', 'suspendu', 'pending', 'rejected', 'banni', 'vacances'];
-  if (!STATUTS_VALIDES.includes(statut)) {
-    return res.status(400).json({ error: 'Statut invalide.' });
-  }
-
-  try {
-    const siteId = await getSiteId(req.params.gestionnaireId);
-    const result = await pool.query(
-      `UPDATE collaborateurs SET statut = $1, updated_at = NOW()
-       WHERE id = $2 AND site_id = $3
-       RETURNING id, statut`,
-      [statut, req.params.id, siteId]
-    );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Collaborateur introuvable.' });
-    res.json({ success: true, collaborateur: result.rows[0] });
-  } catch (err) {
-    console.error('PUT /studio/collaborateurs/:gestionnaireId/:id/statut :', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// =============================================================================
-// PUT /api/studio/collaborateurs/:gestionnaireId/:id/mot-de-passe
-// Reset du mot de passe par le propriétaire du site
-// Body : { nouveau_mot_de_passe }
-// =============================================================================
-router.put('/:id/mot-de-passe', authenticateToken, async (req, res) => {
-  if (!await verifierProprietaire(req, res)) return;
-  const { nouveau_mot_de_passe } = req.body;
-  if (!nouveau_mot_de_passe || nouveau_mot_de_passe.length < 8) {
-    return res.status(400).json({ error: 'Mot de passe invalide (min. 8 caractères).' });
-  }
-
-  try {
-    const siteId = await getSiteId(req.params.gestionnaireId);
-    const hash   = await bcrypt.hash(nouveau_mot_de_passe, 12);
-    const result = await pool.query(
-      `UPDATE collaborateurs SET mot_de_passe = $1, updated_at = NOW()
-       WHERE id = $2 AND site_id = $3
-       RETURNING id`,
-      [hash, req.params.id, siteId]
-    );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Collaborateur introuvable.' });
-    res.json({ success: true, message: 'Mot de passe modifié.' });
-  } catch (err) {
-    console.error('PUT /studio/collaborateurs/:gestionnaireId/:id/mot-de-passe :', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// =============================================================================
-// DELETE /api/studio/collaborateurs/:gestionnaireId/:id
-// Supprimer un collaborateur
-// =============================================================================
-router.delete('/:id', authenticateToken, async (req, res) => {
-  if (!await verifierProprietaire(req, res)) return;
-  try {
-    const siteId = await getSiteId(req.params.gestionnaireId);
-    const result = await pool.query(
-      `DELETE FROM collaborateurs WHERE id = $1 AND site_id = $2 RETURNING id`,
-      [req.params.id, siteId]
-    );
-    if (result.rowCount === 0) return res.status(404).json({ error: 'Collaborateur introuvable.' });
-    res.json({ success: true });
-  } catch (err) {
-    console.error('DELETE /studio/collaborateurs/:gestionnaireId/:id :', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// =============================================================================
-// DELETE bulk /api/studio/collaborateurs/:gestionnaireId/bulk
-// Supprimer plusieurs collaborateurs
-// Body : { ids: number[] }
+// DELETE /bulk — supprimer plusieurs collaborateurs   (déclaré AVANT /:id)
 // =============================================================================
 router.delete('/bulk', authenticateToken, async (req, res) => {
-  if (!await verifierProprietaire(req, res)) return;
-  const { ids } = req.body;
-  if (!Array.isArray(ids) || ids.length === 0) {
-    return res.status(400).json({ error: 'Liste d\'IDs requise.' });
-  }
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const ids = listeIds(req.body && req.body.ids);
+  if (!ids) return res.status(400).json({ error: "Liste d'IDs requise." });
   try {
-    const siteId = await getSiteId(req.params.gestionnaireId);
-    await pool.query(
-      `DELETE FROM collaborateurs WHERE id = ANY($1) AND site_id = $2`,
-      [ids, siteId]
+    const r = await pool.query(
+      'DELETE FROM marketplace_collaborateurs WHERE id = ANY($1::int[]) AND gestionnaire_id = $2',
+      [ids, gid]
     );
-    res.json({ success: true });
+    res.json({ success: true, supprimes: r.rowCount });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (err.code === '23503') {
+      return res.status(409).json({ error: 'Des commandes sont rattachées à au moins un de ces collaborateurs. Suspendez-les plutôt que de les supprimer.' });
+    }
+    console.error('DELETE /studio/collaborateurs/bulk :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// PUT bulk /api/studio/collaborateurs/:gestionnaireId/bulk/statut
-// Changer le statut de plusieurs collaborateurs
-// Body : { ids: number[], statut: string }
+// PUT /bulk/statut — changer le statut de plusieurs collaborateurs   (AVANT /:id/statut)
 // =============================================================================
 router.put('/bulk/statut', authenticateToken, async (req, res) => {
-  if (!await verifierProprietaire(req, res)) return;
-  const { ids, statut } = req.body;
-  if (!Array.isArray(ids) || ids.length === 0 || !statut) {
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const ids = listeIds(req.body && req.body.ids);
+  const statut = req.body && req.body.statut;
+  if (!ids || !STATUTS_VALIDES.includes(statut)) {
     return res.status(400).json({ error: 'Données invalides.' });
   }
   try {
-    const siteId = await getSiteId(req.params.gestionnaireId);
-    await pool.query(
-      `UPDATE collaborateurs SET statut = $1, updated_at = NOW()
-       WHERE id = ANY($2) AND site_id = $3`,
-      [statut, ids, siteId]
+    const r = await pool.query(
+      'UPDATE marketplace_collaborateurs SET statut = $1 WHERE id = ANY($2::int[]) AND gestionnaire_id = $3',
+      [statut, ids, gid]
     );
-    res.json({ success: true });
+    res.json({ success: true, modifies: r.rowCount });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('PUT /studio/collaborateurs/bulk/statut :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
 // =============================================================================
-// GET /api/studio/collaborateurs/:gestionnaireId/:id/notes
-// Notes internes sur un collaborateur
+// PUT /:id/statut — changer le statut (approuver = 'actif')
 // =============================================================================
+router.put('/:id/statut', authenticateToken, async (req, res) => {
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const id = entier(req.params.id);
+  const statut = req.body && req.body.statut;
+  if (!id || !STATUTS_VALIDES.includes(statut)) {
+    return res.status(400).json({ error: 'Statut invalide.' });
+  }
+  try {
+    const r = await pool.query(
+      `UPDATE marketplace_collaborateurs SET statut = $1
+        WHERE id = $2 AND gestionnaire_id = $3
+        RETURNING id, statut`,
+      [statut, id, gid]
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Collaborateur introuvable.' });
+    res.json({ success: true, collaborateur: r.rows[0] });
+  } catch (err) {
+    console.error('PUT /studio/collaborateurs/:id/statut :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// =============================================================================
+// PUT /:id/mot-de-passe — réinitialisation par le gestionnaire
+// =============================================================================
+router.put('/:id/mot-de-passe', authenticateToken, async (req, res) => {
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const id = entier(req.params.id);
+  const nouveau = req.body && req.body.nouveau_mot_de_passe;
+  if (!id || typeof nouveau !== 'string' || nouveau.length < 8) {
+    return res.status(400).json({ error: 'Mot de passe invalide (min. 8 caractères).' });
+  }
+  try {
+    const hash = await bcrypt.hash(nouveau, 12);
+    const r = await pool.query(
+      'UPDATE marketplace_collaborateurs SET mot_de_passe = $1 WHERE id = $2 AND gestionnaire_id = $3 RETURNING id',
+      [hash, id, gid]
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Collaborateur introuvable.' });
+    res.json({ success: true, message: 'Mot de passe modifié.' });
+  } catch (err) {
+    console.error('PUT /studio/collaborateurs/:id/mot-de-passe :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// =============================================================================
+// DELETE /:id — supprimer un collaborateur
+// =============================================================================
+router.delete('/:id', authenticateToken, async (req, res) => {
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const id = entier(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Identifiant invalide.' });
+  try {
+    const r = await pool.query(
+      'DELETE FROM marketplace_collaborateurs WHERE id = $1 AND gestionnaire_id = $2 RETURNING id',
+      [id, gid]
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Collaborateur introuvable.' });
+    res.json({ success: true });
+  } catch (err) {
+    if (err.code === '23503') {
+      return res.status(409).json({ error: 'Des commandes sont rattachées à ce collaborateur. Suspendez-le plutôt que de le supprimer.' });
+    }
+    console.error('DELETE /studio/collaborateurs/:id :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// =============================================================================
+// Notes internes
+// =============================================================================
+const formatDate = (d) => new Date(d).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' });
+
 router.get('/:id/notes', authenticateToken, async (req, res) => {
-  if (!await verifierProprietaire(req, res)) return;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const id = entier(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Identifiant invalide.' });
   try {
-    const result = await pool.query(
+    if (!await collaborateurDuSite(id, gid)) return res.status(404).json({ error: 'Collaborateur introuvable.' });
+    const r = await pool.query(
       `SELECT id, contenu, auteur, created_at
-       FROM notes_collaborateur
-       WHERE sous_vendeur_id = $1
-       ORDER BY created_at ASC`,
-      [req.params.id]
+         FROM notes_collaborateur WHERE collaborateur_id = $1 ORDER BY created_at ASC`,
+      [id]
     );
-    res.json(result.rows.map(n => ({
-      id:      n.id,
-      contenu: n.contenu,
-      auteur:  n.auteur,
-      date:    new Date(n.created_at).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' }),
-    })));
+    res.json(r.rows.map(n => ({ id: n.id, contenu: n.contenu, auteur: n.auteur, date: formatDate(n.created_at) })));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('GET /studio/collaborateurs/:id/notes :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
-// =============================================================================
-// POST /api/studio/collaborateurs/:gestionnaireId/:id/notes
-// Ajouter une note interne
-// Body : { contenu, auteur? }
-// =============================================================================
 router.post('/:id/notes', authenticateToken, async (req, res) => {
-  if (!await verifierProprietaire(req, res)) return;
-  const { contenu, auteur } = req.body;
-  if (!contenu?.trim()) return res.status(400).json({ error: 'Contenu requis.' });
-
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const id = entier(req.params.id);
+  const contenu = typeof req.body?.contenu === 'string' ? req.body.contenu.trim() : '';
+  if (!id) return res.status(400).json({ error: 'Identifiant invalide.' });
+  if (!contenu) return res.status(400).json({ error: 'Contenu requis.' });
+  const auteur = (typeof req.body?.auteur === 'string' && req.body.auteur.trim()) || 'Propriétaire';
   try {
-    const result = await pool.query(
-      `INSERT INTO notes_collaborateur (sous_vendeur_id, contenu, auteur)
-       VALUES ($1, $2, $3) RETURNING *`,
-      [req.params.id, contenu.trim(), auteur || 'Propriétaire']
+    if (!await collaborateurDuSite(id, gid)) return res.status(404).json({ error: 'Collaborateur introuvable.' });
+    const r = await pool.query(
+      `INSERT INTO notes_collaborateur (collaborateur_id, contenu, auteur)
+       VALUES ($1, $2, $3) RETURNING id, contenu, auteur, created_at`,
+      [id, contenu, auteur.slice(0, 100)]
     );
-    const n = result.rows[0];
-    res.status(201).json({
-      id:      n.id,
-      contenu: n.contenu,
-      auteur:  n.auteur,
-      date:    new Date(n.created_at).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' }),
-    });
+    const n = r.rows[0];
+    res.status(201).json({ id: n.id, contenu: n.contenu, auteur: n.auteur, date: formatDate(n.created_at) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('POST /studio/collaborateurs/:id/notes :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 
-// =============================================================================
-// DELETE /api/studio/collaborateurs/:gestionnaireId/:id/notes/:noteId
-// Supprimer une note
-// =============================================================================
 router.delete('/:id/notes/:noteId', authenticateToken, async (req, res) => {
-  if (!await verifierProprietaire(req, res)) return;
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const id = entier(req.params.id);
+  const noteId = entier(req.params.noteId);
+  if (!id || !noteId) return res.status(400).json({ error: 'Identifiant invalide.' });
   try {
-    await pool.query(`DELETE FROM notes_collaborateur WHERE id = $1`, [req.params.noteId]);
+    // Ne supprime la note que si elle appartient à un collaborateur de CE site.
+    const r = await pool.query(
+      `DELETE FROM notes_collaborateur n
+        USING marketplace_collaborateurs c
+        WHERE n.id = $1 AND n.collaborateur_id = $2
+          AND c.id = n.collaborateur_id AND c.gestionnaire_id = $3`,
+      [noteId, id, gid]
+    );
+    if (r.rowCount === 0) return res.status(404).json({ error: 'Note introuvable.' });
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error('DELETE /studio/collaborateurs/:id/notes/:noteId :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
 

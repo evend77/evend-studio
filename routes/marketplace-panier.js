@@ -1,4 +1,4 @@
-// routes/marketplace-panier.js
+// CHEMIN : routes/marketplace-panier.js
 // e-Vend Studio — Panier + Checkout scopés par gestionnaire_id
 // A monter : app.use('/api/marketplace', require('./routes/marketplace-panier'));
 // Utilise les tables : marketplace_panier, marketplace_commandes, marketplace_acheteurs, marketplace_collaborateurs
@@ -7,16 +7,29 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const jwt     = require('jsonwebtoken');
-const stripe  = require('stripe')(process.env.STRIPE_SECRET_KEY);
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
 // ─── Middleware auth marketplace ──────────────────────────────────────────────
+// Cookie httpOnly mv_token_<gid> (posé par marketplace-auth.js), avec repli sur
+// l'en-tête Authorization. Le jeton doit appartenir à CETTE boutique et à un
+// acheteur : un collaborateur n'a pas de panier.
 function authMV(req, res, next) {
+  const gid = req.params.gid;
+  const cookieToken = req.cookies && req.cookies[`mv_token_${gid}`];
   const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ message: 'Non authentifie' });
+  const headerToken = auth && auth.startsWith('Bearer ') ? auth.slice(7) : null;
+  const token = cookieToken || headerToken;
+  if (!token) return res.status(401).json({ message: 'Non authentifie' });
   try {
-    req.mvUser = jwt.verify(auth.slice(7), JWT_SECRET);
+    const payload = jwt.verify(token, JWT_SECRET);
+    if (payload.gestionnaireId !== Number(gid)) {
+      return res.status(403).json({ message: 'Ce compte n\'appartient pas a cette boutique.' });
+    }
+    if (payload.type !== 'acheteur') {
+      return res.status(403).json({ message: 'Un compte acheteur est requis.' });
+    }
+    req.mvUser = payload;
     next();
   } catch { res.status(401).json({ message: 'Token invalide' }); }
 }

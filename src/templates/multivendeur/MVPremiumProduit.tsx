@@ -164,17 +164,20 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
   const ajouterPanier = async () => {
     if (!produit) return;
-    const token = localStorage.getItem('token');
-    if (!token) { setMsgAjout({ succes: false, texte: 'Connectez-vous pour acheter' }); return; }
+    let type: string | null = null;
+    try { type = JSON.parse(localStorage.getItem(`mv_compte_${gId}`) || 'null')?.type || null; } catch { type = null; }
+    if (!type) { setMsgAjout({ succes: false, texte: 'Connectez-vous pour acheter' }); setTimeout(() => setMsgAjout(null), 3000); return; }
+    if (type !== 'acheteur') { setMsgAjout({ succes: false, texte: 'Un compte acheteur est requis pour acheter' }); setTimeout(() => setMsgAjout(null), 3000); return; }
     setAjoutEnCours(true);
     try {
-      const res = await fetch(`${API_BASE}/panier`, {
+      const res = await fetch(`${API_BASE}/marketplace/${gId}/panier`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ produit_id: produit.id, quantite, prix: produit.prix }),
+        body: JSON.stringify({ produit_id: produit.id, titre: produit.nom, quantite, prix: produit.prix }),
       });
-      setMsgAjout({ succes: res.ok, texte: res.ok ? '✓ Ajouté au panier !' : '❌ Erreur' });
+      if (res.status === 401) { try { localStorage.removeItem(`mv_compte_${gId}`); } catch { /* stockage indisponible */ } }
+      setMsgAjout({ succes: res.ok, texte: res.ok ? '✓ Ajouté au panier !' : res.status === 401 ? 'Session expirée — reconnectez-vous' : '❌ Erreur' });
     } catch { setMsgAjout({ succes: false, texte: '❌ Erreur réseau' }); }
     setAjoutEnCours(false);
     setTimeout(() => setMsgAjout(null), 3000);
