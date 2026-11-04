@@ -1,4 +1,4 @@
-// src/templates/multivendeur/MVPremiumBoutiquePage.tsx
+// CHEMIN : src/templates/multivendeur/MVPremiumBoutiquePage.tsx
 // e-Vend Studio — Page boutique individuelle d'un vendeur (Multi-Vendeur Premium)
 // Onglets: Produits / A propos / Blog (add-on) / FAQ (add-on) / Avis (add-on)
 
@@ -94,6 +94,7 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
         <div style={s.navLinks}>
           <span style={s.navLink} onClick={() => naviguer({ page: 'catalogue' })}>Catalogue</span>
           <span style={s.navLink} onClick={() => naviguer({ page: 'boutiques' })}>Boutiques</span>
+          <button onClick={() => naviguer({ page: 'login' })} style={{ padding: '8px 18px', background: config?.couleur_accent || '#fbbf24', border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
       </div>
     </nav>

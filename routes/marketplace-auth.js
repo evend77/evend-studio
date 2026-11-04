@@ -1,4 +1,4 @@
-// routes/marketplace-auth.js
+// CHEMIN : routes/marketplace-auth.js
 // e-Vend Studio — Authentification des comptes marketplace (acheteurs + vendeurs)
 // Scope : chaque compte est rattache a un gestionnaire_id (le site sur lequel il est cree)
 // A monter dans server.js : app.use('/api/marketplace', require('./routes/marketplace-auth'));
@@ -153,8 +153,6 @@ router.post('/:gestionnaireId/login', async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur' });
   }
 });
-
-module.exports = router;
 
 // POST /:gestionnaireId/logout — efface le cookie de session marketplace
 router.post('/:gestionnaireId/logout', (req, res) => {
@@ -320,3 +318,34 @@ router.get('/:gestionnaireId/collaborateurs/:collabId/messages/non-lus', authMar
     res.json({ acheteurs: parseInt(row.acheteurs||0), gestionnaire: parseInt(row.gestionnaire||0), total: parseInt(row.total||0) });
   } catch (err) { res.status(500).json({ message: 'Erreur serveur' }); }
 });
+
+// ─── Session courante ────────────────────────────────────────────────────────
+// GET /:gestionnaireId/me — le cookie httpOnly est lu par authMarketplace.
+// Sert à restaurer la session au rechargement de la page (le front ne peut
+// pas lire le cookie). Ne renvoie jamais le mot de passe.
+router.get('/:gestionnaireId/me', authMarketplace, async (req, res) => {
+  try {
+    const { gestionnaireId } = req.params;
+    const { id, type } = req.mvUser;
+    if (type !== 'acheteur' && type !== 'collaborateur') {
+      return res.status(401).json({ message: 'Non authentifie' });
+    }
+    const table = type === 'acheteur' ? 'marketplace_acheteurs' : 'marketplace_collaborateurs';
+    const r = await pool.query(
+      `SELECT * FROM ${table} WHERE id = $1 AND gestionnaire_id = $2`,
+      [id, gestionnaireId]
+    );
+    const compte = r.rows[0];
+    if (!compte) return res.status(401).json({ message: 'Compte introuvable' });
+    if (type === 'collaborateur' && compte.statut !== 'actif') {
+      return res.status(403).json({ message: 'Compte collaborateur non actif' });
+    }
+    delete compte.mot_de_passe;
+    res.json({ compte: { ...compte, type } });
+  } catch (err) {
+    console.error('Erreur /me marketplace:', err);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+module.exports = router;

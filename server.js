@@ -89,6 +89,10 @@ app.use('/api/webhooks-sponsors', require('./routes/webhooks_sponsors_stripe'));
 app.post('/api/webhooks/paiements-connect', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/paiements-connect', require('./routes/webhooks_paiements_stripe'));
 
+// ✅ Webhook Stripe des gestionnaires (template multivendeur) — body brut obligatoire (avant express.json)
+app.post('/api/webhooks/gestionnaire-stripe/:gestionnaireId/:type', express.raw({ type: 'application/json' }));
+app.use('/api/webhooks/gestionnaire-stripe', require('./routes/webhooks_gestionnaire_stripe'));
+
 // ✅ Webhook Dynadot (NOUVEAU)
 app.post('/api/webhooks/dynadot', express.raw({ type: 'application/json' }));
 
@@ -188,6 +192,8 @@ app.use('/api/cron-domaine',       cronDomaineModule);
 app.use('/api/abonnements-studio', abonnementsStudioRoutes);
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
 app.use('/api/cron-verification-email', cronVerificationEmailModule);
+// ✅ Config Stripe Connect du gestionnaire (template multivendeur)
+app.use('/api/gestionnaire/stripe', require('./routes/gestionnaire_stripe'));
 app.use('/api', modelesModule);
 app.use('/api/admin/config/page-404', configPage404Module);
 app.use('/api/admin/gestionnaires', adminGestionnairesStatutModule);

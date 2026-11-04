@@ -1,4 +1,4 @@
-// src/templates/multivendeur/MVPremiumDocuments.tsx
+// CHEMIN : src/templates/multivendeur/MVPremiumDocuments.tsx
 // e-Vend Studio — Template Multi-Vendeur Premium — Documents / Guides
 
 import { useState, useEffect } from 'react';
@@ -39,6 +39,7 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
           <span style={s.navLink} onClick={() => naviguer({ page:'accueil' })}>Accueil</span>
           <span style={s.navLink} onClick={() => naviguer({ page:'catalogue' })}>Catalogue</span>
           <span style={s.navLink} onClick={() => naviguer({ page:'boutiques' })}>Boutiques</span>
+          <button onClick={() => naviguer({ page:'login' })} style={{ padding: '8px 18px', background: config?.couleur_accent || '#fbbf24', border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
       </div>
     </nav>

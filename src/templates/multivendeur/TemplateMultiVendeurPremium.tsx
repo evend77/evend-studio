@@ -1,8 +1,8 @@
-// src/templates/multivendeur/TemplateMultiVendeurPremium.tsx
+// CHEMIN : src/templates/multivendeur/TemplateMultiVendeurPremium.tsx
 // e-Vend Studio — Template Multi-Vendeur Premium
 // Fichier de navigation principal — importe chaque page séparément
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import MVPremiumAccueil    from './MVPremiumAccueil';
 import MVPremiumCatalogue  from './MVPremiumCatalogue';
 import MVPremiumBoutiques  from './MVPremiumBoutiques';
@@ -16,6 +16,8 @@ import MarketplaceInscriptionAcheteur from '../shared/MarketplaceInscriptionAche
 import MarketplaceInscriptionCollaborateur  from '../shared/MarketplaceInscriptionCollaborateur';
 import AppAcheteur                    from '../../AppAcheteur';
 import AppCollaborateur               from '../../AppCollaborateur';
+
+const API_BASE = '/api';
 
 export type PageMVPremium =
   | 'accueil'
@@ -46,7 +48,25 @@ interface Props {
   config?: Record<string, any>;
 }
 
+type TypeCompte = 'acheteur' | 'collaborateur';
+
 export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false, config = {} }: Props) {
+  const gestionnaireId = vendeurId || config.gestionnaire_id;
+  const cleCompte = `mv_compte_${gestionnaireId}`;
+
+  // Infos d'affichage non sensibles du compte connecté (le vrai jeton est dans
+  // le cookie httpOnly, illisible par le navigateur). Le type vient du serveur.
+  const lireTypeCompte = (): TypeCompte | null => {
+    try {
+      const brut = localStorage.getItem(cleCompte);
+      if (!brut) return null;
+      const t = JSON.parse(brut)?.type;
+      return t === 'acheteur' || t === 'collaborateur' ? t : null;
+    } catch {
+      return null;
+    }
+  };
+
   // Lire l'URL pour la navigation initiale (permet l'ouverture directe dans un nouvel onglet)
   const lireNavDepuisURL = (): NavMVPremium => {
     if (typeof window === 'undefined') return { page: 'accueil' };
@@ -59,13 +79,77 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     if (page === 'produit' && produitId) return { page: 'produit', produitId: Number(produitId) };
     if (page === 'politique' && politiqueSlug) return { page: 'politique', politiqueSlug };
     if (page === 'catalogue' || page === 'boutiques' || page === 'encheres' || page === 'documents' || page === 'login' || page === 'inscription-acheteur' || page === 'inscription-collaborateur') return { page };
+    // Les tableaux de bord ne sont ouverts que si une session existe ; sinon connexion.
+    if (page === 'dashboard-acheteur' || page === 'dashboard-collaborateur') {
+      const t = lireTypeCompte();
+      if (t && page === `dashboard-${t}`) return { page };
+      return { page: 'login' };
+    }
     return { page: 'accueil' };
   };
 
   const [nav, setNav] = useState<NavMVPremium>(lireNavDepuisURL());
 
+  // Vérifie la session auprès du serveur (cookie httpOnly) et synchronise
+  // localStorage. Renvoie le type de compte connecté, ou null.
+  const verifierSession = async (): Promise<TypeCompte | null> => {
+    if (isDemo || !gestionnaireId) return null;
+    try {
+      const res = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/me`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.compte) {
+          try { localStorage.setItem(cleCompte, JSON.stringify(data.compte)); } catch { /* stockage indisponible */ }
+          return data.compte.type === 'collaborateur' ? 'collaborateur' : 'acheteur';
+        }
+      }
+      if (res.status === 401 || res.status === 403) {
+        try { localStorage.removeItem(cleCompte); } catch { /* stockage indisponible */ }
+      }
+    } catch {
+      // Réseau indisponible : on garde l'état local tel quel.
+      return lireTypeCompte();
+    }
+    return null;
+  };
+
+  // Au chargement : si la session a expiré, on nettoie ; si on est sur un
+  // tableau de bord sans session valide, retour à la connexion.
+  useEffect(() => {
+    let actif = true;
+    verifierSession().then(type => {
+      if (!actif) return;
+      setNav(courant => {
+        if (courant.page === 'dashboard-acheteur' || courant.page === 'dashboard-collaborateur') {
+          if (!type || courant.page !== `dashboard-${type}`) return { page: 'login' };
+        }
+        return courant;
+      });
+    });
+    return () => { actif = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gestionnaireId, isDemo]);
+
   const naviguer = (dest: NavMVPremium) => {
-    setNav(dest);
+    const type = lireTypeCompte();
+    let cible = dest;
+
+    // « Mon compte » : si une session existe, on ouvre directement le tableau de bord.
+    if (dest.page === 'login' && type) {
+      cible = { page: type === 'collaborateur' ? 'dashboard-collaborateur' : 'dashboard-acheteur' };
+    }
+    // Un tableau de bord n'est jamais ouvert sans session du bon type.
+    if (dest.page === 'dashboard-acheteur' || dest.page === 'dashboard-collaborateur') {
+      if (!type || dest.page !== `dashboard-${type}`) cible = { page: 'login' };
+    }
+
+    // En quittant un tableau de bord (ex. après une déconnexion), on resynchronise la session.
+    const quitteDashboard = nav.page === 'dashboard-acheteur' || nav.page === 'dashboard-collaborateur';
+    if (quitteDashboard && cible.page !== 'dashboard-acheteur' && cible.page !== 'dashboard-collaborateur') {
+      verifierSession();
+    }
+
+    setNav(cible);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

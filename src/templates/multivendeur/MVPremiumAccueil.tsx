@@ -1,4 +1,4 @@
-// src/templates/multivendeur/MVPremiumAccueil.tsx
+// CHEMIN : src/templates/multivendeur/MVPremiumAccueil.tsx
 // e-Vend Studio — Template Multi-Vendeur — Page Accueil
 
 import { useState, useEffect, useRef } from 'react';
@@ -406,7 +406,7 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
             <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15, marginBottom: 32, lineHeight: 1.7 }}>
               {config.accueil_cta_texte || 'Rejoignez notre marketplace et vendez vos produits à des milliers de clients canadiens.'}
             </p>
-            <button style={{ ...s.btnPrimary, background: couleurAccent, color: '#000', padding: '14px 40px', fontSize: 15 }}>
+            <button onClick={() => naviguer({ page: 'inscription-collaborateur' })} style={{ ...s.btnPrimary, background: couleurAccent, color: '#000', padding: '14px 40px', fontSize: 15 }}>
               Créer ma boutique →
             </button>
           </div>
