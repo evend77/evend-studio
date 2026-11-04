@@ -945,9 +945,12 @@ if (process.env.NODE_ENV === 'production') {
           } else {
             const p = r.rows[0];
             const texte = nettoyerTexteBrut(p.contenu);
+            // La description Google ne doit pas commencer par l'encadré « Avis important »
+            // (identique sur toutes les politiques) : on le retire avant de couper.
+            const texteSansAvis = texte.replace(/Avis important\s*:[\s\S]*?professionnel qualifié\.?/i, '').trim();
             html = appliquerSeo(html, {
               titre: `${p.titre} | e-Vend Studio`,
-              desc: coupe(texte, 160),
+              desc: coupe(texteSansAvis || texte, 160),
               url: `${SITE_URL}/politiques/${p.slug}`,
             });
             html = injecterDansRoot(html, `<h1>${escapeHtml(p.titre)}</h1><div>${escapeHtml(texte)}</div>`, estRobot);

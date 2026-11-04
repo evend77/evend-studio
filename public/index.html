@@ -1,45 +1,42 @@
 <!DOCTYPE html>
 <html lang="fr">
   <head>
+    <!-- 📁 CHEMIN : public/index.html  (projet e-Vend Studio) -->
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Plateforme multivendeur e-Vend - Dashboard d'administration"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
+    <meta name="theme-color" content="#060d1f" />
 
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>e-Vend | Administration</title>
+    <!-- ICÔNES (favicon) — fichiers dans public/ : favicon.ico, favicon-48.png, favicon-192.png, apple-touch-icon.png -->
+    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="48x48" href="%PUBLIC_URL%/favicon-48.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/favicon-192.png" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/apple-touch-icon.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+    <!-- SEO — valeurs de départ. Le serveur (server.js) les remplace pour chaque page
+         (accueil : Paramètres > Référencement naturel (SEO) dans l'admin). -->
+    <title>e-Vend Studio | Crée ton site web et ta boutique en ligne</title>
+    <meta name="description" content="Crée ton site web, ta boutique en ligne ou ton site vitrine sans programmer. e-Vend Studio, la plateforme québécoise pour entrepreneurs d'ici." />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://e-vendstudio.ca" />
+
+    <!-- Open Graph — aperçus de partage (Facebook, LinkedIn, iMessage) -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://e-vendstudio.ca" />
+    <meta property="og:site_name" content="e-Vend Studio" />
+    <meta property="og:title" content="e-Vend Studio | Crée ton site web et ta boutique en ligne" />
+    <meta property="og:description" content="Crée ton site web, ta boutique en ligne ou ton site vitrine sans programmer. e-Vend Studio, la plateforme québécoise pour entrepreneurs d'ici." />
+    <meta property="og:locale" content="fr_CA" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="e-Vend Studio | Crée ton site web et ta boutique en ligne" />
+    <meta name="twitter:description" content="Crée ton site web, ta boutique en ligne ou ton site vitrine sans programmer. e-Vend Studio, la plateforme québécoise pour entrepreneurs d'ici." />
   </head>
   <body>
     <noscript>Vous devez activer JavaScript pour utiliser cette application.</noscript>
     <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
 
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
-    
     <!-- Script pour le modal d'alerte de prix -->
     <script src="%PUBLIC_URL%/js/price-drop-modal.js"></script>
   </body>
