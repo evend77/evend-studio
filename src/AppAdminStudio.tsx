@@ -64,6 +64,7 @@ import FaqPlateformeAdmin from './pages/admin/FaqPlateformeAdmin';
 import GestionCookies from './pages/admin/GestionCookies';
 import PolitiquesPlateforme from './pages/admin/PolitiquesPlateforme';
 import PagesPlateforme from './pages/admin/PagesPlateforme';
+import Photo from './pages/admin/Photo';
 import { API_BASE } from './config/api';
 
 // Imports pour les traductions
@@ -241,6 +242,7 @@ const NAV_ITEMS: NavItem[] = [
     sousSections: [
       { id: 'parametres-menu',          label: 'Menu',                        icon: '📋' },
       { id: 'parametres-pages',         label: 'Pages',                       icon: '📄' },
+      { id: 'parametres-photo',         label: 'Photo',                       icon: '🖼️' },
       { id: 'parametres-politique',     label: 'Politique',                   icon: '📜' },
       { id: 'parametres-blog',          label: 'Blog plateforme',             icon: '✏️' },
       { id: 'parametres-faq',           label: 'FAQ plateforme',              icon: '❓' },
@@ -800,6 +802,8 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
         return <GestionMenus naviguerVers={naviguerVers} />;
       case 'parametres-pages':
         return <PagesPlateforme naviguerVers={naviguerVers} />;
+      case 'parametres-photo':
+        return <Photo />;
       case 'parametres-politique':
         return <PolitiquesPlateforme naviguerVers={naviguerVers} />;
       case 'parametres-blog':

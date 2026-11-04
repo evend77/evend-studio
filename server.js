@@ -75,49 +75,9 @@ app.use('/api/webhooks/paiements-connect', require('./routes/webhooks_paiements_
 app.post('/api/webhooks/dynadot', express.raw({ type: 'application/json' }));
 
 // ✅ Webhook Amazon SES (via SNS) — rebonds permanents et plaintes : désactive
-// automatiquement l'abonné de l'infolettre. Monté AVANT la protection par mot de passe
-// ci-dessous : Amazon ne peut pas s'authentifier (il est protégé par un code secret dans l'URL).
+// automatiquement l'abonné de l'infolettre. Protégé par un code secret dans l'URL
+// (Amazon ne peut pas envoyer de jeton de connexion).
 app.use('/api/webhooks/ses', require('./routes/webhooksSes'));
-
-// 🔒 Protection par mot de passe (temporaire, le temps du développement)
-// Les webhooks Stripe/Dynadot ci-dessus restent exclus (Stripe n'envoie pas d'auth)
-const AUTH_USER = process.env.SITE_AUTH_USER;
-const AUTH_PASS = process.env.SITE_AUTH_PASS;
-
-app.use((req, res, next) => {
-  // Pas de protection configurée → on laisse passer (utile en dev local)
-  if (!AUTH_USER || !AUTH_PASS) return next();
-
-  // Ne jamais bloquer les webhooks externes
-  if (
-    req.path === '/api/dynadot/stripe-webhook' ||
-    req.path === '/api/webhooks/dynadot' ||
-    req.path === '/api/webhooks/paiements-connect' ||
-    req.path === '/caddy/ask'
-  ) {
-    return next();
-  }
-
-  // ✅ Ne pas confondre les tokens JWT (Bearer) avec du Basic Auth.
-  // Les appels API authentifiés portent "Authorization: Bearer <jwt>" —
-  // ce n'est pas la même chose que les identifiants Basic Auth du site.
-  if (req.headers.authorization?.startsWith('Bearer ')) {
-    return next();
-  }
-
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    res.set('WWW-Authenticate', 'Basic realm="Acces restreint"');
-    return res.status(401).send('Authentification requise');
-  }
-  const [, credentials] = authHeader.split(' ');
-  const [user, pass] = Buffer.from(credentials, 'base64').toString().split(':');
-  if (user === AUTH_USER && pass === AUTH_PASS) {
-    return next();
-  }
-  res.set('WWW-Authenticate', 'Basic realm="Acces restreint"');
-  return res.status(401).send('Identifiants invalides');
-});
 
 app.use(cors({
   origin: [
@@ -533,6 +493,8 @@ app.use('/api/chat-admin-collab/:gestionnaireId',    require('./routes/chat_admi
 
 app.use('/api/politiquesPlateforme', require('./routes/politiquesPlateforme'));
 app.use('/api/pagesPlateforme',      require('./routes/pagesPlateforme'));
+// 🖼️ Gestionnaire de photos admin (Logos / Divers / Audio) — Cloudflare R2
+app.use('/api/images',               require('./routes/images'));
 // 🆕 Infolettre : inscription publique + désabonnement (/api/infolettre), gestion des abonnés
 // et campagnes marketing (/api/admin/infolettre, /api/admin/marketing) + réponse manuelle (/api/admin/repondre-client)
 // — Messagerie > E-mail marketing / E-mail manuel
