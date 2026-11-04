@@ -514,6 +514,8 @@ app.use('/api/studio/blogs-collab/:gestionnaireId', blogsCollaborateur);
 app.use('/api/studio/faqs-collab/:gestionnaireId', faqsCollaborateur);
 app.use('/api/chat-collab/:gestionnaireId',          require('./routes/chat_collab'));
 app.use('/api/chat-admin-collab/:gestionnaireId',    require('./routes/chat_admin_collab'));
+app.use('/api/chat-acheteur-collab/:gestionnaireId', require('./routes/chat_acheteur_collab'));
+app.use('/api/collab/:gestionnaireId',               require('./routes/collab_dashboard'));
 
 app.use('/api/politiquesPlateforme', require('./routes/politiquesPlateforme'));
 app.use('/api/pagesPlateforme',      require('./routes/pagesPlateforme'));

@@ -284,10 +284,10 @@ router.get('/:gestionnaireId/collaborateurs/:collabId/stats', authMarketplace, a
       pool.query("SELECT COUNT(*) FROM marketplace_commandes WHERE collaborateur_id=$1 AND gestionnaire_id=$2 AND statut='en_attente'", [collabId, gestionnaireId]),
       pool.query("SELECT COUNT(*) FROM marketplace_commandes WHERE collaborateur_id=$1 AND gestionnaire_id=$2 AND statut='livree'", [collabId, gestionnaireId]),
       pool.query('SELECT COALESCE(SUM(total),0) AS total, COALESCE(SUM(CASE WHEN date_commande >= NOW() - INTERVAL \'30 days\' THEN total ELSE 0 END),0) AS mois FROM marketplace_commandes WHERE collaborateur_id=$1 AND gestionnaire_id=$2', [collabId, gestionnaireId]),
-      pool.query('SELECT COUNT(*) FROM produits WHERE vendeur_id=$1', [collabId]),
-      pool.query("SELECT COUNT(*) FROM produits WHERE vendeur_id=$1 AND statut='actif'", [collabId]),
-      pool.query("SELECT COUNT(*) FROM produits WHERE vendeur_id=$1 AND stock=0", [collabId]),
-      pool.query('SELECT COALESCE(AVG(note),0) AS moyenne, COUNT(*) AS total FROM avis_gestionnaire WHERE gestionnaire_id=$2 AND cible_id=$1', [collabId, gestionnaireId]),
+      pool.query('SELECT COUNT(*) FROM produits WHERE collaborateur_id=$1 AND gestionnaire_id=$2', [collabId, gestionnaireId]),
+      pool.query("SELECT COUNT(*) FROM produits WHERE collaborateur_id=$1 AND gestionnaire_id=$2 AND statut='actif'", [collabId, gestionnaireId]),
+      pool.query("SELECT COUNT(*) FROM produits WHERE collaborateur_id=$1 AND gestionnaire_id=$2 AND stock=0", [collabId, gestionnaireId]),
+      pool.query('SELECT COALESCE(AVG(note),0) AS moyenne, COUNT(*) AS total FROM avis_collaborateur WHERE collaborateur_id=$1 AND gestionnaire_id=$2 AND approuve=true', [collabId, gestionnaireId]),
     ]);
     const ventes30j = await pool.query(
       "SELECT TO_CHAR(date_commande,'MM-DD') AS date, COALESCE(SUM(total),0) AS ventes FROM marketplace_commandes WHERE collaborateur_id=$1 AND gestionnaire_id=$2 AND date_commande >= NOW() - INTERVAL '30 days' GROUP BY TO_CHAR(date_commande,'MM-DD') ORDER BY date",

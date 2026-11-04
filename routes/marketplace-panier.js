@@ -54,7 +54,7 @@ const TAXES = {
 function calculerTaxesProvince(sousTotal, fraisExp, province, articles) {
   const tx = TAXES[province] || TAXES['QC'];
   const base = articles
-    ? articles.reduce((s, a) => s + (a.facturation_taxes ? parseFloat(a.prix) * a.quantite : 0), 0)
+    ? articles.reduce((s, a) => s + (a.facturation_taxes !== false ? parseFloat(a.prix) * a.quantite : 0), 0)
     : sousTotal;
   const tps = parseFloat(((base + fraisExp) * tx.tps).toFixed(2));
   const tvq = parseFloat(((base + fraisExp) * tx.tvq).toFixed(2));
@@ -104,13 +104,13 @@ router.post('/:gid/panier', authMV, async (req, res) => {
 
   try {
     const prodRes = await pool.query(
-      'SELECT id, vendeur_id, nom, image FROM produits WHERE id = $1 AND statut = $2',
-      [parseInt(produit_id), 'actif']
+      'SELECT id, collaborateur_id, titre, photo_principale FROM produits WHERE id = $1 AND statut = $2 AND gestionnaire_id = $3 AND collaborateur_id IS NOT NULL',
+      [parseInt(produit_id), 'actif', gid]
     );
     if (!prodRes.rows[0]) return res.status(404).json({ error: 'Produit introuvable' });
 
     const produit = prodRes.rows[0];
-    const collaborateurId = produit.vendeur_id;
+    const collaborateurId = produit.collaborateur_id;
 
     const existant = await pool.query(
       'SELECT id, quantite FROM marketplace_panier WHERE acheteur_id=$1 AND gestionnaire_id=$2 AND produit_id=$3',
@@ -128,7 +128,7 @@ router.post('/:gid/panier', authMV, async (req, res) => {
     const ins = await pool.query(
       `INSERT INTO marketplace_panier (gestionnaire_id, acheteur_id, collaborateur_id, produit_id, titre, image_url, prix, quantite)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [gid, acheteurId, collaborateurId, produit_id.toString(), titre || produit.nom, image_url || produit.image || null, parseFloat(prix), parseInt(quantite)]
+      [gid, acheteurId, collaborateurId, produit_id.toString(), titre || produit.titre, image_url || produit.photo_principale || null, parseFloat(prix), parseInt(quantite)]
     );
     res.status(201).json({ message: 'Article ajoute', id: ins.rows[0].id });
   } catch (err) { res.status(500).json({ error: 'Erreur serveur' }); }
@@ -239,9 +239,8 @@ router.get('/:gid/checkout/infos', authMV, async (req, res) => {
 
   try {
     const panierRes = await pool.query(
-      `SELECT mp.*, pr.facturation_taxes, pr.produit_numerique
+      `SELECT mp.*
        FROM marketplace_panier mp
-       LEFT JOIN produits pr ON pr.id::text = mp.produit_id
        WHERE mp.acheteur_id=$1 AND mp.gestionnaire_id=$2 AND mp.collaborateur_id=$3
        ORDER BY mp.created_at ASC`,
       [acheteurId, gid, collaborateur_id]
@@ -268,14 +267,18 @@ router.get('/:gid/checkout/infos', authMV, async (req, res) => {
     if (!tousNumeriques) {
       const produitIds = articles.filter(a => !a.produit_numerique).map(a => parseInt(a.produit_id)).filter(Boolean);
       if (produitIds.length) {
-        const methRes = await pool.query(
-          `SELECT DISTINCT vme.*
-           FROM produit_methodes_expedition pme
-           JOIN vendeur_methodes_expedition vme ON vme.id = pme.methode_id
-           WHERE pme.produit_id = ANY($1::int[]) AND vme.actif = true
-           ORDER BY vme.frais_fixes ASC NULLS LAST`,
-          [produitIds]
-        );
+        // Les tables de méthodes d'expédition n'existent pas encore dans Studio : sans elles, livraison gratuite.
+        let methRes = { rows: [] };
+        try {
+          methRes = await pool.query(
+            `SELECT DISTINCT vme.*
+             FROM produit_methodes_expedition pme
+             JOIN vendeur_methodes_expedition vme ON vme.id = pme.methode_id
+             WHERE pme.produit_id = ANY($1::int[]) AND vme.actif = true
+             ORDER BY vme.frais_fixes ASC NULLS LAST`,
+            [produitIds]
+          );
+        } catch (e) { methRes = { rows: [] }; }
         const codeProvince = province || 'QC';
         methodesExpedition = methRes.rows.map(m => ({
           id: m.id,
@@ -380,9 +383,13 @@ router.post('/:gid/checkout/code-promo', authMV, async (req, res) => {
   const { code, collaborateur_id, sous_total } = req.body;
   try {
     const r = await pool.query(
-      `SELECT * FROM reductions WHERE code = $1 AND vendeur_id = $2 AND actif = true
-       AND (date_fin IS NULL OR date_fin >= NOW())`,
-      [code.toUpperCase(), collaborateur_id]
+      `SELECT * FROM reductions_collaborateur
+        WHERE code = $1 AND collaborateur_id = $2 AND gestionnaire_id = $3 AND actif = true
+          AND (date_debut IS NULL OR date_debut <= CURRENT_DATE)
+          AND (date_fin IS NULL OR date_fin >= CURRENT_DATE)
+          AND (utilisations_max IS NULL OR utilisations < utilisations_max)
+          AND montant_minimum <= $4`,
+      [String(code || '').toUpperCase(), parseInt(collaborateur_id), parseInt(gid), parseFloat(sous_total) || 0]
     );
     if (!r.rows[0]) return res.status(404).json({ message: 'Code invalide ou expire' });
     const red = r.rows[0];

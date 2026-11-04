@@ -9,6 +9,17 @@ import {
 } from 'recharts';
 import CollaborateurStripe from './pages/collaborateur/CollaborateurStripe';
 import MessagerieGestionnaire from './pages/collaborateur/MessagerieGestionnaire';
+import MessagerieAcheteurs from './pages/collaborateur/MessagerieAcheteurs';
+import CollaborateurProduits from './pages/collaborateur/CollaborateurProduits';
+import CollaborateurCreerAnnonce from './pages/collaborateur/CollaborateurCreerAnnonce';
+import CollaborateurReductions from './pages/collaborateur/CollaborateurReductions';
+import CollaborateurCommandes from './pages/collaborateur/CollaborateurCommandes';
+import CollaborateurPaiements from './pages/collaborateur/CollaborateurPaiements';
+import CollaborateurRetours from './pages/collaborateur/CollaborateurRetours';
+import CollaborateurCompte from './pages/collaborateur/CollaborateurCompte';
+import CollaborateurBoutique from './pages/collaborateur/CollaborateurBoutique';
+import CollaborateurAvis from './pages/collaborateur/CollaborateurAvis';
+import CollaborateurConfiguration from './pages/collaborateur/CollaborateurConfiguration';
 
 const API_BASE = '/api';
 
@@ -201,6 +212,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const [menuOuvert, setMenuOuvert]   = useState<string | null>(retourStripe ? 'configuration' : null);
   const [heure,      setHeure]        = useState(new Date());
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
+  const [produitEnEdition, setProduitEnEdition] = useState<number | null>(null);
 
   // Infos d'affichage du compte (le vrai jeton est dans le cookie httpOnly).
   const [compte]   = useState<CompteCollaborateur | null>(() => {
@@ -236,16 +248,17 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     return () => clearInterval(t);
   }, [compte?.id, gestionnaireId]);
 
-  // Charger non-lus messagerie (messages du gestionnaire ; acheteurs : à venir)
+  // Charger non-lus messagerie (gestionnaire + acheteurs)
   const chargerNonLus = useCallback(async () => {
     if (!compte?.id) return;
     try {
-      const res = await fetch(`${API_BASE}/chat-admin-collab/${gestionnaireId}/collab/non-lus`, { credentials: 'include' });
-      if (res.ok) {
-        const d = await res.json();
-        const n = Number(d.total) || 0;
-        setNonLus({ acheteurs: 0, gestionnaire: n, total: n });
-      }
+      const [rg, ra] = await Promise.all([
+        fetch(`${API_BASE}/chat-admin-collab/${gestionnaireId}/collab/non-lus`, { credentials: 'include' }),
+        fetch(`${API_BASE}/chat-acheteur-collab/${gestionnaireId}/collab/non-lus`, { credentials: 'include' }),
+      ]);
+      const g = rg.ok ? Number((await rg.json()).total) || 0 : 0;
+      const a = ra.ok ? Number((await ra.json()).total) || 0 : 0;
+      setNonLus({ acheteurs: a, gestionnaire: g, total: a + g });
     } catch {}
   }, [compte?.id, gestionnaireId]);
 
@@ -266,6 +279,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
 
   const naviguer = (page: string) => {
     setPageActive(page);
+    if (page === 'creer') setProduitEnEdition(null); // « Créer une annonce » = toujours une annonce neuve
     if (isMobile) setMenuMobileOuvert(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -324,21 +338,26 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const renderPage = () => {
     if (pageActive === 'dashboard' && compte)
       return <VueDashboard compte={compte} stats={stats} loading={loading} isMobile={isMobile} naviguer={naviguer} accent={accent} />;
-    if (pageActive === 'creer')             return <PageStub titre="Creer une annonce"   emoji="➕" />;
-    if (pageActive === 'annonces-liste')    return <PageStub titre="Mes produits"        emoji="📦" />;
-    if (pageActive === 'annonces-promos')   return <PageStub titre="Reductions & codes"  emoji="🏷️" />;
-    if (pageActive === 'commandes-liste')   return <PageStub titre="Mes commandes"       emoji="🛒" />;
-    if (pageActive === 'commandes-paiements') return <PageStub titre="Paiements"         emoji="💰" />;
-    if (pageActive === 'commandes-retours') return <PageStub titre="Retours"             emoji="🔄" />;
-    if (pageActive === 'messagerie-acheteurs') return <PageStub titre="Messages acheteurs" emoji="💬" />;
-    if (pageActive === 'messagerie-gestionnaire' && compte)
+    if (!compte) return null;
+    const commun = { gestionnaireId, accent, isMobile };
+    if (pageActive === 'creer')
+      return <CollaborateurCreerAnnonce {...commun} produitId={produitEnEdition} onRetour={() => { setProduitEnEdition(null); naviguer('annonces-liste'); }} />;
+    if (pageActive === 'annonces-liste')
+      return <CollaborateurProduits {...commun} onCreer={() => naviguer('creer')} onModifier={(id: number) => { naviguer('creer'); setProduitEnEdition(id); }} />;
+    if (pageActive === 'annonces-promos')   return <CollaborateurReductions {...commun} />;
+    if (pageActive === 'commandes-liste')   return <CollaborateurCommandes {...commun} naviguer={naviguer} />;
+    if (pageActive === 'commandes-paiements') return <CollaborateurPaiements {...commun} naviguer={naviguer} />;
+    if (pageActive === 'commandes-retours') return <CollaborateurRetours {...commun} />;
+    if (pageActive === 'messagerie-acheteurs')
+      return <MessagerieAcheteurs gestionnaireId={gestionnaireId} accent={accent} isMobile={isMobile} onActivite={chargerNonLus} />;
+    if (pageActive === 'messagerie-gestionnaire')
       return <MessagerieGestionnaire gestionnaireId={gestionnaireId} accent={accent} isMobile={isMobile} onActivite={chargerNonLus} />;
-    if (pageActive === 'profil-compte')     return <PageStub titre="Mon compte"          emoji="👤" />;
-    if (pageActive === 'profil-boutique')   return <PageStub titre="Ma boutique"         emoji="🏪" />;
-    if (pageActive === 'profil-avis')       return <PageStub titre="Mes avis clients"    emoji="⭐" />;
-    if (pageActive === 'config-stripe' && compte)
+    if (pageActive === 'profil-compte')     return <CollaborateurCompte {...commun} />;
+    if (pageActive === 'profil-boutique')   return <CollaborateurBoutique {...commun} />;
+    if (pageActive === 'profil-avis')       return <CollaborateurAvis {...commun} />;
+    if (pageActive === 'config-stripe')
       return <CollaborateurStripe gestionnaireId={gestionnaireId} collaborateurId={compte.id} accent={accent} isMobile={isMobile} />;
-    if (pageActive === 'config-generale')   return <PageStub titre="Configuration"       emoji="⚙️" />;
+    if (pageActive === 'config-generale')   return <CollaborateurConfiguration {...commun} naviguer={naviguer} />;
     return null;
   };
 
