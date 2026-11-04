@@ -100,7 +100,7 @@ export default function BlogPlateforme({ naviguerVers }: { naviguerVers?: (p: st
         ...(recherche ? { q: recherche } : {}),
       });
       // ✅ CORRIGÉ : enlever /blog
-      const res = await fetch(`${API_BASE}/admin/articles?${params}`, {
+      const res = await fetch(`${API_BASE}/blogPlateforme/admin/articles?${params}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -116,7 +116,7 @@ export default function BlogPlateforme({ naviguerVers }: { naviguerVers?: (p: st
   async function fetchCategories() {
     try {
       // ✅ CORRIGÉ : enlever /blog
-      const res = await fetch(`${API_BASE}/admin/categories`, {
+      const res = await fetch(`${API_BASE}/blogPlateforme/admin/categories`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -138,7 +138,7 @@ export default function BlogPlateforme({ naviguerVers }: { naviguerVers?: (p: st
     setModalOuvert(true);
     try {
       // ✅ CORRIGÉ : enlever /blog
-      const res = await fetch(`${API_BASE}/admin/articles/${article.id}`, {
+      const res = await fetch(`${API_BASE}/blogPlateforme/admin/articles/${article.id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -177,8 +177,8 @@ export default function BlogPlateforme({ naviguerVers }: { naviguerVers?: (p: st
 
       // ✅ CORRIGÉ : enlever /blog
       const url = articleEnEdition
-        ? `${API_BASE}/admin/articles/${articleEnEdition.id}`
-        : `${API_BASE}/admin/articles`;
+        ? `${API_BASE}/blogPlateforme/admin/articles/${articleEnEdition.id}`
+        : `${API_BASE}/blogPlateforme/admin/articles`;
 
       await fetch(url, {
         method: articleEnEdition ? 'PATCH' : 'POST',
@@ -199,7 +199,7 @@ export default function BlogPlateforme({ naviguerVers }: { naviguerVers?: (p: st
     if (!window.confirm(`Supprimer "${titre}" ?`)) return;
     try {
       // ✅ CORRIGÉ : enlever /blog
-      await fetch(`${API_BASE}/admin/articles/${id}`, {
+      await fetch(`${API_BASE}/blogPlateforme/admin/articles/${id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -212,7 +212,7 @@ export default function BlogPlateforme({ naviguerVers }: { naviguerVers?: (p: st
   async function toggleVisible(article: Article) {
     try {
       // ✅ CORRIGÉ : enlever /blog
-      await fetch(`${API_BASE}/admin/articles/${article.id}`, {
+      await fetch(`${API_BASE}/blogPlateforme/admin/articles/${article.id}`, {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ visible: !article.visible, statut: !article.visible ? 'publie' : 'brouillon' }),
@@ -284,7 +284,7 @@ export default function BlogPlateforme({ naviguerVers }: { naviguerVers?: (p: st
       const fd = new FormData();
       fd.append('image', file);
       // ✅ CORRIGÉ : enlever /blog
-      const res = await fetch(`${API_BASE}/admin/upload-image`, {
+      const res = await fetch(`${API_BASE}/blogPlateforme/admin/upload-image`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
@@ -308,7 +308,7 @@ export default function BlogPlateforme({ naviguerVers }: { naviguerVers?: (p: st
       const fd = new FormData();
       fd.append('image', file);
       // ✅ CORRIGÉ : enlever /blog
-      const res = await fetch(`${API_BASE}/admin/upload-image`, {
+      const res = await fetch(`${API_BASE}/blogPlateforme/admin/upload-image`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: fd,
