@@ -14,7 +14,7 @@ import { useEffect } from 'react';
 const TITRE_DEFAUT      = 'e-Vend.ca | Acheter et vendre localement au Canada';
 const DESCRIPTION_DEFAUT = 'e-Vend est une marketplace canadienne et québécoise pour acheter et vendre localement des produits uniques, facilement et en toute sécurité.';
 const URL_DEFAUT        = 'https://e-vend.ca';
-const IMAGE_DEFAUT      = 'https://evend-ca-storage-2026.s3.us-east-1.amazonaws.com/seo/og-image-6b0c576e-21dd-448a-bda0-2a2621034a4d.jpg';
+const IMAGE_DEFAUT      = 'https://admin-media.e-vend.ca/studio/logos/1793759632517-1780672555025-ti-cast_clin_d_oeuil.jpg';
 
 interface PageSeoOptions {
   titre?:       string;
