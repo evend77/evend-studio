@@ -2,13 +2,62 @@
 // Page publique d'affichage d'une politique e-Vend Studio
 // Route : /politiques/:slug
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { usePageSeo } from '../hooks/usePageSeo';
 import MenuPublic from '../components/MenuPublic';
 import BasDePage from '../components/BasDePage';
 
 const API_BASE = '/api';
+
+// Extrait les <style> et <link> du contenu (venant de la base de données) et
+// limite le CSS à la zone du contenu seulement (".politique-contenu"), pour qu'il ne
+// déborde plus sur le menu du haut, la liste de gauche et le bas de page.
+const extraireStyles = (brut: string) => {
+  const liens: string[] = [];
+  const imports: string[] = [];
+  const feuilles: string[] = [];
+
+  let reste = (brut || '').replace(/<style[^>]*>([\s\S]*?)<\/style\s*>/gi, (_m, css) => {
+    feuilles.push(String(css).replace(/<\/(style|script)/gi, '').replace(/expression\s*\(/gi, ''));
+    return '';
+  });
+
+  reste = reste.replace(/<link\b([^>]*)>/gi, (_m, attrs) => {
+    const estCss = /rel\s*=\s*["']stylesheet["']/i.test(attrs);
+    const href = attrs.match(/href\s*=\s*["'](https?:\/\/[^"']+)["']/i);
+    if (estCss && href) liens.push(href[1]);
+    return '';
+  });
+
+  const portee = '.politique-contenu';
+  const traiter = (regles: CSSRuleList): string => Array.from(regles).map((r): string => {
+    if (r instanceof CSSStyleRule) {
+      const sel = r.selectorText.split(',').map(x => {
+        const t = x.trim();
+        if (/^(html|body|:root)$/i.test(t)) return portee;
+        return portee + ' ' + t.replace(/^(html|body)\s+/i, '');
+      }).join(', ');
+      return sel + ' { ' + r.style.cssText + ' }';
+    }
+    if (r instanceof CSSMediaRule) return '@media ' + r.conditionText + ' { ' + traiter(r.cssRules) + ' }';
+    if (r instanceof CSSSupportsRule) return '@supports ' + r.conditionText + ' { ' + traiter(r.cssRules) + ' }';
+    return r.cssText;
+  }).join('\n');
+
+  let css = '';
+  try {
+    const tout = feuilles.join('\n').replace(/@import\s+url\(\s*["']?(https?:[^"')]+)["']?\s*\)[^;]*;/gi, (_m, u) => {
+      imports.push('@import url("' + u + '");');
+      return '';
+    });
+    const feuille = new CSSStyleSheet();
+    feuille.replaceSync(tout);
+    css = imports.join('\n') + '\n' + traiter(feuille.cssRules);
+  } catch { css = ''; }
+
+  return { html: reste, css, liens };
+};
 
 interface Politique {
   slug: string;
@@ -27,6 +76,12 @@ export default function PagePolitique() {
   const navigate = useNavigate();
 
   const [politique, setPolitique] = useState<Politique | null>(null);
+
+  // CSS du contenu extrait et limité à la zone du contenu (voir extraireStyles)
+  const { html: contenuSansStyle, css: cssExtrait, liens: liensExtraits } = useMemo(
+    () => extraireStyles(politique?.contenu || ''),
+    [politique?.contenu]
+  );
 
   // ── SEO dynamique ──────────────────────────────────────────────────────
   usePageSeo(politique ? {
@@ -313,7 +368,7 @@ export default function PagePolitique() {
               href={`/politiques/${p.slug}`}
               className={`sidebar-link${slug === p.slug ? ' sidebar-link-active' : ''}`}
               style={s.drawerLink}
-              onClick={() => setDrawerOpen(false)}
+              onClick={(e) => { e.preventDefault(); setDrawerOpen(false); navigate(`/politiques/${p.slug}`); }}
             >
               {p.titre}
             </a>
@@ -333,6 +388,7 @@ export default function PagePolitique() {
                 <a
                   key={p.slug}
                   href={`/politiques/${p.slug}`}
+                  onClick={(e) => { e.preventDefault(); navigate(`/politiques/${p.slug}`); }}
                   className={`sidebar-link${slug === p.slug ? ' sidebar-link-active' : ''}`}
                   style={s.sidebarLink}
                 >
@@ -393,9 +449,14 @@ export default function PagePolitique() {
 
                 <div style={s.separateur} />
 
+                {liensExtraits.map(href => (
+                  <link key={href} rel="stylesheet" href={href} />
+                ))}
+                {cssExtrait && <style>{cssExtrait}</style>}
+
                 <div
                   className="politique-contenu"
-                  dangerouslySetInnerHTML={{ __html: politique.contenu }}
+                  dangerouslySetInnerHTML={{ __html: contenuSansStyle }}
                 />
 
                 <div style={s.articleFooter}>

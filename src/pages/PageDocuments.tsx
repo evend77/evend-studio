@@ -1,11 +1,63 @@
 // src/pages/PageDocuments.tsx
-// Page publique d'affichage d'un document/guide e-Vend
+// Page publique d'affichage d'un document/guide e-Vend Studio
 // Route : /documents/:slug
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { usePageSeo } from '../hooks/usePageSeo';
+import MenuPublic from '../components/MenuPublic';
+import BasDePage from '../components/BasDePage';
 
-const API_BASE = 'https://api.e-vend.ca/api';
+const API_BASE = '/api';
+
+// Extrait les <style> et <link> du contenu (venant de la base de données) et
+// limite le CSS à la zone du contenu seulement (".document-contenu"), pour qu'il ne
+// déborde plus sur le menu du haut, la liste de gauche et le bas de page.
+const extraireStyles = (brut: string) => {
+  const liens: string[] = [];
+  const imports: string[] = [];
+  const feuilles: string[] = [];
+
+  let reste = (brut || '').replace(/<style[^>]*>([\s\S]*?)<\/style\s*>/gi, (_m, css) => {
+    feuilles.push(String(css).replace(/<\/(style|script)/gi, '').replace(/expression\s*\(/gi, ''));
+    return '';
+  });
+
+  reste = reste.replace(/<link\b([^>]*)>/gi, (_m, attrs) => {
+    const estCss = /rel\s*=\s*["']stylesheet["']/i.test(attrs);
+    const href = attrs.match(/href\s*=\s*["'](https?:\/\/[^"']+)["']/i);
+    if (estCss && href) liens.push(href[1]);
+    return '';
+  });
+
+  const portee = '.document-contenu';
+  const traiter = (regles: CSSRuleList): string => Array.from(regles).map((r): string => {
+    if (r instanceof CSSStyleRule) {
+      const sel = r.selectorText.split(',').map(x => {
+        const t = x.trim();
+        if (/^(html|body|:root)$/i.test(t)) return portee;
+        return portee + ' ' + t.replace(/^(html|body)\s+/i, '');
+      }).join(', ');
+      return sel + ' { ' + r.style.cssText + ' }';
+    }
+    if (r instanceof CSSMediaRule) return '@media ' + r.conditionText + ' { ' + traiter(r.cssRules) + ' }';
+    if (r instanceof CSSSupportsRule) return '@supports ' + r.conditionText + ' { ' + traiter(r.cssRules) + ' }';
+    return r.cssText;
+  }).join('\n');
+
+  let css = '';
+  try {
+    const tout = feuilles.join('\n').replace(/@import\s+url\(\s*["']?(https?:[^"')]+)["']?\s*\)[^;]*;/gi, (_m, u) => {
+      imports.push('@import url("' + u + '");');
+      return '';
+    });
+    const feuille = new CSSStyleSheet();
+    feuille.replaceSync(tout);
+    css = imports.join('\n') + '\n' + traiter(feuille.cssRules);
+  } catch { css = ''; }
+
+  return { html: reste, css, liens };
+};
 
 interface Document {
   slug: string;
@@ -22,12 +74,36 @@ interface AutreDocument {
 export default function PageDocuments() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
+  const articleRef = useRef<HTMLElement>(null);
 
   const [document, setDocument] = useState<Document | null>(null);
+
+  // Extraction du <style>/<link> avant sanitization (voir commentaire sur
+  // extraireStyles plus haut) — recalculé seulement quand le contenu change.
+  const { html: contenuSansStyle, css: cssExtrait, liens: liensExtraits } = useMemo(
+    () => extraireStyles(document?.contenu || ''),
+    [document?.contenu]
+  );
+
+  // ── SEO dynamique ──────────────────────────────────────────────────────
+  usePageSeo(document ? {
+    titre:       document.titre + ' | e-Vend Studio',
+    description: document.contenu
+      ? document.contenu.replace(/<[^>]+>/g, '').slice(0, 160)
+      : 'Consultez le guide ' + document.titre + ' de e-Vend Studio.',
+    url:         'https://e-vendstudio.ca/documents/' + slug,
+  } : {});
   const [autres, setAutres] = useState<AutreDocument[]>([]);
   const [loading, setLoading] = useState(true);
   const [erreur, setErreur] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // Le routeur garde la position de défilement de la page précédente (surtout visible sur mobile) :
+  // à chaque changement de guide, on remonte en haut. 'instant' car la page force scroll-behavior: smooth.
+  useEffect(() => {
+    try { window.scrollTo({ top: 0, left: 0, behavior: 'instant' as ScrollBehavior }); } catch { window.scrollTo(0, 0); }
+  }, [slug]);
 
   useEffect(() => {
     if (!slug) {
@@ -37,7 +113,7 @@ export default function PageDocuments() {
     setLoading(true);
     setErreur(false);
 
-    fetch(`${API_BASE}/pages/public/${slug}`)
+    fetch(`${API_BASE}/pagesPlateforme/public/${slug}`)
       .then(r => {
         if (!r.ok) throw new Error('introuvable');
         return r.json();
@@ -48,10 +124,19 @@ export default function PageDocuments() {
   }, [slug]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/pages/public/menu`)
+    fetch(`${API_BASE}/pagesPlateforme/public/menu`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.pages) setAutres(data.pages); })
       .catch(() => {});
+  }, []);
+
+  // Détecter le scroll pour afficher/masquer la flèche
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
   // Fermer le drawer si on clique dehors
@@ -78,6 +163,10 @@ export default function PageDocuments() {
       window.document.body.style.overflow = '';
     };
   }, [drawerOpen]);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   const formatDate = (iso: string) => {
     try {
@@ -112,6 +201,39 @@ export default function PageDocuments() {
           from { opacity: 0; }
           to   { opacity: 1; }
         }
+        @keyframes bounceUp {
+          0% { opacity: 0; transform: translateY(20px) scale(0.8); }
+          50% { transform: translateY(-5px) scale(1.05); }
+          100% { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Contenu principal - empêcher le débordement */
+        .document-contenu {
+          overflow-x: hidden;
+          word-wrap: break-word;
+          word-break: break-word;
+        }
+        .document-contenu img {
+          max-width: 100%;
+          height: auto;
+          border-radius: 12px;
+        }
+        .document-contenu table {
+          display: block;
+          overflow-x: auto;
+          white-space: nowrap;
+        }
+        .document-contenu pre,
+        .document-contenu code {
+          white-space: pre-wrap;
+          word-wrap: break-word;
+          max-width: 100%;
+        }
+        .document-contenu iframe,
+        .document-contenu video {
+          max-width: 100%;
+          height: auto;
+        }
 
         .document-contenu h1,
         .document-contenu h2,
@@ -129,7 +251,7 @@ export default function PageDocuments() {
         .document-contenu ul,
         .document-contenu ol { color: rgba(255,255,255,0.72); padding-left: 1.6em; margin-bottom: 1.1em; }
         .document-contenu li { margin-bottom: 0.45em; line-height: 1.7; font-size: 0.97rem; }
-        .document-contenu a  { color: #fbbf24; text-decoration: underline; }
+        .document-contenu a  { color: #fbbf24; text-decoration: underline; word-break: break-all; }
         .document-contenu a:hover { color: #fde68a; }
         .document-contenu strong { color: rgba(255,255,255,0.9); font-weight: 600; }
         .document-contenu em { color: rgba(255,255,255,0.6); font-style: italic; }
@@ -141,6 +263,7 @@ export default function PageDocuments() {
           border-radius: 0 8px 8px 0;
           color: rgba(255,255,255,0.65);
           font-style: italic;
+          overflow-x: auto;
         }
         .document-contenu hr {
           border: none;
@@ -148,15 +271,24 @@ export default function PageDocuments() {
           margin: 2em 0;
         }
         .document-contenu table {
-          width: 100%; border-collapse: collapse; margin: 1.2em 0; font-size: 0.9rem;
+          width: 100%;
+          border-collapse: collapse;
+          margin: 1.2em 0;
+          font-size: 0.9rem;
+          display: block;
+          overflow-x: auto;
         }
         .document-contenu th {
-          background: rgba(251,191,36,0.12); color: #fbbf24;
-          padding: 10px 14px; text-align: left; font-weight: 600;
+          background: rgba(251,191,36,0.12);
+          color: #fbbf24;
+          padding: 10px 14px;
+          text-align: left;
+          font-weight: 600;
           border-bottom: 1px solid rgba(255,255,255,0.1);
         }
         .document-contenu td {
-          padding: 9px 14px; color: rgba(255,255,255,0.7);
+          padding: 9px 14px;
+          color: rgba(255,255,255,0.7);
           border-bottom: 1px solid rgba(255,255,255,0.05);
         }
 
@@ -193,8 +325,30 @@ export default function PageDocuments() {
           gap: 48px;
           align-items: start;
         }
-        .desktop-sidebar { display: block; }
+        .desktop-sidebar { 
+          display: block;
+          position: sticky;
+          top: 88px;
+          max-height: calc(100vh - 108px);
+          overflow-y: auto;
+        }
         .mobile-menu-bar { display: none; }
+
+        /* Scrollbar personnalisée pour la sidebar */
+        .desktop-sidebar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .desktop-sidebar::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.05);
+          border-radius: 4px;
+        }
+        .desktop-sidebar::-webkit-scrollbar-thumb {
+          background: rgba(251,191,36,0.4);
+          border-radius: 4px;
+        }
+        .desktop-sidebar::-webkit-scrollbar-thumb:hover {
+          background: rgba(251,191,36,0.6);
+        }
 
         @media (max-width: 768px) {
           .page-layout {
@@ -203,9 +357,7 @@ export default function PageDocuments() {
           }
           .desktop-sidebar { display: none; }
           .mobile-menu-bar { display: flex; }
-        }
-
-        @media (max-width: 768px) {
+          
           .document-contenu h1 { font-size: 1.35rem; }
           .document-contenu h2 { font-size: 1.15rem; }
           .document-contenu h3 { font-size: 1rem; }
@@ -214,20 +366,29 @@ export default function PageDocuments() {
           .document-contenu table { font-size: 0.82rem; }
           .document-contenu th,
           .document-contenu td { padding: 7px 10px; }
+          
+          /* Ajustement des marges sur mobile */
+          .document-contenu {
+            padding: 0 4px;
+          }
         }
       `}</style>
 
-      <nav style={s.nav}>
-        <div style={s.navInner}>
-          <div style={s.navLogo} onClick={() => navigate('/')}>
-            <div style={s.logoIcon}>e</div>
-            <span style={s.logoText}>e-Vend</span>
-          </div>
-          <button className="btn-back" onClick={() => navigate(-1)} style={s.btnBack}>
-            ← Retour
-          </button>
-        </div>
-      </nav>
+      {/* Flèche de retour en haut */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          style={s.scrollTopButton}
+          className="scroll-top-btn"
+          aria-label="Retour en haut"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 4L12 20M12 4L18 10M12 4L6 10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
+        </button>
+      )}
+
+      <MenuPublic />
 
       {/* Barre mobile */}
       <div
@@ -253,7 +414,7 @@ export default function PageDocuments() {
         <div style={s.drawerOverlay} onClick={() => setDrawerOpen(false)} />
       )}
 
-      {/* Drawer */}
+      {/* Drawer mobile */}
       <div
         id="documents-drawer"
         style={{
@@ -264,14 +425,14 @@ export default function PageDocuments() {
       >
         <div style={s.drawerHandle} />
         <p style={s.drawerLabel}>Guides et documentation</p>
-        <nav>
+        <nav style={s.drawerNav}>
           {listeDocuments.map(doc => (
             <a
               key={doc.slug}
               href={`/documents/${doc.slug}`}
               className={`sidebar-link${slug === doc.slug ? ' sidebar-link-active' : ''}`}
               style={s.drawerLink}
-              onClick={() => setDrawerOpen(false)}
+              onClick={(e) => { e.preventDefault(); setDrawerOpen(false); navigate(`/documents/${doc.slug}`); }}
             >
               {doc.titre}
             </a>
@@ -283,12 +444,12 @@ export default function PageDocuments() {
       <main style={s.main}>
         <div className="page-layout">
 
-          {/* Sidebar desktop */}
+          {/* Sidebar desktop avec scroll indépendant */}
           <aside className="desktop-sidebar" style={s.sidebar}>
             <p style={s.sidebarLabel}>Guides et documentation</p>
-            <nav>
+            <nav style={s.sidebarNav}>
               {listeDocuments.map(doc => (
-                <a
+                <a onClick={(e) => { e.preventDefault(); navigate(`/documents/${doc.slug}`); }}
                   key={doc.slug}
                   href={`/documents/${doc.slug}`}
                   className={`sidebar-link${slug === doc.slug ? ' sidebar-link-active' : ''}`}
@@ -301,7 +462,7 @@ export default function PageDocuments() {
           </aside>
 
           {/* Article */}
-          <article style={s.article}>
+          <article style={s.article} ref={articleRef}>
 
             {/* LOADING */}
             {loading && (
@@ -365,9 +526,14 @@ export default function PageDocuments() {
 
                 <div style={s.separateur} />
 
+                {liensExtraits.map(href => (
+                  <link key={href} rel="stylesheet" href={href} />
+                ))}
+                {cssExtrait && <style>{cssExtrait}</style>}
+
                 <div
                   className="document-contenu"
-                  dangerouslySetInnerHTML={{ __html: document.contenu || '<p>Contenu à venir...</p>' }}
+                  dangerouslySetInnerHTML={{ __html: contenuSansStyle || '<p>Contenu à venir...</p>' }}
                 />
 
                 <div style={s.articleFooter}>
@@ -389,9 +555,7 @@ export default function PageDocuments() {
         </div>
       </main>
 
-      <footer style={s.footer}>
-        <p style={s.footerText}>© 2026 e-Vend · Le marché d'ici, pour les gens d'ici 🇨🇦</p>
-      </footer>
+      <BasDePage />
     </div>
   );
 }
@@ -406,45 +570,29 @@ const s: Record<string, React.CSSProperties> = {
     flexDirection: 'column',
   },
 
-  nav: {
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-    background: 'rgba(6,13,31,0.95)',
-    backdropFilter: 'blur(12px)',
-    position: 'sticky',
-    top: 0,
-    zIndex: 50,
-  },
-  navInner: {
-    maxWidth: '1200px',
-    margin: '0 auto',
-    padding: '0 20px',
-    height: '60px',
+  scrollTopButton: {
+    position: 'fixed',
+    bottom: '30px',
+    right: '30px',
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+    background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
+    border: 'none',
+    cursor: 'pointer',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  navLogo: {
-    display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer',
-  },
-  logoIcon: {
-    width: '30px', height: '30px', borderRadius: '8px',
-    background: 'linear-gradient(135deg, #fbbf24, #f59e0b)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '13px', color: '#000',
-  },
-  logoText: {
-    fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '17px', color: '#fff',
-  },
-  btnBack: {
-    background: 'none', border: 'none', cursor: 'pointer',
-    color: 'rgba(255,255,255,0.4)', fontSize: '13px',
-    fontFamily: "'DM Sans', sans-serif",
-    transition: 'color 0.2s', padding: '6px 0',
-  },
+    justifyContent: 'center',
+    zIndex: 100,
+    boxShadow: '0 4px 15px rgba(251,191,36,0.3)',
+    transition: 'all 0.3s ease',
+    animation: 'bounceUp 0.3s ease-out',
+    color: '#000',
+  } as React.CSSProperties,
 
   mobileMenuBar: {
     position: 'sticky',
-    top: '60px',
+    top: '68px',
     zIndex: 40,
     background: 'rgba(6,13,31,0.97)',
     backdropFilter: 'blur(10px)',
@@ -481,7 +629,7 @@ const s: Record<string, React.CSSProperties> = {
     inset: 0,
     background: 'rgba(0,0,0,0.6)',
     backdropFilter: 'blur(4px)',
-    zIndex: 98,
+    zIndex: 1200,
     animation: 'overlayIn 0.2s ease',
   },
   drawer: {
@@ -489,7 +637,7 @@ const s: Record<string, React.CSSProperties> = {
     bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 99,
+    zIndex: 1201,
     background: '#0d1729',
     borderTop: '1px solid rgba(255,255,255,0.1)',
     borderRadius: '20px 20px 0 0',
@@ -522,17 +670,21 @@ const s: Record<string, React.CSSProperties> = {
     borderLeft: '3px solid transparent',
     transition: 'all 0.18s',
   },
+  drawerNav: {
+    paddingBottom: '20px',
+  },
 
   main: { flex: 1, padding: '40px 20px 80px' },
 
   sidebar: {
-    position: 'sticky',
-    top: '80px',
     background: 'rgba(255,255,255,0.025)',
     border: '1px solid rgba(255,255,255,0.07)',
     borderRadius: '14px',
     padding: '20px 0',
-    overflow: 'hidden',
+    overflowY: 'auto',
+    position: 'sticky',
+    top: '88px',
+    maxHeight: 'calc(100vh - 108px)',
   },
   sidebarLabel: {
     fontSize: '10px',
@@ -551,9 +703,15 @@ const s: Record<string, React.CSSProperties> = {
     borderLeft: '3px solid transparent',
     transition: 'all 0.18s',
   },
+  sidebarNav: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
 
   article: {
     minHeight: '60vh',
+    overflowX: 'hidden',
+    width: '100%',
   },
   breadcrumb: {
     display: 'flex', alignItems: 'center', gap: '8px',
@@ -602,12 +760,4 @@ const s: Record<string, React.CSSProperties> = {
     cursor: 'pointer', fontFamily: "'Syne', sans-serif",
   },
 
-  footer: {
-    borderTop: '1px solid rgba(255,255,255,0.05)',
-    padding: '24px',
-    textAlign: 'center' as const,
-  },
-  footerText: {
-    color: 'rgba(255,255,255,0.2)', fontSize: '12px',
-  },
 };
