@@ -1,4 +1,4 @@
-// 📁 CHEMIN : src/AppGestionnaireStudio.tsx
+// CHEMIN : src/AppGestionnaireStudio.tsx
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import Dashboard          from './pages/gestionnaire/Dashboard';
 import PageChoisirTemplate        from './pages/gestionnaire/PageChoisirTemplate';
@@ -36,6 +36,7 @@ import StudioMonCompte          from './pages/gestionnaire/StudioMonCompte';
 import StudioBlogSousVendeur    from './pages/gestionnaire/StudioBlogCollaborateur';
 import StudioFaqSousVendeur     from './pages/gestionnaire/StudioFaqCollaborateur';
 import SurveillanceChats        from './pages/gestionnaire/SurveillanceChats';
+import ChatAvecCollaborateur    from './pages/gestionnaire/ChatAvecCollaborateur';
 import StudioSousVendeurs       from './pages/gestionnaire/StudioCollaborateurs';
 import StudioGestionBadges      from './pages/gestionnaire/StudioGestionBadges';
 import StudioBadgesAttribues    from './pages/gestionnaire/StudioBadgesAttribues';
@@ -696,6 +697,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     sousMenu: [
       { id: 'collaborateurs-liste',  label: 'Liste des collaborateurs', icon: '👥' },
       { id: 'collaborateurs-blogs',  label: 'Blog collaborateurs',      icon: '📝' },
+      { id: 'collaborateurs-messages', label: 'Messages collaborateurs', icon: '💬' },
     ]
   };
 
@@ -1424,6 +1426,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'collaborateurs-blogs')      return <StudioBlogSousVendeur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'blogs-collaborateurs')      return <StudioBlogSousVendeur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'faqs-collaborateurs')       return <StudioFaqSousVendeur  gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'collaborateurs-messages')  return <ChatAvecCollaborateur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'chat-acheteur-sv')         return <SurveillanceChats     gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'badges-gestion')      return <StudioGestionBadges   gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'badges-attribues')    return <StudioBadgesAttribues gestionnaireId={gestionnaire.id} />;
@@ -1613,7 +1616,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
             </span>
           )}
         </button>
-        <button onClick={ouvrirBoutiqueNouvelOnglet} title="Voir mon site"
+        <button onClick={() => window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer')} title="Voir mon site"
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22 }}>
           👁️
         </button>

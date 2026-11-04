@@ -8,6 +8,7 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
 import CollaborateurStripe from './pages/collaborateur/CollaborateurStripe';
+import MessagerieGestionnaire from './pages/collaborateur/MessagerieGestionnaire';
 
 const API_BASE = '/api';
 
@@ -235,19 +236,24 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     return () => clearInterval(t);
   }, [compte?.id, gestionnaireId]);
 
-  // Charger non-lus messagerie
-  useEffect(() => {
+  // Charger non-lus messagerie (messages du gestionnaire ; acheteurs : à venir)
+  const chargerNonLus = useCallback(async () => {
     if (!compte?.id) return;
-    const charger = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/collaborateurs/${compte.id}/messages/non-lus`, { credentials: 'include', headers: getHeaders() });
-        if (res.ok) setNonLus(await res.json());
-      } catch {}
-    };
-    charger();
-    const t = setInterval(charger, 30000);
-    return () => clearInterval(t);
+    try {
+      const res = await fetch(`${API_BASE}/chat-admin-collab/${gestionnaireId}/collab/non-lus`, { credentials: 'include' });
+      if (res.ok) {
+        const d = await res.json();
+        const n = Number(d.total) || 0;
+        setNonLus({ acheteurs: 0, gestionnaire: n, total: n });
+      }
+    } catch {}
   }, [compte?.id, gestionnaireId]);
+
+  useEffect(() => {
+    chargerNonLus();
+    const t = setInterval(chargerNonLus, 30000);
+    return () => clearInterval(t);
+  }, [chargerNonLus]);
 
   // Mobile + horloge
   useEffect(() => {
@@ -325,7 +331,8 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'commandes-paiements') return <PageStub titre="Paiements"         emoji="💰" />;
     if (pageActive === 'commandes-retours') return <PageStub titre="Retours"             emoji="🔄" />;
     if (pageActive === 'messagerie-acheteurs') return <PageStub titre="Messages acheteurs" emoji="💬" />;
-    if (pageActive === 'messagerie-gestionnaire') return <PageStub titre="Message gestionnaire" emoji="🏢" />;
+    if (pageActive === 'messagerie-gestionnaire' && compte)
+      return <MessagerieGestionnaire gestionnaireId={gestionnaireId} accent={accent} isMobile={isMobile} onActivite={chargerNonLus} />;
     if (pageActive === 'profil-compte')     return <PageStub titre="Mon compte"          emoji="👤" />;
     if (pageActive === 'profil-boutique')   return <PageStub titre="Ma boutique"         emoji="🏪" />;
     if (pageActive === 'profil-avis')       return <PageStub titre="Mes avis clients"    emoji="⭐" />;
