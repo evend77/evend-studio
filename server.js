@@ -495,6 +495,8 @@ app.use('/api/politiquesPlateforme', require('./routes/politiquesPlateforme'));
 app.use('/api/pagesPlateforme',      require('./routes/pagesPlateforme'));
 // 🖼️ Gestionnaire de photos admin (Logos / Divers / Audio) — Cloudflare R2
 app.use('/api/images',               require('./routes/images'));
+// 📋 Menus du site (principal, pied de page) — public + gestion admin
+app.use('/api/menus',                require('./routes/menus'));
 // 🆕 Infolettre : inscription publique + désabonnement (/api/infolettre), gestion des abonnés
 // et campagnes marketing (/api/admin/infolettre, /api/admin/marketing) + réponse manuelle (/api/admin/repondre-client)
 // — Messagerie > E-mail marketing / E-mail manuel
