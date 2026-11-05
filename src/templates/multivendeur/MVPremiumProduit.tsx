@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
+import MVPremiumFooter from './MVPremiumFooter';
 
 const API_BASE = '/api';
 
@@ -469,6 +470,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
           )}
         </div>
       )}
+      <MVPremiumFooter vendeurId={vendeurId} isDemo={isDemo} config={config} naviguer={naviguer} />
     </div>
   );
 }

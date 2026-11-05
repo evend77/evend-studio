@@ -1,15 +1,16 @@
-// src/templates/multivendeur/MVPremiumDocuments.tsx
+// CHEMIN : src/templates/multivendeur/MVPremiumDocuments.tsx
 // e-Vend Studio — Template Multi-Vendeur Premium — Documents / Guides
 
 import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
+import MVPremiumFooter from './MVPremiumFooter';
 
 const API_BASE = '/api';
 
 interface DocumentPage {
   slug: string;
   titre: string;
-  contenu: string;
+  contenu?: string;
   updated_at?: string;
 }
 
@@ -18,6 +19,7 @@ interface Props {
   isDemo?: boolean;
   config?: Record<string, any>;
   naviguer: (d: NavMV) => void;
+  documentSlug?: string;
 }
 
 const DEMO_DOCUMENTS: DocumentPage[] = [
@@ -70,7 +72,7 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
   );
 }
 
-export default function MVPremiumDocuments({ vendeurId, isDemo, config = {}, naviguer }: Props) {
+export default function MVPremiumDocuments({ vendeurId, isDemo, config = {}, naviguer, documentSlug }: Props) {
   const gId = vendeurId || config.gestionnaire_id;
   const couleurAccent = config.couleur_accent || '#fbbf24';
 
@@ -79,23 +81,41 @@ export default function MVPremiumDocuments({ vendeurId, isDemo, config = {}, nav
   const [loading, setLoading] = useState(true);
   const [drawerOuvert, setDrawerOuvert] = useState(false);
 
+  // Ouvre un document : la liste publique ne contient pas le texte, on le charge ici.
+  const ouvrir = (slug: string, liste: DocumentPage[] = documents) => {
+    setDrawerOuvert(false);
+    const resume = liste.find(d => d.slug === slug);
+    if (!resume) return;
+    if (isDemo || resume.contenu !== undefined) { setDocActif(resume); return; }
+    setDocActif({ ...resume, contenu: undefined });
+    fetch(`${API_BASE}/studio/pages/${gId}/public/${encodeURIComponent(slug)}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (d?.page) setDocActif(d.page);
+        else setDocActif({ ...resume, contenu: '' });
+      })
+      .catch(() => setDocActif({ ...resume, contenu: '' }));
+  };
+
   useEffect(() => {
     if (isDemo) {
       setDocuments(DEMO_DOCUMENTS);
-      setDocActif(DEMO_DOCUMENTS[0]);
+      setDocActif(DEMO_DOCUMENTS[0] || null);
       setLoading(false);
       return;
     }
-    fetch(`${API_BASE}/gestionnaires/${gId}/documents`)
-      .then(r => r.ok ? r.json() : { documents: [] })
+    fetch(`${API_BASE}/studio/pages/${gId}/public`)
+      .then(r => (r.ok ? r.json() : { pages: [] }))
       .then(d => {
-        const docs = d.documents || d || [];
+        const docs: DocumentPage[] = Array.isArray(d?.pages) ? d.pages : [];
         setDocuments(docs);
-        if (docs.length > 0) setDocActif(docs[0]);
+        const cible = (documentSlug && docs.find(x => x.slug === documentSlug)) || docs[0];
+        if (cible) ouvrir(cible.slug, docs);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [gId, isDemo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gId, isDemo, documentSlug]);
 
   return (
     <div style={s.page}>
@@ -111,6 +131,13 @@ export default function MVPremiumDocuments({ vendeurId, isDemo, config = {}, nav
           .mvd-sidebar { display:none !important; }
           .mvd-btn { display:inline-block !important; }
         }
+        .doc-contenu h1 { font-family:'Syne',sans-serif; font-size:1.6rem; color:#fff; margin:1.2em 0 0.6em; }
+        .doc-contenu a { color:${couleurAccent}; text-decoration:underline; }
+        .doc-contenu strong { color:rgba(255,255,255,0.92); }
+        .doc-contenu hr { border:none; border-top:1px solid rgba(255,255,255,0.1); margin:1.8em 0; }
+        .doc-contenu img { border-radius:12px; }
+        .doc-contenu th { background:${couleurAccent}1f; color:${couleurAccent}; padding:9px 12px; text-align:left; }
+        .doc-contenu td { padding:8px 12px; color:rgba(255,255,255,0.7); border-bottom:1px solid rgba(255,255,255,0.06); }
         .doc-contenu h2 { font-family:'Syne',sans-serif; font-size:1.35rem; color:rgba(255,255,255,0.92); border-bottom:1px solid rgba(255,255,255,0.08); padding-bottom:0.4em; margin:1.4em 0 0.6em; }
         .doc-contenu h3 { font-family:'Syne',sans-serif; font-size:1.1rem; color:${couleurAccent}; margin:1.2em 0 0.5em; }
         .doc-contenu p { color:rgba(255,255,255,0.72); line-height:1.8; margin-bottom:1.1em; font-size:0.97rem; }
@@ -131,7 +158,7 @@ export default function MVPremiumDocuments({ vendeurId, isDemo, config = {}, nav
               <button onClick={() => setDrawerOuvert(false)} style={{ background:'none', border:'none', color:'#fff', fontSize:20, cursor:'pointer' }}>✕</button>
             </div>
             {documents.map(d => (
-              <div key={d.slug} onClick={() => { setDocActif(d); setDrawerOuvert(false); }}
+              <div key={d.slug} onClick={() => ouvrir(d.slug)}
                 style={{ padding:'10px 12px', borderRadius:8, cursor:'pointer', color: docActif?.slug === d.slug ? couleurAccent : 'rgba(255,255,255,0.7)', background: docActif?.slug === d.slug ? `${couleurAccent}15` : 'transparent', fontSize:14, marginBottom:4 }}>
                 {d.titre}
               </div>
@@ -144,9 +171,9 @@ export default function MVPremiumDocuments({ vendeurId, isDemo, config = {}, nav
         <div className="mvd-layout" style={s.layout}>
           {/* Sidebar desktop */}
           <aside className="mvd-sidebar" style={s.sidebar}>
-            <p style={s.sidebarTitre}>Documents & Guides</p>
+            <p style={s.sidebarTitre}>Documents et guides</p>
             {documents.map(d => (
-              <div key={d.slug} className="doc-link" onClick={() => setDocActif(d)}
+              <div key={d.slug} className="doc-link" onClick={() => ouvrir(d.slug)}
                 style={{ padding:'10px 14px', borderRadius:10, cursor:'pointer', color: docActif?.slug === d.slug ? couleurAccent : 'rgba(255,255,255,0.65)', background: docActif?.slug === d.slug ? `${couleurAccent}12` : 'transparent', fontSize:14, fontWeight: docActif?.slug === d.slug ? 700 : 500, marginBottom:4, transition:'all 0.15s', borderLeft: docActif?.slug === d.slug ? `3px solid ${couleurAccent}` : '3px solid transparent' }}>
                 {d.titre}
               </div>
@@ -174,15 +201,21 @@ export default function MVPremiumDocuments({ vendeurId, isDemo, config = {}, nav
                 <h1 style={s.titre}>{docActif.titre}</h1>
                 {docActif.updated_at && (
                   <p style={{ fontSize:12, color:'rgba(255,255,255,0.35)', marginBottom:24 }}>
-                    Mis a jour le {new Date(docActif.updated_at).toLocaleDateString('fr-CA', { year:'numeric', month:'long', day:'numeric' })}
+                    Mis à jour le {new Date(docActif.updated_at).toLocaleDateString('fr-CA', { year:'numeric', month:'long', day:'numeric' })}
                   </p>
                 )}
-                <div className="doc-contenu" dangerouslySetInnerHTML={{ __html: docActif.contenu }} />
+                {docActif.contenu === undefined ? (
+                  <div style={{ color:'rgba(255,255,255,0.4)' }}>Chargement...</div>
+                ) : (
+                  <div className="doc-contenu" dangerouslySetInnerHTML={{ __html: docActif.contenu }} />
+                )}
               </>
             )}
           </article>
         </div>
       </main>
+
+      <MVPremiumFooter vendeurId={vendeurId} isDemo={isDemo} config={config} naviguer={naviguer} />
     </div>
   );
 }

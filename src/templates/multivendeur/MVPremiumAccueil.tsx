@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
+import MVPremiumFooter from './MVPremiumFooter';
+import MVPremiumAvantages from './MVPremiumAvantages';
 
 const API_BASE = '/api';
 
@@ -48,11 +50,6 @@ interface Groupe {
   id: number;
   nom: string;
   nb_categories?: number;
-}
-
-interface Politique {
-  slug: string;
-  titre: string;
 }
 
 interface Props {
@@ -157,91 +154,10 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: {
   );
 }
 
-// ─── FOOTER ──────────────────────────────────────────────────────────────────
-function Footer({ naviguer, config, politiques, vendeurId, isDemo }: {
-  naviguer: (d: NavMV) => void;
-  config: Record<string, any>;
-  politiques: Politique[];
-  vendeurId?: number;
-  isDemo?: boolean;
-}) {
-  const [dropdownOuvert, setDropdownOuvert] = useState(false);
-  const nom = config.nom_boutique || 'Ma Marketplace';
-  const accent = config.couleur_accent || '#fbbf24';
-
-  const ouvrirPolitique = (slug: string) => {
-    setDropdownOuvert(false);
-    if (isDemo) { naviguer({ page: 'politique', politiqueSlug: slug }); return; }
-    window.open(`/site-preview?vendeurId=${vendeurId}&page=politique&politiqueSlug=${slug}`, '_blank', 'noopener,noreferrer');
-  };
-
-  return (
-    <footer style={s.footer}>
-      <style>{`
-        .mv-footer-link:hover { color:#fff !important; }
-        .mv-pol-item:hover { background:rgba(255,255,255,0.08) !important; color:#fff !important; }
-        @media(max-width:640px){
-          .mv-footer-inner { flex-direction:column !important; align-items:flex-start !important; gap:20px !important; }
-          .mv-footer-links { flex-wrap:wrap !important; gap:16px !important; }
-          .mv-footer-copy { margin-left:0 !important; }
-        }
-      `}</style>
-      <div className="mv-footer-inner mv-pad" style={s.footerInner}>
-        <div style={s.footerLogo} onClick={() => naviguer({ page: 'accueil' })}>
-          <div style={{ ...s.logoIcon, width: 28, height: 28, fontSize: 13, background: `linear-gradient(135deg,${accent},${accent}cc)` }}>{(nom[0] || 'M').toUpperCase()}</div>
-          <span style={{ ...s.logoText, fontSize: 14 }}>{nom}</span>
-        </div>
-
-        <div className="mv-footer-links" style={s.footerLinks}>
-          <span className="mv-footer-link" style={s.footerLink} onClick={() => naviguer({ page: 'catalogue' })}>Catalogue</span>
-          <span className="mv-footer-link" style={s.footerLink} onClick={() => naviguer({ page: 'boutiques' })}>Boutiques</span>
-          {config.encheres_actif !== false && <span className="mv-footer-link" style={s.footerLink} onClick={() => naviguer({ page: 'encheres' })}>Encheres</span>}
-          {config.footer_documents_actif !== false && <span className="mv-footer-link" style={s.footerLink} onClick={() => naviguer({ page: 'documents' })}>Documents</span>}
-
-          {/* Dropdown Nos politiques */}
-          {config.footer_politiques_actif !== false && politiques.length > 0 && (
-            <div style={{ position: 'relative' }}>
-              <span
-                className="mv-footer-link"
-                style={{ ...s.footerLink, display: 'flex', alignItems: 'center', gap: 5, userSelect: 'none' }}
-                onClick={() => setDropdownOuvert(v => !v)}
-              >
-                Nos politiques
-                <span style={{ fontSize: 10, transition: 'transform 0.2s', display: 'inline-block', transform: dropdownOuvert ? 'rotate(180deg)' : 'rotate(0deg)' }}>▼</span>
-              </span>
-
-              {dropdownOuvert && (
-                <>
-                  <div onClick={() => setDropdownOuvert(false)} style={{ position: 'fixed', inset: 0, zIndex: 8 }} />
-                  <div style={{ position: 'absolute', bottom: '110%', left: 0, background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: '6px', minWidth: 210, zIndex: 9, boxShadow: '0 -8px 32px rgba(0,0,0,0.5)' }}>
-                    {politiques.map(p => (
-                      <div
-                        key={p.slug}
-                        className="mv-pol-item"
-                        onClick={() => ouvrirPolitique(p.slug)}
-                        style={{ padding: '10px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: 'rgba(255,255,255,0.7)', transition: 'all 0.15s' }}
-                      >
-                        {p.titre}
-                      </div>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-        </div>
-
-        <span className="mv-footer-copy" style={s.footerCopy}>© {new Date().getFullYear()} {nom}</span>
-      </div>
-    </footer>
-  );
-}
-
 // ─── COMPOSANT PRINCIPAL ──────────────────────────────────────────────────────
 export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, naviguer }: Props) {
   const [produits,  setProduits]  = useState<Produit[]>([]);
   const [groupes,   setGroupes]   = useState<Groupe[]>([]);
-  const [politiques,setPolitiques]= useState<Politique[]>([]);
   const [recherche, setRecherche] = useState('');
   const [loading,   setLoading]   = useState(true);
 
@@ -252,11 +168,6 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
       // Mode démo — données hardcodées, zéro appel API
       setProduits(DEMO_PRODUITS as any);
       setGroupes(DEMO_GROUPES as any);
-      setPolitiques([
-        { slug: 'confidentialite', titre: 'Confidentialité' },
-        { slug: 'conditions-utilisation', titre: "Conditions d'utilisation" },
-        { slug: 'remboursement', titre: 'Remboursement' },
-      ] as any);
       setLoading(false);
       return;
     }
@@ -271,12 +182,6 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
     fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/categories-groupes`)
       .then(r => r.ok ? r.json() : { groupes: [] })
       .then(d => setGroupes(d.groupes || []))
-      .catch(() => {});
-
-    // Charger politiques pour le footer
-    fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/politiques`)
-      .then(r => r.ok ? r.json() : { politiques: [] })
-      .then(d => setPolitiques(d.politiques || []))
       .catch(() => {});
   }, [gestionnaireId, isDemo]);
 
@@ -360,6 +265,9 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
         </section>
       )}
 
+      {/* ── CARTES (AVANTAGES) — configurables par le gestionnaire ── */}
+      <MVPremiumAvantages config={config} />
+
       {/* ── PRODUITS RÉCENTS ── */}
       {config.accueil_nouveautes_actif !== false && (
       <section className="mv-section" style={{ ...s.section, background: 'rgba(255,255,255,0.02)' }}>
@@ -426,7 +334,7 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
       </section>
       )}
 
-      <Footer naviguer={naviguer} config={config} politiques={politiques} vendeurId={gestionnaireId} isDemo={isDemo} />
+      <MVPremiumFooter vendeurId={gestionnaireId} isDemo={isDemo} config={config} naviguer={naviguer} />
     </div>
   );
 }

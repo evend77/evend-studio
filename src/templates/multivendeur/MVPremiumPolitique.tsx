@@ -3,6 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
+import MVPremiumFooter from './MVPremiumFooter';
 
 const API_BASE = '/api';
 
@@ -89,10 +90,12 @@ export default function MVPremiumPolitique({ vendeurId, isDemo, config = {}, nav
       setLoading(false);
       return;
     }
-    fetch(`${API_BASE}/gestionnaires/${gId}/politiques`)
+    fetch(`${API_BASE}/studio/politiques/${gId}/public`)
       .then(r => r.ok ? r.json() : { politiques: [] })
       .then(d => {
-        const pols = d.politiques || d || [];
+        // Seules les politiques réellement rédigées par le gestionnaire sont affichées
+        const pols: PolitiquePage[] = (Array.isArray(d?.politiques) ? d.politiques : [])
+          .filter((p: PolitiquePage) => typeof p?.contenu === 'string' && p.contenu.trim().length > 0);
         setPolitiques(pols);
         const trouvee = politiqueSlug ? pols.find((p: PolitiquePage) => p.slug === politiqueSlug) : null;
         setPolitiqueActive(trouvee || pols[0] || null);
@@ -115,6 +118,11 @@ export default function MVPremiumPolitique({ vendeurId, isDemo, config = {}, nav
           .mvd-sidebar { display:none !important; }
           .mvd-btn { display:inline-block !important; }
         }
+        .pol-contenu h1 { font-family:'Syne',sans-serif; font-size:1.5rem; color:#fff; margin:1.2em 0 0.6em; }
+        .pol-contenu h3 { font-family:'Syne',sans-serif; font-size:1.05rem; color:${couleurAccent}; margin:1.2em 0 0.5em; }
+        .pol-contenu a { color:${couleurAccent}; text-decoration:underline; }
+        .pol-contenu strong { color:rgba(255,255,255,0.92); }
+        .pol-contenu hr { border:none; border-top:1px solid rgba(255,255,255,0.1); margin:1.8em 0; }
         .pol-contenu h2 { font-family:'Syne',sans-serif; font-size:1.3rem; color:rgba(255,255,255,0.92); margin:1.4em 0 0.5em; }
         .pol-contenu p { color:rgba(255,255,255,0.72); line-height:1.8; margin-bottom:1.1em; font-size:0.96rem; }
         .pol-contenu ul, .pol-contenu ol { color:rgba(255,255,255,0.72); padding-left:1.6em; margin-bottom:1.1em; }
@@ -145,7 +153,7 @@ export default function MVPremiumPolitique({ vendeurId, isDemo, config = {}, nav
       <main className="mvd-main" style={s.main}>
         <div className="mvd-layout" style={s.layout}>
           <aside className="mvd-sidebar" style={s.sidebar}>
-            <p style={s.sidebarTitre}>Politiques legales</p>
+            <p style={s.sidebarTitre}>Politiques légales</p>
             {politiques.map(p => (
               <div key={p.slug} className="pol-link" onClick={() => setPolitiqueActive(p)}
                 style={{ padding:'10px 14px', borderRadius:10, cursor:'pointer', color: politiqueActive?.slug === p.slug ? couleurAccent : 'rgba(255,255,255,0.65)', background: politiqueActive?.slug === p.slug ? `${couleurAccent}12` : 'transparent', fontSize:14, fontWeight: politiqueActive?.slug === p.slug ? 700 : 500, marginBottom:4, transition:'all 0.15s', borderLeft: politiqueActive?.slug === p.slug ? `3px solid ${couleurAccent}` : '3px solid transparent' }}>
@@ -174,7 +182,7 @@ export default function MVPremiumPolitique({ vendeurId, isDemo, config = {}, nav
                 <h1 style={s.titre}>{politiqueActive.titre}</h1>
                 {politiqueActive.updated_at && (
                   <p style={{ fontSize:12, color:'rgba(255,255,255,0.35)', marginBottom:24 }}>
-                    Derniere mise a jour : {new Date(politiqueActive.updated_at).toLocaleDateString('fr-CA', { year:'numeric', month:'long', day:'numeric' })}
+                    Dernière mise à jour : {new Date(politiqueActive.updated_at).toLocaleDateString('fr-CA', { year:'numeric', month:'long', day:'numeric' })}
                   </p>
                 )}
                 <div className="pol-contenu" dangerouslySetInnerHTML={{ __html: politiqueActive.contenu }} />
@@ -183,6 +191,8 @@ export default function MVPremiumPolitique({ vendeurId, isDemo, config = {}, nav
           </article>
         </div>
       </main>
+
+      <MVPremiumFooter vendeurId={vendeurId} isDemo={isDemo} config={config} naviguer={naviguer} />
     </div>
   );
 }

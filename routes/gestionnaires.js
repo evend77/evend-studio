@@ -727,6 +727,42 @@ router.put('/:id/plan', authenticateToken, async (req, res) => {
 
 
 
+// ── Réglages « souples » du template (colonne JSONB `extra`) ─────────────────
+// Évite d'ajouter une colonne par réglage. Tout est validé ici : texte simple seulement,
+// longueurs limitées, liens de réseaux sociaux en https:// uniquement.
+const RESEAUX_SOCIAUX_MV = ['facebook', 'instagram', 'x', 'linkedin', 'youtube', 'tiktok', 'pinterest'];
+
+function nettoyerExtraMV(extra) {
+  const out = {};
+  if (!extra || typeof extra !== 'object') return out;
+  const txt = (v, max) => (typeof v === 'string'
+    ? v.replace(/[\u0000-\u0009\u000b-\u001f\u007f]/g, '').trim().slice(0, max)
+    : '');
+
+  const av = extra.accueil_avantages;
+  if (av && typeof av === 'object') {
+    out.accueil_avantages = {
+      actif: av.actif === true,
+      titre: txt(av.titre, 150),
+      sous_titre: txt(av.sous_titre, 300),
+      cartes: (Array.isArray(av.cartes) ? av.cartes : [])
+        .slice(0, 6)
+        .map(c => ({ icone: txt(c && c.icone, 8), titre: txt(c && c.titre, 100), texte: txt(c && c.texte, 400) }))
+        .filter(c => c.icone || c.titre || c.texte),
+    };
+  }
+
+  const rs = extra.reseaux_sociaux;
+  if (rs && typeof rs === 'object') {
+    out.reseaux_sociaux = {};
+    for (const k of RESEAUX_SOCIAUX_MV) {
+      const u = txt(rs[k], 300);
+      out.reseaux_sociaux[k] = /^https:\/\/[^\s<>"']+$/i.test(u) ? u : '';
+    }
+  }
+  return out;
+}
+
 // ── GET /api/gestionnaires/:id/config-multivendeur ───────────────────────────
 router.get('/:id/config-multivendeur', async (req, res) => {
   try {
@@ -753,8 +789,8 @@ router.put('/:id/config-multivendeur', authenticateToken, async (req, res) => {
 
     await pool.query(
       `INSERT INTO config_multivendeur_premium
-         (gestionnaire_id, nom_boutique, slogan, couleur_accent, couleur_fond, accueil_hero_actif, accueil_hero_badge, accueil_categories_actif, accueil_categories_titre, accueil_nouveautes_actif, accueil_nouveautes_titre, accueil_cta_vendeurs_actif, accueil_cta_titre, accueil_cta_texte, catalogue_sidebar_actif, catalogue_filtres_actif, catalogue_tri_defaut, boutiques_hero_titre, boutiques_hero_texte, produit_onglet_description_actif, produit_onglet_details_actif, produit_onglet_livraison_actif, produit_similaires_actif, encheres_actif, encheres_hero_titre, encheres_hero_texte, footer_documents_actif, footer_politiques_actif, updated_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, NOW())
+         (gestionnaire_id, nom_boutique, slogan, couleur_accent, couleur_fond, accueil_hero_actif, accueil_hero_badge, accueil_categories_actif, accueil_categories_titre, accueil_nouveautes_actif, accueil_nouveautes_titre, accueil_cta_vendeurs_actif, accueil_cta_titre, accueil_cta_texte, catalogue_sidebar_actif, catalogue_filtres_actif, catalogue_tri_defaut, boutiques_hero_titre, boutiques_hero_texte, produit_onglet_description_actif, produit_onglet_details_actif, produit_onglet_livraison_actif, produit_similaires_actif, encheres_actif, encheres_hero_titre, encheres_hero_texte, footer_documents_actif, footer_politiques_actif, extra, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29::jsonb, NOW())
        ON CONFLICT (gestionnaire_id) DO UPDATE SET
          nom_boutique = EXCLUDED.nom_boutique,
          slogan = EXCLUDED.slogan,
@@ -783,8 +819,9 @@ router.put('/:id/config-multivendeur', authenticateToken, async (req, res) => {
          encheres_hero_texte = EXCLUDED.encheres_hero_texte,
          footer_documents_actif = EXCLUDED.footer_documents_actif,
          footer_politiques_actif = EXCLUDED.footer_politiques_actif,
+         extra = COALESCE(config_multivendeur_premium.extra, '{}'::jsonb) || EXCLUDED.extra,
          updated_at = NOW()`,
-      [gestionnaireId, nom_boutique, slogan, couleur_accent, couleur_fond, accueil_hero_actif, accueil_hero_badge, accueil_categories_actif, accueil_categories_titre, accueil_nouveautes_actif, accueil_nouveautes_titre, accueil_cta_vendeurs_actif, accueil_cta_titre, accueil_cta_texte, catalogue_sidebar_actif, catalogue_filtres_actif, catalogue_tri_defaut, boutiques_hero_titre, boutiques_hero_texte, produit_onglet_description_actif, produit_onglet_details_actif, produit_onglet_livraison_actif, produit_similaires_actif, encheres_actif, encheres_hero_titre, encheres_hero_texte, footer_documents_actif, footer_politiques_actif]
+      [gestionnaireId, nom_boutique, slogan, couleur_accent, couleur_fond, accueil_hero_actif, accueil_hero_badge, accueil_categories_actif, accueil_categories_titre, accueil_nouveautes_actif, accueil_nouveautes_titre, accueil_cta_vendeurs_actif, accueil_cta_titre, accueil_cta_texte, catalogue_sidebar_actif, catalogue_filtres_actif, catalogue_tri_defaut, boutiques_hero_titre, boutiques_hero_texte, produit_onglet_description_actif, produit_onglet_details_actif, produit_onglet_livraison_actif, produit_similaires_actif, encheres_actif, encheres_hero_titre, encheres_hero_texte, footer_documents_actif, footer_politiques_actif, JSON.stringify(nettoyerExtraMV(req.body.extra))]
     );
     console.log(`Config multi-vendeur sauvegardee — gestionnaire ${gestionnaireId}`);
     return res.json({ success: true });

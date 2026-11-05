@@ -40,6 +40,7 @@ export interface NavMVPremium {
   categorieSlug?: string;
   boutiqueSlug?: string;
   politiqueSlug?: string;
+  documentSlug?: string;
 }
 
 interface Props {
@@ -75,9 +76,11 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     const boutiqueId = params.get('boutiqueId');
     const produitId = params.get('produitId');
     const politiqueSlug = params.get('politiqueSlug');
+    const documentSlug = params.get('documentSlug');
     if (page === 'boutique-page' && boutiqueId) return { page: 'boutique-page', boutiqueSlug: boutiqueId };
     if (page === 'produit' && produitId) return { page: 'produit', produitId: Number(produitId) };
-    if (page === 'politique' && politiqueSlug) return { page: 'politique', politiqueSlug };
+    if (page === 'politique') return politiqueSlug ? { page: 'politique', politiqueSlug } : { page: 'politique' };
+    if (page === 'documents' && documentSlug) return { page: 'documents', documentSlug };
     if (page === 'catalogue' || page === 'boutiques' || page === 'encheres' || page === 'documents' || page === 'login' || page === 'inscription-acheteur' || page === 'inscription-collaborateur') return { page };
     // Les tableaux de bord ne sont ouverts que si une session existe ; sinon connexion.
     if (page === 'dashboard-acheteur' || page === 'dashboard-collaborateur') {
@@ -167,7 +170,7 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     case 'encheres':
       return <MVPremiumEncheres {...props} />;
     case 'documents':
-      return <MVPremiumDocuments {...props} />;
+      return <MVPremiumDocuments {...props} documentSlug={nav.documentSlug} />;
     case 'politique':
       return <MVPremiumPolitique {...props} politiqueSlug={nav.politiqueSlug} />;
     case 'login':

@@ -1,4 +1,4 @@
-// src/pages/gestionnaire/ConfigMultiVendeurPremium.tsx
+// CHEMIN : src/pages/gestionnaire/ConfigMultiVendeurPremium.tsx
 // e-Vend Studio — Configuration du template Multi-Vendeur Premium
 // Onglets par page · Toggle actif/inactif par section · Textes + couleurs
 
@@ -53,6 +53,25 @@ const CFG_DEF = {
   footer_documents_actif: true,
   footer_politiques_actif: true,
 };
+
+// ─── RÉGLAGES SOUPLES (colonne `extra` côté base) ──────────────────────────
+interface CarteAvantage { icone: string; titre: string; texte: string; }
+
+const AVANTAGES_DEF = { actif: false, titre: '', sous_titre: '', cartes: [] as CarteAvantage[] };
+const MAX_CARTES = 6;
+const ICONES_SUGGEREES = ['🇨🇦', '🔒', '📍', '⚡', '💬', '🔨', '⭐', '🚚', '💳', '🎁', '🛡️', '❤️'];
+
+const RESEAUX = [
+  { cle: 'facebook',  nom: 'Facebook',    icone: '📘', ph: 'https://www.facebook.com/votre-page',   note: 'Lien vers votre page Facebook.' },
+  { cle: 'instagram', nom: 'Instagram',   icone: '📸', ph: 'https://www.instagram.com/votre-compte', note: 'Lien vers votre page Instagram.' },
+  { cle: 'x',         nom: 'X (Twitter)', icone: '✖️', ph: 'https://x.com/votre-compte',             note: 'Lien vers votre page X (Twitter).' },
+  { cle: 'linkedin',  nom: 'LinkedIn',    icone: '💼', ph: 'https://linkedin.com/company/votre-page', note: 'Lien vers votre page LinkedIn.' },
+  { cle: 'youtube',   nom: 'YouTube',     icone: '▶️', ph: 'https://youtube.com/@votre-chaine',      note: 'Lien vers votre page YouTube.' },
+  { cle: 'tiktok',    nom: 'TikTok',      icone: '🎵', ph: 'https://tiktok.com/@votre-compte',       note: 'Lien vers votre page TikTok.' },
+  { cle: 'pinterest', nom: 'Pinterest',   icone: '📌', ph: 'https://pinterest.com/votre-compte',     note: 'Lien vers votre page Pinterest.' },
+];
+
+const lienValide = (u: string) => /^https:\/\/[^\s<>"']+$/i.test((u || '').trim());
 
 // ─── COMPOSANTS UI ──────────────────────────────────────────────────────────
 function Toggle({ value, onChange, couleur = DORE }: any) {
@@ -112,6 +131,26 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
   }, [gestionnaireId]);
 
   const set = (k: string, v: any) => setCfg((p: any) => ({ ...p, [k]: v }));
+
+  // Réglages souples : cartes de l'accueil + réseaux sociaux (colonne `extra`)
+  const extra: any = cfg.extra && typeof cfg.extra === 'object' ? cfg.extra : {};
+  const av = { ...AVANTAGES_DEF, ...(extra.accueil_avantages || {}) };
+  const cartes: CarteAvantage[] = Array.isArray(av.cartes) ? av.cartes : [];
+  const reseaux: Record<string, string> = extra.reseaux_sociaux || {};
+  const setExtra = (cle: string, valeur: any) =>
+    setCfg((p: any) => ({ ...p, extra: { ...(p.extra && typeof p.extra === 'object' ? p.extra : {}), [cle]: valeur } }));
+  const setAv = (patch: any) => setExtra('accueil_avantages', { ...av, ...patch });
+  const majCarte = (i: number, patch: Partial<CarteAvantage>) => setAv({ cartes: cartes.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
+  const ajouterCarte = () => { if (cartes.length < MAX_CARTES) setAv({ cartes: [...cartes, { icone: '⭐', titre: '', texte: '' }] }); };
+  const supprimerCarte = (i: number) => setAv({ cartes: cartes.filter((_, j) => j !== i) });
+  const deplacerCarte = (i: number, d: number) => {
+    const k = i + d;
+    if (k < 0 || k >= cartes.length) return;
+    const copie = [...cartes];
+    [copie[i], copie[k]] = [copie[k], copie[i]];
+    setAv({ cartes: copie });
+  };
+  const setReseau = (cle: string, v: string) => setExtra('reseaux_sociaux', { ...reseaux, [cle]: v });
 
   const sauvegarder = async () => {
     setSaving(true);
@@ -235,6 +274,50 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
             <Champ label="Titre de la section" value={cfg.accueil_categories_titre} onChange={(v: string) => set('accueil_categories_titre', v)} placeholder="Explorer par catégorie" />
           </SectionCard>
 
+          <SectionCard titre="Section cartes (avantages)" icone="🎴" actif={av.actif} onToggle={(v: boolean) => setAv({ actif: v })} badge={`${cartes.length} / ${MAX_CARTES} cartes`}>
+            <p style={{ fontSize: 13, color: '#666', marginTop: 0, marginBottom: 16 }}>
+              Affichée sur l'accueil, juste au-dessus des nouveautés. Idéale pour présenter vos points forts (ex. « Paiements sécurisés », « Livraison rapide »).
+            </p>
+            <Champ label="Titre de la section" value={av.titre} onChange={(v: string) => setAv({ titre: v })} placeholder="Pourquoi acheter chez nous ?" />
+            <Champ label="Sous-titre (optionnel)" value={av.sous_titre} onChange={(v: string) => setAv({ sous_titre: v })} placeholder="Une courte phrase sous le titre" />
+
+            {cartes.length === 0 && (
+              <p style={{ fontSize: 13, color: '#999', margin: '0 0 12px' }}>Aucune carte pour l'instant. Ajoutez-en jusqu'à {MAX_CARTES}.</p>
+            )}
+
+            {cartes.map((c, i) => (
+              <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 14, marginBottom: 12, background: '#fafafa' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                  <strong style={{ fontSize: 13, color: TXT, flex: 1 }}>Carte {i + 1}</strong>
+                  <button type="button" onClick={() => deplacerCarte(i, -1)} disabled={i === 0} title="Monter"
+                    style={{ padding: '4px 10px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: i === 0 ? 'not-allowed' : 'pointer', opacity: i === 0 ? 0.4 : 1 }}>▲</button>
+                  <button type="button" onClick={() => deplacerCarte(i, 1)} disabled={i === cartes.length - 1} title="Descendre"
+                    style={{ padding: '4px 10px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: i === cartes.length - 1 ? 'not-allowed' : 'pointer', opacity: i === cartes.length - 1 ? 0.4 : 1 }}>▼</button>
+                  <button type="button" onClick={() => supprimerCarte(i)} title="Supprimer cette carte"
+                    style={{ padding: '4px 10px', border: '1px solid #fecaca', borderRadius: 8, background: '#fff', color: '#dc2626', cursor: 'pointer' }}>🗑️</button>
+                </div>
+
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#888', display: 'block', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Icône</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+                  <input value={c.icone} maxLength={8} onChange={e => majCarte(i, { icone: e.target.value })} placeholder="🙂"
+                    style={{ width: 64, padding: '8px', border: '1px solid #e5e7eb', borderRadius: 10, fontSize: 20, textAlign: 'center', outline: 'none', boxSizing: 'border-box' }} />
+                  {ICONES_SUGGEREES.map(ic => (
+                    <button key={ic} type="button" onClick={() => majCarte(i, { icone: ic })}
+                      style={{ width: 34, height: 34, border: `1px solid ${c.icone === ic ? DORE : '#e5e7eb'}`, background: c.icone === ic ? '#fffbeb' : '#fff', borderRadius: 8, fontSize: 17, cursor: 'pointer', padding: 0 }}>{ic}</button>
+                  ))}
+                </div>
+
+                <Champ label="Titre de la carte" value={c.titre} onChange={(v: string) => majCarte(i, { titre: v })} placeholder="Paiements sécurisés" />
+                <Champ label="Texte" value={c.texte} onChange={(v: string) => majCarte(i, { texte: v })} multiline placeholder="Une ou deux phrases pour expliquer l'avantage." />
+              </div>
+            ))}
+
+            <button type="button" onClick={ajouterCarte} disabled={cartes.length >= MAX_CARTES}
+              style={{ padding: '10px 18px', border: `2px dashed ${cartes.length >= MAX_CARTES ? '#e5e7eb' : DORE}`, background: '#fffbeb', color: '#92400e', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: cartes.length >= MAX_CARTES ? 'not-allowed' : 'pointer', opacity: cartes.length >= MAX_CARTES ? 0.5 : 1, fontFamily: 'inherit' }}>
+              ＋ Ajouter une carte
+            </button>
+          </SectionCard>
+
           <SectionCard titre="Section nouveautés" icone="✨" actif={cfg.accueil_nouveautes_actif} onToggle={(v: boolean) => set('accueil_nouveautes_actif', v)} badge="8 produits affichés">
             <Champ label="Titre de la section" value={cfg.accueil_nouveautes_titre} onChange={(v: string) => set('accueil_nouveautes_titre', v)} placeholder="Nouveautés" />
           </SectionCard>
@@ -318,6 +401,32 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
           </SectionCard>
           <SectionCard titre="Liens Politiques" icone="📋" actif={cfg.footer_politiques_actif} onToggle={(v: boolean) => set('footer_politiques_actif', v)}>
             <p style={{ fontSize: 13, color: '#666', margin: 0 }}>Affiche les liens vers vos politiques légales (confidentialité, retours, etc.).</p>
+          </SectionCard>
+
+          <SectionCard titre="Réseaux sociaux" icone="🌐" actif={true}>
+            <p style={{ fontSize: 13, color: '#666', marginTop: 0, marginBottom: 16 }}>
+              Ces liens seront affichés dans le pied de page de votre site. Entrez l'adresse complète (https://…). Laissez vide pour ne pas afficher un réseau.
+            </p>
+            {RESEAUX.map(r => {
+              const val = reseaux[r.cle] || '';
+              const invalide = val.trim() !== '' && !lienValide(val);
+              return (
+                <div key={r.cle} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 0', borderBottom: '1px solid #f1f1f1' }}>
+                  <div style={{ flex: '1 1 160px', minWidth: 140 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: TXT }}>{r.icone} {r.nom}</div>
+                    <div style={{ fontSize: 11, color: '#aaa' }}>{r.note}</div>
+                  </div>
+                  <div style={{ flex: '2 1 260px' }}>
+                    <input type="url" value={val} onChange={e => setReseau(r.cle, e.target.value)} placeholder={r.ph}
+                      style={{ width: '100%', padding: '10px 12px', border: `1px solid ${invalide ? '#fca5a5' : '#e5e7eb'}`, borderRadius: 10, fontSize: 13, color: TXT, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+                    {invalide && <div style={{ fontSize: 11, color: '#dc2626', marginTop: 4 }}>L'adresse doit commencer par https://</div>}
+                  </div>
+                  {lienValide(val) && (
+                    <a href={val.trim()} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}>↗ Voir</a>
+                  )}
+                </div>
+              );
+            })}
           </SectionCard>
         </div>
       )}
