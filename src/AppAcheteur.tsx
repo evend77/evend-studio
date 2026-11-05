@@ -263,6 +263,16 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     if (saved) {
       try { setCompte(JSON.parse(saved)); } catch {}
     }
+    // Arrivée depuis le bouton « Chat » d'une page boutique : on ouvre le chat avec ce collaborateur.
+    try {
+      const cle = `mv_chat_prefill_${gestionnaireId}`;
+      const brut = localStorage.getItem(cle);
+      if (brut) {
+        localStorage.removeItem(cle);
+        const id = parseInt(JSON.parse(brut)?.collaborateur_id, 10);
+        if (Number.isInteger(id) && id > 0) { setCollabInitial(id); setPage('chat'); }
+      }
+    } catch { /* stockage indisponible */ }
   }, [gestionnaireId]);
 
   // Rediriger si pas de session

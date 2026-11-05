@@ -175,11 +175,9 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
   const [estFavori, setEstFavori] = useState(false);
   const [favoriOccupe, setFavoriOccupe] = useState(false);
   const [infoAction, setInfoAction] = useState<{ ok: boolean; texte: string } | null>(null);
-  const [modal, setModal] = useState<null | 'chat' | 'signaler'>(null);
+  const [modal, setModal] = useState<null | 'signaler'>(null);
   const [modalOccupe, setModalOccupe] = useState(false);
   const [modalMsg, setModalMsg] = useState<{ ok: boolean; texte: string } | null>(null);
-  const [chatSujet, setChatSujet] = useState('');
-  const [chatMessage, setChatMessage] = useState('');
   const [sigNom, setSigNom] = useState('');
   const [sigEmail, setSigEmail] = useState('');
   const [sigRaison, setSigRaison] = useState('produit_fake');
@@ -256,28 +254,15 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
     setFavoriOccupe(false);
   };
 
+  // Chat : ouvre le tableau de bord acheteur sur « Chat collaborateurs » avec cette boutique déjà choisie
+  // (conversation existante ouverte, sinon formulaire « nouvelle conversation » prérempli).
   const ouvrirChat = () => {
+    if (isDemo) { annoncer(true, '💬 (démo) Ouvre le chat de votre espace acheteur avec cette boutique'); return; }
     const type = lireType();
-    if (!isDemo && !type) { annoncer(false, 'Connectez-vous avec un compte acheteur pour écrire à cette boutique'); return; }
-    if (!isDemo && type !== 'acheteur') { annoncer(false, 'Un compte acheteur est requis pour écrire à une boutique'); return; }
-    setModalMsg(null); setModal('chat');
-  };
-
-  const envoyerChat = async () => {
-    const sujet = nettoyerTexte(chatSujet, 120).trim(), message = nettoyerTexte(chatMessage, 2000).trim();
-    if (!sujet || !message) { setModalMsg({ ok: false, texte: 'Le sujet et le message sont obligatoires.' }); return; }
-    if (isDemo) { setModalMsg({ ok: true, texte: '✅ (démo) Message envoyé' }); return; }
-    setModalOccupe(true);
-    try {
-      const res = await fetch(`${API_BASE}/chat-acheteur-collab/${gId}/acheteur/conversations`, {
-        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ collaborateur_id: Number(boutiqueId), sujet, message }),
-      });
-      if (res.ok) { setModalMsg({ ok: true, texte: '✅ Message envoyé ! Vous retrouverez la conversation dans votre espace acheteur (Messagerie).' }); setChatSujet(''); setChatMessage(''); }
-      else if (res.status === 401) setModalMsg({ ok: false, texte: 'Session expirée — reconnectez-vous.' });
-      else setModalMsg({ ok: false, texte: (await res.json().catch(() => ({}))).error || '❌ Envoi impossible' });
-    } catch { setModalMsg({ ok: false, texte: '❌ Erreur réseau' }); }
-    setModalOccupe(false);
+    if (!type) { annoncer(false, 'Connectez-vous avec un compte acheteur pour discuter avec cette boutique'); return; }
+    if (type !== 'acheteur') { annoncer(false, 'Un compte acheteur est requis pour discuter avec une boutique'); return; }
+    try { localStorage.setItem(`mv_chat_prefill_${gId}`, JSON.stringify({ collaborateur_id: Number(boutiqueId) })); } catch { /* stockage indisponible */ }
+    naviguer({ page: 'dashboard-acheteur' });
   };
 
   const envoyerSignalement = async () => {
@@ -522,10 +507,10 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
           const adresseComplete = [d.adresse, [d.ville, d.province].filter(Boolean).join(', '), d.code_postal].filter(Boolean).join(' · ');
           const lien = (u: string) => /^https?:\/\/[^\s<>"']+$/i.test(u) ? u : undefined;
           const RS: { cle: string; label: string; icone: string }[] = [
-            { cle: 'facebook', label: 'Facebook', icone: '📘' }, { cle: 'instagram', label: 'Instagram', icone: '📸' },
-            { cle: 'tiktok', label: 'TikTok', icone: '🎵' }, { cle: 'youtube', label: 'YouTube', icone: '▶️' },
-            { cle: 'x', label: 'X', icone: '🐦' }, { cle: 'linkedin', label: 'LinkedIn', icone: '💼' },
-            { cle: 'pinterest', label: 'Pinterest', icone: '📌' },
+            { cle: 'facebook', label: 'Facebook', icone: '' }, { cle: 'instagram', label: 'Instagram', icone: '' },
+            { cle: 'tiktok', label: 'TikTok', icone: '' }, { cle: 'youtube', label: 'YouTube', icone: '' },
+            { cle: 'x', label: 'X', icone: '' }, { cle: 'linkedin', label: 'LinkedIn', icone: '' },
+            { cle: 'pinterest', label: 'Pinterest', icone: '' },
           ];
           const reseaux = RS.filter(r => d.reseaux && lien(d.reseaux[r.cle] || ''));
           return (
@@ -545,8 +530,8 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                     {reseaux.map(r => (
                       <a key={r.cle} href={lien(d.reseaux![r.cle])} target="_blank" rel="noopener noreferrer"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>
-                        <span style={{ fontSize: 18 }}>{r.icone}</span>{r.label}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 999, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>
+                        {r.label}<span aria-hidden="true" style={{ color: couleurAccent, fontSize: 13 }}>↗</span>
                       </a>
                     ))}
                   </div>
@@ -683,20 +668,14 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
         <div onClick={fermerModal} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: '#12121a', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 18, padding: 24 }}>
             <h2 style={{ margin: '0 0 6px', fontSize: 20, fontFamily: "'Syne',sans-serif", color: '#fff' }}>
-              {modal === 'chat' ? `💬 Écrire à ${boutique.nom_boutique}` : '⚠️ Signaler cette boutique'}
+              ⚠️ Signaler cette boutique
             </h2>
             <p style={{ margin: '0 0 16px', fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
-              {modal === 'chat' ? 'Votre message sera envoyé à la boutique. Vous verrez sa réponse dans votre espace acheteur.' : 'Votre signalement sera transmis au gestionnaire du site. Merci de rester factuel.'}
+              Votre signalement sera transmis au gestionnaire du site. Merci de rester factuel.
             </p>
             {modalMsg && (
               <div style={{ padding: '10px 12px', borderRadius: 8, marginBottom: 14, fontSize: 13, color: modalMsg.ok ? '#34d399' : '#f87171', background: modalMsg.ok ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)', border: `1px solid ${modalMsg.ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>{modalMsg.texte}</div>
             )}
-            {modal === 'chat' ? (
-              <>
-                <input value={chatSujet} maxLength={120} autoComplete="off" onChange={e => setChatSujet(nettoyerTexte(e.target.value, 120))} placeholder="Sujet *" style={s.champ} />
-                <textarea value={chatMessage} maxLength={2000} rows={5} onChange={e => setChatMessage(nettoyerTexte(e.target.value, 2000))} placeholder="Votre message *" style={{ ...s.champ, resize: 'vertical' }} />
-              </>
-            ) : (
               <>
                 <input value={sigNom} maxLength={100} autoComplete="name" onChange={e => setSigNom(nettoyerTexte(e.target.value, 100))} placeholder="Votre nom *" style={s.champ} />
                 <input type="email" value={sigEmail} maxLength={160} autoComplete="email" onChange={e => setSigEmail(nettoyerTexte(e.target.value, 160))} placeholder="Votre courriel *" style={s.champ} />
@@ -711,16 +690,12 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                 {sigRaison === 'autre' && <input value={sigAutre} maxLength={150} onChange={e => setSigAutre(nettoyerTexte(e.target.value, 150))} placeholder="Précisez la raison *" style={s.champ} />}
                 <textarea value={sigDescription} maxLength={2000} rows={5} onChange={e => setSigDescription(nettoyerTexte(e.target.value, 2000))} placeholder="Description détaillée *" style={{ ...s.champ, resize: 'vertical' }} />
               </>
-            )}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-              {modal === 'chat' && modalMsg?.ok && !isDemo && (
-                <button onClick={() => { fermerModal(); naviguer({ page: 'dashboard-acheteur' }); }} style={{ ...s.btnModal, background: 'transparent', color: couleurAccent, border: `1px solid ${couleurAccent}66` }}>Voir mes messages</button>
-              )}
               <button onClick={fermerModal} style={{ ...s.btnModal, background: 'rgba(255,255,255,0.08)', color: '#fff' }}>{modalMsg?.ok ? 'Fermer' : 'Annuler'}</button>
               {!modalMsg?.ok && (
-                <button onClick={modal === 'chat' ? envoyerChat : envoyerSignalement} disabled={modalOccupe}
-                  style={{ ...s.btnModal, background: modal === 'chat' ? couleurAccent : '#dc2626', color: modal === 'chat' ? '#000' : '#fff', opacity: modalOccupe ? 0.6 : 1 }}>
-                  {modalOccupe ? '⏳ Envoi…' : modal === 'chat' ? 'Envoyer' : 'Envoyer le signalement'}
+                <button onClick={envoyerSignalement} disabled={modalOccupe}
+                  style={{ ...s.btnModal, background: '#dc2626', color: '#fff', opacity: modalOccupe ? 0.6 : 1 }}>
+                  {modalOccupe ? '⏳ Envoi…' : 'Envoyer le signalement'}
                 </button>
               )}
             </div>
