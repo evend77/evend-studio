@@ -37,6 +37,7 @@ import StudioBlogSousVendeur    from './pages/gestionnaire/StudioBlogCollaborate
 import StudioFaqSousVendeur     from './pages/gestionnaire/StudioFaqCollaborateur';
 import SurveillanceChats        from './pages/gestionnaire/SurveillanceChats';
 import ChatAvecCollaborateur    from './pages/gestionnaire/ChatAvecCollaborateur';
+import StudioSignalements       from './pages/gestionnaire/StudioSignalements';
 import StudioSousVendeurs       from './pages/gestionnaire/StudioCollaborateurs';
 import StudioGestionBadges      from './pages/gestionnaire/StudioGestionBadges';
 import StudioBadgesAttribues    from './pages/gestionnaire/StudioBadgesAttribues';
@@ -354,6 +355,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [message, setMessage] = useState('');
   const [nonLus, setNonLus] = useState({ acheteurs: 0, admin: 0, notifs: 0, contact: 0, total: 0 });
   const [modalPhotoOuvert, setModalPhotoOuvert] = useState(false);
+  const [signalementsNouveaux, setSignalementsNouveaux] = useState(0);
 
   useEffect(() => {
     const chargerNonLus = async () => {
@@ -692,6 +694,25 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     id: 'mes-effets-visuels', label: 'EFFETS VISUELS', icon: '✨',
   };
 
+  // Signalements de boutiques non ouverts (pastille rouge du menu MES COLLABORATEURS)
+  useEffect(() => {
+    if (!gestionnaire?.id) return;
+    const charger = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const r = await fetch(`${API_BASE}/studio/collaborateurs/${gestionnaire.id}/signalements/count`, {
+          credentials: 'include', headers: { Authorization: `Bearer ${token}` }
+        });
+        if (r.ok) { const d = await r.json(); setSignalementsNouveaux(Number(d.nouveaux) || 0); }
+      } catch {}
+    };
+    charger();
+    const interval = setInterval(charger, 30000);
+    window.addEventListener('signalements-maj', charger);
+    return () => { clearInterval(interval); window.removeEventListener('signalements-maj', charger); };
+  }, [gestionnaire?.id]);
+
   // ── Mes collaborateurs ──────────────────────────────────────────────────
   const menuSousVendeurs: MenuItem = {
     id: 'collaborateurs', label: 'MES COLLABORATEURS', icon: '🏪',
@@ -699,7 +720,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id: 'collaborateurs-liste',  label: 'Liste des collaborateurs', icon: '👥' },
       { id: 'collaborateurs-blogs',  label: 'Blog collaborateurs',      icon: '📝' },
       { id: 'collaborateurs-messages', label: 'Messages collaborateurs', icon: '💬' },
-    ]
+      { id: 'collaborateurs-signalements', label: 'Signalements', icon: '🚩', badge: signalementsNouveaux > 0 ? signalementsNouveaux : undefined },
+    ],
+    badge: signalementsNouveaux > 0 ? signalementsNouveaux : undefined,
   };
 
   // ── Badges ────────────────────────────────────────────────────────────────
@@ -1429,6 +1452,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'blogs-collaborateurs')      return <StudioBlogSousVendeur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'faqs-collaborateurs')       return <StudioFaqSousVendeur  gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-messages')  return <ChatAvecCollaborateur gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'collaborateurs-signalements') return <StudioSignalements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'chat-acheteur-sv')         return <SurveillanceChats     gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'badges-gestion')      return <StudioGestionBadges   gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'badges-attribues')    return <StudioBadgesAttribues gestionnaireId={gestionnaire.id} />;
@@ -1830,6 +1854,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
                         <span style={{ fontSize: isMobile ? '13px' : '15px', fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1 }}>
                           {item.label}
                         </span>
+                        {item.badge && !(item.cleAcces && !aAcces(item.cleAcces)) ? <span style={{ background: '#ef4444', color: '#fff', fontSize: '11px', fontWeight: 700, minWidth: '20px', height: '20px', padding: '0 6px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>{Number(item.badge) > 99 ? '99+' : item.badge}</span> : null}
                         <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>
                           {item.cleAcces && !aAcces(item.cleAcces) ? '🔒' : menuOuvert === item.id ? '▼' : '▶'}
                         </span>

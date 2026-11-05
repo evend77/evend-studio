@@ -29,6 +29,7 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
   const [envoi, setEnvoi] = useState(false);
   const [sauvegarde, setSauvegarde] = useState(false);
   const [erreur, setErreur] = useState('');
+  const [succes, setSucces] = useState<string | null>(null);
   const fichier = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -94,7 +95,11 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
           variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock })),
         }),
       });
-      if (res.ok) { onRetour(); return; }
+      if (res.ok) {
+        setSucces(produitId ? 'Votre annonce a été mise à jour avec succès.' : statut === 'actif' ? 'Votre annonce a été publiée avec succès. Elle est maintenant visible dans votre boutique.' : 'Votre annonce a été enregistrée comme brouillon. Elle n\'est pas encore visible dans votre boutique.');
+        setSauvegarde(false);
+        return;
+      }
       setErreur((await res.json().catch(() => ({}))).error || 'Enregistrement impossible');
     } catch { setErreur('Erreur réseau'); }
     setSauvegarde(false);
@@ -113,7 +118,22 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
         <h2 style={{ margin: 0, fontSize: 20, color: T.text }}>{produitId ? '✏️ Modifier l\'annonce' : '➕ Nouvelle annonce'}</h2>
       </div>
 
-      {erreur && <div style={{ background: '#FDECEA', color: '#C0392B', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{erreur}</div>}
+      {(erreur || succes) && (
+        <div onClick={() => { if (erreur) setErreur(''); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20 }}>
+          <div role="alertdialog" aria-modal="true" onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 18, maxWidth: 420, width: '100%', padding: '30px 26px 24px', textAlign: 'center', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, background: succes ? '#dcfce7' : '#fee2e2' }}>{succes ? '✅' : '⚠️'}</div>
+            <h3 style={{ margin: '0 0 8px', fontSize: 20, color: succes ? '#047857' : '#b91c1c' }}>{succes ? 'Succès !' : 'Erreur'}</h3>
+            <p style={{ margin: '0 0 22px', fontSize: 14, color: T.text, lineHeight: 1.5, overflowWrap: 'anywhere' }}>{succes || erreur}</p>
+            {succes ? (
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <button onClick={onRetour} style={{ padding: '11px 24px', border: 'none', borderRadius: 9, background: accent, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Voir mes annonces</button>
+              </div>
+            ) : (
+              <button onClick={() => setErreur('')} style={{ padding: '11px 28px', border: 'none', borderRadius: 9, background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Fermer</button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div style={carte}>
         <label style={lbl}>Titre *</label>

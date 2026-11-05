@@ -15,6 +15,12 @@
 // GET    /:id/notes                — notes internes
 // POST   /:id/notes                — ajouter une note                      { contenu, auteur? }
 // DELETE /:id/notes/:noteId        — supprimer une note
+//
+// Signalements de boutiques (formulaire « Signaler » de la page boutique) :
+// GET    /signalements             — liste  ?statut= (ex. vu ou traite,rejete) &recherche= &page= &limit=
+// GET    /signalements/count       — nombre de nouveaux (non ouverts) : { nouveaux }
+// PUT    /signalements/:id         — changer le statut / ajouter une note   { statut, note_admin? }
+// DELETE /signalements/:id         — supprimer
 
 const express = require('express');
 const router  = express.Router({ mergeParams: true });
@@ -317,6 +323,104 @@ router.delete('/:id/notes/:noteId', authenticateToken, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('DELETE /studio/collaborateurs/:id/notes/:noteId :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+// =============================================================================
+// SIGNALEMENTS DE BOUTIQUES (collaborateurs signalés par des visiteurs)
+// Statuts : nouveau (jamais ouvert) → vu → traite | rejete
+// =============================================================================
+
+const STATUTS_SIGNALEMENT = ['nouveau', 'vu', 'traite', 'rejete'];
+
+router.get('/signalements/count', authenticateToken, async (req, res) => {
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  try {
+    const r = await pool.query(`SELECT COUNT(*)::int AS nouveaux FROM signalements_boutique WHERE gestionnaire_id = $1 AND statut = 'nouveau'`, [gid]);
+    res.json({ nouveaux: r.rows[0].nouveaux });
+  } catch (err) {
+    console.error('GET /studio/collaborateurs/signalements/count :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+router.get('/signalements', authenticateToken, async (req, res) => {
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  try {
+    const params = [gid];
+    const where = ['s.gestionnaire_id = $1'];
+    if (typeof req.query.statut === 'string' && req.query.statut) {
+      const liste = req.query.statut.split(',').filter((x) => STATUTS_SIGNALEMENT.includes(x));
+      if (liste.length) { params.push(liste); where.push(`s.statut = ANY($${params.length}::text[])`); }
+    }
+    const q = typeof req.query.recherche === 'string' ? req.query.recherche.trim().slice(0, 100) : '';
+    if (q) {
+      params.push('%' + q.replace(/[\\%_]/g, '\\$&') + '%');
+      const i = params.length;
+      where.push(`(s.nom ILIKE $${i} OR s.email ILIKE $${i} OR s.description ILIKE $${i} OR c.nom_boutique ILIKE $${i} OR c.nom_responsable ILIKE $${i})`);
+    }
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 20, 1), 50);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const W = where.join(' AND ');
+    const [liste, total] = await Promise.all([
+      pool.query(
+        `SELECT s.id, s.collaborateur_id, COALESCE(NULLIF(c.nom_boutique,''), c.nom_responsable, 'Boutique supprimée') AS collaborateur_nom,
+                s.nom AS signaleur_nom, s.email AS signaleur_email, s.raison_type, s.raison_autre, s.description,
+                s.statut, s.note_admin, s.traite_par, s.date_traitement, s.created_at
+           FROM signalements_boutique s LEFT JOIN marketplace_collaborateurs c ON c.id = s.collaborateur_id
+          WHERE ${W} ORDER BY s.created_at DESC, s.id DESC LIMIT ${limit} OFFSET ${(page - 1) * limit}`, params),
+      pool.query(`SELECT COUNT(*)::int AS n FROM signalements_boutique s LEFT JOIN marketplace_collaborateurs c ON c.id = s.collaborateur_id WHERE ${W}`, params),
+    ]);
+    res.json({ signalements: liste.rows, total: total.rows[0].n, page, limit, totalPages: Math.max(1, Math.ceil(total.rows[0].n / limit)) });
+  } catch (err) {
+    console.error('GET /studio/collaborateurs/signalements :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+router.put('/signalements/:id', authenticateToken, async (req, res) => {
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const id = entier(req.params.id);
+  const statut = req.body && req.body.statut;
+  if (!id || !STATUTS_SIGNALEMENT.includes(statut)) return res.status(400).json({ error: 'Statut invalide.' });
+  let note = req.body.note_admin;
+  if (note !== undefined && note !== null && typeof note !== 'string') return res.status(400).json({ error: 'Note invalide.' });
+  note = (note || '').replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
+  if (note.length > 2000) return res.status(400).json({ error: 'Note trop longue (max 2000 caractères).' });
+  try {
+    const r = await pool.query(
+      `UPDATE signalements_boutique SET
+              statut = $1::varchar,
+              note_admin = CASE WHEN $2::text = '' THEN note_admin
+                                ELSE COALESCE(note_admin || E'\n', '') || '[' || to_char(NOW(), 'YYYY-MM-DD HH24:MI') || '] ' || $2::text END,
+              traite_par = CASE WHEN $1::varchar IN ('traite','rejete') THEN $3::text ELSE traite_par END,
+              date_traitement = CASE WHEN $1::varchar IN ('traite','rejete') THEN NOW() ELSE date_traitement END,
+              updated_at = NOW()
+        WHERE id = $4 AND gestionnaire_id = $5 RETURNING id, statut, note_admin, traite_par, date_traitement`,
+      [statut, note, (req.user && req.user.email) || 'gestionnaire', id, gid]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Signalement introuvable.' });
+    res.json({ success: true, signalement: r.rows[0] });
+  } catch (err) {
+    console.error('PUT /studio/collaborateurs/signalements/:id :', err.message);
+    res.status(500).json({ error: 'Erreur serveur.' });
+  }
+});
+
+router.delete('/signalements/:id', authenticateToken, async (req, res) => {
+  const gid = verifierProprietaire(req, res);
+  if (!gid) return;
+  const id = entier(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Signalement invalide.' });
+  try {
+    const r = await pool.query(`DELETE FROM signalements_boutique WHERE id = $1 AND gestionnaire_id = $2`, [id, gid]);
+    if (!r.rowCount) return res.status(404).json({ error: 'Signalement introuvable.' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /studio/collaborateurs/signalements/:id :', err.message);
     res.status(500).json({ error: 'Erreur serveur.' });
   }
 });
