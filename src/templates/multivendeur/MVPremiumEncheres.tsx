@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
+import { fondDe, fondNav } from './mvTheme';
 
 const API_BASE = '/api';
 
@@ -114,14 +115,14 @@ function CarteEnchere({ enc, naviguer, couleurAccent }: { enc: Enchere; naviguer
   );
 }
 
-function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Record<string, any> }) {
+function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: { naviguer: (d: NavMV) => void; config: Record<string, any>; recherche: string; setRecherche: (v: string) => void; onRecherche: () => void }) {
   const [menuOuvert, setMenuOuvert] = useState(false);
   const nom = config?.nom_boutique || 'Ma Marketplace';
   const accent = config?.couleur_accent || '#fbbf24';
   const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Catalogue', dest: { page: 'catalogue' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }];
   const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
-    <nav style={s.nav}>
+    <nav style={{ ...s.nav, background: fondNav(config) }}>
       <style>{`
         @media (max-width:768px) {
           .mvn-liens { display:none !important; }
@@ -135,6 +136,13 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
           <div style={{ ...s.logoIcon, flexShrink: 0 }}>{(nom[0] || 'M').toUpperCase()}</div>
           <span style={{ ...s.logoText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
         </div>
+        <div className="mvn-search" style={s.searchBar}>
+          <input value={recherche} onChange={e => setRecherche(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && onRecherche()}
+            placeholder="Rechercher une enchère..."
+            style={s.searchInput} />
+          <button onClick={onRecherche} style={s.searchBtn}>🔍</button>
+        </div>
         <div className="mvn-liens" style={s.navLinks}>
           {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
           <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
@@ -145,7 +153,13 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
         </button>
       </div>
       {menuOuvert && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: fondDe(config), borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex' }}>
+              <input value={recherche} onChange={e => setRecherche(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { onRecherche(); setMenuOuvert(false); } }}
+                placeholder="Rechercher..." style={{ ...s.searchInput, minWidth: 0 }} />
+              <button onClick={() => { onRecherche(); setMenuOuvert(false); }} style={s.searchBtn}>🔍</button>
+            </div>
           {liens.map(l => (
             <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
           ))}
@@ -168,6 +182,8 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
   const [filtrePopcorn, setFiltrePopcorn] = useState(false);
   const [filtreReserve, setFiltreReserve] = useState(false);
   const [tri, setTri] = useState<Tri>('fin_proche');
+  const [rechercheInput, setRechercheInput] = useState('');
+  const [recherche, setRecherche] = useState('');
   const [panneauOuvert, setPanneauOuvert] = useState(false);
   const [filtresOuverts, setFiltresOuverts] = useState(false);
 
@@ -184,6 +200,10 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
     if (statutFiltre !== 'tous' && e.statut !== statutFiltre) return false;
     if (filtrePopcorn && !e.popcorn) return false;
     if (filtreReserve && !e.reserve_atteinte) return false;
+    if (recherche) {
+      const q = recherche.toLowerCase();
+      if (!(e.produit_nom || '').toLowerCase().includes(q) && !(e.vendeur_nom || '').toLowerCase().includes(q)) return false;
+    }
     return true;
   });
   filtrees.sort((a, b) => {
@@ -208,7 +228,7 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
   ];
 
   return (
-    <div style={s.wrapper}>
+    <div style={{ ...s.wrapper, background: fondDe(config) }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
@@ -222,7 +242,8 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
         }
       `}</style>
 
-      <Navbar naviguer={naviguer} config={config} />
+      <Navbar naviguer={naviguer} config={config} recherche={rechercheInput} setRecherche={setRechercheInput}
+        onRecherche={() => setRecherche(rechercheInput.trim())} />
 
       <div style={s.hero}>
         <div style={s.heroInner}>
@@ -287,6 +308,7 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
             <div style={s.vide}>
               <div style={{ fontSize:48, marginBottom:12 }}>🔨</div>
               <p style={{ color:'rgba(255,255,255,0.5)' }}>Aucune enchere ne correspond a vos filtres</p>
+              {recherche && <button onClick={() => { setRecherche(''); setRechercheInput(''); }} style={s.btnTri}>Effacer la recherche</button>}
             </div>
           ) : (
             <div style={s.grille}>
@@ -303,10 +325,13 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
 const s: Record<string, React.CSSProperties> = {
   wrapper:  { overflowX:'clip', display:'flex', flexDirection:'column', minHeight:'100vh', background:'#0a0a0a', color:'#fff', fontFamily:"'DM Sans',sans-serif" },
   nav:      { position:'sticky', top:0, zIndex:100, background:'rgba(10,10,10,0.95)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(255,255,255,0.06)' },
-  navInner: { maxWidth:1280, margin:'0 auto', padding:'0 24px', height:64, display:'flex', alignItems:'center', gap:32 },
+  navInner: { maxWidth:1280, margin:'0 auto', padding:'0 24px', height:64, display:'flex', alignItems:'center', gap:20 },
   navLogo:  { display:'flex', alignItems:'center', gap:10, cursor:'pointer' },
   logoIcon: { width:34, height:34, borderRadius:8, background:'linear-gradient(135deg,#fbbf24,#f59e0b)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:16, fontWeight:800, color:'#000' },
   logoText: { fontSize:18, fontWeight:800, color:'#fff', fontFamily:"'Syne',sans-serif" },
+  searchBar:  { flex: 1, display: 'flex', maxWidth: 440 },
+  searchInput:{ flex: 1, padding: '9px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px 0 0 10px', color: '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit', minWidth: 0 },
+  searchBtn:  { padding: '9px 14px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', borderLeft: 'none', borderRadius: '0 10px 10px 0', cursor: 'pointer', fontSize: 14, fontFamily: 'inherit' },
   navLinks: { display:'flex', gap:24 },
   navLink:  { color:'rgba(255,255,255,0.7)', fontSize:14, cursor:'pointer' },
   hero:     { padding:'48px 0 32px', textAlign:'center' },

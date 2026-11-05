@@ -4,6 +4,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
+import { fondDe, fondNav } from './mvTheme';
 
 const API_BASE = '/api';
 
@@ -100,7 +101,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: any)
   const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }, { label: 'Enchères', dest: { page: 'encheres' } }];
   const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
-    <nav style={s.nav}>
+    <nav style={{ ...s.nav, background: fondNav(config) }}>
       <style>{`
         @media (max-width:768px) {
           .mvn-liens { display:none !important; }
@@ -131,7 +132,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: any)
         </button>
       </div>
       {menuOuvert && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: fondDe(config), borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
             <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex' }}>
               <input value={recherche} onChange={e => setRecherche(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { onRecherche(); setMenuOuvert(false); } }}
@@ -285,7 +286,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
   );
 
   return (
-    <div style={s.wrapper}>
+    <div style={{ ...s.wrapper, background: fondDe(config) }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
@@ -309,7 +310,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
         <div onClick={() => setDrawerOuvert(false)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex' }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ width: 280, maxWidth: '85vw', background: '#111', height: '100%', overflowY: 'auto', padding: 20 }}>
+            style={{ width: 280, maxWidth: '85vw', background: fondDe(config), height: '100%', overflowY: 'auto', padding: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <p style={{ color: '#fff', fontWeight: 800, margin: 0 }}>Catégories</p>
               <button onClick={() => setDrawerOuvert(false)}

@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
+import { fondDe, fondNav } from './mvTheme';
 import MVPremiumAvantages from './MVPremiumAvantages';
 
 const API_BASE = '/api';
@@ -93,7 +94,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: {
   const fermer = () => setMenuMobile(false);
 
   return (
-    <nav style={s.nav}>
+    <nav style={{ ...s.nav, background: fondNav(config) }}>
       <style>{`
         @media(max-width:768px){
           .mv-nav-links { display:none !important; }
@@ -190,7 +191,7 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
   const couleurAccent = config.couleur_accent || '#fbbf24';
 
   return (
-    <div style={s.wrapper}>
+    <div style={{ ...s.wrapper, background: fondDe(config) }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -213,7 +214,7 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
 
       {/* ── HERO ── */}
       {config.accueil_hero_actif !== false && (
-      <section className="mv-hero" style={{ ...s.hero, background: `radial-gradient(ellipse at 60% 50%, ${couleurAccent}15 0%, transparent 60%), #0a0a0a` }}>
+      <section className="mv-hero" style={{ ...s.hero, background: `radial-gradient(ellipse at 60% 50%, ${couleurAccent}15 0%, transparent 60%), ${fondDe(config)}` }}>
         <div className="mv-pad" style={s.heroInner}>
           <div style={s.heroContent}>
             <div style={{ ...s.heroBadge, background: `${couleurAccent}20`, color: couleurAccent, border: `1px solid ${couleurAccent}40` }}>

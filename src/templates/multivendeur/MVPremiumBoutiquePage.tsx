@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
+import { fondDe, fondNav } from './mvTheme';
 
 const API_BASE = '/api';
 
@@ -90,7 +91,7 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
   const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Catalogue', dest: { page: 'catalogue' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }];
   const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
-    <nav style={s.nav}>
+    <nav style={{ ...s.nav, background: fondNav(config) }}>
       <style>{`
         @media (max-width:768px) {
           .mvn-liens { display:none !important; }
@@ -114,7 +115,7 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
         </button>
       </div>
       {menuOuvert && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: fondDe(config), borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
           {liens.map(l => (
             <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
           ))}
@@ -231,11 +232,11 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
   };
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)' }}>Chargement...</div>
+    <div style={{ minHeight: '100vh', background: fondDe(config), display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.4)' }}>Chargement...</div>
   );
 
   if (!boutique) return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+    <div style={{ minHeight: '100vh', background: fondDe(config), display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
       <div style={{ fontSize: 48 }}>😕</div>
       <p style={{ color: 'rgba(255,255,255,0.5)' }}>Boutique introuvable</p>
       <button onClick={() => naviguer({ page: 'boutiques' })} style={{ padding: '10px 24px', background: couleurAccent, color: '#000', border: 'none', borderRadius: 10, fontWeight: 700, cursor: 'pointer' }}>← Retour aux boutiques</button>
@@ -272,7 +273,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
   };
 
   return (
-    <div style={s.page}>
+    <div style={{ ...s.page, background: fondDe(config) }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
@@ -294,14 +295,14 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
       <Navbar naviguer={naviguer} config={config} />
 
       {/* Bannière boutique */}
-      <div className="mvp-banniere" style={{ ...s.banniere, backgroundImage: boutique.banniere_url ? `url(${boutique.banniere_url})` : `linear-gradient(135deg, ${couleurAccent}30, #0a0a0a)` }}>
-        <div style={s.bannièreOverlay} />
+      <div className="mvp-banniere" style={{ ...s.banniere, backgroundImage: boutique.banniere_url ? `url(${boutique.banniere_url})` : `linear-gradient(135deg, ${couleurAccent}30, ${fondDe(config)})` }}>
+        <div style={{ ...s.bannièreOverlay, background: `linear-gradient(to bottom, rgba(0,0,0,0.1), ${fondDe(config)})` }} />
       </div>
 
       {/* Header boutique */}
       <div className="mvp-header" style={s.headerBoutique}>
         <div style={s.headerInner}>
-          <div className="mvp-logo" style={s.logoBoutique}>
+          <div className="mvp-logo" style={{ ...s.logoBoutique, borderColor: fondDe(config) }}>
             {boutique.logo_url
               ? <img src={boutique.logo_url} alt={boutique.nom_boutique} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 16 }} />
               : <span style={{ fontSize: 32, fontWeight: 900, color: couleurAccent }}>{boutique.nom_boutique[0]}</span>}

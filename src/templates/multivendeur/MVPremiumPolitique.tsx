@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
+import { fondDe, fondNav } from './mvTheme';
 
 const API_BASE = '/api';
 
@@ -36,7 +37,7 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
   const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Catalogue', dest: { page: 'catalogue' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }];
   const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
-    <nav style={s.nav}>
+    <nav style={{ ...s.nav, background: fondNav(config) }}>
       <style>{`
         @media (max-width:768px) {
           .mvn-liens { display:none !important; }
@@ -60,7 +61,7 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
         </button>
       </div>
       {menuOuvert && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: fondDe(config), borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
           {liens.map(l => (
             <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
           ))}
@@ -105,7 +106,7 @@ export default function MVPremiumPolitique({ vendeurId, isDemo, config = {}, nav
   }, [gId, isDemo, politiqueSlug]);
 
   return (
-    <div style={s.page}>
+    <div style={{ ...s.page, background: fondDe(config) }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
         * { box-sizing: border-box; }
@@ -135,7 +136,7 @@ export default function MVPremiumPolitique({ vendeurId, isDemo, config = {}, nav
 
       {drawerOuvert && (
         <div onClick={() => setDrawerOuvert(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.7)', zIndex:300 }}>
-          <div onClick={e => e.stopPropagation()} style={{ width:280, maxWidth:'85vw', background:'#111', height:'100%', overflowY:'auto', padding:20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width:280, maxWidth:'85vw', background:fondDe(config), height:'100%', overflowY:'auto', padding:20 }}>
             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:16 }}>
               <p style={{ color:'#fff', fontWeight:800, margin:0 }}>Politiques</p>
               <button onClick={() => setDrawerOuvert(false)} style={{ background:'none', border:'none', color:'#fff', fontSize:20, cursor:'pointer' }}>✕</button>

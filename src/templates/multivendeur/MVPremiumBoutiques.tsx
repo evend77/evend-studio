@@ -4,6 +4,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
+import { fondDe, fondNav } from './mvTheme';
 
 const API_BASE = '/api';
 
@@ -105,14 +106,14 @@ function CarteBoutique({ boutique, couleurAccent, naviguer, ouvrirBoutique }: { 
 }
 
 // ─── NAVBAR ──────────────────────────────────────────────────────────────────
-function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Record<string, any> }) {
+function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: { naviguer: (d: NavMV) => void; config: Record<string, any>; recherche: string; setRecherche: (v: string) => void; onRecherche: () => void }) {
   const [menuOuvert, setMenuOuvert] = useState(false);
   const nom = config?.nom_boutique || 'Ma Marketplace';
   const accent = config?.couleur_accent || '#fbbf24';
   const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Catalogue', dest: { page: 'catalogue' } }, { label: 'Enchères', dest: { page: 'encheres' } }];
   const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
-    <nav style={s.nav}>
+    <nav style={{ ...s.nav, background: fondNav(config) }}>
       <style>{`
         @media (max-width:768px) {
           .mvn-liens { display:none !important; }
@@ -126,6 +127,13 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
           <div style={{ ...s.logoIcon, flexShrink: 0 }}>{(nom[0] || 'M').toUpperCase()}</div>
           <span style={{ ...s.logoText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
         </div>
+        <div className="mvn-search" style={s.searchBar}>
+          <input value={recherche} onChange={e => setRecherche(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && onRecherche()}
+            placeholder="Rechercher une boutique..."
+            style={s.searchInput} />
+          <button onClick={onRecherche} style={s.searchBtn}>🔍</button>
+        </div>
         <div className="mvn-liens" style={s.navLinks}>
           {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
           <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
@@ -136,7 +144,13 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
         </button>
       </div>
       {menuOuvert && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: fondDe(config), borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex' }}>
+              <input value={recherche} onChange={e => setRecherche(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { onRecherche(); setMenuOuvert(false); } }}
+                placeholder="Rechercher..." style={{ ...s.searchInput, minWidth: 0 }} />
+              <button onClick={() => { onRecherche(); setMenuOuvert(false); }} style={s.searchBtn}>🔍</button>
+            </div>
           {liens.map(l => (
             <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
           ))}
@@ -216,14 +230,13 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
   ];
 
   return (
-    <div style={s.page}>
+    <div style={{ ...s.page, background: fondDe(config) }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
         @media (max-width:640px) {
           .mvb-main { padding:28px 0 60px !important; }
           .mvb-inner { padding:0 16px !important; }
-          .mvb-search { min-width:0 !important; flex-basis:100% !important; }
           .mvb-carte { flex-direction:column !important; padding:16px !important; gap:14px !important; }
           .mvb-gauche { width:100% !important; }
           .mvb-gauche button { width:100%; }
@@ -232,7 +245,8 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
         @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
       `}</style>
 
-      <Navbar naviguer={naviguer} config={config} />
+      <Navbar naviguer={naviguer} config={config} recherche={rechercheInput} setRecherche={setRechercheInput}
+        onRecherche={() => { setRecherche(rechercheInput.trim()); setPage(1); }} />
 
       <main className="mvb-main" style={s.main}>
         <div className="mvb-inner" style={s.inner}>
@@ -251,18 +265,6 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
 
           {/* Toolbar */}
           <div style={s.toolbar}>
-            {/* Recherche */}
-            <div className="mvb-search" style={s.searchBar}>
-              <input value={rechercheInput} onChange={e => setRechercheInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { setRecherche(rechercheInput.trim()); setPage(1); } }}
-                placeholder="Rechercher une boutique..."
-                style={s.searchInput} />
-              <button onClick={() => { setRecherche(rechercheInput.trim()); setPage(1); }}
-                style={{ ...s.searchBtn, background: couleurAccent, color: '#000' }}>
-                🔍
-              </button>
-            </div>
-
             {/* Tri */}
             <div style={{ position: 'relative' as const }} ref={filtreRef}>
               <button onClick={() => setPanneauOuvert(v => !v)}
@@ -329,7 +331,7 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
 const s: Record<string, React.CSSProperties> = {
   page:     { overflowX: 'clip', display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   nav:      { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
-  navInner: { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 32 },
+  navInner: { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 20 },
   navLogo:  { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 0 },
   logoIcon: { width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg,#fbbf24,#f59e0b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#000' },
   logoText: { fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: "'Syne',sans-serif" },
@@ -342,9 +344,9 @@ const s: Record<string, React.CSSProperties> = {
   heroTitre:{ fontFamily: "'Syne',sans-serif", fontSize: 'clamp(26px,4vw,42px)', fontWeight: 800, marginBottom: 14, lineHeight: 1.2 },
   heroDesc: { fontSize: 16, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, maxWidth: 560, margin: '0 auto' },
   toolbar:  { display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, flexWrap: 'wrap' },
-  searchBar:{ display: 'flex', flex: 1, minWidth: 240 },
-  searchInput: { flex: 1, padding: '10px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px 0 0 10px', color: '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit' },
-  searchBtn:{ padding: '10px 16px', border: 'none', borderRadius: '0 10px 10px 0', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' },
+  searchBar:{ flex: 1, display: 'flex', maxWidth: 440 },
+  searchInput: { flex: 1, padding: '9px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px 0 0 10px', color: '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit', minWidth: 0 },
+  searchBtn:{ padding: '9px 14px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', borderLeft: 'none', borderRadius: '0 10px 10px 0', cursor: 'pointer', fontSize: 14, fontFamily: 'inherit' },
   btnFiltre:{ padding: '10px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
   panneau:  { position: 'absolute', top: '100%', right: 0, marginTop: 8, background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, overflow: 'hidden', zIndex: 200, minWidth: 200, boxShadow: '0 16px 48px rgba(0,0,0,0.5)' },
   panneauItem: { padding: '12px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 500, transition: 'all 0.15s' },
@@ -354,13 +356,13 @@ const s: Record<string, React.CSSProperties> = {
   logoImg:  { width: '100%', height: '100%', objectFit: 'cover' },
   logoInitiales: { width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne',sans-serif", fontSize: 22, fontWeight: 800 },
   carteInfo:{ display: 'flex', flexDirection: 'column', gap: 6 },
-  boutiqueNom: { fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: '#fff', margin: 0 },
+  boutiqueNom: { fontFamily: "'Syne',sans-serif", fontSize: 18, fontWeight: 800, color: '#fff', margin: 0, overflowWrap: 'anywhere' },
   boutiqueMeta: { display: 'flex', gap: 8, flexWrap: 'wrap' },
   badge:    { fontSize: 11, padding: '3px 10px', background: 'rgba(255,255,255,0.06)', borderRadius: 20, color: 'rgba(255,255,255,0.5)' },
   btnOuvrir:{ padding: '9px 18px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s', whiteSpace: 'nowrap', fontFamily: 'inherit' },
   separateur: { width: 1, background: 'rgba(255,255,255,0.07)', alignSelf: 'stretch', flexShrink: 0 },
   carteDroite: { flex: 1, minWidth: 0 },
-  description: { fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 1.75 },
+  description: { fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 1.75, margin: 0, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', overflowWrap: 'anywhere' },
   skeleton: { height: 130, background: 'linear-gradient(90deg,rgba(255,255,255,0.03) 25%,rgba(255,255,255,0.06) 50%,rgba(255,255,255,0.03) 75%)', borderRadius: 16, backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' },
   vide:     { textAlign: 'center', padding: '60px 20px' },
   btnReset: { marginTop: 16, padding: '8px 20px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
