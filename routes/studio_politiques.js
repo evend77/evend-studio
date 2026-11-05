@@ -1,8 +1,8 @@
-// routes/studio_politiques.js
+// CHEMIN : routes/studio_politiques.js
 //
 // GET  /api/studio/politiques/:gestionnaireId/public   — toutes les politiques publiques du site
 // GET  /api/studio/politiques/:gestionnaireId/public/:slug — une politique publique
-// GET  /api/studio/politiques/:vendeurId          — lecture dashboard gestionnaire (auth)
+// GET  /api/studio/politiques/:gestionnaireId          — lecture dashboard gestionnaire (auth)
 // PUT  /api/studio/politiques/:gestionnaireId/:slug    — sauvegarder une politique (auth)
 
 const express = require('express');
@@ -33,7 +33,7 @@ function verifierProprietaire(req, res) {
 }
 
 // ─── Helper : récupère les politiques d'un vendeur et complète avec les défauts
-async function chargerPolitiques(vendeurId) {
+async function chargerPolitiques(gestionnaireId) {
   const result = await pool.query(
     `SELECT slug, titre, contenu, updated_at
        FROM politiques_gestionnaire
@@ -99,7 +99,7 @@ router.get('/public/:slug', async (req, res) => {
 });
 
 // =============================================================================
-// GET /api/studio/politiques/:vendeurId
+// GET /api/studio/politiques/:gestionnaireId
 // Lecture pour le dashboard gestionnaire — toutes les politiques
 // =============================================================================
 router.get('/', authenticateToken, async (req, res) => {
@@ -122,7 +122,7 @@ router.get('/', authenticateToken, async (req, res) => {
 router.put('/:slug', authenticateToken, async (req, res) => {
   if (!verifierProprietaire(req, res)) return;
 
-  const { vendeurId, slug } = req.params;
+  const { gestionnaireId, slug } = req.params;
   const { contenu, titre } = req.body;
 
   // Valider que le slug est l'un des 6 autorisés
@@ -140,7 +140,7 @@ router.put('/:slug', authenticateToken, async (req, res) => {
              titre      = EXCLUDED.titre,
              updated_at = NOW()
        RETURNING slug, titre, contenu, updated_at`,
-      [vendeurId, slug, titreAUtiliser, nettoyerHtml(contenu) ?? '']
+      [gestionnaireId, slug, titreAUtiliser, nettoyerHtml(contenu) ?? '']
     );
 
     res.json({ success: true, politique: result.rows[0] });

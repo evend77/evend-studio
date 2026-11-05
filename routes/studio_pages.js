@@ -1,9 +1,9 @@
-// routes/studio_pages.js
+// CHEMIN : routes/studio_pages.js
 //
 // GET    /api/studio/pages/:gestionnaireId/public         — toutes les pages actives (site public)
 // GET    /api/studio/pages/:gestionnaireId/public/:slug   — une page publique par slug
-// GET    /api/studio/pages/:vendeurId                — toutes les pages (dashboard gestionnaire)
-// POST   /api/studio/pages/:vendeurId                — créer une nouvelle page
+// GET    /api/studio/pages/:gestionnaireId                — toutes les pages (dashboard gestionnaire)
+// POST   /api/studio/pages/:gestionnaireId                — créer une nouvelle page
 // GET    /api/studio/pages/:gestionnaireId/:slug          — lire une page (dashboard)
 // PATCH  /api/studio/pages/:gestionnaireId/:slug          — modifier une page
 // DELETE /api/studio/pages/:gestionnaireId/:slug          — supprimer une page
@@ -17,7 +17,6 @@ const { authenticateToken } = require('../middleware/auth');
 
 // ─── Helper propriétaire ──────────────────────────────────────────────────────
 function verifierProprietaire(req, res) {
-  console.log('🔍 req.user:', req.user);
   const gestionnaireIdParam = parseInt(req.params.gestionnaireId, 10);
   if (parseInt(req.user?.id, 10) !== gestionnaireIdParam) {
     res.status(403).json({ error: 'Accès refusé.' });
@@ -81,7 +80,7 @@ router.get('/public/:slug', async (req, res) => {
 });
 
 // =============================================================================
-// GET /api/studio/pages/:vendeurId
+// GET /api/studio/pages/:gestionnaireId
 // Toutes les pages du vendeur — dashboard (auth)
 // =============================================================================
 router.get('/', authenticateToken, async (req, res) => {
@@ -103,7 +102,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // =============================================================================
-// POST /api/studio/pages/:vendeurId
+// POST /api/studio/pages/:gestionnaireId
 // Créer une nouvelle page
 // Body : { titre, contenu?, meta_description?, actif?, afficher_dans_menu? }
 // =============================================================================
@@ -126,7 +125,7 @@ router.post('/', authenticateToken, async (req, res) => {
   try {
     const existing = await pool.query(
       `SELECT slug FROM pages_gestionnaire WHERE gestionnaire_id = $1 AND slug LIKE $2`,
-      [vendeurId, `${slug}%`]
+      [gestionnaireId, `${slug}%`]
     );
     if (existing.rows.length > 0) {
       slug = `${slug}-${Date.now()}`;
@@ -139,7 +138,7 @@ router.post('/', authenticateToken, async (req, res) => {
          (SELECT COALESCE(MAX(ordre), 0) + 1 FROM pages_gestionnaire WHERE gestionnaire_id = $1))
        RETURNING *`,
       [
-        vendeurId,
+        gestionnaireId,
         slug,
         titre.trim(),
         nettoyerHtml(contenu) ?? '',
@@ -184,11 +183,11 @@ router.patch('/:slug', authenticateToken, async (req, res) => {
   if (!verifierProprietaire(req, res)) return;
 
   const { titre, contenu, meta_description, actif, afficher_dans_menu } = req.body;
-  const { vendeurId, slug } = req.params;
+  const { gestionnaireId, slug } = req.params;
 
   try {
     const result = await pool.query(
-      `UPDATE pages_vendeur
+      `UPDATE pages_gestionnaire
           SET titre              = COALESCE($1, titre),
               contenu            = COALESCE($2, contenu),
               meta_description   = COALESCE($3, meta_description),
@@ -203,7 +202,7 @@ router.patch('/:slug', authenticateToken, async (req, res) => {
         meta_description ?? null,
         actif ?? null,
         afficher_dans_menu ?? null,
-        vendeurId,
+        gestionnaireId,
         slug,
       ]
     );
@@ -223,12 +222,12 @@ router.patch('/:slug', authenticateToken, async (req, res) => {
 router.delete('/:slug', authenticateToken, async (req, res) => {
   if (!verifierProprietaire(req, res)) return;
 
-  const { vendeurId, slug } = req.params;
+  const { gestionnaireId, slug } = req.params;
 
   try {
     const result = await pool.query(
       `DELETE FROM pages_gestionnaire WHERE gestionnaire_id = $1 AND slug = $2 RETURNING id`,
-      [vendeurId, slug]
+      [gestionnaireId, slug]
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Page introuvable.' });
     res.json({ success: true, message: 'Page supprimée.' });
@@ -251,14 +250,14 @@ router.patch('/:slug/ordre', authenticateToken, async (req, res) => {
     return res.status(400).json({ error: 'ordre est requis et doit être un nombre.' });
   }
 
-  const { vendeurId, slug } = req.params;
+  const { gestionnaireId, slug } = req.params;
 
   try {
     const result = await pool.query(
-      `UPDATE pages_vendeur SET ordre = $1, updated_at = NOW()
-        WHERE vendeur_id = $2 AND slug = $3
+      `UPDATE pages_gestionnaire SET ordre = $1, updated_at = NOW()
+        WHERE gestionnaire_id = $2 AND slug = $3
         RETURNING id, slug, ordre`,
-      [ordre, vendeurId, slug]
+      [ordre, gestionnaireId, slug]
     );
     if (result.rowCount === 0) return res.status(404).json({ error: 'Page introuvable.' });
     res.json({ success: true, page: result.rows[0] });

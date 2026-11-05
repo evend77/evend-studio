@@ -1133,7 +1133,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
-        itemPage404,itemPolitiques,itemSeo,itemCookies,itemPhotos,
+        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
       ]},
