@@ -534,6 +534,7 @@ app.use('/api/admin',                require('./routes/adminInfolettre'));
 app.use('/api/admin',                require('./routes/adminMarketing'));
 app.use('/api/admin',                require('./routes/adminRepondreClient'));
 app.use('/api/studio/sites', studioSites);
+app.use('/api/produits/gestionnaire', require('./routes/catalogue_public')); // public : produits actifs des collaborateurs (avant l'ancien routeur)
 app.use('/api/produits/gestionnaire', require('./routes/produits_gestionnaire'));
 app.use('/api/marketplace', require('./routes/marketplace-auth'));
 app.use('/api/marketplace', require('./routes/marketplace-panier'));

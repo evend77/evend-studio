@@ -273,6 +273,20 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     }
   }, [compte, gestionnaireId]);
 
+  // Vérifie que la session (cookie) est réellement valide ; sinon on oublie le compte local et on retourne au login.
+  useEffect(() => {
+    if (!compte?.id) return;
+    let annule = false;
+    fetch(`${API_BASE}/marketplace/${gestionnaireId}/me`, { credentials: 'include' })
+      .then(r => {
+        if (annule || r.status !== 401) return;
+        try { localStorage.removeItem(`mv_compte_${gestionnaireId}`); localStorage.removeItem(`mv_token_${gestionnaireId}`); } catch {}
+        naviguerTemplate({ page: 'login' });
+      })
+      .catch(() => {});
+    return () => { annule = true; };
+  }, [compte?.id, gestionnaireId]);
+
   // Charger les donnees
   useEffect(() => {
     if (!compte?.id) return;

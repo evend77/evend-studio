@@ -232,6 +232,20 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (compte === null) naviguerTemplate({ page: 'login' });
   }, [compte, gestionnaireId]);
 
+  // Vérifie que la session (cookie) est réellement valide ; sinon on oublie le compte local et on retourne au login.
+  useEffect(() => {
+    if (!compte?.id) return;
+    let annule = false;
+    fetch(`${API_BASE}/marketplace/${gestionnaireId}/me`, { credentials: 'include' })
+      .then(r => {
+        if (annule || r.status !== 401) return;
+        try { localStorage.removeItem(`mv_compte_${gestionnaireId}`); localStorage.removeItem(`mv_token_${gestionnaireId}`); } catch {}
+        naviguerTemplate({ page: 'login' });
+      })
+      .catch(() => {});
+    return () => { annule = true; };
+  }, [compte?.id, gestionnaireId]);
+
   // Charger stats
   useEffect(() => {
     if (!compte?.id) return;
@@ -464,6 +478,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{compte.nom_boutique}</p>
                   <p style={{ margin: 0, fontSize: 10, color: 'rgba(255,255,255,0.4)' }}>{compte.email}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>id: {compte.id}</p>
                 </div>
               </div>
               <button onClick={deconnecter} style={{ width: '100%', padding: '8px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#f87171', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>
