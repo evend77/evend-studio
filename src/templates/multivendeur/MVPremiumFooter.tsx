@@ -172,7 +172,7 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
 }
 
 const s: Record<string, React.CSSProperties> = {
-  footer:   { padding: '40px 0', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.3)', fontFamily: "'DM Sans',sans-serif" },
+  footer:   { marginTop: 'auto', padding: '40px 0', borderTop: '1px solid rgba(255,255,255,0.06)', background: 'rgba(0,0,0,0.3)', fontFamily: "'DM Sans',sans-serif" },
   inner:    { maxWidth: 1280, margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', gap: 32, flexWrap: 'wrap' },
   logo:     { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' },
   logoIcon: { width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#000' },

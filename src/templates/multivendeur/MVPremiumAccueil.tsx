@@ -341,7 +341,7 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
-  wrapper:    { overflowX: 'clip', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  wrapper:    { overflowX: 'clip', display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   // Navbar
   nav:        { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner:   { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 20 },

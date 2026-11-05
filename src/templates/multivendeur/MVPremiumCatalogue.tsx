@@ -489,7 +489,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
-  wrapper:  { overflowX: 'clip', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  wrapper:  { overflowX: 'clip', display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   // Navbar
   nav:      { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner: { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 20 },
@@ -502,7 +502,7 @@ const s: Record<string, React.CSSProperties> = {
   navLinks: { display: 'flex', gap: 24 },
   navLink:  { color: 'rgba(255,255,255,0.7)', fontSize: 14, cursor: 'pointer' },
   // Layout
-  layout:   { maxWidth: 1280, margin: '0 auto', padding: '24px 24px', display: 'flex', gap: 24, alignItems: 'flex-start' },
+  layout:   { width: '100%', maxWidth: 1280, margin: '0 auto', padding: '24px 24px', display: 'flex', gap: 24, alignItems: 'flex-start' },
   asideDesktop: { width: 220, flexShrink: 0, position: 'sticky', top: 80 },
   main:     { flex: 1, minWidth: 0 },
   // Sidebar

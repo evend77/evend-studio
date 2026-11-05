@@ -532,7 +532,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
 }
 
 const s: Record<string, React.CSSProperties> = {
-  page:     { overflowX: 'clip', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  page:     { overflowX: 'clip', display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   nav:      { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner: { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 32 },
   navLogo:  { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' },
@@ -542,7 +542,7 @@ const s: Record<string, React.CSSProperties> = {
   navLink:  { color: 'rgba(255,255,255,0.7)', fontSize: 14, cursor: 'pointer' },
   banniere: { height: 180, backgroundSize: 'cover', backgroundPosition: 'center', position: 'relative' },
   bannièreOverlay: { position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.1), #0a0a0a)' },
-  headerBoutique: { maxWidth: 1100, margin: '-50px auto 0', padding: '0 24px', position: 'relative', zIndex: 2 },
+  headerBoutique: { width: '100%', maxWidth: 1100, margin: '-50px auto 0', padding: '0 24px', position: 'relative', zIndex: 2 },
   headerInner: { display: 'flex', alignItems: 'flex-end', gap: 20, flexWrap: 'wrap' },
   logoBoutique: { width: 96, height: 96, borderRadius: 18, background: '#15151f', border: '3px solid #0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' },
   nomBoutique: { fontFamily: "'Syne',sans-serif", fontSize: 'clamp(22px,3vw,30px)', fontWeight: 800, margin: 0 },
@@ -550,7 +550,7 @@ const s: Record<string, React.CSSProperties> = {
   ongletsBar: { borderBottom: '1px solid rgba(255,255,255,0.08)', marginTop: 28 },
   ongletsInner: { maxWidth: 1100, margin: '0 auto', padding: '0 24px', display: 'flex', gap: 4, overflowX: 'auto' as const },
   ongletBtn: { padding: '14px 18px', background: 'transparent', border: 'none', fontSize: 14, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const, transition: 'all 0.15s' },
-  main:     { maxWidth: 1100, margin: '0 auto', padding: '32px 24px 60px' },
+  main:     { width: '100%', maxWidth: 1100, margin: '0 auto', padding: '32px 24px 60px' },
   vide:     { textAlign: 'center', padding: '50px 20px' },
   barreRecherche: { display: 'flex', marginBottom: 24, maxWidth: 380 },
   inputRecherche: { flex: 1, padding: '10px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '10px 0 0 10px', color: '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit' },

@@ -477,7 +477,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
-  wrapper:    { overflowX: 'clip', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  wrapper:    { overflowX: 'clip', display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   nav:        { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner:   { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 32 },
   navLogo:    { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 0 },
@@ -485,7 +485,7 @@ const s: Record<string, React.CSSProperties> = {
   logoText:   { fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: "'Syne',sans-serif" },
   navLinks:   { display: 'flex', gap: 24 },
   navLink:    { color: 'rgba(255,255,255,0.7)', fontSize: 14, cursor: 'pointer' },
-  container:  { maxWidth: 1200, margin: '0 auto', padding: '24px 24px 60px' },
+  container:  { width: '100%', maxWidth: 1200, margin: '0 auto', padding: '24px 24px 60px' },
   breadcrumb: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap' },
   breadLink:  { fontSize: 13, color: 'rgba(255,255,255,0.45)', cursor: 'pointer' },
   breadSep:   { fontSize: 13, color: 'rgba(255,255,255,0.25)' },

@@ -301,7 +301,7 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
 }
 
 const s: Record<string, React.CSSProperties> = {
-  wrapper:  { overflowX:'clip', minHeight:'100vh', background:'#0a0a0a', color:'#fff', fontFamily:"'DM Sans',sans-serif" },
+  wrapper:  { overflowX:'clip', display:'flex', flexDirection:'column', minHeight:'100vh', background:'#0a0a0a', color:'#fff', fontFamily:"'DM Sans',sans-serif" },
   nav:      { position:'sticky', top:0, zIndex:100, background:'rgba(10,10,10,0.95)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(255,255,255,0.06)' },
   navInner: { maxWidth:1280, margin:'0 auto', padding:'0 24px', height:64, display:'flex', alignItems:'center', gap:32 },
   navLogo:  { display:'flex', alignItems:'center', gap:10, cursor:'pointer' },
@@ -314,7 +314,7 @@ const s: Record<string, React.CSSProperties> = {
   heroBadge:{ display:'inline-block', padding:'6px 16px', borderRadius:20, fontSize:13, fontWeight:700, marginBottom:18 },
   heroTitre:{ fontFamily:"'Syne',sans-serif", fontSize:'clamp(26px,4vw,40px)', fontWeight:800, marginBottom:12 },
   heroDesc: { fontSize:15, color:'rgba(255,255,255,0.55)', lineHeight:1.7 },
-  layout:   { maxWidth:1280, margin:'0 auto', padding:'0 24px 60px', display:'flex', gap:24, alignItems:'flex-start' },
+  layout:   { width:'100%', maxWidth:1280, margin:'0 auto', padding:'0 24px 60px', display:'flex', gap:24, alignItems:'flex-start' },
   sidebar:  { width:220, flexShrink:0, position:'sticky', top:80, display:'flex', flexDirection:'column', gap:4 },
   sidebarTitre: { fontSize:11, fontWeight:800, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'0.08em', margin:'0 0 8px' },
   catBtn:   { width:'100%', padding:'8px 12px', background:'transparent', border:'1px solid transparent', borderRadius:8, color:'rgba(255,255,255,0.7)', fontSize:13, cursor:'pointer', display:'flex', justifyContent:'space-between', alignItems:'center', fontFamily:'inherit' },
