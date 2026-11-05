@@ -136,7 +136,9 @@ function Etoiles({ note, taille = 14 }: { note: number; taille?: number }) {
 
 export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, naviguer, boutiqueSlug }: Props) {
   const couleurAccent = config.couleur_accent || '#fbbf24';
-  const boutiqueId = boutiqueSlug || vendeurId;
+  const boutiqueId = boutiqueSlug;          // ici : l'ID du collaborateur (la boutique)
+  const gId = vendeurId;                    // le gestionnaire (le site)
+  const apiBoutique = `${API_BASE}/gestionnaires/${gId}/boutiques/${boutiqueId}`;
 
   const [boutique, setBoutique] = useState<Boutique | null>(null);
   const [produits, setProduits] = useState<Produit[]>([]);
@@ -176,39 +178,39 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
       setLoading(false);
       return;
     }
-    if (!boutiqueId) return;
+    if (!boutiqueId || !gId) return;
     setLoading(true);
 
-    fetch(`${API_BASE}/gestionnaires/${boutiqueId}`)
+    fetch(apiBoutique)
       .then(r => r.ok ? r.json() : null)
       .then(d => setBoutique(d))
       .catch(() => {});
 
-    fetch(`${API_BASE}/produits/gestionnaire/${boutiqueId}`)
+    fetch(`${API_BASE}/produits/gestionnaire/${gId}?collaborateur_id=${boutiqueId}`)
       .then(r => r.ok ? r.json() : [])
       .then(d => setProduits(Array.isArray(d) ? d : []))
       .catch(() => {})
       .finally(() => setLoading(false));
 
-    fetch(`${API_BASE}/gestionnaires/${boutiqueId}/addons-statut`)
+    fetch(`${apiBoutique}/addons-statut`)
       .then(r => r.ok ? r.json() : {} as any)
       .then((d: any) => setAddonsStatut(d))
       .catch(() => {});
-  }, [boutiqueId, isDemo]);
+  }, [boutiqueId, gId, isDemo]);
 
   // Charger contenu add-ons seulement si actifs
   useEffect(() => {
-    if (isDemo || !boutiqueId) return;
+    if (isDemo || !boutiqueId || !gId) return;
     if (addonsStatut.blog_actif) {
-      fetch(`${API_BASE}/gestionnaires/${boutiqueId}/blog`).then(r => r.ok ? r.json() : { articles: [] }).then(d => setBlog(d.articles || [])).catch(() => {});
+      fetch(`${apiBoutique}/blog`).then(r => r.ok ? r.json() : { articles: [] }).then(d => setBlog(d.articles || [])).catch(() => {});
     }
     if (addonsStatut.faq_actif) {
-      fetch(`${API_BASE}/gestionnaires/${boutiqueId}/faq`).then(r => r.ok ? r.json() : { items: [] }).then(d => setFaq(d.items || [])).catch(() => {});
+      fetch(`${apiBoutique}/faq`).then(r => r.ok ? r.json() : { items: [] }).then(d => setFaq(d.items || [])).catch(() => {});
     }
     if (addonsStatut.avis_actif) {
-      fetch(`${API_BASE}/gestionnaires/${boutiqueId}/avis`).then(r => r.ok ? r.json() : { avis: [] }).then(d => { setAvis(d.avis || []); setMoyenneAvis(d.moyenne || 0); }).catch(() => {});
+      fetch(`${apiBoutique}/avis`).then(r => r.ok ? r.json() : { avis: [] }).then(d => { setAvis(d.avis || []); setMoyenneAvis(d.moyenne || 0); }).catch(() => {});
     }
-  }, [addonsStatut, boutiqueId, isDemo]);
+  }, [addonsStatut, boutiqueId, gId, isDemo]);
 
   const soumettreAvis = async () => {
     if (!formNom || !formNote) { setMsgAvis('Nom et note requis.'); return; }
@@ -466,7 +468,6 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                 <h2 style={{ ...s.sectionTitre, marginBottom: 4 }}>⭐ Avis clients</h2>
                 {avis.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Etoiles note={Math.round(moyenneAvis)} taille={16} /><span style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>{moyenneAvis.toFixed(1)} sur 5 ({avis.length} avis)</span></div>}
               </div>
-              <button onClick={() => setFormAvisOuvert(true)} style={{ padding: '10px 20px', background: couleurAccent, color: '#000', border: 'none', borderRadius: 10, fontWeight: 800, cursor: 'pointer', fontSize: 13 }}>✍️ Laisser un avis</button>
             </div>
 
             {avis.length === 0 ? (

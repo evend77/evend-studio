@@ -6,6 +6,7 @@
 //   GET /produit/:produitId                                                  { produit, similaires }
 //                                         (+ ?categorie_id= ; ?q= cherche aussi dans le nom de la catégorie et du groupe)
 //   (second routeur, monté sur /api/gestionnaires) GET /:gestionnaireId/boutiques  ?q= &tri= &page= &limit=
+//                                                  GET /:gestionnaireId/boutiques/:collaborateurId (+ /avis, /addons-statut)
 //                                                  GET /:gestionnaireId/categories · /categories-groupes  (actifs)
 // Si la requête porte un en-tête Authorization (le gestionnaire dans son dashboard) ou si le chemin
 // n'est pas reconnu, on laisse passer vers l'ancien routeur (next()).
@@ -138,6 +139,63 @@ boutiques.get('/:gestionnaireId/boutiques', async (req, res) => {
     console.error('[catalogue_public] boutiques', e.message);
     res.status(500).json({ error: 'Erreur serveur' });
   }
+});
+
+// ── Page d'une boutique (collaborateur actif) : fiche, avis, modules ──────────────────────────────────────
+async function boutiqueActive(gid, cid) {
+  const r = await pool.query(
+    `SELECT mc.id, COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.description_boutique,
+            mc.ville, mc.province, mc.logo_url, mc.banniere_url, mc.site_web, mc.created_at,
+            (SELECT COUNT(*) FROM produits p WHERE p.collaborateur_id = mc.id AND p.statut = 'actif')::int AS nb_produits
+       FROM marketplace_collaborateurs mc WHERE mc.id = $1 AND mc.gestionnaire_id = $2 AND mc.statut = 'actif'`, [cid, gid]);
+  return r.rows[0] || null;
+}
+
+boutiques.get('/:gestionnaireId/boutiques/:collaborateurId', async (req, res) => {
+  try {
+    const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
+    if (!gid || !cid) return res.status(404).json({ error: 'Boutique introuvable' });
+    const b = await boutiqueActive(gid, cid);
+    if (!b) return res.status(404).json({ error: 'Boutique introuvable' });
+    const desc = b.description_boutique || '';
+    res.json({
+      id: b.id, nom_boutique: b.nom_boutique,
+      description_courte: desc.length > 160 ? desc.slice(0, 157) + '…' : desc,
+      description_longue: desc, ville: b.ville, province: b.province,
+      logo_url: b.logo_url, banniere_url: b.banniere_url, site_web: b.site_web,
+      nb_produits: b.nb_produits, date_inscription: b.created_at,
+    });
+  } catch (e) {
+    console.error('[catalogue_public] boutique', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Avis approuvés (laissés par des acheteurs ayant commandé) — le nom est abrégé (« Marie T. »)
+boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/avis', async (req, res) => {
+  try {
+    const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
+    if (!gid || !cid) return res.json({ avis: [], moyenne: 0 });
+    const r = await pool.query(
+      `SELECT av.id, av.note AS note_globale, av.titre, av.commentaire, av.created_at,
+              TRIM(COALESCE(a.prenom,'') || ' ' || COALESCE(LEFT(a.nom,1) || '.', '')) AS nom_client
+         FROM avis_collaborateur av
+         JOIN marketplace_collaborateurs mc ON mc.id = av.collaborateur_id AND mc.gestionnaire_id = $2 AND mc.statut = 'actif'
+         LEFT JOIN marketplace_acheteurs a ON a.id = av.acheteur_id
+        WHERE av.collaborateur_id = $1 AND av.approuve = true
+        ORDER BY av.created_at DESC LIMIT 100`, [cid, gid]);
+    const avis = r.rows.map((x) => ({ ...x, nom_client: x.nom_client || 'Client' }));
+    const moyenne = avis.length ? avis.reduce((t, x) => t + x.note_globale, 0) / avis.length : 0;
+    res.json({ avis, moyenne: Math.round(moyenne * 10) / 10 });
+  } catch (e) {
+    console.error('[catalogue_public] avis', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Modules affichés sur la page boutique : seuls les avis existent pour l'instant (blog et FAQ : à venir).
+boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/addons-statut', (req, res) => {
+  res.json({ blog_actif: false, faq_actif: false, avis_actif: true });
 });
 
 // ── Catégories et groupes du gestionnaire (actifs seulement) — pour la barre latérale et l'accueil ──────────
