@@ -699,10 +699,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (!gestionnaire?.id) return;
     const charger = async () => {
       const token = localStorage.getItem('token');
-      if (!token) return;
       try {
         const r = await fetch(`${API_BASE}/studio/collaborateurs/${gestionnaire.id}/signalements/count`, {
-          credentials: 'include', headers: { Authorization: `Bearer ${token}` }
+          credentials: 'include', headers: token ? { Authorization: `Bearer ${token}` } : {}
         });
         if (r.ok) { const d = await r.json(); setSignalementsNouveaux(Number(d.nouveaux) || 0); }
       } catch {}
