@@ -6,6 +6,15 @@
 import { useState, useEffect, useRef } from 'react';
 import Panier   from './templates/shared/Panier';
 import Checkout from './templates/shared/Checkout';
+import Commandes               from './pages/acheteur/Commandes';
+import Retours                 from './pages/acheteur/Retours';
+import Wishlist                from './pages/acheteur/Wishlist';
+import CollaborateursFavoris   from './pages/acheteur/CollaborateursFavoris';
+import Notifications           from './pages/acheteur/Notifications';
+import Profil                  from './pages/acheteur/Profil';
+import MessagerieGestionnaire  from './pages/acheteur/MessagerieGestionnaire';
+import ChatAvecCollaborateurs  from './pages/acheteur/ChatAvecCollaborateurs';
+import Documents               from './pages/acheteur/Documents';
 
 const API_BASE = '/api';
 
@@ -19,11 +28,11 @@ interface CompteAcheteur {
 }
 
 interface Commande {
-  id: string;
+  id: number | string;
   numero_commande?: string;
   date_commande: string;
   statut: string;
-  total: number;
+  total: number | string;
   articles?: any[];
 }
 
@@ -36,7 +45,7 @@ interface Message {
   type: 'collaborateur' | 'gestionnaire';
 }
 
-interface Notification {
+interface NotificationItem {
   id: number;
   titre: string;
   message: string;
@@ -53,8 +62,8 @@ interface Stats {
 }
 
 type PageDash =
-  | 'dashboard' | 'commandes' | 'panier' | 'checkout' | 'wishlist'
-  | 'messagerie' | 'notifications'
+  | 'dashboard' | 'commandes' | 'panier' | 'checkout' | 'wishlist' | 'favoris'
+  | 'messagerie' | 'chat' | 'notifications' | 'documents'
   | 'profil' | 'retours';
 
 interface Props {
@@ -78,17 +87,6 @@ function StatutBadge({ statut }: { statut: string }) {
     <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: `${c.couleur}22`, border: `1px solid ${c.couleur}66`, color: c.couleur }}>
       {c.texte}
     </span>
-  );
-}
-
-// ─── Page stub générique ──────────────────────────────────────────────────────
-function PageStub({ titre, emoji }: { titre: string; emoji: string }) {
-  return (
-    <div style={{ textAlign: 'center', padding: '80px 20px' }}>
-      <div style={{ fontSize: 52, marginBottom: 16 }}>{emoji}</div>
-      <h2 style={{ fontFamily: "'Sora',sans-serif", fontSize: 22, fontWeight: 800, margin: '0 0 8px' }}>{titre}</h2>
-      <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 14 }}>Cette section arrive bientot</p>
-    </div>
   );
 }
 
@@ -127,7 +125,7 @@ function VueDashboard({
   compte: CompteAcheteur;
   commandes: Commande[];
   messages: Message[];
-  notifications: Notification[];
+  notifications: NotificationItem[];
   stats: Stats | null;
   loading: boolean;
   isMobile: boolean;
@@ -149,7 +147,7 @@ function VueDashboard({
     { label: 'Commandes', valeur: stats?.commandes_total ?? commandes.length, icon: '📦', couleur: '#3b82f6' },
     { label: 'En cours', valeur: stats?.commandes_en_cours ?? commandes.filter(c => !['livree','annulee'].includes(c.statut)).length, icon: '🚚', couleur: '#8b5cf6' },
     { label: 'Livrees', valeur: stats?.commandes_livrees ?? commandes.filter(c => c.statut === 'livree').length, icon: '✅', couleur: '#10b981' },
-    { label: 'Depenses', valeur: `${(stats?.total_depense ?? commandes.reduce((a, c) => a + (c.total || 0), 0)).toFixed(2)} $`, icon: '💳', couleur: couleurAccent },
+    { label: 'Depenses', valeur: `${Number(stats?.total_depense ?? commandes.reduce((a, c) => a + (Number(c.total) || 0), 0)).toFixed(2)} $`, icon: '💳', couleur: couleurAccent },
   ];
 
   const nonLus = messages.filter(m => !m.lu).length + notifications.filter(n => !n.lu).length;
@@ -204,7 +202,7 @@ function VueDashboard({
               </div>
               <div style={{ textAlign: 'right' }}>
                 <StatutBadge statut={c.statut} />
-                <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{(c.total || 0).toFixed(2)} $</p>
+                <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{(Number(c.total) || 0).toFixed(2)} $</p>
               </div>
             </div>
           ))}
@@ -252,8 +250,11 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
   const [checkoutCollabId, setCheckoutCollabId] = useState<number | null>(null);
   const [commandes,     setCommandes]     = useState<Commande[]>([]);
   const [messages,      setMessages]      = useState<Message[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [stats,         setStats]         = useState<Stats | null>(null);
+  const [nonLusGest,    setNonLusGest]    = useState(0);
+  const [nonLusChat,    setNonLusChat]    = useState(0);
+  const [collabInitial, setCollabInitial] = useState<number | null>(null);
   const [loading,       setLoading]       = useState(true);
 
   // Lire compte depuis localStorage au montage
@@ -279,19 +280,41 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
     const charger = async () => {
-      setLoading(true);
       try {
-        const [statsRes, cmdRes, msgRes, notifRes] = await Promise.allSettled([
-          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/stats`, { credentials: 'include', headers }),
-          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/commandes`, { credentials: 'include', headers }),
-          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/messages`, { credentials: 'include', headers }),
-          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/notifications`, { credentials: 'include', headers }),
+        const opt = { credentials: 'include' as const, headers };
+        const [statsRes, cmdRes, notifRes, supRes, chatRes] = await Promise.allSettled([
+          fetch(`${API_BASE}/marketplace/${gestionnaireId}/acheteurs/${compte.id}/stats`, opt),
+          fetch(`${API_BASE}/acheteur/${gestionnaireId}/commandes`, opt),
+          fetch(`${API_BASE}/acheteur/${gestionnaireId}/notifications`, opt),
+          fetch(`${API_BASE}/acheteur/${gestionnaireId}/support/conversations`, opt),
+          fetch(`${API_BASE}/chat-acheteur-collab/${gestionnaireId}/acheteur/conversations`, opt),
         ]);
 
         if (statsRes.status === 'fulfilled' && statsRes.value.ok) setStats(await statsRes.value.json());
-        if (cmdRes.status === 'fulfilled' && cmdRes.value.ok) setCommandes(await cmdRes.value.json());
-        if (msgRes.status === 'fulfilled' && msgRes.value.ok) setMessages(await msgRes.value.json());
-        if (notifRes.status === 'fulfilled' && notifRes.value.ok) setNotifications(await notifRes.value.json());
+        if (cmdRes.status === 'fulfilled' && cmdRes.value.ok) setCommandes((await cmdRes.value.json()).commandes || []);
+        if (notifRes.status === 'fulfilled' && notifRes.value.ok) setNotifications((await notifRes.value.json()).notifications || []);
+
+        // Messages récents = dernières conversations avec le gestionnaire et les collaborateurs
+        const recents: Message[] = [];
+        let gest = 0, chat = 0;
+        if (supRes.status === 'fulfilled' && supRes.value.ok) {
+          const l = await supRes.value.json();
+          (Array.isArray(l) ? l : []).forEach((t: any) => {
+            gest += t.non_lus || 0;
+            recents.push({ id: t.id, expediteur_nom: `Gestionnaire · ${t.sujet}`, contenu: t.dernier_message || '', date: t.dernier_message_date || t.updated_at, lu: !t.non_lus, type: 'gestionnaire' });
+          });
+        }
+        if (chatRes.status === 'fulfilled' && chatRes.value.ok) {
+          const l = await chatRes.value.json();
+          (Array.isArray(l) ? l : []).forEach((c: any) => {
+            chat += c.non_lus || 0;
+            recents.push({ id: 100000 + c.id, expediteur_nom: `${c.collaborateur?.nom || 'Collaborateur'} · ${c.sujet}`, contenu: c.dernier_message || '', date: c.dernier_message_date || c.updated_at, lu: !c.non_lus, type: 'collaborateur' });
+          });
+        }
+        recents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setMessages(recents);
+        setNonLusGest(gest);
+        setNonLusChat(chat);
       } catch (err) {
         console.error('Erreur chargement dashboard acheteur:', err);
       } finally {
@@ -330,7 +353,8 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     naviguerTemplate({ page: 'accueil' });
   };
 
-  const nonLusTotal = messages.filter(m => !m.lu).length + notifications.filter(n => !n.lu).length;
+  const nonLusNotifs = notifications.filter(n => !n.lu).length;
+  const nonLusTotal = nonLusGest + nonLusChat + nonLusNotifs;
   const prenom = compte?.prenom || compte?.nom || 'Acheteur';
   const initiale = prenom.charAt(0).toUpperCase();
 
@@ -338,10 +362,13 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     { id: 'dashboard',     label: 'TABLEAU DE BORD', icon: '📊' },
     { id: 'commandes',     label: 'MES COMMANDES',   icon: '📦' },
     { id: 'wishlist',      label: 'LISTE DE SOUHAITS', icon: '❤️' },
-    { id: 'messagerie',    label: 'MESSAGERIE',       icon: '💬', badge: nonLusTotal },
-    { id: 'notifications', label: 'NOTIFICATIONS',    icon: '🔔', badge: notifications.filter(n => !n.lu).length },
+    { id: 'favoris',       label: 'COLLABORATEURS FAVORIS', icon: '💜' },
+    { id: 'messagerie',    label: 'MESSAGERIE GESTIONNAIRE', icon: '🏢', badge: nonLusGest },
+    { id: 'chat',          label: 'CHAT COLLABORATEURS', icon: '💬', badge: nonLusChat },
+    { id: 'notifications', label: 'NOTIFICATIONS',    icon: '🔔', badge: nonLusNotifs },
     { id: 'panier',        label: 'MON PANIER',       icon: '🛒' },
     { id: 'retours',       label: 'RETOURS',          icon: '🔄' },
+    { id: 'documents',     label: 'DOCUMENTS',        icon: '📄' },
     { id: 'profil',        label: 'MON PROFIL',       icon: '👤' },
   ];
 
@@ -354,14 +381,20 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
           isMobile={isMobile} naviguer={naviguer} couleurAccent={couleurAccent}
         />
       );
-    if (page === 'commandes')     return <PageStub titre="Mes commandes" emoji="📦" />;
+    const commun = { gestionnaireId, isMobile, couleurAccent };
+    const versBoutique = (p: string) => (p === 'boutique' ? naviguerTemplate({ page: 'catalogue' }) : naviguer(p as PageDash));
+    const ecrireACollab = (id: number) => { setCollabInitial(id); naviguer('chat'); };
+    if (page === 'commandes')     return <Commandes {...commun} onEcrire={ecrireACollab} />;
     if (page === 'panier')        return <Panier naviguer={(p: string) => naviguer(p as PageDash)} gestionnaireId={gestionnaireId} config={config} />;
-    if (page === 'checkout')       return <Checkout naviguer={(p: string) => naviguer(p as PageDash)} vendeurId={checkoutCollabId ?? undefined} gestionnaireId={gestionnaireId} config={config} />;
-    if (page === 'wishlist')       return <PageStub titre="Liste de souhaits" emoji="❤️" />;
-    if (page === 'messagerie')    return <PageStub titre="Messagerie" emoji="💬" />;
-    if (page === 'notifications') return <PageStub titre="Notifications" emoji="🔔" />;
-    if (page === 'retours')       return <PageStub titre="Retours" emoji="🔄" />;
-    if (page === 'profil')        return <PageStub titre="Mon profil" emoji="👤" />;
+    if (page === 'checkout')      return <Checkout naviguer={(p: string) => naviguer(p as PageDash)} vendeurId={checkoutCollabId ?? undefined} gestionnaireId={gestionnaireId} config={config} />;
+    if (page === 'wishlist')      return <Wishlist {...commun} naviguer={versBoutique} />;
+    if (page === 'favoris')       return <CollaborateursFavoris {...commun} onEcrire={ecrireACollab} />;
+    if (page === 'messagerie')    return <MessagerieGestionnaire {...commun} />;
+    if (page === 'chat')          return <ChatAvecCollaborateurs {...commun} collaborateurInitial={collabInitial} onInitialConsomme={() => setCollabInitial(null)} />;
+    if (page === 'notifications') return <Notifications {...commun} />;
+    if (page === 'retours')       return <Retours {...commun} naviguer={(p: string) => naviguer(p as PageDash)} />;
+    if (page === 'documents')     return <Documents {...commun} nomSite={nomSite} />;
+    if (page === 'profil')        return <Profil {...commun} onProfilMaj={(p) => setCompte(c => (c ? { ...c, ...p } : c))} />;
     return null;
   };
 
@@ -448,6 +481,7 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
                     {[compte.prenom, compte.nom].filter(Boolean).join(' ') || 'Acheteur'}
                   </p>
                   <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{compte.email}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 600 }}>id: {compte.id}</p>
                 </div>
               </div>
               <button onClick={deconnecter} style={{ width: '100%', padding: '9px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: '#f87171', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>

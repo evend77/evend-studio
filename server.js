@@ -516,6 +516,7 @@ app.use('/api/chat-collab/:gestionnaireId',          require('./routes/chat_coll
 app.use('/api/chat-admin-collab/:gestionnaireId',    require('./routes/chat_admin_collab'));
 app.use('/api/chat-acheteur-collab/:gestionnaireId', require('./routes/chat_acheteur_collab'));
 app.use('/api/collab/:gestionnaireId',               require('./routes/collab_dashboard'));
+app.use('/api/acheteur/:gestionnaireId',             require('./routes/acheteur_dashboard'));
 
 app.use('/api/politiquesPlateforme', require('./routes/politiquesPlateforme'));
 app.use('/api/pagesPlateforme',      require('./routes/pagesPlateforme'));

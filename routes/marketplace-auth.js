@@ -249,10 +249,9 @@ router.get('/:gestionnaireId/acheteurs/:acheteurId/messages', authMarketplace, a
     if (req.mvUser.type !== 'acheteur' || req.mvUser.id !== Number(acheteurId)) {
       return res.status(403).json({ message: 'Acces refuse.' });
     }
-    const r = await pool.query(
-      'SELECT id, expediteur_nom, contenu, date_envoi AS date, lu, type FROM marketplace_messages WHERE destinataire_id=$1 AND gestionnaire_id=$2 ORDER BY date_envoi DESC LIMIT 20',
-      [acheteurId, gestionnaireId]
-    );
+    // La table marketplace_messages n'existe pas dans Studio : la messagerie est dans
+    // /api/acheteur/:gid/support/* et /api/chat-acheteur-collab/:gid/acheteur/*.
+    const r = { rows: [] };
     res.json(r.rows);
   } catch (err) { res.status(500).json({ message: 'Erreur serveur' }); }
 });
@@ -310,10 +309,8 @@ router.get('/:gestionnaireId/collaborateurs/:collabId/messages/non-lus', authMar
     if (req.mvUser.type !== 'collaborateur' || req.mvUser.id !== Number(collabId)) {
       return res.status(403).json({ message: 'Acces refuse.' });
     }
-    const r = await pool.query(
-      "SELECT COUNT(*) FILTER (WHERE type='acheteur') AS acheteurs, COUNT(*) FILTER (WHERE type='gestionnaire') AS gestionnaire, COUNT(*) AS total FROM marketplace_messages WHERE destinataire_id=$1 AND gestionnaire_id=$2 AND lu=false",
-      [collabId, gestionnaireId]
-    );
+    // Table inexistante dans Studio : voir /api/chat-acheteur-collab/:gid/collab/non-lus
+    const r = { rows: [{ acheteurs: 0, gestionnaire: 0, total: 0 }] };
     const row = r.rows[0] || {};
     res.json({ acheteurs: parseInt(row.acheteurs||0), gestionnaire: parseInt(row.gestionnaire||0), total: parseInt(row.total||0) });
   } catch (err) { res.status(500).json({ message: 'Erreur serveur' }); }

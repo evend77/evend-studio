@@ -1,728 +1,170 @@
-/**
- * Notifications.tsx — src/pages/acheteur/Notifications.tsx
- * Page des notifications de l'administration pour l'acheteur
- * Affichage des notifications avec images, marquage lu/non lu
- */
+// CHEMIN : src/pages/acheteur/Notifications.tsx
+// e-Vend Studio — Dashboard acheteur : notifications
+// Adapté de Notifications.tsx (e-Vend). Session : cookie httpOnly (credentials: 'include').
+// API : GET /api/acheteur/:gid/notifications · PUT /notifications/:id/lire · PUT /notifications/lire-tout
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 
-const API = 'https://api.e-vend.ca';
+const API = '/api';
+const PAR_PAGE = 10;
 
-// Types
-type NotificationType = 'information' | 'succes' | 'avertissement' | 'urgent' | 'maintenance';
-
-interface Notification {
+interface Notif {
   id: number;
   titre: string;
   message: string;
-  date: string;
-  type: NotificationType;
+  type: string;
+  lien_url: string | null;
+  lien_texte: string | null;
   lu: boolean;
-  important?: boolean;
-  image_url?: string;
-  lien?: {
-    texte: string;
-    url: string;
-  };
+  date: string;
 }
 
-// Couleurs
-const C = {
-  blue: '#3b82f6',
-  blueLight: 'rgba(59,130,246,0.15)',
-  indigo: '#6366f1',
-  indigoLight: 'rgba(99,102,241,0.15)',
-  purple: '#8b5cf6',
-  purpleLight: 'rgba(139,92,246,0.15)',
-  pink: '#ec4899',
-  pinkLight: 'rgba(236,72,153,0.15)',
-  green: '#10b981',
-  greenLight: 'rgba(16,185,129,0.15)',
-  emerald: '#059669',
-  emeraldLight: 'rgba(5,150,105,0.15)',
-  amber: '#f59e0b',
-  amberLight: 'rgba(245,158,11,0.15)',
-  orange: '#f97316',
-  orangeLight: 'rgba(249,115,22,0.15)',
-  red: '#ef4444',
-  redLight: 'rgba(239,68,68,0.15)',
-  rose: '#f43f5e',
-  roseLight: 'rgba(244,63,94,0.15)',
-  yellow: '#fbbf24',
-  yellowLight: 'rgba(251,191,36,0.15)',
-  border: 'rgba(255,255,255,0.08)',
-  textLight: 'rgba(255,255,255,0.5)',
-  cardBg: 'rgba(255,255,255,0.03)',
-  
-  // Couleurs par type
-  information: '#3b82f6',
-  informationLight: 'rgba(59,130,246,0.15)',
-  succes: '#10b981',
-  succesLight: 'rgba(16,185,129,0.15)',
-  avertissement: '#f59e0b',
-  avertissementLight: 'rgba(245,158,11,0.15)',
-  urgent: '#ef4444',
-  urgentLight: 'rgba(239,68,68,0.15)',
-  maintenance: '#8b5cf6',
-  maintenanceLight: 'rgba(139,92,246,0.15)',
-};
-
-// ============================================================================
-// BADGE DE TYPE DE NOTIFICATION
-// ============================================================================
-const TypeBadge = ({ type }: { type: NotificationType }) => {
-  const config = {
-    information: { bg: C.informationLight, color: C.information, icon: 'ℹ️', label: 'Information' },
-    succes: { bg: C.succesLight, color: C.succes, icon: '✅', label: 'Succès' },
-    avertissement: { bg: C.avertissementLight, color: C.avertissement, icon: '⚠️', label: 'Avertissement' },
-    urgent: { bg: C.urgentLight, color: C.urgent, icon: '🚨', label: 'Urgent' },
-    maintenance: { bg: C.maintenanceLight, color: C.maintenance, icon: '🔧', label: 'Maintenance' },
-  };
-  const { bg, color, icon, label } = config[type];
-
-  return (
-    <span style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '4px',
-      fontSize: '11px',
-      fontWeight: 700,
-      padding: '4px 10px',
-      borderRadius: '20px',
-      background: bg,
-      color: color,
-      border: `1px solid ${color}40`,
-    }}>
-      {icon} {label}
-    </span>
-  );
-};
-
-// ============================================================================
-// COMPOSANT DE CARTE NOTIFICATION
-// ============================================================================
-const NotificationCard = ({ 
-  notification, 
-  onMarquerLu, 
-}: { 
-  notification: Notification; 
-  onMarquerLu: () => void;
-}) => {
-  const [expanded, setExpanded] = useState(false);
-  
-  // Couleur de l'accent selon le type
-  const getAccentColor = () => {
-    switch (notification.type) {
-      case 'information': return C.information;
-      case 'succes': return C.succes;
-      case 'avertissement': return C.avertissement;
-      case 'urgent': return C.urgent;
-      case 'maintenance': return C.maintenance;
-      default: return C.blue;
-    }
-  };
-
-  const accentColor = getAccentColor();
-  const accentLight = `${accentColor}15`;
-
-  return (
-    <div
-      style={{
-        background: notification.lu ? C.cardBg : `linear-gradient(135deg, ${accentLight} 0%, ${C.cardBg} 100%)`,
-        border: `1px solid ${notification.lu ? C.border : `${accentColor}40`}`,
-        borderRadius: '20px',
-        overflow: 'hidden',
-        transition: 'all 0.3s ease',
-        position: 'relative',
-        cursor: 'pointer',
-        boxShadow: notification.lu 
-          ? '0 10px 30px -15px rgba(0,0,0,0.5)' 
-          : `0 10px 30px -10px ${accentColor}30`,
-      }}
-      onMouseEnter={e => {
-        e.currentTarget.style.transform = 'translateY(-3px)';
-        e.currentTarget.style.boxShadow = `0 20px 40px -15px ${accentColor}50`;
-      }}
-      onMouseLeave={e => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = notification.lu 
-          ? '0 10px 30px -15px rgba(0,0,0,0.5)' 
-          : `0 10px 30px -10px ${accentColor}30`;
-      }}
-      onClick={() => setExpanded(!expanded)}
-    >
-      {/* Indicateur de non-lu */}
-      {!notification.lu && (
-        <div style={{
-          position: 'absolute',
-          left: '0',
-          top: '0',
-          bottom: '0',
-          width: '4px',
-          background: accentColor,
-        }} />
-      )}
-
-      <div style={{ padding: '20px 24px' }}>
-        {/* En-tête */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'flex-start',
-          marginBottom: expanded ? '16px' : '8px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-            {/* Icône de type */}
-            <div style={{
-              width: '48px',
-              height: '48px',
-              borderRadius: '16px',
-              background: `${accentColor}20`,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: '24px',
-              color: accentColor,
-            }}>
-              {notification.type === 'information' && 'ℹ️'}
-              {notification.type === 'succes' && '✅'}
-              {notification.type === 'avertissement' && '⚠️'}
-              {notification.type === 'urgent' && '🚨'}
-              {notification.type === 'maintenance' && '🔧'}
-            </div>
-
-            <div style={{ flex: 1 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '4px' }}>
-                <h3 style={{ 
-                  margin: 0, 
-                  fontSize: '18px', 
-                  fontWeight: notification.lu ? 600 : 800, 
-                  color: '#fff', 
-                  fontFamily: "'Sora', sans-serif" 
-                }}>
-                  {notification.titre}
-                </h3>
-                {notification.important && (
-                  <span style={{
-                    background: C.urgentLight,
-                    color: C.urgent,
-                    fontSize: '10px',
-                    fontWeight: 800,
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                  }}>
-                    IMPORTANT
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: '12px', color: C.textLight }}>{new Date(notification.date).toLocaleDateString('fr-CA')}</span>
-                <TypeBadge type={notification.type} />
-              </div>
-            </div>
-          </div>
-
-          {/* Bouton marquer comme lu (seulement si non lu) */}
-          {!notification.lu && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onMarquerLu();
-              }}
-              style={{
-                padding: '6px 12px',
-                background: 'rgba(255,255,255,0.05)',
-                border: `1px solid ${C.border}`,
-                borderRadius: '8px',
-                color: C.textLight,
-                fontSize: '11px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              ✓ Marquer comme lu
-            </button>
-          )}
-        </div>
-
-        {/* Image (si présente) */}
-        {notification.image_url && expanded && (
-          <div style={{ marginBottom: '16px', textAlign: 'center' }}>
-            <img
-              src={notification.image_url}
-              alt=""
-              style={{
-                maxWidth: '100%',
-                maxHeight: '200px',
-                borderRadius: '12px',
-                cursor: 'pointer',
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(notification.image_url, '_blank');
-              }}
-            />
-          </div>
-        )}
-
-        {/* Message */}
-        <p style={{ 
-          margin: 0, 
-          fontSize: '14px', 
-          color: notification.lu ? C.textLight : '#fff',
-          lineHeight: '1.6',
-          maxHeight: expanded ? 'none' : '3.2em',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          display: '-webkit-box',
-          WebkitLineClamp: expanded ? 'none' : 2,
-          WebkitBoxOrient: 'vertical',
-        }}>
-          {notification.message}
-        </p>
-
-        {/* Lien (si présent) */}
-        {notification.lien && expanded && (
-          <div style={{ marginTop: '16px' }}>
-            <a
-              href={notification.lien.url}
-              style={{
-                color: accentColor,
-                fontSize: '13px',
-                fontWeight: 600,
-                textDecoration: 'none',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              {notification.lien.texte} →
-            </a>
-          </div>
-        )}
-
-        {/* Indicateur d'expansion */}
-        <div style={{ 
-          marginTop: '12px', 
-          display: 'flex', 
-          justifyContent: 'center',
-          color: C.textLight,
-          fontSize: '12px',
-        }}>
-          {expanded ? '▲ Réduire' : '▼ Voir plus'}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ============================================================================
-// COMPOSANT PRINCIPAL
-// ============================================================================
-interface NotificationsProps {
-  naviguer: (page: string, props?: any) => void;
-  userId?: number;
+interface Props {
+  gestionnaireId: number;
+  isMobile?: boolean;
+  couleurAccent?: string;
+  onChange?: () => void; // pour rafraîchir le badge du menu
+  naviguer?: (page: string) => void;
 }
 
-export default function Notifications({ naviguer, userId }: NotificationsProps) {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [filtre, setFiltre] = useState<'tous' | 'non_lus' | 'lus'>('tous');
-  const [filtreType, setFiltreType] = useState<'tous' | NotificationType>('tous');
-  const [recherche, setRecherche] = useState('');
+const C = { border: 'rgba(255,255,255,0.08)', textLight: 'rgba(255,255,255,0.5)', cardBg: 'rgba(255,255,255,0.03)', red: '#ef4444' };
+
+const TYPES: Record<string, { icone: string; couleur: string; label: string }> = {
+  commande:    { icone: '📦', couleur: '#3b82f6', label: 'Commandes' },
+  retour:      { icone: '🔄', couleur: '#f59e0b', label: 'Retours' },
+  promo:       { icone: '🎁', couleur: '#ec4899', label: 'Promotions' },
+  paiement:    { icone: '💳', couleur: '#10b981', label: 'Paiements' },
+  information: { icone: 'ℹ️', couleur: '#8b5cf6', label: 'Informations' },
+};
+const typeDe = (t: string) => TYPES[t] || TYPES.information;
+
+const depuis = (d: string) => {
+  const s = Math.floor((Date.now() - new Date(d).getTime()) / 1000);
+  if (!Number.isFinite(s) || s < 0) return '';
+  if (s < 60) return "à l'instant";
+  if (s < 3600) return `il y a ${Math.floor(s / 60)} min`;
+  if (s < 86400) return `il y a ${Math.floor(s / 3600)} h`;
+  if (s < 7 * 86400) return `il y a ${Math.floor(s / 86400)} j`;
+  return new Date(d).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' });
+};
+
+// N'accepte que des liens internes (/…) ou http(s) pour éviter tout « javascript: ».
+const lienSur = (u: string | null) => (u && /^(\/(?!\/)|https?:\/\/)/i.test(u) ? u : null);
+
+export default function Notifications({ gestionnaireId, isMobile = false, couleurAccent = '#fbbf24', onChange }: Props) {
+  const [liste, setListe] = useState<Notif[]>([]);
   const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'info' | 'danger' } | null>(null);
-  
-  // Valeurs stables — lues une seule fois au montage via useRef
-  const acheteurIdRef = React.useRef(userId || localStorage.getItem('userId'));
-  const tokenRef = React.useRef(localStorage.getItem('token'));
-  const acheteurId = acheteurIdRef.current;
+  const [erreur, setErreur] = useState('');
+  const [filtre, setFiltre] = useState<'toutes' | 'non_lues' | string>('toutes');
+  const [page, setPage] = useState(1);
 
-  const showToast = (msg: string, type: 'success' | 'info' | 'danger') => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 4000);
+  const base = `${API}/acheteur/${gestionnaireId}/notifications`;
+
+  const charger = useCallback(async () => {
+    try {
+      const r = await fetch(base, { credentials: 'include' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Chargement impossible');
+      setListe(j.notifications || []);
+      setErreur('');
+    } catch (e: any) { setErreur(e.message || 'Erreur réseau'); }
+    finally { setLoading(false); }
+  }, [base]);
+
+  useEffect(() => { charger(); const t = setInterval(() => { if (!document.hidden) charger(); }, 30000); return () => clearInterval(t); }, [charger]);
+  useEffect(() => { setPage(1); }, [filtre]);
+
+  const marquerLue = async (n: Notif) => {
+    if (n.lu) return;
+    setListe(prev => prev.map(x => (x.id === n.id ? { ...x, lu: true } : x)));
+    try { await fetch(`${base}/${n.id}/lire`, { method: 'PUT', credentials: 'include' }); onChange?.(); }
+    catch { /* le prochain rafraîchissement corrigera */ }
   };
 
-  // Charger les notifications — dépendances stables, pas de boucle infinie
-  const chargerNotifications = useCallback(async () => {
-    const id = acheteurIdRef.current;
-    const token = tokenRef.current;
-
-    if (!id) {
-      setLoading(false);
-      return;
-    }
-    
-    setLoading(true);
-    try {
-      const url = `${API}/api/notifications/acheteurs/${id}/notifications`;
-      
-      const response = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setNotifications(data);
-      } else {
-        const text = await response.text();
-        console.error('❌ Erreur chargement notifications:', response.status, text);
-      }
-    } catch (error) {
-      console.error('❌ Erreur catch:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []); // ✅ Aucune dépendance — stable au montage
-
-  useEffect(() => {
-    chargerNotifications();
-    
-    // Polling toutes les 30 secondes
-    const interval = setInterval(() => {
-      console.log('🔄 Polling - Rechargement des notifications');
-      chargerNotifications();
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, [chargerNotifications]);
-
-  // Marquer une notification comme lue
-  const marquerCommeLu = async (id: number) => {
-    const token = tokenRef.current;
-    try {
-      const url = `${API}/api/notifications/notifications/${id}/lire`;
-      
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        setNotifications(prev =>
-          prev.map(n => n.id === id ? { ...n, lu: true } : n)
-        );
-      }
-    } catch (error) {
-      console.error('❌ Erreur marquage notification:', error);
-    }
+  const toutLire = async () => {
+    setListe(prev => prev.map(x => ({ ...x, lu: true })));
+    try { await fetch(`${base}/lire-tout`, { method: 'PUT', credentials: 'include' }); onChange?.(); } catch { charger(); }
   };
 
-  // Marquer tout comme lu
-  const marquerToutLu = async () => {
-    const id = acheteurIdRef.current;
-    const token = tokenRef.current;
-    if (!id) return;
-    
-    try {
-      const url = `${API}/api/notifications/acheteurs/${id}/notifications/lire-tout`;
-      
-      const response = await fetch(url, {
-        method: 'PUT',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        setNotifications(prev =>
-          prev.map(n => ({ ...n, lu: true }))
-        );
-        showToast('✅ Toutes les notifications marquées comme lues', 'success');
-      }
-    } catch (error) {
-      console.error('❌ Erreur marquage tout:', error);
-    }
-  };
+  const nonLues = liste.filter(n => !n.lu).length;
+  const filtrees = useMemo(() => liste.filter(n => (filtre === 'toutes' ? true : filtre === 'non_lues' ? !n.lu : n.type === filtre)), [liste, filtre]);
+  const pages = Math.max(1, Math.ceil(filtrees.length / PAR_PAGE));
+  const visibles = filtrees.slice((page - 1) * PAR_PAGE, page * PAR_PAGE);
 
-  // Statistiques
-  const nonLus = notifications.filter(n => !n.lu).length;
-  const total = notifications.length;
+  const chip = (id: string, label: string, nb?: number) => (
+    <button key={id} onClick={() => setFiltre(id)}
+      style={{ padding: '7px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap', flexShrink: 0,
+        border: `1px solid ${filtre === id ? couleurAccent : C.border}`, background: filtre === id ? `${couleurAccent}22` : 'rgba(255,255,255,.04)', color: filtre === id ? couleurAccent : 'rgba(255,255,255,.7)' }}>
+      {label}{nb !== undefined && nb > 0 ? ` (${nb})` : ''}
+    </button>
+  );
 
-  // Filtrer les notifications
-  const notificationsFiltrees = notifications.filter(notif => {
-    // Filtre par statut de lecture
-    if (filtre === 'non_lus' && notif.lu) return false;
-    if (filtre === 'lus' && !notif.lu) return false;
-
-    // Filtre par type
-    if (filtreType !== 'tous' && notif.type !== filtreType) return false;
-
-    // Recherche
-    if (recherche) {
-      const searchLower = recherche.toLowerCase();
-      return (
-        notif.titre.toLowerCase().includes(searchLower) ||
-        notif.message.toLowerCase().includes(searchLower)
-      );
-    }
-
-    return true;
-  });
+  if (loading) return <div style={{ textAlign: 'center', padding: 60, color: C.textLight }}>Chargement…</div>;
 
   return (
-    <div style={{ animation: 'fadeUp 0.5s ease' }}>
-      {/* Toast */}
-      {toast && (
-        <div style={{
-          position: 'fixed',
-          top: '24px',
-          right: '24px',
-          backgroundColor: toast.type === 'success' ? '#10b981' : toast.type === 'danger' ? '#ef4444' : '#3b82f6',
-          color: 'white',
-          padding: '14px 20px',
-          borderRadius: '10px',
-          fontSize: '13px',
-          fontWeight: 700,
-          zIndex: 3000,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
-          maxWidth: '420px',
-        }}>
-          {toast.msg}
+    <div style={{ maxWidth: 820, margin: '0 auto' }}>
+      <div style={{ background: 'linear-gradient(135deg,#3b82f6 0%,#8b5cf6 100%)', borderRadius: 18, padding: isMobile ? '18px 16px' : '24px 28px', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <h1 style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontSize: isMobile ? 20 : 26, fontWeight: 800, color: '#fff' }}>🔔 Notifications</h1>
+          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,.85)' }}>{nonLues > 0 ? `${nonLues} non lue${nonLues > 1 ? 's' : ''}` : 'Tout est lu'}</p>
+        </div>
+        {nonLues > 0 && (
+          <button onClick={toutLire} style={{ padding: '9px 16px', background: 'rgba(255,255,255,.2)', border: '1px solid rgba(255,255,255,.35)', borderRadius: 10, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            ✓ Tout marquer comme lu
+          </button>
+        )}
+      </div>
+
+      {erreur && <div style={{ background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.35)', color: '#fca5a5', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13 }}>{erreur}</div>}
+
+      <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 14 }}>
+        {chip('toutes', 'Toutes')}
+        {chip('non_lues', 'Non lues', nonLues)}
+        {Object.entries(TYPES).map(([k, v]) => chip(k, `${v.icone} ${v.label}`))}
+      </div>
+
+      {visibles.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '50px 20px', background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 18 }}>
+          <div style={{ fontSize: 48, marginBottom: 10 }}>🔕</div>
+          <p style={{ margin: 0, fontSize: 14, color: C.textLight }}>{liste.length === 0 ? 'Aucune notification pour le moment.' : 'Aucune notification dans ce filtre.'}</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {visibles.map(n => {
+            const t = typeDe(n.type);
+            const lien = lienSur(n.lien_url);
+            return (
+              <div key={n.id} onClick={() => marquerLue(n)}
+                style={{ display: 'flex', gap: 12, padding: isMobile ? '12px' : '14px 18px', background: n.lu ? C.cardBg : `${t.couleur}12`, border: `1px solid ${n.lu ? C.border : `${t.couleur}55`}`, borderRadius: 14, cursor: n.lu ? 'default' : 'pointer' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: `${t.couleur}25`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>{t.icone}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                    <h3 style={{ margin: 0, fontSize: 14, fontWeight: n.lu ? 600 : 800, color: '#fff', wordBreak: 'break-word' }}>{n.titre}</h3>
+                    {!n.lu && <span style={{ width: 9, height: 9, borderRadius: '50%', background: t.couleur, flexShrink: 0, marginTop: 5 }} />}
+                  </div>
+                  <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,.7)', lineHeight: 1.5, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>{n.message}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, color: C.textLight }}>{depuis(n.date)}</span>
+                    {lien && (
+                      <a href={lien} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 12, fontWeight: 700, color: t.couleur, textDecoration: 'none' }}>
+                        {n.lien_texte || 'Voir'} →
+                      </a>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
 
-      {/* En-tête avec statistiques - Style WOW! */}
-      <div style={{
-        background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-        borderRadius: '24px',
-        padding: '32px',
-        marginBottom: '32px',
-        position: 'relative',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          position: 'absolute',
-          top: '-30px',
-          right: '-30px',
-          width: '200px',
-          height: '200px',
-          borderRadius: '50%',
-          background: 'rgba(255,255,255,0.1)',
-        }} />
-        <div style={{
-          position: 'absolute',
-          bottom: '-50px',
-          left: '-50px',
-          width: '300px',
-          height: '300px',
-          borderRadius: '50%',
-          background: 'rgba(255,255,255,0.05)',
-        }} />
-        
-        <div style={{ position: 'relative', zIndex: 2 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div>
-              <h1 style={{ margin: '0 0 8px', fontSize: '32px', fontWeight: 800, color: '#fff', fontFamily: "'Sora', sans-serif" }}>
-                🔔 Notifications
-              </h1>
-              <p style={{ margin: 0, fontSize: '16px', color: 'rgba(255,255,255,0.8)', maxWidth: '500px' }}>
-                Messages officiels de l'administration e-Vend
-              </p>
-            </div>
-            
-            {/* Bouton tout marquer comme lu */}
-            {nonLus > 0 && (
-              <button
-                onClick={marquerToutLu}
-                style={{
-                  padding: '10px 20px',
-                  background: 'rgba(255,255,255,0.15)',
-                  border: '1px solid rgba(255,255,255,0.3)',
-                  borderRadius: '30px',
-                  color: '#fff',
-                  fontSize: '14px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  backdropFilter: 'blur(5px)',
-                }}
-              >
-                ✓ Marquer tout comme lu
-              </button>
-            )}
-          </div>
-          
-          {/* Statistiques rapides */}
-          <div style={{ display: 'flex', gap: '32px', marginTop: '24px' }}>
-            <div>
-              <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff' }}>{total}</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Total</div>
-            </div>
-            <div>
-              <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff' }}>{nonLus}</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Non lus</div>
-            </div>
-            <div>
-              <div style={{ fontSize: '28px', fontWeight: 800, color: '#fff' }}>{total - nonLus}</div>
-              <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.7)' }}>Lus</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Filtres et recherche */}
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: 'column',
-        gap: '16px',
-        marginBottom: '24px',
-      }}>
-        {/* Filtres par statut */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {[
-            { id: 'tous', label: 'Tous' },
-            { id: 'non_lus', label: 'Non lus' },
-            { id: 'lus', label: 'Lus' },
-          ].map(f => (
-            <button
-              key={f.id}
-              onClick={() => setFiltre(f.id as any)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '30px',
-                border: 'none',
-                background: filtre === f.id ? C.blue : 'rgba(255,255,255,0.05)',
-                color: filtre === f.id ? '#fff' : C.textLight,
-                fontSize: '13px',
-                fontWeight: filtre === f.id ? 700 : 500,
-                cursor: 'pointer',
-              }}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Filtres par type */}
-        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-          {[
-            { id: 'tous', label: 'Tous types' },
-            { id: 'information', label: 'ℹ️ Information' },
-            { id: 'succes', label: '✅ Succès' },
-            { id: 'avertissement', label: '⚠️ Avertissement' },
-            { id: 'urgent', label: '🚨 Urgent' },
-            { id: 'maintenance', label: '🔧 Maintenance' },
-          ].map(f => (
-            <button
-              key={f.id}
-              onClick={() => setFiltreType(f.id as any)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '30px',
-                border: 'none',
-                background: filtreType === f.id ? C.blue : 'rgba(255,255,255,0.05)',
-                color: filtreType === f.id ? '#fff' : C.textLight,
-                fontSize: '13px',
-                fontWeight: filtreType === f.id ? 700 : 500,
-                cursor: 'pointer',
-              }}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Barre de recherche */}
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginTop: '8px',
-        }}>
-          <input
-            type="text"
-            placeholder="🔍 Rechercher dans les notifications..."
-            value={recherche}
-            onChange={(e) => setRecherche(e.target.value)}
-            style={{
-              flex: 1,
-              maxWidth: '400px',
-              padding: '12px 18px',
-              borderRadius: '30px',
-              border: `1px solid ${C.border}`,
-              background: 'rgba(255,255,255,0.05)',
-              color: '#fff',
-              fontSize: '14px',
-              outline: 'none',
-            }}
-          />
-          
-          {/* Résultats de recherche */}
-          <span style={{ fontSize: '13px', color: C.textLight }}>
-            {notificationsFiltrees.length} notification{notificationsFiltrees.length > 1 ? 's' : ''}
-          </span>
-        </div>
-      </div>
-
-      {/* Loading state */}
-      {loading && (
-        <div style={{ 
-          padding: '60px', 
-          textAlign: 'center', 
-          background: 'rgba(255,255,255,0.02)',
-          borderRadius: '20px',
-          border: `1px dashed ${C.border}`,
-          marginBottom: '40px',
-        }}>
-          <div style={{ width: '40px', height: '40px', margin: '0 auto 16px', borderRadius: '50%', border: '3px solid rgba(255,255,255,0.1)', borderTop: `3px solid ${C.blue}`, animation: 'spin 0.8s linear infinite' }} />
-          <p style={{ color: '#fff', fontSize: '16px' }}>Chargement des notifications...</p>
+      {pages > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 20 }}>
+          <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,.05)', color: page <= 1 ? C.textLight : '#fff', cursor: page <= 1 ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>← Précédent</button>
+          <span style={{ fontSize: 12, color: C.textLight }}>Page {page} / {pages}</span>
+          <button disabled={page >= pages} onClick={() => setPage(p => p + 1)} style={{ padding: '8px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,.05)', color: page >= pages ? C.textLight : '#fff', cursor: page >= pages ? 'not-allowed' : 'pointer', fontFamily: 'inherit' }}>Suivant →</button>
         </div>
       )}
-
-      {/* Liste des notifications */}
-      {!loading && notificationsFiltrees.length > 0 ? (
-        <div style={{ 
-          display: 'flex', 
-          flexDirection: 'column', 
-          gap: '16px',
-          marginBottom: '40px'
-        }}>
-          {notificationsFiltrees.map(notification => (
-            <NotificationCard
-              key={notification.id}
-              notification={notification}
-              onMarquerLu={() => marquerCommeLu(notification.id)}
-            />
-          ))}
-        </div>
-      ) : !loading && (
-        <div style={{ 
-          padding: '60px', 
-          textAlign: 'center', 
-          background: 'rgba(255,255,255,0.02)',
-          borderRadius: '20px',
-          border: `1px dashed ${C.border}`,
-          marginBottom: '40px',
-        }}>
-          <div style={{ fontSize: '48px', marginBottom: '16px', opacity: 0.5 }}>📭</div>
-          <p style={{ color: '#fff', fontSize: '16px', marginBottom: '8px' }}>Aucune notification trouvée</p>
-          <p style={{ color: C.textLight, fontSize: '13px' }}>Essayez de modifier vos filtres ou revenez plus tard!</p>
-        </div>
-      )}
-
-      {/* Note en bas */}
-      <div style={{
-        marginTop: '24px',
-        padding: '16px 20px',
-        background: 'rgba(255,255,255,0.02)',
-        borderRadius: '16px',
-        border: `1px solid ${C.border}`,
-        fontSize: '13px',
-        color: C.textLight,
-        lineHeight: '1.6',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-      }}>
-        <span style={{ fontSize: '20px' }}>ℹ️</span>
-        <span>
-          Ces notifications sont envoyées par l'administration e-Vend uniquement. Vous ne pouvez pas y répondre. 
-          Pour contacter l'administration, utilisez la section <strong>Messagerie → Support e-Vend</strong>.
-        </span>
-      </div>
-
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }

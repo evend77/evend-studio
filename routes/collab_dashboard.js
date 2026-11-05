@@ -454,7 +454,7 @@ router.put('/commandes/:id/statut', h(async (req, res) => {
   const b = req.body || {};
   if (!id || !STATUTS_COMMANDE.includes(b.statut)) bad('Statut invalide');
   const c = await pool.query(
-    `SELECT statut, statut_paiement FROM marketplace_commandes WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3`, [id, req.cid, req.gid]);
+    `SELECT statut, statut_paiement, acheteur_id, numero_commande FROM marketplace_commandes WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3`, [id, req.cid, req.gid]);
   if (!c.rows.length) bad('Commande introuvable', 404);
   const actuel = c.rows[0];
   if (!(TRANSITIONS[actuel.statut] || []).includes(b.statut)) bad(`Passage impossible : ${actuel.statut} → ${b.statut}`, 409);
@@ -469,6 +469,11 @@ router.put('/commandes/:id/statut', h(async (req, res) => {
             transporteur = CASE WHEN $7::boolean THEN NULLIF($3::text,'') ELSE transporteur END
       WHERE id=$4 AND collaborateur_id=$5 AND gestionnaire_id=$6`,
     [b.statut, suivi, transp, id, req.cid, req.gid, b.statut === 'expediee']);
+  const LIB = { confirmee: 'confirmée', expediee: 'expédiée', livree: 'livrée', annulee: 'annulée' };
+  if (LIB[b.statut] && actuel.acheteur_id) {
+    await notifierAcheteur(req.gid, actuel.acheteur_id, `Commande ${LIB[b.statut]}`,
+      `Votre commande ${actuel.numero_commande} est maintenant ${LIB[b.statut]}.${suivi ? ' Suivi : ' + suivi + '.' : ''}`, 'commande');
+  }
   res.json({ success: true });
 }));
 
@@ -525,11 +530,21 @@ router.get('/retours', h(async (req, res) => {
   res.json({ retours: liste.rows, total: n, page, pages: Math.max(1, Math.ceil(n / PAR_PAGE)), par_statut: parStatut });
 }));
 
+
+// Notification vers l'acheteur (les erreurs ne bloquent jamais l'action principale)
+async function notifierAcheteur(gid, acheteurId, titre, message, type) {
+  try {
+    await pool.query(
+      `INSERT INTO marketplace_notifications (gestionnaire_id, acheteur_id, titre, message, type) VALUES ($1,$2,$3,$4,$5)`,
+      [gid, acheteurId, titre, message, type || 'commande']);
+  } catch (e) { console.error('[collab_dashboard] notifierAcheteur', e && e.message); }
+}
+
 async function actionRetour(req, res, depuis, vers, champs) {
   const id = entier(req.params.id);
   if (!id) bad('Demande invalide');
   const c = await pool.query(
-    `SELECT r.statut, c.total FROM demandes_retour r JOIN marketplace_commandes c ON c.id = r.commande_id
+    `SELECT r.statut, r.acheteur_id, c.numero_commande, c.total FROM demandes_retour r JOIN marketplace_commandes c ON c.id = r.commande_id
       WHERE r.id=$1 AND r.collaborateur_id=$2 AND r.gestionnaire_id=$3`, [id, req.cid, req.gid]);
   if (!c.rows.length) bad('Demande introuvable', 404);
   if (c.rows[0].statut !== depuis) bad('Cette demande ne peut plus être modifiée ainsi', 409);
@@ -538,6 +553,9 @@ async function actionRetour(req, res, depuis, vers, champs) {
     `UPDATE demandes_retour SET statut=$1, montant_remboursement=COALESCE($2, montant_remboursement),
             reponse=COALESCE(NULLIF($3,''), reponse), updated_at=NOW() WHERE id=$4`,
     [vers, f.montant, f.reponse, id]);
+  const TXT = { approuve: 'approuvée', refuse: 'refusée', termine: 'terminée' };
+  await notifierAcheteur(req.gid, c.rows[0].acheteur_id, `Demande de retour ${TXT[vers]}`,
+    `Votre demande pour la commande ${c.rows[0].numero_commande} a été ${TXT[vers]}.`, 'retour');
   res.json({ success: true });
 }
 
