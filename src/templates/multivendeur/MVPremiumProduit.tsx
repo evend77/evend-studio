@@ -99,20 +99,45 @@ function getImages(p: Produit): string[] {
 
 // ─── NAVBAR ──────────────────────────────────────────────────────────────────
 function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Record<string, any> }) {
+  const [menuOuvert, setMenuOuvert] = useState(false);
   const nom = config?.nom_boutique || 'Ma Marketplace';
+  const accent = config?.couleur_accent || '#fbbf24';
+  const liens: { label: string; dest: NavMV }[] = [{ label: '← Retour au catalogue', dest: { page: 'catalogue' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }];
+  const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
     <nav style={s.nav}>
-      <div style={s.navInner}>
-        <div style={s.navLogo} onClick={() => naviguer({ page: 'accueil' })}>
-          <div style={s.logoIcon}>{(nom[0] || 'M').toUpperCase()}</div>
-          <span style={s.logoText}>{nom}</span>
+      <style>{`
+        @media (max-width:768px) {
+          .mvn-liens { display:none !important; }
+          .mvn-burger { display:flex !important; }
+          .mvn-inner { padding:0 14px !important; gap:12px !important; }
+          .mvn-search { display:none !important; }
+        }
+      `}</style>
+      <div className="mvn-inner" style={s.navInner}>
+        <div style={{ ...s.navLogo, minWidth: 0, flexShrink: 1 }} onClick={() => aller({ page: 'accueil' })}>
+          <div style={{ ...s.logoIcon, flexShrink: 0 }}>{(nom[0] || 'M').toUpperCase()}</div>
+          <span style={{ ...s.logoText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
         </div>
-        <div style={s.navLinks}>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'catalogue' })}>← Retour au catalogue</span>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'boutiques' })}>Boutiques</span>
-          <button onClick={() => naviguer({ page: 'login' })} style={{ padding: '8px 18px', background: config?.couleur_accent || '#fbbf24', border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+        <div className="mvn-liens" style={s.navLinks}>
+          {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
+          <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
+        <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
+          style={{ display: 'none', marginLeft: 'auto', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer', padding: '4px 8px', flexShrink: 0 }}>
+          {menuOuvert ? '✕' : '☰'}
+        </button>
       </div>
+      {menuOuvert && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+          {liens.map(l => (
+            <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
+          ))}
+          <div style={{ padding: '14px 20px' }}>
+            <button onClick={() => aller({ page: 'login' })} style={{ width: '100%', padding: 12, background: accent, border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
@@ -208,11 +233,21 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
+        .mvpr-desc img { max-width:100%; height:auto; }
+        .mvpr-desc { overflow-wrap:anywhere; }
+        @media (max-width:768px) {
+          .mvpr-container { padding:16px 14px 40px !important; }
+          .mvpr-layout { grid-template-columns:minmax(0,1fr) !important; gap:24px !important; }
+          .mvpr-tabs { overflow-x:auto; }
+          .mvpr-tabs button { padding:12px 16px !important; white-space:nowrap; flex-shrink:0; }
+          .mvpr-det { grid-template-columns:minmax(0,1fr) !important; }
+          .mvpr-sim { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:10px !important; }
+        }
       `}</style>
 
       <Navbar naviguer={naviguer} config={config} />
 
-      <div style={s.container}>
+      <div className="mvpr-container" style={s.container}>
         {/* Fil d'ariane */}
         <div style={s.breadcrumb}>
           <span style={s.breadLink} onClick={() => naviguer({ page: 'accueil' })}>Accueil</span>
@@ -227,7 +262,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
         </div>
 
         {/* Layout principal */}
-        <div style={s.layout}>
+        <div className="mvpr-layout" style={s.layout}>
           {/* ── Galerie ── */}
           <div style={s.galerie}>
             {/* Image principale */}
@@ -330,7 +365,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
         {/* ── Onglets description / détails / livraison ── */}
         <div style={s.onglets}>
-          <div style={s.ongletsBtns}>
+          <div className="mvpr-tabs" style={s.ongletsBtns}>
             {(['description', 'details', 'livraison'] as const)
               .filter(o => (o === 'description' ? config.produit_onglet_description_actif !== false : o === 'details' ? config.produit_onglet_details_actif !== false : config.produit_onglet_livraison_actif !== false))
               .map(o => (
@@ -343,11 +378,11 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
           <div style={s.ongletContenu}>
             {onglet === 'description' && (
               produit.description
-                ? <div dangerouslySetInnerHTML={{ __html: produit.description }} style={{ color: 'rgba(255,255,255,0.8)', lineHeight: 1.8, fontSize: 15 }} />
+                ? <div className="mvpr-desc" dangerouslySetInnerHTML={{ __html: produit.description }} style={{ color: 'rgba(255,255,255,0.8)', lineHeight: 1.8, fontSize: 15 }} />
                 : <p style={{ color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>Aucune description disponible.</p>
             )}
             {onglet === 'details' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="mvpr-det" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {[
                   ['Marque', produit.marque], ['Modèle', produit.modele],
                   ['État', produit.etat], ['Poids', produit.poids ? `${produit.poids} kg` : null],
@@ -389,7 +424,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
         {config.produit_similaires_actif !== false && similaires.length > 0 && (
           <div style={{ margin: '40px 0' }}>
             <h3 style={s.sectionTitre}>Produits similaires</h3>
-            <div style={s.grilleSimilaires}>
+            <div className="mvpr-sim" style={s.grilleSimilaires}>
               {similaires.slice(0, 4).map(p => (
                 <div key={p.id} onClick={() => naviguer({ page: 'produit', produitId: p.id })} style={s.carteSim}>
                   <div style={s.carteSimImg}>
@@ -440,7 +475,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
-  wrapper:    { minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  wrapper:    { overflowX: 'clip', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   nav:        { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner:   { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 32 },
   navLogo:    { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 0 },

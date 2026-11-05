@@ -83,20 +83,45 @@ const DEMO_AVIS: Avis[] = [
 ];
 
 function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Record<string, any> }) {
+  const [menuOuvert, setMenuOuvert] = useState(false);
   const nom = config?.nom_boutique || 'Ma Marketplace';
+  const accent = config?.couleur_accent || '#fbbf24';
+  const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Catalogue', dest: { page: 'catalogue' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }];
+  const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
     <nav style={s.nav}>
-      <div style={s.navInner}>
-        <div style={s.navLogo} onClick={() => naviguer({ page: 'accueil' })}>
-          <div style={s.logoIcon}>{(nom[0] || 'M').toUpperCase()}</div>
-          <span style={s.logoText}>{nom}</span>
+      <style>{`
+        @media (max-width:768px) {
+          .mvn-liens { display:none !important; }
+          .mvn-burger { display:flex !important; }
+          .mvn-inner { padding:0 14px !important; gap:12px !important; }
+          .mvn-search { display:none !important; }
+        }
+      `}</style>
+      <div className="mvn-inner" style={s.navInner}>
+        <div style={{ ...s.navLogo, minWidth: 0, flexShrink: 1 }} onClick={() => aller({ page: 'accueil' })}>
+          <div style={{ ...s.logoIcon, flexShrink: 0 }}>{(nom[0] || 'M').toUpperCase()}</div>
+          <span style={{ ...s.logoText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
         </div>
-        <div style={s.navLinks}>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'catalogue' })}>Catalogue</span>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'boutiques' })}>Boutiques</span>
-          <button onClick={() => naviguer({ page: 'login' })} style={{ padding: '8px 18px', background: config?.couleur_accent || '#fbbf24', border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+        <div className="mvn-liens" style={s.navLinks}>
+          {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
+          <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
+        <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
+          style={{ display: 'none', marginLeft: 'auto', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer', padding: '4px 8px', flexShrink: 0 }}>
+          {menuOuvert ? '✕' : '☰'}
+        </button>
       </div>
+      {menuOuvert && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+          {liens.map(l => (
+            <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
+          ))}
+          <div style={{ padding: '14px 20px' }}>
+            <button onClick={() => aller({ page: 'login' })} style={{ width: '100%', padding: 12, background: accent, border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
@@ -248,20 +273,32 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
+        @media (max-width:640px) {
+          .mvp-banniere { height:130px !important; }
+          .mvp-header, .mvp-tabs, .mvp-main { padding-left:16px !important; padding-right:16px !important; }
+          .mvp-main { padding-top:20px !important; padding-bottom:40px !important; }
+          .mvp-logo { width:76px !important; height:76px !important; }
+          .mvp-layout { flex-direction:column !important; gap:14px !important; }
+          .mvp-side { width:100% !important; }
+          .mvp-cats { display:none !important; }
+          .mvp-cats.ouvert { display:flex !important; }
+          .mvp-grille { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:10px !important; }
+        }
+        @media (min-width:641px) { .mvp-chev { display:none; } }
         .blog-contenu p { color: rgba(255,255,255,0.75); line-height: 1.8; margin-bottom: 1em; }
       `}</style>
 
       <Navbar naviguer={naviguer} config={config} />
 
       {/* Bannière boutique */}
-      <div style={{ ...s.banniere, backgroundImage: boutique.banniere_url ? `url(${boutique.banniere_url})` : `linear-gradient(135deg, ${couleurAccent}30, #0a0a0a)` }}>
+      <div className="mvp-banniere" style={{ ...s.banniere, backgroundImage: boutique.banniere_url ? `url(${boutique.banniere_url})` : `linear-gradient(135deg, ${couleurAccent}30, #0a0a0a)` }}>
         <div style={s.bannièreOverlay} />
       </div>
 
       {/* Header boutique */}
-      <div style={s.headerBoutique}>
+      <div className="mvp-header" style={s.headerBoutique}>
         <div style={s.headerInner}>
-          <div style={s.logoBoutique}>
+          <div className="mvp-logo" style={s.logoBoutique}>
             {boutique.logo_url
               ? <img src={boutique.logo_url} alt={boutique.nom_boutique} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 16 }} />
               : <span style={{ fontSize: 32, fontWeight: 900, color: couleurAccent }}>{boutique.nom_boutique[0]}</span>}
@@ -281,7 +318,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
 
       {/* Onglets */}
       <div style={s.ongletsBar}>
-        <div style={s.ongletsInner}>
+        <div className="mvp-tabs" style={s.ongletsInner}>
           {ONGLETS.filter(o => o.visible).map(o => (
             <button key={o.id} onClick={() => setOnglet(o.id)}
               style={{ ...s.ongletBtn, borderBottom: onglet === o.id ? `3px solid ${couleurAccent}` : '3px solid transparent', color: onglet === o.id ? '#fff' : 'rgba(255,255,255,0.5)' }}>
@@ -291,7 +328,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
         </div>
       </div>
 
-      <main style={s.main}>
+      <main className="mvp-main" style={s.main}>
         {/* ── ONGLET PRODUITS ── */}
         {onglet === 'produits' && (
           <div>
@@ -301,18 +338,18 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
               <button style={{ ...s.btnRecherche, background: couleurAccent }}>🔍</button>
             </div>
 
-            <div style={s.layoutProduits}>
+            <div className="mvp-layout" style={s.layoutProduits}>
               {/* Sidebar catégories */}
               {categoriesAvecCompteur.length > 0 && (
-                <aside style={s.sidebarCat}>
+                <aside className="mvp-side" style={s.sidebarCat}>
                   <div style={s.sidebarCard}>
-                    <h3 style={s.sidebarTitre}>
+                    <h3 style={s.sidebarTitre} onClick={() => setFiltreCatMobileOuvert(v => !v)}>
                       Filtrer par catégories
                       <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
-                        {categoriesAvecCompteur.reduce((acc, c) => acc + c.count, 0)}
+                        {categoriesAvecCompteur.reduce((acc, c) => acc + c.count, 0)} <span className="mvp-chev">{filtreCatMobileOuvert ? '▲' : '▼'}</span>
                       </span>
                     </h3>
-                    <div style={s.listeCat}>
+                    <div className={`mvp-cats${filtreCatMobileOuvert ? ' ouvert' : ''}`} style={s.listeCat}>
                       {categoriesAvecCompteur.map(cat => (
                         <label key={cat.nom} style={s.catLabel}>
                           <input type="checkbox" checked={categoriesActives.includes(cat.nom)} onChange={() => toggleCategorie(cat.nom)} style={{ accentColor: couleurAccent, cursor: 'pointer' }} />
@@ -333,7 +370,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                 {produitsFiltres.length === 0 ? (
                   <div style={s.vide}><div style={{ fontSize: 40, marginBottom: 10 }}>📦</div><p style={{ color: 'rgba(255,255,255,0.5)' }}>{recherche || categoriesActives.length > 0 ? 'Aucun produit ne correspond à votre recherche' : 'Aucun produit pour le moment'}</p></div>
                 ) : (
-                  <div style={s.grilleProduits}>
+                  <div className="mvp-grille" style={s.grilleProduits}>
                     {produitsFiltres.map(p => (
                       <div key={p.id} onClick={() => naviguer({ page: 'produit', produitId: p.id })} style={s.carteProduit}>
                         <div style={s.carteImg}>
@@ -492,7 +529,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
 }
 
 const s: Record<string, React.CSSProperties> = {
-  page:     { minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  page:     { overflowX: 'clip', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   nav:      { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner: { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 32 },
   navLogo:  { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' },
@@ -519,7 +556,7 @@ const s: Record<string, React.CSSProperties> = {
   sidebarCat: { width: 230, flexShrink: 0 },
   sidebarCard: { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: 16 },
   sidebarTitre: { fontSize: 14, fontWeight: 800, color: '#fff', margin: '0 0 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' },
-  listeCat: { flexDirection: 'column' as const, gap: 8 },
+  listeCat: { display: 'flex', flexDirection: 'column' as const, gap: 8 },
   catLabel: { display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, padding: '4px 0' },
   badgeCount: { width: 22, height: 22, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, flexShrink: 0 },
   btnReset: { marginTop: 10, padding: '6px 12px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: 'rgba(255,255,255,0.7)', fontSize: 12, cursor: 'pointer', fontFamily: 'inherit', width: '100%' },

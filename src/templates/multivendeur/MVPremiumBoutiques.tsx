@@ -49,12 +49,12 @@ function CarteBoutique({ boutique, couleurAccent, naviguer, ouvrirBoutique }: { 
   const [imgErreur, setImgErreur] = useState(false);
 
   return (
-    <div style={s.carte}
+    <div className="mvb-carte" style={s.carte}
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.borderColor = `${couleurAccent}40`; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-2px)'; }}
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(255,255,255,0.08)'; (e.currentTarget as HTMLDivElement).style.transform = 'none'; }}>
 
       {/* Logo / Initiales */}
-      <div style={s.carteGauche}>
+      <div className="mvb-gauche" style={s.carteGauche}>
         <div style={s.logoWrap}>
           {boutique.logo && !imgErreur
             ? <img src={boutique.logo} alt={boutique.nom_boutique} onError={() => setImgErreur(true)} style={s.logoImg} />
@@ -92,7 +92,7 @@ function CarteBoutique({ boutique, couleurAccent, naviguer, ouvrirBoutique }: { 
         </button>
       </div>
 
-      <div style={s.separateur} />
+      <div className="mvb-sep" style={s.separateur} />
 
       <div style={s.carteDroite}>
         {boutique.description_boutique
@@ -105,21 +105,45 @@ function CarteBoutique({ boutique, couleurAccent, naviguer, ouvrirBoutique }: { 
 
 // ─── NAVBAR ──────────────────────────────────────────────────────────────────
 function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Record<string, any> }) {
+  const [menuOuvert, setMenuOuvert] = useState(false);
   const nom = config?.nom_boutique || 'Ma Marketplace';
+  const accent = config?.couleur_accent || '#fbbf24';
+  const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Catalogue', dest: { page: 'catalogue' } }, { label: 'Enchères', dest: { page: 'encheres' } }];
+  const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
     <nav style={s.nav}>
-      <div style={s.navInner}>
-        <div style={s.navLogo} onClick={() => naviguer({ page: 'accueil' })}>
-          <div style={s.logoIcon}>{(nom[0] || 'M').toUpperCase()}</div>
-          <span style={s.logoText}>{nom}</span>
+      <style>{`
+        @media (max-width:768px) {
+          .mvn-liens { display:none !important; }
+          .mvn-burger { display:flex !important; }
+          .mvn-inner { padding:0 14px !important; gap:12px !important; }
+          .mvn-search { display:none !important; }
+        }
+      `}</style>
+      <div className="mvn-inner" style={s.navInner}>
+        <div style={{ ...s.navLogo, minWidth: 0, flexShrink: 1 }} onClick={() => aller({ page: 'accueil' })}>
+          <div style={{ ...s.logoIcon, flexShrink: 0 }}>{(nom[0] || 'M').toUpperCase()}</div>
+          <span style={{ ...s.logoText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
         </div>
-        <div style={s.navLinks}>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'accueil' })}>Accueil</span>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'catalogue' })}>Catalogue</span>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'encheres' })}>Encheres</span>
-          <button onClick={() => naviguer({ page: 'login' })} style={{ padding: '8px 18px', background: config?.couleur_accent || '#fbbf24', border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+        <div className="mvn-liens" style={s.navLinks}>
+          {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
+          <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
+        <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
+          style={{ display: 'none', marginLeft: 'auto', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer', padding: '4px 8px', flexShrink: 0 }}>
+          {menuOuvert ? '✕' : '☰'}
+        </button>
       </div>
+      {menuOuvert && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+          {liens.map(l => (
+            <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
+          ))}
+          <div style={{ padding: '14px 20px' }}>
+            <button onClick={() => aller({ page: 'login' })} style={{ width: '100%', padding: 12, background: accent, border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
@@ -195,13 +219,22 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
+        @media (max-width:640px) {
+          .mvb-main { padding:28px 0 60px !important; }
+          .mvb-inner { padding:0 16px !important; }
+          .mvb-search { min-width:0 !important; flex-basis:100% !important; }
+          .mvb-carte { flex-direction:column !important; padding:16px !important; gap:14px !important; }
+          .mvb-gauche { width:100% !important; }
+          .mvb-gauche button { width:100%; }
+          .mvb-sep { display:none !important; }
+        }
         @keyframes fadeUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
       `}</style>
 
       <Navbar naviguer={naviguer} config={config} />
 
-      <main style={s.main}>
-        <div style={s.inner}>
+      <main className="mvb-main" style={s.main}>
+        <div className="mvb-inner" style={s.inner}>
           {/* Hero */}
           <div style={{ ...s.hero, animation: 'fadeUp 0.5s ease' }}>
             <div style={{ ...s.heroBadge, background: `${couleurAccent}20`, color: couleurAccent, border: `1px solid ${couleurAccent}40` }}>
@@ -218,7 +251,7 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
           {/* Toolbar */}
           <div style={s.toolbar}>
             {/* Recherche */}
-            <div style={s.searchBar}>
+            <div className="mvb-search" style={s.searchBar}>
               <input value={rechercheInput} onChange={e => setRechercheInput(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') { setRecherche(rechercheInput.trim()); setPage(1); } }}
                 placeholder="Rechercher une boutique..."
@@ -292,8 +325,8 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
-  page:     { minHeight: '100vh', background: '#060d1f', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
-  nav:      { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(6,13,31,0.96)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.07)' },
+  page:     { overflowX: 'clip', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  nav:      { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner: { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 32 },
   navLogo:  { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 0 },
   logoIcon: { width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg,#fbbf24,#f59e0b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#000' },
@@ -311,7 +344,7 @@ const s: Record<string, React.CSSProperties> = {
   searchInput: { flex: 1, padding: '10px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px 0 0 10px', color: '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit' },
   searchBtn:{ padding: '10px 16px', border: 'none', borderRadius: '0 10px 10px 0', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' },
   btnFiltre:{ padding: '10px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, color: '#fff', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' },
-  panneau:  { position: 'absolute', top: '100%', right: 0, marginTop: 8, background: '#0f1c35', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, overflow: 'hidden', zIndex: 200, minWidth: 200, boxShadow: '0 16px 48px rgba(0,0,0,0.5)' },
+  panneau:  { position: 'absolute', top: '100%', right: 0, marginTop: 8, background: '#1a1a2e', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, overflow: 'hidden', zIndex: 200, minWidth: 200, boxShadow: '0 16px 48px rgba(0,0,0,0.5)' },
   panneauItem: { padding: '12px 16px', cursor: 'pointer', fontSize: 14, fontWeight: 500, transition: 'all 0.15s' },
   carte:    { background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '20px 24px', display: 'flex', gap: 24, alignItems: 'flex-start', transition: 'all 0.2s', cursor: 'default' },
   carteGauche: { display: 'flex', alignItems: 'flex-start', gap: 16, flexShrink: 0, flexDirection: 'column' },

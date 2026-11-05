@@ -1,4 +1,4 @@
-// CHEMIN : src/templates/multivendeur/MVPremiumCatalogue.tsx
+// src/templates/multivendeur/MVPremiumCatalogue.tsx
 // e-Vend Studio — Template Multi-Vendeur Premium — Catalogue
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -93,28 +93,58 @@ function getImage(p: Produit): string | null {
 
 // ─── NAVBAR ──────────────────────────────────────────────────────────────────
 function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: any) {
+  const [menuOuvert, setMenuOuvert] = useState(false);
   const nom = config?.nom_boutique || 'Ma Marketplace';
+  const accent = config?.couleur_accent || '#fbbf24';
+  const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }, { label: 'Enchères', dest: { page: 'encheres' } }];
+  const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
     <nav style={s.nav}>
-      <div style={s.navInner}>
-        <div style={s.navLogo} onClick={() => naviguer({ page: 'accueil' })}>
-          <div style={s.logoIcon}>{(nom[0] || 'M').toUpperCase()}</div>
-          <span style={s.logoText}>{nom}</span>
+      <style>{`
+        @media (max-width:768px) {
+          .mvn-liens { display:none !important; }
+          .mvn-burger { display:flex !important; }
+          .mvn-inner { padding:0 14px !important; gap:12px !important; }
+          .mvn-search { display:none !important; }
+        }
+      `}</style>
+      <div className="mvn-inner" style={s.navInner}>
+        <div style={{ ...s.navLogo, minWidth: 0, flexShrink: 1 }} onClick={() => aller({ page: 'accueil' })}>
+          <div style={{ ...s.logoIcon, flexShrink: 0 }}>{(nom[0] || 'M').toUpperCase()}</div>
+          <span style={{ ...s.logoText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
         </div>
-        <div style={s.searchBar}>
+        <div className="mvn-search" style={s.searchBar}>
           <input value={recherche} onChange={e => setRecherche(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && onRecherche()}
             placeholder="Rechercher dans le catalogue..."
             style={s.searchInput} />
           <button onClick={onRecherche} style={s.searchBtn}>🔍</button>
         </div>
-        <div style={s.navLinks}>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'accueil' })}>Accueil</span>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'boutiques' })}>Boutiques</span>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'encheres' })}>Enchères</span>
-          <button onClick={() => naviguer({ page: 'login' })} style={{ padding: '8px 18px', background: config?.couleur_accent || '#fbbf24', border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+        <div className="mvn-liens" style={s.navLinks}>
+          {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
+          <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
+        <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
+          style={{ display: 'none', marginLeft: 'auto', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer', padding: '4px 8px', flexShrink: 0 }}>
+          {menuOuvert ? '✕' : '☰'}
+        </button>
       </div>
+      {menuOuvert && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex' }}>
+              <input value={recherche} onChange={e => setRecherche(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { onRecherche(); setMenuOuvert(false); } }}
+                placeholder="Rechercher..." style={{ ...s.searchInput, minWidth: 0 }} />
+              <button onClick={() => { onRecherche(); setMenuOuvert(false); }} style={s.searchBtn}>🔍</button>
+            </div>
+          {liens.map(l => (
+            <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
+          ))}
+          <div style={{ padding: '14px 20px' }}>
+            <button onClick={() => aller({ page: 'login' })} style={{ width: '100%', padding: 12, background: accent, border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
@@ -258,6 +288,16 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
+        .mvc-btn-cat { display:none !important; }
+        @media (max-width:768px) {
+          .mvc-layout { flex-direction:column !important; padding:14px !important; gap:12px !important; }
+          .mvc-aside { display:none !important; }
+          .mvc-btn-cat { display:inline-block !important; }
+          .mvc-main { width:100%; }
+          .mvc-panneau { position:fixed !important; left:12px !important; right:12px !important; top:72px !important; min-width:0 !important; max-height:calc(100vh - 90px); overflow-y:auto; }
+          .mvc-grid2 { grid-template-columns:minmax(0,1fr) !important; }
+          .mvc-grille { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:10px !important; }
+        }
       `}</style>
 
       <Navbar naviguer={naviguer} config={config} recherche={recherche}
@@ -268,7 +308,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
         <div onClick={() => setDrawerOuvert(false)}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 300, display: 'flex' }}>
           <div onClick={e => e.stopPropagation()}
-            style={{ width: 280, background: '#111', height: '100%', overflowY: 'auto', padding: 20 }}>
+            style={{ width: 280, maxWidth: '85vw', background: '#111', height: '100%', overflowY: 'auto', padding: 20 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <p style={{ color: '#fff', fontWeight: 800, margin: 0 }}>Catégories</p>
               <button onClick={() => setDrawerOuvert(false)}
@@ -279,18 +319,18 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
         </div>
       )}
 
-      <div style={s.layout}>
+      <div className="mvc-layout" style={s.layout}>
         {/* Sidebar desktop */}
-        <aside style={s.asideDesktop}>
+        <aside className="mvc-aside" style={s.asideDesktop}>
           <Sidebar />
         </aside>
 
         {/* Contenu principal */}
-        <main style={s.main}>
+        <main className="mvc-main" style={s.main}>
           {/* Barre outils */}
           <div style={s.toolBar}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button onClick={() => setDrawerOuvert(true)} style={s.btnMobileFilter}>
+              <button className="mvc-btn-cat" onClick={() => setDrawerOuvert(true)} style={s.btnMobileFilter}>
                 ☰ Catégories
               </button>
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
@@ -312,8 +352,8 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
 
               {/* Panneau filtres */}
               {filtreOuvert && (
-                <div ref={panneauRef} style={s.panneau}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                <div ref={panneauRef} className="mvc-panneau" style={s.panneau}>
+                  <div className="mvc-grid2" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                     <div>
                       <p style={s.filtreLabel}>Trier par</p>
                       {TRI_OPTIONS.map(o => (
@@ -370,7 +410,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
 
           {/* Grille produits */}
           {loading ? (
-            <div style={s.grille}>
+            <div className="mvc-grille" style={s.grille}>
               {[...Array(8)].map((_, i) => <div key={i} style={s.skeleton} />)}
             </div>
           ) : produitsDeLaPage.length === 0 ? (
@@ -380,7 +420,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
               {nbFiltresActifs > 0 && <button onClick={reinitialiser} style={s.btnReset}>Effacer les filtres</button>}
             </div>
           ) : (
-            <div style={s.grille}>
+            <div className="mvc-grille" style={s.grille}>
               {produitsDeLaPage.map(p => {
                 const img = getImage(p);
                 const pct = p.prix_original && parseFloat(String(p.prix_original)) > parseFloat(String(p.prix))
@@ -447,7 +487,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
-  wrapper:  { minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  wrapper:  { overflowX: 'clip', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   // Navbar
   nav:      { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner: { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 20 },
@@ -501,7 +541,7 @@ const s: Record<string, React.CSSProperties> = {
   carteBody: { padding: 14, flex: 1, display: 'flex', flexDirection: 'column', gap: 6 },
   boutiqueNom: { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.8px', cursor: 'pointer' },
   produitNom:  { fontSize: 14, fontWeight: 600, color: '#fff', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', margin: 0 },
-  prixRow:     { display: 'flex', alignItems: 'center', gap: 8 },
+  prixRow:     { display: 'flex', alignItems: 'center', gap: '2px 8px', flexWrap: 'wrap' },
   prixActuel:  { fontSize: 16, fontWeight: 800 },
   prixOriginal:{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through' },
   badgeCat:    { fontSize: 11, color: 'rgba(255,255,255,0.35)', padding: '3px 8px', background: 'rgba(255,255,255,0.05)', borderRadius: 6, display: 'inline-block', marginTop: 'auto' },

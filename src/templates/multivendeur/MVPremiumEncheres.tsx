@@ -114,21 +114,45 @@ function CarteEnchere({ enc, naviguer, couleurAccent }: { enc: Enchere; naviguer
 }
 
 function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Record<string, any> }) {
+  const [menuOuvert, setMenuOuvert] = useState(false);
   const nom = config?.nom_boutique || 'Ma Marketplace';
+  const accent = config?.couleur_accent || '#fbbf24';
+  const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Catalogue', dest: { page: 'catalogue' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }];
+  const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
     <nav style={s.nav}>
-      <div style={s.navInner}>
-        <div style={s.navLogo} onClick={() => naviguer({ page:'accueil' })}>
-          <div style={s.logoIcon}>{(nom[0] || 'M').toUpperCase()}</div>
-          <span style={s.logoText}>{nom}</span>
+      <style>{`
+        @media (max-width:768px) {
+          .mvn-liens { display:none !important; }
+          .mvn-burger { display:flex !important; }
+          .mvn-inner { padding:0 14px !important; gap:12px !important; }
+          .mvn-search { display:none !important; }
+        }
+      `}</style>
+      <div className="mvn-inner" style={s.navInner}>
+        <div style={{ ...s.navLogo, minWidth: 0, flexShrink: 1 }} onClick={() => aller({ page: 'accueil' })}>
+          <div style={{ ...s.logoIcon, flexShrink: 0 }}>{(nom[0] || 'M').toUpperCase()}</div>
+          <span style={{ ...s.logoText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
         </div>
-        <div style={s.navLinks}>
-          <span style={s.navLink} onClick={() => naviguer({ page:'accueil' })}>Accueil</span>
-          <span style={s.navLink} onClick={() => naviguer({ page:'catalogue' })}>Catalogue</span>
-          <span style={s.navLink} onClick={() => naviguer({ page:'boutiques' })}>Boutiques</span>
-          <button onClick={() => naviguer({ page:'login' })} style={{ padding: '8px 18px', background: config?.couleur_accent || '#fbbf24', border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+        <div className="mvn-liens" style={s.navLinks}>
+          {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
+          <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
+        <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
+          style={{ display: 'none', marginLeft: 'auto', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer', padding: '4px 8px', flexShrink: 0 }}>
+          {menuOuvert ? '✕' : '☰'}
+        </button>
       </div>
+      {menuOuvert && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
+          {liens.map(l => (
+            <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
+          ))}
+          <div style={{ padding: '14px 20px' }}>
+            <button onClick={() => aller({ page: 'login' })} style={{ width: '100%', padding: 12, background: accent, border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }
@@ -144,6 +168,7 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
   const [filtreReserve, setFiltreReserve] = useState(false);
   const [tri, setTri] = useState<Tri>('fin_proche');
   const [panneauOuvert, setPanneauOuvert] = useState(false);
+  const [filtresOuverts, setFiltresOuverts] = useState(false);
 
   useEffect(() => {
     if (isDemo) { setEncheres(DEMO_ENCHERES); setLoading(false); return; }
@@ -186,6 +211,14 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
+        .mve-btn-filtres { display:none; }
+        @media (max-width:768px) {
+          .mve-layout { flex-direction:column !important; padding:0 14px 40px !important; gap:12px !important; }
+          .mve-sidebar { display:none !important; width:100% !important; position:static !important; }
+          .mve-sidebar.ouvert { display:flex !important; }
+          .mve-btn-filtres { display:inline-block !important; }
+          .mve-main { width:100%; }
+        }
       `}</style>
 
       <Navbar naviguer={naviguer} config={config} />
@@ -198,9 +231,9 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
         </div>
       </div>
 
-      <div style={s.layout}>
+      <div className="mve-layout" style={s.layout}>
         {/* Sidebar */}
-        <aside style={s.sidebar}>
+        <aside className={`mve-sidebar${filtresOuverts ? ' ouvert' : ''}`} style={s.sidebar}>
           <p style={s.sidebarTitre}>Statut</p>
           {[
             { value:'tous' as StatutFiltre, label:'Toutes', count:encheres.length, color:'#fff' },
@@ -224,9 +257,12 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
         </aside>
 
         {/* Contenu */}
-        <main style={s.main}>
+        <main className="mve-main" style={s.main}>
           <div style={s.toolbar}>
-            <span style={{ fontSize:13, color:'rgba(255,255,255,0.5)' }}>{filtrees.length} resultat{filtrees.length !== 1 ? 's' : ''}</span>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <button className="mve-btn-filtres" onClick={() => setFiltresOuverts(v => !v)} style={s.btnTri}>⚙️ Filtres</button>
+              <span style={{ fontSize:13, color:'rgba(255,255,255,0.5)' }}>{filtrees.length} resultat{filtrees.length !== 1 ? 's' : ''}</span>
+            </div>
             <div style={{ position:'relative' }}>
               <button onClick={() => setPanneauOuvert(v => !v)} style={s.btnTri}>
                 Trier : {TRI_OPTIONS.find(t => t.value === tri)?.label} ▾
@@ -263,7 +299,7 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
 }
 
 const s: Record<string, React.CSSProperties> = {
-  wrapper:  { minHeight:'100vh', background:'#0a0a0a', color:'#fff', fontFamily:"'DM Sans',sans-serif" },
+  wrapper:  { overflowX:'clip', minHeight:'100vh', background:'#0a0a0a', color:'#fff', fontFamily:"'DM Sans',sans-serif" },
   nav:      { position:'sticky', top:0, zIndex:100, background:'rgba(10,10,10,0.95)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(255,255,255,0.06)' },
   navInner: { maxWidth:1280, margin:'0 auto', padding:'0 24px', height:64, display:'flex', alignItems:'center', gap:32 },
   navLogo:  { display:'flex', alignItems:'center', gap:10, cursor:'pointer' },
@@ -287,7 +323,7 @@ const s: Record<string, React.CSSProperties> = {
   btnTri:   { padding:'8px 14px', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, color:'#fff', fontSize:13, cursor:'pointer', fontFamily:'inherit' },
   panneau:  { position:'absolute', top:'100%', right:0, marginTop:8, background:'#1a1a2e', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, overflow:'hidden', zIndex:200, minWidth:220, boxShadow:'0 16px 48px rgba(0,0,0,0.5)' },
   panneauItem: { padding:'10px 14px', cursor:'pointer', fontSize:13, fontWeight:500 },
-  grille:   { display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(240px, 1fr))', gap:16 },
+  grille:   { display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(min(240px, 100%), 1fr))', gap:16 },
   skeleton: { height:280, background:'rgba(255,255,255,0.04)', borderRadius:14 },
   vide:     { textAlign:'center', padding:'60px 20px' },
   carte:    { background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:16, overflow:'hidden', cursor:'pointer', display:'flex', flexDirection:'column', transition:'transform 0.2s' },

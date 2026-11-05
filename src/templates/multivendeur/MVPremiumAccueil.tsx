@@ -101,16 +101,18 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: {
         @media(max-width:768px){
           .mv-nav-links { display:none !important; }
           .mv-burger { display:flex !important; }
-          .mv-search { max-width:100% !important; }
+          .mv-search { display:none !important; }
+          .mv-pad { padding-left:16px !important; padding-right:16px !important; }
+          .mv-navinner { padding:0 14px !important; gap:12px !important; }
         }
         @media(min-width:769px){ .mv-burger { display:none !important; } }
         .mv-navlink:hover { color:#fff !important; }
       `}</style>
 
-      <div style={s.navInner}>
+      <div className="mv-navinner" style={s.navInner}>
         <div style={s.navLogo} onClick={() => naviguer({ page: 'accueil' })}>
           <div style={{ ...s.logoIcon, background: `linear-gradient(135deg,${accent},${accent}cc)` }}>{(nom[0] || 'M').toUpperCase()}</div>
-          <span style={s.logoText}>{nom}</span>
+          <span style={{ ...s.logoText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
         </div>
 
         <div className="mv-search" style={s.searchBar}>
@@ -184,7 +186,7 @@ function Footer({ naviguer, config, politiques, vendeurId, isDemo }: {
           .mv-footer-copy { margin-left:0 !important; }
         }
       `}</style>
-      <div className="mv-footer-inner" style={s.footerInner}>
+      <div className="mv-footer-inner mv-pad" style={s.footerInner}>
         <div style={s.footerLogo} onClick={() => naviguer({ page: 'accueil' })}>
           <div style={{ ...s.logoIcon, width: 28, height: 28, fontSize: 13, background: `linear-gradient(135deg,${accent},${accent}cc)` }}>{(nom[0] || 'M').toUpperCase()}</div>
           <span style={{ ...s.logoText, fontSize: 14 }}>{nom}</span>
@@ -287,6 +289,16 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
+        @media (max-width:768px) {
+          .mv-hero { padding:36px 0 28px !important; }
+          .mv-section { padding:36px 0 !important; }
+          .mv-grille { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:10px !important; }
+          .mv-hero-stats { width:100%; flex-wrap:nowrap !important; gap:8px !important; }
+          .mv-stat { flex:1 1 0; min-width:0; padding:14px 6px !important; }
+          .mv-stat > div:first-child { font-size:20px !important; }
+          .mv-herobtns button { flex:1 1 100%; }
+          .mv-section-head { flex-wrap:wrap; gap:10px; }
+        }
         ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: #0a0a0a; }
         ::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
       `}</style>
@@ -296,15 +308,15 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
 
       {/* ── HERO ── */}
       {config.accueil_hero_actif !== false && (
-      <section style={{ ...s.hero, background: `radial-gradient(ellipse at 60% 50%, ${couleurAccent}15 0%, transparent 60%), #0a0a0a` }}>
-        <div style={s.heroInner}>
+      <section className="mv-hero" style={{ ...s.hero, background: `radial-gradient(ellipse at 60% 50%, ${couleurAccent}15 0%, transparent 60%), #0a0a0a` }}>
+        <div className="mv-pad" style={s.heroInner}>
           <div style={s.heroContent}>
             <div style={{ ...s.heroBadge, background: `${couleurAccent}20`, color: couleurAccent, border: `1px solid ${couleurAccent}40` }}>
               {config.accueil_hero_badge || '🇨🇦 Marketplace canadienne'}
             </div>
             <h1 style={s.heroTitre}>{nomBoutique}</h1>
             <p style={s.heroDesc}>{slogan}</p>
-            <div style={s.heroBtns}>
+            <div className="mv-herobtns" style={s.heroBtns}>
               <button onClick={() => naviguer({ page: 'catalogue' })}
                 style={{ ...s.btnPrimary, background: couleurAccent, color: '#000' }}>
                 Explorer le catalogue →
@@ -314,13 +326,13 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
               </button>
             </div>
           </div>
-          <div style={s.heroStats}>
+          <div className="mv-hero-stats" style={s.heroStats}>
             {[
               { nb: produits.length + '+', label: 'Produits' },
               { nb: '100%', label: 'Canadien' },
               { nb: '⭐ 4.8', label: 'Satisfaction' },
             ].map((stat, i) => (
-              <div key={i} style={s.statCard}>
+              <div key={i} className="mv-stat" style={s.statCard}>
                 <div style={{ ...s.statNb, color: couleurAccent }}>{stat.nb}</div>
                 <div style={s.statLabel}>{stat.label}</div>
               </div>
@@ -332,8 +344,8 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
 
       {/* ── CATÉGORIES ── */}
       {config.accueil_categories_actif !== false && groupes.length > 0 && (
-        <section style={s.section}>
-          <div style={s.container}>
+        <section className="mv-section" style={s.section}>
+          <div className="mv-pad" style={s.container}>
             <h2 style={s.sectionTitre}>{config.accueil_categories_titre || 'Explorer par catégorie'}</h2>
             <div style={s.grilleCats}>
               {groupes.slice(0, 12).map(g => (
@@ -350,9 +362,9 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
 
       {/* ── PRODUITS RÉCENTS ── */}
       {config.accueil_nouveautes_actif !== false && (
-      <section style={{ ...s.section, background: 'rgba(255,255,255,0.02)' }}>
-        <div style={s.container}>
-          <div style={s.sectionHeader}>
+      <section className="mv-section" style={{ ...s.section, background: 'rgba(255,255,255,0.02)' }}>
+        <div className="mv-pad" style={s.container}>
+          <div className="mv-section-head" style={s.sectionHeader}>
             <h2 style={s.sectionTitre}>{config.accueil_nouveautes_titre || 'Nouveautés'}</h2>
             <button onClick={() => naviguer({ page: 'catalogue' })}
               style={{ ...s.btnSecondary, padding: '8px 20px', fontSize: 13 }}>
@@ -362,7 +374,7 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
           {loading ? (
             <div style={s.loading}>Chargement...</div>
           ) : (
-            <div style={s.grilleProduits}>
+            <div className="mv-grille" style={s.grilleProduits}>
               {produits.map(p => {
                 const img = getImage(p);
                 return (
@@ -397,8 +409,8 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
 
       {/* ── CTA VENDEURS ── */}
       {config.accueil_cta_vendeurs_actif !== false && (
-      <section style={s.ctaSection}>
-        <div style={s.container}>
+      <section className="mv-section" style={s.ctaSection}>
+        <div className="mv-pad" style={s.container}>
           <div style={s.ctaInner}>
             <h2 style={{ ...s.sectionTitre, fontSize: 'clamp(22px,3vw,38px)', marginBottom: 12 }}>
               {config.accueil_cta_titre || 'Vous êtes vendeur ?'}
@@ -421,11 +433,11 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
-  wrapper:    { minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  wrapper:    { overflowX: 'clip', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   // Navbar
   nav:        { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner:   { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 20 },
-  navLogo:    { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 0 },
+  navLogo:    { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 1, minWidth: 0 },
   logoIcon:   { width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg,#fbbf24,#f59e0b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#000', fontFamily: "'Syne', sans-serif" },
   logoText:   { fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: "'Syne', sans-serif" },
   searchBar:  { flex: 1, display: 'flex', gap: 0, maxWidth: 480 },
@@ -434,7 +446,7 @@ const s: Record<string, React.CSSProperties> = {
   navLinks:   { display: 'flex', gap: 24 },
   navLink:    { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 500, cursor: 'pointer', transition: 'color 0.2s' },
   btnCompte:  { padding: '8px 18px', border: 'none', borderRadius: 20, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
-  menuBurger: { display: 'none', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: '4px 8px', flexShrink: 0 },
+  menuBurger: { marginLeft: 'auto', display: 'none', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#fff', fontSize: 22, cursor: 'pointer', padding: '4px 8px', flexShrink: 0 },
   menuMobile: { background: '#111', borderTop: '1px solid rgba(255,255,255,0.08)', padding: '12px 24px' },
   menuMobileItem: { padding: '12px 0', color: 'rgba(255,255,255,0.8)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' },
   // Hero
