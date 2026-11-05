@@ -13,6 +13,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const multer = require('multer');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 
@@ -126,6 +127,16 @@ router.use(h(async (req, res, next) => {
 // IMAGES — envoi (JPEG, PNG, WebP, GIF ; 5 Mo ; jamais de SVG)
 // ════════════════════════════════════════════════════════════════════════════
 
+const MEDIA_URL = 'https://media.e-vend.ca';
+const s3 = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  },
+});
+
 const envoi = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } }).single('file');
 
 function extensionSelonContenu(b) {
@@ -148,20 +159,23 @@ router.post('/upload', (req, res) => {
       if (!req.file) bad('Aucun fichier reçu');
       const ext = extensionSelonContenu(req.file.buffer);
       if (!ext) bad('Format non accepté (JPEG, PNG, WebP ou GIF seulement)');
-      const dossier = path.join(__dirname, '..', 'uploads', 'collab', String(req.gid), String(req.cid));
-      await fs.promises.mkdir(dossier, { recursive: true });
-      const existants = await fs.promises.readdir(dossier);
-      if (existants.length >= 300) bad('Limite de 300 images atteinte', 409);
-      const nom = crypto.randomBytes(16).toString('hex') + '.' + ext;
-      await fs.promises.writeFile(path.join(dossier, nom), req.file.buffer, { flag: 'wx' });
-      res.status(201).json({ url: `/uploads/collab/${req.gid}/${req.cid}/${nom}` });
+      // Stockage sur Cloudflare R2 (comme e-Vend) : les images survivent aux déploiements.
+      const cle = `studio/collab/${req.gid}/${req.cid}/${crypto.randomBytes(16).toString('hex')}.${ext}`;
+      const mimes = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+      await s3.send(new PutObjectCommand({
+        Bucket: process.env.R2_BUCKET_PRODUITS,
+        Key: cle,
+        Body: req.file.buffer,
+        ContentType: mimes[ext],
+      }));
+      res.status(201).json({ url: `${MEDIA_URL}/${cle}` });
     })(req, res);
   });
 });
 
 function urlImage(req, v, nom) {
   if (v === undefined || v === null || v === '') return null;
-  const re = new RegExp(`^/uploads/collab/${req.gid}/${req.cid}/[a-f0-9]{32}\\.(jpg|png|webp|gif)$`);
+  const re = new RegExp(`^${MEDIA_URL.replace(/\./g, '\\.')}/studio/collab/${req.gid}/${req.cid}/[a-f0-9]{32}\\.(jpg|png|webp|gif)$`);
   if (typeof v !== 'string' || !re.test(v)) bad(`${nom} invalide (utilisez le bouton d'envoi)`);
   return v;
 }
