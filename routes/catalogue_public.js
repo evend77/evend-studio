@@ -6,13 +6,15 @@
 //   GET /produit/:produitId                                                  { produit, similaires }
 //                                         (+ ?categorie_id= ; ?q= cherche aussi dans le nom de la catégorie et du groupe)
 //   (second routeur, monté sur /api/gestionnaires) GET /:gestionnaireId/boutiques  ?q= &tri= &page= &limit=
-//                                                  GET /:gestionnaireId/boutiques/:collaborateurId (+ /avis, /addons-statut)
+//                                                  GET /:gestionnaireId/boutiques/:collaborateurId (+ /avis, /addons-statut, /blog, /faq)
+//                                                  POST /:gestionnaireId/boutiques/:collaborateurId/signaler · POST …/blog/:articleId/vue
 //                                                  GET /:gestionnaireId/categories · /categories-groupes  (actifs)
 // Si la requête porte un en-tête Authorization (le gestionnaire dans son dashboard) ou si le chemin
 // n'est pas reconnu, on laisse passer vers l'ancien routeur (next()).
 // Les champs sont renvoyés dans la forme attendue par les pages du template (nom, prix, prix_original, image, images…).
 
 const express = require('express');
+const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 
 const router = express.Router();
@@ -146,7 +148,10 @@ async function boutiqueActive(gid, cid) {
   const r = await pool.query(
     `SELECT mc.id, COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.description_boutique,
             mc.ville, mc.province, mc.logo_url, mc.banniere_url, mc.site_web, mc.created_at,
-            (SELECT COUNT(*) FROM produits p WHERE p.collaborateur_id = mc.id AND p.statut = 'actif')::int AS nb_produits
+            (SELECT COUNT(*) FROM produits p WHERE p.collaborateur_id = mc.id AND p.statut = 'actif')::int AS nb_produits,
+            (SELECT COALESCE(SUM(CASE WHEN (e->>'quantite') ~ '^[0-9]{1,6}$' THEN (e->>'quantite')::int ELSE 1 END), 0)::int
+               FROM marketplace_commandes c, jsonb_array_elements(CASE WHEN jsonb_typeof(c.articles) = 'array' THEN c.articles ELSE '[]'::jsonb END) e
+              WHERE c.collaborateur_id = mc.id AND c.statut_paiement = 'paye' AND c.statut <> 'annulee') AS nb_vendus
        FROM marketplace_collaborateurs mc WHERE mc.id = $1 AND mc.gestionnaire_id = $2 AND mc.statut = 'actif'`, [cid, gid]);
   return r.rows[0] || null;
 }
@@ -163,7 +168,7 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId', async (req, res) =>
       description_courte: desc.length > 160 ? desc.slice(0, 157) + '…' : desc,
       description_longue: desc, ville: b.ville, province: b.province,
       logo_url: b.logo_url, banniere_url: b.banniere_url, site_web: b.site_web,
-      nb_produits: b.nb_produits, date_inscription: b.created_at,
+      nb_produits: b.nb_produits, nb_vendus: b.nb_vendus, date_inscription: b.created_at,
     });
   } catch (e) {
     console.error('[catalogue_public] boutique', e.message);
@@ -193,9 +198,114 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/avis', async (req, re
   }
 });
 
-// Modules affichés sur la page boutique : seuls les avis existent pour l'instant (blog et FAQ : à venir).
-boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/addons-statut', (req, res) => {
-  res.json({ blog_actif: false, faq_actif: false, avis_actif: true });
+// Modules affichés sur la page boutique : l'onglet apparaît seulement s'il y a du contenu à montrer.
+boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/addons-statut', async (req, res) => {
+  try {
+    const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
+    if (!gid || !cid) return res.json({ blog_actif: false, faq_actif: false, avis_actif: true });
+    const r = await pool.query(
+      `SELECT EXISTS (SELECT 1 FROM collab_blogs WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND statut = 'publie') AS blog,
+              EXISTS (SELECT 1 FROM collab_faq   WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND active) AS faq`, [cid, gid]);
+    res.json({ blog_actif: r.rows[0].blog, faq_actif: r.rows[0].faq, avis_actif: true });
+  } catch (e) {
+    console.error('[catalogue_public] addons', e.message);
+    res.json({ blog_actif: false, faq_actif: false, avis_actif: true });
+  }
+});
+
+boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/blog', async (req, res) => {
+  try {
+    const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
+    if (!gid || !cid) return res.json({ articles: [] });
+    const r = await pool.query(
+      `SELECT b.id, b.titre, b.contenu, array_to_string(b.tags, ', ') AS tags, b.vues, b.date_publication
+         FROM collab_blogs b JOIN marketplace_collaborateurs mc ON mc.id = b.collaborateur_id AND mc.statut = 'actif'
+        WHERE b.collaborateur_id = $1 AND b.gestionnaire_id = $2 AND b.statut = 'publie'
+        ORDER BY b.date_publication DESC NULLS LAST, b.id DESC LIMIT 50`, [cid, gid]);
+    res.json({ articles: r.rows });
+  } catch (e) {
+    console.error('[catalogue_public] blog', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// Compteur de vues : au plus 1 vue par visiteur (adresse IP) et par article, par heure.
+const vuesVues = new Map();
+boutiques.post('/:gestionnaireId/boutiques/:collaborateurId/blog/:articleId/vue', async (req, res) => {
+  try {
+    const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId), aid = entier(req.params.articleId);
+    if (!gid || !cid || !aid) return res.json({ success: false });
+    const cle = `${req.ip}|${aid}`;
+    const dernier = vuesVues.get(cle);
+    if (dernier && Date.now() - dernier < 3600000) return res.json({ success: true });
+    vuesVues.set(cle, Date.now());
+    if (vuesVues.size > 5000) vuesVues.clear();
+    await pool.query(`UPDATE collab_blogs SET vues = vues + 1 WHERE id = $1 AND collaborateur_id = $2 AND gestionnaire_id = $3 AND statut = 'publie'`, [aid, cid, gid]);
+    res.json({ success: true });
+  } catch (e) { res.json({ success: false }); }
+});
+
+boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/faq', async (req, res) => {
+  try {
+    const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
+    if (!gid || !cid) return res.json({ items: [] });
+    const r = await pool.query(
+      `SELECT f.id, f.question, f.reponse FROM collab_faq f JOIN marketplace_collaborateurs mc ON mc.id = f.collaborateur_id AND mc.statut = 'actif'
+        WHERE f.collaborateur_id = $1 AND f.gestionnaire_id = $2 AND f.active ORDER BY f.ordre ASC, f.id ASC LIMIT 100`, [cid, gid]);
+    res.json({ items: r.rows });
+  } catch (e) {
+    console.error('[catalogue_public] faq', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ── Signalement d'une boutique (formulaire public) ─────────────────────────────────────────────────────────
+const ENT = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#x27;': "'", '&#39;': "'" };
+function texteSur(v, max) { // texte seul, sans balises ni caractères de contrôle ; null si invalide
+  if (typeof v !== 'string' || v.length > max * 5) return null;
+  let t = sanitizeHtml(v, { allowedTags: [], allowedAttributes: {} });
+  t = t.replace(/&(?:amp|lt|gt|quot|#x27|#39);/g, (e) => ENT[e]);
+  t = t.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n').trim();
+  return t.length > max ? null : t;
+}
+const RAISONS = ['produit_fake', 'arnaque', 'comportement', 'livraison', 'qualite', 'autre'];
+const signalements = new Map();
+function dansLimite(cle, max, fenetreMs, noter) { // noter=false : on vérifie seulement (le décompte se fait plus tard)
+  const now = Date.now();
+  const l = (signalements.get(cle) || []).filter((x) => now - x < fenetreMs);
+  if (l.length >= max) { signalements.set(cle, l); return false; }
+  if (noter !== false) l.push(now);
+  signalements.set(cle, l);
+  if (signalements.size > 5000) signalements.clear();
+  return true;
+}
+
+boutiques.post('/:gestionnaireId/boutiques/:collaborateurId/signaler', async (req, res) => {
+  try {
+    const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
+    if (!gid || !cid) return res.status(404).json({ error: 'Boutique introuvable' });
+    if (!dansLimite(`sig-${req.ip}`, 20, 3600000) || !dansLimite(`sigb-${req.ip}-${cid}`, 2, 24 * 3600000, false)) {
+      return res.status(429).json({ error: 'Trop de signalements. Réessayez plus tard.' });
+    }
+    const b = req.body || {};
+    const nom = texteSur(b.nom, 100), email = texteSur(b.email, 160);
+    const description = texteSur(b.description, 2000);
+    const raison = RAISONS.includes(b.raison_type) ? b.raison_type : null;
+    const autre = raison === 'autre' ? texteSur(b.raison_autre, 150) : '';
+    if (!nom || !email || !description || !raison || (raison === 'autre' && !autre)) {
+      return res.status(400).json({ error: 'Veuillez remplir tous les champs obligatoires.' });
+    }
+    if (!/^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']{2,}$/.test(email)) return res.status(400).json({ error: 'Adresse courriel invalide.' });
+    if (!(await boutiqueActive(gid, cid))) return res.status(404).json({ error: 'Boutique introuvable' });
+    await pool.query(
+      `INSERT INTO signalements_boutique (gestionnaire_id, collaborateur_id, nom, email, raison_type, raison_autre, description)
+       VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),$7)`, [gid, cid, nom, email, raison, autre || '', description]);
+    dansLimite(`sigb-${req.ip}-${cid}`, 2, 24 * 3600000); // décompte seulement quand le signalement est enregistré
+    res.status(201).json({ success: true });
+  } catch (e) {
+    console.error('[catalogue_public] signaler', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
 });
 
 // ── Catégories et groupes du gestionnaire (actifs seulement) — pour la barre latérale et l'accueil ──────────

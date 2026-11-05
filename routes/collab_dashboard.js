@@ -1,6 +1,6 @@
 // CHEMIN : routes/collab_dashboard.js
 // e-Vend Studio — API du dashboard collaborateur (produits, réductions, commandes, paiements,
-// retours, avis, profil, boutique, configuration, envoi d'images).
+// retours, avis, profil, boutique, configuration, envoi d'images, FAQ et blog de la boutique).
 //
 // Monté dans server.js sur : /api/collab/:gestionnaireId
 // Accès : cookie httpOnly mv_token_<gestionnaireId> d'un collaborateur au statut « actif ».
@@ -749,6 +749,149 @@ router.put('/configuration', h(async (req, res) => {
             message_remerciement=EXCLUDED.message_remerciement, updated_at=NOW()`,
     [req.cid, req.gid, vacances, message, retour, delai, bool(b.notif_commande, 'Notification commande'),
      bool(b.notif_message, 'Notification message'), bool(b.notif_avis, 'Notification avis'), remerciement]);
+  res.json({ success: true });
+}));
+
+// ════════════════════════════════════════════════════════════
+// FAQ DE LA BOUTIQUE (visible dans l'onglet FAQ de la page boutique)
+// ════════════════════════════════════════════════════════════
+
+const MAX_FAQ = 100;
+const MAX_BLOGS = 200;
+
+router.get('/faq', h(async (req, res) => {
+  const r = await pool.query(
+    `SELECT id, question, reponse, ordre, active FROM collab_faq
+      WHERE collaborateur_id = $1 AND gestionnaire_id = $2 ORDER BY ordre ASC, id ASC`, [req.cid, req.gid]);
+  res.json(r.rows);
+}));
+
+router.post('/faq', h(async (req, res) => {
+  const b = req.body || {};
+  const question = texte(b.question, 'Question', 300, true);
+  const reponse = texte(b.reponse, 'Réponse', 2000, true);
+  const n = await pool.query(`SELECT COUNT(*)::int AS n, COALESCE(MAX(ordre),0)::int AS mx FROM collab_faq WHERE collaborateur_id=$1 AND gestionnaire_id=$2`, [req.cid, req.gid]);
+  if (n.rows[0].n >= MAX_FAQ) bad(`Maximum ${MAX_FAQ} questions`);
+  const r = await pool.query(
+    `INSERT INTO collab_faq (gestionnaire_id, collaborateur_id, question, reponse, ordre) VALUES ($1,$2,$3,$4,$5)
+     RETURNING id, question, reponse, ordre, active`, [req.gid, req.cid, question, reponse, n.rows[0].mx + 1]);
+  res.status(201).json({ success: true, faq: r.rows[0] });
+}));
+
+// Doit venir AVANT /faq/:id
+router.put('/faq/reordonner', h(async (req, res) => {
+  const liste = req.body && req.body.ordre;
+  if (!Array.isArray(liste) || liste.length > MAX_FAQ) bad('Format invalide');
+  for (let i = 0; i < liste.length; i++) {
+    const id = entier(liste[i] && liste[i].id);
+    if (!id) bad('Question invalide');
+    await pool.query(`UPDATE collab_faq SET ordre = $1, updated_at = NOW() WHERE id = $2 AND collaborateur_id = $3 AND gestionnaire_id = $4`,
+      [i + 1, id, req.cid, req.gid]);
+  }
+  res.json({ success: true });
+}));
+
+router.put('/faq/:id', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Question invalide');
+  const b = req.body || {};
+  const question = b.question !== undefined ? texte(b.question, 'Question', 300, true) : null;
+  const reponse = b.reponse !== undefined ? texte(b.reponse, 'Réponse', 2000, true) : null;
+  const active = typeof b.active === 'boolean' ? b.active : null;
+  const r = await pool.query(
+    `UPDATE collab_faq SET question = COALESCE($1, question), reponse = COALESCE($2, reponse),
+            active = COALESCE($3, active), updated_at = NOW()
+      WHERE id = $4 AND collaborateur_id = $5 AND gestionnaire_id = $6
+      RETURNING id, question, reponse, ordre, active`, [question, reponse, active, id, req.cid, req.gid]);
+  if (!r.rows.length) bad('Question introuvable', 404);
+  res.json({ success: true, faq: r.rows[0] });
+}));
+
+router.delete('/faq/:id', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Question invalide');
+  const r = await pool.query(`DELETE FROM collab_faq WHERE id = $1 AND collaborateur_id = $2 AND gestionnaire_id = $3`, [id, req.cid, req.gid]);
+  if (!r.rowCount) bad('Question introuvable', 404);
+  res.json({ success: true });
+}));
+
+// ════════════════════════════════════════════════════════════
+// BLOG DE LA BOUTIQUE (articles en texte enrichi, images envoyées par /upload)
+// ════════════════════════════════════════════════════════════
+
+// Texte enrichi : seules les balises de mise en forme sont gardées. Aucun script, aucun style libre,
+// aucun lien, et les images doivent venir de NOTRE stockage (jamais de data: ni d'adresse externe).
+function htmlBlog(req, v) {
+  if (typeof v !== 'string') bad('Contenu invalide');
+  if (v.length > 200000) bad('Contenu trop long');
+  const prefixe = `${MEDIA_URL}/studio/collab/${req.gid}/${req.cid}/`;
+  const propre = sanitizeHtml(v, {
+    allowedTags: ['p', 'br', 'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li', 'h2', 'h3', 'blockquote', 'div', 'span', 'font', 'img'],
+    allowedAttributes: { img: ['src', 'alt'], font: ['size'], p: ['style'], div: ['style'], span: ['style'], li: ['style'], h2: ['style'], h3: ['style'] },
+    allowedStyles: { '*': { 'text-align': [/^(left|center|right|justify)$/] } },
+    allowedSchemes: ['https'],
+    allowedSchemesByTag: { img: ['https'] },
+    allowProtocolRelative: false,
+    exclusiveFilter: (f) => f.tag === 'img' && !(typeof f.attribs.src === 'string' && f.attribs.src.startsWith(prefixe) && /^[a-f0-9]{32}\.(jpg|png|webp|gif)$/.test(f.attribs.src.slice(prefixe.length))),
+  }).trim();
+  const apercu = sanitizeHtml(propre, { allowedTags: [], allowedAttributes: {} }).trim();
+  if (!apercu && !/<img /.test(propre)) bad('Contenu requis');
+  if (propre.length > 60000) bad('Contenu trop long (max 60 000 caractères)');
+  return propre;
+}
+
+function listeTags(v) {
+  if (v === undefined || v === null) return [];
+  if (!Array.isArray(v) || v.length > 10) bad('Tags invalides (max 10)');
+  return [...new Set(v.map((t) => texte(t, 'Tag', 30).replace(/[#,]/g, '').trim()).filter(Boolean))];
+}
+
+const COLS_BLOG = 'id, titre, contenu, tags, statut, vues, date_publication, created_at AS date_creation';
+
+router.get('/blogs', h(async (req, res) => {
+  const r = await pool.query(`SELECT ${COLS_BLOG} FROM collab_blogs WHERE collaborateur_id = $1 AND gestionnaire_id = $2 ORDER BY created_at DESC LIMIT ${MAX_BLOGS}`, [req.cid, req.gid]);
+  res.json(r.rows);
+}));
+
+router.post('/blogs', h(async (req, res) => {
+  const b = req.body || {};
+  const titre = texte(b.titre, 'Titre', 200, true);
+  const contenu = htmlBlog(req, b.contenu);
+  const tags = listeTags(b.tags);
+  const statut = b.statut === 'publie' ? 'publie' : 'brouillon';
+  const n = await pool.query(`SELECT COUNT(*)::int AS n FROM collab_blogs WHERE collaborateur_id=$1 AND gestionnaire_id=$2`, [req.cid, req.gid]);
+  if (n.rows[0].n >= MAX_BLOGS) bad(`Maximum ${MAX_BLOGS} articles`);
+  const r = await pool.query(
+    `INSERT INTO collab_blogs (gestionnaire_id, collaborateur_id, titre, contenu, tags, statut, date_publication)
+     VALUES ($1,$2,$3,$4,$5,$6::varchar, CASE WHEN $6::varchar = 'publie' THEN NOW() END) RETURNING ${COLS_BLOG}`,
+    [req.gid, req.cid, titre, contenu, tags, statut]);
+  res.status(201).json({ success: true, blog: r.rows[0] });
+}));
+
+router.put('/blogs/:id', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Article invalide');
+  const b = req.body || {};
+  const titre = b.titre !== undefined ? texte(b.titre, 'Titre', 200, true) : null;
+  const contenu = b.contenu !== undefined ? htmlBlog(req, b.contenu) : null;
+  const tags = b.tags !== undefined ? listeTags(b.tags) : null;
+  const statut = b.statut === 'publie' || b.statut === 'brouillon' ? b.statut : null;
+  const r = await pool.query(
+    `UPDATE collab_blogs SET titre = COALESCE($1, titre), contenu = COALESCE($2, contenu), tags = COALESCE($3, tags),
+            statut = COALESCE($4::varchar, statut),
+            date_publication = CASE WHEN COALESCE($4::varchar, statut) = 'publie' THEN COALESCE(date_publication, NOW()) ELSE date_publication END,
+            updated_at = NOW()
+      WHERE id = $5 AND collaborateur_id = $6 AND gestionnaire_id = $7 RETURNING ${COLS_BLOG}`,
+    [titre, contenu, tags, statut, id, req.cid, req.gid]);
+  if (!r.rows.length) bad('Article introuvable', 404);
+  res.json({ success: true, blog: r.rows[0] });
+}));
+
+router.delete('/blogs/:id', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Article invalide');
+  const r = await pool.query(`DELETE FROM collab_blogs WHERE id = $1 AND collaborateur_id = $2 AND gestionnaire_id = $3`, [id, req.cid, req.gid]);
+  if (!r.rowCount) bad('Article introuvable', 404);
   res.json({ success: true });
 }));
 

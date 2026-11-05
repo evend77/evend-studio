@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
+import { nettoyerRecherche } from './mvSecurite';
 
 const API_BASE = '/api';
 
@@ -137,7 +138,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: { na
           <span style={{ ...s.logoText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
         </div>
         <div className="mvn-search" style={s.searchBar}>
-          <input value={recherche} onChange={e => setRecherche(e.target.value)}
+          <input value={recherche} maxLength={100} autoComplete="off" onChange={e => setRecherche(nettoyerRecherche(e.target.value))}
             onKeyDown={e => e.key === 'Enter' && onRecherche()}
             placeholder="Rechercher une enchère..."
             style={s.searchInput} />
@@ -155,7 +156,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: { na
       {menuOuvert && (
         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: fondDe(config), borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
             <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)', display: 'flex' }}>
-              <input value={recherche} onChange={e => setRecherche(e.target.value)}
+              <input value={recherche} maxLength={100} autoComplete="off" onChange={e => setRecherche(nettoyerRecherche(e.target.value))}
                 onKeyDown={e => { if (e.key === 'Enter') { onRecherche(); setMenuOuvert(false); } }}
                 placeholder="Rechercher..." style={{ ...s.searchInput, minWidth: 0 }} />
               <button onClick={() => { onRecherche(); setMenuOuvert(false); }} style={s.searchBtn}>🔍</button>

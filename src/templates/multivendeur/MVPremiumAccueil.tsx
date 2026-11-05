@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
+import { nettoyerRecherche } from './mvSecurite';
 import MVPremiumAvantages from './MVPremiumAvantages';
 
 const API_BASE = '/api';
@@ -114,7 +115,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: {
         </div>
 
         <div className="mv-search" style={s.searchBar}>
-          <input value={recherche} onChange={e => setRecherche(e.target.value)} onKeyDown={e => e.key === 'Enter' && onRecherche()} placeholder="Rechercher des produits..." style={s.searchInput} />
+          <input value={recherche} maxLength={100} autoComplete="off" onChange={e => setRecherche(nettoyerRecherche(e.target.value))} onKeyDown={e => e.key === 'Enter' && onRecherche()} placeholder="Rechercher des produits..." style={s.searchInput} />
           <button onClick={onRecherche} style={s.searchBtn}>🔍</button>
         </div>
 
@@ -136,7 +137,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: {
           <div style={{ ...s.menuMobile, position: 'relative', zIndex: 99 }}>
             <div style={{ padding: '12px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
               <div style={{ display: 'flex' }}>
-                <input value={recherche} onChange={e => setRecherche(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') { onRecherche(); fermer(); } }} placeholder="Rechercher..." style={{ ...s.searchInput, flex: 1, borderRadius: '10px 0 0 10px' }} />
+                <input value={recherche} maxLength={100} autoComplete="off" onChange={e => setRecherche(nettoyerRecherche(e.target.value))} onKeyDown={e => { if (e.key === 'Enter') { onRecherche(); fermer(); } }} placeholder="Rechercher..." style={{ ...s.searchInput, flex: 1, borderRadius: '10px 0 0 10px' }} />
                 <button onClick={() => { onRecherche(); fermer(); }} style={s.searchBtn}>🔍</button>
               </div>
             </div>
@@ -349,9 +350,9 @@ const s: Record<string, React.CSSProperties> = {
   navLogo:    { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 1, minWidth: 0 },
   logoIcon:   { width: 34, height: 34, borderRadius: 8, background: 'linear-gradient(135deg,#fbbf24,#f59e0b)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, color: '#000', fontFamily: "'Syne', sans-serif" },
   logoText:   { fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: "'Syne', sans-serif" },
-  searchBar:  { flex: 1, display: 'flex', gap: 0, maxWidth: 480 },
+  searchBar:  { flex: 1, display: 'flex', gap: 0, maxWidth: 440 },
   searchInput:{ flex: 1, padding: '9px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px 0 0 10px', color: '#fff', fontSize: 14, outline: 'none' },
-  searchBtn:  { padding: '9px 16px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', borderLeft: 'none', borderRadius: '0 10px 10px 0', cursor: 'pointer', fontSize: 14 },
+  searchBtn:  { padding: '9px 14px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.1)', borderLeft: 'none', borderRadius: '0 10px 10px 0', cursor: 'pointer', fontSize: 14 },
   navLinks:   { display: 'flex', gap: 24 },
   navLink:    { color: 'rgba(255,255,255,0.7)', fontSize: 14, fontWeight: 500, cursor: 'pointer', transition: 'color 0.2s' },
   btnCompte:  { padding: '8px 18px', border: 'none', borderRadius: 20, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },

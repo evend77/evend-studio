@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
+import { nettoyerRecherche, nettoyerTexte } from './mvSecurite';
 
 const API_BASE = '/api';
 
@@ -19,6 +20,7 @@ interface Boutique {
   logo_url?: string;
   banniere_url?: string;
   nb_produits?: number;
+  nb_vendus?: number;
   date_inscription?: string;
   telephone?: string;
   site_web?: string;
@@ -159,6 +161,30 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
   const [blogOuvert, setBlogOuvert] = useState<number | null>(null);
   const [faqOuvert, setFaqOuvert] = useState<number | null>(null);
 
+  // Session (infos d'affichage seulement ; le vrai jeton est dans un cookie httpOnly)
+  const lireType = (): 'acheteur' | 'collaborateur' | null => {
+    try {
+      const tpe = JSON.parse(localStorage.getItem(`mv_compte_${gId}`) || 'null')?.type;
+      return tpe === 'acheteur' || tpe === 'collaborateur' ? tpe : null;
+    } catch { return null; }
+  };
+  const [estFavori, setEstFavori] = useState(false);
+  const [favoriOccupe, setFavoriOccupe] = useState(false);
+  const [infoAction, setInfoAction] = useState<{ ok: boolean; texte: string } | null>(null);
+  const [modal, setModal] = useState<null | 'chat' | 'signaler'>(null);
+  const [modalOccupe, setModalOccupe] = useState(false);
+  const [modalMsg, setModalMsg] = useState<{ ok: boolean; texte: string } | null>(null);
+  const [chatSujet, setChatSujet] = useState('');
+  const [chatMessage, setChatMessage] = useState('');
+  const [sigNom, setSigNom] = useState('');
+  const [sigEmail, setSigEmail] = useState('');
+  const [sigRaison, setSigRaison] = useState('produit_fake');
+  const [sigAutre, setSigAutre] = useState('');
+  const [sigDescription, setSigDescription] = useState('');
+
+  const annoncer = (ok: boolean, texte: string) => { setInfoAction({ ok, texte }); setTimeout(() => setInfoAction(null), 3500); };
+  const fermerModal = () => { setModal(null); setModalMsg(null); };
+
   // Formulaire avis
   const [formAvisOuvert, setFormAvisOuvert] = useState(false);
   const [formNote, setFormNote] = useState(5);
@@ -199,6 +225,72 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
       .then((d: any) => setAddonsStatut(d))
       .catch(() => {});
   }, [boutiqueId, gId, isDemo]);
+
+  // Cette boutique est-elle dans les favoris de l'acheteur connecté ?
+  useEffect(() => {
+    if (isDemo || !gId || !boutiqueId || lireType() !== 'acheteur') return;
+    let actif = true;
+    fetch(`${API_BASE}/acheteur/${gId}/favoris`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : { collaborateurs: [] }))
+      .then(d => { if (actif) setEstFavori((d.collaborateurs || []).some((c: any) => String(c.id) === String(boutiqueId))); })
+      .catch(() => {});
+    return () => { actif = false; };
+  }, [gId, boutiqueId, isDemo]);
+
+  const basculerFavori = async () => {
+    if (isDemo) { annoncer(true, '❤️ (démo) Ajouté aux favoris'); return; }
+    const type = lireType();
+    if (!type) { annoncer(false, 'Connectez-vous avec un compte acheteur pour ajouter aux favoris'); return; }
+    if (type !== 'acheteur') { annoncer(false, 'Un compte acheteur est requis pour ajouter aux favoris'); return; }
+    setFavoriOccupe(true);
+    try {
+      const res = await fetch(`${API_BASE}/acheteur/${gId}/favoris/${boutiqueId}`, { method: estFavori ? 'DELETE' : 'POST', credentials: 'include' });
+      if (res.status === 401) { try { localStorage.removeItem(`mv_compte_${gId}`); } catch { /* stockage indisponible */ } annoncer(false, 'Session expirée — reconnectez-vous'); }
+      else if (res.ok) { annoncer(true, estFavori ? 'Retirée de vos favoris' : '❤️ Boutique ajoutée à vos favoris'); setEstFavori(!estFavori); }
+      else annoncer(false, '❌ Opération impossible');
+    } catch { annoncer(false, '❌ Erreur réseau'); }
+    setFavoriOccupe(false);
+  };
+
+  const ouvrirChat = () => {
+    const type = lireType();
+    if (!isDemo && !type) { annoncer(false, 'Connectez-vous avec un compte acheteur pour écrire à cette boutique'); return; }
+    if (!isDemo && type !== 'acheteur') { annoncer(false, 'Un compte acheteur est requis pour écrire à une boutique'); return; }
+    setModalMsg(null); setModal('chat');
+  };
+
+  const envoyerChat = async () => {
+    const sujet = nettoyerTexte(chatSujet, 120).trim(), message = nettoyerTexte(chatMessage, 2000).trim();
+    if (!sujet || !message) { setModalMsg({ ok: false, texte: 'Le sujet et le message sont obligatoires.' }); return; }
+    if (isDemo) { setModalMsg({ ok: true, texte: '✅ (démo) Message envoyé' }); return; }
+    setModalOccupe(true);
+    try {
+      const res = await fetch(`${API_BASE}/chat-acheteur-collab/${gId}/acheteur/conversations`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collaborateur_id: Number(boutiqueId), sujet, message }),
+      });
+      if (res.ok) { setModalMsg({ ok: true, texte: '✅ Message envoyé ! Vous retrouverez la conversation dans votre espace acheteur (Messagerie).' }); setChatSujet(''); setChatMessage(''); }
+      else if (res.status === 401) setModalMsg({ ok: false, texte: 'Session expirée — reconnectez-vous.' });
+      else setModalMsg({ ok: false, texte: (await res.json().catch(() => ({}))).error || '❌ Envoi impossible' });
+    } catch { setModalMsg({ ok: false, texte: '❌ Erreur réseau' }); }
+    setModalOccupe(false);
+  };
+
+  const envoyerSignalement = async () => {
+    const nom = nettoyerTexte(sigNom, 100).trim(), email = nettoyerTexte(sigEmail, 160).trim(), description = nettoyerTexte(sigDescription, 2000).trim(), autre = nettoyerTexte(sigAutre, 150).trim();
+    if (!nom || !email || !description || (sigRaison === 'autre' && !autre)) { setModalMsg({ ok: false, texte: 'Veuillez remplir tous les champs obligatoires.' }); return; }
+    if (isDemo) { setModalMsg({ ok: true, texte: '✅ (démo) Signalement envoyé' }); return; }
+    setModalOccupe(true);
+    try {
+      const res = await fetch(`${apiBoutique}/signaler`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nom, email, raison_type: sigRaison, raison_autre: sigRaison === 'autre' ? autre : '', description }),
+      });
+      if (res.ok) { setModalMsg({ ok: true, texte: '✅ Signalement envoyé. Merci de votre aide !' }); setSigNom(''); setSigEmail(''); setSigRaison('produit_fake'); setSigAutre(''); setSigDescription(''); }
+      else setModalMsg({ ok: false, texte: (await res.json().catch(() => ({}))).error || '❌ Envoi impossible' });
+    } catch { setModalMsg({ ok: false, texte: '❌ Erreur réseau' }); }
+    setModalOccupe(false);
+  };
 
   // Charger contenu add-ons seulement si actifs
   useEffect(() => {
@@ -282,6 +374,8 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
           .mvp-header, .mvp-tabs, .mvp-main { padding-left:16px !important; padding-right:16px !important; }
           .mvp-main { padding-top:20px !important; padding-bottom:40px !important; }
           .mvp-logo { width:76px !important; height:76px !important; }
+          .mvp-actions { margin-top:0 !important; width:100% !important; }
+          .mvp-actions button { flex:1 !important; padding:9px 8px !important; }
           .mvp-layout { flex-direction:column !important; gap:14px !important; }
           .mvp-side { width:100% !important; }
           .mvp-cats { display:none !important; }
@@ -309,13 +403,23 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
             <h1 style={s.nomBoutique}>{boutique.nom_boutique}</h1>
-            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
-              {boutique.nb_produits != null && <span style={s.badgeMeta}>📦 {boutique.nb_produits} produits</span>}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 8 }}>
+              {boutique.nb_produits != null && <span style={s.badgeMeta}>📦 {boutique.nb_produits} produit{boutique.nb_produits > 1 ? 's' : ''}</span>}
+              {boutique.nb_vendus != null && <span style={s.badgeMeta}>🛒 {boutique.nb_vendus} produit{boutique.nb_vendus > 1 ? 's' : ''} vendu{boutique.nb_vendus > 1 ? 's' : ''}</span>}
+              {boutique.date_inscription && <span style={s.badgeMeta}>📅 Membre depuis {new Date(boutique.date_inscription).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long' })}</span>}
               {(boutique.ville || boutique.province) && <span style={s.badgeMeta}>📍 {[boutique.ville, boutique.province].filter(Boolean).join(', ')}</span>}
               {addonsStatut.avis_actif && moyenneAvis > 0 && (
                 <span style={s.badgeMeta}><Etoiles note={Math.round(moyenneAvis)} taille={12} /> {moyenneAvis.toFixed(1)} ({avis.length})</span>
               )}
             </div>
+          </div>
+          <div className="mvp-actions" style={s.actions}>
+            <button onClick={basculerFavori} disabled={favoriOccupe}
+              style={{ ...s.btnAction, borderColor: estFavori ? '#ef4444' : 'rgba(255,255,255,0.18)', color: estFavori ? '#f87171' : '#fff', background: estFavori ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)' }}>
+              {estFavori ? '❤️ Favori' : '🤍 Favori'}
+            </button>
+            <button onClick={ouvrirChat} style={{ ...s.btnAction, borderColor: `${couleurAccent}66`, color: couleurAccent, background: `${couleurAccent}14` }}>💬 Chat</button>
+            <button onClick={() => { setModalMsg(null); setModal('signaler'); }} style={{ ...s.btnAction, borderColor: 'rgba(239,68,68,0.35)', color: '#f87171', background: 'rgba(239,68,68,0.08)' }}>⚠️ Signaler</button>
           </div>
         </div>
       </div>
@@ -338,7 +442,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
           <div>
             {/* Barre de recherche */}
             <div style={s.barreRecherche}>
-              <input value={recherche} onChange={e => setRecherche(e.target.value)} placeholder="Rechercher un produit..." style={s.inputRecherche} />
+              <input value={recherche} maxLength={100} autoComplete="off" onChange={e => setRecherche(nettoyerRecherche(e.target.value))} placeholder="Rechercher un produit..." style={s.inputRecherche} />
               <button style={{ ...s.btnRecherche, background: couleurAccent }}>🔍</button>
             </div>
 
@@ -418,7 +522,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {blog.map(article => (
                   <div key={article.id} style={{ ...s.carteBlog, borderColor: blogOuvert === article.id ? `${couleurAccent}50` : 'rgba(255,255,255,0.08)' }}>
-                    <div onClick={() => setBlogOuvert(o => o === article.id ? null : article.id)} style={{ padding: 18, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+                    <div onClick={() => { if (blogOuvert !== article.id && !isDemo) { fetch(`${apiBoutique}/blog/${article.id}/vue`, { method: 'POST' }).catch(() => {}); } setBlogOuvert(o => o === article.id ? null : article.id); }} style={{ padding: 18, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
                       <div style={{ flex: 1 }}>
                         <h3 style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: '0 0 6px' }}>{article.titre}</h3>
                         <div style={{ display: 'flex', gap: 10, fontSize: 12, color: 'rgba(255,255,255,0.4)' }}>
@@ -527,6 +631,59 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
           </div>
         </div>
       )}
+      {infoAction && (
+        <div role="status" style={{ position: 'fixed', top: 80, right: 20, zIndex: 3000, maxWidth: 'calc(100vw - 40px)', padding: '12px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, color: '#fff', background: infoAction.ok ? '#059669' : '#dc2626', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>{infoAction.texte}</div>
+      )}
+
+      {modal && (
+        <div onClick={fermerModal} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: '#12121a', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 18, padding: 24 }}>
+            <h2 style={{ margin: '0 0 6px', fontSize: 20, fontFamily: "'Syne',sans-serif", color: '#fff' }}>
+              {modal === 'chat' ? `💬 Écrire à ${boutique.nom_boutique}` : '⚠️ Signaler cette boutique'}
+            </h2>
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
+              {modal === 'chat' ? 'Votre message sera envoyé à la boutique. Vous verrez sa réponse dans votre espace acheteur.' : 'Votre signalement sera transmis au gestionnaire du site. Merci de rester factuel.'}
+            </p>
+            {modalMsg && (
+              <div style={{ padding: '10px 12px', borderRadius: 8, marginBottom: 14, fontSize: 13, color: modalMsg.ok ? '#34d399' : '#f87171', background: modalMsg.ok ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)', border: `1px solid ${modalMsg.ok ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}` }}>{modalMsg.texte}</div>
+            )}
+            {modal === 'chat' ? (
+              <>
+                <input value={chatSujet} maxLength={120} autoComplete="off" onChange={e => setChatSujet(nettoyerTexte(e.target.value, 120))} placeholder="Sujet *" style={s.champ} />
+                <textarea value={chatMessage} maxLength={2000} rows={5} onChange={e => setChatMessage(nettoyerTexte(e.target.value, 2000))} placeholder="Votre message *" style={{ ...s.champ, resize: 'vertical' }} />
+              </>
+            ) : (
+              <>
+                <input value={sigNom} maxLength={100} autoComplete="name" onChange={e => setSigNom(nettoyerTexte(e.target.value, 100))} placeholder="Votre nom *" style={s.champ} />
+                <input type="email" value={sigEmail} maxLength={160} autoComplete="email" onChange={e => setSigEmail(nettoyerTexte(e.target.value, 160))} placeholder="Votre courriel *" style={s.champ} />
+                <select value={sigRaison} onChange={e => setSigRaison(e.target.value)} style={s.champ}>
+                  <option value="produit_fake">Produit contrefait / faux</option>
+                  <option value="arnaque">Tentative d'arnaque</option>
+                  <option value="comportement">Comportement inapproprié</option>
+                  <option value="livraison">Problème de livraison</option>
+                  <option value="qualite">Qualité non conforme</option>
+                  <option value="autre">Autre</option>
+                </select>
+                {sigRaison === 'autre' && <input value={sigAutre} maxLength={150} onChange={e => setSigAutre(nettoyerTexte(e.target.value, 150))} placeholder="Précisez la raison *" style={s.champ} />}
+                <textarea value={sigDescription} maxLength={2000} rows={5} onChange={e => setSigDescription(nettoyerTexte(e.target.value, 2000))} placeholder="Description détaillée *" style={{ ...s.champ, resize: 'vertical' }} />
+              </>
+            )}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              {modal === 'chat' && modalMsg?.ok && !isDemo && (
+                <button onClick={() => { fermerModal(); naviguer({ page: 'dashboard-acheteur' }); }} style={{ ...s.btnModal, background: 'transparent', color: couleurAccent, border: `1px solid ${couleurAccent}66` }}>Voir mes messages</button>
+              )}
+              <button onClick={fermerModal} style={{ ...s.btnModal, background: 'rgba(255,255,255,0.08)', color: '#fff' }}>{modalMsg?.ok ? 'Fermer' : 'Annuler'}</button>
+              {!modalMsg?.ok && (
+                <button onClick={modal === 'chat' ? envoyerChat : envoyerSignalement} disabled={modalOccupe}
+                  style={{ ...s.btnModal, background: modal === 'chat' ? couleurAccent : '#dc2626', color: modal === 'chat' ? '#000' : '#fff', opacity: modalOccupe ? 0.6 : 1 }}>
+                  {modalOccupe ? '⏳ Envoi…' : modal === 'chat' ? 'Envoyer' : 'Envoyer le signalement'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <MVPremiumFooter vendeurId={vendeurId} isDemo={isDemo} config={config} naviguer={naviguer} />
     </div>
   );
@@ -547,6 +704,10 @@ const s: Record<string, React.CSSProperties> = {
   headerInner: { display: 'flex', alignItems: 'flex-end', gap: 20, flexWrap: 'wrap' },
   logoBoutique: { width: 96, height: 96, borderRadius: 18, background: '#15151f', border: '3px solid #0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, overflow: 'hidden' },
   nomBoutique: { fontFamily: "'Syne',sans-serif", fontSize: 'clamp(22px,3vw,30px)', fontWeight: 800, margin: 0 },
+  actions:  { display: 'flex', gap: 8, flexWrap: 'wrap', alignSelf: 'flex-start', marginTop: 56 },
+  btnAction:{ padding: '9px 16px', borderRadius: 10, border: '1px solid', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' },
+  champ:    { width: '100%', padding: '11px 12px', marginBottom: 12, background: '#1e1e2b', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontSize: 14, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' },
+  btnModal: { padding: '10px 20px', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' },
   badgeMeta: { fontSize: 12, color: 'rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.06)', padding: '4px 10px', borderRadius: 20, display: 'inline-flex', alignItems: 'center', gap: 4 },
   ongletsBar: { borderBottom: '1px solid rgba(255,255,255,0.08)', marginTop: 28 },
   ongletsInner: { maxWidth: 1100, margin: '0 auto', padding: '0 24px', display: 'flex', gap: 4, overflowX: 'auto' as const },
