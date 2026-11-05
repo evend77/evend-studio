@@ -66,6 +66,7 @@ interface Produit {
   garantie?: string;
   retour_offert?: string;
   lien_youtube?: string;
+  variantes?: { nom: string; prix: number | null; stock: number }[];
 }
 
 interface Similaire {
@@ -160,6 +161,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   const [onglet,       setOnglet]      = useState<'description'|'details'|'livraison'>('description');
   const [msgAjout,     setMsgAjout]    = useState<{succes: boolean; texte: string} | null>(null);
   const [ajoutEnCours, setAjoutEnCours]= useState(false);
+  const [varianteNom,  setVarianteNom]  = useState<string>('');
 
   useEffect(() => {
     if (!produitId) return;
@@ -191,6 +193,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
   const ajouterPanier = async () => {
     if (!produit) return;
+    if (variantes.length > 0 && !varianteChoisie) { setMsgAjout({ succes: false, texte: 'Choisissez une option avant d\'ajouter au panier' }); setTimeout(() => setMsgAjout(null), 3000); return; }
     let type: string | null = null;
     try { type = JSON.parse(localStorage.getItem(`mv_compte_${gId}`) || 'null')?.type || null; } catch { type = null; }
     if (!type) { setMsgAjout({ succes: false, texte: 'Connectez-vous pour acheter' }); setTimeout(() => setMsgAjout(null), 3000); return; }
@@ -201,10 +204,12 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ produit_id: produit.id, titre: produit.nom, quantite, prix: produit.prix }),
+        body: JSON.stringify({ produit_id: produit.id, quantite, variante: varianteChoisie ? varianteChoisie.nom : undefined }),
       });
       if (res.status === 401) { try { localStorage.removeItem(`mv_compte_${gId}`); } catch { /* stockage indisponible */ } }
-      setMsgAjout({ succes: res.ok, texte: res.ok ? '✓ Ajouté au panier !' : res.status === 401 ? 'Session expirée — reconnectez-vous' : '❌ Erreur' });
+      let erreurServeur = '';
+      if (!res.ok && res.status !== 401) { try { erreurServeur = (await res.json()).error || ''; } catch { erreurServeur = ''; } }
+      setMsgAjout({ succes: res.ok, texte: res.ok ? '✓ Ajouté au panier !' : res.status === 401 ? 'Session expirée — reconnectez-vous' : '❌ ' + (erreurServeur || 'Erreur') });
     } catch { setMsgAjout({ succes: false, texte: '❌ Erreur réseau' }); }
     setAjoutEnCours(false);
     setTimeout(() => setMsgAjout(null), 3000);
@@ -225,7 +230,12 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   );
 
   const images = getImages(produit);
-  const prixAffiche = parseFloat(String(produit.prix));
+  const variantes = Array.isArray(produit.variantes) ? produit.variantes : [];
+  const varianteChoisie = variantes.find(v => v.nom === varianteNom) || null;
+  const stockActuel = varianteChoisie ? varianteChoisie.stock : variantes.length > 0 ? variantes.reduce((s, v) => s + v.stock, 0) : produit.stock;
+  const stockMax = varianteChoisie ? varianteChoisie.stock : produit.stock;
+  const peutAjouter = variantes.length > 0 ? (varianteChoisie ? varianteChoisie.stock > 0 : stockActuel > 0) : produit.stock > 0;
+  const prixAffiche = varianteChoisie && varianteChoisie.prix !== null ? varianteChoisie.prix : parseFloat(String(produit.prix));
   const rabais = produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche
     ? Math.round(((parseFloat(String(produit.prix_original)) - prixAffiche) / parseFloat(String(produit.prix_original))) * 100)
     : null;
@@ -273,7 +283,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                 ? <img src={imageActive} alt={produit.nom} style={s.imgMain} />
                 : <div style={s.imgPlaceholder}>📦</div>}
               {rabais && <span style={{ ...s.badgeRabais }}>{rabais}% de rabais</span>}
-              {produit.stock === 0 && <span style={s.badgeEpuise}>Épuisé</span>}
+              {(variantes.length > 0 ? stockActuel === 0 : produit.stock === 0) && <span style={s.badgeEpuise}>Épuisé</span>}
               {imageActive && (
                 <button onClick={() => setZoomOuvert(true)} style={s.btnZoom}>🔍</button>
               )}
@@ -309,7 +319,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               <span style={{ ...s.prixActuel, color: couleurAccent }}>
                 {prixAffiche.toFixed(2)} $ CAD
               </span>
-              {produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche && (
+              {!(varianteChoisie && varianteChoisie.prix !== null) && produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche && (
                 <span style={s.prixOriginal}>{parseFloat(String(produit.prix_original)).toFixed(2)} $</span>
               )}
               <span style={{ fontSize: 13, fontWeight: 700, color: produit.facturation_taxes ? '#ef4444' : '#10b981' }}>
@@ -318,18 +328,41 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             </div>
 
             {/* Stock */}
-            <p style={{ fontSize: 14, fontWeight: 600, color: produit.stock > 0 ? '#10b981' : '#ef4444', margin: '0 0 20px' }}>
-              {produit.stock > 0 ? `✓ En stock (${produit.stock} disponible${produit.stock > 1 ? 's' : ''})` : '✗ Épuisé'}
+            {variantes.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <label style={s.label}>Options{!varianteChoisie ? ' — choisissez-en une' : ''}</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {variantes.map(v => {
+                    const actif = varianteChoisie?.nom === v.nom;
+                    const epuise = v.stock <= 0;
+                    return (
+                      <button key={v.nom} type="button" disabled={epuise}
+                        onClick={() => { setVarianteNom(v.nom); setQuantite(1); }}
+                        style={{ padding: '9px 14px', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans',sans-serif",
+                          cursor: epuise ? 'not-allowed' : 'pointer', opacity: epuise ? 0.4 : 1, textDecoration: epuise ? 'line-through' : 'none',
+                          background: actif ? couleurAccent : 'rgba(255,255,255,0.06)', color: actif ? '#000' : '#fff',
+                          border: `1px solid ${actif ? couleurAccent : 'rgba(255,255,255,0.2)'}` }}>
+                        {v.nom}{v.prix !== null ? ` · ${v.prix.toFixed(2)} $` : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            <p style={{ fontSize: 14, fontWeight: 600, color: (variantes.length > 0 && !varianteChoisie ? stockActuel : stockMax) > 0 ? '#10b981' : '#ef4444', margin: '0 0 20px' }}>
+              {variantes.length > 0 && !varianteChoisie
+                ? (stockActuel > 0 ? '✓ En stock' : '✗ Épuisé')
+                : stockMax > 0 ? `✓ En stock (${stockMax} disponible${stockMax > 1 ? 's' : ''})` : '✗ Épuisé'}
             </p>
 
             {/* Quantité */}
-            {produit.stock > 0 && (
+            {peutAjouter && (
               <div style={{ marginBottom: 20 }}>
                 <label style={s.label}>Quantité</label>
                 <div style={s.qtyRow}>
                   <button onClick={() => setQuantite(q => Math.max(1, q - 1))} style={s.qtyBtn}>−</button>
                   <span style={s.qtyVal}>{quantite}</span>
-                  <button onClick={() => setQuantite(q => Math.min(produit.stock, q + 1))} style={s.qtyBtn}>+</button>
+                  <button onClick={() => setQuantite(q => Math.min(Math.max(stockMax, 1), q + 1))} style={s.qtyBtn}>+</button>
                 </div>
               </div>
             )}
@@ -337,15 +370,15 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             {/* Bouton panier */}
             <button
               onClick={ajouterPanier}
-              disabled={ajoutEnCours || produit.stock === 0}
+              disabled={ajoutEnCours || !peutAjouter}
               style={{
                 ...s.btnPrimary,
-                background: produit.stock === 0 ? 'rgba(255,255,255,0.1)' : couleurAccent,
-                color: produit.stock === 0 ? 'rgba(255,255,255,0.3)' : '#000',
-                cursor: produit.stock === 0 ? 'not-allowed' : 'pointer',
+                background: !peutAjouter ? 'rgba(255,255,255,0.1)' : couleurAccent,
+                color: !peutAjouter ? 'rgba(255,255,255,0.3)' : '#000',
+                cursor: !peutAjouter ? 'not-allowed' : 'pointer',
                 width: '100%', marginBottom: 12,
               }}>
-              {ajoutEnCours ? '⏳ Ajout...' : produit.stock === 0 ? 'Épuisé' : '🛒 Ajouter au panier'}
+              {ajoutEnCours ? '⏳ Ajout...' : !peutAjouter ? 'Épuisé' : '🛒 Ajouter au panier'}
             </button>
 
             {msgAjout && (

@@ -77,6 +77,25 @@ function calculerTaxesProvince(sousTotal, fraisExp, province, articles) {
 // PANIER
 // ══════════════════════════════════════════════════════════════════════════════
 
+// Prix unitaire et stock disponible d'un produit, ou de la variante choisie.
+// Variantes : [{ nom, prix (vide = prix du produit), stock (vide = stock du produit) }] ; stock vide = illimité.
+function prixEtStock(produit, nomVariante) {
+  const base = Number(produit.prix) || 0;
+  const promo = produit.prix_promo !== null && produit.prix_promo !== undefined ? Number(produit.prix_promo) : 0;
+  const prixProduit = promo > 0 && promo < base ? promo : base;
+  const stockProduit = produit.stock === null || produit.stock === undefined ? 999999 : Math.max(0, Number(produit.stock) || 0);
+  let vars = produit.variantes;
+  if (typeof vars === 'string') { try { vars = JSON.parse(vars); } catch (e) { vars = []; } }
+  vars = Array.isArray(vars) ? vars.filter((v) => v && typeof v.nom === 'string' && v.nom.trim()) : [];
+  if (!vars.length) return nomVariante ? { erreur: 'Variante inconnue.' } : { prix: prixProduit, stock: stockProduit };
+  if (!nomVariante) return { erreur: 'Choisissez une variante.' };
+  const v = vars.find((x) => x.nom.trim() === nomVariante);
+  if (!v) return { erreur: 'Variante inconnue.' };
+  const prixVar = v.prix === null || v.prix === undefined || v.prix === '' || !(Number(v.prix) >= 0) ? prixProduit : Number(v.prix);
+  const stockVar = v.stock === null || v.stock === undefined || v.stock === '' ? stockProduit : Math.max(0, Math.trunc(Number(v.stock)) || 0);
+  return { prix: prixVar, stock: stockVar };
+}
+
 // GET /api/marketplace/:gid/panier
 router.get('/:gid/panier', authMV, async (req, res) => {
   const { gid } = req.params;
@@ -98,13 +117,15 @@ router.get('/:gid/panier', authMV, async (req, res) => {
 router.post('/:gid/panier', authMV, async (req, res) => {
   const { gid } = req.params;
   const acheteurId = req.mvUser.id;
-  const { produit_id, titre, image_url, prix, quantite } = req.body;
+  const { produit_id, image_url, quantite } = req.body;
+  const nomVariante = typeof req.body.variante === 'string' ? req.body.variante.trim().slice(0, 60) : '';
+  const qte = parseInt(quantite, 10);
 
-  if (!produit_id || !prix || !quantite) return res.status(400).json({ error: 'Champs manquants' });
+  if (!produit_id || !Number.isInteger(qte) || qte < 1 || qte > 999) return res.status(400).json({ error: 'Champs manquants' });
 
   try {
     const prodRes = await pool.query(
-      'SELECT id, collaborateur_id, titre, photo_principale FROM produits WHERE id = $1 AND statut = $2 AND gestionnaire_id = $3 AND collaborateur_id IS NOT NULL',
+      'SELECT id, collaborateur_id, titre, photo_principale, prix, prix_promo, stock, variantes FROM produits WHERE id = $1 AND statut = $2 AND gestionnaire_id = $3 AND collaborateur_id IS NOT NULL',
       [parseInt(produit_id), 'actif', gid]
     );
     if (!prodRes.rows[0]) return res.status(404).json({ error: 'Produit introuvable' });
@@ -112,26 +133,35 @@ router.post('/:gid/panier', authMV, async (req, res) => {
     const produit = prodRes.rows[0];
     const collaborateurId = produit.collaborateur_id;
 
+    // Prix et stock viennent de la base (jamais du navigateur) ; la variante choisie les remplace si elle en a.
+    const choix = prixEtStock(produit, nomVariante);
+    if (choix.erreur) return res.status(400).json({ error: choix.erreur });
+
     const existant = await pool.query(
-      'SELECT id, quantite FROM marketplace_panier WHERE acheteur_id=$1 AND gestionnaire_id=$2 AND produit_id=$3',
-      [acheteurId, gid, produit_id.toString()]
+      `SELECT id, quantite FROM marketplace_panier WHERE acheteur_id=$1 AND gestionnaire_id=$2 AND produit_id=$3 AND COALESCE(variante,'') = $4`,
+      [acheteurId, gid, produit_id.toString(), nomVariante]
     );
+    const dejaDansPanier = existant.rows[0] ? existant.rows[0].quantite : 0;
+    if (dejaDansPanier + qte > choix.stock) {
+      return res.status(409).json({ error: choix.stock <= 0 ? 'Cet article est épuisé.' : `Stock insuffisant : il n'en reste que ${choix.stock}${dejaDansPanier ? ` (vous en avez déjà ${dejaDansPanier} dans votre panier)` : ''}.` });
+    }
 
     if (existant.rows[0]) {
       await pool.query(
-        'UPDATE marketplace_panier SET quantite=$1, updated_at=NOW() WHERE id=$2',
-        [existant.rows[0].quantite + parseInt(quantite), existant.rows[0].id]
+        'UPDATE marketplace_panier SET quantite=$1, prix=$2, updated_at=NOW() WHERE id=$3',
+        [dejaDansPanier + qte, choix.prix, existant.rows[0].id]
       );
       return res.json({ message: 'Quantite mise a jour', id: existant.rows[0].id });
     }
 
+    const titreFinal = nomVariante ? `${produit.titre} — ${nomVariante}` : produit.titre;
     const ins = await pool.query(
-      `INSERT INTO marketplace_panier (gestionnaire_id, acheteur_id, collaborateur_id, produit_id, titre, image_url, prix, quantite)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
-      [gid, acheteurId, collaborateurId, produit_id.toString(), titre || produit.titre, image_url || produit.photo_principale || null, parseFloat(prix), parseInt(quantite)]
+      `INSERT INTO marketplace_panier (gestionnaire_id, acheteur_id, collaborateur_id, produit_id, titre, image_url, prix, quantite, variante)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [gid, acheteurId, collaborateurId, produit_id.toString(), titreFinal, image_url || produit.photo_principale || null, choix.prix, qte, nomVariante || null]
     );
     res.status(201).json({ message: 'Article ajoute', id: ins.rows[0].id });
-  } catch (err) { res.status(500).json({ error: 'Erreur serveur' }); }
+  } catch (err) { console.error('POST panier:', err.message); res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
 // PATCH /api/marketplace/:gid/panier/:id
@@ -139,11 +169,21 @@ router.patch('/:gid/panier/:id', authMV, async (req, res) => {
   const { gid, id } = req.params;
   const { quantite } = req.body;
   const acheteurId = req.mvUser.id;
-  if (!quantite || quantite < 1) return res.status(400).json({ error: 'Quantite invalide' });
+  const qte = parseInt(quantite, 10);
+  if (!Number.isInteger(qte) || qte < 1 || qte > 999) return res.status(400).json({ error: 'Quantite invalide' });
   try {
+    const l = await pool.query(
+      `SELECT mp.variante, p.prix, p.prix_promo, p.stock, p.variantes
+         FROM marketplace_panier mp LEFT JOIN produits p ON p.id = NULLIF(regexp_replace(mp.produit_id, '[^0-9].*$', ''), '')::int
+        WHERE mp.id=$1 AND mp.acheteur_id=$2 AND mp.gestionnaire_id=$3`, [id, acheteurId, gid]);
+    if (!l.rows[0]) return res.status(404).json({ error: 'Article introuvable' });
+    if (l.rows[0].prix !== null) {
+      const c = prixEtStock(l.rows[0], l.rows[0].variante || '');
+      if (!c.erreur && qte > c.stock) return res.status(409).json({ error: c.stock <= 0 ? 'Cet article est épuisé.' : `Stock insuffisant : il n'en reste que ${c.stock}.` });
+    }
     await pool.query(
       'UPDATE marketplace_panier SET quantite=$1, updated_at=NOW() WHERE id=$2 AND acheteur_id=$3 AND gestionnaire_id=$4',
-      [quantite, id, acheteurId, gid]
+      [qte, id, acheteurId, gid]
     );
     res.json({ message: 'Quantite mise a jour' });
   } catch (err) { res.status(500).json({ error: 'Erreur serveur' }); }

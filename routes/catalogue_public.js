@@ -25,7 +25,7 @@ function entier(v) {
 }
 
 const COLS = `p.id, p.titre, p.description, p.prix, p.prix_promo, p.stock, p.categorie, p.photo_principale, p.photos,
-  p.created_at, p.collaborateur_id,
+  p.created_at, p.collaborateur_id, p.variantes,
   COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.ville AS vendeur_ville,
   p.categorie_id, COALESCE(sc.nom, cp.label) AS categorie_nom, sg.nom AS groupe_nom`;
 const FROM = `FROM produits p
@@ -34,6 +34,18 @@ const FROM = `FROM produits p
   LEFT JOIN studio_categories sc ON sc.id = p.categorie_id
   LEFT JOIN studio_groupes_categories sg ON sg.id = sc.groupe_id`;
 const FILTRE = `p.gestionnaire_id = $1 AND p.statut = 'actif' AND p.collaborateur_id IS NOT NULL`;
+
+// Variantes saisies par le collaborateur : [{ nom, prix (vide = prix du produit), stock (vide = stock du produit) }]
+function formaterVariantes(r, stockProduit) {
+  let v = r.variantes;
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { v = []; } }
+  if (!Array.isArray(v)) return [];
+  return v.filter((x) => x && typeof x.nom === 'string' && x.nom.trim()).slice(0, 20).map((x) => ({
+    nom: x.nom.trim().slice(0, 60),
+    prix: x.prix === null || x.prix === undefined || x.prix === '' || !(Number(x.prix) >= 0) ? null : Number(x.prix),
+    stock: x.stock === null || x.stock === undefined || x.stock === '' ? stockProduit : Math.max(0, Math.trunc(Number(x.stock)) || 0),
+  }));
+}
 
 function formater(r) {
   const prix = Number(r.prix) || 0;
@@ -62,6 +74,7 @@ function formater(r) {
     vendeur_ville: r.vendeur_ville,
     statut: 'actif',
     created_at: r.created_at,
+    variantes: formaterVariantes(r, r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0)),
   };
 }
 
