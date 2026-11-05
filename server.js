@@ -687,6 +687,7 @@ app.use('/api/admin/gestionnaires', require('./routes/admin_gestionnaires'));
 // 👤 GESTIONNAIRES — GET /:id, options, plan, branding, vérificateur
 // (monté APRÈS /moi et /stats pour éviter les conflits de routing)
 // =====================================================================
+app.use('/api/gestionnaires', require('./routes/catalogue_public').boutiques); // public : liste des boutiques (collaborateurs actifs)
 app.use('/api/gestionnaires', require('./routes/gestionnaires'));
 app.use('/api/gestionnaires', require('./routes/stripe_gestionnaire'));
 app.use('/api/gestionnaires/addon-pub-sponsor', require('./routes/gestionnaire_pubs'));

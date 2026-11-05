@@ -4,6 +4,7 @@
 // Monté dans server.js sur /api/produits/gestionnaire, AVANT l'ancien routeur produits_gestionnaire :
 //   GET /:gestionnaireId                  ?q= &limit= &collaborateur_id=     liste des produits
 //   GET /produit/:produitId                                                  { produit, similaires }
+//   (second routeur, monté sur /api/gestionnaires) GET /:gestionnaireId/boutiques  ?q= &tri= &page= &limit=
 // Si la requête porte un en-tête Authorization (le gestionnaire dans son dashboard) ou si le chemin
 // n'est pas reconnu, on laisse passer vers l'ancien routeur (next()).
 // Les champs sont renvoyés dans la forme attendue par les pages du template (nom, prix, prix_original, image, images…).
@@ -41,7 +42,7 @@ function formater(r) {
     description: r.description,
     prix: enPromo ? promo : prix,
     prix_original: enPromo ? prix : undefined,
-    stock: Number(r.stock) || 0,
+    stock: r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0), // stock vide = illimité
     image: r.photo_principale || photos[0] || null,
     images: JSON.stringify(photos),
     categorie: r.categorie,
@@ -94,4 +95,38 @@ router.get('/:gestionnaireId', async (req, res, next) => {
   }
 });
 
+// ── Boutiques (collaborateurs actifs) — monté sur /api/gestionnaires, avant l'ancien routeur ──────────────
+const boutiques = express.Router();
+const TRIS = {
+  alpha_asc: 'nom_boutique ASC', alpha_desc: 'nom_boutique DESC',
+  confiance: 'points_confiance DESC, nom_boutique ASC', recent: 'created_at DESC',
+};
+
+boutiques.get('/:gestionnaireId/boutiques', async (req, res) => {
+  try {
+    const gid = entier(req.params.gestionnaireId);
+    if (!gid) return res.json({ boutiques: [] });
+    const params = [gid];
+    let where = `mc.gestionnaire_id = $1 AND mc.statut = 'actif'`;
+    const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
+    if (q) { params.push('%' + q.replace(/[\\%_]/g, '\\$&') + '%'); where += ` AND (COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) ILIKE $${params.length} OR mc.description_boutique ILIKE $${params.length})`; }
+    const limite = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
+    const tri = TRIS[req.query.tri] || TRIS.alpha_asc;
+    const r = await pool.query(
+      `SELECT * FROM (
+         SELECT mc.id, COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.logo_url AS logo,
+                mc.description_boutique, mc.ville, mc.province, mc.created_at,
+                (SELECT COUNT(*) FROM produits p WHERE p.collaborateur_id = mc.id AND p.statut = 'actif')::int AS nb_produits,
+                COALESCE(ROUND((SELECT AVG(a.note) FROM avis_collaborateur a WHERE a.collaborateur_id = mc.id AND a.approuve) * 20), 0)::int AS points_confiance
+           FROM marketplace_collaborateurs mc WHERE ${where}
+       ) b ORDER BY ${tri} LIMIT ${limite} OFFSET ${(page - 1) * limite}`, params);
+    res.json({ boutiques: r.rows });
+  } catch (e) {
+    console.error('[catalogue_public] boutiques', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 module.exports = router;
+module.exports.boutiques = boutiques;
