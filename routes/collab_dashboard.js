@@ -687,9 +687,41 @@ router.put('/profil/mot-de-passe', h(async (req, res) => {
   res.json({ success: true });
 }));
 
+// Réseaux sociaux : lien https vers le bon site seulement (jamais de javascript:, data:, ni de site étranger).
+const RESEAUX = {
+  facebook:  ['facebook.com', 'fb.com', 'fb.me'],
+  instagram: ['instagram.com'],
+  tiktok:    ['tiktok.com'],
+  youtube:   ['youtube.com', 'youtu.be'],
+  x:         ['x.com', 'twitter.com'],
+  linkedin:  ['linkedin.com'],
+  pinterest: ['pinterest.com', 'pin.it'],
+};
+function lireReseaux(brut) {
+  if (brut === undefined || brut === null) return {};
+  if (typeof brut !== 'object' || Array.isArray(brut)) bad('Réseaux sociaux invalides');
+  const sortie = {};
+  for (const cle of Object.keys(RESEAUX)) {
+    let v = brut[cle];
+    if (v === undefined || v === null || v === '') continue;
+    if (typeof v !== 'string') bad('Lien de réseau social invalide');
+    v = v.trim();
+    if (!v) continue;
+    if (!/^https?:\/\//i.test(v)) v = 'https://' + v.replace(/^\/+/, '');
+    if (v.length > 200 || /[\s<>"'\\]/.test(v)) bad(`Lien ${cle} invalide`);
+    let u;
+    try { u = new URL(v); } catch (e) { bad(`Lien ${cle} invalide`); }
+    const hote = u.hostname.toLowerCase();
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') bad(`Lien ${cle} invalide`);
+    if (u.username || u.password || !RESEAUX[cle].some((d) => hote === d || hote.endsWith('.' + d))) bad(`Le lien ${cle} doit pointer vers ${RESEAUX[cle][0]}`);
+    sortie[cle] = 'https://' + u.host + u.pathname + u.search;
+  }
+  return sortie;
+}
+
 router.get('/boutique', h(async (req, res) => {
   const r = await pool.query(
-    `SELECT nom_boutique, description_boutique, logo_url, banniere_url, adresse, ville, province, code_postal, site_web, politique_retour
+    `SELECT nom_boutique, description_boutique, logo_url, banniere_url, adresse, ville, province, code_postal, site_web, politique_retour, politique_livraison, details_publics, reseaux_sociaux
        FROM marketplace_collaborateurs WHERE id=$1 AND gestionnaire_id=$2`, [req.cid, req.gid]);
   res.json(r.rows[0]);
 }));
@@ -707,11 +739,15 @@ router.put('/boutique', h(async (req, res) => {
   let site = texte(b.site_web, 'Site web', 200);
   if (site && !/^https?:\/\/[^\s<>"']+$/i.test(site)) bad('Site web invalide (doit commencer par http:// ou https://)');
   const politique = texte(b.politique_retour, 'Politique de retour', 2000);
+  const livraison = texte(b.politique_livraison, 'Informations de livraison', 2000);
+  const detailsPublics = b.details_publics === true;
+  const reseaux = lireReseaux(b.reseaux_sociaux);
   await pool.query(
     `UPDATE marketplace_collaborateurs SET nom_boutique=$1, description_boutique=NULLIF($2,''), logo_url=$3, banniere_url=$4,
-            adresse=NULLIF($5,''), ville=NULLIF($6,''), province=NULLIF($7,''), code_postal=NULLIF($8,''), site_web=NULLIF($9,''), politique_retour=NULLIF($10,'')
-      WHERE id=$11 AND gestionnaire_id=$12`,
-    [nom, description, logo, banniere, adresse, ville, province, cp, site, politique, req.cid, req.gid]);
+            adresse=NULLIF($5,''), ville=NULLIF($6,''), province=NULLIF($7,''), code_postal=NULLIF($8,''), site_web=NULLIF($9,''), politique_retour=NULLIF($10,''), politique_livraison=NULLIF($11,''),
+            details_publics=$12, reseaux_sociaux=$13::jsonb
+      WHERE id=$14 AND gestionnaire_id=$15`,
+    [nom, description, logo, banniere, adresse, ville, province, cp, site, politique, livraison, detailsPublics, JSON.stringify(reseaux), req.cid, req.gid]);
   res.json({ success: true });
 }));
 

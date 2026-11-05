@@ -23,7 +23,10 @@ interface Boutique {
   nb_vendus?: number;
   date_inscription?: string;
   telephone?: string;
-  site_web?: string;
+  details?: {
+    adresse?: string; ville?: string; province?: string; code_postal?: string; site_web?: string;
+    reseaux?: Record<string, string>;
+  } | null;
 }
 
 interface Produit {
@@ -40,7 +43,7 @@ interface Avis {
   id: number; nom_client: string; note_globale: number; titre?: string; commentaire?: string; created_at: string;
 }
 
-type Onglet = 'produits' | 'apropos' | 'blog' | 'faq' | 'avis';
+type Onglet = 'produits' | 'apropos' | 'details' | 'blog' | 'faq' | 'avis';
 
 interface Props {
   vendeurId?: number;
@@ -55,6 +58,7 @@ const DEMO_BOUTIQUE: Boutique = {
   description_courte: 'Specialiste en electronique et gadgets technologiques.',
   description_longue: 'TechPro Montreal est votre destination de confiance pour tous vos besoins en electronique. Depuis notre ouverture, nous nous engageons a offrir des produits authentiques, garantis et a prix competitifs. Notre equipe passionnee est toujours disponible pour vous conseiller dans le choix de vos appareils.',
   ville: 'Montreal', province: 'QC', nb_produits: 48, date_inscription: '2022-03-15',
+  details: { adresse: '123, rue Exemple', ville: 'Montreal', province: 'QC', code_postal: 'H2X 1Y4', site_web: 'https://exemple.com', reseaux: { facebook: 'https://facebook.com/exemple', instagram: 'https://instagram.com/exemple' } },
   banniere_url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w:1200&q=80',
 };
 
@@ -338,6 +342,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
   const ONGLETS: { id: Onglet; label: string; icone: string; visible: boolean }[] = [
     { id: 'produits', label: 'Produits', icone: '🛍️', visible: true },
     { id: 'apropos',  label: 'À propos', icone: 'ℹ️', visible: true },
+    { id: 'details',  label: '+ de détails', icone: '📍', visible: !!boutique.details },
     { id: 'blog',     label: 'Blog',     icone: '📝', visible: addonsStatut.blog_actif },
     { id: 'faq',      label: 'FAQ',      icone: '❓', visible: addonsStatut.faq_actif },
     { id: 'avis',     label: 'Avis',     icone: '⭐', visible: addonsStatut.avis_actif },
@@ -507,10 +512,49 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
             <div style={s.infosGrid}>
               {boutique.date_inscription && <div style={s.infoCard}><span style={s.infoLabel}>Membre depuis</span><span style={s.infoVal}>{new Date(boutique.date_inscription).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long' })}</span></div>}
               {boutique.telephone && <div style={s.infoCard}><span style={s.infoLabel}>Téléphone</span><span style={s.infoVal}>{boutique.telephone}</span></div>}
-              {boutique.site_web && <div style={s.infoCard}><span style={s.infoLabel}>Site web</span><span style={s.infoVal}>{boutique.site_web}</span></div>}
             </div>
           </div>
         )}
+
+        {/* ── ONGLET + DE DÉTAILS (visible seulement si le collaborateur l'a activé) ── */}
+        {onglet === 'details' && boutique.details && (() => {
+          const d = boutique.details!;
+          const adresseComplete = [d.adresse, [d.ville, d.province].filter(Boolean).join(', '), d.code_postal].filter(Boolean).join(' · ');
+          const lien = (u: string) => /^https?:\/\/[^\s<>"']+$/i.test(u) ? u : undefined;
+          const RS: { cle: string; label: string; icone: string }[] = [
+            { cle: 'facebook', label: 'Facebook', icone: '📘' }, { cle: 'instagram', label: 'Instagram', icone: '📸' },
+            { cle: 'tiktok', label: 'TikTok', icone: '🎵' }, { cle: 'youtube', label: 'YouTube', icone: '▶️' },
+            { cle: 'x', label: 'X', icone: '🐦' }, { cle: 'linkedin', label: 'LinkedIn', icone: '💼' },
+            { cle: 'pinterest', label: 'Pinterest', icone: '📌' },
+          ];
+          const reseaux = RS.filter(r => d.reseaux && lien(d.reseaux[r.cle] || ''));
+          return (
+            <div style={s.contenuApropos}>
+              <h2 style={s.sectionTitre}>+ de détails sur {boutique.nom_boutique}</h2>
+              <div style={s.infosGrid}>
+                {adresseComplete && <div style={s.infoCard}><span style={s.infoLabel}>📍 Adresse</span><span style={{ ...s.infoVal, overflowWrap: 'anywhere' }}>{adresseComplete}</span></div>}
+                {d.site_web && lien(d.site_web) && (
+                  <div style={s.infoCard}><span style={s.infoLabel}>🌐 Site web</span>
+                    <a href={lien(d.site_web)} target="_blank" rel="noopener noreferrer" style={{ ...s.infoVal, color: couleurAccent, textDecoration: 'none', overflowWrap: 'anywhere' }}>{d.site_web.replace(/^https?:\/\//i, '')} ↗</a>
+                  </div>
+                )}
+              </div>
+              {reseaux.length > 0 && (
+                <>
+                  <h3 style={{ ...s.sectionTitre, fontSize: 16, marginTop: 28 }}>Suivez-nous</h3>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                    {reseaux.map(r => (
+                      <a key={r.cle} href={lien(d.reseaux![r.cle])} target="_blank" rel="noopener noreferrer"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', color: '#fff', textDecoration: 'none', fontSize: 14, fontWeight: 600 }}>
+                        <span style={{ fontSize: 18 }}>{r.icone}</span>{r.label}
+                      </a>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── ONGLET BLOG (add-on) ── */}
         {onglet === 'blog' && addonsStatut.blog_actif && (

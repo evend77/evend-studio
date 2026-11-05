@@ -66,6 +66,8 @@ interface Produit {
   garantie?: string;
   retour_offert?: string;
   lien_youtube?: string;
+  politique_livraison?: string;
+  politique_retour?: string;
   variantes?: { nom: string; prix: number | null; stock: number }[];
 }
 
@@ -433,9 +435,11 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             )}
             {onglet === 'livraison' && (
               <div style={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1.8, fontSize: 14 }}>
-                <p>📦 Livraison disponible partout au Canada.</p>
-                <p>🏪 Ramassage en boutique possible selon disponibilité.</p>
-                {produit.ville && <p>📍 Vendu depuis : {produit.ville}</p>}
+                {produit.politique_livraison
+                  ? <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>📦 {produit.politique_livraison}</p>
+                  : <p>📦 Le vendeur n'a pas encore précisé ses conditions de livraison. Contactez-le via sa boutique pour plus d'informations.</p>}
+                {produit.politique_retour && <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>↩️ Retours : {produit.politique_retour}</p>}
+                {(produit.ville || (produit as any).vendeur_ville) && <p>📍 Vendu depuis : {produit.ville || (produit as any).vendeur_ville}</p>}
               </div>
             )}
           </div>

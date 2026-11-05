@@ -26,7 +26,7 @@ function entier(v) {
 
 const COLS = `p.id, p.titre, p.description, p.prix, p.prix_promo, p.stock, p.categorie, p.photo_principale, p.photos,
   p.created_at, p.collaborateur_id, p.variantes,
-  COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.ville AS vendeur_ville,
+  COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.ville AS vendeur_ville, mc.politique_livraison, mc.politique_retour,
   p.categorie_id, COALESCE(sc.nom, cp.label) AS categorie_nom, sg.nom AS groupe_nom`;
 const FROM = `FROM produits p
   JOIN marketplace_collaborateurs mc ON mc.id = p.collaborateur_id AND mc.statut = 'actif'
@@ -72,6 +72,8 @@ function formater(r) {
     nom_boutique: r.nom_boutique,
     vendeur_nom: r.nom_boutique,
     vendeur_ville: r.vendeur_ville,
+    politique_livraison: r.politique_livraison || '',
+    politique_retour: r.politique_retour || '',
     statut: 'actif',
     created_at: r.created_at,
     variantes: formaterVariantes(r, r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0)),
@@ -160,7 +162,7 @@ boutiques.get('/:gestionnaireId/boutiques', async (req, res) => {
 async function boutiqueActive(gid, cid) {
   const r = await pool.query(
     `SELECT mc.id, COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.description_boutique,
-            mc.ville, mc.province, mc.logo_url, mc.banniere_url, mc.site_web, mc.created_at,
+            mc.ville, mc.province, mc.logo_url, mc.banniere_url, mc.site_web, mc.adresse, mc.code_postal, mc.details_publics, mc.reseaux_sociaux, mc.created_at,
             (SELECT COUNT(*) FROM produits p WHERE p.collaborateur_id = mc.id AND p.statut = 'actif')::int AS nb_produits,
             (SELECT COALESCE(SUM(CASE WHEN (e->>'quantite') ~ '^[0-9]{1,6}$' THEN (e->>'quantite')::int ELSE 1 END), 0)::int
                FROM marketplace_commandes c, jsonb_array_elements(CASE WHEN jsonb_typeof(c.articles) = 'array' THEN c.articles ELSE '[]'::jsonb END) e
@@ -176,11 +178,22 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId', async (req, res) =>
     const b = await boutiqueActive(gid, cid);
     if (!b) return res.status(404).json({ error: 'Boutique introuvable' });
     const desc = b.description_boutique || '';
+    // « + de détails » : adresse, site web et réseaux sociaux ne sortent QUE si le collaborateur a activé l'interrupteur.
+    let details = null;
+    if (b.details_publics) {
+      const rs = b.reseaux_sociaux && typeof b.reseaux_sociaux === 'object' ? b.reseaux_sociaux : {};
+      const reseaux = {};
+      for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'linkedin', 'pinterest']) {
+        if (typeof rs[k] === 'string' && /^https:\/\/[^\s<>"']+$/.test(rs[k])) reseaux[k] = rs[k];
+      }
+      const d = { adresse: b.adresse || '', ville: b.ville || '', province: b.province || '', code_postal: b.code_postal || '', site_web: /^https?:\/\/[^\s<>"']+$/i.test(b.site_web || '') ? b.site_web : '', reseaux };
+      if (d.adresse || d.ville || d.code_postal || d.site_web || Object.keys(reseaux).length) details = d;
+    }
     res.json({
       id: b.id, nom_boutique: b.nom_boutique,
       description_courte: desc.length > 160 ? desc.slice(0, 157) + '…' : desc,
       description_longue: desc, ville: b.ville, province: b.province,
-      logo_url: b.logo_url, banniere_url: b.banniere_url, site_web: b.site_web,
+      logo_url: b.logo_url, banniere_url: b.banniere_url, details,
       nb_produits: b.nb_produits, nb_vendus: b.nb_vendus, date_inscription: b.created_at,
     });
   } catch (e) {
