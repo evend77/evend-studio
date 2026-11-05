@@ -21,10 +21,10 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
   const [prixPromo, setPrixPromo] = useState('');
   const [stock, setStock] = useState('');
   const [sku, setSku] = useState('');
-  const [categorie, setCategorie] = useState('');
+  const [categorieId, setCategorieId] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [variantes, setVariantes] = useState<Variante[]>([]);
-  const [categories, setCategories] = useState<{ cle: string; label: string; emoji: string }[]>([]);
+  const [categories, setCategories] = useState<{ id: number; nom: string; groupe_nom: string | null }[]>([]);
   const [chargement, setChargement] = useState(!!produitId);
   const [envoi, setEnvoi] = useState(false);
   const [sauvegarde, setSauvegarde] = useState(false);
@@ -45,7 +45,7 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
         setTitre(p.titre || ''); setDescription(p.description || '');
         setPrix(p.prix ?? ''); setPrixPromo(p.prix_promo ?? '');
         setStock(p.stock === null || p.stock === undefined ? '' : String(p.stock));
-        setSku(p.sku || ''); setCategorie(p.categorie || '');
+        setSku(p.sku || ''); setCategorieId(p.categorie_id ? String(p.categorie_id) : '');
         setPhotos(Array.isArray(p.photos) ? p.photos : []);
         setVariantes((Array.isArray(p.variantes) ? p.variantes : []).map((v: any) => ({
           nom: v.nom || '', prix: v.prix === null || v.prix === undefined ? '' : String(v.prix), stock: v.stock === null || v.stock === undefined ? '' : String(v.stock),
@@ -83,13 +83,14 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
     setErreur('');
     if (!titre.trim()) { setErreur('Le titre est obligatoire'); return; }
     if (prix === '' || Number(prix) < 0) { setErreur('Le prix est obligatoire'); return; }
+    if (categories.length > 0 && !categorieId) { setErreur('Choisissez une catégorie'); return; }
     if (prixPromo !== '' && Number(prixPromo) >= Number(prix)) { setErreur('Le prix promo doit être inférieur au prix'); return; }
     setSauvegarde(true);
     try {
       const res = await fetch(produitId ? `${base}/produits/${produitId}` : `${base}/produits`, {
         method: produitId ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          titre, description, prix, prix_promo: prixPromo, stock, sku, categorie, photos, statut,
+          titre, description, prix, prix_promo: prixPromo, stock, sku, categorie_id: categorieId || null, photos, statut,
           variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock })),
         }),
       });
@@ -154,14 +155,14 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
           <div><label style={lbl}>SKU</label><input value={sku} onChange={e => setSku(e.target.value)} maxLength={60} style={champ} /></div>
         </div>
         <div style={{ marginTop: 12 }}>
-          <label style={lbl}>Catégorie</label>
+          <label style={lbl}>Catégorie *</label>
           {categories.length > 0 ? (
-            <select value={categorie} onChange={e => setCategorie(e.target.value)} style={champ}>
-              <option value="">— Aucune —</option>
-              {categories.map(c => <option key={c.cle} value={c.cle}>{c.emoji} {c.label}</option>)}
-              {categorie && !categories.some(c => c.cle === categorie) && <option value={categorie}>{categorie}</option>}
+            <select value={categorieId} onChange={e => setCategorieId(e.target.value)} style={champ}>
+              <option value="">— Choisir une catégorie —</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.groupe_nom ? `${c.groupe_nom} › ` : ''}{c.nom}</option>)}
+              {categorieId && !categories.some(c => String(c.id) === categorieId) && <option value={categorieId}>Catégorie actuelle (désactivée)</option>}
             </select>
-          ) : <input value={categorie} onChange={e => setCategorie(e.target.value)} maxLength={80} style={champ} />}
+          ) : <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>Le gestionnaire n'a pas encore créé de catégories.</p>}
         </div>
       </div>
 

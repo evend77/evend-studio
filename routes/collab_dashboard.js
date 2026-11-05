@@ -187,7 +187,11 @@ function urlImage(req, v, nom) {
 const STATUTS_PRODUIT = ['actif', 'brouillon'];
 
 router.get('/categories', h(async (req, res) => {
-  const r = await pool.query(`SELECT cle, label, emoji FROM categories_pub WHERE actif = true ORDER BY ordre, label`);
+  // Catégories créées par le gestionnaire de cette boutique (actives seulement).
+  const r = await pool.query(
+    `SELECT c.id, c.nom, g.nom AS groupe_nom
+       FROM studio_categories c LEFT JOIN studio_groupes_categories g ON g.id = c.groupe_id
+      WHERE c.gestionnaire_id = $1 AND c.active = true ORDER BY c.nom`, [req.gid]);
   res.json(r.rows);
 }));
 
@@ -222,7 +226,7 @@ router.get('/produits/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
   const r = await pool.query(
-    `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, photo_principale, photos, variantes, statut
+    `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id, photo_principale, photos, variantes, statut
        FROM produits WHERE id = $1 AND collaborateur_id = $2 AND gestionnaire_id = $3`, [id, req.cid, req.gid]);
   if (!r.rows.length) bad('Produit introuvable', 404);
   res.json(r.rows[0]);
@@ -237,7 +241,11 @@ function lireProduit(req) {
   if (prixPromo !== null && prixPromo >= prix) bad('Le prix promo doit être inférieur au prix');
   const stock = b.stock === '' || b.stock === undefined || b.stock === null ? null : Math.trunc(nombre(b.stock, 'Stock', 0, 1000000));
   const sku = texte(b.sku, 'SKU', 60);
-  const categorie = texte(b.categorie, 'Catégorie', 80);
+  let categorieId = null;
+  if (b.categorie_id !== undefined && b.categorie_id !== null && b.categorie_id !== '') {
+    categorieId = entier(b.categorie_id);
+    if (!categorieId) bad('Catégorie invalide');
+  }
   const statut = b.statut === undefined ? 'brouillon' : b.statut;
   if (!STATUTS_PRODUIT.includes(statut)) bad('Statut invalide');
   if (!Array.isArray(b.photos || [])) bad('Photos invalides');
@@ -253,18 +261,27 @@ function lireProduit(req) {
       stock: v.stock === '' || v.stock === undefined || v.stock === null ? null : Math.trunc(nombre(v.stock, 'Stock de variante', 0, 1000000)),
     };
   });
-  return { titre, description, prix, prixPromo, stock, sku, categorie, statut, photos, variantes };
+  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes };
+}
+
+// La catégorie doit exister, être active et appartenir au gestionnaire de cette boutique.
+async function nomCategorie(req, categorieId) {
+  if (!categorieId) return null;
+  const r = await pool.query('SELECT nom FROM studio_categories WHERE id = $1 AND gestionnaire_id = $2 AND active = true', [categorieId, req.gid]);
+  if (!r.rowCount) bad('Catégorie introuvable');
+  return r.rows[0].nom;
 }
 
 router.post('/produits', h(async (req, res) => {
   const p = lireProduit(req);
+  p.categorie = await nomCategorie(req, p.categorieId);
   const n = await pool.query(`SELECT COUNT(*) AS n FROM produits WHERE collaborateur_id = $1`, [req.cid]);
   if (+n.rows[0].n >= 1000) bad('Limite de 1000 produits atteinte', 409);
   const r = await pool.query(
-    `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie,
+    `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
                            photo_principale, photos, variantes, statut)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id`,
-    [req.gid, req.cid, p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null,
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+    [req.gid, req.cid, p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
      p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut]);
   res.status(201).json({ id: r.rows[0].id });
 }));
@@ -273,11 +290,12 @@ router.put('/produits/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
   const p = lireProduit(req);
+  p.categorie = await nomCategorie(req, p.categorieId);
   const r = await pool.query(
-    `UPDATE produits SET titre=$1, description=$2, prix=$3, prix_promo=$4, stock=$5, sku=$6, categorie=$7,
-            photo_principale=$8, photos=$9, variantes=$10, statut=$11, updated_at=NOW()
-      WHERE id=$12 AND collaborateur_id=$13 AND gestionnaire_id=$14`,
-    [p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null,
+    `UPDATE produits SET titre=$1, description=$2, prix=$3, prix_promo=$4, stock=$5, sku=$6, categorie=$7, categorie_id=$8,
+            photo_principale=$9, photos=$10, variantes=$11, statut=$12, updated_at=NOW()
+      WHERE id=$13 AND collaborateur_id=$14 AND gestionnaire_id=$15`,
+    [p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
      p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, id, req.cid, req.gid]);
   if (!r.rowCount) bad('Produit introuvable', 404);
   res.json({ success: true });
@@ -298,9 +316,9 @@ router.post('/produits/:id/dupliquer', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
   const r = await pool.query(
-    `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie,
+    `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
                            photo_principale, photos, variantes, statut)
-     SELECT gestionnaire_id, collaborateur_id, LEFT('Copie de ' || titre, 150), description, prix, prix_promo, stock, NULL, categorie,
+     SELECT gestionnaire_id, collaborateur_id, LEFT('Copie de ' || titre, 150), description, prix, prix_promo, stock, NULL, categorie, categorie_id,
             photo_principale, photos, variantes, 'brouillon'
        FROM produits WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3 RETURNING id`,
     [id, req.cid, req.gid]);

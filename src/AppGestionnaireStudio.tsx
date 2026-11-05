@@ -103,6 +103,7 @@ const ConfigurationGenerale = () =>
   <PageEnConstruction titre="Configuration générale" icone="🔧" description="Paramètres de base de votre boutique : nom, adresse, Stripe Connect." />;
 
 import ListeProduits from './pages/gestionnaire/ListeProduits';
+import StudioCategories from './pages/gestionnaire/StudioCategories';
 import BulkEditProduits from './pages/gestionnaire/BulkEditProduits';
 
 const Categories          = () =>
@@ -1120,6 +1121,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuChatSV,
       { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[
         { id:'annonces-liste',label:'Liste des produits',icon:'📦' },
+        { id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },
         { id:'annonces-creer',label:'Créer une annonce',icon:'➕' }
       ]},
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
@@ -1433,6 +1435,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'addon')               return <AddOn />;
     if (pageActive === 'branding-options')     return <BrandingEtOptions gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'annonces-liste') return <ListeProduits naviguerVers={setPageActive} gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'annonces-studio-categories') return <StudioCategories gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'annonces-encheres') return <MesEncheres />;
     if (pageActive === 'annonces-make-offer') return <MesOffres />;
     if (pageActive === 'annonces-categories') return <Categories />;

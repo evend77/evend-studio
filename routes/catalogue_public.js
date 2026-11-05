@@ -4,7 +4,9 @@
 // Monté dans server.js sur /api/produits/gestionnaire, AVANT l'ancien routeur produits_gestionnaire :
 //   GET /:gestionnaireId                  ?q= &limit= &collaborateur_id=     liste des produits
 //   GET /produit/:produitId                                                  { produit, similaires }
+//                                         (+ ?categorie_id= ; ?q= cherche aussi dans le nom de la catégorie et du groupe)
 //   (second routeur, monté sur /api/gestionnaires) GET /:gestionnaireId/boutiques  ?q= &tri= &page= &limit=
+//                                                  GET /:gestionnaireId/categories · /categories-groupes  (actifs)
 // Si la requête porte un en-tête Authorization (le gestionnaire dans son dashboard) ou si le chemin
 // n'est pas reconnu, on laisse passer vers l'ancien routeur (next()).
 // Les champs sont renvoyés dans la forme attendue par les pages du template (nom, prix, prix_original, image, images…).
@@ -22,10 +24,12 @@ function entier(v) {
 const COLS = `p.id, p.titre, p.description, p.prix, p.prix_promo, p.stock, p.categorie, p.photo_principale, p.photos,
   p.created_at, p.collaborateur_id,
   COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.ville AS vendeur_ville,
-  cp.label AS categorie_nom`;
+  p.categorie_id, COALESCE(sc.nom, cp.label) AS categorie_nom, sg.nom AS groupe_nom`;
 const FROM = `FROM produits p
   JOIN marketplace_collaborateurs mc ON mc.id = p.collaborateur_id AND mc.statut = 'actif'
-  LEFT JOIN categories_pub cp ON cp.cle = p.categorie`;
+  LEFT JOIN categories_pub cp ON cp.cle = p.categorie
+  LEFT JOIN studio_categories sc ON sc.id = p.categorie_id
+  LEFT JOIN studio_groupes_categories sg ON sg.id = sc.groupe_id`;
 const FILTRE = `p.gestionnaire_id = $1 AND p.statut = 'actif' AND p.collaborateur_id IS NOT NULL`;
 
 function formater(r) {
@@ -46,7 +50,9 @@ function formater(r) {
     image: r.photo_principale || photos[0] || null,
     images: JSON.stringify(photos),
     categorie: r.categorie,
+    categorie_id: r.categorie_id,
     categorie_nom: r.categorie_nom || r.categorie,
+    groupe_nom: r.groupe_nom || null,
     vendeur_id: r.collaborateur_id,
     nom_boutique: r.nom_boutique,
     vendeur_nom: r.nom_boutique,
@@ -68,7 +74,7 @@ router.get('/produit/:produitId', async (req, res, next) => {
     const p = r.rows[0];
     const sim = await pool.query(
       `SELECT ${COLS} ${FROM} WHERE ${FILTRE} AND p.id <> $2
-        ORDER BY (p.categorie = $3) DESC, p.created_at DESC LIMIT 4`, [p.gestionnaire_id, id, p.categorie || '']);
+        ORDER BY (p.categorie_id IS NOT NULL AND p.categorie_id = $3) DESC, p.created_at DESC LIMIT 4`, [p.gestionnaire_id, id, p.categorie_id || 0]);
     res.json({ produit: formater(p), similaires: sim.rows.map(formater) });
   } catch (e) {
     console.error('[catalogue_public] produit', e.message);
@@ -83,7 +89,13 @@ router.get('/:gestionnaireId', async (req, res, next) => {
     const params = [gid];
     let where = FILTRE;
     const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
-    if (q) { params.push('%' + q.replace(/[\\%_]/g, '\\$&') + '%'); where += ` AND (p.titre ILIKE $${params.length} OR p.categorie ILIKE $${params.length})`; }
+    if (q) {
+      params.push('%' + q.replace(/[\\%_]/g, '\\$&') + '%');
+      const n = params.length;
+      where += ` AND (p.titre ILIKE $${n} OR p.categorie ILIKE $${n} OR sc.nom ILIKE $${n} OR sg.nom ILIKE $${n})`;
+    }
+    const catId = entier(req.query.categorie_id);
+    if (catId) { params.push(catId); where += ` AND p.categorie_id = $${params.length}`; }
     const collab = entier(req.query.collaborateur_id);
     if (collab) { params.push(collab); where += ` AND p.collaborateur_id = $${params.length}`; }
     const limite = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 200);
@@ -124,6 +136,44 @@ boutiques.get('/:gestionnaireId/boutiques', async (req, res) => {
     res.json({ boutiques: r.rows });
   } catch (e) {
     console.error('[catalogue_public] boutiques', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ── Catégories et groupes du gestionnaire (actifs seulement) — pour la barre latérale et l'accueil ──────────
+boutiques.get('/:gestionnaireId/categories', async (req, res) => {
+  try {
+    const gid = entier(req.params.gestionnaireId);
+    if (!gid) return res.json({ categories: [] });
+    const r = await pool.query(
+      `SELECT c.id, c.nom, c.image, g.nom AS groupe_nom,
+              (SELECT COUNT(*) FROM produits p
+                 JOIN marketplace_collaborateurs mc ON mc.id = p.collaborateur_id AND mc.statut = 'actif'
+                WHERE p.categorie_id = c.id AND p.statut = 'actif')::int AS nb_produits
+         FROM studio_categories c
+         LEFT JOIN studio_groupes_categories g ON g.id = c.groupe_id
+        WHERE c.gestionnaire_id = $1 AND c.active = true
+        ORDER BY c.nom ASC`, [gid]);
+    res.json({ categories: r.rows });
+  } catch (e) {
+    console.error('[catalogue_public] categories', e.message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+boutiques.get('/:gestionnaireId/categories-groupes', async (req, res) => {
+  try {
+    const gid = entier(req.params.gestionnaireId);
+    if (!gid) return res.json({ groupes: [] });
+    const r = await pool.query(
+      `SELECT g.id, g.nom, g.image,
+              (SELECT COUNT(*) FROM studio_categories c WHERE c.groupe_id = g.id AND c.active = true)::int AS nb_categories
+         FROM studio_groupes_categories g
+        WHERE g.gestionnaire_id = $1 AND g.active = true
+        ORDER BY g.ordre ASC NULLS LAST, g.nom ASC`, [gid]);
+    res.json({ groupes: r.rows });
+  } catch (e) {
+    console.error('[catalogue_public] groupes', e.message);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });
