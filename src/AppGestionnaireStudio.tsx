@@ -720,6 +720,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     sousMenu: [
       { id: 'collaborateurs-liste',  label: 'Liste des collaborateurs', icon: '👥' },
       { id: 'collaborateurs-blogs',  label: 'Blog collaborateurs',      icon: '📝' },
+      ...(estMultiVendeur ? [{ id: 'faqs-collaborateurs', label: 'FAQ collaborateurs', icon: '❓' }] : []),
       { id: 'collaborateurs-messages', label: 'Messages collaborateurs', icon: '💬' },
       { id: 'collaborateurs-signalements', label: 'Signalements', icon: '🚩', badge: signalementsNouveaux > 0 ? signalementsNouveaux : undefined },
     ],
@@ -735,7 +736,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     ]
   };
 
-  // ── Blog collaborateurs ───────────────────────────────────────────────────
+  // ── Blog / FAQ collaborateurs (menus séparés, templates hors multi-vendeur) ──
   const menuBlogsSV: MenuItem = {
     id: 'blogs-collaborateurs', label: 'BLOGS COLLABORATEURS', icon: '📝',
   };
@@ -800,7 +801,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuConfigBeaute: MenuItem = { id:'config-beaute',label:'CONFIG MES PAGES',icon:'💄',sousMenu:[{ id:'beaute-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'beaute-plan',label:'Mon plan & limites',icon:'📊' },{ id:'beaute-branding',label:'Branding & options',icon:'⚙️' }] };
   const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-encheres',label:'Enchères',icon:'🔨' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-branding',label:'Branding & options',icon:'⚙️' }] };
-  const menuVendeurs: MenuItem     = { id:'vendeurs',label:'MES VENDEURS',icon:'👥',sousMenu:[{ id:'vendeurs-liste',label:'Liste des vendeurs',icon:'👥' },{ id:'vendeurs-demandes',label:'Demandes en attente',icon:'📥' },{ id:'vendeurs-paiements',label:'Paiements vendeurs',icon:'💰' }] };
 
   // ── Construction du menu selon le template ────────────────────────────────
   let menuItems: MenuItem[];
@@ -1137,11 +1137,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estMultiVendeur) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      menuVendeurs,
       menuSousVendeurs,
       menuBadges,
-      menuBlogsSV,
-      menuFaqsSV,
       menuChatSV,
       { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[
         { id:'annonces-liste',label:'Liste des produits',icon:'📦' },
