@@ -15,6 +15,7 @@ import Profil                  from './pages/acheteur/Profil';
 import MessagerieGestionnaire  from './pages/acheteur/MessagerieGestionnaire';
 import ChatAvecCollaborateurs  from './pages/acheteur/ChatAvecCollaborateurs';
 import Documents               from './pages/acheteur/Documents';
+import MesEncheres             from './pages/acheteur/MesEncheres';
 
 const API_BASE = '/api';
 
@@ -64,7 +65,7 @@ interface Stats {
 type PageDash =
   | 'dashboard' | 'commandes' | 'panier' | 'checkout' | 'wishlist' | 'favoris'
   | 'messagerie' | 'chat' | 'notifications' | 'documents'
-  | 'profil' | 'retours';
+  | 'profil' | 'retours' | 'encheres';
 
 interface Props {
   vendeurId?: number;
@@ -390,6 +391,7 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     { id: 'messagerie',    label: 'MESSAGERIE GESTIONNAIRE', icon: '🏢', badge: nonLusGest },
     { id: 'chat',          label: 'CHAT COLLABORATEURS', icon: '💬', badge: nonLusChat },
     { id: 'notifications', label: 'NOTIFICATIONS',    icon: '🔔', badge: nonLusNotifs },
+    { id: 'encheres',      label: 'MES ENCHÈRES',     icon: '🔨' },
     { id: 'panier',        label: 'MON PANIER',       icon: '🛒' },
     { id: 'retours',       label: 'RETOURS',          icon: '🔄' },
     { id: 'documents',     label: 'DOCUMENTS',        icon: '📄' },
@@ -411,6 +413,7 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     if (page === 'commandes')     return <Commandes {...commun} onEcrire={ecrireACollab} />;
     if (page === 'panier')        return <Panier naviguer={(p: string) => naviguer(p as PageDash)} gestionnaireId={gestionnaireId} config={config} />;
     if (page === 'checkout')      return <Checkout naviguer={(p: string) => naviguer(p as PageDash)} vendeurId={checkoutCollabId ?? undefined} gestionnaireId={gestionnaireId} config={config} />;
+    if (page === 'encheres')      return <MesEncheres {...commun} naviguer={versBoutique} onVoirProduit={(id) => naviguerTemplate({ page: 'produit', produitId: id })} />;
     if (page === 'wishlist')      return <Wishlist {...commun} naviguer={versBoutique} />;
     if (page === 'favoris')       return <CollaborateursFavoris {...commun} onEcrire={ecrireACollab} />;
     if (page === 'messagerie')    return <MessagerieGestionnaire {...commun} />;

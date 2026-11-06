@@ -222,6 +222,13 @@ async function annulerEnchere({ gid, enchereId, collaborateurId, parGestionnaire
     await client.query('ROLLBACK').catch(() => {});
     throw err;
   } finally { client.release(); }
+  // Annulation par le gestionnaire alors qu'il y avait des mises : on prévient les enchérisseurs et le collaborateur
+  if (parGestionnaire && e.nb_mises > 0) {
+    try {
+      const qui = (await pool.query('SELECT DISTINCT acheteur_id FROM encheres_mises WHERE enchere_id = $1', [e.id])).rows;
+      for (const r of qui) await notifierAcheteur(e.gestionnaire_id, r.acheteur_id, 'Enchère annulée', `L'enchère « ${e.titre} » a été annulée par la boutique. Vos mises ne sont plus valides (aucun montant n'a été prélevé).`);
+    } catch (x) { console.error('[encheres] notification annulation :', x.message); }
+  }
   return true;
 }
 

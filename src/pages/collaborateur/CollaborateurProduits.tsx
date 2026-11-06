@@ -13,6 +13,9 @@ interface Reponse {
   produits: Produit[]; total: number; page: number; pages: number;
   stats: { total: number; actifs: number; brouillons: number; ruptures: number };
 }
+interface EnchereCollab {
+  id: number; produit_id: number; statut: string; prix_depart: number; mise_actuelle: number | null; nb_mises: number; date_fin: string;
+}
 interface Props {
   gestionnaireId: number; accent: string; isMobile: boolean;
   onCreer: () => void; onModifier: (id: number) => void;
@@ -34,6 +37,14 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
   const [erreur, setErreur] = useState('');
   const [occupe, setOccupe] = useState(false);
   const [chargement, setChargement] = useState(true);
+  // ── Enchères ──
+  const [encheres, setEncheres] = useState<Record<number, EnchereCollab>>({});
+  const [modalEnchere, setModalEnchere] = useState<Produit | null>(null);
+  const [fDepart, setFDepart] = useState('');
+  const [fReserve, setFReserve] = useState('');
+  const [fDuree, setFDuree] = useState('24');
+  const [errEnchere, setErrEnchere] = useState('');
+  const [infoEnchere, setInfoEnchere] = useState('');
   const minuterie = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const charger = useCallback(async () => {
@@ -50,6 +61,60 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
   }, [base, page, qEff, statut, rupture]);
 
   useEffect(() => { charger(); }, [charger]);
+
+  // L'API des enchères utilise le jeton de connexion de la boutique (cookie, avec repli sur le stockage local)
+  const baseEnc = `/api/marketplace/${gestionnaireId}/encheres`;
+  const enteteEnc = (json: boolean): Record<string, string> => {
+    const h: Record<string, string> = {};
+    if (json) h['Content-Type'] = 'application/json';
+    try { const t = localStorage.getItem(`mv_token_${gestionnaireId}`); if (t) h.Authorization = `Bearer ${t}`; } catch { /* stockage indisponible */ }
+    return h;
+  };
+  const chargerEncheres = useCallback(async () => {
+    try {
+      const res = await fetch(`${baseEnc}/collaborateur/mes`, { credentials: 'include', headers: enteteEnc(false) });
+      if (!res.ok) return;
+      const d = await res.json();
+      const m: Record<number, EnchereCollab> = {};
+      for (const e of (d.encheres || []) as EnchereCollab[]) if (e.statut === 'active' || e.statut === 'attente_paiement') m[e.produit_id] = e;
+      setEncheres(m);
+    } catch { /* l'affichage des enchères est secondaire */ }
+  }, [baseEnc]);
+  useEffect(() => { chargerEncheres(); }, [chargerEncheres]);
+
+  const ouvrirEnchere = (p: Produit) => {
+    setModalEnchere(p); setFDepart(String(Number(p.prix_promo || p.prix) || '')); setFReserve(''); setFDuree('24'); setErrEnchere('');
+  };
+  const lancerEnchere = async () => {
+    if (!modalEnchere) return;
+    const depart = parseFloat(fDepart.replace(',', '.'));
+    const duree = parseFloat(fDuree.replace(',', '.'));
+    const reserve = fReserve.trim() ? parseFloat(fReserve.replace(',', '.')) : undefined;
+    if (!(depart > 0)) { setErrEnchere('Entrez un prix de départ valide.'); return; }
+    if (!(duree > 0)) { setErrEnchere('Entrez une durée valide (en heures).'); return; }
+    if (reserve !== undefined && !(reserve >= depart)) { setErrEnchere('Le prix de réserve doit être égal ou supérieur au prix de départ.'); return; }
+    setOccupe(true); setErrEnchere('');
+    try {
+      const res = await fetch(baseEnc, {
+        method: 'POST', credentials: 'include', headers: enteteEnc(true),
+        body: JSON.stringify({ produit_id: modalEnchere.id, prix_depart: depart, prix_reserve: reserve, duree_heures: duree }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setErrEnchere(d.error || 'Impossible de créer l\'enchère.'); }
+      else { setModalEnchere(null); setInfoEnchere('🔨 Enchère lancée ! Une unité est réservée pour l\'enchère.'); setTimeout(() => setInfoEnchere(''), 6000); await Promise.all([charger(), chargerEncheres()]); }
+    } catch { setErrEnchere('Erreur réseau'); }
+    setOccupe(false);
+  };
+  const annulerEnchere = async (e: EnchereCollab) => {
+    setOccupe(true);
+    try {
+      const res = await fetch(`${baseEnc}/${e.id}/annuler`, { method: 'POST', credentials: 'include', headers: enteteEnc(false) });
+      if (!res.ok) setErreur((await res.json().catch(() => ({}))).error || 'Annulation impossible');
+      else setErreur('');
+      await Promise.all([charger(), chargerEncheres()]);
+    } catch { setErreur('Erreur réseau'); }
+    setOccupe(false);
+  };
 
   const changerRecherche = (v: string) => {
     setQ(v);
@@ -175,6 +240,16 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
                 <button disabled={occupe} onClick={() => action(`/produits/${p.id}/statut`, 'PATCH', { statut: p.statut === 'actif' ? 'brouillon' : 'actif' })} style={bouton(T.light)}>
                   {p.statut === 'actif' ? '⏸ Retirer' : '▶ Publier'}
                 </button>
+                {encheres[p.id] ? (
+                  encheres[p.id].statut === 'active' && encheres[p.id].nb_mises === 0
+                    ? <button disabled={occupe} onClick={() => annulerEnchere(encheres[p.id])} style={bouton('#b45309')} title="Annuler l'enchère (aucune mise)">🔨 Annuler l'enchère</button>
+                    : <span style={{ ...badge('actif'), background: '#FEF3C7', color: '#92400E' }}>
+                        🔨 {encheres[p.id].statut === 'active' ? `${encheres[p.id].nb_mises} mise${encheres[p.id].nb_mises > 1 ? 's' : ''}` : 'À payer'}
+                      </span>
+                ) : (
+                  p.statut === 'actif' && (p.stock === null || p.stock > 0) &&
+                  <button disabled={occupe} onClick={() => ouvrirEnchere(p)} style={bouton('#b45309')} title="Mettre aux enchères">🔨 Enchères</button>
+                )}
                 <button disabled={occupe} onClick={() => action(`/produits/${p.id}/dupliquer`, 'POST')} style={bouton(T.light)} title="Dupliquer">⧉</button>
                 <button disabled={occupe} onClick={() => setASupprimer([p.id])} style={bouton(T.danger)} title="Supprimer">🗑️</button>
               </div>
@@ -190,6 +265,38 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
           <div style={{ display: 'flex', gap: 8 }}>
             <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={{ ...bouton(T.light), padding: '7px 14px', opacity: page <= 1 ? 0.4 : 1 }}>← Précédent</button>
             <button disabled={page >= data.pages} onClick={() => setPage(p => p + 1)} style={{ ...bouton(T.light), padding: '7px 14px', opacity: page >= data.pages ? 0.4 : 1 }}>Suivant →</button>
+          </div>
+        </div>
+      )}
+
+      {infoEnchere && <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#1a2332', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, zIndex: 1100 }}>{infoEnchere}</div>}
+
+      {/* Mise aux enchères */}
+      {modalEnchere && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: 24, maxWidth: 420, width: '100%' }}>
+            <h3 style={{ margin: '0 0 4px', color: T.text }}>🔨 Mettre aux enchères</h3>
+            <p style={{ margin: '0 0 14px', fontSize: 13, color: T.light }}>{modalEnchere.titre}</p>
+            {[
+              { l: 'Prix de départ ($)', v: fDepart, f: setFDepart, ph: '' },
+              { l: 'Prix de réserve ($) — facultatif', v: fReserve, f: setFReserve, ph: 'Sous ce prix, vous n\'êtes pas obligé de vendre' },
+              { l: 'Durée (heures)', v: fDuree, f: setFDuree, ph: '24' },
+            ].map(c => (
+              <div key={c.l} style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 4 }}>{c.l}</label>
+                <input value={c.v} onChange={e => c.f(e.target.value)} placeholder={c.ph} inputMode="decimal"
+                  style={{ width: '100%', padding: '9px 11px', border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
+              </div>
+            ))}
+            <p style={{ fontSize: 12, color: T.light, margin: '0 0 12px', lineHeight: 1.5 }}>
+              Une unité est mise de côté pendant l'enchère. Le prix de réserve n'est jamais affiché aux acheteurs. Une mise dans les 2 dernières minutes prolonge l'enchère.
+              Vous pourrez annuler tant qu'il n'y a aucune mise.
+            </p>
+            {errEnchere && <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{errEnchere}</div>}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setModalEnchere(null)} style={{ flex: 1, padding: 10, border: `1px solid ${T.border}`, background: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Annuler</button>
+              <button disabled={occupe} onClick={lancerEnchere} style={{ flex: 1, padding: 10, border: 'none', background: accent, color: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Lancer l'enchère</button>
+            </div>
           </div>
         </div>
       )}

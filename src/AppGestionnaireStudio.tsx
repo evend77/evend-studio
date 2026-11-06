@@ -39,6 +39,7 @@ import SurveillanceChats        from './pages/gestionnaire/SurveillanceChats';
 import ChatAvecCollaborateur    from './pages/gestionnaire/ChatAvecCollaborateur';
 import StudioSignalements       from './pages/gestionnaire/StudioSignalements';
 import StudioModelesCourriel   from './pages/gestionnaire/StudioModelesCourriel';
+import StudioEncheres          from './pages/gestionnaire/StudioEncheres';
 import StudioSousVendeurs       from './pages/gestionnaire/StudioCollaborateurs';
 import StudioGestionBadges      from './pages/gestionnaire/StudioGestionBadges';
 import StudioBadgesAttribues    from './pages/gestionnaire/StudioBadgesAttribues';
@@ -798,7 +799,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuVosAnnoncesBeaute: MenuItem = { id:'annonces',label:'VOS PRODUITS',icon:'💄',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigBeaute: MenuItem = { id:'config-beaute',label:'CONFIG MES PAGES',icon:'💄',sousMenu:[{ id:'beaute-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'beaute-plan',label:'Mon plan & limites',icon:'📊' },{ id:'beaute-branding',label:'Branding & options',icon:'⚙️' }] };
   const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
-  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-branding',label:'Branding & options',icon:'⚙️' }] };
+  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-encheres',label:'Enchères',icon:'🔨' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-branding',label:'Branding & options',icon:'⚙️' }] };
   const menuVendeurs: MenuItem     = { id:'vendeurs',label:'MES VENDEURS',icon:'👥',sousMenu:[{ id:'vendeurs-liste',label:'Liste des vendeurs',icon:'👥' },{ id:'vendeurs-demandes',label:'Demandes en attente',icon:'📥' },{ id:'vendeurs-paiements',label:'Paiements vendeurs',icon:'💰' }] };
 
   // ── Construction du menu selon le template ────────────────────────────────
@@ -1454,6 +1455,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'faqs-collaborateurs')       return <StudioFaqSousVendeur  gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-messages')  return <ChatAvecCollaborateur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-signalements') return <StudioSignalements gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-encheres') return <StudioEncheres gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-courriels-boutique') return <StudioModelesCourriel gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'chat-acheteur-sv')         return <SurveillanceChats     gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'badges-gestion')      return <StudioGestionBadges   gestionnaireId={gestionnaire.id} />;

@@ -3,8 +3,7 @@
 
 import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
-import MVPremiumFooter from './MVPremiumFooter';
-import { fondDe, fondNav } from './mvTheme';
+import BlocEnchere from './BlocEnchere';
 
 const API_BASE = '/api';
 
@@ -66,9 +65,6 @@ interface Produit {
   garantie?: string;
   retour_offert?: string;
   lien_youtube?: string;
-  politique_livraison?: string;
-  politique_retour?: string;
-  variantes?: { nom: string; prix: number | null; stock: number }[];
 }
 
 interface Similaire {
@@ -104,45 +100,20 @@ function getImages(p: Produit): string[] {
 
 // ─── NAVBAR ──────────────────────────────────────────────────────────────────
 function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Record<string, any> }) {
-  const [menuOuvert, setMenuOuvert] = useState(false);
   const nom = config?.nom_boutique || 'Ma Marketplace';
-  const accent = config?.couleur_accent || '#fbbf24';
-  const liens: { label: string; dest: NavMV }[] = [{ label: '← Retour au catalogue', dest: { page: 'catalogue' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }];
-  const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
-    <nav style={{ ...s.nav, background: fondNav(config) }}>
-      <style>{`
-        @media (max-width:768px) {
-          .mvn-liens { display:none !important; }
-          .mvn-burger { display:flex !important; }
-          .mvn-inner { padding:0 14px !important; gap:12px !important; }
-          .mvn-search { display:none !important; }
-        }
-      `}</style>
-      <div className="mvn-inner" style={s.navInner}>
-        <div style={{ ...s.navLogo, minWidth: 0, flexShrink: 1 }} onClick={() => aller({ page: 'accueil' })}>
-          <div style={{ ...s.logoIcon, flexShrink: 0 }}>{(nom[0] || 'M').toUpperCase()}</div>
-          <span style={{ ...s.logoText, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
+    <nav style={s.nav}>
+      <div style={s.navInner}>
+        <div style={s.navLogo} onClick={() => naviguer({ page: 'accueil' })}>
+          <div style={s.logoIcon}>{(nom[0] || 'M').toUpperCase()}</div>
+          <span style={s.logoText}>{nom}</span>
         </div>
-        <div className="mvn-liens" style={s.navLinks}>
-          {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
-          <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
+        <div style={s.navLinks}>
+          <span style={s.navLink} onClick={() => naviguer({ page: 'catalogue' })}>← Retour au catalogue</span>
+          <span style={s.navLink} onClick={() => naviguer({ page: 'boutiques' })}>Boutiques</span>
+          <button onClick={() => naviguer({ page: 'login' })} style={{ padding: '8px 18px', background: config?.couleur_accent || '#fbbf24', border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
-        <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
-          style={{ display: 'none', marginLeft: 'auto', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: '#fff', fontSize: 24, cursor: 'pointer', padding: '4px 8px', flexShrink: 0 }}>
-          {menuOuvert ? '✕' : '☰'}
-        </button>
       </div>
-      {menuOuvert && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: fondDe(config), borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
-          {liens.map(l => (
-            <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
-          ))}
-          <div style={{ padding: '14px 20px' }}>
-            <button onClick={() => aller({ page: 'login' })} style={{ width: '100%', padding: 12, background: accent, border: 'none', borderRadius: 10, color: '#000', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
-          </div>
-        </div>
-      )}
     </nav>
   );
 }
@@ -163,7 +134,8 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   const [onglet,       setOnglet]      = useState<'description'|'details'|'livraison'>('description');
   const [msgAjout,     setMsgAjout]    = useState<{succes: boolean; texte: string} | null>(null);
   const [ajoutEnCours, setAjoutEnCours]= useState(false);
-  const [varianteNom,  setVarianteNom]  = useState<string>('');
+  const [enchereActive, setEnchereActive] = useState(false); // vrai : produit en vente aux enchères (pas d'achat direct)
+  const [rechargement, setRechargement] = useState(0);
 
   useEffect(() => {
     if (!produitId) return;
@@ -178,7 +150,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (rechargement === 0) setLoading(true);
     fetch(`${API_BASE}/produits/gestionnaire/produit/${produitId}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -191,11 +163,10 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [produitId, isDemo]);
+  }, [produitId, isDemo, rechargement]);
 
   const ajouterPanier = async () => {
     if (!produit) return;
-    if (variantes.length > 0 && !varianteChoisie) { setMsgAjout({ succes: false, texte: 'Choisissez une option avant d\'ajouter au panier' }); setTimeout(() => setMsgAjout(null), 3000); return; }
     let type: string | null = null;
     try { type = JSON.parse(localStorage.getItem(`mv_compte_${gId}`) || 'null')?.type || null; } catch { type = null; }
     if (!type) { setMsgAjout({ succes: false, texte: 'Connectez-vous pour acheter' }); setTimeout(() => setMsgAjout(null), 3000); return; }
@@ -206,25 +177,23 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ produit_id: produit.id, quantite, variante: varianteChoisie ? varianteChoisie.nom : undefined }),
+        body: JSON.stringify({ produit_id: produit.id, titre: produit.nom, quantite, prix: produit.prix }),
       });
       if (res.status === 401) { try { localStorage.removeItem(`mv_compte_${gId}`); } catch { /* stockage indisponible */ } }
-      let erreurServeur = '';
-      if (!res.ok && res.status !== 401) { try { erreurServeur = (await res.json()).error || ''; } catch { erreurServeur = ''; } }
-      setMsgAjout({ succes: res.ok, texte: res.ok ? '✓ Ajouté au panier !' : res.status === 401 ? 'Session expirée — reconnectez-vous' : '❌ ' + (erreurServeur || 'Erreur') });
+      setMsgAjout({ succes: res.ok, texte: res.ok ? '✓ Ajouté au panier !' : res.status === 401 ? 'Session expirée — reconnectez-vous' : '❌ Erreur' });
     } catch { setMsgAjout({ succes: false, texte: '❌ Erreur réseau' }); }
     setAjoutEnCours(false);
     setTimeout(() => setMsgAjout(null), 3000);
   };
 
   if (loading) return (
-    <div style={{ minHeight: '100vh', background: fondDe(config), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ color: 'rgba(255,255,255,0.4)', fontFamily: "'DM Sans',sans-serif" }}>Chargement...</div>
     </div>
   );
 
   if (!produit) return (
-    <div style={{ minHeight: '100vh', background: fondDe(config), display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16 }}>
       <div style={{ fontSize: 48 }}>😕</div>
       <p style={{ color: 'rgba(255,255,255,0.5)', fontFamily: "'DM Sans',sans-serif" }}>Produit introuvable</p>
       <button onClick={() => naviguer({ page: 'catalogue' })} style={{ ...s.btnPrimary, background: couleurAccent, color: '#000' }}>← Retour au catalogue</button>
@@ -232,36 +201,21 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   );
 
   const images = getImages(produit);
-  const variantes = Array.isArray(produit.variantes) ? produit.variantes : [];
-  const varianteChoisie = variantes.find(v => v.nom === varianteNom) || null;
-  const stockActuel = varianteChoisie ? varianteChoisie.stock : variantes.length > 0 ? variantes.reduce((s, v) => s + v.stock, 0) : produit.stock;
-  const stockMax = varianteChoisie ? varianteChoisie.stock : produit.stock;
-  const peutAjouter = variantes.length > 0 ? (varianteChoisie ? varianteChoisie.stock > 0 : stockActuel > 0) : produit.stock > 0;
-  const prixAffiche = varianteChoisie && varianteChoisie.prix !== null ? varianteChoisie.prix : parseFloat(String(produit.prix));
+  const prixAffiche = parseFloat(String(produit.prix));
   const rabais = produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche
     ? Math.round(((parseFloat(String(produit.prix_original)) - prixAffiche) / parseFloat(String(produit.prix_original))) * 100)
     : null;
 
   return (
-    <div style={{ ...s.wrapper, background: fondDe(config) }}>
+    <div style={s.wrapper}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
-        .mvpr-desc img { max-width:100%; height:auto; }
-        .mvpr-desc { overflow-wrap:anywhere; }
-        @media (max-width:768px) {
-          .mvpr-container { padding:16px 14px 40px !important; }
-          .mvpr-layout { grid-template-columns:minmax(0,1fr) !important; gap:24px !important; }
-          .mvpr-tabs { overflow-x:auto; }
-          .mvpr-tabs button { padding:12px 16px !important; white-space:nowrap; flex-shrink:0; }
-          .mvpr-det { grid-template-columns:minmax(0,1fr) !important; }
-          .mvpr-sim { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:10px !important; }
-        }
       `}</style>
 
       <Navbar naviguer={naviguer} config={config} />
 
-      <div className="mvpr-container" style={s.container}>
+      <div style={s.container}>
         {/* Fil d'ariane */}
         <div style={s.breadcrumb}>
           <span style={s.breadLink} onClick={() => naviguer({ page: 'accueil' })}>Accueil</span>
@@ -276,7 +230,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
         </div>
 
         {/* Layout principal */}
-        <div className="mvpr-layout" style={s.layout}>
+        <div style={s.layout}>
           {/* ── Galerie ── */}
           <div style={s.galerie}>
             {/* Image principale */}
@@ -285,7 +239,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                 ? <img src={imageActive} alt={produit.nom} style={s.imgMain} />
                 : <div style={s.imgPlaceholder}>📦</div>}
               {rabais && <span style={{ ...s.badgeRabais }}>{rabais}% de rabais</span>}
-              {(variantes.length > 0 ? stockActuel === 0 : produit.stock === 0) && <span style={s.badgeEpuise}>Épuisé</span>}
+              {produit.stock === 0 && !enchereActive && <span style={s.badgeEpuise}>Épuisé</span>}
               {imageActive && (
                 <button onClick={() => setZoomOuvert(true)} style={s.btnZoom}>🔍</button>
               )}
@@ -321,7 +275,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               <span style={{ ...s.prixActuel, color: couleurAccent }}>
                 {prixAffiche.toFixed(2)} $ CAD
               </span>
-              {!(varianteChoisie && varianteChoisie.prix !== null) && produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche && (
+              {produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche && (
                 <span style={s.prixOriginal}>{parseFloat(String(produit.prix_original)).toFixed(2)} $</span>
               )}
               <span style={{ fontSize: 13, fontWeight: 700, color: produit.facturation_taxes ? '#ef4444' : '#10b981' }}>
@@ -329,42 +283,26 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               </span>
             </div>
 
-            {/* Stock */}
-            {variantes.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <label style={s.label}>Options{!varianteChoisie ? ' — choisissez-en une' : ''}</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {variantes.map(v => {
-                    const actif = varianteChoisie?.nom === v.nom;
-                    const epuise = v.stock <= 0;
-                    return (
-                      <button key={v.nom} type="button" disabled={epuise}
-                        onClick={() => { setVarianteNom(v.nom); setQuantite(1); }}
-                        style={{ padding: '9px 14px', borderRadius: 10, fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans',sans-serif",
-                          cursor: epuise ? 'not-allowed' : 'pointer', opacity: epuise ? 0.4 : 1, textDecoration: epuise ? 'line-through' : 'none',
-                          background: actif ? couleurAccent : 'rgba(255,255,255,0.06)', color: actif ? '#000' : '#fff',
-                          border: `1px solid ${actif ? couleurAccent : 'rgba(255,255,255,0.2)'}` }}>
-                        {v.nom}{v.prix !== null ? ` · ${v.prix.toFixed(2)} $` : ''}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
+            {/* Enchère en cours : remplace l'achat direct */}
+            {!isDemo && gId && (
+              <BlocEnchere gId={gId} produitId={produit.id} couleurAccent={couleurAccent} naviguer={naviguer}
+                onEtat={setEnchereActive} onTerminee={() => setRechargement(n => n + 1)} />
             )}
-            <p style={{ fontSize: 14, fontWeight: 600, color: (variantes.length > 0 && !varianteChoisie ? stockActuel : stockMax) > 0 ? '#10b981' : '#ef4444', margin: '0 0 20px' }}>
-              {variantes.length > 0 && !varianteChoisie
-                ? (stockActuel > 0 ? '✓ En stock' : '✗ Épuisé')
-                : stockMax > 0 ? `✓ En stock (${stockMax} disponible${stockMax > 1 ? 's' : ''})` : '✗ Épuisé'}
+
+            {!enchereActive && (<>
+            {/* Stock */}
+            <p style={{ fontSize: 14, fontWeight: 600, color: produit.stock > 0 ? '#10b981' : '#ef4444', margin: '0 0 20px' }}>
+              {produit.stock > 0 ? `✓ En stock (${produit.stock} disponible${produit.stock > 1 ? 's' : ''})` : '✗ Épuisé'}
             </p>
 
             {/* Quantité */}
-            {peutAjouter && (
+            {produit.stock > 0 && (
               <div style={{ marginBottom: 20 }}>
                 <label style={s.label}>Quantité</label>
                 <div style={s.qtyRow}>
                   <button onClick={() => setQuantite(q => Math.max(1, q - 1))} style={s.qtyBtn}>−</button>
                   <span style={s.qtyVal}>{quantite}</span>
-                  <button onClick={() => setQuantite(q => Math.min(Math.max(stockMax, 1), q + 1))} style={s.qtyBtn}>+</button>
+                  <button onClick={() => setQuantite(q => Math.min(produit.stock, q + 1))} style={s.qtyBtn}>+</button>
                 </div>
               </div>
             )}
@@ -372,16 +310,18 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             {/* Bouton panier */}
             <button
               onClick={ajouterPanier}
-              disabled={ajoutEnCours || !peutAjouter}
+              disabled={ajoutEnCours || produit.stock === 0}
               style={{
                 ...s.btnPrimary,
-                background: !peutAjouter ? 'rgba(255,255,255,0.1)' : couleurAccent,
-                color: !peutAjouter ? 'rgba(255,255,255,0.3)' : '#000',
-                cursor: !peutAjouter ? 'not-allowed' : 'pointer',
+                background: produit.stock === 0 ? 'rgba(255,255,255,0.1)' : couleurAccent,
+                color: produit.stock === 0 ? 'rgba(255,255,255,0.3)' : '#000',
+                cursor: produit.stock === 0 ? 'not-allowed' : 'pointer',
                 width: '100%', marginBottom: 12,
               }}>
-              {ajoutEnCours ? '⏳ Ajout...' : !peutAjouter ? 'Épuisé' : '🛒 Ajouter au panier'}
+              {ajoutEnCours ? '⏳ Ajout...' : produit.stock === 0 ? 'Épuisé' : '🛒 Ajouter au panier'}
             </button>
+
+            </>)}
 
             {msgAjout && (
               <div style={{ padding: '10px 14px', borderRadius: 10, background: msgAjout.succes ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: msgAjout.succes ? '#6ee7b7' : '#fca5a5', fontSize: 14, fontWeight: 600, marginBottom: 12, textAlign: 'center' }}>
@@ -402,7 +342,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
         {/* ── Onglets description / détails / livraison ── */}
         <div style={s.onglets}>
-          <div className="mvpr-tabs" style={s.ongletsBtns}>
+          <div style={s.ongletsBtns}>
             {(['description', 'details', 'livraison'] as const)
               .filter(o => (o === 'description' ? config.produit_onglet_description_actif !== false : o === 'details' ? config.produit_onglet_details_actif !== false : config.produit_onglet_livraison_actif !== false))
               .map(o => (
@@ -415,11 +355,11 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
           <div style={s.ongletContenu}>
             {onglet === 'description' && (
               produit.description
-                ? <div className="mvpr-desc" dangerouslySetInnerHTML={{ __html: produit.description }} style={{ color: 'rgba(255,255,255,0.8)', lineHeight: 1.8, fontSize: 15 }} />
+                ? <div dangerouslySetInnerHTML={{ __html: produit.description }} style={{ color: 'rgba(255,255,255,0.8)', lineHeight: 1.8, fontSize: 15 }} />
                 : <p style={{ color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>Aucune description disponible.</p>
             )}
             {onglet === 'details' && (
-              <div className="mvpr-det" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {[
                   ['Marque', produit.marque], ['Modèle', produit.modele],
                   ['État', produit.etat], ['Poids', produit.poids ? `${produit.poids} kg` : null],
@@ -435,11 +375,9 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             )}
             {onglet === 'livraison' && (
               <div style={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1.8, fontSize: 14 }}>
-                {produit.politique_livraison
-                  ? <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>📦 {produit.politique_livraison}</p>
-                  : <p>📦 Le vendeur n'a pas encore précisé ses conditions de livraison. Contactez-le via sa boutique pour plus d'informations.</p>}
-                {produit.politique_retour && <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>↩️ Retours : {produit.politique_retour}</p>}
-                {(produit.ville || (produit as any).vendeur_ville) && <p>📍 Vendu depuis : {produit.ville || (produit as any).vendeur_ville}</p>}
+                <p>📦 Livraison disponible partout au Canada.</p>
+                <p>🏪 Ramassage en boutique possible selon disponibilité.</p>
+                {produit.ville && <p>📍 Vendu depuis : {produit.ville}</p>}
               </div>
             )}
           </div>
@@ -463,7 +401,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
         {config.produit_similaires_actif !== false && similaires.length > 0 && (
           <div style={{ margin: '40px 0' }}>
             <h3 style={s.sectionTitre}>Produits similaires</h3>
-            <div className="mvpr-sim" style={s.grilleSimilaires}>
+            <div style={s.grilleSimilaires}>
               {similaires.slice(0, 4).map(p => (
                 <div key={p.id} onClick={() => naviguer({ page: 'produit', produitId: p.id })} style={s.carteSim}>
                   <div style={s.carteSimImg}>
@@ -508,14 +446,13 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
           )}
         </div>
       )}
-      <MVPremiumFooter vendeurId={vendeurId} isDemo={isDemo} config={config} naviguer={naviguer} />
     </div>
   );
 }
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
-  wrapper:    { overflowX: 'clip', display: 'flex', flexDirection: 'column', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  wrapper:    { minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   nav:        { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner:   { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 32 },
   navLogo:    { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 0 },
@@ -523,7 +460,7 @@ const s: Record<string, React.CSSProperties> = {
   logoText:   { fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: "'Syne',sans-serif" },
   navLinks:   { display: 'flex', gap: 24 },
   navLink:    { color: 'rgba(255,255,255,0.7)', fontSize: 14, cursor: 'pointer' },
-  container:  { width: '100%', maxWidth: 1200, margin: '0 auto', padding: '24px 24px 60px' },
+  container:  { maxWidth: 1200, margin: '0 auto', padding: '24px 24px 60px' },
   breadcrumb: { display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap' },
   breadLink:  { fontSize: 13, color: 'rgba(255,255,255,0.45)', cursor: 'pointer' },
   breadSep:   { fontSize: 13, color: 'rgba(255,255,255,0.25)' },

@@ -80,6 +80,7 @@ function vue(e, moi) {
     prix_depart: Number(e.prix_depart), mise_actuelle: e.mise_actuelle === null ? null : Number(e.mise_actuelle),
     prochaine_mise: active ? enc.prochaineMise(e) : null, increment: Number(e.increment),
     nb_mises: e.nb_mises, date_fin: e.date_fin,
+    nom_boutique: e.nom_boutique || null,
     reserve: e.prix_reserve === null ? null : { atteinte: e.mise_actuelle !== null && Number(e.mise_actuelle) >= Number(e.prix_reserve) },
     ...(moi ? { en_tete: !!e.en_tete } : {}),
   };
@@ -108,7 +109,8 @@ router.get('/', limitePublic, h(async (req, res) => {
   const cid = entier(req.query.collaborateur_id);
   if (cid) { params.push(cid); filtre = ` AND e.collaborateur_id = $${params.length}`; }
   const r = await pool.query(
-    `SELECT e.* FROM encheres e WHERE e.gestionnaire_id = $1 AND e.statut = 'active' AND e.date_fin > NOW()${filtre}
+    `SELECT e.*, (SELECT c.nom_boutique FROM marketplace_collaborateurs c WHERE c.id = e.collaborateur_id) AS nom_boutique
+       FROM encheres e WHERE e.gestionnaire_id = $1 AND e.statut = 'active' AND e.date_fin > NOW()${filtre}
       ORDER BY e.date_fin ASC LIMIT $2 OFFSET $3`, params);
   res.json({ encheres: r.rows.map((e) => vue(e, false)), page });
 }));
