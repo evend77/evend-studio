@@ -16,6 +16,7 @@ const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
+const paiementMV = require('../services/studio_paiement');
 
 const router = express.Router({ mergeParams: true });
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -492,6 +493,15 @@ router.put('/commandes/:id/statut', h(async (req, res) => {
   if (!(TRANSITIONS[actuel.statut] || []).includes(b.statut)) bad(`Passage impossible : ${actuel.statut} → ${b.statut}`, 409);
   if (b.statut === 'annulee' && actuel.statut_paiement === 'paye') {
     bad('Commande déjà payée : traitez-la avec une demande de retour / remboursement.', 409);
+  }
+  if (b.statut === 'annulee') {
+    // Commande non payée : ferme la page de paiement Stripe et remet le stock réservé
+    try { await paiementMV.annulerNonPayee(id, { par: 'collaborateur', raison: texte(b.raison, 'Raison', 300) }); }
+    catch (e) { if (e instanceof paiementMV.ErreurPaiement) bad(e.message, e.status); throw e; }
+    if (actuel.acheteur_id) {
+      await notifierAcheteur(req.gid, actuel.acheteur_id, 'Commande annulée', `Votre commande ${actuel.numero_commande} est maintenant annulée.`, 'commande');
+    }
+    return res.json({ success: true });
   }
   const suivi = b.statut === 'expediee' ? texte(b.numero_suivi, 'Numéro de suivi', 80) : '';
   const transp = b.statut === 'expediee' ? texte(b.transporteur, 'Transporteur', 60) : '';

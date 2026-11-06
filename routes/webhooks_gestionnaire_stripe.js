@@ -11,6 +11,7 @@ const express = require('express');
 const Stripe = require('stripe');
 const pool = require('../db');
 const { dechiffrer } = require('../src/utils/chiffrement');
+const paiement = require('../services/studio_paiement');
 
 const router = express.Router();
 
@@ -53,8 +54,22 @@ async function traiter(event, gid, env, type) {
       return;
     }
 
-    // Paiements, remboursements, litiges, versements : reçus et enregistrés (idempotence),
-    // la mise à jour des commandes marketplace sera branchée à l'étape "paiement des commandes".
+    // Commande payée (Direct charges → webhook "connect" ; Destination charges → webhook "principal")
+    case 'checkout.session.completed':
+    case 'checkout.session.async_payment_succeeded': {
+      const r = await paiement.confirmerPaiement(gid, obj);
+      if (r.paye) console.log(`✅ [gestionnaire-stripe] commande ${r.commande.numero_commande} payée`);
+      return;
+    }
+    // Session expirée ou paiement différé échoué : le stock réservé est remis en vente
+    case 'checkout.session.expired':
+    case 'checkout.session.async_payment_failed': {
+      const r = await paiement.sessionExpiree(gid, obj);
+      if (r.libere) console.log(`↩︎ [gestionnaire-stripe] commande libérée (session ${obj.id})`);
+      return;
+    }
+
+    // Autres paiements, remboursements, litiges, versements : reçus et enregistrés (idempotence).
     default:
       console.log(`ℹ️ [gestionnaire-stripe] gestionnaire=${gid} env=${env} ${type} ← ${event.type} (${event.id})`);
   }

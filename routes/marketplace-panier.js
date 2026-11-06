@@ -7,6 +7,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const jwt     = require('jsonwebtoken');
+const paiement = require('../services/studio_paiement');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -383,35 +384,52 @@ router.post('/:gid/checkout/taxes', authMV, async (req, res) => {
   } catch (err) { res.status(500).json({ error: 'Erreur calcul taxes' }); }
 });
 
+// Frais d'expédition recalculés côté serveur (jamais ceux envoyés par le navigateur).
+// Les tables de méthodes peuvent ne pas exister : SAVEPOINT pour ne pas casser la transaction en cours.
+async function fraisExpedition(client, lignes, sousTotal, methodeId) {
+  const physiques = lignes.filter((l) => !l.produit_numerique).map((l) => parseInt(l.produit_id, 10)).filter(Boolean);
+  if (!physiques.length) return { frais: 0 };
+  let methodes = [];
+  try {
+    await client.query('SAVEPOINT exp');
+    methodes = (await client.query(
+      `SELECT DISTINCT vme.*
+         FROM produit_methodes_expedition pme
+         JOIN vendeur_methodes_expedition vme ON vme.id = pme.methode_id
+        WHERE pme.produit_id = ANY($1::int[]) AND vme.actif = true`, [physiques])).rows;
+    await client.query('RELEASE SAVEPOINT exp');
+  } catch (e) {
+    await client.query('ROLLBACK TO SAVEPOINT exp');
+    methodes = [];
+  }
+  if (!methodes.length) return { frais: 0 }; // aucune méthode configurée : livraison gratuite
+  const m = methodes.find((x) => String(x.id) === String(methodeId));
+  if (!m) return { erreur: "Choisissez un mode d'expédition." };
+  const fixes = parseFloat(m.frais_fixes) || 0;
+  const seuil = m.gratuit_superieur ? parseFloat(m.gratuit_superieur) : null;
+  return { frais: seuil !== null && sousTotal >= seuil ? 0 : fixes };
+}
+
 // POST /api/marketplace/:gid/checkout/commande
+// Le navigateur n'envoie que le collaborateur, l'adresse, le mode d'expédition et une note.
+// Prix, stock, expédition, taxes et commission sont recalculés ici ; le stock est réservé ; la réponse
+// contient checkout_url : la page de paiement Stripe où rediriger l'acheteur.
 router.post('/:gid/checkout/commande', authMV, async (req, res) => {
   const { gid } = req.params;
-  const acheteurId = req.mvUser.id;
-  const { collaborateur_id, articles, adresse_livraison, adresse_facturation, methode_expedition_id, taxes, note_vendeur } = req.body;
-
+  const b = req.body || {};
+  const collaborateurId = parseInt(b.collaborateur_id, 10);
+  if (!Number.isInteger(collaborateurId)) return res.status(400).json({ error: 'collaborateur_id requis' });
+  const adresse = b.adresse_livraison && typeof b.adresse_livraison === 'object' && !Array.isArray(b.adresse_livraison) ? b.adresse_livraison : {};
+  if (JSON.stringify(adresse).length > 4000) return res.status(400).json({ error: 'Adresse invalide' });
   try {
-    const total = parseFloat(taxes?.total) || articles.reduce((s, a) => s + parseFloat(a.prix) * a.quantite, 0);
-    const numeroCommande = `MV-${gid}-${Date.now()}`;
-
-    const commandeRes = await pool.query(
-      `INSERT INTO marketplace_commandes
-        (gestionnaire_id, acheteur_id, collaborateur_id, numero_commande, statut, total, articles, adresse_livraison, note)
-       VALUES ($1,$2,$3,$4,'en_attente',$5,$6,$7,$8) RETURNING id, numero_commande`,
-      [gid, acheteurId, collaborateur_id, numeroCommande, total, JSON.stringify(articles), JSON.stringify(adresse_livraison), note_vendeur || null]
-    );
-
-    // Vider le panier du collaborateur
-    await pool.query(
-      'DELETE FROM marketplace_panier WHERE acheteur_id=$1 AND gestionnaire_id=$2 AND collaborateur_id=$3',
-      [acheteurId, gid, collaborateur_id]
-    );
-
-    res.status(201).json({
-      commande_id: commandeRes.rows[0].id,
-      numero_commande: commandeRes.rows[0].numero_commande,
-      message: 'Commande creee avec succes',
+    const r = await paiement.creerCommandePayable({
+      gid: parseInt(gid, 10), acheteurId: req.mvUser.id, collaborateurId, adresse,
+      methodeId: b.methode_expedition_id, note: b.note_vendeur,
+      outils: { prixEtStock, calculerTaxesProvince, fraisExpedition },
     });
+    res.status(201).json({ ...r, message: 'Commande creee avec succes' });
   } catch (err) {
+    if (err instanceof paiement.ErreurPaiement) return res.status(err.status).json({ error: err.message });
     console.error('POST checkout/commande:', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }

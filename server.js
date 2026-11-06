@@ -498,6 +498,8 @@ app.use('/api/studio/mon-compte/:gestionnaireId', studioMonCompte);
 // =====================================================================
 app.use('/api/studio/collaborateurs/:gestionnaireId', studioCollaborateurs);
 app.use('/api/studio/courriels/:gestionnaireId', studioCourriels);
+// Paiement des commandes : remet en vente le stock des commandes jamais payées (toutes les 5 min)
+require('./services/studio_paiement').demarrerBalayage();
 
 // =====================================================================
 // 🏅 BADGES VENDEUR STUDIO

@@ -27,6 +27,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
+const paiementMV = require('../services/studio_paiement');
 const { authenticateToken } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
 
@@ -201,9 +202,13 @@ router.put('/commandes/:id/annuler', h(async (req, res) => {
   if (!c.rows.length) bad('Commande introuvable', 404);
   if (!['en_attente', 'confirmee'].includes(c.rows[0].statut)) bad('Cette commande ne peut plus être annulée.', 409);
   if (c.rows[0].statut_paiement === 'paye') bad('Commande déjà payée : faites plutôt une demande de remboursement.', 409);
-  await pool.query(
-    `UPDATE marketplace_commandes SET statut='annulee', annule_par='acheteur', raison_annulation=NULLIF($1,''), updated_at=NOW()
-      WHERE id=$2 AND acheteur_id=$3 AND gestionnaire_id=$4`, [raison, id, req.aid, req.gid]);
+  try {
+    // Ferme la page de paiement Stripe, annule la commande et remet le stock réservé
+    await paiementMV.annulerNonPayee(id, { par: 'acheteur', raison });
+  } catch (e) {
+    if (e instanceof paiementMV.ErreurPaiement) bad(e.message, e.status);
+    throw e;
+  }
   res.json({ success: true });
 }));
 
