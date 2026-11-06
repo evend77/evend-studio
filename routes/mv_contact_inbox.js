@@ -42,7 +42,7 @@ const h = (fn) => async (req, res) => {
 };
 
 router.get('/count', h(async (req, res) => {
-  const r = await pool.query('SELECT COUNT(*)::int AS n FROM messages_contact WHERE gestionnaire_id = $1 AND lu = false', [req.gid]);
+  const r = await pool.query('SELECT COUNT(*)::int AS n FROM messages_contact WHERE gestionnaire_id = $1 AND lu IS NOT TRUE', [req.gid]);
   res.json({ non_lus: r.rows[0].n });
 }));
 
@@ -51,8 +51,8 @@ router.get('/messages', h(async (req, res) => {
   const lim = Math.min(Math.max(entier(req.query.limit) || 20, 1), 100);
   const params = [req.gid];
   let where = 'gestionnaire_id = $1';
-  if (req.query.filtre === 'non_lus') where += ' AND lu = false';
-  else if (req.query.filtre === 'lus') where += ' AND lu = true';
+  if (req.query.filtre === 'non_lus') where += ' AND lu IS NOT TRUE';
+  else if (req.query.filtre === 'lus') where += ' AND lu IS TRUE';
   const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
   if (q) {
     params.push('%' + q.replace(/[\\%_]/g, '\\$&') + '%');
@@ -64,7 +64,7 @@ router.get('/messages', h(async (req, res) => {
        FROM messages_contact WHERE ${where} ORDER BY created_at DESC, id DESC LIMIT ${lim} OFFSET ${(page - 1) * lim}`, params);
   let total = r.rows.length ? r.rows[0].total_lignes : 0;
   if (!r.rows.length && page > 1) total = (await pool.query(`SELECT COUNT(*)::int AS n FROM messages_contact WHERE ${where}`, params)).rows[0].n;
-  const nl = await pool.query('SELECT COUNT(*)::int AS n FROM messages_contact WHERE gestionnaire_id = $1 AND lu = false', [req.gid]);
+  const nl = await pool.query('SELECT COUNT(*)::int AS n FROM messages_contact WHERE gestionnaire_id = $1 AND lu IS NOT TRUE', [req.gid]);
   res.json({
     messages: r.rows.map(({ total_lignes, ...m }) => m),
     pagination: { total, page, limit: lim, pages: Math.max(1, Math.ceil(total / lim)) },
@@ -73,7 +73,7 @@ router.get('/messages', h(async (req, res) => {
 }));
 
 router.put('/messages/lire-tous', h(async (req, res) => {
-  const r = await pool.query('UPDATE messages_contact SET lu = true WHERE gestionnaire_id = $1 AND lu = false', [req.gid]);
+  const r = await pool.query('UPDATE messages_contact SET lu = true WHERE gestionnaire_id = $1 AND lu IS NOT TRUE', [req.gid]);
   res.json({ success: true, modifies: r.rowCount });
 }));
 

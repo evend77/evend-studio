@@ -78,7 +78,7 @@ export default function StudioContactMessages({ gestionnaireId }: Props) {
 
   const marquer = async (m: Message, lu: boolean) => {
     setMessages(prev => prev.map(x => (x.id === m.id ? { ...x, lu } : x)));
-    setNonLus(n => Math.max(0, n + (lu ? -1 : 1) * (m.lu === lu ? 0 : 1)));
+    setNonLus(n => Math.max(0, n + (lu ? -1 : 1) * (!!m.lu === lu ? 0 : 1)));
     try {
       await fetch(`${base}/messages/${m.id}/lu`, { method: 'PUT', credentials: 'include', headers: entetes(), body: JSON.stringify({ lu }) });
     } catch { /* l'état se resynchronise au prochain chargement */ }
