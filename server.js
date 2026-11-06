@@ -23,6 +23,7 @@ const studioMonCompte     = require('./routes/studio_mon_compte');
 const studioCollaborateurs  = require('./routes/studio_collaborateurs');
 const studioCourriels       = require('./routes/studio_courriels');
 const studioEncheresAdmin   = require('./routes/studio_encheres_admin');
+const studioMvAdmin         = require('./routes/studio_mv_admin');
 const studioEncheres        = require('./routes/studio_encheres');
 const studioBadges        = require('./routes/studio_badges');
 const guidesAddons        = require('./routes/guides_addons');
@@ -501,6 +502,7 @@ app.use('/api/studio/mon-compte/:gestionnaireId', studioMonCompte);
 app.use('/api/studio/collaborateurs/:gestionnaireId', studioCollaborateurs);
 app.use('/api/studio/courriels/:gestionnaireId', studioCourriels);
 app.use('/api/studio/encheres/:gestionnaireId', studioEncheresAdmin);
+app.use('/api/studio/mv/:gestionnaireId', studioMvAdmin);
 app.use('/api/marketplace/:gid/encheres', studioEncheres);
 require('./services/studio_encheres').demarrerEncheres();
 // Paiement des commandes : remet en vente le stock des commandes jamais payées (toutes les 5 min)
