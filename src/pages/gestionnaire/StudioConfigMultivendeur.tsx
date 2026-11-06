@@ -305,12 +305,12 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
 
   // ── Sauvegarder ──────────────────────────────────────────────────────────
   async function sauvegarder() {
-    if (!siteId) return;
     try {
-      const res = await fetch(`${API_BASE}/studio/sites/${siteId}/config`, {
+      // Le serveur attend l'identifiant du GESTIONNAIRE dans l'URL et la config sous la clé « config »
+      const res = await fetch(`${API_BASE}/studio/sites/${gestionnaireId}/config`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ multivendeur: config }),
+        body: JSON.stringify({ config: { multivendeur: config } }),
       });
       if (!res.ok) throw new Error();
       setOriginal({ ...config }); setModifie(false);
