@@ -4,7 +4,6 @@
 import { useState, useEffect } from "react";
 
 const API_BASE = "/api";
-const MINIMUM_GLOBAL = 10;
 
 
 interface ArticlePanier {
@@ -16,7 +15,7 @@ interface ArticlePanier {
   quantite: number;
   vendeur_id: number;
   vendeur_nom: string; // nom_boutique du collaborateur
-  minimum_commande?: number;
+  enchere_id?: number | null; // article gagné aux enchères : prix et quantité verrouillés par le serveur
 }
 
 interface GroupeVendeur {
@@ -24,7 +23,6 @@ interface GroupeVendeur {
   vendeur_nom: string; // nom_boutique du collaborateur
   articles: ArticlePanier[];
   sous_total: number;
-  minimum: number;
 }
 
 interface ArticlePlusTard {
@@ -70,7 +68,6 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
   const [enCoursRemettre, setEnCoursRemettre] = useState<number | null>(null);
   const [viderConfirm, setViderConfirm] = useState(false);
   const [banniereMultiOuverte, setBanniereMultiOuverte] = useState(false);
-  const [banniereMinOuverte, setBanniereMinOuverte] = useState(false);
 
   useEffect(() => { fetchPanier(); fetchPlusTard(); }, []);
 
@@ -151,7 +148,6 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
           vendeur_nom: a.vendeur_nom,
           articles: [],
           sous_total: 0,
-          minimum: a.minimum_commande || MINIMUM_GLOBAL,
         });
       }
       const g = map.get(a.vendeur_id)!;
@@ -205,9 +201,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
   const totalSelectionne = groupeSelectionne?.sous_total || 0;
   const articlesSelectionnes = groupeSelectionne?.articles.reduce((s, a) => s + a.quantite, 0) || 0;
   const multiVendeurs = groupes.length > 1;
-  const sousMinimumGlobal = totalSelectionne < MINIMUM_GLOBAL && articlesSelectionnes > 0;
-  const vendeurSousMinimum = groupeSelectionne && groupeSelectionne.sous_total < groupeSelectionne.minimum ? groupeSelectionne : null;
-  const peutPayer = !sousMinimumGlobal && !vendeurSousMinimum && articlesSelectionnes > 0;
+  const peutPayer = articlesSelectionnes > 0;
 
   // ── LOADING ──────────────────────────────────────────────────────────────
   if (loading) return (
@@ -341,34 +335,6 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
           </div>
         )}
 
-        {/* Minimum du vendeur sélectionné */}
-        {groupeSelectionne && (
-          <div style={{ ...s.banniere, ...(sousMinimumGlobal ? s.banniereWarn : s.banniereSuccess), cursor: isMobile ? 'pointer' : 'default' }}
-            onClick={() => isMobile && setBanniereMinOuverte(o => !o)}>
-            <div style={{ ...s.banniereIconeWrap, background: sousMinimumGlobal ? "#fef3c7" : "#dcfce7" }}>
-              <span style={{ fontSize: "20px" }}>{sousMinimumGlobal ? "⚠️" : "✅"}</span>
-            </div>
-            <div style={s.banniereContent}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <p style={{ ...s.banniereTitre, fontSize: isMobile ? '13px' : '14px' }}>
-                  {sousMinimumGlobal ? "Commande minimum non atteinte" : "Commande minimum atteinte"}
-                  {" "}— {groupeSelectionne.vendeur_nom}
-                </p>
-                {isMobile && <span style={{ fontSize: "12px", color: sousMinimumGlobal ? "#92400e" : "#166534", flexShrink: 0, marginLeft: '8px' }}>{banniereMinOuverte ? '▲' : '▼'}</span>}
-              </div>
-              {(!isMobile || banniereMinOuverte) && (
-                <p style={s.banniereDesc}>
-                  {sousMinimumGlobal
-                    ? `Minimum requis : ${MINIMUM_GLOBAL.toFixed(2)} $. Il vous manque ${(MINIMUM_GLOBAL - totalSelectionne).toFixed(2)} $ pour passer à la caisse.`
-                    : `Votre sélection de ${totalSelectionne.toFixed(2)} $ dépasse le minimum requis. Vous pouvez procéder au paiement.`}
-                </p>
-              )}
-            </div>
-            {!isMobile && <div style={{ ...s.banniereBadge, background: sousMinimumGlobal ? "#fde68a" : "#86efac", color: sousMinimumGlobal ? "#92400e" : "#166534" }}>
-              Min. {MINIMUM_GLOBAL.toFixed(2)} $
-            </div>}
-          </div>
-        )}
       </div>
 
       {/* ── LAYOUT PRINCIPAL ── */}
@@ -378,8 +344,6 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
         <div style={s.colArticles}>
           {groupes.map((groupe, gIdx) => {
             const estSelectionne = vendeurSelectionne === groupe.vendeur_id;
-            const sousMini = estSelectionne && groupe.sous_total < groupe.minimum;
-            const pct = Math.min(100, (groupe.sous_total / groupe.minimum) * 100);
 
             return (
               <div
@@ -445,44 +409,15 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                       </div>
                       <p style={{ ...s.vendeurStats, fontSize: isMobile ? "12px" : "13px" }}>
                         {groupe.articles.length} article{groupe.articles.length > 1 ? "s" : ""} &nbsp;·&nbsp;
-                        <strong style={{ color: sousMini ? "#dc2626" : "#b47828" }}>{groupe.sous_total.toFixed(2)} $</strong>
+                        <strong style={{ color: "#b47828" }}>{groupe.sous_total.toFixed(2)} $</strong>
                         {!estSelectionne && multiVendeurs && !isMobile && (
                           <span style={{ color: "#a8926a", marginLeft: "8px", fontSize: "11px" }}>— Cliquez pour sélectionner</span>
                         )}
                       </p>
                     </div>
                   </div>
-                  {/* Badge min — pleine largeur sur mobile en dessous */}
-                  {sousMini ? (
-                    <div style={{ ...s.badgeMini, width: isMobile ? "100%" : "auto", justifyContent: "center" }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                      Min. {groupe.minimum.toFixed(2)} $
-                    </div>
-                  ) : (
-                    <div style={{ ...s.badgeOk, width: isMobile ? "100%" : "auto", justifyContent: "center" }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-                      Minimum atteint
-                    </div>
-                  )}
                 </div>
 
-                {/* Barre progression minimum vendeur */}
-                {sousMini && (
-                  <div style={s.progressWrap}>
-                    <div style={s.progressHeader}>
-                      <span style={s.progressLabel}>
-                        Progression vers le minimum de commande ({groupe.minimum.toFixed(2)} $)
-                      </span>
-                      <span style={s.progressPct}>{Math.round(pct)}%</span>
-                    </div>
-                    <div style={s.progressBar}>
-                      <div style={{ ...s.progressFill, width: `${pct}%` }} />
-                    </div>
-                    <p style={s.progressNote}>
-                      Ajoutez encore <strong>{(groupe.minimum - groupe.sous_total).toFixed(2)} $</strong> d articles de {groupe.vendeur_nom} pour debloquer la caisse.
-                    </p>
-                  </div>
-                )}
 
                 {/* Liste des articles */}
                 <div style={s.articlesListe}>
@@ -503,16 +438,15 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                         <>
                           {/* MOBILE: image + infos + boutons en ligne */}
                           <div style={{ display: "flex", gap: "12px", alignItems: "flex-start", padding: "14px 16px" }}>
-                            <a href={`https://api.e-vend.ca/produit/${article.produit_shopify_id}`}
-                              target="_blank" rel="noopener noreferrer"
-                              style={{ display: "block", width: "76px", height: "76px", flexShrink: 0 }}>
+                            <div style={{ display: "block", width: "76px", height: "76px", flexShrink: 0 }}>
                               {article.image_url
                                 ? <img src={article.image_url} alt={article.titre} style={{ ...s.img, width: "76px", height: "76px" }} />
                                 : <div style={s.imgPlaceholder}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d4a853" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
                               }
-                            </a>
+                            </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{ fontSize: "13px", fontWeight: 600, color: "#1c1917", margin: "0 0 4px", lineHeight: 1.4 }}>{article.titre}</p>
+                              {article.enchere_id ? <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 700, color: "#7c3aed", background: "#f3e8ff", borderRadius: "6px", padding: "2px 8px", margin: "0 0 4px" }}>🔨 Gagné aux enchères</span> : null}
                               <span style={s.articleVendeurTag}>Vendu par {article.vendeur_nom}</span>
                               <p style={{ fontSize: "15px", fontWeight: 700, color: "#b47828", margin: "6px 0 2px" }}>{parseFloat(String(article.prix)).toFixed(2)} $ / unité</p>
                               <p style={{ fontSize: "14px", fontWeight: 800, color: "#1c1917", margin: 0 }}>
@@ -521,7 +455,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                               </p>
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: "6px", flexShrink: 0 }}>
-                              <button className="btn-plus-tard" style={{ ...s.btnPlusTard, opacity: enCoursPlusTard === article.id ? 0.5 : 1 }}
+                              <button className="btn-plus-tard" hidden={!!article.enchere_id} style={{ ...s.btnPlusTard, display: article.enchere_id ? "none" : undefined, opacity: enCoursPlusTard === article.id ? 0.5 : 1 }}
                                 onClick={() => mettreDeCote(article.id)} disabled={enCoursPlusTard === article.id} title="Plus tard">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                               </button>
@@ -532,7 +466,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                             </div>
                           </div>
                           {/* Barre quantité mobile */}
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "#fef9ee", padding: "10px 16px", borderTop: "1px solid #f0e6d3" }}>
+                          <div style={{ display: article.enchere_id ? "none" : "flex", alignItems: "center", justifyContent: "space-between", background: "#fef9ee", padding: "10px 16px", borderTop: "1px solid #f0e6d3" }}>
                             <span style={{ fontSize: "13px", color: "#a8926a", fontWeight: 600 }}>Quantité</span>
                             <div style={s.qteControle}>
                               <button className="btn-qte" style={{ ...s.btnQte, opacity: enCoursQte === article.id || article.quantite <= 1 ? 0.4 : 1 }}
@@ -551,20 +485,19 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                         <>
                           {/* DESKTOP: image cliquable */}
                           <div style={s.imgContainer}>
-                            <a href={`https://api.e-vend.ca/produit/${article.produit_shopify_id}`}
-                              target="_blank" rel="noopener noreferrer"
-                              style={{ display: "block", width: "100%", height: "100%" }}>
+                            <div style={{ display: "block", width: "100%", height: "100%" }}>
                               {article.image_url
                                 ? <img src={article.image_url} alt={article.titre} style={s.img}
                                     onMouseEnter={e => (e.currentTarget.style.opacity = '0.8')}
                                     onMouseLeave={e => (e.currentTarget.style.opacity = '1')} />
                                 : <div style={s.imgPlaceholder}><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d4a853" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
                               }
-                            </a>
+                            </div>
                           </div>
                           {/* Infos produit */}
                           <div style={s.articleInfos}>
                             <p style={s.articleTitre}>{article.titre}</p>
+                            {article.enchere_id ? <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 700, color: "#7c3aed", background: "#f3e8ff", borderRadius: "6px", padding: "2px 8px", margin: "0 0 4px" }}>🔨 Gagné aux enchères</span> : null}
                             <div style={s.articleMeta}><span style={s.articleVendeurTag}>Vendu par {article.vendeur_nom}</span></div>
                             <div style={s.articlePrixWrap}>
                               <span style={s.articlePrixUnit}>{parseFloat(String(article.prix)).toFixed(2)} $</span>
@@ -574,7 +507,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                         </>
                       )}
                                             {/* Controles quantite — desktop seulement */}
-                      <div style={{ ...s.qteSection, display: isMobile ? "none" : undefined }}>
+                      <div style={{ ...s.qteSection, display: isMobile || article.enchere_id ? "none" : undefined }}>
                         <p style={s.qteLabel}>Quantite</p>
                         <div style={s.qteControle}>
                           <button
@@ -624,8 +557,8 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
 
                       {/* Boutons actions — desktop seulement */}
                       {!isMobile && <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "center" }}>
-                        {/* Mettre de côté */}
-                        <div style={s.supprimerWrap}>
+                        {/* Mettre de côté (pas pour un article gagné aux enchères) */}
+                        <div style={{ ...s.supprimerWrap, display: article.enchere_id ? "none" : undefined }}>
                           <button
                             className="btn-plus-tard"
                             style={{
@@ -684,7 +617,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a8926a" strokeWidth="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
                     <span style={s.groupeFooterLabel}>Sous-total {groupe.vendeur_nom}</span>
                   </div>
-                  <span style={{ ...s.groupeFooterMontant, color: sousMini ? "#dc2626" : "#b47828" }}>
+                  <span style={{ ...s.groupeFooterMontant, color: "#b47828" }}>
                     {groupe.sous_total.toFixed(2)} $ CAD
                   </span>
                 </div>
@@ -762,25 +695,6 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
               </div>
               <p style={s.recapTotalNote}>Avant taxes et livraison</p>
             </div>
-
-            {/* Raisons blocage */}
-            {!peutPayer && articlesSelectionnes > 0 && (
-              <div style={s.blocageWrap}>
-                <p style={s.blocageTitre}>Caisse bloquée :</p>
-                {sousMinimumGlobal && (
-                  <div style={s.blocageItem}>
-                    <span style={s.blocagePoint}>⚠️</span>
-                    <span>Minimum non atteint — il manque {(MINIMUM_GLOBAL - totalSelectionne).toFixed(2)} $</span>
-                  </div>
-                )}
-                {vendeurSousMinimum && (
-                  <div style={s.blocageItem}>
-                    <span style={s.blocagePoint}>⚠️</span>
-                    <span>Minimum {vendeurSousMinimum.vendeur_nom} non atteint (manque {(vendeurSousMinimum.minimum - vendeurSousMinimum.sous_total).toFixed(2)} $)</span>
-                  </div>
-                )}
-              </div>
-            )}
 
             {!peutPayer && articlesSelectionnes === 0 && (
               <div style={s.blocageWrap}>
@@ -878,12 +792,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
               <div key={article.id} className="plus-tard-card" style={{ ...s.plusTardCard, padding: isMobile ? "12px 10px" : "20px", gap: isMobile ? "8px" : "12px" }}>
                 {/* Image */}
                 <div style={{ ...s.plusTardImg, aspectRatio: isMobile ? "1/1" : "4/3" }}>
-                  <a
-                    href={`https://api.e-vend.ca/produit/${article.produit_shopify_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ display: 'block', width: '100%', height: '100%' }}
-                  >
+                  <div style={{ display: 'block', width: '100%', height: '100%' }}>
                     {article.image_url ? (
                       <img
                         src={article.image_url}
@@ -897,7 +806,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                         📦
                       </div>
                     )}
-                  </a>
+                  </div>
                 </div>
 
                 {/* Infos */}

@@ -14,6 +14,7 @@
 const Stripe = require('stripe');
 const pool = require('../db');
 const { dechiffrer } = require('../src/utils/chiffrement');
+const promo = require('./studio_promo');
 
 const DUREE_SESSION_MIN = 30; // minimum permis par Stripe
 
@@ -93,7 +94,7 @@ async function libererCommande(commandeId, { raison, annuler = true, par = 'syst
     await client.query('BEGIN');
     const c = await client.query(
       `UPDATE marketplace_commandes SET stock_reserve = false WHERE id = $1 AND stock_reserve = true AND statut_paiement <> 'paye'
-       RETURNING id, articles, stripe_session_id, gestionnaire_id, acheteur_id, collaborateur_id`, [commandeId]);
+       RETURNING id, articles, stripe_session_id, gestionnaire_id, acheteur_id, collaborateur_id, reduction_id, reduction_comptee`, [commandeId]);
     if (!c.rows[0]) { await client.query('ROLLBACK'); return false; }
     let articles = c.rows[0].articles;
     if (typeof articles === 'string') { try { articles = JSON.parse(articles); } catch (e) { articles = []; } }
@@ -102,6 +103,11 @@ async function libererCommande(commandeId, { raison, annuler = true, par = 'syst
       const pid = parseInt(a.produit_id, 10);
       const q = parseInt(a.quantite, 10);
       if (pid && q > 0) await ajusterStock(client, pid, a.variante || '', q);
+    }
+    // Le code promo retrouve son utilisation (paiement jamais complété)
+    if (c.rows[0].reduction_comptee && c.rows[0].reduction_id) {
+      await promo.remettreUtilisation(client, c.rows[0].reduction_id);
+      await client.query('UPDATE marketplace_commandes SET reduction_comptee = false WHERE id = $1', [commandeId]);
     }
     if (annuler) {
       await client.query(
@@ -134,7 +140,19 @@ async function contexteStripe(gid) {
 
 // ── Création de la commande + session de paiement ────────────────────────────
 // outils : { prixEtStock, calculerTaxesProvince, fraisExpedition } (viennent de marketplace-panier.js)
-async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse, methodeId, note, outils }) {
+// Le collaborateur peut-il recevoir un paiement ? (Stripe du gestionnaire prêt + compte Stripe du collaborateur actif)
+async function collaborateurPeutEncaisser(gid, collaborateurId) {
+  try {
+    const ctx = await contexteStripe(gid);
+    if (!ctx) return false;
+    const r = await pool.query(
+      `SELECT 1 FROM collaborateurs_stripe WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND env = $3 AND statut = 'active' AND charges_enabled = true`,
+      [collaborateurId, gid, ctx.env]);
+    return r.rows.length > 0;
+  } catch (e) { return false; }
+}
+
+async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse, methodeId, note, pourboire, codePromo, outils }) {
   const ctx = await contexteStripe(gid);
   if (!ctx) refus("Le paiement n'est pas encore configuré pour cette boutique.", 503);
 
@@ -195,19 +213,36 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
                     produit_numerique: ligne.produit_numerique === true, facturation_taxes: ligne.facturation_taxes !== false });
     }
 
-    // 2) Expédition, taxes, total — tout calculé ici, en cents
+    // 2) Code promo (rabais sur les articles seulement), expédition, taxes, total — tout calculé ici, en cents
     const sousTotalC = lignes.reduce((s, l) => s + cents(l.prix) * l.quantite, 0);
+    let rabaisC = 0, reduction = null, alloc = lignes.map(() => 0);
+    if (codePromo && String(codePromo).trim()) {
+      let ev;
+      try { ev = await promo.evaluer(client, { gid, collaborateurId, code: codePromo, lignes, verrou: true }); }
+      catch (e) { if (e instanceof promo.ErreurPromo) refus(e.message, e.status); throw e; }
+      try { await promo.reserverUtilisation(client, ev.reduction.id); }
+      catch (e) { if (e instanceof promo.ErreurPromo) refus(e.message, e.status); throw e; }
+      rabaisC = ev.rabaisC; reduction = ev.reduction;
+      alloc = promo.repartir(lignes, rabaisC);
+    }
+    // Prix net de chaque ligne (après rabais) : base des taxes et des lignes Stripe
+    const nets = lignes.map((l, i) => cents(l.prix) * l.quantite - alloc[i]);
+    const sousNetC = sousTotalC - rabaisC;
     const exp = await outils.fraisExpedition(client, lignes, sousTotalC / 100, methodeId);
     if (exp.erreur) refus(exp.erreur, 400);
     const fraisC = cents(exp.frais);
-    const tx = outils.calculerTaxesProvince(sousTotalC / 100, fraisC / 100, province, lignes);
+    const lignesNettes = lignes.map((l, i) => ({ ...l, prix: nets[i] / 100, quantite: 1 }));
+    const tx = outils.calculerTaxesProvince(sousNetC / 100, fraisC / 100, province, lignesNettes);
+    // Pourboire : 100 % au vendeur, non taxé, hors commission ; plafonné pour éviter les abus
+    const tipDemande = cents(Math.max(0, parseFloat(pourboire) || 0));
+    const tipC = Math.min(tipDemande, sousTotalC, 100000);
     const taxesC = cents(tx.tps) + cents(tx.tvq) + cents(tx.tvh);
-    const totalC = sousTotalC + fraisC + taxesC;
+    const totalC = sousNetC + fraisC + taxesC + tipC;
     if (totalC < 50) refus('Le montant de la commande est trop bas pour un paiement en ligne.', 400);
     const total = totalC / 100;
 
-    // 3) Commission du gestionnaire (en cents, jamais plus que le total)
-    const commission = commissionDe(mv, { sousTotal: sousTotalC / 100, taxes: taxesC / 100, expedition: fraisC / 100, total });
+    // 3) Commission du gestionnaire (en cents, jamais plus que le total) — calculée sur le prix après rabais
+    const commission = commissionDe(mv, { sousTotal: sousNetC / 100, taxes: taxesC / 100, expedition: fraisC / 100, total: (totalC - tipC) / 100 });
     const commissionC = Math.min(cents(commission), totalC);
 
     const numero = `MV-${gid}-${Date.now()}`;
@@ -215,23 +250,35 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
     const ins = await client.query(
       `INSERT INTO marketplace_commandes
          (gestionnaire_id, acheteur_id, collaborateur_id, numero_commande, statut, statut_paiement, total, commission, montant_net,
-          articles, adresse_livraison, note, frais_expedition, taxes, stock_reserve, expire_le, stripe_env)
-       VALUES ($1,$2,$3,$4,'en_attente','en_attente',$5,$6,$7,$8,$9,$10,$11,$12,true,$13,$14) RETURNING id`,
-      [gid, acheteurId, collaborateurId, numero, total, commissionC / 100, (totalC - commissionC) / 100, JSON.stringify(lignes),
+          articles, adresse_livraison, note, frais_expedition, taxes, stock_reserve, expire_le, stripe_env,
+          code_promo, reduction_id, rabais, reduction_comptee)
+       VALUES ($1,$2,$3,$4,'en_attente','en_attente',$5,$6,$7,$8,$9,$10,$11,$12,true,$13,$14,$15,$16,$17,$18) RETURNING id`,
+      [gid, acheteurId, collaborateurId, numero, total, commissionC / 100, (totalC - commissionC) / 100,
+       JSON.stringify(lignes.map((l, i) => (alloc[i] ? { ...l, rabais: alloc[i] / 100 } : l))),
        JSON.stringify(adresse || {}), note ? String(note).slice(0, 500) : null, fraisC / 100,
-       JSON.stringify({ tps: tx.tps, tvq: tx.tvq, tvh: tx.tvh, label: tx.label_taxe, province }), expireLe, ctx.env]);
+       JSON.stringify({ tps: tx.tps, tvq: tx.tvq, tvh: tx.tvh, label: tx.label_taxe, province, pourboire: tipC / 100 }), expireLe, ctx.env,
+       reduction ? reduction.code : null, reduction ? reduction.id : null, rabaisC / 100, !!reduction]);
     const commandeId = ins.rows[0].id;
 
     // 4) Session Stripe Checkout : une ligne par article + expédition + taxes (le total Stripe = notre total)
-    const lineItems = lignes.map((l) => ({
-      quantity: l.quantite,
-      price_data: { currency: devise, unit_amount: cents(l.prix), product_data: { name: String(l.titre).slice(0, 120) } },
-    }));
+    const lineItems = [];
+    lignes.forEach((l, i) => {
+      if (!alloc[i]) {
+        lineItems.push({ quantity: l.quantite, price_data: { currency: devise, unit_amount: cents(l.prix), product_data: { name: String(l.titre).slice(0, 120) } } });
+      } else if (nets[i] > 0) {
+        // Ligne rabaissée : un seul montant exact (Stripe n'accepte pas de montant négatif ni de cents fractionnaires)
+        const nom = (String(l.titre).slice(0, 100) + (l.quantite > 1 ? ` × ${l.quantite}` : '')).slice(0, 120);
+        lineItems.push({ quantity: 1, price_data: { currency: devise, unit_amount: nets[i],
+          product_data: { name: nom, description: `Code promo ${reduction.code} : -${(alloc[i] / 100).toFixed(2)} $` } } });
+      }
+    });
     if (fraisC > 0) lineItems.push({ quantity: 1, price_data: { currency: devise, unit_amount: fraisC, product_data: { name: 'Expédition' } } });
+    if (tipC > 0) lineItems.push({ quantity: 1, price_data: { currency: devise, unit_amount: tipC, product_data: { name: 'Pourboire' } } });
     if (taxesC > 0) lineItems.push({ quantity: 1, price_data: { currency: devise, unit_amount: taxesC, product_data: { name: `Taxes (${tx.label_taxe})` } } });
 
     const direct = String(ctx.p.processing_method || 'DIRECT CHARGES').toUpperCase().includes('DIRECT');
     const meta = { type: 'mv_commande', commande_id: String(commandeId), gestionnaire_id: String(gid), collaborateur_id: String(collaborateurId) };
+    if (reduction) meta.code_promo = reduction.code;
     const paymentIntentData = { metadata: meta };
     if (commissionC > 0) paymentIntentData.application_fee_amount = commissionC;
     if (!direct) paymentIntentData.transfer_data = { destination: collab.stripe_account_id };
@@ -353,4 +400,4 @@ function demarrerBalayage() {
   if (t.unref) t.unref();
 }
 
-module.exports = { ErreurPaiement, commissionDe, ajusterStock, libererCommande, annulerNonPayee, contexteStripe, creerCommandePayable, confirmerPaiement, sessionExpiree, balayerCommandesExpirees, demarrerBalayage };
+module.exports = { collaborateurPeutEncaisser, ErreurPaiement, commissionDe, ajusterStock, libererCommande, annulerNonPayee, contexteStripe, creerCommandePayable, confirmerPaiement, sessionExpiree, balayerCommandesExpirees, demarrerBalayage };

@@ -8,6 +8,7 @@ const router  = express.Router();
 const pool    = require('../db');
 const jwt     = require('jsonwebtoken');
 const paiement = require('../services/studio_paiement');
+const promo = require('../services/studio_promo');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -52,7 +53,7 @@ const TAXES = {
   YT: { tps: 0.05, tvq: 0,       tvh: 0,    label: 'TPS' },
 };
 
-function calculerTaxesProvince(sousTotal, fraisExp, province, articles) {
+function calculerTaxesProvince(sousTotal, fraisExp, province, articles, pourboire) {
   const tx = TAXES[province] || TAXES['QC'];
   const base = articles
     ? articles.reduce((s, a) => s + (a.facturation_taxes !== false ? parseFloat(a.prix) * a.quantite : 0), 0)
@@ -68,7 +69,8 @@ function calculerTaxesProvince(sousTotal, fraisExp, province, articles) {
     tvq: tvq.toFixed(2),
     tvh: tvh.toFixed(2),
     total_taxes: total_taxes.toFixed(2),
-    total: (sousTotal + fraisExp + total_taxes).toFixed(2),
+    pourboire: Math.max(0, parseFloat(pourboire) || 0),
+    total: (sousTotal + fraisExp + total_taxes + Math.max(0, parseFloat(pourboire) || 0)).toFixed(2),
     label_taxe: tx.label,
     province,
   };
@@ -103,7 +105,7 @@ router.get('/:gid/panier', authMV, async (req, res) => {
   const acheteurId = req.mvUser.id;
   try {
     const r = await pool.query(
-      `SELECT mp.*, COALESCE(mc.nom_boutique, mc.nom_responsable) AS vendeur_nom
+      `SELECT mp.*, mp.collaborateur_id AS vendeur_id, COALESCE(mc.nom_boutique, mc.nom_responsable) AS vendeur_nom
        FROM marketplace_panier mp
        JOIN marketplace_collaborateurs mc ON mc.id = mp.collaborateur_id
        WHERE mp.acheteur_id = $1 AND mp.gestionnaire_id = $2
@@ -231,6 +233,7 @@ router.post('/:gid/panier/:id/plus-tard', authMV, async (req, res) => {
     const art = await pool.query('SELECT * FROM marketplace_panier WHERE id=$1 AND acheteur_id=$2', [id, acheteurId]);
     if (!art.rows[0]) return res.status(404).json({ error: 'Article introuvable' });
     const a = art.rows[0];
+    if (a.enchere_id) return res.status(409).json({ error: 'Un article gagné aux enchères ne peut pas être mis de côté : payez-le avant la fin du délai.' });
     await pool.query(
       'INSERT INTO marketplace_panier_plus_tard (gestionnaire_id, acheteur_id, collaborateur_id, produit_id, titre, image_url, prix) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING',
       [gid, acheteurId, a.collaborateur_id, a.produit_id, a.titre, a.image_url, a.prix]
@@ -345,18 +348,19 @@ router.get('/:gid/checkout/infos', authMV, async (req, res) => {
       }
     }
 
+    const peutEncaisser = await paiement.collaborateurPeutEncaisser(parseInt(gid, 10), parseInt(collaborateur_id, 10));
     res.json({
       articles,
       sous_total: sousTotal,
       tous_numeriques: tousNumeriques,
       panier_mixte: panierMixte,
       collaborateur: collabRes.rows[0] || null,
-      vendeur: collabRes.rows[0] ? { // compatibilite avec CheckoutEvend.tsx
+      vendeur: collabRes.rows[0] ? { // compatibilite avec Checkout.tsx
         id: collabRes.rows[0].id,
         nom: collabRes.rows[0].nom_responsable,
         nom_boutique: collabRes.rows[0].nom_boutique,
         ville: '',
-        stripe_actif: false, // paiement gere par gestionnaire
+        stripe_actif: peutEncaisser, // Stripe du gestionnaire configuré + compte Stripe du collaborateur actif
         paypal_actif: false,
         stripe_compte_id: null,
         paypal_email: null,
@@ -372,16 +376,32 @@ router.get('/:gid/checkout/infos', authMV, async (req, res) => {
 });
 
 // POST /api/marketplace/:gid/checkout/taxes
+// Avec code_promo + collaborateur_id : les taxes sont calculées sur le prix APRÈS rabais, et le total renvoyé est déjà net.
 router.post('/:gid/checkout/taxes', authMV, async (req, res) => {
-  const { sous_total, frais_expedition, province, articles } = req.body;
+  const { sous_total, frais_expedition, province, articles, pourboire, code_promo, collaborateur_id } = req.body || {};
   try {
-    const taxes = calculerTaxesProvince(
-      parseFloat(sous_total) || 0,
-      parseFloat(frais_expedition) || 0,
-      province || 'QC',
-      articles
-    );
-    res.json(taxes);
+    const sous = parseFloat(sous_total) || 0;
+    const frais = parseFloat(frais_expedition) || 0;
+    const prov = province || 'QC';
+    const collabId = parseInt(collaborateur_id, 10);
+    if (code_promo && String(code_promo).trim() && collabId) {
+      try {
+        const r = await promo.apercu({ gid: parseInt(req.params.gid, 10), acheteurId: req.mvUser.id, collaborateurId: collabId, code: code_promo });
+        const nettes = r.lignes.map((l, i) => ({
+          prix: (Math.round(parseFloat(l.prix) * 100) * (parseInt(l.quantite, 10) || 0) - r.alloc[i]) / 100,
+          quantite: 1, facturation_taxes: l.facturation_taxes,
+        }));
+        const rabais = r.rabaisC / 100;
+        const t = calculerTaxesProvince(Math.max(0, sous - rabais), frais, prov, nettes, pourboire);
+        return res.json({ ...t, sous_total: sous, rabais: rabais.toFixed(2), code_promo: r.code });
+      } catch (e) {
+        if (!(e instanceof promo.ErreurPromo)) throw e;
+        // Code devenu invalide : taxes normales, et le navigateur retire le code
+        const t = calculerTaxesProvince(sous, frais, prov, articles, pourboire);
+        return res.json({ ...t, rabais: '0.00', code_promo_erreur: e.message });
+      }
+    }
+    res.json(calculerTaxesProvince(sous, frais, prov, articles, pourboire));
   } catch (err) { res.status(500).json({ error: 'Erreur calcul taxes' }); }
 });
 
@@ -418,17 +438,20 @@ async function fraisExpedition(client, lignes, sousTotal, methodeId) {
 router.post('/:gid/checkout/commande', authMV, async (req, res) => {
   const { gid } = req.params;
   const b = req.body || {};
-  const collaborateurId = parseInt(b.collaborateur_id, 10);
+  // Le Checkout envoie vendeur_id / infos_livraison / note_acheteur ; on accepte aussi les noms « collaborateur ».
+  const collaborateurId = parseInt(b.collaborateur_id ?? b.vendeur_id, 10);
   if (!Number.isInteger(collaborateurId)) return res.status(400).json({ error: 'collaborateur_id requis' });
-  const adresse = b.adresse_livraison && typeof b.adresse_livraison === 'object' && !Array.isArray(b.adresse_livraison) ? b.adresse_livraison : {};
+  const adr = b.adresse_livraison ?? b.infos_livraison;
+  const adresse = adr && typeof adr === 'object' && !Array.isArray(adr) ? adr : {};
   if (JSON.stringify(adresse).length > 4000) return res.status(400).json({ error: 'Adresse invalide' });
   try {
     const r = await paiement.creerCommandePayable({
       gid: parseInt(gid, 10), acheteurId: req.mvUser.id, collaborateurId, adresse,
-      methodeId: b.methode_expedition_id, note: b.note_vendeur,
+      methodeId: b.methode_expedition_id, note: b.note_vendeur ?? b.note_acheteur, pourboire: b.pourboire,
+      codePromo: typeof b.code_promo === 'string' ? b.code_promo : '',
       outils: { prixEtStock, calculerTaxesProvince, fraisExpedition },
     });
-    res.status(201).json({ ...r, message: 'Commande creee avec succes' });
+    res.status(201).json({ ...r, stripe_url: r.checkout_url, message: 'Commande creee avec succes' });
   } catch (err) {
     if (err instanceof paiement.ErreurPaiement) return res.status(err.status).json({ error: err.message });
     console.error('POST checkout/commande:', err);
@@ -436,27 +459,32 @@ router.post('/:gid/checkout/commande', authMV, async (req, res) => {
   }
 });
 
-// POST /api/marketplace/:gid/checkout/code-promo
+// POST /api/marketplace/:gid/checkout/code-promo   { code, collaborateur_id }
+// Vérifie le code dans la boutique du collaborateur et renvoie le rabais en $ calculé sur le panier réel de l'acheteur.
+// Limite d'essais (anti-devinette) : 15 tentatives / 10 min par acheteur.
+const essaisPromo = new Map();
 router.post('/:gid/checkout/code-promo', authMV, async (req, res) => {
-  const { gid } = req.params;
-  const { code, collaborateur_id, sous_total } = req.body;
+  const gid = parseInt(req.params.gid, 10);
+  const b = req.body || {};
+  const collaborateurId = parseInt(b.collaborateur_id ?? b.vendeur_id, 10);
+  if (!Number.isInteger(collaborateurId)) return res.status(400).json({ success: false, message: 'Boutique manquante.' });
+  const cle = `${gid}:${req.mvUser.id}`;
+  const now = Date.now();
+  const liste = (essaisPromo.get(cle) || []).filter((t) => now - t < 600000);
+  if (liste.length >= 15) return res.status(429).json({ success: false, message: 'Trop d\'essais. Réessayez dans quelques minutes.' });
+  liste.push(now); essaisPromo.set(cle, liste);
+  if (essaisPromo.size > 5000) { for (const [k, v] of essaisPromo) if (!v.some((t) => now - t < 600000)) essaisPromo.delete(k); }
   try {
-    const r = await pool.query(
-      `SELECT * FROM reductions_collaborateur
-        WHERE code = $1 AND collaborateur_id = $2 AND gestionnaire_id = $3 AND actif = true
-          AND (date_debut IS NULL OR date_debut <= CURRENT_DATE)
-          AND (date_fin IS NULL OR date_fin >= CURRENT_DATE)
-          AND (utilisations_max IS NULL OR utilisations < utilisations_max)
-          AND montant_minimum <= $4`,
-      [String(code || '').toUpperCase(), parseInt(collaborateur_id), parseInt(gid), parseFloat(sous_total) || 0]
-    );
-    if (!r.rows[0]) return res.status(404).json({ message: 'Code invalide ou expire' });
-    const red = r.rows[0];
-    const rabais = red.type === 'pourcentage'
-      ? `${red.valeur}%`
-      : `${parseFloat(red.valeur).toFixed(2)} $`;
-    res.json({ code: red.code, rabais, reduction_id: red.id });
-  } catch (err) { res.status(500).json({ error: 'Erreur serveur' }); }
+    const r = await promo.apercu({ gid, acheteurId: req.mvUser.id, collaborateurId, code: b.code });
+    res.json({
+      success: true, code: r.code, rabais: (r.rabaisC / 100).toFixed(2), reduction_id: r.reduction.id,
+      type: r.reduction.type, valeur: Number(r.reduction.valeur), message: 'Code promo appliqué',
+    });
+  } catch (err) {
+    if (err instanceof promo.ErreurPromo) return res.status(err.status).json({ success: false, message: err.message });
+    console.error('POST checkout/code-promo:', err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
 });
 
 module.exports = router;

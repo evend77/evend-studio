@@ -1,7 +1,7 @@
 // src/templates/shared/Checkout.tsx
 // e-Vend Studio — Checkout acheteur — partagé tous templates transactionnels
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 const API_BASE = '/api';
 
@@ -213,6 +213,8 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
   const [codePromoLoading, setCodePromoLoading] = useState(false);
   const [codePromoErreur, setCodePromoErreur] = useState<string | null>(null);
   const [codePromoInfo, setCodePromoInfo] = useState<{ code: string; rabais: string; reduction_id: number } | null>(null);
+  // Copie lue par calculerTaxes (évite une valeur périmée juste après l'ajout/retrait du code)
+  const codePromoRef = useRef<{ code: string; rabais: string; reduction_id: number } | null>(null);
 
   // ✅ FIX 1: vId calculé une seule fois, stable
   const vId = vendeurId || parseInt(localStorage.getItem('checkout_vendeur_id') || '0');
@@ -358,11 +360,23 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
           frais_expedition: frais, 
           province, 
           pourboire: pourboireUtilise,
-          articles: articlesAvecTaxe  // ✅ AJOUTÉ
+          articles: articlesAvecTaxe,  // ✅ AJOUTÉ
+          collaborateur_id: vId,
+          code_promo: codePromoRef.current?.code || undefined,
         }),
       });
       if (!res.ok) return null;
-      const data: TaxesCalc = await res.json();
+      const data: TaxesCalc & { rabais?: string; code_promo_erreur?: string } = await res.json();
+      if (data.code_promo_erreur) {
+        // Le code n'est plus valide (expiré, épuisé…) : on le retire, les taxes affichées sont les taxes normales
+        codePromoRef.current = null;
+        setCodePromoInfo(null);
+        setCodePromoErreur(data.code_promo_erreur);
+      } else if (codePromoRef.current && data.rabais !== undefined) {
+        const maj = { ...codePromoRef.current, rabais: data.rabais };
+        codePromoRef.current = maj;
+        setCodePromoInfo(maj);
+      }
       setTaxes(data);
       return data;
     } catch {
@@ -391,8 +405,9 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
       const methodeSelectionnee = methodesExpedition.find(m => m.id === expedition);
       const frais = tousNumeriques ? 0 : (methodeSelectionnee ? (methodeSelectionnee.frais_calcule ?? methodeSelectionnee.frais_fixes ?? 0) : 0);
       const rabais = codePromoInfo ? parseFloat(codePromoInfo.rabais) : 0;
+      // taxes.total est déjà net du code promo (calculé par le serveur)
       const totalFinal = taxes
-        ? parseFloat((parseFloat(taxes.total) - rabais).toFixed(2))
+        ? parseFloat(parseFloat(taxes.total).toFixed(2))
         : parseFloat((sousTotal - rabais + frais + pourboire).toFixed(2));
 
       if (!totalFinal || totalFinal <= 0) {
@@ -445,18 +460,26 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
   async function appliquerCodePromo() {
     const code = codePromoInput.trim().toUpperCase();
     if (!code) return;
+    const token = getToken(gestionnaireId);
+    if (!token) { naviguer('login'); return; }
     setCodePromoLoading(true);
     setCodePromoErreur(null);
+    codePromoRef.current = null;
     setCodePromoInfo(null);
     try {
-      const montant = articles.reduce((sum, a) => sum + parseFloat(String(a.prix)) * a.quantite, 0);
-      const annonceId = articles.length === 1 ? articles[0].id : '';
-      const url = `${API_BASE}/make-offer/valider-code?code=${encodeURIComponent(code)}&montant_panier=${montant}${annonceId ? `&annonce_id=${annonceId}` : ''}`;
-      const res = await fetch(url);
+      // Le serveur vérifie le code dans la boutique de CE vendeur et calcule le rabais sur votre vrai panier
+      const res = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/checkout/code-promo`, {
+        method: 'POST',
+        credentials: 'include', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, collaborateur_id: vId }),
+      });
       const data = await res.json();
-      if (data.success) {
-        setCodePromoInfo({ code: data.code, rabais: data.rabais, reduction_id: data.reduction_id });
+      if (res.ok && data.success) {
+        const info = { code: data.code, rabais: data.rabais, reduction_id: data.reduction_id };
+        codePromoRef.current = info;
+        setCodePromoInfo(info);
         setCodePromoErreur(null);
+        calculerTaxes(); // taxes recalculées sur le prix après rabais
       } else {
         setCodePromoErreur(data.message || 'Code invalide.');
       }
@@ -468,9 +491,11 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
   }
 
   function retirerCodePromo() {
+    codePromoRef.current = null;
     setCodePromoInput('');
     setCodePromoInfo(null);
     setCodePromoErreur(null);
+    calculerTaxes();
   }
 
   const sousTotal = articles.reduce((s, a) => s + parseFloat(String(a.prix)) * a.quantite, 0);
@@ -1135,7 +1160,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                     value={codePromoInput}
                     onChange={e => { setCodePromoInput(e.target.value.toUpperCase()); setCodePromoErreur(null); }}
                     onKeyDown={e => e.key === 'Enter' && appliquerCodePromo()}
-                    placeholder="Ex : OFFRE-A1B2"
+                    placeholder="Entrez votre code"
                     style={{ flex: 1, padding: '9px 12px', border: `1px solid ${codePromoErreur ? C.danger : C.border}`, borderRadius: '10px', fontSize: '13px', color: C.text, background: 'rgba(255,255,255,0.04)', outline: 'none', fontFamily: 'inherit', letterSpacing: '1px', boxSizing: 'border-box' as const }}
                   />
                   <button
@@ -1206,7 +1231,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                   {taxesLoading
                     ? '...'
                     : taxes
-                      ? `${(parseFloat(taxes.total) - rabaisCode).toFixed(2)} $`
+                      ? `${parseFloat(taxes.total).toFixed(2)} $`
                       : `${(sousTotalApresRabais + fraisExp).toFixed(2)} $`}
                 </span>
                 <p style={{ fontSize: '11px', color: C.textMuted, margin: '2px 0 0' }}>
