@@ -1,7 +1,7 @@
 // CHEMIN : src/templates/multivendeur/MVPremiumEncheres.tsx
 // e-Vend Studio — Template Multi-Vendeur Premium — Page Enchères
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 
 const API_BASE = '/api';
@@ -140,7 +140,9 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
   const [tri, setTri] = useState<Tri>('fin_proche');
   const [panneauOuvert, setPanneauOuvert] = useState(false);
   const [page, setPage] = useState(1);
-  const [encore, setEncore] = useState(false); // il reste des pages à charger
+  const PAR_PAGE = 50;
+  const [totalSrv, setTotalSrv] = useState(0);
+  const [pagesSrv, setPagesSrv] = useState(1);
 
   // Réponse du serveur → carte d'affichage
   const versCarte = (x: any): Enchere => ({
@@ -154,34 +156,45 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
   useEffect(() => {
     if (isDemo) { setEncheres(DEMO_ENCHERES); setLoading(false); return; }
     let annule = false;
-    fetch(`${API_BASE}/marketplace/${gId}/encheres?page=${page}`, { credentials: 'include' })
+    setLoading(true);
+    const params = new URLSearchParams({ page: String(page), limit: String(PAR_PAGE), tri });
+    if (filtreReserve) params.set('reserve', '1');
+    fetch(`${API_BASE}/marketplace/${gId}/encheres?${params}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : { encheres: [] })
       .then(d => {
         if (annule) return;
-        const liste = (d.encheres || []).map(versCarte);
-        setEncheres(prev => page === 1 ? liste : [...prev, ...liste.filter((n: Enchere) => !prev.some(p => p.id === n.id))]);
-        setEncore(liste.length >= 24);
+        setEncheres((d.encheres || []).map(versCarte));
+        setTotalSrv(d.pagination?.total || 0);
+        setPagesSrv(d.pagination?.pages || 1);
       })
-      .catch(() => { if (!annule && page === 1) setEncheres([]); })
+      .catch(() => { if (!annule) { setEncheres([]); setTotalSrv(0); setPagesSrv(1); } })
       .finally(() => { if (!annule) setLoading(false); });
     return () => { annule = true; };
-  }, [gId, isDemo, page]);
+  }, [gId, isDemo, page, tri, filtreReserve]);
 
-  let filtrees = encheres.filter(e => {
-    if (filtreReserve && !e.reserve_atteinte) return false;
-    return true;
-  });
-  filtrees.sort((a, b) => {
-    switch (tri) {
-      case 'mise_asc':  return (a.mise_courante || a.prix_base) - (b.mise_courante || b.prix_base);
-      case 'mise_desc': return (b.mise_courante || b.prix_base) - (a.mise_courante || a.prix_base);
-      case 'nb_mises':  return b.nb_mises - a.nb_mises;
-      case 'recent':    return new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime();
-      default:          return new Date(a.date_fin).getTime() - new Date(b.date_fin).getTime();
-    }
-  });
+  // Tout changement de tri ou de filtre ramène à la page 1 ; changer de page remonte en haut
+  const cleRef = useRef(JSON.stringify([tri, filtreReserve]));
+  useEffect(() => { const c = JSON.stringify([tri, filtreReserve]); if (cleRef.current !== c) { cleRef.current = c; setPage(1); } }, [tri, filtreReserve]);
+  const premierRendu = useRef(true);
+  useEffect(() => { if (premierRendu.current) { premierRendu.current = false; return; } window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
 
-  const totalEnCours = encheres.length;
+  // Serveur : déjà filtré, trié et paginé. Démo seulement : filtres et tri ici.
+  let filtrees = encheres;
+  if (isDemo) {
+    filtrees = encheres.filter(e => !(filtreReserve && !e.reserve_atteinte));
+    filtrees.sort((a, b) => {
+      switch (tri) {
+        case 'mise_asc':  return (a.mise_courante || a.prix_base) - (b.mise_courante || b.prix_base);
+        case 'mise_desc': return (b.mise_courante || b.prix_base) - (a.mise_courante || a.prix_base);
+        case 'nb_mises':  return b.nb_mises - a.nb_mises;
+        case 'recent':    return new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime();
+        default:          return new Date(a.date_fin).getTime() - new Date(b.date_fin).getTime();
+      }
+    });
+  }
+
+  const totalEnCours = isDemo ? filtrees.length : totalSrv;
+  const totalPages = isDemo ? 1 : pagesSrv;
 
   const TRI_OPTIONS: { value: Tri; label: string }[] = [
     { value:'fin_proche', label:'Fin la plus proche' },
@@ -221,7 +234,7 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
         {/* Contenu */}
         <main style={s.main}>
           <div style={s.toolbar}>
-            <span style={{ fontSize:13, color:'rgba(255,255,255,0.5)' }}>{filtrees.length} resultat{filtrees.length !== 1 ? 's' : ''}</span>
+            <span style={{ fontSize:13, color:'rgba(255,255,255,0.5)' }}>{totalEnCours} resultat{totalEnCours !== 1 ? 's' : ''}</span>
             <div style={{ position:'relative' }}>
               <button onClick={() => setPanneauOuvert(v => !v)} style={s.btnTri}>
                 Trier : {TRI_OPTIONS.find(t => t.value === tri)?.label} ▾
@@ -251,9 +264,11 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
               {filtrees.map(e => <CarteEnchere key={e.id} enc={e} naviguer={naviguer} couleurAccent={couleurAccent} />)}
             </div>
           )}
-          {!loading && encore && (
-            <div style={{ textAlign:'center', marginTop:24 }}>
-              <button onClick={() => setPage(p => p + 1)} style={s.btnTri}>Voir plus d'enchères</button>
+          {totalPages > 1 && (
+            <div style={s.pagination}>
+              <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} style={{ ...s.pageBtn, opacity: page <= 1 ? 0.4 : 1 }}>← Précédent</button>
+              <span style={s.pageInfo}>Page {page} / {totalPages}</span>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} style={{ ...s.pageBtn, opacity: page >= totalPages ? 0.4 : 1 }}>Suivant →</button>
             </div>
           )}
         </main>
@@ -284,6 +299,9 @@ const s: Record<string, React.CSSProperties> = {
   checkLabel: { display:'flex', alignItems:'center', gap:8, padding:'8px 10px', borderRadius:8, cursor:'pointer', marginBottom:4 },
   main:     { flex:1, minWidth:0 },
   toolbar:  { display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:18, flexWrap:'wrap', gap:10 },
+  pagination: { display:'flex', justifyContent:'center', alignItems:'center', gap:16, marginTop:40, paddingTop:24, borderTop:'1px solid rgba(255,255,255,0.07)', flexWrap:'wrap' },
+  pageBtn:  { padding:'10px 20px', background:'rgba(255,255,255,0.07)', border:'1px solid rgba(255,255,255,0.12)', borderRadius:8, color:'#fff', cursor:'pointer', fontSize:14, fontFamily:'inherit' },
+  pageInfo: { fontSize:14, color:'rgba(255,255,255,0.5)' },
   btnTri:   { padding:'8px 14px', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, color:'#fff', fontSize:13, cursor:'pointer', fontFamily:'inherit' },
   panneau:  { position:'absolute', top:'100%', right:0, marginTop:8, background:'#1a1a2e', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, overflow:'hidden', zIndex:200, minWidth:220, boxShadow:'0 16px 48px rgba(0,0,0,0.5)' },
   panneauItem: { padding:'10px 14px', cursor:'pointer', fontSize:13, fontWeight:500 },

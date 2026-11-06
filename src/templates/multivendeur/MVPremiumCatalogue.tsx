@@ -1,7 +1,7 @@
 // src/templates/multivendeur/MVPremiumCatalogue.tsx
 // e-Vend Studio — Template Multi-Vendeur Premium — Catalogue
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
@@ -175,27 +175,49 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
   const [page,           setPage]           = useState(1);
   const [drawerOuvert,   setDrawerOuvert]   = useState(false);
   const panneauRef = useRef<HTMLDivElement>(null);
-  const LIMIT = 48;
+  const LIMIT = 50;
+  const [total, setTotal] = useState(0);
+  const [totalPagesSrv, setTotalPagesSrv] = useState(1);
+  const [prixMinD, setPrixMinD] = useState('');
+  const [prixMaxD, setPrixMaxD] = useState('');
+  // Prix : on attend la fin de la saisie avant d'interroger le serveur
+  useEffect(() => { const t = setTimeout(() => { setPrixMinD(prixMin); setPrixMaxD(prixMax); }, 400); return () => clearTimeout(t); }, [prixMin, prixMax]);
+  // Tout changement de filtre ramène à la page 1
+  const cleFiltres = JSON.stringify([rechercheActif, categorieActive, tri, prixMinD, prixMaxD, filtreEnStock]);
+  const cleRef = useRef(cleFiltres);
+  useEffect(() => { if (cleRef.current !== cleFiltres) { cleRef.current = cleFiltres; setPage(1); } }, [cleFiltres]);
 
-  // Fetch produits
-  const fetchProduits = useCallback(async () => {
+  // Fetch produits — filtres, tri et pagination faits par le serveur (50 par page)
+  useEffect(() => {
     if (isDemo) {
       setProduits(DEMO_PRODUITS_CAT as any);
       setLoading(false);
       return;
     }
+    let annule = false;
     setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (rechercheActif) params.set('q', rechercheActif);
-      if (categorieActive) params.set('categorie_id', categorieActive.toString());
+    const params = new URLSearchParams({ page: String(page), limit: String(LIMIT), tri });
+    if (rechercheActif) params.set('q', rechercheActif);
+    if (categorieActive) params.set('categorie_id', categorieActive.toString());
+    if (prixMinD !== '') params.set('prix_min', prixMinD);
+    if (prixMaxD !== '') params.set('prix_max', prixMaxD);
+    if (filtreEnStock) params.set('en_stock', '1');
+    fetch(`${API_BASE}/produits/gestionnaire/${gId}?${params}`)
+      .then(r => r.ok ? r.json() : { produits: [], pagination: { total: 0, pages: 1 } })
+      .then(d => {
+        if (annule) return;
+        setProduits(Array.isArray(d.produits) ? d.produits : []);
+        setTotal(d.pagination?.total || 0);
+        setTotalPagesSrv(d.pagination?.pages || 1);
+      })
+      .catch(() => { if (!annule) { setProduits([]); setTotal(0); setTotalPagesSrv(1); } })
+      .finally(() => { if (!annule) setLoading(false); });
+    return () => { annule = true; };
+  }, [gId, isDemo, page, rechercheActif, categorieActive, tri, prixMinD, prixMaxD, filtreEnStock]);
 
-      const res = await fetch(`${API_BASE}/produits/gestionnaire/${gId}?${params}`);
-      const data = res.ok ? await res.json() : [];
-      setProduits(Array.isArray(data) ? data.filter((p: Produit) => p.statut === 'actif' || !p.statut) : []);
-    } catch { setProduits([]); }
-    finally { setLoading(false); }
-  }, [gId, rechercheActif, categorieActive, isDemo]);
+  // Remonter en haut de la liste quand on change de page
+  const premierRendu = useRef(true);
+  useEffect(() => { if (premierRendu.current) { premierRendu.current = false; return; } window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
 
   // Fetch catégories
   useEffect(() => {
@@ -204,8 +226,6 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
       .then(d => setCategories(d.categories || d || []))
       .catch(() => {});
   }, [gId]);
-
-  useEffect(() => { fetchProduits(); }, [fetchProduits]);
 
   // Fermer panneau filtres au clic extérieur
   useEffect(() => {
@@ -218,7 +238,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
   }, [filtreOuvert]);
 
   // Filtres + tri côté client
-  const produitsFiltres = (() => {
+  const produitsFiltres = !isDemo ? produits : (() => {
     let result = [...produits];
     if (prixMin !== '') result = result.filter(p => parseFloat(String(p.prix)) >= parseFloat(prixMin));
     if (prixMax !== '') result = result.filter(p => parseFloat(String(p.prix)) <= parseFloat(prixMax));
@@ -235,8 +255,9 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
     return result;
   })();
 
-  const totalPages = Math.ceil(produitsFiltres.length / LIMIT);
-  const produitsDeLaPage = produitsFiltres.slice((page - 1) * LIMIT, page * LIMIT);
+  const totalProduits = isDemo ? produitsFiltres.length : total;
+  const totalPages = isDemo ? Math.ceil(produitsFiltres.length / LIMIT) : totalPagesSrv;
+  const produitsDeLaPage = isDemo ? produitsFiltres.slice((page - 1) * LIMIT, page * LIMIT) : produitsFiltres;
   const nbFiltresActifs = [prixMin !== '', prixMax !== '', filtreEnStock, tri !== 'recent'].filter(Boolean).length;
 
   // Groupes pour la sidebar
@@ -265,7 +286,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
       <button onClick={() => { setCategorieActive(null); setPage(1); }}
         style={{ ...s.catBtn, ...(categorieActive === null ? { background: `${couleurAccent}20`, color: couleurAccent, borderColor: `${couleurAccent}40` } : {}) }}>
         <span>Tout le catalogue</span>
-        <span style={s.catCount}>{produits.length}</span>
+        <span style={s.catCount}>{totalProduits}</span>
       </button>
 
       {categories.length > 0
@@ -337,7 +358,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
                 ☰ Catégories
               </button>
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
-                {loading ? '...' : `${produitsFiltres.length} produit${produitsFiltres.length > 1 ? 's' : ''}`}
+                {loading ? '...' : `${totalProduits} produit${totalProduits > 1 ? 's' : ''}`}
               </span>
             </div>
 
@@ -469,17 +490,9 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
           {/* Pagination */}
           {totalPages > 1 && (
             <div style={s.pagination}>
-              <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={s.pageBtn}>‹ Préc.</button>
-              {[...Array(Math.min(totalPages, 7))].map((_, i) => {
-                const p = i + 1;
-                return (
-                  <button key={p} onClick={() => setPage(p)}
-                    style={{ ...s.pageBtn, background: page === p ? couleurAccent : 'rgba(255,255,255,0.05)', color: page === p ? '#000' : '#fff', fontWeight: page === p ? 800 : 400 }}>
-                    {p}
-                  </button>
-                );
-              })}
-              <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} style={s.pageBtn}>Suiv. ›</button>
+              <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} style={{ ...s.pageBtn, opacity: page <= 1 ? 0.4 : 1 }}>← Précédent</button>
+              <span style={s.pageInfo}>Page {page} / {totalPages}</span>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} style={{ ...s.pageBtn, opacity: page >= totalPages ? 0.4 : 1 }}>Suivant →</button>
             </div>
           )}
         </main>
@@ -550,6 +563,7 @@ const s: Record<string, React.CSSProperties> = {
   prixOriginal:{ fontSize: 13, color: 'rgba(255,255,255,0.35)', textDecoration: 'line-through' },
   badgeCat:    { fontSize: 11, color: 'rgba(255,255,255,0.35)', padding: '3px 8px', background: 'rgba(255,255,255,0.05)', borderRadius: 6, display: 'inline-block', marginTop: 'auto' },
   // Pagination
-  pagination: { display: 'flex', justifyContent: 'center', gap: 8, marginTop: 32, flexWrap: 'wrap' },
-  pageBtn:    { padding: '8px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 14, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", minWidth: 40 },
+  pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 40, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.07)', flexWrap: 'wrap' },
+  pageInfo: { fontSize: 14, color: 'rgba(255,255,255,0.5)' },
+  pageBtn:    { padding: '10px 20px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 14, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", minWidth: 40 },
 };

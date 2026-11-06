@@ -359,6 +359,44 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
         );
       })()}
 
+      {/* ── TEXTE ENTRE DEUX PHOTOS (facultatif, réglé par le gestionnaire) ── */}
+      {config?.extra?.accueil_histoire?.actif === true && String(config.extra.accueil_histoire.texte || '').trim() && (() => {
+        const hi = config.extra.accueil_histoire;
+        const ok = (u: any) => (/^https:\/\//.test(u || '') ? u : '');
+        const g = ok(hi.image_gauche), d = ok(hi.image_droite);
+        const paras = String(hi.texte).split(/\n\s*\n/).map((x: string) => x.trim()).filter(Boolean);
+        const photo = (u: string) => (
+          <div className="mv-histoire-photo" style={{ borderRadius: 24, overflow: 'hidden', aspectRatio: '4 / 5', border: `1px solid ${couleurAccent}55`, boxShadow: '0 18px 50px rgba(0,0,0,0.45)', background: 'rgba(255,255,255,0.04)' }}>
+            <img src={u} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+          </div>
+        );
+        return (
+          <section className="mv-section" style={s.section}>
+            <style>{`
+              @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&family=Caveat:wght@500;600&display=swap');
+              .mv-histoire { display:grid; gap:48px; align-items:center; }
+              @media (max-width:900px) {
+                .mv-histoire { grid-template-columns:1fr 1fr !important; gap:14px !important; }
+                .mv-histoire-texte { order:-1 !important; grid-column:1 / -1; }
+              }
+            `}</style>
+            <div className="mv-pad" style={s.container}>
+              <div className="mv-histoire" style={{ gridTemplateColumns: g && d ? '1fr 1.1fr 1fr' : g || d ? '1fr 1.2fr' : '1fr' }}>
+                {g && <div className="mv-histoire-photos">{photo(g)}</div>}
+                <div className="mv-histoire-texte" style={{ textAlign: 'center', maxWidth: 560, margin: '0 auto', order: g ? undefined : -1 }}>
+                  {hi.sur_titre && <div style={{ fontFamily: "'Caveat', cursive", fontSize: 26, color: couleurAccent, marginBottom: 6 }}>{hi.sur_titre}</div>}
+                  {hi.titre && <h2 style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.01em', fontSize: 'clamp(30px,4.5vw,48px)', lineHeight: 1.1, color: '#fff', margin: '0 0 22px' }}>{hi.titre}</h2>}
+                  {paras.map((t: string, i: number) => (
+                    <p key={i} style={{ margin: '0 0 16px', color: i === 0 ? 'rgba(255,255,255,0.88)' : 'rgba(255,255,255,0.65)', fontSize: 15, lineHeight: 1.75, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{t}</p>
+                  ))}
+                </div>
+                {d && <div className="mv-histoire-photos">{photo(d)}</div>}
+              </div>
+            </div>
+          </section>
+        );
+      })()}
+
       {/* ── CTA VENDEURS ── */}
       {config.accueil_cta_vendeurs_actif !== false && (
       <section className="mv-section" style={s.ctaSection}>

@@ -162,6 +162,27 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
     } catch (err: any) { setErreurAp(err?.message || "Erreur lors de l'envoi"); }
     setEnvoiAp(false);
   };
+  const hi = { actif: false, sur_titre: '', titre: '', texte: '', image_gauche: '', image_droite: '', ...(extra.accueil_histoire || {}) };
+  const setHi = (patch: any) => setExtra('accueil_histoire', { ...hi, ...patch });
+  const [envoiHi, setEnvoiHi] = useState('');
+  const [erreurHi, setErreurHi] = useState('');
+  const choisirImageHi = (cle: 'image_gauche' | 'image_droite') => async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setEnvoiHi(cle); setErreurHi('');
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await fetch(`${API_BASE}/studio-categories/${gestionnaireId}/upload?dossier=histoire`, {
+        method: 'POST', credentials: 'include', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.message || data.error || "Échec de l'envoi");
+      setHi({ [cle]: data.image_url });
+    } catch (err: any) { setErreurHi(err?.message || "Erreur lors de l'envoi"); }
+    setEnvoiHi('');
+  };
   const [envoiBa, setEnvoiBa] = useState(false);
   const [erreurBa, setErreurBa] = useState('');
   const choisirBanniere = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -404,6 +425,42 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
             {erreurAp && <p style={{ color: '#dc2626', fontSize: 12, margin: '8px 0 0' }}>{erreurAp}</p>}
             <p style={{ fontSize: 11, color: '#888', margin: '10px 0 0' }}>JPG, PNG, WEBP ou GIF · 5 Mo max. N'oubliez pas de cliquer sur « Sauvegarder ».</p>
             {ap.actif && !ap.texte.trim() && <p style={{ color: '#b45309', fontSize: 12, margin: '8px 0 0' }}>⚠️ Aucun texte : l'encadré ne s'affichera pas.</p>}
+          </SectionCard>
+
+          <SectionCard titre="Texte entre deux photos (au-dessus de l'appel à l'action)" icone="🖼️" actif={hi.actif} onToggle={(v: boolean) => setHi({ actif: v })}>
+            <p style={{ fontSize: 13, color: '#666', marginTop: 0, marginBottom: 14 }}>
+              Une section « Notre histoire » : un texte centré, avec une photo de chaque côté. Le petit mot en écriture manuscrite et le titre en gros caractères sont réglés pour vous. Les deux photos sont facultatives.
+            </p>
+            <Champ label="Petit mot au-dessus du titre (optionnel)" value={hi.sur_titre} onChange={(v: string) => setHi({ sur_titre: v })} placeholder="Notre histoire" />
+            <Champ label="Titre" value={hi.titre} onChange={(v: string) => setHi({ titre: v })} placeholder="Notre histoire" />
+            <Champ label="Texte" value={hi.texte} onChange={(v: string) => setHi({ texte: v })} multiline placeholder="Racontez votre histoire..." note={`${(hi.texte || '').length} / 4000 caractères · une ligne vide sépare deux paragraphes`} />
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 6 }}>
+              <div style={{ flex: '1 1 200px' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#888', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Photo de gauche</p>
+                {hi.image_gauche && <div style={{ width: 120, height: 160, borderRadius: 10, marginBottom: 8, backgroundImage: `url(${hi.image_gauche})`, backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid #e5e7eb' }} />}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <label style={{ padding: '9px 14px', background: DORE, color: '#000', borderRadius: 10, fontSize: 12, fontWeight: 800, cursor: envoiHi ? 'wait' : 'pointer', opacity: envoiHi === 'image_gauche' ? 0.6 : 1 }}>
+                    {envoiHi === 'image_gauche' ? 'Envoi…' : hi.image_gauche ? '📤 Remplacer' : '📤 Ajouter'}
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={!!envoiHi} onChange={choisirImageHi('image_gauche')} style={{ display: 'none' }} />
+                  </label>
+                  {hi.image_gauche && <button type="button" onClick={() => setHi({ image_gauche: '' })} style={{ padding: '9px 12px', background: '#fff', border: '1px solid #dc2626', color: '#dc2626', borderRadius: 10, fontSize: 12, cursor: 'pointer' }}>🗑</button>}
+                </div>
+              </div>
+              <div style={{ flex: '1 1 200px' }}>
+                <p style={{ fontSize: 12, fontWeight: 700, color: '#888', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Photo de droite</p>
+                {hi.image_droite && <div style={{ width: 120, height: 160, borderRadius: 10, marginBottom: 8, backgroundImage: `url(${hi.image_droite})`, backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid #e5e7eb' }} />}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <label style={{ padding: '9px 14px', background: DORE, color: '#000', borderRadius: 10, fontSize: 12, fontWeight: 800, cursor: envoiHi ? 'wait' : 'pointer', opacity: envoiHi === 'image_droite' ? 0.6 : 1 }}>
+                    {envoiHi === 'image_droite' ? 'Envoi…' : hi.image_droite ? '📤 Remplacer' : '📤 Ajouter'}
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={!!envoiHi} onChange={choisirImageHi('image_droite')} style={{ display: 'none' }} />
+                  </label>
+                  {hi.image_droite && <button type="button" onClick={() => setHi({ image_droite: '' })} style={{ padding: '9px 12px', background: '#fff', border: '1px solid #dc2626', color: '#dc2626', borderRadius: 10, fontSize: 12, cursor: 'pointer' }}>🗑</button>}
+                </div>
+              </div>
+            </div>
+            {erreurHi && <p style={{ color: '#dc2626', fontSize: 12, margin: '8px 0 0' }}>{erreurHi}</p>}
+            <p style={{ fontSize: 11, color: '#888', margin: '10px 0 0' }}>JPG, PNG, WEBP ou GIF · 5 Mo max · format vertical conseillé (ex. 800 × 1000 px). N'oubliez pas de cliquer sur « Sauvegarder ».</p>
+            {hi.actif && !hi.texte.trim() && <p style={{ color: '#b45309', fontSize: 12, margin: '8px 0 0' }}>⚠️ Aucun texte : la section ne s'affichera pas.</p>}
           </SectionCard>
 
           <SectionCard titre="Appel à l'action vendeurs" icone="📣" actif={cfg.accueil_cta_vendeurs_actif} onToggle={(v: boolean) => set('accueil_cta_vendeurs_actif', v)}>

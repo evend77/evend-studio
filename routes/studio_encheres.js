@@ -101,18 +101,36 @@ router.get('/produit/:produitId', limitePublic, optionnel, h(async (req, res) =>
   res.json({ enchere: vue(e, !!(req.mvUser && req.mvUser.type === 'acheteur')) });
 }));
 
+const TRIS_ENCHERES = {
+  fin_proche: 'e.date_fin ASC',
+  recent: 'e.created_at DESC',
+  mise_asc: 'COALESCE(e.mise_actuelle, e.prix_depart) ASC, e.date_fin ASC',
+  mise_desc: 'COALESCE(e.mise_actuelle, e.prix_depart) DESC, e.date_fin ASC',
+  nb_mises: 'e.nb_mises DESC, e.date_fin ASC',
+};
+
+// Liste publique paginée : ?page=1&limit=50&tri=fin_proche|recent|mise_asc|mise_desc|nb_mises&reserve=1
 router.get('/', limitePublic, h(async (req, res) => {
   const gid = gidDe(req);
   const page = Math.min(Math.max(entier(req.query.page) || 1, 1), 1000);
-  const params = [gid, 24, (page - 1) * 24];
+  const limit = Math.min(Math.max(entier(req.query.limit) || 24, 1), 100);
+  const params = [gid, limit, (page - 1) * limit];
   let filtre = '';
   const cid = entier(req.query.collaborateur_id);
-  if (cid) { params.push(cid); filtre = ` AND e.collaborateur_id = $${params.length}`; }
+  if (cid) { params.push(cid); filtre += ` AND e.collaborateur_id = $${params.length}`; }
+  if (req.query.reserve === '1') filtre += ' AND e.prix_reserve IS NOT NULL AND e.mise_actuelle >= e.prix_reserve';
+  const tri = TRIS_ENCHERES[req.query.tri] || TRIS_ENCHERES.fin_proche;
   const r = await pool.query(
-    `SELECT e.*, (SELECT c.nom_boutique FROM marketplace_collaborateurs c WHERE c.id = e.collaborateur_id) AS nom_boutique
+    `SELECT e.*, COUNT(*) OVER()::int AS total_lignes,
+            (SELECT c.nom_boutique FROM marketplace_collaborateurs c WHERE c.id = e.collaborateur_id) AS nom_boutique
        FROM encheres e WHERE e.gestionnaire_id = $1 AND e.statut = 'active' AND e.date_fin > NOW()${filtre}
-      ORDER BY e.date_fin ASC LIMIT $2 OFFSET $3`, params);
-  res.json({ encheres: r.rows.map((e) => vue(e, false)), page });
+      ORDER BY ${tri}, e.id ASC LIMIT $2 OFFSET $3`, params);
+  let total = r.rows.length ? r.rows[0].total_lignes : 0;
+  if (!r.rows.length && page > 1) { // page au-delà de la fin : on retrouve le total pour que l'écran puisse revenir en arrière
+    const t = await pool.query(`SELECT COUNT(*)::int AS n FROM encheres e WHERE e.gestionnaire_id = $1 AND e.statut = 'active' AND e.date_fin > NOW()${filtre}`, [gid, ...params.slice(3)]);
+    total = t.rows[0].n;
+  }
+  res.json({ encheres: r.rows.map((e) => vue(e, false)), page, pagination: { total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) } });
 }));
 
 router.get('/mes-encheres', exiger('acheteur'), h(async (req, res) => {

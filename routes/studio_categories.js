@@ -5,7 +5,7 @@
 // Accès : le gestionnaire connecté, pour SA boutique seulement (cookie + authenticateToken).
 //   GET/POST /categories · PUT/DELETE /categories/:id
 //   GET/POST /groupes    · PUT/DELETE /groupes/:id
-//   POST /upload         (image de catégorie / de groupe → Cloudflare R2 ; ?dossier=banniere|apropos pour les images de l'accueil)
+//   POST /upload         (image de catégorie / de groupe → Cloudflare R2 ; ?dossier=banniere|apropos|histoire pour les images de l'accueil)
 
 const express = require('express');
 const crypto = require('crypto');
@@ -109,7 +109,7 @@ router.post('/upload', (req, res) => {
         if (!req.file) return res.status(400).json({ success: false, message: 'Aucun fichier reçu' });
         const ext = extensionSelonContenu(req.file.buffer);
         if (!ext) return res.status(400).json({ success: false, message: 'Format non accepté (JPEG, PNG, WebP ou GIF seulement)' });
-        const dossier = ['banniere', 'apropos'].includes(req.query.dossier) ? req.query.dossier : 'categories'; // banniere / apropos = images de l'accueil
+        const dossier = ['banniere', 'apropos', 'histoire'].includes(req.query.dossier) ? req.query.dossier : 'categories'; // banniere / apropos = images de l'accueil
         const cle = `studio/${dossier}/${req.gid}/${crypto.randomBytes(16).toString('hex')}.${ext}`;
         const mimes = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
         await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_PRODUITS, Key: cle, Body: req.file.buffer, ContentType: mimes[ext] }));

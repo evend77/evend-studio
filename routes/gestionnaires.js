@@ -771,6 +771,15 @@ function nettoyerExtraMV(extra, gestionnaireId) {
     out.accueil_apropos = { actif: ap.actif === true, titre: txt(ap.titre, 150), texte, image_url: reImg.test(iu) ? iu : '' };
   }
 
+  // Section « texte entre deux photos » de l'accueil (texte simple + 2 photos facultatives envoyées par CE gestionnaire)
+  const hi = extra.accueil_histoire;
+  if (hi && typeof hi === 'object') {
+    const reH = new RegExp(`^${MEDIA_URL_MV.replace(/\./g, '\\.')}/studio/histoire/${parseInt(gestionnaireId, 10)}/[a-f0-9]{32}\\.(jpg|png|webp|gif)$`);
+    const img = (v) => (typeof v === 'string' && reH.test(v.trim()) ? v.trim() : '');
+    const texteH = typeof hi.texte === 'string' ? hi.texte.replace(/\r\n/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 4000) : '';
+    out.accueil_histoire = { actif: hi.actif === true, sur_titre: txt(hi.sur_titre, 80), titre: txt(hi.titre, 150), texte: texteH, image_gauche: img(hi.image_gauche), image_droite: img(hi.image_droite) };
+  }
+
   const rs = extra.reseaux_sociaux;
   if (rs && typeof rs === 'object') {
     out.reseaux_sociaux = {};

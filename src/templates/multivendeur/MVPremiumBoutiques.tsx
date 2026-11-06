@@ -180,7 +180,9 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
   const [page,          setPage]          = useState(1);
   const [panneauOuvert, setPanneauOuvert] = useState(false);
   const filtreRef = useRef<HTMLDivElement>(null);
-  const PAR_PAGE = 10;
+  const PAR_PAGE = 20;
+  const [totalPagesSrv, setTotalPagesSrv] = useState(1);
+  const [totalBoutiques, setTotalBoutiques] = useState(0);
 
   useEffect(() => {
     if (isDemo) {
@@ -188,14 +190,27 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
       setLoading(false);
       return;
     }
+    let annule = false;
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), limit: String(PAR_PAGE), tri, ...(recherche ? { q: recherche } : {}) });
     fetch(`${API_BASE}/gestionnaires/${gId}/boutiques?${params}`)
       .then(r => r.ok ? r.json() : { boutiques: [] })
-      .then(d => setBoutiques(d.boutiques || d || []))
-      .catch(() => setBoutiques([]))
-      .finally(() => setLoading(false));
+      .then(d => {
+        if (annule) return;
+        setBoutiques(d.boutiques || d || []);
+        setTotalPagesSrv(d.pagination?.pages || 1);
+        setTotalBoutiques(d.pagination?.total || (d.boutiques || []).length);
+      })
+      .catch(() => { if (!annule) setBoutiques([]); })
+      .finally(() => { if (!annule) setLoading(false); });
+    return () => { annule = true; };
   }, [gId, page, tri, recherche, isDemo]);
+
+  // Tout changement de recherche ou de tri ramène à la page 1
+  const cleRef = useRef(JSON.stringify([recherche, tri]));
+  useEffect(() => { const c = JSON.stringify([recherche, tri]); if (cleRef.current !== c) { cleRef.current = c; setPage(1); } }, [recherche, tri]);
+  const premierRendu = useRef(true);
+  useEffect(() => { if (premierRendu.current) { premierRendu.current = false; return; } window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -206,7 +221,7 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
   }, []);
 
   // Filtrage + tri côté client (mode démo)
-  const boutiquesFiltrees = (() => {
+  const boutiquesFiltrees = !isDemo ? boutiques : (() => {
     let b = [...boutiques];
     if (recherche) b = b.filter(x => x.nom_boutique.toLowerCase().includes(recherche.toLowerCase()) || x.description_boutique?.toLowerCase().includes(recherche.toLowerCase()));
     b.sort((a, z) => {
@@ -220,8 +235,8 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
     return b;
   })();
 
-  const totalPages = Math.ceil(boutiquesFiltrees.length / PAR_PAGE);
-  const boutiquesPage = boutiquesFiltrees.slice((page - 1) * PAR_PAGE, page * PAR_PAGE);
+  const totalPages = isDemo ? Math.ceil(boutiquesFiltrees.length / PAR_PAGE) : totalPagesSrv;
+  const boutiquesPage = isDemo ? boutiquesFiltrees.slice((page - 1) * PAR_PAGE, page * PAR_PAGE) : boutiquesFiltrees;
 
   const TRI_OPTIONS: { key: Tri; label: string }[] = [
     { key: 'alpha_asc',  label: 'A → Z' },
@@ -285,7 +300,7 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
             </div>
 
             <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>
-              {boutiquesFiltrees.length} boutique{boutiquesFiltrees.length !== 1 ? 's' : ''}
+              {isDemo ? boutiquesFiltrees.length : totalBoutiques} boutique{(isDemo ? boutiquesFiltrees.length : totalBoutiques) !== 1 ? "s" : ""}
             </span>
           </div>
 
@@ -311,14 +326,9 @@ export default function MVPremiumBoutiques({ vendeurId, isDemo, config = {}, nav
           {/* Pagination */}
           {totalPages > 1 && (
             <div style={s.pagination}>
-              <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={s.pageBtn}>‹ Prec.</button>
-              {[...Array(Math.min(totalPages, 7))].map((_, i) => (
-                <button key={i + 1} onClick={() => setPage(i + 1)}
-                  style={{ ...s.pageBtn, background: page === i + 1 ? couleurAccent : 'rgba(255,255,255,0.05)', color: page === i + 1 ? '#000' : '#fff', fontWeight: page === i + 1 ? 800 : 400 }}>
-                  {i + 1}
-                </button>
-              ))}
-              <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} style={s.pageBtn}>Suiv. ›</button>
+              <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} style={{ ...s.pageBtn, opacity: page <= 1 ? 0.4 : 1 }}>← Précédent</button>
+              <span style={s.pageInfo}>Page {page} / {totalPages}</span>
+              <button disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} style={{ ...s.pageBtn, opacity: page >= totalPages ? 0.4 : 1 }}>Suivant →</button>
             </div>
           )}
         </div>
@@ -367,6 +377,7 @@ const s: Record<string, React.CSSProperties> = {
   skeleton: { height: 130, background: 'linear-gradient(90deg,rgba(255,255,255,0.03) 25%,rgba(255,255,255,0.06) 50%,rgba(255,255,255,0.03) 75%)', borderRadius: 16, backgroundSize: '200% 100%', animation: 'shimmer 1.5s infinite' },
   vide:     { textAlign: 'center', padding: '60px 20px' },
   btnReset: { marginTop: 16, padding: '8px 20px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' },
-  pagination: { display: 'flex', justifyContent: 'center', gap: 8, marginTop: 40, flexWrap: 'wrap' },
-  pageBtn:  { padding: '8px 14px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', minWidth: 40 },
+  pagination: { display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 40, paddingTop: 24, borderTop: '1px solid rgba(255,255,255,0.07)', flexWrap: 'wrap' },
+  pageInfo: { fontSize: 14, color: 'rgba(255,255,255,0.5)' },
+  pageBtn:  { padding: '10px 20px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: '#fff', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', minWidth: 40 },
 };

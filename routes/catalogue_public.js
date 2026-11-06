@@ -118,6 +118,23 @@ router.get('/:gestionnaireId', async (req, res, next) => {
     if (catId) { params.push(catId); where += ` AND p.categorie_id = $${params.length}`; }
     const collab = entier(req.query.collaborateur_id);
     if (collab) { params.push(collab); where += ` AND p.collaborateur_id = $${params.length}`; }
+    // Mode paginé (?page=N) : filtres, tri et pagination faits par le serveur → { produits, pagination }
+    if (req.query.page !== undefined) {
+      const prixEff = 'CASE WHEN p.prix_promo > 0 AND p.prix_promo < p.prix THEN p.prix_promo ELSE p.prix END';
+      const pmin = Number(req.query.prix_min), pmax = Number(req.query.prix_max);
+      if (req.query.prix_min !== undefined && req.query.prix_min !== '' && Number.isFinite(pmin)) { params.push(pmin); where += ` AND (${prixEff}) >= $${params.length}`; }
+      if (req.query.prix_max !== undefined && req.query.prix_max !== '' && Number.isFinite(pmax)) { params.push(pmax); where += ` AND (${prixEff}) <= $${params.length}`; }
+      if (req.query.en_stock === '1') where += ' AND (p.stock IS NULL OR p.stock > 0)';
+      const TRIS_PROD = { recent: 'p.created_at DESC', prix_asc: `(${prixEff}) ASC`, prix_desc: `(${prixEff}) DESC`, alpha_az: 'LOWER(p.titre) ASC', alpha_za: 'LOWER(p.titre) DESC' };
+      const tri = TRIS_PROD[req.query.tri] || TRIS_PROD.recent;
+      const lim = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
+      const pg = Math.min(Math.max(parseInt(req.query.page, 10) || 1, 1), 10000);
+      const rp = await pool.query(
+        `SELECT ${COLS}, COUNT(*) OVER()::int AS total_lignes ${FROM} WHERE ${where} ORDER BY ${tri}, p.id DESC LIMIT ${lim} OFFSET ${(pg - 1) * lim}`, params);
+      let total = rp.rows.length ? rp.rows[0].total_lignes : 0;
+      if (!rp.rows.length && pg > 1) total = (await pool.query(`SELECT COUNT(*)::int AS n ${FROM} WHERE ${where}`, params)).rows[0].n;
+      return res.json({ produits: rp.rows.map(formater), pagination: { total, page: pg, limit: lim, pages: Math.max(1, Math.ceil(total / lim)) } });
+    }
     const limite = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 200);
     const r = await pool.query(`SELECT ${COLS} ${FROM} WHERE ${where} ORDER BY p.created_at DESC LIMIT ${limite}`, params);
     res.json(r.rows.map(formater));
@@ -146,14 +163,16 @@ boutiques.get('/:gestionnaireId/boutiques', async (req, res) => {
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
     const tri = TRIS[req.query.tri] || TRIS.alpha_asc;
     const r = await pool.query(
-      `SELECT * FROM (
+      `SELECT *, COUNT(*) OVER()::int AS total_lignes FROM (
          SELECT mc.id, COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.logo_url AS logo,
                 mc.description_boutique, mc.ville, mc.province, mc.created_at,
                 (SELECT COUNT(*) FROM produits p WHERE p.collaborateur_id = mc.id AND p.statut = 'actif')::int AS nb_produits,
                 COALESCE(ROUND((SELECT AVG(a.note) FROM avis_collaborateur a WHERE a.collaborateur_id = mc.id AND a.approuve) * 20), 0)::int AS points_confiance
            FROM marketplace_collaborateurs mc WHERE ${where}
        ) b ORDER BY ${tri} LIMIT ${limite} OFFSET ${(page - 1) * limite}`, params);
-    res.json({ boutiques: r.rows });
+    let total = r.rows.length ? r.rows[0].total_lignes : 0;
+    if (!r.rows.length && page > 1) total = (await pool.query(`SELECT COUNT(*)::int AS n FROM marketplace_collaborateurs mc WHERE ${where}`, params)).rows[0].n;
+    res.json({ boutiques: r.rows.map(({ total_lignes, ...b }) => b), pagination: { total, page, limit: limite, pages: Math.max(1, Math.ceil(total / limite)) } });
   } catch (e) {
     console.error('[catalogue_public] boutiques', e.message);
     res.status(500).json({ error: 'Erreur serveur' });
