@@ -1,4 +1,4 @@
-// 📁 CHEMIN : src/pages/gestionnaire/StudioConfigMultivendeur.tsx
+// CHEMIN : src/pages/gestionnaire/StudioConfigMultivendeur.tsx
 /**
  * StudioConfigMultivendeur.tsx — e-Vend Studio
  * Chemin : src/pages/gestionnaire/StudioConfigMultivendeur.tsx
@@ -186,6 +186,10 @@ interface ConfigMV {
   commission_globale: string; seconde_commission_globale: string;
   type_commission_fixe: string; activer_commission_max: boolean;
   commission_max: string; baremes_commission: CommissionSlab[];
+  // Enchères
+  encheres_actives: boolean; enchere_duree_min_h: string; enchere_duree_max_jours: string;
+  enchere_increment_min: string; enchere_reserve_permise: boolean;
+  enchere_delai_paiement_h: string; enchere_max_par_collab: string;
 }
 
 const DEFAUTS: ConfigMV = {
@@ -252,6 +256,9 @@ const DEFAUTS: ConfigMV = {
   commission_globale: '10.00', seconde_commission_globale: '0.00',
   type_commission_fixe: 'produit', activer_commission_max: false,
   commission_max: '0.00', baremes_commission: [],
+  encheres_actives: false, enchere_duree_min_h: '1', enchere_duree_max_jours: '14',
+  enchere_increment_min: '1.00', enchere_reserve_permise: true,
+  enchere_delai_paiement_h: '24', enchere_max_par_collab: '0',
 };
 
 // ─── Composant principal ──────────────────────────────────────────────────────
@@ -263,7 +270,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
   const [config, setConfig]     = useState<ConfigMV>(DEFAUTS);
   const [original, setOriginal] = useState<ConfigMV>(DEFAUTS);
   const [loading, setLoading]   = useState(true);
-  const [onglet, setOnglet]     = useState<'generalite' | 'vendeur' | 'produits' | 'commande' | 'commission' | 'stripe' | 'avance'>('generalite');
+  const [onglet, setOnglet]     = useState<'generalite' | 'vendeur' | 'produits' | 'commande' | 'commission' | 'encheres' | 'stripe' | 'avance'>('generalite');
   const [toast, setToast]       = useState<{ msg: string; type: 'success' | 'danger' } | null>(null);
   const [modalConfirm, setModalConfirm] = useState<{ titre: string; message: string; action: () => void } | null>(null);
   const [modifie, setModifie]   = useState(false);
@@ -355,6 +362,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
           { id: 'produits',    label: '📦 Produits' },
           { id: 'commande',    label: '🛒 Commandes' },
           { id: 'commission',  label: '💰 Commission' },
+          { id: 'encheres',    label: '🔨 Enchères' },
           { id: 'stripe',      label: '💳 Config Stripe Connect' },
           { id: 'avance',      label: '⚙️ Avancé' },
         ].map(o => <Onglet key={o.id} label={o.label} actif={onglet === o.id as any} onClick={() => setOnglet(o.id as any)} />)}
@@ -999,6 +1007,50 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
               ＋ Ajouter un barème
             </button>
           </Section>
+        </div>
+      )}
+
+      {/* ══ ENCHÈRES ══ */}
+      {onglet === 'encheres' && (
+        <div style={{ maxWidth: '700px' }}>
+          <Section titre="Enchères sur votre marketplace" icon="🔨">
+            <ParamLigne label="Activer les enchères" description="Permet à vos collaborateurs de convertir une annonce en enchère. Les enchères en cours continuent si vous désactivez.">
+              <Toggle actif={config.encheres_actives} onChange={set('encheres_actives')} />
+            </ParamLigne>
+            <ParamLigne label="Durée minimale" description="Durée la plus courte permise pour une enchère.">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input type="number" style={{ ...inputStyle, width: '100px' }} value={config.enchere_duree_min_h} onChange={e => set('enchere_duree_min_h')(e.target.value)} min="1" max="720" step="1" />
+                <span style={{ fontSize: '13px', color: T.textLight }}>heure(s)</span>
+              </div>
+            </ParamLigne>
+            <ParamLigne label="Durée maximale" description="Durée la plus longue permise pour une enchère.">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input type="number" style={{ ...inputStyle, width: '100px' }} value={config.enchere_duree_max_jours} onChange={e => set('enchere_duree_max_jours')(e.target.value)} min="1" max="60" step="1" />
+                <span style={{ fontSize: '13px', color: T.textLight }}>jour(s)</span>
+              </div>
+            </ParamLigne>
+            <ParamLigne label="Mise minimale d'augmentation" description="Montant minimum dont une mise doit dépasser la mise actuelle.">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input type="number" style={{ ...inputStyle, width: '100px' }} value={config.enchere_increment_min} onChange={e => set('enchere_increment_min')(e.target.value)} min="0.01" step="0.01" />
+                <span style={{ fontSize: '13px', color: T.textLight }}>$</span>
+              </div>
+            </ParamLigne>
+            <ParamLigne label="Permettre un prix de réserve" description="Le collaborateur peut fixer un prix minimum caché : sous ce prix, l'enchère se termine sans gagnant.">
+              <Toggle actif={config.enchere_reserve_permise} onChange={set('enchere_reserve_permise')} />
+            </ParamLigne>
+            <ParamLigne label="Délai de paiement du gagnant" description="Temps accordé au gagnant pour payer dans son panier. Maximum 24 h (la session de paiement Stripe expire après 24 h). Passé ce délai, l'enchère est annulée et le produit est remis en vente.">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input type="number" style={{ ...inputStyle, width: '100px' }} value={config.enchere_delai_paiement_h} onChange={e => set('enchere_delai_paiement_h')(e.target.value)} min="1" max="24" step="1" />
+                <span style={{ fontSize: '13px', color: T.textLight }}>heure(s) (max 24)</span>
+              </div>
+            </ParamLigne>
+            <ParamLigne label="Enchères actives par collaborateur" description="Limite d'enchères en cours en même temps pour un collaborateur. 0 = aucune limite." derniere>
+              <input type="number" style={{ ...inputStyle, width: '100px' }} value={config.enchere_max_par_collab} onChange={e => set('enchere_max_par_collab')(e.target.value)} min="0" max="500" step="1" />
+            </ParamLigne>
+          </Section>
+          <div style={{ background: '#f1f5f9', borderRadius: '8px', padding: '12px 16px', fontSize: '12px', color: T.textLight, lineHeight: 1.6 }}>
+            ℹ️ Une enchère réserve 1 unité du produit ; les autres unités restent en vente normale. Les enchères ne sont pas offertes sur les produits à variantes. Les courriels d'enchère se modifient dans « Modèles de courriel ». N'oubliez pas de cliquer sur « Sauvegarder ».
+          </div>
         </div>
       )}
 
