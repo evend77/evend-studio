@@ -1,5 +1,5 @@
-﻿// routes/vendeurs.js
-// Routes de base des vendeurs : liste, profil public, création, mise à jour générale
+// routes/gestionnaires.js
+// Routes de base des gestionnaires : liste, profil public, création, mise à jour générale
 // Les autres routes sont dans des fichiers dédiés montés directement dans server.js
 
 const express = require('express');
@@ -732,7 +732,9 @@ router.put('/:id/plan', authenticateToken, async (req, res) => {
 // longueurs limitées, liens de réseaux sociaux en https:// uniquement.
 const RESEAUX_SOCIAUX_MV = ['facebook', 'instagram', 'x', 'linkedin', 'youtube', 'tiktok', 'pinterest'];
 
-function nettoyerExtraMV(extra) {
+const MEDIA_URL_MV = 'https://media.e-vend.ca';
+
+function nettoyerExtraMV(extra, gestionnaireId) {
   const out = {};
   if (!extra || typeof extra !== 'object') return out;
   const txt = (v, max) => (typeof v === 'string'
@@ -750,6 +752,23 @@ function nettoyerExtraMV(extra) {
         .map(c => ({ icone: txt(c && c.icone, 8), titre: txt(c && c.titre, 100), texte: txt(c && c.texte, 400) }))
         .filter(c => c.icone || c.titre || c.texte),
     };
+  }
+
+  // Bannière photo de l'accueil : seule une image envoyée par CE gestionnaire (R2) est acceptée
+  const ba = extra.accueil_banniere;
+  if (ba && typeof ba === 'object') {
+    const re = new RegExp(`^${MEDIA_URL_MV.replace(/\./g, '\\.')}/studio/banniere/${parseInt(gestionnaireId, 10)}/[a-f0-9]{32}\\.(jpg|png|webp|gif)$`);
+    const u = typeof ba.url === 'string' ? ba.url.trim() : '';
+    out.accueil_banniere = { actif: ba.actif === true && re.test(u), url: re.test(u) ? u : '' };
+  }
+
+  // Section texte « À propos » de l'accueil (texte simple + photo facultative envoyée par CE gestionnaire)
+  const ap = extra.accueil_apropos;
+  if (ap && typeof ap === 'object') {
+    const reImg = new RegExp(`^${MEDIA_URL_MV.replace(/\./g, '\\.')}/studio/apropos/${parseInt(gestionnaireId, 10)}/[a-f0-9]{32}\\.(jpg|png|webp|gif)$`);
+    const iu = typeof ap.image_url === 'string' ? ap.image_url.trim() : '';
+    const texte = typeof ap.texte === 'string' ? ap.texte.replace(/\r\n/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 4000) : '';
+    out.accueil_apropos = { actif: ap.actif === true, titre: txt(ap.titre, 150), texte, image_url: reImg.test(iu) ? iu : '' };
   }
 
   const rs = extra.reseaux_sociaux;
@@ -821,7 +840,7 @@ router.put('/:id/config-multivendeur', authenticateToken, async (req, res) => {
          footer_politiques_actif = EXCLUDED.footer_politiques_actif,
          extra = COALESCE(config_multivendeur_premium.extra, '{}'::jsonb) || EXCLUDED.extra,
          updated_at = NOW()`,
-      [gestionnaireId, nom_boutique, slogan, couleur_accent, couleur_fond, accueil_hero_actif, accueil_hero_badge, accueil_categories_actif, accueil_categories_titre, accueil_nouveautes_actif, accueil_nouveautes_titre, accueil_cta_vendeurs_actif, accueil_cta_titre, accueil_cta_texte, catalogue_sidebar_actif, catalogue_filtres_actif, catalogue_tri_defaut, boutiques_hero_titre, boutiques_hero_texte, produit_onglet_description_actif, produit_onglet_details_actif, produit_onglet_livraison_actif, produit_similaires_actif, encheres_actif, encheres_hero_titre, encheres_hero_texte, footer_documents_actif, footer_politiques_actif, JSON.stringify(nettoyerExtraMV(req.body.extra))]
+      [gestionnaireId, nom_boutique, slogan, couleur_accent, couleur_fond, accueil_hero_actif, accueil_hero_badge, accueil_categories_actif, accueil_categories_titre, accueil_nouveautes_actif, accueil_nouveautes_titre, accueil_cta_vendeurs_actif, accueil_cta_titre, accueil_cta_texte, catalogue_sidebar_actif, catalogue_filtres_actif, catalogue_tri_defaut, boutiques_hero_titre, boutiques_hero_texte, produit_onglet_description_actif, produit_onglet_details_actif, produit_onglet_livraison_actif, produit_similaires_actif, encheres_actif, encheres_hero_titre, encheres_hero_texte, footer_documents_actif, footer_politiques_actif, JSON.stringify(nettoyerExtraMV(req.body.extra, gestionnaireId))]
     );
     console.log(`Config multi-vendeur sauvegardee — gestionnaire ${gestionnaireId}`);
     return res.json({ success: true });

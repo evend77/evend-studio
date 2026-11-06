@@ -197,6 +197,8 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         @media (max-width:768px) {
+          .mv-photo-banniere { height:170px !important; }
+          .mv-apropos-img { width:100% !important; flex:1 1 100% !important; }
           .mv-hero { padding:36px 0 28px !important; }
           .mv-section { padding:36px 0 !important; }
           .mv-grille { grid-template-columns:repeat(2,minmax(0,1fr)) !important; gap:10px !important; }
@@ -212,6 +214,13 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
 
       <Navbar naviguer={naviguer} config={config} recherche={recherche} setRecherche={setRecherche}
         onRecherche={() => naviguer({ page: 'catalogue', categorieSlug: recherche })} />
+
+      {/* ── PHOTO DE BANNIÈRE (facultative, réglée par le gestionnaire) ── */}
+      {config?.extra?.accueil_banniere?.actif === true && /^https:\/\//.test(config.extra.accueil_banniere.url || '') && (
+        <div className="mv-photo-banniere" style={{ position: 'relative', height: 320, backgroundSize: 'cover', backgroundPosition: 'center', backgroundImage: `url(${config.extra.accueil_banniere.url})` }}>
+          <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(to bottom, rgba(0,0,0,0.1), ${fondDe(config)})` }} />
+        </div>
+      )}
 
       {/* ── HERO ── */}
       {config.accueil_hero_actif !== false && (
@@ -316,6 +325,39 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
         </div>
       </section>
       )}
+
+      {/* ── ENCADRÉ TEXTE (facultatif, réglé par le gestionnaire) ── */}
+      {config?.extra?.accueil_apropos?.actif === true && String(config.extra.accueil_apropos.texte || '').trim() && (() => {
+        const ap = config.extra.accueil_apropos;
+        const img = /^https:\/\//.test(ap.image_url || '') ? ap.image_url : '';
+        return (
+          <section className="mv-section" style={{ ...s.section }}>
+            <div className="mv-pad" style={s.container}>
+              <div className="mv-apropos-3d" style={{
+                padding: 4, borderRadius: 24,
+                background: `linear-gradient(145deg, ${couleurAccent}, ${couleurAccent}55 35%, ${couleurAccent}22 60%, ${couleurAccent})`,
+                boxShadow: `0 1px 0 ${couleurAccent}, 0 6px 0 ${couleurAccent}66, 0 12px 0 ${couleurAccent}33, 0 28px 60px ${couleurAccent}33, 0 0 40px ${couleurAccent}18`,
+              }}>
+                <div style={{
+                  borderRadius: 20, padding: 'clamp(20px,4vw,36px)',
+                  background: `linear-gradient(160deg, ${couleurAccent}14 0%, rgba(255,255,255,0.03) 40%, ${fondDe(config)} 100%), ${fondDe(config)}`,
+                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.12), inset 0 0 40px ${couleurAccent}12`,
+                }}>
+                  {ap.titre && <h2 style={{ ...s.sectionTitre, marginBottom: 18 }}>{ap.titre}</h2>}
+                  <div className="mv-apropos-corps" style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    {img && (
+                      <div className="mv-apropos-img" style={{ width: 240, height: 180, flex: '0 0 240px', borderRadius: 14, overflow: 'hidden', border: `2px solid ${couleurAccent}66`, boxShadow: `0 10px 30px rgba(0,0,0,0.45), 0 0 0 1px ${couleurAccent}30` }}>
+                        <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                      </div>
+                    )}
+                    <p style={{ flex: 1, minWidth: 240, margin: 0, color: 'rgba(255,255,255,0.82)', fontSize: 15, lineHeight: 1.75, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{ap.texte}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        );
+      })()}
 
       {/* ── CTA VENDEURS ── */}
       {config.accueil_cta_vendeurs_actif !== false && (

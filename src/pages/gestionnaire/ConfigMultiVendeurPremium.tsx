@@ -2,7 +2,7 @@
 // e-Vend Studio — Configuration du template Multi-Vendeur Premium
 // Onglets par page · Toggle actif/inactif par section · Textes + couleurs
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 const API_BASE = '/api';
 const TXT  = '#1a1a2e';
@@ -139,6 +139,48 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
   const reseaux: Record<string, string> = extra.reseaux_sociaux || {};
   const setExtra = (cle: string, valeur: any) =>
     setCfg((p: any) => ({ ...p, extra: { ...(p.extra && typeof p.extra === 'object' ? p.extra : {}), [cle]: valeur } }));
+  const ba = { actif: false, url: '', ...(extra.accueil_banniere || {}) };
+  const setBa = (patch: any) => setExtra('accueil_banniere', { ...ba, ...patch });
+  const ap = { actif: false, titre: '', texte: '', image_url: '', ...(extra.accueil_apropos || {}) };
+  const setAp = (patch: any) => setExtra('accueil_apropos', { ...ap, ...patch });
+  const [envoiAp, setEnvoiAp] = useState(false);
+  const [erreurAp, setErreurAp] = useState('');
+  const choisirImageAp = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setEnvoiAp(true); setErreurAp('');
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await fetch(`${API_BASE}/studio-categories/${gestionnaireId}/upload?dossier=apropos`, {
+        method: 'POST', credentials: 'include', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.message || data.error || "Échec de l'envoi");
+      setAp({ image_url: data.image_url });
+    } catch (err: any) { setErreurAp(err?.message || "Erreur lors de l'envoi"); }
+    setEnvoiAp(false);
+  };
+  const [envoiBa, setEnvoiBa] = useState(false);
+  const [erreurBa, setErreurBa] = useState('');
+  const choisirBanniere = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setEnvoiBa(true); setErreurBa('');
+    try {
+      const fd = new FormData();
+      fd.append('image', file);
+      const res = await fetch(`${API_BASE}/studio-categories/${gestionnaireId}/upload?dossier=banniere`, {
+        method: 'POST', credentials: 'include', headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }, body: fd,
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.success) throw new Error(data.message || data.error || "Échec de l'envoi");
+      setBa({ url: data.image_url });
+    } catch (err: any) { setErreurBa(err?.message || "Erreur lors de l'envoi"); }
+    setEnvoiBa(false);
+  };
   const setAv = (patch: any) => setExtra('accueil_avantages', { ...av, ...patch });
   const majCarte = (i: number, patch: Partial<CarteAvantage>) => setAv({ cartes: cartes.map((c, j) => (j === i ? { ...c, ...patch } : c)) });
   const ajouterCarte = () => { if (cartes.length < MAX_CARTES) setAv({ cartes: [...cartes, { icone: '⭐', titre: '', texte: '' }] }); };
@@ -266,6 +308,27 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
       {/* ══════════ ONGLET ACCUEIL ══════════ */}
       {onglet === 'accueil' && (
         <div>
+          <SectionCard titre="Photo de bannière (sous le menu)" icone="🖼️" actif={ba.actif} onToggle={(v: boolean) => setBa({ actif: v })}>
+            <p style={{ fontSize: 13, color: '#666', marginTop: 0, marginBottom: 14 }}>
+              Une grande photo affichée en haut de l'accueil, juste sous le menu, avec un dégradé qui la fond dans le fond du site (comme sur les pages de boutique). Désactivée, l'accueil reste comme avant.
+            </p>
+            {ba.url && (
+              <div style={{ position: 'relative', height: 150, borderRadius: 12, overflow: 'hidden', marginBottom: 12, backgroundImage: `url(${ba.url})`, backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid #e5e7eb' }}>
+                <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(to bottom, rgba(0,0,0,0.1), ${cfg.couleur_fond || '#0a0a0a'})` }} />
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <label style={{ padding: '10px 18px', background: DORE, color: '#000', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: envoiBa ? 'wait' : 'pointer', opacity: envoiBa ? 0.6 : 1 }}>
+                {envoiBa ? 'Envoi…' : ba.url ? '📤 Remplacer la photo' : '📤 Choisir une photo'}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={envoiBa} onChange={choisirBanniere} style={{ display: 'none' }} />
+              </label>
+              {ba.url && <button type="button" onClick={() => setBa({ url: '' })} style={{ padding: '10px 14px', background: '#fff', border: '1px solid #dc2626', color: '#dc2626', borderRadius: 10, fontSize: 13, cursor: 'pointer' }}>🗑 Retirer</button>}
+            </div>
+            {erreurBa && <p style={{ color: '#dc2626', fontSize: 12, margin: '8px 0 0' }}>{erreurBa}</p>}
+            <p style={{ fontSize: 11, color: '#888', margin: '10px 0 0' }}>JPG, PNG, WEBP ou GIF · 5 Mo max · format large conseillé (ex. 1920 × 600 px). N'oubliez pas de cliquer sur « Sauvegarder ».</p>
+            {ba.actif && !ba.url && <p style={{ color: '#b45309', fontSize: 12, margin: '8px 0 0' }}>⚠️ Aucune photo choisie : la bannière ne s'affichera pas.</p>}
+          </SectionCard>
+
           <SectionCard titre="Bannière principale (Hero)" icone="🦸" actif={cfg.accueil_hero_actif} onToggle={(v: boolean) => set('accueil_hero_actif', v)}>
             <Champ label="Badge du hero" value={cfg.accueil_hero_badge} onChange={(v: string) => set('accueil_hero_badge', v)} placeholder="🇨🇦 Marketplace canadienne" note="Petite étiquette au-dessus du titre principal" />
           </SectionCard>
@@ -320,6 +383,27 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
 
           <SectionCard titre="Section nouveautés" icone="✨" actif={cfg.accueil_nouveautes_actif} onToggle={(v: boolean) => set('accueil_nouveautes_actif', v)} badge="8 produits affichés">
             <Champ label="Titre de la section" value={cfg.accueil_nouveautes_titre} onChange={(v: string) => set('accueil_nouveautes_titre', v)} placeholder="Nouveautés" />
+          </SectionCard>
+
+          <SectionCard titre="Encadré texte (sous les nouveautés)" icone="📝" actif={ap.actif} onToggle={(v: boolean) => setAp({ actif: v })}>
+            <p style={{ fontSize: 13, color: '#666', marginTop: 0, marginBottom: 14 }}>
+              Un bel encadré aux couleurs de votre thème, affiché sous les nouveautés. Écrivez ce que vous voulez : description du site, mot de bienvenue, histoire, etc. Photo facultative en haut à gauche du texte.
+            </p>
+            <Champ label="Titre (optionnel)" value={ap.titre} onChange={(v: string) => setAp({ titre: v })} placeholder="À propos de nous" />
+            <Champ label="Texte" value={ap.texte} onChange={(v: string) => setAp({ texte: v })} multiline placeholder="Présentez votre site..." note={`${(ap.texte || '').length} / 4000 caractères · les sauts de ligne sont conservés`} />
+            {ap.image_url && (
+              <div style={{ width: 160, height: 120, borderRadius: 10, marginBottom: 10, backgroundImage: `url(${ap.image_url})`, backgroundSize: 'cover', backgroundPosition: 'center', border: '1px solid #e5e7eb' }} />
+            )}
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <label style={{ padding: '10px 18px', background: DORE, color: '#000', borderRadius: 10, fontSize: 13, fontWeight: 800, cursor: envoiAp ? 'wait' : 'pointer', opacity: envoiAp ? 0.6 : 1 }}>
+                {envoiAp ? 'Envoi…' : ap.image_url ? '📤 Remplacer la photo' : '📤 Ajouter une photo (facultatif)'}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled={envoiAp} onChange={choisirImageAp} style={{ display: 'none' }} />
+              </label>
+              {ap.image_url && <button type="button" onClick={() => setAp({ image_url: '' })} style={{ padding: '10px 14px', background: '#fff', border: '1px solid #dc2626', color: '#dc2626', borderRadius: 10, fontSize: 13, cursor: 'pointer' }}>🗑 Retirer</button>}
+            </div>
+            {erreurAp && <p style={{ color: '#dc2626', fontSize: 12, margin: '8px 0 0' }}>{erreurAp}</p>}
+            <p style={{ fontSize: 11, color: '#888', margin: '10px 0 0' }}>JPG, PNG, WEBP ou GIF · 5 Mo max. N'oubliez pas de cliquer sur « Sauvegarder ».</p>
+            {ap.actif && !ap.texte.trim() && <p style={{ color: '#b45309', fontSize: 12, margin: '8px 0 0' }}>⚠️ Aucun texte : l'encadré ne s'affichera pas.</p>}
           </SectionCard>
 
           <SectionCard titre="Appel à l'action vendeurs" icone="📣" actif={cfg.accueil_cta_vendeurs_actif} onToggle={(v: boolean) => set('accueil_cta_vendeurs_actif', v)}>
