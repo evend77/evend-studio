@@ -15,6 +15,7 @@ const Stripe = require('stripe');
 const pool = require('../db');
 const { dechiffrer } = require('../src/utils/chiffrement');
 const promo = require('./studio_promo');
+const taxesMV = require('./studio_taxes');
 
 const DUREE_SESSION_MIN = 30; // minimum permis par Stripe
 
@@ -184,6 +185,9 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       [acheteurId, gid, collaborateurId])).rows;
     if (!panier.length) refus('Votre panier est vide.', 404);
 
+    // Taxe : décidée ici seulement (collaborateur inscrit aux taxes ET catégorie taxable) — jamais par le navigateur
+    const taxMap = await taxesMV.taxabilite(client, gid, panier.map((l) => l.produit_id));
+
     // 1) Prix et stock relus dans la base — le navigateur n'envoie que l'adresse et le mode d'expédition
     const lignes = [];
     for (const ligne of panier) {
@@ -194,7 +198,8 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
         if (!e || e.statut !== 'attente_paiement' || e.gagnant_id !== acheteurId) refus(`L'enchère « ${ligne.titre} » n'est plus disponible pour le paiement.`, 409);
         if (e.paiement_expire_le && new Date(e.paiement_expire_le) < new Date()) refus(`Le délai de paiement de « ${ligne.titre} » est dépassé.`, 409);
         lignes.push({ produit_id: e.produit_id, titre: e.titre, variante: '', quantite: 1, prix: Number(e.prix_final), image_url: e.image_url || null,
-                      produit_numerique: false, facturation_taxes: true, enchere_id: e.id });
+                      produit_numerique: false, enchere_id: e.id,
+                      facturation_taxes: (await taxesMV.taxabilite(client, gid, [e.produit_id])).get(parseInt(e.produit_id, 10)) === true });
         continue;
       }
       const pid = parseInt(ligne.produit_id, 10);
@@ -210,7 +215,7 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       if (qte > choix.stock) refus(choix.stock <= 0 ? `« ${ligne.titre} » est épuisé.` : `« ${ligne.titre} » : il n'en reste que ${choix.stock}.`, 409);
       if (!(await ajusterStock(client, pid, variante, -qte))) refus(`« ${ligne.titre} » est épuisé.`, 409);
       lignes.push({ produit_id: pid, titre: ligne.titre, variante, quantite: qte, prix: choix.prix, image_url: ligne.image_url || null,
-                    produit_numerique: ligne.produit_numerique === true, facturation_taxes: ligne.facturation_taxes !== false });
+                    produit_numerique: ligne.produit_numerique === true, facturation_taxes: taxMap.get(pid) === true });
     }
 
     // 2) Code promo (rabais sur les articles seulement), expédition, taxes, total — tout calculé ici, en cents
@@ -232,11 +237,11 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
     if (exp.erreur) refus(exp.erreur, 400);
     const fraisC = cents(exp.frais);
     const lignesNettes = lignes.map((l, i) => ({ ...l, prix: nets[i] / 100, quantite: 1 }));
-    const tx = outils.calculerTaxesProvince(sousNetC / 100, fraisC / 100, province, lignesNettes);
+    const tx = outils.calculerTaxesProvince(sousNetC / 100, fraisC / 100, province, lignesNettes, 0, taxesMV.tableTaux(mv));
     // Pourboire : 100 % au vendeur, non taxé, hors commission ; plafonné pour éviter les abus
     const tipDemande = cents(Math.max(0, parseFloat(pourboire) || 0));
     const tipC = Math.min(tipDemande, sousTotalC, 100000);
-    const taxesC = cents(tx.tps) + cents(tx.tvq) + cents(tx.tvh);
+    const taxesC = cents(tx.tps) + cents(tx.tvq) + cents(tx.tvh) + cents(tx.tvp);
     const totalC = sousNetC + fraisC + taxesC + tipC;
     if (totalC < 50) refus('Le montant de la commande est trop bas pour un paiement en ligne.', 400);
     const total = totalC / 100;
@@ -256,7 +261,7 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       [gid, acheteurId, collaborateurId, numero, total, commissionC / 100, (totalC - commissionC) / 100,
        JSON.stringify(lignes.map((l, i) => (alloc[i] ? { ...l, rabais: alloc[i] / 100 } : l))),
        JSON.stringify(adresse || {}), note ? String(note).slice(0, 500) : null, fraisC / 100,
-       JSON.stringify({ tps: tx.tps, tvq: tx.tvq, tvh: tx.tvh, label: tx.label_taxe, province, pourboire: tipC / 100 }), expireLe, ctx.env,
+       JSON.stringify({ tps: tx.tps, tvq: tx.tvq, tvh: tx.tvh, tvp: tx.tvp, label: tx.label_taxe, province, pourboire: tipC / 100 }), expireLe, ctx.env,
        reduction ? reduction.code : null, reduction ? reduction.id : null, rabaisC / 100, !!reduction]);
     const commandeId = ins.rows[0].id;
 

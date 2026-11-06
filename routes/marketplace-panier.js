@@ -9,6 +9,7 @@ const pool    = require('../db');
 const jwt     = require('jsonwebtoken');
 const paiement = require('../services/studio_paiement');
 const promo = require('../services/studio_promo');
+const taxesMV = require('../services/studio_taxes');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -37,41 +38,39 @@ function authMV(req, res, next) {
 }
 
 // ─── TAUX DE TAXES PAR PROVINCE ──────────────────────────────────────────────
-const TAXES = {
-  AB: { tps: 0.05, tvq: 0,       tvh: 0,    label: 'TPS' },
-  BC: { tps: 0.05, tvq: 0,       tvh: 0,    label: 'TPS + TVP (7%)' },
-  MB: { tps: 0.05, tvq: 0,       tvh: 0,    label: 'TPS + TVP (7%)' },
-  NB: { tps: 0,    tvq: 0,       tvh: 0.15, label: 'TVH' },
-  NL: { tps: 0,    tvq: 0,       tvh: 0.15, label: 'TVH' },
-  NS: { tps: 0,    tvq: 0,       tvh: 0.15, label: 'TVH' },
-  ON: { tps: 0,    tvq: 0,       tvh: 0.13, label: 'TVH' },
-  PE: { tps: 0,    tvq: 0,       tvh: 0.15, label: 'TVH' },
-  QC: { tps: 0.05, tvq: 0.09975, tvh: 0,    label: 'TPS + TVQ' },
-  SK: { tps: 0.05, tvq: 0,       tvh: 0,    label: 'TPS + TVP (6%)' },
-  NT: { tps: 0.05, tvq: 0,       tvh: 0,    label: 'TPS' },
-  NU: { tps: 0.05, tvq: 0,       tvh: 0,    label: 'TPS' },
-  YT: { tps: 0.05, tvq: 0,       tvh: 0,    label: 'TPS' },
-};
+// Les taux sont réglés par le gestionnaire (Config multi → Généralité) : voir services/studio_taxes.js.
+// TAXES_DEFAUT ne sert que si aucune table n'est fournie (taux par défaut).
+const TAXES_DEFAUT = taxesMV.tableTaux({});
 
-function calculerTaxesProvince(sousTotal, fraisExp, province, articles, pourboire) {
-  const tx = TAXES[province] || TAXES['QC'];
+// Arrondi au cent, demi vers le haut (évite 9.975 → 9.97 à cause des flottants)
+const arrondi2 = (n) => Math.round(n * 100 + 1e-7) / 100;
+
+function calculerTaxesProvince(sousTotal, fraisExp, province, articles, pourboire, table) {
+  const tbl = table || TAXES_DEFAUT;
+  const tx = tbl[province] || tbl['QC'];
   const base = articles
     ? articles.reduce((s, a) => s + (a.facturation_taxes !== false ? parseFloat(a.prix) * a.quantite : 0), 0)
     : sousTotal;
-  const tps = parseFloat(((base + fraisExp) * tx.tps).toFixed(2));
-  const tvq = parseFloat(((base + fraisExp) * tx.tvq).toFixed(2));
-  const tvh = parseFloat(((base + fraisExp) * tx.tvh).toFixed(2));
-  const total_taxes = tps + tvq + tvh;
+  // Aucun article taxable (collaborateur non inscrit ou catégorie détaxée) : l'expédition n'est pas taxée non plus
+  const aucuneTaxe = !!articles && base <= 0;
+  const fraisTaxables = aucuneTaxe ? 0 : fraisExp;
+  const tps = arrondi2((base + fraisTaxables) * tx.tps);
+  const tvq = arrondi2((base + fraisTaxables) * tx.tvq);
+  const tvh = arrondi2((base + fraisTaxables) * tx.tvh);
+  const tvp = arrondi2((base + fraisTaxables) * (tx.tvp || 0));
+  const total_taxes = tps + tvq + tvh + tvp;
   return {
     sous_total: sousTotal,
     frais_expedition: fraisExp,
     tps: tps.toFixed(2),
     tvq: tvq.toFixed(2),
     tvh: tvh.toFixed(2),
+    tvp: tvp.toFixed(2),
     total_taxes: total_taxes.toFixed(2),
     pourboire: Math.max(0, parseFloat(pourboire) || 0),
     total: (sousTotal + fraisExp + total_taxes + Math.max(0, parseFloat(pourboire) || 0)).toFixed(2),
     label_taxe: tx.label,
+    aucune_taxe: aucuneTaxe,
     province,
   };
 }
@@ -112,7 +111,7 @@ router.get('/:gid/panier', authMV, async (req, res) => {
        ORDER BY mp.created_at ASC`,
       [acheteurId, gid]
     );
-    res.json({ articles: r.rows });
+    res.json({ articles: await taxesMV.marquerLignes(pool, parseInt(gid, 10), r.rows) });
   } catch (err) { res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
@@ -302,7 +301,7 @@ router.get('/:gid/checkout/infos', authMV, async (req, res) => {
       [collaborateur_id, gid]
     );
 
-    const articles = panierRes.rows;
+    const articles = await taxesMV.marquerLignes(pool, parseInt(gid, 10), panierRes.rows);
     const sousTotal = articles.reduce((s, a) => s + parseFloat(a.prix) * a.quantite, 0);
     const tousNumeriques = articles.every(a => a.produit_numerique === true);
     const panierMixte = !tousNumeriques && articles.some(a => a.produit_numerique === true);
@@ -384,6 +383,15 @@ router.post('/:gid/checkout/taxes', authMV, async (req, res) => {
     const frais = parseFloat(frais_expedition) || 0;
     const prov = province || 'QC';
     const collabId = parseInt(collaborateur_id, 10);
+    // La taxe de chaque article vient du serveur (collaborateur inscrit × catégorie), jamais du navigateur
+    const tableTaux = await taxesMV.chargerTable(pool, parseInt(req.params.gid, 10));
+    let articlesTaxes = articles;
+    if (collabId) {
+      const pan = await pool.query(
+        'SELECT produit_id, prix, quantite FROM marketplace_panier WHERE acheteur_id=$1 AND gestionnaire_id=$2 AND collaborateur_id=$3',
+        [req.mvUser.id, parseInt(req.params.gid, 10), collabId]);
+      if (pan.rows.length) articlesTaxes = await taxesMV.marquerLignes(pool, parseInt(req.params.gid, 10), pan.rows);
+    }
     if (code_promo && String(code_promo).trim() && collabId) {
       try {
         const r = await promo.apercu({ gid: parseInt(req.params.gid, 10), acheteurId: req.mvUser.id, collaborateurId: collabId, code: code_promo });
@@ -392,16 +400,16 @@ router.post('/:gid/checkout/taxes', authMV, async (req, res) => {
           quantite: 1, facturation_taxes: l.facturation_taxes,
         }));
         const rabais = r.rabaisC / 100;
-        const t = calculerTaxesProvince(Math.max(0, sous - rabais), frais, prov, nettes, pourboire);
+        const t = calculerTaxesProvince(Math.max(0, sous - rabais), frais, prov, nettes, pourboire, tableTaux);
         return res.json({ ...t, sous_total: sous, rabais: rabais.toFixed(2), code_promo: r.code });
       } catch (e) {
         if (!(e instanceof promo.ErreurPromo)) throw e;
         // Code devenu invalide : taxes normales, et le navigateur retire le code
-        const t = calculerTaxesProvince(sous, frais, prov, articles, pourboire);
+        const t = calculerTaxesProvince(sous, frais, prov, articlesTaxes, pourboire, tableTaux);
         return res.json({ ...t, rabais: '0.00', code_promo_erreur: e.message });
       }
     }
-    res.json(calculerTaxesProvince(sous, frais, prov, articles, pourboire));
+    res.json(calculerTaxesProvince(sous, frais, prov, articlesTaxes, pourboire, tableTaux));
   } catch (err) { res.status(500).json({ error: 'Erreur calcul taxes' }); }
 });
 

@@ -9,6 +9,7 @@
 'use strict';
 
 const pool = require('../db');
+const taxesMV = require('./studio_taxes');
 
 class ErreurPromo extends Error { constructor(m, s) { super(m); this.status = s || 400; } }
 const refus = (m, s) => { throw new ErreurPromo(m, s); };
@@ -68,10 +69,11 @@ function repartir(lignes, rabaisC) {
 
 // Aperçu pour l'acheteur : lit son panier chez ce collaborateur (prix du panier, indicatif — la commande recalcule tout).
 async function apercu({ gid, acheteurId, collaborateurId, code }) {
-  const lignes = (await pool.query(
-    `SELECT prix, quantite, enchere_id, facturation_taxes FROM marketplace_panier
+  const brutes = (await pool.query(
+    `SELECT prix, quantite, enchere_id, produit_id FROM marketplace_panier
       WHERE acheteur_id = $1 AND gestionnaire_id = $2 AND collaborateur_id = $3`, [acheteurId, gid, collaborateurId])).rows;
-  if (!lignes.length) refus('Votre panier est vide.', 404);
+  if (!brutes.length) refus('Votre panier est vide.', 404);
+  const lignes = await taxesMV.marquerLignes(pool, gid, brutes);
   const e = await evaluer(pool, { gid, collaborateurId, code, lignes });
   return { ...e, lignes, alloc: repartir(lignes, e.rabaisC) };
 }

@@ -56,6 +56,7 @@ interface TaxesCalc {
   tps: string;
   tvq: string;
   tvh: string;
+  tvp?: string;
   total_taxes: string;
   pourboire: number;
   total: string;
@@ -1130,10 +1131,11 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                     <LigneRecap label="Taxes" valeur="Non taxable" muted />
                   ) : (
                     <>
-                      {parseFloat(taxes.tps) > 0 && <LigneRecap label="TPS ~5%" valeur={`~${taxes.tps} $`} muted />}
-                      {parseFloat(taxes.tvq) > 0 && <LigneRecap label="TVQ ~9,975%" valeur={`~${taxes.tvq} $`} muted />}
+                      {parseFloat(taxes.tps) > 0 && <LigneRecap label="TPS" valeur={`~${taxes.tps} $`} muted />}
+                      {parseFloat(taxes.tvq) > 0 && <LigneRecap label="TVQ" valeur={`~${taxes.tvq} $`} muted />}
                       {parseFloat(taxes.tvh) > 0 && <LigneRecap label="TVH" valeur={`~${taxes.tvh} $`} muted />}
-                      {parseFloat(taxes.tps) === 0 && parseFloat(taxes.tvq) === 0 && parseFloat(taxes.tvh) === 0 && (
+                      {parseFloat(taxes.tvp || '0') > 0 && <LigneRecap label="TVP" valeur={`~${taxes.tvp} $`} muted />}
+                      {parseFloat(taxes.tps) === 0 && parseFloat(taxes.tvq) === 0 && parseFloat(taxes.tvh) === 0 && parseFloat(taxes.tvp || '0') === 0 && (
                         <LigneRecap label="Taxes" valeur="0,00 $" muted />
                       )}
                     </>

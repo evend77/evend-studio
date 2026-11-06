@@ -27,7 +27,8 @@ function entier(v) {
 const COLS = `p.id, p.titre, p.description, p.prix, p.prix_promo, p.stock, p.categorie, p.photo_principale, p.photos,
   p.created_at, p.collaborateur_id, p.variantes,
   COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.ville AS vendeur_ville, mc.politique_livraison, mc.politique_retour,
-  p.categorie_id, COALESCE(sc.nom, cp.label) AS categorie_nom, sg.nom AS groupe_nom`;
+  p.categorie_id, COALESCE(sc.nom, cp.label) AS categorie_nom, sg.nom AS groupe_nom,
+  (mc.inscrit_taxes IS TRUE AND COALESCE(sc.taxable, true)) AS facturation_taxes`;
 const FROM = `FROM produits p
   JOIN marketplace_collaborateurs mc ON mc.id = p.collaborateur_id AND mc.statut = 'actif'
   LEFT JOIN categories_pub cp ON cp.cle = p.categorie
@@ -74,6 +75,7 @@ function formater(r) {
     vendeur_ville: r.vendeur_ville,
     politique_livraison: r.politique_livraison || '',
     politique_retour: r.politique_retour || '',
+    facturation_taxes: r.facturation_taxes === true, // décidé par le serveur : collaborateur inscrit aux taxes ET catégorie taxable
     statut: 'actif',
     created_at: r.created_at,
     variantes: formaterVariantes(r, r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0)),

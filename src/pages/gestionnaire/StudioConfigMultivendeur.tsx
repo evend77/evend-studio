@@ -186,6 +186,10 @@ interface ConfigMV {
   commission_globale: string; seconde_commission_globale: string;
   type_commission_fixe: string; activer_commission_max: boolean;
   commission_max: string; baremes_commission: CommissionSlab[];
+  // Taux de taxes (en %, réglés par le gestionnaire ; tous les collaborateurs les utilisent)
+  taxe_tps: string; taxe_tvq: string;
+  taxe_tvh_on: string; taxe_tvh_nb: string; taxe_tvh_ns: string; taxe_tvh_nl: string; taxe_tvh_pe: string;
+  taxe_tvp_bc: string; taxe_tvp_sk: string; taxe_tvp_mb: string;
   // Enchères
   encheres_actives: boolean; enchere_duree_min_h: string; enchere_duree_max_jours: string;
   enchere_increment_min: string; enchere_reserve_permise: boolean;
@@ -256,6 +260,9 @@ const DEFAUTS: ConfigMV = {
   commission_globale: '10.00', seconde_commission_globale: '0.00',
   type_commission_fixe: 'produit', activer_commission_max: false,
   commission_max: '0.00', baremes_commission: [],
+  taxe_tps: '5', taxe_tvq: '9.975',
+  taxe_tvh_on: '13', taxe_tvh_nb: '15', taxe_tvh_ns: '15', taxe_tvh_nl: '15', taxe_tvh_pe: '15',
+  taxe_tvp_bc: '7', taxe_tvp_sk: '6', taxe_tvp_mb: '7',
   encheres_actives: false, enchere_duree_min_h: '1', enchere_duree_max_jours: '14',
   enchere_increment_min: '1.00', enchere_reserve_permise: true,
   enchere_delai_paiement_h: '24', enchere_max_par_collab: '0',
@@ -304,16 +311,25 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); }, [toast]);
 
   // ── Sauvegarder ──────────────────────────────────────────────────────────
+  const CLES_TAXES: (keyof ConfigMV)[] = ['taxe_tps', 'taxe_tvq', 'taxe_tvh_on', 'taxe_tvh_nb', 'taxe_tvh_ns', 'taxe_tvh_nl', 'taxe_tvh_pe', 'taxe_tvp_bc', 'taxe_tvp_sk', 'taxe_tvp_mb'];
+
   async function sauvegarder() {
+    // Taux de taxes : nombres entre 0 et 30 (virgule acceptée), enregistrés avec un point
+    const aSauver: ConfigMV = { ...config };
+    for (const k of CLES_TAXES) {
+      const n = parseFloat(String(config[k]).replace(',', '.'));
+      if (!Number.isFinite(n) || n < 0 || n > 30) { showToast('❌ Taux de taxe invalide : entrez un nombre entre 0 et 30', 'danger'); setOnglet('generalite'); return; }
+      (aSauver as any)[k] = String(n);
+    }
     try {
       // Le serveur attend l'identifiant du GESTIONNAIRE dans l'URL et la config sous la clé « config »
       const res = await fetch(`${API_BASE}/studio/sites/${gestionnaireId}/config`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ config: { multivendeur: config } }),
+        body: JSON.stringify({ config: { multivendeur: aSauver } }),
       });
       if (!res.ok) throw new Error();
-      setOriginal({ ...config }); setModifie(false);
+      setConfig(aSauver); setOriginal({ ...aSauver }); setModifie(false);
       showToast('✅ Configuration sauvegardée !', 'success');
     } catch { showToast('❌ Erreur lors de la sauvegarde', 'danger'); }
   }
@@ -454,6 +470,35 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
           </div>
 
           <div>
+            <Section titre="Taux de taxes" icon="🧾">
+              <ParamLigne label="Taux TPS (%)" description="Taxe fédérale. Appliquée sur les ventes taxables dans toutes les provinces sauf celles à TVH.">
+                <input type="number" step="0.001" min="0" max="30" style={{ ...inputStyle, width: '110px' }} value={config.taxe_tps} onChange={e => set('taxe_tps')(e.target.value)} />
+              </ParamLigne>
+              <ParamLigne label="Taux TVQ (%)" description="Taxe de vente du Québec. S'applique aux mêmes transactions que la TPS.">
+                <input type="number" step="0.001" min="0" max="30" style={{ ...inputStyle, width: '110px' }} value={config.taxe_tvq} onChange={e => set('taxe_tvq')(e.target.value)} />
+              </ParamLigne>
+              <ParamLigne label="Taux TVH par province (%)" description="Ontario, Nouveau-Brunswick, Nouvelle-Écosse, Terre-Neuve-et-Labrador, Île-du-Prince-Édouard. La TVH remplace la TPS. Modifiable si le gouvernement ajuste un taux.">
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 96px)', gap: '10px' }}>
+                  {([['taxe_tvh_on', 'Ontario (ON)'], ['taxe_tvh_nb', 'Nouveau-Brunswick (NB)'], ['taxe_tvh_ns', 'Nouvelle-Écosse (NS)'], ['taxe_tvh_nl', 'Terre-Neuve-et-Labrador (NL)'], ['taxe_tvh_pe', 'Île-du-Prince-Édouard (PE)']] as const).map(([k, nom]) => (
+                    <div key={k}>
+                      <p style={{ fontSize: '10px', color: T.textLight, margin: '0 0 3px', lineHeight: 1.3, minHeight: '26px' }}>{nom}</p>
+                      <input type="number" step="0.001" min="0" max="30" style={{ ...inputStyle, width: '96px' }} value={config[k]} onChange={e => set(k)(e.target.value)} />
+                    </div>
+                  ))}
+                </div>
+              </ParamLigne>
+              <ParamLigne label="Taux TVP par province (%)" description="Colombie-Britannique, Saskatchewan, Manitoba : taxe de vente provinciale SÉPARÉE de la TPS (ce ne sont pas des taxes harmonisées en une seule). Les deux montants sont calculés et facturés distinctement." derniere>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 96px)', gap: '10px' }}>
+                  {([['taxe_tvp_bc', 'Colombie-Britannique (BC)'], ['taxe_tvp_sk', 'Saskatchewan (SK)'], ['taxe_tvp_mb', 'Manitoba (MB)']] as const).map(([k, nom]) => (
+                    <div key={k}>
+                      <p style={{ fontSize: '10px', color: T.textLight, margin: '0 0 3px', lineHeight: 1.3, minHeight: '26px' }}>{nom}</p>
+                      <input type="number" step="0.001" min="0" max="30" style={{ ...inputStyle, width: '96px' }} value={config[k]} onChange={e => set(k)(e.target.value)} />
+                    </div>
+                  ))}
+                </div>
+              </ParamLigne>
+            </Section>
+
             <Section titre="Paramètres financiers" icon="💰">
               <ParamLigne label="Utiliser les plans vendeur" description="Les commissions sont gérées par les plans vendeur.">
                 <Toggle actif={config.utiliser_plans_vendeur} onChange={set('utiliser_plans_vendeur')} />

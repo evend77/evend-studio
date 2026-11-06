@@ -1,5 +1,5 @@
 // CHEMIN : src/pages/collaborateur/CollaborateurCompte.tsx
-// e-Vend Studio — Dashboard collaborateur : mon compte (coordonnées + mot de passe)
+// e-Vend Studio — Dashboard collaborateur : mon compte (coordonnées + taxes + mot de passe)
 // Adapté de MonCompte.tsx (e-Vend). API : /api/collab/:gestionnaireId/profil
 
 import React, { useState, useEffect } from 'react';
@@ -12,6 +12,8 @@ export default function CollaborateurCompte({ gestionnaireId, accent, isMobile }
   const [f, setF] = useState({ nom_responsable: '', telephone: '', type_entreprise: '' });
   const [courriel, setCourriel] = useState('');
   const [depuis, setDepuis] = useState('');
+  const [tx, setTx] = useState({ inscrit_taxes: false, numero_tps: '', numero_tvq: '' });
+  const [msgTx, setMsgTx] = useState<{ t: 'ok' | 'err'; m: string } | null>(null);
   const [mdp, setMdp] = useState({ actuel: '', nouveau: '', confirmation: '' });
   const [chargement, setChargement] = useState(true);
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; m: string } | null>(null);
@@ -25,6 +27,7 @@ export default function CollaborateurCompte({ gestionnaireId, accent, isMobile }
         if (res.ok) {
           const p = await res.json();
           setF({ nom_responsable: p.nom_responsable || '', telephone: p.telephone || '', type_entreprise: p.type_entreprise || '' });
+          setTx({ inscrit_taxes: p.inscrit_taxes === true, numero_tps: p.numero_tps || '', numero_tvq: p.numero_tvq || '' });
           setCourriel(p.email || '');
           setDepuis(p.created_at ? new Date(p.created_at).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' }) : '');
         } else setMsg({ t: 'err', m: (await res.json().catch(() => ({}))).error || 'Chargement impossible' });
@@ -39,6 +42,17 @@ export default function CollaborateurCompte({ gestionnaireId, accent, isMobile }
       const res = await fetch(base, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(f) });
       setMsg(res.ok ? { t: 'ok', m: '✅ Coordonnées enregistrées' } : { t: 'err', m: (await res.json().catch(() => ({}))).error || 'Enregistrement impossible' });
     } catch { setMsg({ t: 'err', m: 'Erreur réseau' }); }
+    setOccupe(false);
+  };
+
+  const enregistrerTaxes = async () => {
+    setOccupe(true); setMsgTx(null);
+    try {
+      const res = await fetch(`${base}/taxes`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tx) });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) { setTx({ inscrit_taxes: d.inscrit_taxes === true, numero_tps: d.numero_tps || '', numero_tvq: d.numero_tvq || '' }); setMsgTx({ t: 'ok', m: '✅ Statut fiscal enregistré' }); }
+      else setMsgTx({ t: 'err', m: d.error || 'Enregistrement impossible' });
+    } catch { setMsgTx({ t: 'err', m: 'Erreur réseau' }); }
     setOccupe(false);
   };
 
@@ -81,6 +95,31 @@ export default function CollaborateurCompte({ gestionnaireId, accent, isMobile }
         </div>
         <button disabled={occupe || !f.nom_responsable.trim()} onClick={enregistrer} style={{ padding: '10px 20px', border: 'none', background: accent, color: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>
           💾 Enregistrer
+        </button>
+      </div>
+
+      <div style={carte}>
+        <h3 style={{ margin: '0 0 6px', fontSize: 15, color: T.text }}>🧾 Taxes (TPS / TVQ)</h3>
+        <p style={{ fontSize: 12, color: T.light, margin: '0 0 14px', lineHeight: 1.5 }}>
+          Si vous <strong>n'êtes pas inscrit</strong> aux fichiers de taxes (petit fournisseur), <strong>aucune taxe n'est facturée</strong> à vos acheteurs.
+          Si vous l'êtes, les taxes s'ajoutent automatiquement à vos ventes, sauf sur les catégories que le gestionnaire a marquées « non taxées ».
+          C'est vous qui remettez ces taxes au gouvernement.
+        </p>
+        {alerte(msgTx)}
+        <label style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14, fontWeight: 700, color: T.text, marginBottom: 14, cursor: 'pointer' }}>
+          <input type="checkbox" checked={tx.inscrit_taxes} onChange={e => setTx({ ...tx, inscrit_taxes: e.target.checked })} style={{ width: 18, height: 18 }} />
+          Je suis inscrit aux taxes (TPS/TVQ)
+        </label>
+        {tx.inscrit_taxes ? (
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 12, marginBottom: 16 }}>
+            <div><label style={lbl}>Numéro de TPS/TVH *</label><input value={tx.numero_tps} onChange={e => setTx({ ...tx, numero_tps: e.target.value })} maxLength={30} placeholder="123456789RT0001" style={champ} /></div>
+            <div><label style={lbl}>Numéro de TVQ</label><input value={tx.numero_tvq} onChange={e => setTx({ ...tx, numero_tvq: e.target.value })} maxLength={30} placeholder="1234567890TQ0001" style={champ} /></div>
+          </div>
+        ) : (
+          <p style={{ fontSize: 12, color: T.light, margin: '0 0 16px' }}>Aucune taxe ne sera ajoutée à vos produits.</p>
+        )}
+        <button disabled={occupe} onClick={enregistrerTaxes} style={{ padding: '10px 20px', border: 'none', background: accent, color: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>
+          💾 Enregistrer mon statut fiscal
         </button>
       </div>
 

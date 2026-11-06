@@ -665,7 +665,8 @@ router.put('/avis/:id/reponse', h(async (req, res) => {
 
 router.get('/profil', h(async (req, res) => {
   const r = await pool.query(
-    `SELECT id, nom_responsable, email, telephone, type_entreprise, nom_boutique, created_at
+    `SELECT id, nom_responsable, email, telephone, type_entreprise, nom_boutique, created_at,
+            inscrit_taxes, numero_tps, numero_tvq
        FROM marketplace_collaborateurs WHERE id=$1 AND gestionnaire_id=$2`, [req.cid, req.gid]);
   res.json(r.rows[0]);
 }));
@@ -680,6 +681,24 @@ router.put('/profil', h(async (req, res) => {
     `UPDATE marketplace_collaborateurs SET nom_responsable=$1, telephone=NULLIF($2,''), type_entreprise=NULLIF($3,'') WHERE id=$4 AND gestionnaire_id=$5`,
     [nom, tel, type, req.cid, req.gid]);
   res.json({ success: true });
+}));
+
+// Statut fiscal : un collaborateur NON inscrit aux taxes (petit fournisseur) ne facture aucune taxe.
+// Inscrit : la taxe s'applique selon la catégorie du produit (voir services/studio_taxes.js).
+router.put('/profil/taxes', h(async (req, res) => {
+  const b = req.body || {};
+  if (typeof b.inscrit_taxes !== 'boolean') bad('Choisissez si vous êtes inscrit aux taxes');
+  let tps = texte(b.numero_tps, 'Numéro de TPS/TVH', 30).toUpperCase().replace(/\s+/g, '');
+  let tvq = texte(b.numero_tvq, 'Numéro de TVQ', 30).toUpperCase().replace(/\s+/g, '');
+  if (b.inscrit_taxes) {
+    if (!tps) bad('Entrez votre numéro de TPS/TVH (ex. : 123456789RT0001)');
+    if (!/^\d{9}RT\d{4}$/.test(tps)) bad('Numéro de TPS/TVH invalide (format : 123456789RT0001)');
+    if (tvq && !/^\d{10}TQ\d{4}$/.test(tvq)) bad('Numéro de TVQ invalide (format : 1234567890TQ0001)');
+  } else { tps = ''; tvq = ''; }
+  await pool.query(
+    `UPDATE marketplace_collaborateurs SET inscrit_taxes=$1, numero_tps=NULLIF($2,''), numero_tvq=NULLIF($3,'') WHERE id=$4 AND gestionnaire_id=$5`,
+    [b.inscrit_taxes, tps, tvq, req.cid, req.gid]);
+  res.json({ success: true, inscrit_taxes: b.inscrit_taxes, numero_tps: tps || null, numero_tvq: tvq || null });
 }));
 
 router.put('/profil/mot-de-passe', h(async (req, res) => {
