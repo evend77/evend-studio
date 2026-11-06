@@ -283,16 +283,18 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               </span>
             </div>
 
-            {/* Enchère en cours : remplace l'achat direct */}
+            {/* Enchère en cours : 1 unité est réservée à l'enchère ; les unités restantes restent en vente directe */}
             {!isDemo && gId && (
               <BlocEnchere gId={gId} produitId={produit.id} couleurAccent={couleurAccent} naviguer={naviguer}
                 onEtat={setEnchereActive} onTerminee={() => setRechargement(n => n + 1)} />
             )}
 
-            {!enchereActive && (<>
-            {/* Stock */}
-            <p style={{ fontSize: 14, fontWeight: 600, color: produit.stock > 0 ? '#10b981' : '#ef4444', margin: '0 0 20px' }}>
-              {produit.stock > 0 ? `✓ En stock (${produit.stock} disponible${produit.stock > 1 ? 's' : ''})` : '✗ Épuisé'}
+            {/* Stock (vente directe) */}
+            {enchereActive && (
+              <p style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '20px 0 8px' }}>🛒 Vente directe</p>
+            )}
+            <p style={{ fontSize: 14, fontWeight: 600, color: produit.stock > 0 ? '#10b981' : enchereActive ? 'rgba(255,255,255,0.5)' : '#ef4444', margin: '0 0 20px' }}>
+              {produit.stock > 0 ? `✓ En stock (${produit.stock} disponible${produit.stock > 1 ? 's' : ''})` : enchereActive ? 'Aucune unité disponible en vente directe : seule l\'enchère est ouverte.' : '✗ Épuisé'}
             </p>
 
             {/* Quantité */}
@@ -308,7 +310,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             )}
 
             {/* Bouton panier */}
-            <button
+            {!(enchereActive && produit.stock === 0) && <button
               onClick={ajouterPanier}
               disabled={ajoutEnCours || produit.stock === 0}
               style={{
@@ -319,9 +321,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                 width: '100%', marginBottom: 12,
               }}>
               {ajoutEnCours ? '⏳ Ajout...' : produit.stock === 0 ? 'Épuisé' : '🛒 Ajouter au panier'}
-            </button>
-
-            </>)}
+            </button>}
 
             {msgAjout && (
               <div style={{ padding: '10px 14px', borderRadius: 10, background: msgAjout.succes ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: msgAjout.succes ? '#6ee7b7' : '#fca5a5', fontSize: 14, fontWeight: 600, marginBottom: 12, textAlign: 'center' }}>
