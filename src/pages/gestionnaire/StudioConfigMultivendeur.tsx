@@ -186,6 +186,7 @@ interface ConfigMV {
   commission_globale: string; seconde_commission_globale: string;
   type_commission_fixe: string; activer_commission_max: boolean;
   commission_max: string; baremes_commission: CommissionSlab[];
+  commission_taxable: boolean; commission_province: string;
   // Taux de taxes (en %, réglés par le gestionnaire ; tous les collaborateurs les utilisent)
   taxe_tps: string; taxe_tvq: string;
   taxe_tvh_on: string; taxe_tvh_nb: string; taxe_tvh_ns: string; taxe_tvh_nl: string; taxe_tvh_pe: string;
@@ -260,6 +261,7 @@ const DEFAUTS: ConfigMV = {
   commission_globale: '10.00', seconde_commission_globale: '0.00',
   type_commission_fixe: 'produit', activer_commission_max: false,
   commission_max: '0.00', baremes_commission: [],
+  commission_taxable: false, commission_province: 'QC',
   taxe_tps: '5', taxe_tvq: '9.975',
   taxe_tvh_on: '13', taxe_tvh_nb: '15', taxe_tvh_ns: '15', taxe_tvh_nl: '15', taxe_tvh_pe: '15',
   taxe_tvp_bc: '7', taxe_tvp_sk: '6', taxe_tvp_mb: '7',
@@ -1015,6 +1017,22 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
             {config.activer_commission_max && (
               <ParamLigne label="Montant maximum ($)" derniere>
                 <input type="number" style={{ ...inputStyle, width: '100px' }} value={config.commission_max} onChange={e => set('commission_max')(e.target.value)} min="0" step="0.01" />
+              </ParamLigne>
+            )}
+          </Section>
+
+          <Section titre="Taxes sur ma commission" icon="🧾">
+            <p style={{ fontSize: '12px', color: T.textLight, margin: '0 0 12px', lineHeight: 1.5 }}>
+              Votre commission est facturée au <strong>collaborateur</strong> (jamais à l'acheteur). Si vous êtes inscrit aux taxes, vous devez normalement y ajouter la TPS/TVQ. Validez avec votre comptable.
+            </p>
+            <ParamLigne label="Ma commission est taxable" description="Les taxes sont ajoutées au montant prélevé au collaborateur, en plus de la commission, avec les taux de l'encadré « Taux de taxes » (onglet Généralité).">
+              <Toggle actif={config.commission_taxable} onChange={set('commission_taxable')} />
+            </ParamLigne>
+            {config.commission_taxable && (
+              <ParamLigne label="Ma province" description="Détermine les taxes appliquées à la commission.">
+                <select style={{ ...selectStyle, width: '200px' }} value={config.commission_province} onChange={e => set('commission_province')(e.target.value)}>
+                  {['QC', 'ON', 'NB', 'NS', 'NL', 'PE', 'BC', 'SK', 'MB', 'AB', 'NT', 'NU', 'YT'].map(pv => <option key={pv} value={pv}>{pv}</option>)}
+                </select>
               </ParamLigne>
             )}
           </Section>

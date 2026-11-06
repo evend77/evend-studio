@@ -249,20 +249,29 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
     // 3) Commission du gestionnaire (en cents, jamais plus que le total) — calculée sur le prix après rabais
     const commission = commissionDe(mv, { sousTotal: sousNetC / 100, taxes: taxesC / 100, expedition: fraisC / 100, total: (totalC - tipC) / 100 });
     const commissionC = Math.min(cents(commission), totalC);
+    // Taxes sur la commission : seulement si le gestionnaire l'a choisi (Config multi → Commission). Facturées au collaborateur
+    // (prélevées avec la commission), jamais ajoutées au total de l'acheteur. Taux de la province du gestionnaire.
+    let comTaxC = 0;
+    if (mv.commission_taxable === true && commissionC > 0) {
+      const tbl = taxesMV.tableTaux(mv);
+      const tp = tbl[mv.commission_province] || tbl.QC;
+      comTaxC = Math.round(commissionC * ((tp.tps || 0) + (tp.tvq || 0) + (tp.tvh || 0) + (tp.tvp || 0)) + 1e-7);
+    }
+    const fraisCommC = Math.min(commissionC + comTaxC, totalC); // total prélevé par le gestionnaire
 
     const numero = `MV-${gid}-${Date.now()}`;
     const expireLe = new Date(Date.now() + DUREE_SESSION_MIN * 60000);
     const ins = await client.query(
       `INSERT INTO marketplace_commandes
-         (gestionnaire_id, acheteur_id, collaborateur_id, numero_commande, statut, statut_paiement, total, commission, montant_net,
+         (gestionnaire_id, acheteur_id, collaborateur_id, numero_commande, statut, statut_paiement, total, commission, montant_net, commission_taxes,
           articles, adresse_livraison, note, frais_expedition, taxes, stock_reserve, expire_le, stripe_env,
           code_promo, reduction_id, rabais, reduction_comptee)
-       VALUES ($1,$2,$3,$4,'en_attente','en_attente',$5,$6,$7,$8,$9,$10,$11,$12,true,$13,$14,$15,$16,$17,$18) RETURNING id`,
-      [gid, acheteurId, collaborateurId, numero, total, commissionC / 100, (totalC - commissionC) / 100,
+       VALUES ($1,$2,$3,$4,'en_attente','en_attente',$5,$6,$7,$19,$8,$9,$10,$11,$12,true,$13,$14,$15,$16,$17,$18) RETURNING id`,
+      [gid, acheteurId, collaborateurId, numero, total, commissionC / 100, (totalC - fraisCommC) / 100,
        JSON.stringify(lignes.map((l, i) => (alloc[i] ? { ...l, rabais: alloc[i] / 100 } : l))),
        JSON.stringify(adresse || {}), note ? String(note).slice(0, 500) : null, fraisC / 100,
        JSON.stringify({ tps: tx.tps, tvq: tx.tvq, tvh: tx.tvh, tvp: tx.tvp, label: tx.label_taxe, province, pourboire: tipC / 100 }), expireLe, ctx.env,
-       reduction ? reduction.code : null, reduction ? reduction.id : null, rabaisC / 100, !!reduction]);
+       reduction ? reduction.code : null, reduction ? reduction.id : null, rabaisC / 100, !!reduction, (fraisCommC - commissionC) / 100]);
     const commandeId = ins.rows[0].id;
 
     // 4) Session Stripe Checkout : une ligne par article + expédition + taxes (le total Stripe = notre total)
@@ -285,7 +294,7 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
     const meta = { type: 'mv_commande', commande_id: String(commandeId), gestionnaire_id: String(gid), collaborateur_id: String(collaborateurId) };
     if (reduction) meta.code_promo = reduction.code;
     const paymentIntentData = { metadata: meta };
-    if (commissionC > 0) paymentIntentData.application_fee_amount = commissionC;
+    if (fraisCommC > 0) paymentIntentData.application_fee_amount = fraisCommC;
     if (!direct) paymentIntentData.transfer_data = { destination: collab.stripe_account_id };
 
     const params = {

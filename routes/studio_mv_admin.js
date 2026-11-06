@@ -185,7 +185,7 @@ router.get('/commandes', h(async (req, res) => {
   const base = 'FROM marketplace_commandes c LEFT JOIN marketplace_acheteurs a ON a.id = c.acheteur_id LEFT JOIN marketplace_collaborateurs col ON col.id = c.collaborateur_id';
   const [liste, total, tot] = await Promise.all([
     pool.query(
-      `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.montant_net, c.date_commande, c.collaborateur_id,
+      `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net, c.date_commande, c.collaborateur_id,
               jsonb_array_length(COALESCE(c.articles, '[]'::jsonb)) AS nb_articles, c.code_promo, c.rabais,
               a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email, col.nom_boutique AS boutique
          ${base} WHERE ${W} ORDER BY c.date_commande DESC, c.id DESC LIMIT ${PAR_PAGE} OFFSET ${(pg - 1) * PAR_PAGE}`, params),
@@ -204,7 +204,7 @@ router.get('/commandes/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Commande invalide.');
   const r = await pool.query(
-    `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.montant_net, c.articles, c.adresse_livraison, c.note,
+    `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net, c.articles, c.adresse_livraison, c.note,
             c.date_commande, c.paye_le, c.frais_expedition, c.taxes, c.code_promo, c.rabais, c.numero_suivi, c.transporteur, c.collaborateur_id,
             a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email, a.telephone AS acheteur_telephone,
             col.nom_boutique AS boutique

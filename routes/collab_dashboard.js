@@ -449,7 +449,7 @@ function filtreCommandes(req, ignorerStatut) {
   return { W: where.join(' AND '), params };
 }
 
-const COLS_COMMANDE = `c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.montant_net,
+const COLS_COMMANDE = `c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net,
        c.date_commande, c.numero_suivi, c.transporteur, jsonb_array_length(COALESCE(c.articles, '[]'::jsonb)) AS nb_articles,
        a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email`;
 const JOIN_ACHETEUR = 'FROM marketplace_commandes c LEFT JOIN marketplace_acheteurs a ON a.id = c.acheteur_id';
@@ -472,7 +472,7 @@ router.get('/commandes/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Commande invalide');
   const r = await pool.query(
-    `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.montant_net, c.articles, c.adresse_livraison,
+    `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net, c.articles, c.adresse_livraison,
             c.note, c.date_commande, c.numero_suivi, c.transporteur, c.paye_le,
             a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email, a.telephone AS acheteur_telephone
        ${JOIN_ACHETEUR} WHERE c.id = $1 AND c.collaborateur_id = $2 AND c.gestionnaire_id = $3`, [id, req.cid, req.gid]);
