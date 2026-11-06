@@ -129,6 +129,9 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
           {config.encheres_actif !== false && (
             <span className="mvf-link" style={s.link} onClick={() => naviguer({ page: 'encheres' })}>Enchères</span>
           )}
+          {config?.extra?.contact?.actif !== false && (
+            <span className="mvf-link" style={s.link} onClick={() => naviguer({ page: 'contact' })}>Contact</span>
+          )}
           {veutDocuments && documents.length > 0 && (
             <span className="mvf-link" style={s.link} onClick={() => naviguer({ page: 'documents' })}>Documents</span>
           )}

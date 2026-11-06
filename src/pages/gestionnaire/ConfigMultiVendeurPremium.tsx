@@ -117,7 +117,7 @@ function SectionCard({ titre, icone, actif, onToggle, children, badge }: any) {
 // ─── PAGE PRINCIPALE ────────────────────────────────────────────────────────
 export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
   const [cfg, setCfg] = useState<any>(CFG_DEF);
-  const [onglet, setOnglet] = useState<'identite'|'accueil'|'catalogue'|'boutiques'|'produit'|'encheres'|'footer'>('identite');
+  const [onglet, setOnglet] = useState<'identite'|'accueil'|'catalogue'|'boutiques'|'produit'|'encheres'|'contact'|'footer'>('identite');
   const [saving, setSaving] = useState(false);
   const [statut, setStatut] = useState<'idle'|'ok'|'err'>('idle');
 
@@ -183,6 +183,8 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
     } catch (err: any) { setErreurHi(err?.message || "Erreur lors de l'envoi"); }
     setEnvoiHi('');
   };
+  const ct = { actif: true, titre: '', sous_titre: '', formulaire_titre: '', formulaire_sous_titre: '', courriel: '', horaires: '', localisation: '', delai: '', message_succes: '', ...(extra.contact || {}) };
+  const setCt = (patch: any) => setExtra('contact', { ...ct, ...patch });
   const [envoiBa, setEnvoiBa] = useState(false);
   const [erreurBa, setErreurBa] = useState('');
   const choisirBanniere = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -243,6 +245,7 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
     { id: 'boutiques', label: 'Boutiques', icone: '🏪' },
     { id: 'produit',   label: 'Produit',   icone: '📦' },
     { id: 'encheres',  label: 'Enchères',  icone: '🔨' },
+    { id: 'contact',   label: 'Contact',   icone: '✉️' },
     { id: 'footer',    label: 'Footer',    icone: '🔗' },
   ];
 
@@ -535,6 +538,37 @@ export default function ConfigMultiVendeurPremium({ gestionnaireId }: Props) {
       )}
 
       {/* ══════════ ONGLET FOOTER ══════════ */}
+      {/* ══════════ ONGLET CONTACT ══════════ */}
+      {onglet === 'contact' && (
+        <div>
+          <SectionCard titre="Page Contact" icone="✉️" actif={ct.actif} onToggle={(v: boolean) => setCt({ actif: v })}>
+            <p style={{ fontSize: 13, color: '#666', marginTop: 0, marginBottom: 14 }}>
+              Une page avec un formulaire, accessible par le lien <strong>Contact</strong> du pied de page. Les messages reçus arrivent dans <strong>Multi-vendeur › Contact</strong>, où vous les lisez et copiez le courriel du client pour lui répondre avec votre messagerie habituelle. Désactivée : le lien et la page disparaissent.
+            </p>
+            <Champ label="Titre de la page" value={ct.titre} onChange={(v: string) => setCt({ titre: v })} placeholder="Contactez-nous" />
+            <Champ label="Sous-titre" value={ct.sous_titre} onChange={(v: string) => setCt({ sous_titre: v })} placeholder="Une question ? Une suggestion ? Notre équipe est là pour vous aider" />
+          </SectionCard>
+
+          {ct.actif && (
+            <>
+              <SectionCard titre="Formulaire" icone="📝" actif={true}>
+                <Champ label="Titre du formulaire" value={ct.formulaire_titre} onChange={(v: string) => setCt({ formulaire_titre: v })} placeholder="Envoyez-nous un message" />
+                <Champ label="Texte sous le titre" value={ct.formulaire_sous_titre} onChange={(v: string) => setCt({ formulaire_sous_titre: v })} placeholder="Remplissez le formulaire ci-dessous et nous vous répondrons dans les plus brefs délais." />
+                <Champ label="Message après l'envoi" value={ct.message_succes} onChange={(v: string) => setCt({ message_succes: v })} placeholder="Message envoyé avec succès ! Nous vous répondrons dans les plus brefs délais." />
+              </SectionCard>
+
+              <SectionCard titre="Informations affichées à côté du formulaire" icone="📍" actif={true}>
+                <p style={{ fontSize: 13, color: '#666', marginTop: 0, marginBottom: 14 }}>Laissez un champ vide pour ne pas afficher son bloc. Si tout est vide, le formulaire est centré seul.</p>
+                <Champ label="📧 Courriel affiché" value={ct.courriel} onChange={(v: string) => setCt({ courriel: v })} placeholder="info@monsite.com" note="Adresse que les visiteurs voient (facultatif)" />
+                <Champ label="⏰ Horaires" value={ct.horaires} onChange={(v: string) => setCt({ horaires: v })} multiline placeholder={'Lundi au vendredi : 9 h – 17 h\nSamedi : 10 h – 14 h\nDimanche : fermé'} note="Une ligne par horaire" />
+                <Champ label="📍 Localisation" value={ct.localisation} onChange={(v: string) => setCt({ localisation: v })} placeholder="Québec, Canada" />
+                <Champ label="⚡ Délai de réponse" value={ct.delai} onChange={(v: string) => setCt({ delai: v })} multiline placeholder="Nous nous engageons à vous répondre sous 24 à 48 heures ouvrables." />
+              </SectionCard>
+            </>
+          )}
+        </div>
+      )}
+
       {onglet === 'footer' && (
         <div>
           <SectionCard titre="Lien Documents" icone="📄" actif={cfg.footer_documents_actif} onToggle={(v: boolean) => set('footer_documents_actif', v)}>

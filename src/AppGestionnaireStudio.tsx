@@ -38,6 +38,7 @@ import StudioFaqSousVendeur     from './pages/gestionnaire/StudioFaqCollaborateu
 import SurveillanceChats        from './pages/gestionnaire/SurveillanceChats';
 import ChatAvecCollaborateur    from './pages/gestionnaire/ChatAvecCollaborateur';
 import StudioSignalements       from './pages/gestionnaire/StudioSignalements';
+import StudioContactMessages   from './pages/gestionnaire/StudioContactMessages';
 import StudioModelesCourriel   from './pages/gestionnaire/StudioModelesCourriel';
 import StudioEncheres          from './pages/gestionnaire/StudioEncheres';
 import StudioMVProduits        from './pages/gestionnaire/StudioMVProduits';
@@ -360,6 +361,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [nonLus, setNonLus] = useState({ acheteurs: 0, admin: 0, notifs: 0, contact: 0, total: 0 });
   const [modalPhotoOuvert, setModalPhotoOuvert] = useState(false);
   const [signalementsNouveaux, setSignalementsNouveaux] = useState(0);
+  const [contactNonLus, setContactNonLus] = useState(0); // messages du formulaire Contact du site multi-vendeur
 
   useEffect(() => {
     const chargerNonLus = async () => {
@@ -716,6 +718,24 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     return () => { clearInterval(interval); window.removeEventListener('signalements-maj', charger); };
   }, [gestionnaire?.id]);
 
+  // Messages non lus du formulaire Contact (pastille rouge du menu MULTI-VENDEUR › Contact)
+  useEffect(() => {
+    if (!gestionnaire?.id) return;
+    const charger = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const r = await fetch(`${API_BASE}/studio-contact/${gestionnaire.id}/count`, {
+          credentials: 'include', headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (r.ok) { const d = await r.json(); setContactNonLus(Number(d.non_lus) || 0); }
+      } catch {}
+    };
+    charger();
+    const interval = setInterval(charger, 30000);
+    window.addEventListener('contact-maj', charger);
+    return () => { clearInterval(interval); window.removeEventListener('contact-maj', charger); };
+  }, [gestionnaire?.id]);
+
   // ── Mes collaborateurs ──────────────────────────────────────────────────
   const menuSousVendeurs: MenuItem = {
     id: 'collaborateurs', label: 'MES COLLABORATEURS', icon: '🏪',
@@ -802,7 +822,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuVosAnnoncesBeaute: MenuItem = { id:'annonces',label:'VOS PRODUITS',icon:'💄',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigBeaute: MenuItem = { id:'config-beaute',label:'CONFIG MES PAGES',icon:'💄',sousMenu:[{ id:'beaute-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'beaute-plan',label:'Mon plan & limites',icon:'📊' },{ id:'beaute-branding',label:'Branding & options',icon:'⚙️' }] };
   const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
-  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-encheres',label:'Enchères',icon:'🔨' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-branding',label:'Branding & options',icon:'⚙️' }] };
+  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-encheres',label:'Enchères',icon:'🔨' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-branding',label:'Branding & options',icon:'⚙️' },{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined }], badge: contactNonLus > 0 ? contactNonLus : undefined };
 
   // ── Construction du menu selon le template ────────────────────────────────
   let menuItems: MenuItem[];
@@ -1558,6 +1578,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mv-premium-config-pages') return <ConfigMultiVendeurPremium  gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-premium-plan')        return <MVPremiumPlan              gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-premium-branding')    return <AddOn />;
+    if (pageActive === 'mv-contact')             return <StudioContactMessages gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'beaute-branding')        return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'annonces-creer')         return <CreerAnnonce onRetour={() => setPageActive('annonces-liste')} gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-apercu') return null;

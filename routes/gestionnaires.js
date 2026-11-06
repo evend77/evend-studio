@@ -780,6 +780,21 @@ function nettoyerExtraMV(extra, gestionnaireId) {
     out.accueil_histoire = { actif: hi.actif === true, sur_titre: txt(hi.sur_titre, 80), titre: txt(hi.titre, 150), texte: texteH, image_gauche: img(hi.image_gauche), image_droite: img(hi.image_droite) };
   }
 
+  // Page Contact : tous les textes sont configurables (texte simple). Un champ vide = la section n'est pas affichée.
+  const ct = extra.contact;
+  if (ct && typeof ct === 'object') {
+    const cour = txt(ct.courriel, 254);
+    out.contact = {
+      actif: ct.actif !== false,
+      titre: txt(ct.titre, 100), sous_titre: txt(ct.sous_titre, 250),
+      formulaire_titre: txt(ct.formulaire_titre, 100), formulaire_sous_titre: txt(ct.formulaire_sous_titre, 250),
+      courriel: /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(cour) ? cour : '',
+      horaires: typeof ct.horaires === 'string' ? ct.horaires.replace(/\r\n/g, '\n').replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, 400) : '',
+      localisation: txt(ct.localisation, 150), delai: txt(ct.delai, 300),
+      message_succes: txt(ct.message_succes, 250),
+    };
+  }
+
   const rs = extra.reseaux_sociaux;
   if (rs && typeof rs === 'object') {
     out.reseaux_sociaux = {};

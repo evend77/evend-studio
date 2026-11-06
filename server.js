@@ -529,6 +529,7 @@ app.use('/api/chat-acheteur-collab/:gestionnaireId', require('./routes/chat_ache
 app.use('/api/collab/:gestionnaireId',               require('./routes/collab_dashboard'));
 app.use('/api/acheteur/:gestionnaireId',             require('./routes/acheteur_dashboard'));
 app.use('/api/studio-categories/:gestionnaireId',     require('./routes/studio_categories')); // gestionnaire : catégories, groupes, taxable
+app.use('/api/mv-contact/:gestionnaireId',        require('./routes/mv_contact_inbox'));   // gestionnaire : messages du formulaire Contact (table messages_contact)
 
 app.use('/api/politiquesPlateforme', require('./routes/politiquesPlateforme'));
 app.use('/api/pagesPlateforme',      require('./routes/pagesPlateforme'));

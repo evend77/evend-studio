@@ -11,6 +11,7 @@ import MVPremiumProduit    from './MVPremiumProduit';
 import MVPremiumEncheres   from './MVPremiumEncheres';
 import MVPremiumDocuments  from './MVPremiumDocuments';
 import MVPremiumPolitique  from './MVPremiumPolitique';
+import MVPremiumContact    from './MVPremiumContact';
 import MarketplaceLogin               from '../shared/MarketplaceLogin';
 import MarketplaceInscriptionAcheteur from '../shared/MarketplaceInscriptionAcheteur';
 import MarketplaceInscriptionCollaborateur  from '../shared/MarketplaceInscriptionCollaborateur';
@@ -28,6 +29,7 @@ export type PageMVPremium =
   | 'encheres'
   | 'documents'
   | 'politique'
+  | 'contact'
   | 'login'
   | 'inscription-acheteur'
   | 'inscription-collaborateur'
@@ -81,7 +83,7 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     if (page === 'produit' && produitId) return { page: 'produit', produitId: Number(produitId) };
     if (page === 'politique') return politiqueSlug ? { page: 'politique', politiqueSlug } : { page: 'politique' };
     if (page === 'documents' && documentSlug) return { page: 'documents', documentSlug };
-    if (page === 'catalogue' || page === 'boutiques' || page === 'encheres' || page === 'documents' || page === 'login' || page === 'inscription-acheteur' || page === 'inscription-collaborateur') return { page };
+    if (page === 'catalogue' || page === 'boutiques' || page === 'encheres' || page === 'documents' || page === 'contact' || page === 'login' || page === 'inscription-acheteur' || page === 'inscription-collaborateur') return { page };
     // Les tableaux de bord ne sont ouverts que si une session existe ; sinon connexion.
     if (page === 'dashboard-acheteur' || page === 'dashboard-collaborateur') {
       const t = lireTypeCompte();
@@ -171,6 +173,8 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
       return <MVPremiumEncheres {...props} />;
     case 'documents':
       return <MVPremiumDocuments {...props} documentSlug={nav.documentSlug} />;
+    case 'contact':
+      return <MVPremiumContact {...props} />;
     case 'politique':
       return <MVPremiumPolitique {...props} politiqueSlug={nav.politiqueSlug} />;
     case 'login':
