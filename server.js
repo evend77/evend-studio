@@ -21,6 +21,7 @@ const studioCookiesSite   = require('./routes/studio_cookies_site');
 const studioPhotosVendeur = require('./routes/studio_photos_gestionnaire');
 const studioMonCompte     = require('./routes/studio_mon_compte');
 const studioCollaborateurs  = require('./routes/studio_collaborateurs');
+const studioCourriels       = require('./routes/studio_courriels');
 const studioBadges        = require('./routes/studio_badges');
 const guidesAddons        = require('./routes/guides_addons');
 const blogsCollaborateur    = require('./routes/blogs_collaborateur');
@@ -496,6 +497,7 @@ app.use('/api/studio/mon-compte/:gestionnaireId', studioMonCompte);
 // 👥 COLLABORATEURS STUDIO (marketplace multivendeur)
 // =====================================================================
 app.use('/api/studio/collaborateurs/:gestionnaireId', studioCollaborateurs);
+app.use('/api/studio/courriels/:gestionnaireId', studioCourriels);
 
 // =====================================================================
 // 🏅 BADGES VENDEUR STUDIO

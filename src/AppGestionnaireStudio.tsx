@@ -38,6 +38,7 @@ import StudioFaqSousVendeur     from './pages/gestionnaire/StudioFaqCollaborateu
 import SurveillanceChats        from './pages/gestionnaire/SurveillanceChats';
 import ChatAvecCollaborateur    from './pages/gestionnaire/ChatAvecCollaborateur';
 import StudioSignalements       from './pages/gestionnaire/StudioSignalements';
+import StudioModelesCourriel   from './pages/gestionnaire/StudioModelesCourriel';
 import StudioSousVendeurs       from './pages/gestionnaire/StudioCollaborateurs';
 import StudioGestionBadges      from './pages/gestionnaire/StudioGestionBadges';
 import StudioBadgesAttribues    from './pages/gestionnaire/StudioBadgesAttribues';
@@ -1155,6 +1156,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-courriels-boutique',label:'Modèles de courriel',icon:'📧' },
         itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
@@ -1452,6 +1454,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'faqs-collaborateurs')       return <StudioFaqSousVendeur  gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-messages')  return <ChatAvecCollaborateur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-signalements') return <StudioSignalements gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-courriels-boutique') return <StudioModelesCourriel gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'chat-acheteur-sv')         return <SurveillanceChats     gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'badges-gestion')      return <StudioGestionBadges   gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'badges-attribues')    return <StudioBadgesAttribues gestionnaireId={gestionnaire.id} />;
