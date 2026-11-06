@@ -22,6 +22,7 @@ const studioPhotosVendeur = require('./routes/studio_photos_gestionnaire');
 const studioMonCompte     = require('./routes/studio_mon_compte');
 const studioCollaborateurs  = require('./routes/studio_collaborateurs');
 const studioCourriels       = require('./routes/studio_courriels');
+const studioEncheres        = require('./routes/studio_encheres');
 const studioBadges        = require('./routes/studio_badges');
 const guidesAddons        = require('./routes/guides_addons');
 const blogsCollaborateur    = require('./routes/blogs_collaborateur');
@@ -498,6 +499,8 @@ app.use('/api/studio/mon-compte/:gestionnaireId', studioMonCompte);
 // =====================================================================
 app.use('/api/studio/collaborateurs/:gestionnaireId', studioCollaborateurs);
 app.use('/api/studio/courriels/:gestionnaireId', studioCourriels);
+app.use('/api/marketplace/:gid/encheres', studioEncheres);
+require('./services/studio_encheres').demarrerEncheres();
 // Paiement des commandes : remet en vente le stock des commandes jamais payées (toutes les 5 min)
 require('./services/studio_paiement').demarrerBalayage();
 

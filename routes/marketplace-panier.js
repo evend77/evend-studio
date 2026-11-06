@@ -174,10 +174,11 @@ router.patch('/:gid/panier/:id', authMV, async (req, res) => {
   if (!Number.isInteger(qte) || qte < 1 || qte > 999) return res.status(400).json({ error: 'Quantite invalide' });
   try {
     const l = await pool.query(
-      `SELECT mp.variante, p.prix, p.prix_promo, p.stock, p.variantes
+      `SELECT mp.variante, mp.enchere_id, p.prix, p.prix_promo, p.stock, p.variantes
          FROM marketplace_panier mp LEFT JOIN produits p ON p.id = NULLIF(regexp_replace(mp.produit_id, '[^0-9].*$', ''), '')::int
         WHERE mp.id=$1 AND mp.acheteur_id=$2 AND mp.gestionnaire_id=$3`, [id, acheteurId, gid]);
     if (!l.rows[0]) return res.status(404).json({ error: 'Article introuvable' });
+    if (l.rows[0].enchere_id) return res.status(409).json({ error: 'Article gagné aux enchères : la quantité ne peut pas être modifiée.' });
     if (l.rows[0].prix !== null) {
       const c = prixEtStock(l.rows[0], l.rows[0].variante || '');
       if (!c.erreur && qte > c.stock) return res.status(409).json({ error: c.stock <= 0 ? 'Cet article est épuisé.' : `Stock insuffisant : il n'en reste que ${c.stock}.` });

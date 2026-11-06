@@ -72,6 +72,20 @@ async function ajusterStock(client, produitId, variante, delta) {
   return true;
 }
 
+
+// Le gagnant peut réessayer de payer tant que son délai n'est pas écoulé : l'article verrouillé revient dans son panier.
+async function remettreEnchereAuPanier(client, cmd, enchereId) {
+  const e = (await client.query(
+    `SELECT * FROM encheres WHERE id = $1 AND statut = 'attente_paiement' AND gagnant_id = $2 AND paiement_expire_le > NOW()`, [enchereId, cmd.acheteur_id])).rows[0];
+  if (!e) return;
+  const deja = await client.query('SELECT 1 FROM marketplace_panier WHERE enchere_id = $1 AND acheteur_id = $2', [enchereId, cmd.acheteur_id]);
+  if (deja.rows.length) return;
+  await client.query(
+    `INSERT INTO marketplace_panier (gestionnaire_id, acheteur_id, collaborateur_id, produit_id, titre, image_url, prix, quantite, enchere_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8)`,
+    [e.gestionnaire_id, e.gagnant_id, e.collaborateur_id, String(e.produit_id), e.titre, e.image_url, e.prix_final, e.id]);
+}
+
 // Remet le stock d'une commande non payée. Idempotent : le drapeau stock_reserve n'est retiré qu'une fois.
 async function libererCommande(commandeId, { raison, annuler = true, par = 'systeme' } = {}) {
   const client = await pool.connect();
@@ -79,11 +93,12 @@ async function libererCommande(commandeId, { raison, annuler = true, par = 'syst
     await client.query('BEGIN');
     const c = await client.query(
       `UPDATE marketplace_commandes SET stock_reserve = false WHERE id = $1 AND stock_reserve = true AND statut_paiement <> 'paye'
-       RETURNING id, articles, stripe_session_id, gestionnaire_id`, [commandeId]);
+       RETURNING id, articles, stripe_session_id, gestionnaire_id, acheteur_id, collaborateur_id`, [commandeId]);
     if (!c.rows[0]) { await client.query('ROLLBACK'); return false; }
     let articles = c.rows[0].articles;
     if (typeof articles === 'string') { try { articles = JSON.parse(articles); } catch (e) { articles = []; } }
     for (const a of Array.isArray(articles) ? articles : []) {
+      if (a.enchere_id) { await remettreEnchereAuPanier(client, c.rows[0], a.enchere_id); continue; }
       const pid = parseInt(a.produit_id, 10);
       const q = parseInt(a.quantite, 10);
       if (pid && q > 0) await ajusterStock(client, pid, a.variante || '', q);
@@ -154,6 +169,16 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
     // 1) Prix et stock relus dans la base — le navigateur n'envoie que l'adresse et le mode d'expédition
     const lignes = [];
     for (const ligne of panier) {
+      // Article gagné aux enchères : prix = mise gagnante, quantité 1, stock déjà retiré à la création de l'enchère
+      if (ligne.enchere_id) {
+        const e = (await client.query(
+          'SELECT * FROM encheres WHERE id = $1 AND gestionnaire_id = $2 AND collaborateur_id = $3 FOR UPDATE', [ligne.enchere_id, gid, collaborateurId])).rows[0];
+        if (!e || e.statut !== 'attente_paiement' || e.gagnant_id !== acheteurId) refus(`L'enchère « ${ligne.titre} » n'est plus disponible pour le paiement.`, 409);
+        if (e.paiement_expire_le && new Date(e.paiement_expire_le) < new Date()) refus(`Le délai de paiement de « ${ligne.titre} » est dépassé.`, 409);
+        lignes.push({ produit_id: e.produit_id, titre: e.titre, variante: '', quantite: 1, prix: Number(e.prix_final), image_url: e.image_url || null,
+                      produit_numerique: false, facturation_taxes: true, enchere_id: e.id });
+        continue;
+      }
       const pid = parseInt(ligne.produit_id, 10);
       const prod = pid ? (await client.query(
         `SELECT id, titre, prix, prix_promo, stock, variantes, statut FROM produits
@@ -288,7 +313,14 @@ async function confirmerPaiement(gid, session) {
         AND ROUND(total * 100) = $5
       RETURNING id, numero_commande`,
     [pi, commandeId, gid, session.id, session.amount_total]);
-  if (r.rows[0]) return { paye: true, commande: r.rows[0] };
+  if (r.rows[0]) {
+    const lignes = (await pool.query('SELECT articles FROM marketplace_commandes WHERE id = $1', [commandeId])).rows[0];
+    let arts = lignes && lignes.articles; if (typeof arts === 'string') { try { arts = JSON.parse(arts); } catch (e) { arts = []; } }
+    for (const a of Array.isArray(arts) ? arts : []) {
+      if (a.enchere_id) await pool.query(`UPDATE encheres SET statut = 'payee', commande_id = $1, updated_at = NOW() WHERE id = $2 AND statut = 'attente_paiement'`, [commandeId, a.enchere_id]);
+    }
+    return { paye: true, commande: r.rows[0] };
+  }
 
   const c = (await pool.query('SELECT statut, statut_paiement, total FROM marketplace_commandes WHERE id = $1 AND gestionnaire_id = $2', [commandeId, gid])).rows[0];
   if (c && c.statut_paiement === 'paye') return { deja: true };
