@@ -3,6 +3,8 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
+import Navbar from './MVPremiumNavbar';
+import { fondDe } from './mvTheme';
 
 const API_BASE = '/api';
 
@@ -110,26 +112,6 @@ function CarteEnchere({ enc, naviguer, couleurAccent }: { enc: Enchere; naviguer
   );
 }
 
-function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Record<string, any> }) {
-  const nom = config?.nom_boutique || 'Ma Marketplace';
-  return (
-    <nav style={s.nav}>
-      <div style={s.navInner}>
-        <div style={s.navLogo} onClick={() => naviguer({ page:'accueil' })}>
-          <div style={s.logoIcon}>{(nom[0] || 'M').toUpperCase()}</div>
-          <span style={s.logoText}>{nom}</span>
-        </div>
-        <div style={s.navLinks}>
-          <span style={s.navLink} onClick={() => naviguer({ page:'accueil' })}>Accueil</span>
-          <span style={s.navLink} onClick={() => naviguer({ page:'catalogue' })}>Catalogue</span>
-          <span style={s.navLink} onClick={() => naviguer({ page:'boutiques' })}>Boutiques</span>
-          <button onClick={() => naviguer({ page:'login' })} style={{ padding: '8px 18px', background: config?.couleur_accent || '#fbbf24', border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
 export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, naviguer }: Props) {
   const gId = vendeurId || config.gestionnaire_id;
   const couleurAccent = config.couleur_accent || '#fbbf24';
@@ -205,26 +187,40 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
   ];
 
   return (
-    <div style={s.wrapper}>
+    <div style={{ ...s.wrapper, background: fondDe(config) }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
+        @media (max-width:768px) {
+          .mve-hero { padding:28px 0 18px !important; }
+          .mve-hero-in { padding:0 16px !important; }
+          .mve-layout { flex-direction:column !important; padding:0 14px 40px !important; gap:12px !important; }
+          .mve-side { width:100% !important; position:static !important; flex-direction:row !important; flex-wrap:wrap !important; align-items:center !important; gap:8px !important; }
+          .mve-side-titre { display:none !important; }
+          .mve-main { width:100% !important; }
+          .mve-grille { grid-template-columns:repeat(2, minmax(0,1fr)) !important; gap:10px !important; }
+          .mve-toolbar { gap:8px !important; }
+          .mve-panneau { right:auto !important; left:0 !important; max-width:calc(100vw - 28px) !important; min-width:200px !important; }
+          .mve-pagination { gap:8px !important; }
+          .mve-pagination button { padding:9px 12px !important; font-size:13px !important; }
+        }
+        @media (max-width:380px) { .mve-grille { grid-template-columns:minmax(0,1fr) !important; } }
       `}</style>
 
       <Navbar naviguer={naviguer} config={config} />
 
-      <div style={s.hero}>
-        <div style={s.heroInner}>
+      <div className="mve-hero" style={s.hero}>
+        <div className="mve-hero-in" style={s.heroInner}>
           <div style={{ ...s.heroBadge, background:`${couleurAccent}20`, color:couleurAccent, border:`1px solid ${couleurAccent}40` }}>🔨 Encheres en direct</div>
           <h1 style={s.heroTitre}>{config.encheres_hero_titre || 'Participez aux encheres'}</h1>
           <p style={s.heroDesc}>{config.encheres_hero_texte || 'Misez sur des produits uniques de nos vendeurs.'} {totalEnCours} enchere{totalEnCours !== 1 ? 's' : ''} en cours.</p>
         </div>
       </div>
 
-      <div style={s.layout}>
+      <div className="mve-layout" style={s.layout}>
         {/* Sidebar */}
-        <aside style={s.sidebar}>
-          <p style={s.sidebarTitre}>Options</p>
+        <aside className="mve-side" style={s.sidebar}>
+          <p className="mve-side-titre" style={s.sidebarTitre}>Options</p>
           <label style={{ ...s.checkLabel, background: filtreReserve ? 'rgba(16,185,129,0.12)' : 'transparent' }}>
             <input type="checkbox" checked={filtreReserve} onChange={e => setFiltreReserve(e.target.checked)} style={{ accentColor:'#10b981' }} />
             <span style={{ color: filtreReserve ? '#6ee7b7' : 'rgba(255,255,255,0.75)', fontSize:13 }}>✅ Reserve atteinte</span>
@@ -232,15 +228,15 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
         </aside>
 
         {/* Contenu */}
-        <main style={s.main}>
-          <div style={s.toolbar}>
+        <main className="mve-main" style={s.main}>
+          <div className="mve-toolbar" style={s.toolbar}>
             <span style={{ fontSize:13, color:'rgba(255,255,255,0.5)' }}>{totalEnCours} resultat{totalEnCours !== 1 ? 's' : ''}</span>
             <div style={{ position:'relative' }}>
               <button onClick={() => setPanneauOuvert(v => !v)} style={s.btnTri}>
                 Trier : {TRI_OPTIONS.find(t => t.value === tri)?.label} ▾
               </button>
               {panneauOuvert && (
-                <div style={s.panneau}>
+                <div className="mve-panneau" style={s.panneau}>
                   {TRI_OPTIONS.map(t => (
                     <div key={t.value} onClick={() => { setTri(t.value); setPanneauOuvert(false); }}
                       style={{ ...s.panneauItem, color: tri === t.value ? couleurAccent : 'rgba(255,255,255,0.8)', background: tri === t.value ? `${couleurAccent}15` : 'transparent' }}>
@@ -253,19 +249,19 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
           </div>
 
           {loading ? (
-            <div style={s.grille}>{[...Array(6)].map((_, i) => <div key={i} style={s.skeleton} />)}</div>
+            <div className="mve-grille" style={s.grille}>{[...Array(6)].map((_, i) => <div key={i} style={s.skeleton} />)}</div>
           ) : filtrees.length === 0 ? (
             <div style={s.vide}>
               <div style={{ fontSize:48, marginBottom:12 }}>🔨</div>
               <p style={{ color:'rgba(255,255,255,0.5)' }}>Aucune enchere ne correspond a vos filtres</p>
             </div>
           ) : (
-            <div style={s.grille}>
+            <div className="mve-grille" style={s.grille}>
               {filtrees.map(e => <CarteEnchere key={e.id} enc={e} naviguer={naviguer} couleurAccent={couleurAccent} />)}
             </div>
           )}
           {totalPages > 1 && (
-            <div style={s.pagination}>
+            <div className="mve-pagination" style={s.pagination}>
               <button disabled={page <= 1} onClick={() => setPage(p => Math.max(1, p - 1))} style={{ ...s.pageBtn, opacity: page <= 1 ? 0.4 : 1 }}>← Précédent</button>
               <span style={s.pageInfo}>Page {page} / {totalPages}</span>
               <button disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages, p + 1))} style={{ ...s.pageBtn, opacity: page >= totalPages ? 0.4 : 1 }}>Suivant →</button>
@@ -278,7 +274,7 @@ export default function MVPremiumEncheres({ vendeurId, isDemo, config = {}, navi
 }
 
 const s: Record<string, React.CSSProperties> = {
-  wrapper:  { minHeight:'100vh', background:'#0a0a0a', color:'#fff', fontFamily:"'DM Sans',sans-serif" },
+  wrapper:  { minHeight:'100vh', overflowX:'clip', background:'#0a0a0a', color:'#fff', fontFamily:"'DM Sans',sans-serif" },
   nav:      { position:'sticky', top:0, zIndex:100, background:'rgba(10,10,10,0.95)', backdropFilter:'blur(12px)', borderBottom:'1px solid rgba(255,255,255,0.06)' },
   navInner: { maxWidth:1280, margin:'0 auto', padding:'0 24px', height:64, display:'flex', alignItems:'center', gap:32 },
   navLogo:  { display:'flex', alignItems:'center', gap:10, cursor:'pointer' },
@@ -305,7 +301,7 @@ const s: Record<string, React.CSSProperties> = {
   btnTri:   { padding:'8px 14px', background:'rgba(255,255,255,0.06)', border:'1px solid rgba(255,255,255,0.1)', borderRadius:8, color:'#fff', fontSize:13, cursor:'pointer', fontFamily:'inherit' },
   panneau:  { position:'absolute', top:'100%', right:0, marginTop:8, background:'#1a1a2e', border:'1px solid rgba(255,255,255,0.1)', borderRadius:12, overflow:'hidden', zIndex:200, minWidth:220, boxShadow:'0 16px 48px rgba(0,0,0,0.5)' },
   panneauItem: { padding:'10px 14px', cursor:'pointer', fontSize:13, fontWeight:500 },
-  grille:   { display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(240px, 1fr))', gap:16 },
+  grille:   { display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(min(240px,100%), 1fr))', gap:16 },
   skeleton: { height:280, background:'rgba(255,255,255,0.04)', borderRadius:14 },
   vide:     { textAlign:'center', padding:'60px 20px' },
   carte:    { background:'rgba(255,255,255,0.03)', border:'1px solid rgba(255,255,255,0.07)', borderRadius:16, overflow:'hidden', cursor:'pointer', display:'flex', flexDirection:'column', transition:'transform 0.2s' },

@@ -112,7 +112,8 @@ export default function BlocEnchere({ gId, produitId, couleurAccent, naviguer, o
   const prochaine = e.prochaine_mise != null ? Number(e.prochaine_mise) : null;
 
   return (
-    <div style={{ border: `1px solid ${couleurAccent}55`, background: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: 18, marginBottom: 18 }}>
+    <div className="mvb-box" style={{ border: `1px solid ${couleurAccent}55`, background: 'rgba(255,255,255,0.03)', borderRadius: 16, padding: 18, marginBottom: 18, minWidth: 0, maxWidth: '100%' }}>
+      <style>{`@media (max-width:768px){ .mvb-box{ padding:14px !important; } .mvb-box button{ flex-shrink:0; } }`}</style>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', color: couleurAccent, textTransform: 'uppercase' }}>🔨 Vente aux enchères</span>
         <span style={{ fontSize: 13, fontWeight: 700, color: dernieresMinutes ? '#f87171' : 'rgba(255,255,255,0.75)' }}>

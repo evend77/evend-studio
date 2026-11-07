@@ -4,6 +4,8 @@
 import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import BlocEnchere from './BlocEnchere';
+import Navbar from './MVPremiumNavbar';
+import { fondDe } from './mvTheme';
 
 const API_BASE = '/api';
 
@@ -99,25 +101,6 @@ function getImages(p: Produit): string[] {
 }
 
 // ─── NAVBAR ──────────────────────────────────────────────────────────────────
-function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Record<string, any> }) {
-  const nom = config?.nom_boutique || 'Ma Marketplace';
-  return (
-    <nav style={s.nav}>
-      <div style={s.navInner}>
-        <div style={s.navLogo} onClick={() => naviguer({ page: 'accueil' })}>
-          <div style={s.logoIcon}>{(nom[0] || 'M').toUpperCase()}</div>
-          <span style={s.logoText}>{nom}</span>
-        </div>
-        <div style={s.navLinks}>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'catalogue' })}>← Retour au catalogue</span>
-          <span style={s.navLink} onClick={() => naviguer({ page: 'boutiques' })}>Boutiques</span>
-          <button onClick={() => naviguer({ page: 'login' })} style={{ padding: '8px 18px', background: config?.couleur_accent || '#fbbf24', border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
-        </div>
-      </div>
-    </nav>
-  );
-}
-
 export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, naviguer, produitId }: Props) {
   const couleurAccent = config.couleur_accent || '#fbbf24';
   const gId = vendeurId || config.gestionnaire_id;
@@ -207,17 +190,38 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
     : null;
 
   return (
-    <div style={s.wrapper}>
+    <div style={{ ...s.wrapper, background: fondDe(config) }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600&display=swap');
         * { box-sizing: border-box; }
+        img { max-width:100%; }
+        @media (max-width:768px) {
+          .mvp-container { padding:16px 14px 40px !important; }
+          .mvp-layout { grid-template-columns:minmax(0,1fr) !important; gap:24px !important; }
+          .mvp-layout > * { min-width:0; }
+          .mvp-onglets-btns { overflow-x:auto !important; -webkit-overflow-scrolling:touch; }
+          .mvp-onglets-btns button { padding:10px 14px !important; font-size:14px !important; white-space:nowrap; }
+          .mvp-grille-sim { grid-template-columns:repeat(2, minmax(0,1fr)) !important; gap:10px !important; }
+          .mvp-info-grid { grid-template-columns:minmax(0,1fr) !important; }
+          .mvp-crumb { margin-bottom:14px !important; gap:5px !important; }
+          .mvp-img { border-radius:12px !important; }
+          .mvp-thumbs { flex-wrap:nowrap !important; overflow-x:auto !important; -webkit-overflow-scrolling:touch; scroll-snap-type:x proximity; padding:4px 0 8px; }
+          .mvp-thumbs button { flex-shrink:0 !important; scroll-snap-align:start; }
+          .mvp-titre { font-size:20px !important; margin-bottom:12px !important; word-break:break-word; }
+          .mvp-prix-actuel { font-size:24px !important; }
+          .mvp-action { display:flex !important; flex-direction:row !important; gap:10px !important; align-items:center !important; margin-bottom:14px !important; }
+          .mvp-qty { margin:0 !important; flex:0 0 auto !important; }
+          .mvp-qty label { display:none !important; }
+          .mvp-action .mvp-btn-panier { flex:1 !important; width:auto !important; margin:0 !important; padding:14px 10px !important; }
+          .mvp-boutique { margin-bottom:6px !important; }
+        }
       `}</style>
 
       <Navbar naviguer={naviguer} config={config} />
 
-      <div style={s.container}>
+      <div className="mvp-container" style={s.container}>
         {/* Fil d'ariane */}
-        <div style={s.breadcrumb}>
+        <div className="mvp-crumb" style={s.breadcrumb}>
           <span style={s.breadLink} onClick={() => naviguer({ page: 'accueil' })}>Accueil</span>
           <span style={s.breadSep}>›</span>
           <span style={s.breadLink} onClick={() => naviguer({ page: 'catalogue' })}>Catalogue</span>
@@ -230,11 +234,11 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
         </div>
 
         {/* Layout principal */}
-        <div style={s.layout}>
+        <div className="mvp-layout" style={s.layout}>
           {/* ── Galerie ── */}
           <div style={s.galerie}>
             {/* Image principale */}
-            <div style={s.imageMain} onClick={() => imageActive && setZoomOuvert(true)}>
+            <div className="mvp-img" style={s.imageMain} onClick={() => imageActive && setZoomOuvert(true)}>
               {imageActive
                 ? <img src={imageActive} alt={produit.nom} style={s.imgMain} />
                 : <div style={s.imgPlaceholder}>📦</div>}
@@ -247,7 +251,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
             {/* Thumbnails */}
             {images.length > 1 && (
-              <div style={s.thumbnails}>
+              <div className="mvp-thumbs" style={s.thumbnails}>
                 {images.map((img, i) => (
                   <button key={i} onClick={() => setImageActive(img)}
                     style={{ ...s.thumb, borderColor: imageActive === img ? couleurAccent : 'rgba(255,255,255,0.1)', boxShadow: imageActive === img ? `0 0 0 2px ${couleurAccent}` : 'none' }}>
@@ -263,25 +267,27 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             {/* Boutique */}
             {(produit.nom_boutique || produit.vendeur_nom) && (
               <div onClick={() => ouvrirBoutique(produit.vendeur_id!)}
-                style={{ ...s.boutiqueNom, color: couleurAccent }}>
+                className="mvp-boutique" style={{ ...s.boutiqueNom, color: couleurAccent }}>
                 🏪 {produit.nom_boutique || produit.vendeur_nom}
               </div>
             )}
 
-            <h1 style={s.titre}>{produit.nom}</h1>
+            <h1 className="mvp-titre" style={s.titre}>{produit.nom}</h1>
 
-            {/* Prix */}
+            {/* Prix (avec enchère : affiché sous « Vente directe ») */}
+            {!enchereActive && (
             <div style={s.prixBloc}>
-              <span style={{ ...s.prixActuel, color: couleurAccent }}>
-                {prixAffiche.toFixed(2)} $ CAD
-              </span>
-              {produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche && (
-                <span style={s.prixOriginal}>{parseFloat(String(produit.prix_original)).toFixed(2)} $</span>
-              )}
-              <span style={{ fontSize: 13, fontWeight: 700, color: produit.facturation_taxes ? '#ef4444' : '#10b981' }}>
-                {produit.facturation_taxes ? '+ taxe' : 'sans taxe'}
-              </span>
-            </div>
+                <span className="mvp-prix-actuel" style={{ ...s.prixActuel, color: couleurAccent }}>
+                  {prixAffiche.toFixed(2)} $ CAD
+                </span>
+                {produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche && (
+                  <span style={s.prixOriginal}>{parseFloat(String(produit.prix_original)).toFixed(2)} $</span>
+                )}
+                <span style={{ fontSize: 13, fontWeight: 700, color: produit.facturation_taxes ? '#ef4444' : '#10b981' }}>
+                  {produit.facturation_taxes ? '+ taxe' : 'sans taxe'}
+                </span>
+              </div>
+            )}
 
             {/* Enchère en cours : 1 unité est réservée à l'enchère ; les unités restantes restent en vente directe */}
             {!isDemo && gId && (
@@ -293,13 +299,20 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             {enchereActive && (
               <p style={{ fontSize: 12, fontWeight: 800, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '20px 0 8px' }}>🛒 Vente directe</p>
             )}
+            {enchereActive && produit.stock > 0 && (
+              <div style={{ ...s.prixBloc, marginBottom: 8 }}>
+                <span className="mvp-prix-actuel" style={{ ...s.prixActuel, color: couleurAccent }}>{prixAffiche.toFixed(2)} $ CAD</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: produit.facturation_taxes ? '#ef4444' : '#10b981' }}>{produit.facturation_taxes ? '+ taxe' : 'sans taxe'}</span>
+              </div>
+            )}
             <p style={{ fontSize: 14, fontWeight: 600, color: produit.stock > 0 ? '#10b981' : enchereActive ? 'rgba(255,255,255,0.5)' : '#ef4444', margin: '0 0 20px' }}>
               {produit.stock > 0 ? `✓ En stock (${produit.stock} disponible${produit.stock > 1 ? 's' : ''})` : enchereActive ? 'Aucune unité disponible en vente directe : seule l\'enchère est ouverte.' : '✗ Épuisé'}
             </p>
 
+            <div className="mvp-action">
             {/* Quantité */}
             {produit.stock > 0 && (
-              <div style={{ marginBottom: 20 }}>
+              <div className="mvp-qty" style={{ marginBottom: 20 }}>
                 <label style={s.label}>Quantité</label>
                 <div style={s.qtyRow}>
                   <button onClick={() => setQuantite(q => Math.max(1, q - 1))} style={s.qtyBtn}>−</button>
@@ -311,6 +324,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
             {/* Bouton panier */}
             {!(enchereActive && produit.stock === 0) && <button
+              className="mvp-btn-panier"
               onClick={ajouterPanier}
               disabled={ajoutEnCours || produit.stock === 0}
               style={{
@@ -322,6 +336,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               }}>
               {ajoutEnCours ? '⏳ Ajout...' : produit.stock === 0 ? 'Épuisé' : '🛒 Ajouter au panier'}
             </button>}
+            </div>
 
             {msgAjout && (
               <div style={{ padding: '10px 14px', borderRadius: 10, background: msgAjout.succes ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)', color: msgAjout.succes ? '#6ee7b7' : '#fca5a5', fontSize: 14, fontWeight: 600, marginBottom: 12, textAlign: 'center' }}>
@@ -330,7 +345,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             )}
 
             {/* Infos rapides */}
-            <div style={s.infoGrid}>
+            <div className="mvp-info-grid" style={s.infoGrid}>
               {produit.etat && <div style={s.infoItem}><span style={s.infoLabel}>État</span><span style={s.infoVal}>{produit.etat}</span></div>}
               {produit.marque && <div style={s.infoItem}><span style={s.infoLabel}>Marque</span><span style={s.infoVal}>{produit.marque}</span></div>}
               {produit.modele && <div style={s.infoItem}><span style={s.infoLabel}>Modèle</span><span style={s.infoVal}>{produit.modele}</span></div>}
@@ -342,7 +357,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
         {/* ── Onglets description / détails / livraison ── */}
         <div style={s.onglets}>
-          <div style={s.ongletsBtns}>
+          <div className="mvp-onglets-btns" style={s.ongletsBtns}>
             {(['description', 'details', 'livraison'] as const)
               .filter(o => (o === 'description' ? config.produit_onglet_description_actif !== false : o === 'details' ? config.produit_onglet_details_actif !== false : config.produit_onglet_livraison_actif !== false))
               .map(o => (
@@ -359,7 +374,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                 : <p style={{ color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>Aucune description disponible.</p>
             )}
             {onglet === 'details' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div className="mvp-info-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 {[
                   ['Marque', produit.marque], ['Modèle', produit.modele],
                   ['État', produit.etat], ['Poids', produit.poids ? `${produit.poids} kg` : null],
@@ -401,7 +416,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
         {config.produit_similaires_actif !== false && similaires.length > 0 && (
           <div style={{ margin: '40px 0' }}>
             <h3 style={s.sectionTitre}>Produits similaires</h3>
-            <div style={s.grilleSimilaires}>
+            <div className="mvp-grille-sim" style={s.grilleSimilaires}>
               {similaires.slice(0, 4).map(p => (
                 <div key={p.id} onClick={() => naviguer({ page: 'produit', produitId: p.id })} style={s.carteSim}>
                   <div style={s.carteSimImg}>
@@ -452,7 +467,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
 // ─── STYLES ──────────────────────────────────────────────────────────────────
 const s: Record<string, React.CSSProperties> = {
-  wrapper:    { minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
+  wrapper:    { minHeight: '100vh', overflowX: 'clip', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans', sans-serif" },
   nav:        { position: 'sticky', top: 0, zIndex: 100, background: 'rgba(10,10,10,0.95)', backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)' },
   navInner:   { maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 64, display: 'flex', alignItems: 'center', gap: 32 },
   navLogo:    { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', flexShrink: 0 },
