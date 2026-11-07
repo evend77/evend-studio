@@ -160,6 +160,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
     window.open(`/site-preview?vendeurId=${gId}&page=boutique-page&boutiqueId=${boutiqueId}`, '_blank', 'noopener,noreferrer');
   };
   const couleurAccent = config.couleur_accent || '#fbbf24';
+  const avecCategories = config?.multivendeur?.permettre_categories !== false;   // Config vendeur → Permettre les catégories
 
   const [produits,       setProduits]       = useState<Produit[]>([]);
   const [categories,     setCategories]     = useState<Categorie[]>([]);
@@ -346,18 +347,18 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
 
       <div className="mvc-layout" style={s.layout}>
         {/* Sidebar desktop */}
-        <aside className="mvc-aside" style={s.asideDesktop}>
+        {avecCategories && <aside className="mvc-aside" style={s.asideDesktop}>
           <Sidebar />
-        </aside>
+        </aside>}
 
         {/* Contenu principal */}
         <main className="mvc-main" style={s.main}>
           {/* Barre outils */}
           <div style={s.toolBar}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button className="mvc-btn-cat" onClick={() => setDrawerOuvert(true)} style={s.btnMobileFilter}>
+              {avecCategories && <button className="mvc-btn-cat" onClick={() => setDrawerOuvert(true)} style={s.btnMobileFilter}>
                 ☰ Catégories
-              </button>
+              </button>}
               <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
                 {loading ? '...' : `${totalProduits} produit${totalProduits > 1 ? 's' : ''}`}
               </span>
@@ -480,7 +481,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
                           <span style={s.prixOriginal}>{formaterPrix(parseFloat(String(p.prix_original)))}</span>
                         )}
                       </div>
-                      {p.categorie_nom && <div style={s.badgeCat}>{p.categorie_nom || p.categorie}</div>}
+                      {avecCategories && p.categorie_nom && <div style={s.badgeCat}>{p.categorie_nom || p.categorie}</div>}
                     </div>
                   </div>
                 );

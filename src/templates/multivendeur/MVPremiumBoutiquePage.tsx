@@ -27,7 +27,7 @@ interface Boutique {
   telephone?: string;
   details?: {
     adresse?: string; ville?: string; province?: string; code_postal?: string; site_web?: string;
-    reseaux?: Record<string, string>;
+    reseaux?: Record<string, string>; email?: string; telephone?: string;
   } | null;
 }
 
@@ -526,6 +526,16 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
               <h2 style={s.sectionTitre}>+ de détails sur {boutique.nom_boutique}</h2>
               <div style={s.infosGrid}>
                 {adresseComplete && <div style={s.infoCard}><span style={s.infoLabel}>📍 Adresse</span><span style={{ ...s.infoVal, overflowWrap: 'anywhere' }}>{adresseComplete}</span></div>}
+                {d.email && /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']+$/.test(d.email) && (
+                  <div style={s.infoCard}><span style={s.infoLabel}>✉️ Courriel</span>
+                    <a href={`mailto:${d.email}`} style={{ ...s.infoVal, color: couleurAccent, textDecoration: 'none', overflowWrap: 'anywhere' }}>{d.email}</a>
+                  </div>
+                )}
+                {d.telephone && (
+                  <div style={s.infoCard}><span style={s.infoLabel}>📞 Téléphone</span>
+                    <a href={`tel:${d.telephone.replace(/[^0-9+]/g, '')}`} style={{ ...s.infoVal, color: couleurAccent, textDecoration: 'none' }}>{d.telephone}</a>
+                  </div>
+                )}
                 {d.site_web && lien(d.site_web) && (
                   <div style={s.infoCard}><span style={s.infoLabel}>🌐 Site web</span>
                     <a href={lien(d.site_web)} target="_blank" rel="noopener noreferrer" style={{ ...s.infoVal, color: couleurAccent, textDecoration: 'none', overflowWrap: 'anywhere' }}>{d.site_web.replace(/^https?:\/\//i, '')} ↗</a>

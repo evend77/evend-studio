@@ -192,6 +192,8 @@ function urlImage(req, v, nom) {
 const STATUTS_PRODUIT = ['actif', 'brouillon'];
 
 router.get('/categories', h(async (req, res) => {
+  // Catégories désactivées par le gestionnaire (Config vendeur → Permettre les catégories) : liste vide = le champ disparaît du formulaire.
+  if (!cfgMV.actif(await cfgMV.lire(req.gid, pool), 'permettre_categories', true)) return res.json([]);
   // Catégories créées par le gestionnaire de cette boutique (actives seulement).
   const r = await pool.query(
     `SELECT c.id, c.nom, g.nom AS groupe_nom
@@ -799,7 +801,8 @@ router.get('/profil', h(async (req, res) => {
     `SELECT id, nom_responsable, email, telephone, type_entreprise, nom_boutique, created_at,
             inscrit_taxes, numero_tps, numero_tvq
        FROM marketplace_collaborateurs WHERE id=$1 AND gestionnaire_id=$2`, [req.cid, req.gid]);
-  res.json(r.rows[0]);
+  const compte = await pool.query('SELECT email, telephone FROM marketplace_collaborateurs WHERE id=$1 AND gestionnaire_id=$2', [req.cid, req.gid]);
+  res.json({ ...r.rows[0], acces, email_compte: compte.rows[0]?.email || '', telephone_compte: compte.rows[0]?.telephone || '' });
 }));
 
 router.put('/profil', h(async (req, res) => {
@@ -879,11 +882,18 @@ function lireReseaux(brut) {
   return sortie;
 }
 
+// Ce que le gestionnaire autorise dans « + de détails » (Config vendeur → Visibilité des données clients)
+function accesDetails(mv) {
+  return { details: cfgMV.actif(mv, 'voir_details_client', true), email: cfgMV.actif(mv, 'voir_email_client', false), telephone: cfgMV.actif(mv, 'voir_telephone_client', false) };
+}
+
 router.get('/boutique', h(async (req, res) => {
+  const acces = accesDetails(await cfgMV.lire(req.gid, pool));
   const r = await pool.query(
     `SELECT nom_boutique, description_boutique, logo_url, banniere_url, adresse, ville, province, code_postal, site_web, politique_retour, politique_livraison, details_publics, reseaux_sociaux
        FROM marketplace_collaborateurs WHERE id=$1 AND gestionnaire_id=$2`, [req.cid, req.gid]);
-  res.json(r.rows[0]);
+  const compte = await pool.query('SELECT email, telephone FROM marketplace_collaborateurs WHERE id=$1 AND gestionnaire_id=$2', [req.cid, req.gid]);
+  res.json({ ...r.rows[0], acces, email_compte: compte.rows[0]?.email || '', telephone_compte: compte.rows[0]?.telephone || '' });
 }));
 
 router.put('/boutique', h(async (req, res) => {
@@ -900,7 +910,9 @@ router.put('/boutique', h(async (req, res) => {
   if (site && !/^https?:\/\/[^\s<>"']+$/i.test(site)) bad('Site web invalide (doit commencer par http:// ou https://)');
   const politique = texte(b.politique_retour, 'Politique de retour', 2000);
   const livraison = texte(b.politique_livraison, 'Informations de livraison', 2000);
-  const detailsPublics = b.details_publics === true;
+  const acces = accesDetails(await cfgMV.lire(req.gid, pool));
+  // Rien d'autorisé par le gestionnaire → l'interrupteur reste désactivé
+  const detailsPublics = b.details_publics === true && (acces.details || acces.email || acces.telephone);
   const reseaux = lireReseaux(b.reseaux_sociaux);
   await pool.query(
     `UPDATE marketplace_collaborateurs SET nom_boutique=$1, description_boutique=NULLIF($2,''), logo_url=$3, banniere_url=$4,

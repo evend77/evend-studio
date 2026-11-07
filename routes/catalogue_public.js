@@ -189,7 +189,7 @@ boutiques.get('/:gestionnaireId/boutiques', async (req, res) => {
 async function boutiqueActive(gid, cid) {
   const r = await pool.query(
     `SELECT mc.id, COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.description_boutique,
-            mc.ville, mc.province, mc.logo_url, mc.banniere_url, mc.site_web, mc.adresse, mc.code_postal, mc.details_publics, mc.reseaux_sociaux, mc.created_at,
+            mc.ville, mc.province, mc.logo_url, mc.banniere_url, mc.site_web, mc.adresse, mc.code_postal, mc.details_publics, mc.reseaux_sociaux, mc.email AS email_compte, mc.telephone AS telephone_compte, mc.created_at,
             (SELECT COUNT(*) FROM produits p WHERE p.collaborateur_id = mc.id AND p.statut = 'actif')::int AS nb_produits,
             (SELECT COALESCE(SUM(CASE WHEN (e->>'quantite') ~ '^[0-9]{1,6}$' THEN (e->>'quantite')::int ELSE 1 END), 0)::int
                FROM marketplace_commandes c, jsonb_array_elements(CASE WHEN jsonb_typeof(c.articles) = 'array' THEN c.articles ELSE '[]'::jsonb END) e
@@ -207,15 +207,23 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId', async (req, res) =>
     if (!b) return res.status(404).json({ error: 'Boutique introuvable' });
     const desc = b.description_boutique || '';
     // « + de détails » : adresse, site web et réseaux sociaux ne sortent QUE si le collaborateur a activé l'interrupteur.
+    // Le gestionnaire décide ce qui peut sortir (Config vendeur → Visibilité des données clients) ; le courriel et le téléphone
+    // du compte ne sortent que s'ils sont autorisés ET que le collaborateur a activé l'interrupteur.
     let details = null;
     if (b.details_publics) {
-      const rs = b.reseaux_sociaux && typeof b.reseaux_sociaux === 'object' ? b.reseaux_sociaux : {};
-      const reseaux = {};
-      for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'linkedin', 'pinterest']) {
-        if (typeof rs[k] === 'string' && /^https:\/\/[^\s<>"']+$/.test(rs[k])) reseaux[k] = rs[k];
+      const mv = await cfgMV.lire(gid, pool);
+      const d = {};
+      if (cfgMV.actif(mv, 'voir_details_client', true)) {
+        const rs = b.reseaux_sociaux && typeof b.reseaux_sociaux === 'object' ? b.reseaux_sociaux : {};
+        const reseaux = {};
+        for (const k of ['facebook', 'instagram', 'tiktok', 'youtube', 'x', 'linkedin', 'pinterest']) {
+          if (typeof rs[k] === 'string' && /^https:\/\/[^\s<>"']+$/.test(rs[k])) reseaux[k] = rs[k];
+        }
+        Object.assign(d, { adresse: b.adresse || '', ville: b.ville || '', province: b.province || '', code_postal: b.code_postal || '', site_web: /^https?:\/\/[^\s<>"']+$/i.test(b.site_web || '') ? b.site_web : '', reseaux });
       }
-      const d = { adresse: b.adresse || '', ville: b.ville || '', province: b.province || '', code_postal: b.code_postal || '', site_web: /^https?:\/\/[^\s<>"']+$/i.test(b.site_web || '') ? b.site_web : '', reseaux };
-      if (d.adresse || d.ville || d.code_postal || d.site_web || Object.keys(reseaux).length) details = d;
+      if (cfgMV.actif(mv, 'voir_email_client', false) && b.email_compte) d.email = b.email_compte;
+      if (cfgMV.actif(mv, 'voir_telephone_client', false) && b.telephone_compte) d.telephone = b.telephone_compte;
+      if (d.adresse || d.ville || d.code_postal || d.site_web || (d.reseaux && Object.keys(d.reseaux).length) || d.email || d.telephone) details = d;
     }
     res.json({
       id: b.id, nom_boutique: b.nom_boutique,
@@ -369,6 +377,7 @@ boutiques.get('/:gestionnaireId/categories', async (req, res) => {
   try {
     const gid = entier(req.params.gestionnaireId);
     if (!gid) return res.json({ categories: [] });
+    if (!cfgMV.actif(await cfgMV.lire(gid, pool), 'permettre_categories', true)) return res.json({ categories: [] });   // Config vendeur → Permettre les catégories
     const r = await pool.query(
       `SELECT c.id, c.nom, c.image, g.nom AS groupe_nom,
               (SELECT COUNT(*) FROM produits p
@@ -389,6 +398,7 @@ boutiques.get('/:gestionnaireId/categories-groupes', async (req, res) => {
   try {
     const gid = entier(req.params.gestionnaireId);
     if (!gid) return res.json({ groupes: [] });
+    if (!cfgMV.actif(await cfgMV.lire(gid, pool), 'permettre_categories', true)) return res.json({ groupes: [] });
     const r = await pool.query(
       `SELECT g.id, g.nom, g.image,
               (SELECT COUNT(*) FROM studio_categories c WHERE c.groupe_id = g.id AND c.active = true)::int AS nb_categories

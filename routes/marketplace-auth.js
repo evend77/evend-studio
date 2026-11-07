@@ -92,10 +92,12 @@ router.post('/:gestionnaireId/collaborateurs/inscription', async (req, res) => {
     }
 
     const hash = await bcrypt.hash(mot_de_passe, 10);
+    // Approbation automatique (Config marketplace → Config vendeur) : compte actif tout de suite, sinon « pending » (le gestionnaire approuve).
+    const statutInitial = cfgMV.actif(mvIns, 'approuver_auto_collaborateur', false) ? 'actif' : 'pending';
     const result = await pool.query(
       `INSERT INTO marketplace_collaborateurs (gestionnaire_id, nom_responsable, nom_boutique, email, mot_de_passe, telephone, type_entreprise, statut)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,'pending') RETURNING id, nom_boutique, email, statut`,
-      [gestionnaireId, nom_responsable, nom_boutique, email, hash, telephone || null, type_entreprise]
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, nom_boutique, email, statut`,
+      [gestionnaireId, nom_responsable, nom_boutique, email, hash, telephone || null, type_entreprise, statutInitial]
     );
 
     res.status(201).json({ collaborateur: result.rows[0] });

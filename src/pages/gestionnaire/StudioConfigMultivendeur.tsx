@@ -131,19 +131,17 @@ interface ConfigMV {
   social_linkedin: string; social_youtube: string; social_tiktok: string;
   social_pinterest: string;
   // Config vendeur
-  permettre_expedition: boolean; approuver_auto_vendeur: boolean;
+  approuver_auto_collaborateur: boolean;
   voir_details_client: boolean; voir_email_client: boolean; voir_telephone_client: boolean;
-  permettre_tags: boolean; restreindre_tags_inscription: boolean;
-  permettre_categories: boolean; restreindre_categories_inscription: boolean;
-  permettre_devise_propre: boolean; methode_conversion: string;
+  permettre_tags: boolean;
+  permettre_categories: boolean;
   permettre_changement_unite_poids: boolean;
   restreindre_desactivation_avis: boolean; approuver_auto_avis: boolean;
   permettre_gestion_auto_approbation_avis: boolean; avis_avance: boolean;
-  sso_actif: boolean; voir_total_du: boolean;
   notification_stock_faible: boolean; seuil_stock_faible: string;
-  vacances_vendeur: boolean; vendeur_sur_boutique: boolean;
-  verification_email: boolean; permettre_nom_boutique_inscription: boolean;
-  option_inscription: string; shop_faq: boolean; c2c_marketplace: boolean;
+  vacances_vendeur: boolean;
+  verification_email: boolean;
+  shop_faq: boolean; c2c_marketplace: boolean;
   login_as_seller: boolean; check_customer_login: boolean;
   check_customer_purchase: boolean; minimum_purchase_amount: boolean;
   // Config produits
@@ -214,18 +212,17 @@ const DEFAUTS: ConfigMV = {
   banniere_acheteur_hauteur: '36', banniere_acheteur_police: '13',
   social_facebook: '', social_instagram: '', social_x: '',
   social_linkedin: '', social_youtube: '', social_tiktok: '', social_pinterest: '',
-  permettre_expedition: true, approuver_auto_vendeur: true,
+  approuver_auto_collaborateur: false,
   voir_details_client: true, voir_email_client: false, voir_telephone_client: false,
-  permettre_tags: true, restreindre_tags_inscription: false,
-  permettre_categories: true, restreindre_categories_inscription: false,
-  permettre_devise_propre: false, methode_conversion: 'automatique',
+  permettre_tags: true,
+  permettre_categories: true,
   permettre_changement_unite_poids: false, restreindre_desactivation_avis: false,
   approuver_auto_avis: true, permettre_gestion_auto_approbation_avis: false,
-  avis_avance: false, sso_actif: false, voir_total_du: true,
+  avis_avance: false,
   notification_stock_faible: false, seuil_stock_faible: '5',
-  vacances_vendeur: false, vendeur_sur_boutique: false,
-  verification_email: true, permettre_nom_boutique_inscription: true,
-  option_inscription: 'ouvert', shop_faq: false, c2c_marketplace: false,
+  vacances_vendeur: false,
+  verification_email: true,
+  shop_faq: false, c2c_marketplace: false,
   login_as_seller: false, check_customer_login: false,
   check_customer_purchase: false, minimum_purchase_amount: false,
   approuver_auto_produit: true, gerer_inventaire_par_defaut: true,
@@ -308,6 +305,8 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
       for (const k of Object.keys(mv)) {
         if (k.startsWith('banniere_vendeur_')) { const n = k.replace('banniere_vendeur_', 'banniere_collab_'); if (mv[n] === undefined) mv[n] = mv[k]; delete mv[k]; }
       }
+      delete mv.approuver_auto_vendeur;   // ancien réglage inactif (valeur par défaut « true » jamais appliquée) : on ne la reprend pas
+      for (const k of ['permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif']) delete mv[k];   // réglages supprimés de Config vendeur
       if (mv.bloquer_inscription_vendeur !== undefined) { if (mv.bloquer_inscription_collaborateur === undefined) mv.bloquer_inscription_collaborateur = mv.bloquer_inscription_vendeur; delete mv.bloquer_inscription_vendeur; }
       // Nom de la marketplace et courriel de contact : une seule source, partagée avec « Configurer mes pages »
       try {
@@ -641,124 +640,85 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'start' }}>
           <div>
             <Section titre="Inscription et gestion" icon="👤">
-              <ParamLigne label="Option d'inscription des vendeurs">
-                <select style={{ ...selectStyle, width: '200px' }} value={config.option_inscription} onChange={e => set('option_inscription')(e.target.value)}>
-                  <option value="ouvert">🔓 Ouverte à tous</option>
-                  <option value="invitation">📨 Sur invitation</option>
-                  <option value="bloque">🔒 Bloquée</option>
-                </select>
+              <ParamLigne label="Approuver automatiquement les collaborateurs" description="Activé : le compte est actif dès l'inscription. Désactivé : le nouveau collaborateur reste « en attente » jusqu'à ce que tu l'approuves.">
+                <Toggle actif={config.approuver_auto_collaborateur} onChange={set('approuver_auto_collaborateur')} />
               </ParamLigne>
-              <ParamLigne label="Approuver automatiquement les vendeurs" description="Sinon, validation manuelle requise.">
-                <Toggle actif={config.approuver_auto_vendeur} onChange={set('approuver_auto_vendeur')} />
-              </ParamLigne>
-              <ParamLigne label="Vérification email à l'inscription">
+              <ParamLigne label="Vérification courriel à l'inscription" description="À venir : ce réglage n'est pas encore actif.">
                 <Toggle actif={config.verification_email} onChange={set('verification_email')} />
               </ParamLigne>
-              <ParamLigne label="Nom de boutique à l'inscription" description="Exiger un nom de boutique lors de l'inscription.">
-                <Toggle actif={config.permettre_nom_boutique_inscription} onChange={set('permettre_nom_boutique_inscription')} />
-              </ParamLigne>
-              <ParamLigne label="Mode vacances vendeur" description="Les vendeurs peuvent mettre leur boutique en pause.">
+              <ParamLigne label="Mode vacances collaborateur" description="Les collaborateurs peuvent mettre leur boutique en pause.">
                 <Toggle actif={config.vacances_vendeur} onChange={set('vacances_vendeur')} />
               </ParamLigne>
-              <ParamLigne label="Vendeur sur la boutique" description="Les vendeurs ont une page boutique publique.">
-                <Toggle actif={config.vendeur_sur_boutique} onChange={set('vendeur_sur_boutique')} />
-              </ParamLigne>
-              <ParamLigne label="Page FAQ boutique" description="Chaque vendeur peut créer une FAQ sur sa boutique.">
+              <ParamLigne label="Page FAQ boutique" description="À venir : ce réglage n'est pas encore actif. Futur add-on payant.">
                 <Toggle actif={config.shop_faq} onChange={set('shop_faq')} />
               </ParamLigne>
-              <ParamLigne label="Connexion admin en tant que vendeur" description="Permet à l'admin de se connecter en tant que vendeur." derniere>
+              <ParamLigne label="Connexion admin en tant que collaborateur" description="À venir : ce réglage n'est pas encore actif." derniere>
                 <Toggle actif={config.login_as_seller} onChange={set('login_as_seller')} />
               </ParamLigne>
             </Section>
 
-            <Section titre="Visibilité des données clients" icon="👁️">
-              <ParamLigne label="Voir les détails clients">
+            <Section titre="Visibilité des données (page boutique)" icon="👁️">
+              <ParamLigne label="Section « Adresse, site web et réseaux sociaux »" description="Activé : le collaborateur peut remplir cette section et l'afficher dans l'onglet « + de détails » de sa boutique. Désactivé : section verrouillée.">
                 <Toggle actif={config.voir_details_client} onChange={set('voir_details_client')} />
               </ParamLigne>
-              <ParamLigne label="Voir l'email des clients">
+              <ParamLigne label="Afficher le courriel du collaborateur" description="Le courriel de son compte apparaît dans « + de détails » (s'il a activé l'affichage).">
                 <Toggle actif={config.voir_email_client} onChange={set('voir_email_client')} />
               </ParamLigne>
-              <ParamLigne label="Voir le téléphone des clients" derniere>
+              <ParamLigne label="Afficher le téléphone du collaborateur" description="Le téléphone de son compte apparaît dans « + de détails » (s'il a activé l'affichage)." derniere>
                 <Toggle actif={config.voir_telephone_client} onChange={set('voir_telephone_client')} />
               </ParamLigne>
             </Section>
 
             <Section titre="Tags et catégories" icon="🏷️">
-              <ParamLigne label="Permettre les tags">
+              <ParamLigne label="Permettre les tags" description="À venir : ce réglage n'est pas encore actif.">
                 <Toggle actif={config.permettre_tags} onChange={set('permettre_tags')} />
               </ParamLigne>
-              <ParamLigne label="Restreindre tags à l'inscription">
-                <Toggle actif={config.restreindre_tags_inscription} onChange={set('restreindre_tags_inscription')} />
-              </ParamLigne>
-              <ParamLigne label="Permettre les catégories">
+              <ParamLigne label="Permettre les catégories" description="Désactivé : le champ catégorie disparaît à la création d'une annonce et la liste des catégories disparaît du catalogue (la recherche et les filtres restent)." derniere>
                 <Toggle actif={config.permettre_categories} onChange={set('permettre_categories')} />
-              </ParamLigne>
-              <ParamLigne label="Restreindre catégories à l'inscription" derniere>
-                <Toggle actif={config.restreindre_categories_inscription} onChange={set('restreindre_categories_inscription')} />
               </ParamLigne>
             </Section>
           </div>
 
           <div>
-            <Section titre="Devises et finances" icon="💱">
-              <ParamLigne label="Devise propre par vendeur">
-                <Toggle actif={config.permettre_devise_propre} onChange={set('permettre_devise_propre')} />
-              </ParamLigne>
-              {config.permettre_devise_propre && (
-                <ParamLigne label="Méthode de conversion">
-                  <select style={{ ...selectStyle, width: '200px' }} value={config.methode_conversion} onChange={e => set('methode_conversion')(e.target.value)}>
-                    <option value="automatique">Conversion automatique</option>
-                    <option value="manuelle">Conversion manuelle</option>
-                  </select>
-                </ParamLigne>
-              )}
-              <ParamLigne label="Voir le total dû (gains)" description="Affiche les gains sur le dashboard vendeur.">
-                <Toggle actif={config.voir_total_du} onChange={set('voir_total_du')} />
-              </ParamLigne>
-              <ParamLigne label="Montant minimum de commande">
+            <Section titre="Finances" icon="💰">
+              <ParamLigne label="Montant minimum de commande" description="À venir : ce réglage n'est pas encore actif.">
                 <Toggle actif={config.minimum_purchase_amount} onChange={set('minimum_purchase_amount')} />
               </ParamLigne>
-              <ParamLigne label="Changer l'unité de poids" derniere>
+              <ParamLigne label="Changer l'unité de poids" description="À venir : ce réglage n'est pas encore actif. (lb au lieu de kg)" derniere>
                 <Toggle actif={config.permettre_changement_unite_poids} onChange={set('permettre_changement_unite_poids')} />
               </ParamLigne>
             </Section>
 
             <Section titre="Gestion des avis" icon="⭐">
-              <ParamLigne label="Approuver automatiquement les avis">
+              <ParamLigne label="Approuver automatiquement les avis" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet.">
                 <Toggle actif={config.approuver_auto_avis} onChange={set('approuver_auto_avis')} />
               </ParamLigne>
-              <ParamLigne label="Restreindre la désactivation des avis">
+              <ParamLigne label="Restreindre la désactivation des avis" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet.">
                 <Toggle actif={config.restreindre_desactivation_avis} onChange={set('restreindre_desactivation_avis')} />
               </ParamLigne>
-              <ParamLigne label="Auto-approbation gérable par vendeur">
+              <ParamLigne label="Auto-approbation gérable par collaborateur" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet.">
                 <Toggle actif={config.permettre_gestion_auto_approbation_avis} onChange={set('permettre_gestion_auto_approbation_avis')} />
               </ParamLigne>
-              <ParamLigne label="Avis avancé">
+              <ParamLigne label="Avis avancé" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet.">
                 <Toggle actif={config.avis_avance} onChange={set('avis_avance')} />
               </ParamLigne>
-              <ParamLigne label="Exiger connexion pour avis">
+              <ParamLigne label="Exiger connexion pour avis" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet.">
                 <Toggle actif={config.check_customer_login} onChange={set('check_customer_login')} />
               </ParamLigne>
-              <ParamLigne label="Exiger achat avant avis" derniere>
+              <ParamLigne label="Exiger achat avant avis" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet." derniere>
                 <Toggle actif={config.check_customer_purchase} onChange={set('check_customer_purchase')} />
               </ParamLigne>
             </Section>
 
-            <Section titre="Paramètres avancés vendeur" icon="⚙️">
-              <ParamLigne label="SSO pour vendeurs" description="Authentification unique (Single Sign-On).">
-                <Toggle actif={config.sso_actif} onChange={set('sso_actif')} />
-              </ParamLigne>
-              <ParamLigne label="Notification stock faible">
+            <Section titre="Paramètres avancés collaborateur" icon="⚙️">
+              <ParamLigne label="Notification stock faible" description="À venir : ce réglage n'est pas encore actif. Viendra avec les notifications automatiques.">
                 <Toggle actif={config.notification_stock_faible} onChange={set('notification_stock_faible')} />
               </ParamLigne>
               {config.notification_stock_faible && (
-                <ParamLigne label="Seuil de stock faible">
+                <ParamLigne label="Seuil de stock faible" derniere>
                   <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.seuil_stock_faible} onChange={e => set('seuil_stock_faible')(e.target.value)} min="0" />
                 </ParamLigne>
               )}
-              <ParamLigne label="Permettre expédition" derniere>
-                <Toggle actif={config.permettre_expedition} onChange={set('permettre_expedition')} />
-              </ParamLigne>
             </Section>
           </div>
         </div>
