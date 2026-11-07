@@ -5,6 +5,7 @@
 import { useState, useEffect } from 'react';
 import MVPremiumAccueil    from './MVPremiumAccueil';
 import { setDevise } from '../shared/devise';
+import VerificateurAge from '../../components/VerificateurAge';
 import MVPremiumCatalogue  from './MVPremiumCatalogue';
 import MVPremiumBoutiques  from './MVPremiumBoutiques';
 import MVPremiumBoutiquePage from './MVPremiumBoutiquePage';
@@ -137,6 +138,19 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gestionnaireId, isDemo]);
 
+  // Add-on « Vérificateur d'âge » : la fenêtre s'affiche sur toutes les pages, seulement si l'add-on est actif
+  // (activé, ou inclus au forfait) et si le gestionnaire l'a configurée (Config → Vérificateur d'âge).
+  const [porteAge, setPorteAge] = useState(false);
+  useEffect(() => {
+    if (isDemo || !gestionnaireId) return;
+    let actif = true;
+    fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons`)
+      .then(r => (r.ok ? r.json() : {}))
+      .then((d: any) => { if (actif) setPorteAge(d?.verificateur_age === true); })
+      .catch(() => {});
+    return () => { actif = false; };
+  }, [gestionnaireId, isDemo]);
+
   const naviguer = (dest: NavMVPremium) => {
     const type = lireTypeCompte();
     let cible = dest;
@@ -162,6 +176,7 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
 
   const props = { vendeurId, isDemo, config, naviguer };
 
+  const contenu = (() => {
   switch (nav.page) {
     case 'catalogue':
       return <MVPremiumCatalogue {...props} categorieSlug={nav.categorieSlug} />;
@@ -192,4 +207,12 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     default:
       return <MVPremiumAccueil {...props} />;
   }
+  })();
+
+  return (
+    <>
+      {contenu}
+      {porteAge && gestionnaireId ? <VerificateurAge vendeurId={Number(gestionnaireId)} /> : null}
+    </>
+  );
 }

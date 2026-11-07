@@ -73,6 +73,16 @@ router.get('/public/:gid/branding', h(async (req, res) => {
   res.json({ badge_masque: masque });
 }));
 
+// Add-ons qui changent l'affichage public de la marketplace (lus par le template MV).
+router.get('/public/:gid/addons', h(async (req, res) => {
+  const gid = parseInt(req.params.gid, 10);
+  if (!Number.isInteger(gid) || gid <= 0) return res.status(400).json({ error: 'Identifiant invalide.' });
+  const { addons: liste } = await addons.etatAddonsMV(gid);
+  const actif = (code) => liste.some(a => a.code === code && a.actif_pour_gestionnaire);
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json({ badge_masque: actif('badge_evend_masquer'), verificateur_age: actif('verificateur_age') });
+}));
+
 // ════════════════════════ GESTIONNAIRE ════════════════════════════════════════
 
 router.get('/mv/plans', authenticateToken, gestionnaire, h(async (req, res) => {
