@@ -29,6 +29,7 @@ const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 const cfgMV = require('../services/studio_config_mv');
 const regCmd = require('../services/studio_regles_commande');
+const rembMV = require('../services/studio_remboursement');
 const paiementMV = require('../services/studio_paiement');
 const { authenticateToken } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
@@ -168,7 +169,11 @@ const COLS_CMD = `c.id, c.numero_commande, c.statut, c.statut_paiement, c.total,
   c.date_commande, c.numero_suivi, c.transporteur, c.recu_le, c.annule_par, c.raison_annulation, c.collaborateur_id,
   COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS boutique,
   (SELECT r.statut FROM demandes_retour r WHERE r.commande_id = c.id ORDER BY r.created_at DESC LIMIT 1) AS retour_statut,
-  EXISTS (SELECT 1 FROM avis_collaborateur a WHERE a.commande_id = c.id AND a.acheteur_id = c.acheteur_id) AS a_avis`;
+  EXISTS (SELECT 1 FROM avis_collaborateur a WHERE a.commande_id = c.id AND a.acheteur_id = c.acheteur_id) AS a_avis,
+  ${regCmd.SQL_LIVREE_LE} AS livree_le`;
+
+// Ajoute avis_expire (délai pour laisser un avis dépassé) à une commande
+function avecAvis(rg, row) { return { ...row, avis_expire: row.statut === 'livree' && regCmd.avisExpire(rg, row.livree_le) }; }
 
 router.get('/commandes', h(async (req, res) => {
   const r = await pool.query(
@@ -177,7 +182,8 @@ router.get('/commandes', h(async (req, res) => {
       WHERE c.acheteur_id = $1 AND c.gestionnaire_id = $2
       ORDER BY c.date_commande DESC, c.id DESC LIMIT 300`,
     [req.aid, req.gid]);
-  res.json({ commandes: r.rows });
+  const rg = await regCmd.lire(req.gid, pool);
+  res.json({ commandes: r.rows.map((x) => avecAvis(rg, x)), jours_delai_avis: rg.joursAvis });
 }));
 
 router.get('/commandes/:id', h(async (req, res) => {
@@ -191,7 +197,7 @@ router.get('/commandes/:id', h(async (req, res) => {
   const retours = await pool.query(
     `SELECT id, type_demande, motif, details, statut, montant_remboursement, reponse, created_at
        FROM demandes_retour WHERE commande_id = $1 AND acheteur_id = $2 ORDER BY created_at DESC`, [id, req.aid]);
-  res.json({ ...r.rows[0], retours: retours.rows });
+  res.json({ ...avecAvis(await regCmd.lire(req.gid, pool), r.rows[0]), retours: retours.rows });
 }));
 
 router.put('/commandes/:id/annuler', h(async (req, res) => {
@@ -221,6 +227,8 @@ router.put('/commandes/:id/confirmer-reception', h(async (req, res) => {
     `UPDATE marketplace_commandes SET statut='livree', recu_le=NOW(), updated_at=NOW()
       WHERE id=$1 AND acheteur_id=$2 AND gestionnaire_id=$3 AND statut='expediee'`, [id, req.aid, req.gid]);
   if (!r.rowCount) bad('Cette commande ne peut pas être confirmée comme reçue.', 409);
+  // Dans l'historique : sert de point de départ au délai de remboursement et au délai pour laisser un avis
+  await rembMV.noter(pool, id, 'statut_livree', 'Réception confirmée par l\'acheteur', 'acheteur');
   res.json({ success: true });
 }));
 
@@ -275,10 +283,13 @@ router.post('/commandes/:id/avis', h(async (req, res) => {
   const titre = texte(b.titre, 'Titre', 120);
   const commentaire = texte(b.commentaire, 'Commentaire', 1500);
   const c = await pool.query(
-    `SELECT statut, collaborateur_id FROM marketplace_commandes WHERE id=$1 AND acheteur_id=$2 AND gestionnaire_id=$3`,
+    `SELECT c.statut, c.collaborateur_id, ${regCmd.SQL_LIVREE_LE} AS livree_le FROM marketplace_commandes c WHERE c.id=$1 AND c.acheteur_id=$2 AND c.gestionnaire_id=$3`,
     [id, req.aid, req.gid]);
   if (!c.rows.length) bad('Commande introuvable', 404);
   if (c.rows[0].statut !== 'livree') bad('Vous pouvez donner un avis une fois la commande livrée.', 409);
+  // Délai pour laisser un avis (Configuration marketplace → Fonctionnalités) : N jours après la livraison, 0 = sans limite
+  const rgAvis = await regCmd.lire(req.gid, pool);
+  if (regCmd.avisExpire(rgAvis, c.rows[0].livree_le)) bad(`Le délai pour donner un avis (${rgAvis.joursAvis} jours après la livraison) est dépassé.`, 409);
   const deja = await pool.query(`SELECT 1 FROM avis_collaborateur WHERE commande_id=$1 AND acheteur_id=$2`, [id, req.aid]);
   if (deja.rows.length) bad('Vous avez déjà donné un avis pour cette commande.', 409);
   await pool.query(

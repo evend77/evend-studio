@@ -164,7 +164,7 @@ interface ConfigMV {
   // Config commande
   mode_expedition_obligatoire: boolean; numero_suivi_obligatoire: boolean;
   taxes_incluses_prix: boolean;
-  permettre_etiquette_expedition: boolean; jours_remboursement: string; remboursement_collab_autonome: boolean;
+  permettre_etiquette_expedition: boolean; jours_remboursement: string; jours_delai_avis: string; remboursement_collab_autonome: boolean;
   permettre_accepter_commande: boolean;
   permettre_annuler_commande_acceptee: boolean; accepter_et_expedier: boolean;
   envoyer_mail_expedition: boolean; permettre_date_livraison_prevue: boolean;
@@ -236,7 +236,7 @@ const DEFAUTS: ConfigMV = {
   destinataire_taxes: 'admin',
   mode_expedition_obligatoire: false, numero_suivi_obligatoire: false,
   taxes_incluses_prix: false,
-  permettre_etiquette_expedition: false, jours_remboursement: '14', remboursement_collab_autonome: false,
+  permettre_etiquette_expedition: false, jours_remboursement: '14', jours_delai_avis: '90', remboursement_collab_autonome: false,
   permettre_accepter_commande: true,
   permettre_annuler_commande_acceptee: false, accepter_et_expedier: false,
   envoyer_mail_expedition: true, permettre_date_livraison_prevue: false,
@@ -526,12 +526,17 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
             </Section>
 
             <Section titre="Fonctionnalités" icon="⭐">
-              <ParamLigne label="Avis clients" description="Désactivé : les acheteurs ne peuvent plus laisser d'avis et l'onglet Avis disparaît des boutiques. (Le système d'avis complet viendra plus tard.)">
+              <ParamLigne label="Avis clients" description="Désactivé : les acheteurs ne peuvent plus laisser d'avis et l'onglet Avis disparaît des boutiques. Vous modérez les avis dans Multi-vendeur → Avis.">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '11px', fontWeight: 700, color: config.avis_actifs ? T.success : T.textLight }}>{config.avis_actifs ? '✓ Actif' : '— Inactif'}</span>
                   <Toggle actif={config.avis_actifs} onChange={set('avis_actifs')} />
                 </div>
               </ParamLigne>
+              {config.avis_actifs && (
+                <ParamLigne label="Délai pour laisser un avis (jours)" description="L'acheteur peut donner son avis une fois la commande livrée (ou confirmée reçue), pendant ce nombre de jours. 0 = sans limite.">
+                  <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.jours_delai_avis} onChange={e => set('jours_delai_avis')(e.target.value)} min="0" max="3650" />
+                </ParamLigne>
+              )}
               <ParamLigne label="Notifications automatiques vendeurs" description="À venir : notifications dans la messagerie du collaborateur.">
                 <Toggle actif={config.notifs_auto_vendeurs} onChange={set('notifs_auto_vendeurs')} />
               </ParamLigne>

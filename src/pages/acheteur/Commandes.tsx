@@ -29,6 +29,7 @@ interface Commande {
   boutique: string | null;
   retour_statut: string | null;
   a_avis: boolean;
+  avis_expire?: boolean;
 }
 
 interface Props {
@@ -242,7 +243,8 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
                       {c.statut === 'expediee' && <button style={bouton(`linear-gradient(135deg,${C.green},#059669)`)} onClick={() => appeler(`/commandes/${c.id}/confirmer-reception`, 'PUT', undefined, '✅ Réception confirmée')} disabled={occupe}>📬 J'ai reçu ma commande</button>}
                       {peutAnnuler && <button style={bouton('linear-gradient(135deg,#ef4444,#dc2626)')} onClick={() => ouvrirModal('annuler', c)}>✖️ Annuler</button>}
                       {peutRetour && <button style={bouton('linear-gradient(135deg,#f59e0b,#d97706)')} onClick={() => ouvrirModal('retour', c)}>🔄 Retour / remboursement</button>}
-                      {c.statut === 'livree' && !c.a_avis && <button style={bouton('linear-gradient(135deg,#8b5cf6,#6366f1)')} onClick={() => ouvrirModal('avis', c)}>⭐ Donner un avis</button>}
+                      {c.statut === 'livree' && !c.a_avis && c.avis_expire && <span style={{ fontSize: 12, color: C.textLight, alignSelf: 'center' }}>⭐ Le délai pour donner un avis est dépassé.</span>}
+                      {c.statut === 'livree' && !c.a_avis && !c.avis_expire && <button style={bouton('linear-gradient(135deg,#8b5cf6,#6366f1)')} onClick={() => ouvrirModal('avis', c)}>⭐ Donner un avis</button>}
                       {c.collaborateur_id && onEcrire && <button style={{ ...bouton('rgba(255,255,255,.1)'), border: `1px solid ${C.border}` }} onClick={() => onEcrire(c.collaborateur_id!)}>💬 Écrire au collaborateur</button>}
                     </div>
                   </div>

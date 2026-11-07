@@ -15,6 +15,9 @@
 //   GET   /remboursements           → ?statut=en_attente|effectue|refuse|echoue  (demandes des collaborateurs)
 //   POST  /remboursements/:id/approuver → exécute le remboursement Stripe
 //   POST  /remboursements/:id/refuser   → { motif }
+//   GET   /avis                     → ?q= ?note=1..5 ?statut=publie|masque|tous ?collaborateur_id= ?page=  (+ stats)
+//   POST  /avis/:id/masquer         → { raison (min. 5 caractères) } : l'avis disparaît de la boutique et du tableau du collaborateur
+//   POST  /avis/:id/retablir        → remet l'avis en ligne
 
 'use strict';
 
@@ -262,6 +265,73 @@ router.post('/commandes/:id/annuler', h(async (req, res) => {
   if (c.statut === 'annulee') bad('Commande déjà annulée.', 409);
   try { await paiement.annulerNonPayee(id, { par: 'gestionnaire', raison: texte(req.body && req.body.raison, 'Raison', 300) }); }
   catch (e) { if (e instanceof paiement.ErreurPaiement) bad(e.message, e.status); throw e; }
+  res.json({ success: true });
+}));
+
+// ── Avis clients : modération ────────────────────────────────────────────────
+router.get('/avis', h(async (req, res) => {
+  const params = [req.gid];
+  const where = ['v.gestionnaire_id = $1'];
+  const statut = ['publie', 'masque', 'tous'].includes(req.query.statut) ? req.query.statut : 'tous';
+  if (statut === 'publie') where.push('v.approuve = true');
+  if (statut === 'masque') where.push('v.approuve = false');
+  const note = entier(req.query.note);
+  if (note && note <= 5) { params.push(note); where.push(`v.note = $${params.length}`); }
+  const cid = entier(req.query.collaborateur_id);
+  if (cid) { params.push(cid); where.push(`v.collaborateur_id = $${params.length}`); }
+  const m = motif(req.query.q);
+  if (m) {
+    params.push(m);
+    const i = params.length;
+    where.push(`(v.titre ILIKE $${i} OR v.commentaire ILIKE $${i} OR a.email ILIKE $${i} OR a.prenom ILIKE $${i} OR a.nom ILIKE $${i}
+                 OR mc.nom_boutique ILIKE $${i} OR mc.nom_responsable ILIKE $${i})`);
+  }
+  const W = where.join(' AND ');
+  const pg = page(req);
+  const DE = `FROM avis_collaborateur v
+              LEFT JOIN marketplace_acheteurs a ON a.id = v.acheteur_id
+              LEFT JOIN marketplace_collaborateurs mc ON mc.id = v.collaborateur_id`;
+  const [liste, total, stats] = await Promise.all([
+    pool.query(
+      `SELECT v.id, v.note, v.titre, v.commentaire, v.approuve, v.masque_raison, v.masque_le, v.reponse, v.created_at, v.commande_id,
+              COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS boutique,
+              COALESCE(NULLIF(TRIM(COALESCE(a.prenom,'') || ' ' || COALESCE(a.nom,'')), ''), 'Acheteur supprimé') AS acheteur_nom,
+              a.email AS acheteur_email, c.numero_commande
+         ${DE} LEFT JOIN marketplace_commandes c ON c.id = v.commande_id
+        WHERE ${W} ORDER BY v.created_at DESC, v.id DESC LIMIT ${PAR_PAGE} OFFSET ${(pg - 1) * PAR_PAGE}`, params),
+    pool.query(`SELECT COUNT(*) AS n ${DE} WHERE ${W}`, params),
+    pool.query(
+      `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE approuve) AS publies, COUNT(*) FILTER (WHERE NOT approuve) AS masques,
+              COALESCE(AVG(note) FILTER (WHERE approuve), 0) AS moyenne
+         FROM avis_collaborateur WHERE gestionnaire_id = $1`, [req.gid]),
+  ]);
+  const n = parseInt(total.rows[0].n, 10);
+  const s = stats.rows[0];
+  res.json({
+    avis: liste.rows, total: n, page: pg, pages: Math.max(1, Math.ceil(n / PAR_PAGE)),
+    stats: { total: +s.total, publies: +s.publies, masques: +s.masques, moyenne: Math.round(parseFloat(s.moyenne) * 10) / 10 },
+  });
+}));
+
+router.post('/avis/:id/masquer', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Avis invalide');
+  const raison = texte(req.body && req.body.raison, 'Raison', 300);
+  if (raison.length < 5) bad('Indiquez la raison (au moins 5 caractères).');
+  const r = await pool.query(
+    `UPDATE avis_collaborateur SET approuve = false, masque_raison = $1, masque_le = NOW()
+      WHERE id = $2 AND gestionnaire_id = $3 AND approuve = true`, [raison, id, req.gid]);
+  if (!r.rowCount) bad('Avis introuvable ou déjà masqué.', 404);
+  res.json({ success: true });
+}));
+
+router.post('/avis/:id/retablir', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Avis invalide');
+  const r = await pool.query(
+    `UPDATE avis_collaborateur SET approuve = true, masque_raison = NULL, masque_le = NULL
+      WHERE id = $1 AND gestionnaire_id = $2 AND approuve = false`, [id, req.gid]);
+  if (!r.rowCount) bad('Avis introuvable ou déjà en ligne.', 404);
   res.json({ success: true });
 }));
 
