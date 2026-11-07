@@ -3,7 +3,7 @@
 //
 // Monté dans server.js sur /api/produits/gestionnaire, AVANT l'ancien routeur produits_gestionnaire :
 //   GET /:gestionnaireId                  ?q= &limit= &collaborateur_id=     liste des produits
-//   GET /produit/:produitId                                                  { produit, similaires }
+//   GET /produit/:produitId                                                  { produit, similaires, avis: {total, moyenne}|null }
 //                                         (+ ?categorie_id= ; ?q= cherche aussi dans le nom de la catégorie et du groupe)
 //   (second routeur, monté sur /api/gestionnaires) GET /:gestionnaireId/boutiques  ?q= &tri= &page= &limit=
 //                                                  GET /:gestionnaireId/boutiques/:collaborateurId (+ /avis, /addons-statut, /blog, /faq)
@@ -102,7 +102,20 @@ router.get('/produit/:produitId', async (req, res, next) => {
     const sim = await pool.query(
       `SELECT ${COLS} ${FROM} WHERE ${FILTRE} AND p.id <> $2
         ORDER BY (p.categorie_id IS NOT NULL AND p.categorie_id = $3) DESC, p.created_at DESC LIMIT 4`, [p.gestionnaire_id, id, p.categorie_id || 0]);
-    res.json({ produit: formater(p), similaires: sim.rows.map(formater) });
+    // Résumé des avis de l'annonce : avis publiés des commandes qui contenaient ce produit (affiché sous le titre).
+    // Absent si les avis clients sont désactivés (Config marketplace → Fonctionnalités) ou s'il n'y en a aucun.
+    let avis = null;
+    if (cfgMV.actif(await cfgMV.lire(p.gestionnaire_id, pool), 'avis_actifs', true)) {
+      const ra = await pool.query(
+        `SELECT COUNT(*)::int AS total, COALESCE(AVG(av.note), 0)::float AS moyenne
+           FROM avis_collaborateur av JOIN marketplace_commandes c ON c.id = av.commande_id
+          WHERE av.approuve = true AND av.collaborateur_id = $1
+            AND EXISTS (SELECT 1 FROM jsonb_array_elements(CASE WHEN jsonb_typeof(c.articles) = 'array' THEN c.articles ELSE '[]'::jsonb END) e
+                         WHERE e->>'produit_id' = $2::text)`, [p.collaborateur_id, id]);
+      const t = ra.rows[0];
+      if (t.total > 0) avis = { total: t.total, moyenne: Math.round(t.moyenne * 10) / 10 };
+    }
+    res.json({ produit: formater(p), similaires: sim.rows.map(formater), avis });
   } catch (e) {
     console.error('[catalogue_public] produit', e.message);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -241,22 +254,40 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId', async (req, res) =>
   }
 });
 
-// Avis approuvés (laissés par des acheteurs ayant commandé) — le nom est abrégé (« Marie T. »)
+// Avis approuvés (laissés par des acheteurs ayant commandé) — le nom est abrégé (« Marie T. »).
+// Paginé : 25 par page (?page=). La moyenne, le total et la répartition portent sur TOUS les avis publiés, pas sur la page.
+const AVIS_PAR_PAGE = 25;
 boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/avis', async (req, res) => {
+  const vide = { avis: [], moyenne: 0, total: 0, page: 1, pages: 1, par_page: AVIS_PAR_PAGE, repartition: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 } };
   try {
     const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
-    if (!gid || !cid) return res.json({ avis: [], moyenne: 0 });
+    if (!gid || !cid) return res.json(vide);
+    const ok = await pool.query(`SELECT 1 FROM marketplace_collaborateurs WHERE id = $1 AND gestionnaire_id = $2 AND statut = 'actif'`, [cid, gid]);
+    if (!ok.rows.length) return res.json(vide);
+    const st = await pool.query(
+      `SELECT COUNT(*)::int AS total, COALESCE(AVG(note), 0)::float AS moyenne,
+              COUNT(*) FILTER (WHERE note = 1)::int AS n1, COUNT(*) FILTER (WHERE note = 2)::int AS n2, COUNT(*) FILTER (WHERE note = 3)::int AS n3,
+              COUNT(*) FILTER (WHERE note = 4)::int AS n4, COUNT(*) FILTER (WHERE note = 5)::int AS n5
+         FROM avis_collaborateur WHERE collaborateur_id = $1 AND approuve = true`, [cid]);
+    const t = st.rows[0];
+    const pages = Math.max(1, Math.ceil(t.total / AVIS_PAR_PAGE));
+    const page = Math.min(pages, Math.max(1, parseInt(req.query.page, 10) || 1));
     const r = await pool.query(
       `SELECT av.id, av.note AS note_globale, av.titre, av.commentaire, av.created_at, av.criteres, av.photos, av.reponse, av.reponse_le,
-              TRIM(COALESCE(a.prenom,'') || ' ' || COALESCE(LEFT(a.nom,1) || '.', '')) AS nom_client
+              TRIM(COALESCE(a.prenom,'') || ' ' || COALESCE(LEFT(a.nom,1) || '.', '')) AS nom_client,
+              COALESCE((SELECT jsonb_agg(DISTINCT jsonb_build_object('id', p.id, 'titre', p.titre))
+                          FROM marketplace_commandes c, jsonb_array_elements(CASE WHEN jsonb_typeof(c.articles) = 'array' THEN c.articles ELSE '[]'::jsonb END) e
+                          JOIN produits p ON (e->>'produit_id') ~ '^[0-9]{1,9}$' AND p.id = (e->>'produit_id')::int AND p.collaborateur_id = av.collaborateur_id
+                         WHERE c.id = av.commande_id), '[]'::jsonb) AS produits
          FROM avis_collaborateur av
-         JOIN marketplace_collaborateurs mc ON mc.id = av.collaborateur_id AND mc.gestionnaire_id = $2 AND mc.statut = 'actif'
          LEFT JOIN marketplace_acheteurs a ON a.id = av.acheteur_id
         WHERE av.collaborateur_id = $1 AND av.approuve = true
-        ORDER BY av.created_at DESC LIMIT 100`, [cid, gid]);
-    const avis = r.rows.map((x) => ({ ...x, nom_client: x.nom_client || 'Client' }));
-    const moyenne = avis.length ? avis.reduce((t, x) => t + x.note_globale, 0) / avis.length : 0;
-    res.json({ avis, moyenne: Math.round(moyenne * 10) / 10 });
+        ORDER BY av.created_at DESC, av.id DESC LIMIT $2 OFFSET $3`, [cid, AVIS_PAR_PAGE, (page - 1) * AVIS_PAR_PAGE]);
+    const avis = r.rows.map((x) => ({ ...x, nom_client: x.nom_client || 'Client', produits: Array.isArray(x.produits) ? x.produits.slice(0, 5) : [] }));
+    res.json({
+      avis, moyenne: Math.round(t.moyenne * 10) / 10, total: t.total, page, pages, par_page: AVIS_PAR_PAGE,
+      repartition: { 1: t.n1, 2: t.n2, 3: t.n3, 4: t.n4, 5: t.n5 },
+    });
   } catch (e) {
     console.error('[catalogue_public] avis', e.message);
     res.status(500).json({ error: 'Erreur serveur' });

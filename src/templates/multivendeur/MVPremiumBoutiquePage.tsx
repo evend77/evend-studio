@@ -43,7 +43,8 @@ interface FaqItem { id: number; question: string; reponse: string; }
 
 interface Avis {
   id: number; nom_client: string; note_globale: number; titre?: string; commentaire?: string; created_at: string;
-  criteres?: { delai_respecte?: boolean | null; communication?: number | null; emballage?: number | null }; photos?: string[]; reponse?: string | null;
+  criteres?: { delai_respecte?: boolean | null; communication?: number | null; emballage?: number | null }; photos?: string[]; reponse?: string | null; reponse_le?: string | null;
+  produits?: { id: number; titre: string }[];
 }
 
 type Onglet = 'produits' | 'apropos' | 'details' | 'blog' | 'faq' | 'avis';
@@ -165,6 +166,11 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
   const [faq, setFaq] = useState<FaqItem[]>([]);
   const [avis, setAvis] = useState<Avis[]>([]);
   const [moyenneAvis, setMoyenneAvis] = useState(0);
+  const [totalAvis, setTotalAvis] = useState(0);
+  const [pageAvis, setPageAvis] = useState(1);
+  const [pagesAvis, setPagesAvis] = useState(1);
+  const [repartAvis, setRepartAvis] = useState<Record<string, number>>({});
+  const [avisOccupe, setAvisOccupe] = useState(false);
   const [blogOuvert, setBlogOuvert] = useState<number | null>(null);
   const [faqOuvert, setFaqOuvert] = useState<number | null>(null);
 
@@ -190,15 +196,6 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
   const annoncer = (ok: boolean, texte: string) => { setInfoAction({ ok, texte }); setTimeout(() => setInfoAction(null), 3500); };
   const fermerModal = () => { setModal(null); setModalMsg(null); };
 
-  // Formulaire avis
-  const [formAvisOuvert, setFormAvisOuvert] = useState(false);
-  const [formNote, setFormNote] = useState(5);
-  const [formNom, setFormNom] = useState('');
-  const [formTitre, setFormTitre] = useState('');
-  const [formCommentaire, setFormCommentaire] = useState('');
-  const [envoiEnCours, setEnvoiEnCours] = useState(false);
-  const [msgAvis, setMsgAvis] = useState('');
-
   useEffect(() => {
     if (isDemo) {
       setBoutique(DEMO_BOUTIQUE);
@@ -208,6 +205,8 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
       setFaq(DEMO_FAQ);
       setAvis(DEMO_AVIS);
       setMoyenneAvis(4.5);
+      setTotalAvis(DEMO_AVIS.length);
+      setRepartAvis({ '5': 1, '4': 1 });
       setLoading(false);
       return;
     }
@@ -293,26 +292,29 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
     if (addonsStatut.faq_actif) {
       fetch(`${apiBoutique}/faq`).then(r => r.ok ? r.json() : { items: [] }).then(d => setFaq(d.items || [])).catch(() => {});
     }
-    if (addonsStatut.avis_actif) {
-      fetch(`${apiBoutique}/avis`).then(r => r.ok ? r.json() : { avis: [] }).then(d => { setAvis(d.avis || []); setMoyenneAvis(d.moyenne || 0); }).catch(() => {});
-    }
   }, [addonsStatut, boutiqueId, gId, isDemo]);
 
-  const soumettreAvis = async () => {
-    if (!formNom || !formNote) { setMsgAvis('Nom et note requis.'); return; }
-    setEnvoiEnCours(true);
-    try {
-      const res = await fetch(`${API_BASE}/gestionnaires/${boutiqueId}/avis`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type_avis: 'vendeur', nom_client: formNom, note_globale: formNote, titre: formTitre, commentaire: formCommentaire }),
-      });
-      if (res.ok) {
-        setMsgAvis('✅ Merci pour votre avis !');
-        setFormNom(''); setFormTitre(''); setFormCommentaire(''); setFormNote(5);
-        setTimeout(() => { setFormAvisOuvert(false); setMsgAvis(''); }, 1500);
-      } else setMsgAvis('❌ Erreur — réessayez.');
-    } catch { setMsgAvis('❌ Erreur réseau.'); }
-    setEnvoiEnCours(false);
+  // Avis : 25 par page, chargés à chaque changement de page
+  useEffect(() => {
+    if (isDemo || !boutiqueId || !gId || !addonsStatut.avis_actif) return;
+    let annule = false;
+    setAvisOccupe(true);
+    fetch(`${apiBoutique}/avis?page=${pageAvis}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (annule || !d) return;
+        setAvis(d.avis || []); setMoyenneAvis(d.moyenne || 0); setTotalAvis(d.total || 0);
+        setPagesAvis(d.pages || 1); setRepartAvis(d.repartition || {});
+        if (d.page && d.page !== pageAvis) setPageAvis(d.page);
+      })
+      .catch(() => {})
+      .finally(() => { if (!annule) setAvisOccupe(false); });
+    return () => { annule = true; };
+  }, [addonsStatut.avis_actif, pageAvis, boutiqueId, gId, isDemo]);
+
+  const changerPageAvis = (n: number) => {
+    setPageAvis(n);
+    try { document.getElementById('mvp-avis-haut')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch { /* défilement indisponible */ }
   };
 
   if (loading) return (
@@ -401,8 +403,8 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
               {boutique.nb_vendus != null && <span style={s.badgeMeta}>🛒 {boutique.nb_vendus} produit{boutique.nb_vendus > 1 ? 's' : ''} vendu{boutique.nb_vendus > 1 ? 's' : ''}</span>}
               {boutique.date_inscription && <span style={s.badgeMeta}>📅 Membre depuis {new Date(boutique.date_inscription).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long' })}</span>}
               {(boutique.ville || boutique.province) && <span style={s.badgeMeta}>📍 {[boutique.ville, boutique.province].filter(Boolean).join(', ')}</span>}
-              {addonsStatut.avis_actif && moyenneAvis > 0 && (
-                <span style={s.badgeMeta}><Etoiles note={Math.round(moyenneAvis)} taille={12} /> {moyenneAvis.toFixed(1)} ({avis.length})</span>
+              {addonsStatut.avis_actif && totalAvis > 0 && (
+                <span style={s.badgeMeta}><Etoiles note={Math.round(moyenneAvis)} taille={12} /> {moyenneAvis.toFixed(1)} ({totalAvis})</span>
               )}
             </div>
           </div>
@@ -614,89 +616,93 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
           </div>
         )}
 
-        {/* ── ONGLET AVIS (add-on) ── */}
+        {/* ── ONGLET AVIS (add-on) : détaillé, 25 avis par page ── */}
         {onglet === 'avis' && addonsStatut.avis_actif && (
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <h2 style={{ ...s.sectionTitre, marginBottom: 4 }}>⭐ Avis clients</h2>
-                {avis.length > 0 && <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Etoiles note={Math.round(moyenneAvis)} taille={16} /><span style={{ fontSize: 14, color: 'rgba(255,255,255,0.6)' }}>{moyenneAvis.toFixed(1)} sur 5 ({avis.length} avis)</span></div>}
-              </div>
-            </div>
+          <div id="mvp-avis-haut">
+            <h2 style={{ ...s.sectionTitre, marginBottom: 14 }}>⭐ Avis clients</h2>
 
-            {avis.length === 0 ? (
+            {totalAvis > 0 && (
+              <div style={{ display: 'flex', gap: 28, flexWrap: 'wrap', alignItems: 'center', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, padding: '16px 20px', marginBottom: 20 }}>
+                <div style={{ textAlign: 'center', minWidth: 110 }}>
+                  <div style={{ fontSize: 38, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{moyenneAvis.toFixed(1)}</div>
+                  <div style={{ margin: '6px 0 2px' }}><Etoiles note={Math.round(moyenneAvis)} taille={16} /></div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{totalAvis} avis</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 200, display: 'flex', flexDirection: 'column', gap: 5 }}>
+                  {[5, 4, 3, 2, 1].map(n => {
+                    const c = repartAvis[String(n)] || 0;
+                    return (
+                      <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
+                        <span style={{ width: 24 }}>{n} ★</span>
+                        <div style={{ flex: 1, height: 7, background: 'rgba(255,255,255,0.08)', borderRadius: 4, overflow: 'hidden' }}>
+                          <div style={{ width: `${totalAvis ? Math.round((c / totalAvis) * 100) : 0}%`, height: '100%', background: couleurAccent }} />
+                        </div>
+                        <span style={{ width: 28, textAlign: 'right' }}>{c}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {totalAvis === 0 ? (
               <div style={s.vide}><p style={{ color: 'rgba(255,255,255,0.5)' }}>Aucun avis pour le moment.</p></div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, opacity: avisOccupe ? 0.55 : 1, transition: 'opacity 0.15s' }}>
                 {avis.map(a => (
                   <div key={a.id} style={s.carteAvis}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 10 }}>
                       <div>
                         <p style={{ fontWeight: 700, color: '#fff', margin: '0 0 4px', fontSize: 14 }}>{a.nom_client}</p>
                         <Etoiles note={a.note_globale} />
                       </div>
-                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)' }}>{new Date(a.created_at).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                      <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>{new Date(a.created_at).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
                     </div>
                     {a.titre && <p style={{ fontWeight: 700, color: '#fff', margin: '0 0 4px', fontSize: 14 }}>{a.titre}</p>}
-                    {a.commentaire && <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{a.commentaire}</p>}
+                    {a.commentaire && <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: 1.6, margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{a.commentaire}</p>}
                     {a.criteres && (a.criteres.delai_respecte !== undefined && a.criteres.delai_respecte !== null || a.criteres.communication || a.criteres.emballage) && (
-                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
+                      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: 'rgba(255,255,255,0.6)' }}>
                         {a.criteres.delai_respecte !== undefined && a.criteres.delai_respecte !== null && <span>Délai respecté : {a.criteres.delai_respecte ? '✅ oui' : '❌ non'}</span>}
-                        {!!a.criteres.communication && <span>Communication : {a.criteres.communication}/5</span>}
-                        {!!a.criteres.emballage && <span>Emballage : {a.criteres.emballage}/5</span>}
+                        {!!a.criteres.communication && <span>Communication : <Etoiles note={a.criteres.communication} taille={12} /></span>}
+                        {!!a.criteres.emballage && <span>Emballage : <Etoiles note={a.criteres.emballage} taille={12} /></span>}
                       </div>
                     )}
                     {a.photos && a.photos.length > 0 && (
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
-                        {a.photos.map((u, i) => <a key={i} href={u} target="_blank" rel="noopener noreferrer"><img src={u} alt="" loading="lazy" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8 }} /></a>)}
+                        {a.photos.map((u, i) => <a key={i} href={u} target="_blank" rel="noopener noreferrer"><img src={u} alt="Photo de l'acheteur" loading="lazy" style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 8 }} /></a>)}
                       </div>
+                    )}
+                    {a.produits && a.produits.length > 0 && (
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', margin: '10px 0 0' }}>
+                        🛍️ Achat : {a.produits.map(p => p.titre).join(' · ')}
+                      </p>
                     )}
                     {a.reponse && (
                       <div style={{ marginTop: 10, borderLeft: `3px solid ${couleurAccent}`, paddingLeft: 10 }}>
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>Réponse de la boutique</div>
-                        <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: 1.5, margin: '4px 0 0' }}>{a.reponse}</p>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>
+                          Réponse de la boutique{a.reponse_le ? ` · ${new Date(a.reponse_le).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+                        </div>
+                        <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: 1.5, margin: '4px 0 0', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{a.reponse}</p>
                       </div>
                     )}
                   </div>
                 ))}
+
+                {pagesAvis > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, marginTop: 8, flexWrap: 'wrap' }}>
+                    <button disabled={pageAvis <= 1 || avisOccupe} onClick={() => changerPageAvis(pageAvis - 1)}
+                      style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontFamily: 'inherit', fontSize: 13, cursor: pageAvis <= 1 ? 'default' : 'pointer', opacity: pageAvis <= 1 ? 0.4 : 1 }}>← Précédent</button>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Page {pageAvis} sur {pagesAvis}</span>
+                    <button disabled={pageAvis >= pagesAvis || avisOccupe} onClick={() => changerPageAvis(pageAvis + 1)}
+                      style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, color: '#fff', fontFamily: 'inherit', fontSize: 13, cursor: pageAvis >= pagesAvis ? 'default' : 'pointer', opacity: pageAvis >= pagesAvis ? 0.4 : 1 }}>Suivant →</button>
+                  </div>
+                )}
               </div>
             )}
           </div>
         )}
       </main>
 
-      {/* ── Modal laisser un avis ── */}
-      {formAvisOuvert && (
-        <div onClick={() => setFormAvisOuvert(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#15151f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18, maxWidth: 440, width: '100%', padding: 28 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 800, color: '#fff', margin: '0 0 18px' }}>Laisser un avis sur {boutique.nom_boutique}</h3>
-
-            <div style={{ marginBottom: 14, textAlign: 'center' }}>
-              <div style={{ fontSize: 28, cursor: 'pointer' }}>
-                {[1,2,3,4,5].map(n => (
-                  <span key={n} onClick={() => setFormNote(n)} style={{ color: n <= formNote ? couleurAccent : 'rgba(255,255,255,0.2)' }}>★</span>
-                ))}
-              </div>
-            </div>
-
-            <input value={formNom} onChange={e => setFormNom(e.target.value)} placeholder="Votre nom"
-              style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, color: '#fff', fontSize: 14, marginBottom: 10, outline: 'none', boxSizing: 'border-box' as const }} />
-            <input value={formTitre} onChange={e => setFormTitre(e.target.value)} placeholder="Titre de votre avis (optionnel)"
-              style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, color: '#fff', fontSize: 14, marginBottom: 10, outline: 'none', boxSizing: 'border-box' as const }} />
-            <textarea value={formCommentaire} onChange={e => setFormCommentaire(e.target.value)} placeholder="Votre commentaire" rows={4}
-              style={{ width: '100%', padding: '10px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, color: '#fff', fontSize: 14, marginBottom: 14, outline: 'none', resize: 'vertical' as const, boxSizing: 'border-box' as const, fontFamily: 'inherit' }} />
-
-            {msgAvis && <p style={{ fontSize: 13, color: msgAvis.startsWith('✅') ? '#6ee7b7' : '#fca5a5', marginBottom: 10 }}>{msgAvis}</p>}
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setFormAvisOuvert(false)} style={{ flex: 1, padding: '11px', background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 10, color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontFamily: 'inherit' }}>Annuler</button>
-              <button onClick={soumettreAvis} disabled={envoiEnCours} style={{ flex: 2, padding: '11px', background: couleurAccent, border: 'none', borderRadius: 10, color: '#000', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-                {envoiEnCours ? '⏳ Envoi...' : 'Publier mon avis'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {infoAction && (
         <div role="status" style={{ position: 'fixed', top: 80, right: 20, zIndex: 3000, maxWidth: 'calc(100vw - 40px)', padding: '12px 18px', borderRadius: 10, fontSize: 13, fontWeight: 700, color: '#fff', background: infoAction.ok ? '#059669' : '#dc2626', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>{infoAction.texte}</div>
       )}

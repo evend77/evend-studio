@@ -987,27 +987,6 @@ router.get('/:id/avis', async (req, res) => {
   }
 });
 
-// ── POST /api/gestionnaires/:id/avis — soumettre un avis (public)
-router.post('/:id/avis', async (req, res) => {
-  try {
-    const gestionnaireId = parseInt(req.params.id);
-    const { produit_id, type_avis = 'vendeur', nom_client, email_client, note_globale, titre, commentaire } = req.body;
-    if (!nom_client || !note_globale) return res.status(400).json({ error: 'Champs requis manquants.' });
-
-    await pool.query(
-      `INSERT INTO avis_gestionnaire (gestionnaire_id, produit_id, type_avis, nom_client, email_client, note_globale, titre, commentaire)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-      [gestionnaireId, produit_id || null, type_avis, nom_client, email_client || null, note_globale, titre || null, commentaire || null]
-    );
-    return res.json({ success: true });
-  } catch (err) {
-    console.error('POST /avis:', err.message);
-    return res.status(500).json({ error: err.message });
-  }
-});
-
-
-
 // ── GET /api/gestionnaires/:id/politiques — politiques publiques du gestionnaire
 router.get('/:id/politiques', async (req, res) => {
   try {

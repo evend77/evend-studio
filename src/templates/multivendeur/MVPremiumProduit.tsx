@@ -121,6 +121,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   const [ajoutEnCours, setAjoutEnCours]= useState(false);
   const [enchereActive, setEnchereActive] = useState(false); // vrai : produit en vente aux enchères (pas d'achat direct)
   const [rechargement, setRechargement] = useState(0);
+  const [avisResume, setAvisResume] = useState<{ total: number; moyenne: number } | null>(null);   // avis publiés sur cette annonce
   // Options d'expédition choisies par le collaborateur pour cette annonce (affichées aussi pendant une enchère)
   const [methodesExp, setMethodesExp] = useState<any[]>([]);
   const [gratuiteGlobale, setGratuiteGlobale] = useState<{ seuil: number; provinces: string[] } | null>(null);
@@ -148,6 +149,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
         const imgs = getImages(p);
         if (imgs.length > 0) setImageActive(imgs[0]);
         setSimilaires(data.similaires || []);
+        setAvisResume(data.avis && data.avis.total > 0 ? { total: Number(data.avis.total), moyenne: Number(data.avis.moyenne) || 0 } : null);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -300,7 +302,17 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               <span style={{ color: 'rgba(255,255,255,0.8)' }}>{produit.vacances.message}</span>{produit.vacances.mode === 'masque' && <><br /><span style={{ color: '#fff', fontWeight: 600 }}>Les achats directs sont fermés pendant cette période.</span></>}
             </div>
       )}
-            <h1 className="mvp-titre" style={s.titre}>{produit.nom}</h1>
+            <h1 className="mvp-titre" style={{ ...s.titre, ...(avisResume ? { marginBottom: 8 } : {}) }}>{produit.nom}</h1>
+
+            {/* Avis sur cette annonce (commandes qui contenaient ce produit) */}
+            {avisResume && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 16px', flexWrap: 'wrap' }}>
+                <span style={{ color: '#fbbf24', fontSize: 16, letterSpacing: 1 }} aria-label={`Note ${avisResume.moyenne.toFixed(1)} sur 5`}>
+                  {'★'.repeat(Math.round(avisResume.moyenne))}{'☆'.repeat(5 - Math.round(avisResume.moyenne))}
+                </span>
+                <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>{avisResume.moyenne.toFixed(1)} ({avisResume.total} avis)</span>
+              </div>
+            )}
 
             {/* Prix (avec enchère : affiché sous « Vente directe ») */}
             {!enchereActive && (
