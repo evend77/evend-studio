@@ -175,7 +175,7 @@ interface ConfigMV {
   generation_facture: string;
   permettre_infos_supplementaires: boolean;
   // Avancé
-  google_translation: boolean; translation_panel: string; rtl_alignment: boolean;
+  google_translation: boolean; translation_panel: string;
   // Commission
   calcul_commission_base: string; type_commission_globale: string;
   commission_globale: string; seconde_commission_globale: string;
@@ -247,7 +247,7 @@ const DEFAUTS: ConfigMV = {
   jours_avant_rappel: '2', jours_max_rappel: '30',
   generation_facture: 'anyTime',
   permettre_infos_supplementaires: false,
-  google_translation: false, translation_panel: 'both', rtl_alignment: false,
+  google_translation: false, translation_panel: 'both',
   calcul_commission_base: 'normal', type_commission_globale: '%',
   commission_globale: '10.00', seconde_commission_globale: '0.00',
   commission_fixe_application: 'commande', activer_commission_max: false,
@@ -325,7 +325,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
         if (k.startsWith('banniere_vendeur_')) { const n = k.replace('banniere_vendeur_', 'banniere_collab_'); if (mv[n] === undefined) mv[n] = mv[k]; delete mv[k]; }
       }
       delete mv.approuver_auto_vendeur;   // ancien réglage inactif (valeur par défaut « true » jamais appliquée) : on ne la reprend pas
-      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif', 'statut_preparation_commande', 'restreindre_expedition_fraude', 'deduire_expedition_remboursement', 'deduire_taxes_remboursement', 'taxes_sur_expedition', 'tcs_sur_commandes', 'tds_sur_commandes', 'annuler_auto_rejet', 'mode_taxe', 'type_commission_fixe']) delete mv[k];   // réglages supprimés de Config vendeur
+      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif', 'statut_preparation_commande', 'restreindre_expedition_fraude', 'deduire_expedition_remboursement', 'deduire_taxes_remboursement', 'taxes_sur_expedition', 'tcs_sur_commandes', 'tds_sur_commandes', 'annuler_auto_rejet', 'mode_taxe', 'type_commission_fixe', 'rtl_alignment']) delete mv[k];   // réglages supprimés de Config vendeur
       if (mv.bloquer_inscription_vendeur !== undefined) { if (mv.bloquer_inscription_collaborateur === undefined) mv.bloquer_inscription_collaborateur = mv.bloquer_inscription_vendeur; delete mv.bloquer_inscription_vendeur; }
       // Nom de la marketplace et courriel de contact : une seule source, partagée avec « Configurer mes pages »
       try {
@@ -363,6 +363,18 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
       if (!Number.isFinite(n) || n < 0 || n > 30) { showToast('❌ Taux de taxe invalide : entrez un nombre entre 0 et 30', 'danger'); setOnglet('generalite'); return; }
       (aSauver as any)[k] = String(n);
     }
+    // Enchères : valeurs cohérentes
+    const nEnch = (v: unknown) => parseFloat(String(v).replace(',', '.'));
+    const dMin = nEnch(aSauver.enchere_duree_min_h), dMax = nEnch(aSauver.enchere_duree_max_jours), inc = nEnch(aSauver.enchere_increment_min);
+    const dPay = nEnch(aSauver.enchere_delai_paiement_h), mxC = nEnch(aSauver.enchere_max_par_collab);
+    const erreurEnch =
+      !(dMin >= 1 && dMin <= 720) ? 'Durée minimale : entre 1 et 720 heures.' :
+      !(dMax >= 1 && dMax <= 60) ? 'Durée maximale : entre 1 et 60 jours.' :
+      dMin > dMax * 24 ? 'La durée minimale ne peut pas dépasser la durée maximale.' :
+      !(inc >= 0.01) ? "La mise minimale d'augmentation doit être d'au moins 0,01 $." :
+      !(dPay >= 1 && dPay <= 24) ? 'Délai de paiement du gagnant : entre 1 et 24 heures.' :
+      !(mxC >= 0 && mxC <= 500) ? 'Enchères actives par collaborateur : entre 0 et 500.' : '';
+    if (erreurEnch) { showToast('❌ ' + erreurEnch, 'danger'); setOnglet('encheres'); return; }
     const pbBar = problemesBaremes(aSauver.baremes_commission);
     if (pbBar.length) { showToast('❌ ' + pbBar[0], 'danger'); setOnglet('commission'); return; }
     const cg = parseFloat(String(aSauver.commission_globale).replace(',', '.'));
@@ -1138,21 +1150,18 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
       {onglet === 'avance' && (
         <div style={{ maxWidth: '700px' }}>
           <Section titre="Traduction et localisation" icon="🌐">
-            <ParamLigne label="Traduction automatique (Google)" description="Active la traduction automatique du contenu.">
+            <ParamLigne label="Traduction automatique (Google)" description="À venir : traduction automatique du contenu (pas encore active)." derniere={!config.google_translation}>
               <Toggle actif={config.google_translation} onChange={set('google_translation')} />
             </ParamLigne>
             {config.google_translation && (
-              <ParamLigne label="Panneau de traduction">
+              <ParamLigne label="Panneau de traduction" description="À venir : qui voit le panneau de traduction." derniere>
                 <select style={{ ...selectStyle, width: '200px' }} value={config.translation_panel} onChange={e => set('translation_panel')(e.target.value)}>
-                  <option value="both">Vendeur et Admin</option>
+                  <option value="both">Collaborateur et Admin</option>
                   <option value="admin">Admin seulement</option>
-                  <option value="seller">Vendeur seulement</option>
+                  <option value="seller">Collaborateur seulement</option>
                 </select>
               </ParamLigne>
             )}
-            <ParamLigne label="Alignement RTL" description="Pour les langues qui s'écrivent de droite à gauche (arabe, hébreu)." derniere>
-              <Toggle actif={config.rtl_alignment} onChange={set('rtl_alignment')} />
-            </ParamLigne>
           </Section>
         </div>
       )}
