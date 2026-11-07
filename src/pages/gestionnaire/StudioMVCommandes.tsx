@@ -11,10 +11,15 @@ interface Commande {
   id: number; numero_commande: string; statut: string; statut_paiement: string; total: string; commission: string | null; montant_net: string | null;
   date_commande: string; nb_articles: number; code_promo: string | null; rabais: string | null; acheteur_prenom: string | null; acheteur_nom: string | null;
   acheteur_email: string | null; boutique: string | null; collaborateur_id: number;
+  montant_rembourse?: string | null; remboursement_en_attente?: boolean;
+}
+interface Remb {
+  id: number; commande_id?: number; origine: string; montant: string; raison: string; statut: string; motif_refus: string | null; erreur: string | null; created_at: string;
+  numero_commande?: string; boutique?: string | null; acheteur_prenom?: string | null; acheteur_nom?: string | null; total_commande?: string;
 }
 interface Detail extends Commande {
   articles: any; adresse_livraison: any; note: string | null; paye_le: string | null; frais_expedition: string | null; taxes: any;
-  numero_suivi: string | null; transporteur: string | null; acheteur_telephone: string | null;
+  numero_suivi: string | null; transporteur: string | null; acheteur_telephone: string | null; remboursements?: Remb[]; raison_annulation?: string | null;
 }
 interface Reponse { commandes: Commande[]; total: number; page: number; pages: number; totaux: { ventes: number; commissions: number; payees: number } }
 
@@ -49,6 +54,10 @@ const StudioMVCommandes: React.FC<{ gestionnaireId: number }> = ({ gestionnaireI
   const [aAnnuler, setAAnnuler] = useState<Commande | null>(null);
   const [raison, setRaison] = useState('');
   const [occupe, setOccupe] = useState(false);
+  const [demandes, setDemandes] = useState<Remb[]>([]);
+  const [refusId, setRefusId] = useState<number | null>(null);
+  const [motif, setMotif] = useState('');
+  const [infoRemb, setInfoRemb] = useState('');
   const minuterie = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const charger = useCallback(async () => {
@@ -62,6 +71,28 @@ const StudioMVCommandes: React.FC<{ gestionnaireId: number }> = ({ gestionnaireI
     setChargement(false);
   }, [base, page, qEff, collab, statut, paiement]);
   useEffect(() => { charger(); }, [charger]);
+  const chargerDemandes = useCallback(async () => {
+    try {
+      const r = await fetch(`${base}/remboursements?statut=en_attente`, { credentials: 'include', headers: entetes() });
+      if (r.ok) setDemandes((await r.json()).remboursements || []);
+    } catch { /* ignore */ }
+  }, [base]);
+  useEffect(() => { chargerDemandes(); }, [chargerDemandes]);
+
+  // Approuver / refuser une demande de remboursement d'un collaborateur
+  const traiter = async (r: Remb, action: 'approuver' | 'refuser') => {
+    if (action === 'refuser' && !motif.trim()) { setErreur('Indiquez un motif pour refuser la demande.'); return; }
+    if (action === 'approuver' && !window.confirm(`Rembourser ${argent(r.montant)} au client (${r.numero_commande || 'commande'}) ? Cette action est immédiate.`)) return;
+    setOccupe(true); setErreur(''); setInfoRemb('');
+    try {
+      const res = await fetch(`${base}/remboursements/${r.id}/${action}`, { method: 'POST', credentials: 'include', headers: entetes(), body: JSON.stringify(action === 'refuser' ? { motif } : {}) });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) { setInfoRemb(action === 'approuver' ? 'Remboursement effectué.' : 'Demande refusée : le vendeur est avisé.'); setRefusId(null); setMotif(''); setDetail(null); }
+      else setErreur(j.error || 'Action impossible');
+    } catch { setErreur('Erreur réseau'); }
+    setOccupe(false);
+    await Promise.all([charger(), chargerDemandes()]);
+  };
   useEffect(() => { fetch(`${base}/collaborateurs`, { credentials: 'include', headers: entetes() }).then(r => r.ok ? r.json() : []).then(setCollabs).catch(() => {}); }, [base]);
 
   const recherche = (v: string) => { setQ(v); if (minuterie.current) clearTimeout(minuterie.current); minuterie.current = setTimeout(() => { setPage(1); setQEff(v.trim()); }, 350); };
@@ -105,6 +136,34 @@ const StudioMVCommandes: React.FC<{ gestionnaireId: number }> = ({ gestionnaireI
         ))}
       </div>
 
+      {demandes.length > 0 && (
+        <div style={{ background: '#FFFBEB', border: `1px solid ${C.orange}`, borderRadius: 12, padding: 14, marginBottom: 14 }}>
+          <strong style={{ fontSize: 14 }}>⏳ {demandes.length} demande{demandes.length > 1 ? 's' : ''} de remboursement à approuver</strong>
+          {demandes.map(r => (
+            <div key={r.id} style={{ borderTop: `1px solid ${C.border}`, marginTop: 10, paddingTop: 10, fontSize: 13 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                <span><strong style={{ fontFamily: 'monospace' }}>{r.numero_commande}</strong> · 🏪 {r.boutique || '—'} · {[r.acheteur_prenom, r.acheteur_nom].filter(Boolean).join(' ') || 'client'}</span>
+                <strong>{argent(r.montant)} <span style={{ color: C.textLight, fontWeight: 400 }}>sur {argent(r.total_commande ?? null)}</span></strong>
+              </div>
+              <div style={{ color: C.textLight, margin: '4px 0 8px' }}>{r.origine === 'refus' ? 'Refus de commande' : 'Remboursement'} · raison du vendeur : « {r.raison} »</div>
+              {refusId === r.id ? (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <input value={motif} onChange={e => setMotif(e.target.value)} maxLength={300} placeholder="Motif du refus (obligatoire)" style={{ ...champ, flex: '1 1 220px' }} />
+                  <button disabled={occupe} onClick={() => traiter(r, 'refuser')} style={{ padding: '9px 14px', border: 'none', background: C.red, color: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Confirmer le refus</button>
+                  <button onClick={() => { setRefusId(null); setMotif(''); }} style={{ padding: '9px 14px', border: `1px solid ${C.border}`, background: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Retour</button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button disabled={occupe} onClick={() => traiter(r, 'approuver')} style={{ padding: '9px 14px', border: 'none', background: C.green, color: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>✔ Approuver et rembourser</button>
+                  <button disabled={occupe} onClick={() => { setRefusId(r.id); setMotif(''); }} style={{ padding: '9px 14px', border: `1px solid ${C.red}`, background: '#fff', color: C.red, borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>✕ Refuser</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {infoRemb && <div style={{ background: '#ECFDF5', color: '#065F46', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{infoRemb}</div>}
+
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         <input value={q} onChange={e => recherche(e.target.value)} placeholder="N° de commande, nom ou courriel…" style={{ ...champ, flex: '1 1 220px' }} />
         <select value={collab} onChange={e => { setCollab(e.target.value); setPage(1); }} style={champ}>
@@ -140,6 +199,8 @@ const StudioMVCommandes: React.FC<{ gestionnaireId: number }> = ({ gestionnaireI
               </div>
               <span style={puce(PAIEMENTS[c.statut_paiement])}>{PAIEMENTS[c.statut_paiement]?.t || c.statut_paiement}</span>
               <span style={puce(STATUTS[c.statut])}>{STATUTS[c.statut]?.t || c.statut}</span>
+              {c.remboursement_en_attente && <span style={puce({ t: '⏳ Remb. à approuver', c: C.orange })}>⏳ Remb. à approuver</span>}
+              {Number(c.montant_rembourse) > 0 && c.statut_paiement === 'paye' && <span style={puce({ t: 'Remb. partiel', c: '#94a3b8' })}>Remb. partiel</span>}
             </div>
           ))}
         </div>
@@ -188,10 +249,37 @@ const StudioMVCommandes: React.FC<{ gestionnaireId: number }> = ({ gestionnaireI
               <span>Commission (vous)</span><span style={{ color: C.green }}>{argent(detail.commission)}</span>
               <span>Net au collaborateur</span><span>{argent(detail.montant_net)}</span>
             </div>
+            {Number(detail.montant_rembourse) > 0 && <div style={{ fontSize: 13, marginTop: 8, color: C.red }}>Remboursé au client : {argent(detail.montant_rembourse ?? null)}</div>}
+            {detail.raison_annulation && <div style={{ fontSize: 13, marginTop: 6 }}>Raison de l'annulation : {detail.raison_annulation}</div>}
+            {(detail.remboursements || []).length > 0 && (
+              <div style={{ marginTop: 14 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: C.textLight, textTransform: 'uppercase', marginBottom: 6 }}>Remboursements</div>
+                {(detail.remboursements || []).map(r => (
+                  <div key={r.id} style={{ border: `1px solid ${r.statut === 'en_attente' ? C.orange : C.border}`, background: r.statut === 'en_attente' ? '#FFFBEB' : '#fff', borderRadius: 10, padding: 10, marginBottom: 8, fontSize: 13 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><strong>{argent(r.montant)}</strong><span>{({ en_attente: '⏳ À approuver', en_cours: '⏳ En cours', effectue: '✅ Effectué', refuse: '✕ Refusé', echoue: '⚠️ Échoué' } as Record<string, string>)[r.statut] || r.statut}</span></div>
+                    <div style={{ color: C.textLight }}>{r.origine === 'refus' ? 'Refus de commande' : 'Remboursement'} · {quand(r.created_at)}<br />Raison du vendeur : {r.raison}{r.motif_refus ? <><br />Motif du refus : {r.motif_refus}</> : null}{r.erreur ? <><br />Erreur : {r.erreur}</> : null}</div>
+                    {r.statut === 'en_attente' && (refusId === r.id ? (
+                      <div style={{ display: 'grid', gap: 6, marginTop: 8 }}>
+                        <input value={motif} onChange={e => setMotif(e.target.value)} maxLength={300} placeholder="Motif du refus (obligatoire)" style={{ ...champ, width: '100%', boxSizing: 'border-box' }} />
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button disabled={occupe} onClick={() => traiter({ ...r, numero_commande: detail.numero_commande }, 'refuser')} style={{ flex: 1, padding: 9, border: 'none', background: C.red, color: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Confirmer le refus</button>
+                          <button onClick={() => { setRefusId(null); setMotif(''); }} style={{ flex: 1, padding: 9, border: `1px solid ${C.border}`, background: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Retour</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button disabled={occupe} onClick={() => traiter({ ...r, numero_commande: detail.numero_commande }, 'approuver')} style={{ flex: 1, padding: 9, border: 'none', background: C.green, color: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>✔ Approuver et rembourser</button>
+                        <button disabled={occupe} onClick={() => { setRefusId(r.id); setMotif(''); }} style={{ flex: 1, padding: 9, border: `1px solid ${C.red}`, background: '#fff', color: C.red, borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>✕ Refuser</button>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
             {detail.statut_paiement !== 'paye' && detail.statut !== 'annulee' && (
               <button onClick={() => setAAnnuler(detail)} style={{ marginTop: 16, width: '100%', padding: 10, border: `1px solid ${C.red}`, background: '#fff', color: C.red, borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Annuler cette commande non payée</button>
             )}
-            {detail.statut_paiement === 'paye' && <p style={{ fontSize: 12, color: C.textLight, marginTop: 14 }}>Commande payée : un remboursement se fait dans Stripe ou via une demande de retour de l'acheteur.</p>}
+            {detail.statut_paiement === 'paye' && <p style={{ fontSize: 12, color: C.textLight, marginTop: 14 }}>Commande payée : les remboursements sont demandés par le vendeur et approuvés ici (ou effectués par lui si vous l'autorisez dans Configuration marketplace → Commande).</p>}
           </div>
         </div>
       )}

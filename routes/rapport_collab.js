@@ -6,7 +6,7 @@
 //   → { ventes, commissions, abonnements: [], province, inscritTaxes }   (même forme que sur e-Vend)
 // Un collaborateur ne voit JAMAIS que ses propres commandes (filtre collaborateur_id = req.cid).
 // Source : marketplace_commandes payées (statut_paiement = 'paye'). Les montants (taxes, commission) sont ceux figés au paiement.
-// Pas encore géré : remboursements (ratioRembourse toujours 0) et abonnements (addons à venir).
+// Remboursements : part remboursée = montant_rembourse / total (taxes et commission remboursées au prorata). Abonnements : addons à venir.
 
 const express = require('express');
 const pool = require('../db');
@@ -34,11 +34,11 @@ router.get('/rapport', async (req, res) => {
     const table = taxesMV.tableTaux(mv);
 
     const cmd = await pool.query(
-      `SELECT c.id, c.numero_commande, c.articles, c.total, c.commission, c.commission_taxes, c.frais_expedition, c.taxes, c.adresse_livraison,
+      `SELECT c.id, c.numero_commande, c.articles, c.total, c.montant_rembourse, c.statut_paiement, c.commission, c.commission_taxes, c.frais_expedition, c.taxes, c.adresse_livraison,
               (COALESCE(c.paye_le, c.date_commande) AT TIME ZONE '${FUSEAU}')::date::text AS date_iso
          FROM marketplace_commandes c
         WHERE c.collaborateur_id = $1 AND c.gestionnaire_id = $2
-          AND c.statut_paiement = 'paye' AND c.statut <> 'annulee'
+          AND (c.statut_paiement = 'rembourse' OR (c.statut_paiement = 'paye' AND c.statut <> 'annulee'))
           AND (COALESCE(c.paye_le, c.date_commande) AT TIME ZONE '${FUSEAU}')::date BETWEEN $3 AND $4
         ORDER BY COALESCE(c.paye_le, c.date_commande) DESC, c.id DESC`,
       [req.cid, req.gid, debut, fin]);
@@ -68,13 +68,14 @@ router.get('/rapport', async (req, res) => {
       const frais = num(row.frais_expedition);
       const tip = num(tx.pourboire);
       const n = Math.max(1, lignes.length);
+      const ratio = num(row.total) > 0 ? Math.min(1, Math.max(0, num(row.montant_rembourse) / num(row.total))) : 0;
       const common = { orderId: String(row.id), storeOrderId: row.numero_commande || `#${row.id}`, date: dateFr, dateISO: row.date_iso,
-        province, taxeRemisePar: 'vendeur', statutPaiement: 'Paid', ratioRembourse: 0,
-        tpsRembourse: 0, tvqRembourse: 0, tvhRembourse: 0, tvpRembourse: 0 };
+        province, taxeRemisePar: 'vendeur', statutPaiement: row.statut_paiement === 'rembourse' ? 'refunded' : 'Paid', ratioRembourse: ratio };
 
       if (!lignes.length) {
         ventes.push({ id: row.id, ...common, produit: 'Commande', quantite: 1, prixUnitaire: Math.max(0, num(row.total) - frais - tip - num(tx.tps) - num(tx.tvq) - num(tx.tvh) - num(tx.tvp)),
-          expedition: frais, pourboire: tip, tps: num(tx.tps), tvq: num(tx.tvq), tvh: num(tx.tvh), tvp: num(tx.tvp) });
+          expedition: frais, pourboire: tip, tps: num(tx.tps), tvq: num(tx.tvq), tvh: num(tx.tvh), tvp: num(tx.tvp),
+          tpsRembourse: num(tx.tps) * ratio, tvqRembourse: num(tx.tvq) * ratio, tvhRembourse: num(tx.tvh) * ratio, tvpRembourse: num(tx.tvp) * ratio });
       }
       lignes.forEach((l, i) => {
         const part = baseTaxable > 0 && l.taxable ? l.base / baseTaxable : 0;
@@ -83,6 +84,7 @@ router.get('/rapport', async (req, res) => {
           produit: String(l.a.titre || l.a.nom || 'Produit'), quantite: l.q, prixUnitaire: r2(l.base / l.q),
           expedition: frais / n, pourboire: tip / n,
           tps: num(tx.tps) * part, tvq: num(tx.tvq) * part, tvh: num(tx.tvh) * part, tvp: num(tx.tvp) * part,
+          tpsRembourse: num(tx.tps) * part * ratio, tvqRembourse: num(tx.tvq) * part * ratio, tvhRembourse: num(tx.tvh) * part * ratio, tvpRembourse: num(tx.tvp) * part * ratio,
         });
       });
 
@@ -96,13 +98,17 @@ router.get('/rapport', async (req, res) => {
           v.tps = r2(v.tps + (taxesCom - (v.tps + v.tvq + v.tvh + v.tvp))); // écart d'arrondi sur la TPS
         } else v.tps = taxesCom;
       }
+      // Commission NETTE des remboursements (le gestionnaire rend sa part au prorata)
+      const k = 1 - ratio;
+      const brute = r2(ht + taxesCom), net = r2(brute * k);
+      if (ratio > 0) { for (const key of ['ht', 'tps', 'tvq', 'tvh', 'tvp']) v[key] = r2(v[key] * k); v.ht = r2(v.ht + (net - (v.ht + v.tps + v.tvq + v.tvh + v.tvp))); }
       if (ht > 0 || taxesCom > 0) {
         const premier = lignes[0] ? String(lignes[0].a.titre || lignes[0].a.nom || 'Produit') : 'Commande';
         commissions.push({
           id: row.id, date: dateFr, dateISO: row.date_iso, orderId: String(row.id), storeOrderId: row.numero_commande || `#${row.id}`,
           produit: lignes.length > 1 ? `${premier} (+${lignes.length - 1})` : premier,
-          montantVenteHT: r2(baseTotale), commissionBrute: r2(ht + taxesCom), commissionRemboursee: 0,
-          statutPaiement: 'Paid', estimee: false, ventilationReelle: v,
+          montantVenteHT: r2(baseTotale), commissionBrute: net, commissionRemboursee: r2(brute - net),
+          statutPaiement: row.statut_paiement === 'rembourse' ? 'refunded' : 'Paid', estimee: false, ventilationReelle: v,
         });
       }
     }

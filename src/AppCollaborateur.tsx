@@ -24,6 +24,7 @@ import CollaborateurMethodesExpedition from './pages/collaborateur/Collaborateur
 import CollaborateurBlogs from './pages/collaborateur/CollaborateurBlogs';
 import CollaborateurFaq from './pages/collaborateur/CollaborateurFaq';
 import CollaborateurRapportFinancier from './pages/collaborateur/CollaborateurRapportFinancier';
+import CollaborateurCommandeDetail from './pages/collaborateur/CollaborateurCommandeDetail';
 
 const API_BASE = '/api';
 
@@ -217,6 +218,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const [heure,      setHeure]        = useState(new Date());
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
   const [produitEnEdition, setProduitEnEdition] = useState<number | null>(null);
+  const [commandeOuverte, setCommandeOuverte] = useState<number | null>(null);
 
   // Infos d'affichage du compte (le vrai jeton est dans le cookie httpOnly).
   const [compte]   = useState<CompteCollaborateur | null>(() => {
@@ -367,7 +369,9 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'annonces-liste')
       return <CollaborateurProduits {...commun} onCreer={() => naviguer('creer')} onModifier={(id: number) => { naviguer('creer'); setProduitEnEdition(id); }} />;
     if (pageActive === 'annonces-promos')   return <CollaborateurReductions {...commun} />;
-    if (pageActive === 'commandes-liste')   return <CollaborateurCommandes {...commun} naviguer={naviguer} />;
+    if (pageActive === 'commande-detail' && commandeOuverte)
+      return <CollaborateurCommandeDetail {...commun} commandeId={commandeOuverte} naviguer={naviguer} onRetour={() => naviguer('commandes-liste')} />;
+    if (pageActive === 'commandes-liste')   return <CollaborateurCommandes {...commun} naviguer={naviguer} onDetail={(id: number) => { setCommandeOuverte(id); naviguer('commande-detail'); }} />;
     if (pageActive === 'commandes-paiements') return <CollaborateurPaiements {...commun} naviguer={naviguer} />;
     if (pageActive === 'commandes-retours') return <CollaborateurRetours {...commun} />;
     if (pageActive === 'messagerie-acheteurs')

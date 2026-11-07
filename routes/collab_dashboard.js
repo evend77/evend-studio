@@ -19,6 +19,7 @@ const pool = require('../db');
 const paiementMV = require('../services/studio_paiement');
 const expMV = require('../services/studio_expedition');
 const vacMV = require('../services/studio_vacances');
+const rembMV = require('../services/studio_remboursement');
 
 const router = express.Router({ mergeParams: true });
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -471,6 +472,18 @@ router.delete('/reductions/:id', h(async (req, res) => {
 // COMMANDES
 // ════════════════════════════════════════════════════════════════════════════
 
+// Un lien de suivi doit être une adresse web http(s) (jamais « javascript: »…) ; sans protocole on ajoute https://
+function urlSuivi(v) {
+  if (v === undefined || v === null) return '';
+  const s = String(v).trim();
+  if (!s) return '';
+  if (s.length > 500) bad('Le lien de suivi est trop long (500 caractères maximum).');
+  if (/[\u0000-\u001f]/.test(s)) bad('Le lien de suivi contient des caractères invalides.');
+  if (/^https?:\/\/\S/i.test(s)) return s.replace(/\s/g, '%20');
+  if (/^[a-z0-9]([a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}([\/?#]\S*)?$/i.test(s)) return 'https://' + s;
+  bad('Le lien de suivi doit être une adresse web (http:// ou https://).');
+}
+
 const STATUTS_COMMANDE = ['en_attente', 'confirmee', 'expediee', 'livree', 'annulee'];
 const STATUTS_PAIEMENT = ['en_attente', 'paye', 'rembourse', 'echoue'];
 const TRANSITIONS = {
@@ -500,7 +513,8 @@ function filtreCommandes(req, ignorerStatut) {
 }
 
 const COLS_COMMANDE = `c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net,
-       c.date_commande, c.numero_suivi, c.transporteur, jsonb_array_length(COALESCE(c.articles, '[]'::jsonb)) AS nb_articles,
+       c.date_commande, c.numero_suivi, c.transporteur, c.montant_rembourse, jsonb_array_length(COALESCE(c.articles, '[]'::jsonb)) AS nb_articles,
+       EXISTS (SELECT 1 FROM commande_remboursements r WHERE r.commande_id = c.id AND r.statut = 'en_attente') AS remboursement_en_attente,
        a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email`;
 const JOIN_ACHETEUR = 'FROM marketplace_commandes c LEFT JOIN marketplace_acheteurs a ON a.id = c.acheteur_id';
 
@@ -523,13 +537,69 @@ router.get('/commandes/:id', h(async (req, res) => {
   if (!id) bad('Commande invalide');
   const r = await pool.query(
     `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net, c.articles, c.adresse_livraison,
-            c.note, c.date_commande, c.numero_suivi, c.transporteur, c.paye_le,
+            c.note, c.date_commande, c.numero_suivi, c.transporteur, c.url_suivi, c.paye_le, c.frais_expedition, c.taxes, c.code_promo, c.rabais,
+            c.montant_rembourse, c.raison_annulation,
             a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email, a.telephone AS acheteur_telephone
        ${JOIN_ACHETEUR} WHERE c.id = $1 AND c.collaborateur_id = $2 AND c.gestionnaire_id = $3`, [id, req.cid, req.gid]);
   if (!r.rows.length) bad('Commande introuvable', 404);
-  const retours = await pool.query(
-    `SELECT id, motif, statut, created_at FROM demandes_retour WHERE commande_id = $1 AND collaborateur_id = $2 ORDER BY created_at DESC`, [id, req.cid]);
-  res.json({ ...r.rows[0], retours: retours.rows, transitions: TRANSITIONS[r.rows[0].statut] || [] });
+  const [retours, rembs, hist, autonome] = await Promise.all([
+    pool.query(`SELECT id, motif, statut, created_at FROM demandes_retour WHERE commande_id = $1 AND collaborateur_id = $2 ORDER BY created_at DESC`, [id, req.cid]),
+    pool.query(`SELECT id, origine, montant, raison, statut, demande_par, motif_refus, erreur, created_at, traite_le FROM commande_remboursements WHERE commande_id = $1 ORDER BY created_at DESC, id DESC`, [id]),
+    pool.query(`SELECT evenement, detail, auteur, created_at FROM commande_historique WHERE commande_id = $1 ORDER BY created_at DESC, id DESC LIMIT 100`, [id]),
+    rembMV.collaborateurAutonome(req.gid),
+  ]);
+  const cmd = r.rows[0];
+  const payee = cmd.statut_paiement === 'paye';
+  const restant = rembMV.restantC(cmd) / 100;
+  const ouverte = rembs.rows.some((x) => x.statut === 'en_attente' || x.statut === 'en_cours');
+  res.json({ ...cmd, retours: retours.rows, remboursements: rembs.rows, historique: hist.rows, transitions: TRANSITIONS[cmd.statut] || [],
+    remboursement_autonome: autonome, montant_restant: restant,
+    peut_rembourser: payee && restant > 0 && !ouverte,
+    peut_refuser: payee && ['en_attente', 'confirmee'].includes(cmd.statut) && restant > 0 && !ouverte });
+}));
+
+// Refuser une commande : non payée → annulation simple ; payée → remboursement TOTAL avec raison (approbation du gestionnaire si exigée)
+router.post('/commandes/:id/refuser', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Commande invalide');
+  const raison = texte(req.body && req.body.raison, 'Raison', 500, true);
+  const c = (await pool.query(`SELECT statut, statut_paiement, acheteur_id, numero_commande FROM marketplace_commandes WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3`, [id, req.cid, req.gid])).rows[0];
+  if (!c) bad('Commande introuvable', 404);
+  if (c.statut === 'annulee') bad('Commande déjà annulée', 409);
+  if (c.statut_paiement !== 'paye') {
+    try { await paiementMV.annulerNonPayee(id, { par: 'collaborateur', raison }); }
+    catch (e) { if (e instanceof paiementMV.ErreurPaiement) bad(e.message, e.status); throw e; }
+    await pool.query(`UPDATE marketplace_commandes SET raison_annulation = $2 WHERE id = $1`, [id, raison]);
+    await rembMV.noter(pool, id, 'commande_refusee', raison, 'collaborateur');
+    if (c.acheteur_id) await notifierAcheteur(req.gid, c.acheteur_id, 'Commande annulée', `Votre commande ${c.numero_commande} est annulée. Raison : ${raison}`, 'commande');
+    return res.json({ success: true, statut: 'effectue' });
+  }
+  try { res.json({ success: true, ...(await rembMV.demander({ gid: req.gid, collaborateurId: req.cid, commandeId: id, origine: 'refus', raison })) }); }
+  catch (e) { if (e instanceof rembMV.ErreurRemboursement) bad(e.message, e.status); throw e; }
+}));
+
+// Remboursement partiel ou total d'une commande payée
+router.post('/commandes/:id/rembourser', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Commande invalide');
+  const b = req.body || {};
+  const raison = texte(b.raison, 'Raison', 500, true);
+  const montant = b.total === true ? null : nombre(b.montant, 'Montant', 0.01, 1000000, undefined);
+  if (b.total !== true && (montant === null || montant === undefined)) bad('Indiquez un montant ou choisissez le remboursement total.');
+  try { res.json({ success: true, ...(await rembMV.demander({ gid: req.gid, collaborateurId: req.cid, commandeId: id, origine: 'remboursement', montant, raison })) }); }
+  catch (e) { if (e instanceof rembMV.ErreurRemboursement) bad(e.message, e.status); throw e; }
+}));
+
+// Le collaborateur retire sa demande en attente
+router.delete('/commandes/:id/remboursement-en-attente', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Commande invalide');
+  const r = await pool.query(
+    `UPDATE commande_remboursements SET statut = 'refuse', motif_refus = 'Demande retirée par le vendeur', traite_par = 'collaborateur', traite_le = NOW()
+      WHERE commande_id = $1 AND collaborateur_id = $2 AND gestionnaire_id = $3 AND statut = 'en_attente' RETURNING id`, [id, req.cid, req.gid]);
+  if (!r.rows[0]) bad('Aucune demande en attente.', 404);
+  await rembMV.noter(pool, id, 'remboursement_retire', 'Demande retirée par le vendeur', 'collaborateur');
+  res.json({ success: true });
 }));
 
 router.put('/commandes/:id/statut', h(async (req, res) => {
@@ -542,7 +612,7 @@ router.put('/commandes/:id/statut', h(async (req, res) => {
   const actuel = c.rows[0];
   if (!(TRANSITIONS[actuel.statut] || []).includes(b.statut)) bad(`Passage impossible : ${actuel.statut} → ${b.statut}`, 409);
   if (b.statut === 'annulee' && actuel.statut_paiement === 'paye') {
-    bad('Commande déjà payée : traitez-la avec une demande de retour / remboursement.', 409);
+    bad('Commande déjà payée : utilisez « Refuser la commande » (remboursement) pour l\'annuler.', 409);
   }
   if (b.statut === 'annulee') {
     // Commande non payée : ferme la page de paiement Stripe et remet le stock réservé
@@ -553,18 +623,22 @@ router.put('/commandes/:id/statut', h(async (req, res) => {
     }
     return res.json({ success: true });
   }
+  if (['expediee', 'livree'].includes(b.statut) && actuel.statut_paiement !== 'paye') bad("Cette commande n'est pas payée : elle ne peut pas être expédiée.", 409);
   const suivi = b.statut === 'expediee' ? texte(b.numero_suivi, 'Numéro de suivi', 80) : '';
   const transp = b.statut === 'expediee' ? texte(b.transporteur, 'Transporteur', 60) : '';
+  const url = b.statut === 'expediee' ? urlSuivi(b.url_suivi) : '';
   await pool.query(
     `UPDATE marketplace_commandes SET statut=$1, updated_at=NOW(),
             numero_suivi = CASE WHEN $7::boolean THEN NULLIF($2::text,'') ELSE numero_suivi END,
-            transporteur = CASE WHEN $7::boolean THEN NULLIF($3::text,'') ELSE transporteur END
+            transporteur = CASE WHEN $7::boolean THEN NULLIF($3::text,'') ELSE transporteur END,
+            url_suivi = CASE WHEN $7::boolean THEN NULLIF($8::text,'') ELSE url_suivi END
       WHERE id=$4 AND collaborateur_id=$5 AND gestionnaire_id=$6`,
-    [b.statut, suivi, transp, id, req.cid, req.gid, b.statut === 'expediee']);
+    [b.statut, suivi, transp, id, req.cid, req.gid, b.statut === 'expediee', url]);
+  await rembMV.noter(pool, id, 'statut_' + b.statut, [transp, suivi].filter(Boolean).join(' · ') || null, 'collaborateur');
   const LIB = { confirmee: 'confirmée', expediee: 'expédiée', livree: 'livrée', annulee: 'annulée' };
   if (LIB[b.statut] && actuel.acheteur_id) {
     await notifierAcheteur(req.gid, actuel.acheteur_id, `Commande ${LIB[b.statut]}`,
-      `Votre commande ${actuel.numero_commande} est maintenant ${LIB[b.statut]}.${suivi ? ' Suivi : ' + suivi + '.' : ''}`, 'commande');
+      `Votre commande ${actuel.numero_commande} est maintenant ${LIB[b.statut]}.${suivi ? ' Suivi : ' + suivi + '.' : ''}${url ? ' Lien : ' + url : ''}`, 'commande');
   }
   res.json({ success: true });
 }));

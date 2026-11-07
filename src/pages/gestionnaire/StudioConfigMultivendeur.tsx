@@ -169,7 +169,7 @@ interface ConfigMV {
   statut_preparation_commande: boolean; heures_preparation: string;
   taxes_incluses_prix: boolean; deduire_expedition_remboursement: boolean;
   deduire_taxes_remboursement: boolean; taxes_sur_expedition: boolean;
-  permettre_etiquette_expedition: boolean; jours_remboursement: string;
+  permettre_etiquette_expedition: boolean; jours_remboursement: string; remboursement_collab_autonome: boolean;
   permettre_accepter_commande: boolean; annuler_auto_rejet: boolean;
   permettre_annuler_commande_acceptee: boolean; accepter_et_expedier: boolean;
   envoyer_mail_expedition: boolean; permettre_date_livraison_prevue: boolean;
@@ -246,7 +246,7 @@ const DEFAUTS: ConfigMV = {
   statut_preparation_commande: false, heures_preparation: '0',
   taxes_incluses_prix: false, deduire_expedition_remboursement: false,
   deduire_taxes_remboursement: false, taxes_sur_expedition: false,
-  permettre_etiquette_expedition: false, jours_remboursement: '14',
+  permettre_etiquette_expedition: false, jours_remboursement: '14', remboursement_collab_autonome: false,
   permettre_accepter_commande: true, annuler_auto_rejet: false,
   permettre_annuler_commande_acceptee: false, accepter_et_expedier: false,
   envoyer_mail_expedition: true, permettre_date_livraison_prevue: false,
@@ -921,6 +921,14 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
 
           <div>
             <Section titre="Remboursements" icon="↩️">
+              <ParamLigne label="Le vendeur peut rembourser lui-même (sans mon approbation)">
+                <Toggle actif={config.remboursement_collab_autonome} onChange={set('remboursement_collab_autonome')} />
+              </ParamLigne>
+              <p style={{ margin: '-4px 0 10px', fontSize: 11, color: '#888', lineHeight: 1.5 }}>
+                {config.remboursement_collab_autonome
+                  ? 'Activé : quand un vendeur refuse une commande ou rembourse un client, le remboursement part tout de suite.'
+                  : 'Désactivé : chaque refus ou remboursement du vendeur attend votre approbation (encadré orange en haut de la page Commandes).'}
+              </p>
               <ParamLigne label="Taxes incluses dans le prix">
                 <Toggle actif={config.taxes_incluses_prix} onChange={set('taxes_incluses_prix')} />
               </ParamLigne>

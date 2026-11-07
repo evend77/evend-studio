@@ -12,6 +12,9 @@
 //   GET   /commandes                → ?q= ?collaborateur_id= ?statut= ?paiement= ?page=
 //   GET   /commandes/:id            → détail
 //   POST  /commandes/:id/annuler    → annule une commande NON payée { raison? }
+//   GET   /remboursements           → ?statut=en_attente|effectue|refuse|echoue  (demandes des collaborateurs)
+//   POST  /remboursements/:id/approuver → exécute le remboursement Stripe
+//   POST  /remboursements/:id/refuser   → { motif }
 
 'use strict';
 
@@ -20,6 +23,7 @@ const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const paiement = require('../services/studio_paiement');
+const rembMV = require('../services/studio_remboursement');
 
 const router = express.Router({ mergeParams: true });
 const PAR_PAGE = 40;
@@ -186,7 +190,8 @@ router.get('/commandes', h(async (req, res) => {
   const [liste, total, tot] = await Promise.all([
     pool.query(
       `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net, c.date_commande, c.collaborateur_id,
-              jsonb_array_length(COALESCE(c.articles, '[]'::jsonb)) AS nb_articles, c.code_promo, c.rabais,
+              jsonb_array_length(COALESCE(c.articles, '[]'::jsonb)) AS nb_articles, c.code_promo, c.rabais, c.montant_rembourse,
+              EXISTS (SELECT 1 FROM commande_remboursements r WHERE r.commande_id = c.id AND r.statut = 'en_attente') AS remboursement_en_attente,
               a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email, col.nom_boutique AS boutique
          ${base} WHERE ${W} ORDER BY c.date_commande DESC, c.id DESC LIMIT ${PAR_PAGE} OFFSET ${(pg - 1) * PAR_PAGE}`, params),
     pool.query(`SELECT COUNT(*) AS n ${base} WHERE ${W}`, params),
@@ -205,14 +210,47 @@ router.get('/commandes/:id', h(async (req, res) => {
   if (!id) bad('Commande invalide.');
   const r = await pool.query(
     `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net, c.articles, c.adresse_livraison, c.note,
-            c.date_commande, c.paye_le, c.frais_expedition, c.taxes, c.code_promo, c.rabais, c.numero_suivi, c.transporteur, c.collaborateur_id,
+            c.date_commande, c.paye_le, c.frais_expedition, c.taxes, c.code_promo, c.rabais, c.numero_suivi, c.transporteur, c.collaborateur_id, c.montant_rembourse, c.raison_annulation,
             a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email, a.telephone AS acheteur_telephone,
             col.nom_boutique AS boutique
        FROM marketplace_commandes c LEFT JOIN marketplace_acheteurs a ON a.id = c.acheteur_id
        LEFT JOIN marketplace_collaborateurs col ON col.id = c.collaborateur_id
       WHERE c.id = $1 AND c.gestionnaire_id = $2`, [id, req.gid]);
   if (!r.rows.length) bad('Commande introuvable.', 404);
-  res.json(r.rows[0]);
+  const rembs = await pool.query(
+    `SELECT id, origine, montant, raison, statut, demande_par, motif_refus, erreur, created_at, traite_le FROM commande_remboursements WHERE commande_id = $1 ORDER BY created_at DESC, id DESC`, [id]);
+  res.json({ ...r.rows[0], remboursements: rembs.rows });
+}));
+
+// ── Demandes de remboursement des collaborateurs ─────────────────────────────
+router.get('/remboursements', h(async (req, res) => {
+  const where = ['r.gestionnaire_id = $1'];
+  const params = [req.gid];
+  if (['en_attente', 'en_cours', 'effectue', 'refuse', 'echoue'].includes(req.query.statut)) { params.push(req.query.statut); where.push(`r.statut = $${params.length}`); }
+  const r = await pool.query(
+    `SELECT r.id, r.commande_id, r.origine, r.montant, r.raison, r.statut, r.demande_par, r.motif_refus, r.erreur, r.created_at, r.traite_le,
+            c.numero_commande, c.total AS total_commande, c.montant_rembourse, col.nom_boutique AS boutique,
+            a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email
+       FROM commande_remboursements r JOIN marketplace_commandes c ON c.id = r.commande_id
+       LEFT JOIN marketplace_collaborateurs col ON col.id = r.collaborateur_id
+       LEFT JOIN marketplace_acheteurs a ON a.id = c.acheteur_id
+      WHERE ${where.join(' AND ')} ORDER BY (r.statut = 'en_attente') DESC, r.created_at DESC, r.id DESC LIMIT 100`, params);
+  const n = await pool.query(`SELECT COUNT(*) AS n FROM commande_remboursements WHERE gestionnaire_id = $1 AND statut = 'en_attente'`, [req.gid]);
+  res.json({ remboursements: r.rows, en_attente: parseInt(n.rows[0].n, 10) });
+}));
+
+router.post('/remboursements/:id/approuver', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Demande invalide.');
+  try { res.json({ success: true, ...(await rembMV.executer(id, { par: 'gestionnaire', gid: req.gid })) }); }
+  catch (e) { if (e instanceof rembMV.ErreurRemboursement) bad(e.message, e.status); throw e; }
+}));
+
+router.post('/remboursements/:id/refuser', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Demande invalide.');
+  try { res.json(await rembMV.refuserDemande(id, req.gid, req.body && req.body.motif)); }
+  catch (e) { if (e instanceof rembMV.ErreurRemboursement) bad(e.message, e.status); throw e; }
 }));
 
 router.post('/commandes/:id/annuler', h(async (req, res) => {
