@@ -68,12 +68,14 @@ router.get('/mv/plans', authenticateToken, gestionnaire, h(async (req, res) => {
 }));
 
 router.get('/mv/mon-forfait', authenticateToken, gestionnaire, h(async (req, res) => {
-  const [etat, resume, plans] = await Promise.all([
+  const [etat, resume, plans, site] = await Promise.all([
     addons.etatAddonsMV(req.gid),
     addons.resumeFacturationMV(req.gid),
     addons.listerPlansMV({ actifSeulement: true }),
+    pool.query('SELECT 1 FROM sites WHERE gestionnaire_id = $1 AND template_id = $2 LIMIT 1', [req.gid, addons.TEMPLATE_MV]),
   ]);
-  res.json({ forfait: etat.forfait, addons: etat.addons, plans, total_ht: resume.total_ht });
+  // est_mv : seuls les gestionnaires dont le site utilise le template multi-vendeur ont un forfait MV à afficher dans « Mes services »
+  res.json({ est_mv: site.rowCount > 0, forfait: etat.forfait, addons: etat.addons, lignes: resume.addons, plans, total_ht: resume.total_ht });
 }));
 
 router.put('/mv/mon-forfait', authenticateToken, gestionnaire, h(async (req, res) => {

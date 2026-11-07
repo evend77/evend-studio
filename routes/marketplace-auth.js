@@ -292,6 +292,7 @@ router.get('/:gestionnaireId/collaborateurs/:collabId/stats', authMarketplace, a
     if (req.mvUser.type !== 'collaborateur' || req.mvUser.id !== Number(collabId)) {
       return res.status(403).json({ message: 'Acces refuse.' });
     }
+    const avisOk = await require('../services/studio_avis').actifs(gestionnaireId, pool);
     const [total, enAttente, livrees, revenus, produits, actifs, rupture, avis] = await Promise.all([
       pool.query('SELECT COUNT(*) FROM marketplace_commandes WHERE collaborateur_id=$1 AND gestionnaire_id=$2', [collabId, gestionnaireId]),
       pool.query("SELECT COUNT(*) FROM marketplace_commandes WHERE collaborateur_id=$1 AND gestionnaire_id=$2 AND statut='en_attente'", [collabId, gestionnaireId]),
@@ -310,7 +311,7 @@ router.get('/:gestionnaireId/collaborateurs/:collabId/stats', authMarketplace, a
       revenus: { total: parseFloat(revenus.rows[0].total), mois: parseFloat(revenus.rows[0].mois), aujourdhui: 0 },
       commandes: { total: parseInt(total.rows[0].count), en_attente: parseInt(enAttente.rows[0].count), expediees: 0, livrees: parseInt(livrees.rows[0].count) },
       produits: { total: parseInt(produits.rows[0].count), actifs: parseInt(actifs.rows[0].count), en_rupture: parseInt(rupture.rows[0].count) },
-      avis: { moyenne: parseFloat(avis.rows[0].moyenne), total: parseInt(avis.rows[0].total) },
+      avis: avisOk ? { moyenne: parseFloat(avis.rows[0].moyenne), total: parseInt(avis.rows[0].total) } : { moyenne: 0, total: 0 },   // add-on « Avis clients » inactif → caché
       graphiques: { ventes30j: ventes30j.rows },
     });
   } catch (err) { res.status(500).json({ message: 'Erreur serveur' }); }

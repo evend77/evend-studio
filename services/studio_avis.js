@@ -6,6 +6,19 @@
 'use strict';
 
 const cfgMV = require('./studio_config_mv');
+const studioAddons = require('./studio_addons');
+
+// Le système d'avis est-il ACTIF pour ce gestionnaire ?
+//  = add-on « Avis clients » actif (inclus au forfait ou acheté)  ET  réglage marketplace « Avis clients » non coupé.
+// Aucun avis n'est supprimé quand c'est inactif : ils sont simplement cachés / bloqués.
+async function actifs(gid, db, mvCfg) {
+  const d = db || require('../db');
+  if (!(await studioAddons.addonActifRapide(gid, 'avis_clients', d))) return false;
+  const mv = mvCfg || await cfgMV.lire(gid, d);
+  return cfgMV.actif(mv, 'avis_actifs', true);
+}
+// Seulement l'add-on (sans le réglage marketplace) — pour les écrans qui doivent distinguer « non activé » de « désactivé ».
+const addonActif = (gid, db) => studioAddons.addonActifRapide(gid, 'avis_clients', db || require('../db'));
 
 // Que devient un nouvel avis ?
 //  1) « Approuver automatiquement les avis » activé (défaut) → publié tout de suite.
@@ -114,4 +127,4 @@ async function notifierGestionnaire(gid, avisId, db) {
   } catch (e) { console.error('[studio_avis] notification gestionnaire :', e.message); return { envoye: false }; }
 }
 
-module.exports = { detailles, decision, reglagesCollab, notifierNouvelAvis, notifierAvisAApprouver, notifierGestionnaire };
+module.exports = { actifs, addonActif, detailles, decision, reglagesCollab, notifierNouvelAvis, notifierAvisAApprouver, notifierGestionnaire };

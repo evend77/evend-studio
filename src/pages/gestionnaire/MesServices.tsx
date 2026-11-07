@@ -17,6 +17,7 @@ interface Ligne {
   nom: string;
   prix_ht: number;
   actif: boolean;
+  inclus?: boolean;   // add-on compris dans le forfait (0,00 $)
 }
 
 interface Abonnement {
@@ -81,6 +82,7 @@ export default function MesServices({ gestionnaireId }: Props) {
   const [revenuPubMois, setRevenuPubMois] = useState<{ clics: number; revenu: number; montant_par_clic: number } | null>(null);
   const [factureSelectionnee, setFactureSelectionnee] = useState<number | null>(null);
   const [revenuPubFacture, setRevenuPubFacture] = useState<Record<number, { clics: number; revenu: number }>>({});
+  const [codesMV, setCodesMV] = useState<string[]>([]);   // add-ons gérés par le forfait MV (cachés des « Options disponibles » héritées)
   const [vue, setVue] = useState<Vue>('services');
   const [chargement, setChargement] = useState(true);
   const [actionEnCours, setActionEnCours] = useState<string | null>(null);
@@ -91,7 +93,7 @@ export default function MesServices({ gestionnaireId }: Props) {
   const charger = async () => {
     setChargement(true);
     try {
-      const [aboRes, optRes, facturesRes, addonsRes, blocsRes] = await Promise.all([
+      const [aboRes, optRes, facturesRes, addonsRes, blocsRes, mvRes] = await Promise.all([
         fetch('/api/abonnements-studio/mon-abonnement', {
           headers: { Authorization: `Bearer ${token()}` },
         }),
@@ -110,12 +112,27 @@ export default function MesServices({ gestionnaireId }: Props) {
         fetch(`/api/messagerie-contact/gestionnaire/${gestionnaireId}/facturation-cycle`, {
           headers: { Authorization: `Bearer ${token()}` },
         }),
+        // 🟢 Forfait Multi-Vendeur + add-ons (inclus ou achetés) — seulement si le site est un multi-vendeur.
+        fetch('/api/studio-forfaits/mv/mon-forfait', {
+          headers: { Authorization: `Bearer ${token()}` },
+        }),
       ]);
       const aboData = await aboRes.json();
       const optData = await optRes.json();
       const facturesData = await facturesRes.json();
       const addonsData = await addonsRes.json().catch(() => ({}));
       const blocsData = await blocsRes.json().catch(() => ({ achats: [] }));
+      const mvData = mvRes.ok ? await mvRes.json().catch(() => null) : null;
+      const mv = mvData && mvData.est_mv && mvData.forfait ? mvData : null;
+
+      // Forfait MV (prix venant du serveur) + ses add-ons : inclus = 0,00 $, achetés = leur prix. Aucun prix en dur.
+      const lignesMV: Ligne[] = mv ? [
+        { id: -3000, type: 'forfait', code: mv.forfait.plan_id, nom: `Forfait Multi-Vendeur ${mv.forfait.nom}`, prix_ht: mv.forfait.prix, actif: true },
+        ...(mv.lignes || []).map((l: any, i: number) => ({
+          id: -3001 - i, type: 'addon', code: l.code, nom: `${l.emoji || ''} ${l.nom}`.trim(), prix_ht: l.prix_ht, actif: true, inclus: !!l.inclus,
+        })),
+      ] : [];
+      setCodesMV(mv ? (mvData.addons || []).map((a: any) => a.code) : []);
 
       // Transformer les options actives (booléens) en lignes de facturation affichables
       const lignesAddons: Ligne[] = ADDONS_CATALOGUE
@@ -132,7 +149,9 @@ export default function MesServices({ gestionnaireId }: Props) {
         actif: true,
       }));
 
-      const lignesCombinees = [...(aboData.lignes || []), ...lignesAddons, ...lignesBlocs];
+      // Un forfait MV remplace toute ligne « forfait » héritée de l'ancien système (évite le double comptage)
+      const lignesAbo = (aboData.lignes || []).filter((l: Ligne) => !(mv && l.type === 'forfait'));
+      const lignesCombinees = [...lignesAbo, ...lignesMV, ...lignesAddons, ...lignesBlocs];
       setAbonnement(aboData.abonnement);
       setLignes(lignesCombinees);
 
@@ -442,11 +461,11 @@ export default function MesServices({ gestionnaireId }: Props) {
                       <td style={{ padding: '14px 20px' }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: '#1a1a1a' }}>{ligne.nom}</div>
                         <div style={{ fontSize: 11, color: '#aaa', marginTop: 2, textTransform: 'uppercase' }}>
-                          {ligne.type === 'forfait' ? 'Forfait de base' : ligne.type === 'option' ? 'Option' : ligne.type === 'domaine_externe' ? 'Domaine externe' : 'Add-on'}
+                          {ligne.type === 'forfait' ? 'Forfait de base' : ligne.inclus ? 'Add-on · inclus dans votre forfait' : ligne.type === 'option' ? 'Option' : ligne.type === 'domaine_externe' ? 'Domaine externe' : 'Add-on'}
                         </div>
                       </td>
                       <td style={{ padding: '14px 20px', textAlign: 'right', fontWeight: 700, fontSize: 14, color: '#1a1a1a', whiteSpace: 'nowrap' }}>
-                        {fmt(parseFloat(String(ligne.prix_ht)))} / mois
+                        {ligne.inclus ? <span style={{ color: '#16a34a' }}>Inclus</span> : <>{fmt(parseFloat(String(ligne.prix_ht)))} / mois</>}
                       </td>
                     </tr>
                   ))}
@@ -503,9 +522,9 @@ export default function MesServices({ gestionnaireId }: Props) {
       {/* ══════════ VUE OPTIONS ══════════ */}
       {vue === 'options' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {options.length === 0 ? (
+          {options.filter(o => !codesMV.includes(o.code)).length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#888' }}>Aucune option disponible pour le moment.</div>
-          ) : options.map(opt => (
+          ) : options.filter(o => !codesMV.includes(o.code)).map(opt => (
             <div key={opt.code} style={{
               background: '#fff', border: `1.5px solid ${opt.activee ? '#4F46E5' : '#e5e7eb'}`,
               borderRadius: 12, padding: '16px 20px',

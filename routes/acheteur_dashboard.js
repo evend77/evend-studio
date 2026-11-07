@@ -187,7 +187,9 @@ router.get('/commandes', h(async (req, res) => {
       ORDER BY c.date_commande DESC, c.id DESC LIMIT 300`,
     [req.aid, req.gid]);
   const rg = await regCmd.lire(req.gid, pool);
-  res.json({ commandes: r.rows.map((x) => avecAvis(rg, x)), jours_delai_avis: rg.joursAvis, avis_detailles: avisMV.detailles(await cfgMV.lire(req.gid, pool)) });
+  const mvCfg = await cfgMV.lire(req.gid, pool);
+  // avis_actifs = add-on « Avis clients » actif ET réglage marketplace non coupé (sinon : pas de bouton « Donner un avis »)
+  res.json({ commandes: r.rows.map((x) => avecAvis(rg, x)), jours_delai_avis: rg.joursAvis, avis_detailles: avisMV.detailles(mvCfg), avis_actifs: await avisMV.actifs(req.gid, pool, mvCfg) });
 }));
 
 router.get('/commandes/:id', h(async (req, res) => {
@@ -301,6 +303,7 @@ router.post('/avis/photo', (req, res) => {
       return res.status(gros ? 413 : 400).json({ error: gros ? 'Image trop lourde (max 5 Mo)' : 'Envoi invalide' });
     }
     h(async () => {
+      if (!(await avisMV.actifs(req.gid, pool))) bad('Les avis ne sont pas activés sur cette marketplace.', 403);
       if (!avisMV.detailles(await cfgMV.lire(req.gid, pool))) bad('Les photos ne sont pas activées pour les avis.', 403);
       if (!req.file) bad('Aucun fichier reçu');
       const ext = extensionSelonContenu(req.file.buffer);
@@ -336,7 +339,7 @@ router.post('/commandes/:id/avis', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Commande invalide');
   const mvCfg = await cfgMV.lire(req.gid, pool);
-  if (!cfgMV.actif(mvCfg, 'avis_actifs', true)) bad('Les avis sont désactivés sur cette marketplace.', 403);
+  if (!(await avisMV.actifs(req.gid, pool, mvCfg))) bad('Les avis ne sont pas activés sur cette marketplace.', 403);
   const b = req.body || {};
   const note = Number(b.note);
   if (!Number.isInteger(note) || note < 1 || note > 5) bad('Note invalide (1 à 5)');
@@ -430,33 +433,35 @@ const COLS_COLLAB = `mc.id, COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsa
   (SELECT COALESCE(AVG(a.note),0) FROM avis_collaborateur a WHERE a.collaborateur_id = mc.id AND a.approuve) AS note_moyenne,
   (SELECT COUNT(*) FROM avis_collaborateur a WHERE a.collaborateur_id = mc.id AND a.approuve) AS nombre_avis`;
 
-function formaterCollab(r) {
+function formaterCollab(r, avisOk = true) {
   return {
     id: r.id, nom_boutique: r.nom_boutique, logo_url: r.logo_url, banniere_url: r.banniere_url,
     ville: r.ville, province: r.province, type_entreprise: r.type_entreprise,
     description: r.description_boutique ? String(r.description_boutique).slice(0, 150) : '',
     membre_depuis: r.membre_depuis,
     total_produits: parseInt(r.total_produits, 10) || 0,
-    note_moyenne: Math.round((parseFloat(r.note_moyenne) || 0) * 10) / 10,
-    nombre_avis: parseInt(r.nombre_avis, 10) || 0,
+    note_moyenne: avisOk ? Math.round((parseFloat(r.note_moyenne) || 0) * 10) / 10 : 0,
+    nombre_avis: avisOk ? (parseInt(r.nombre_avis, 10) || 0) : 0,
   };
 }
 
 router.get('/favoris', h(async (req, res) => {
+  const avisOk = await avisMV.actifs(req.gid, pool);
   const r = await pool.query(
     `SELECT ${COLS_COLLAB} FROM marketplace_favoris_collab f
        JOIN marketplace_collaborateurs mc ON mc.id = f.collaborateur_id AND mc.statut = 'actif'
       WHERE f.acheteur_id = $1 AND f.gestionnaire_id = $2 ORDER BY f.created_at DESC LIMIT 200`, [req.aid, req.gid]);
-  res.json({ collaborateurs: r.rows.map(formaterCollab) });
+  res.json({ collaborateurs: r.rows.map((x) => formaterCollab(x, avisOk)) });
 }));
 
 router.get('/favoris/suggestions', h(async (req, res) => {
+  const avisOk = await avisMV.actifs(req.gid, pool);
   const r = await pool.query(
     `SELECT ${COLS_COLLAB} FROM marketplace_collaborateurs mc
       WHERE mc.gestionnaire_id = $2 AND mc.statut = 'actif'
         AND NOT EXISTS (SELECT 1 FROM marketplace_favoris_collab f WHERE f.acheteur_id = $1 AND f.collaborateur_id = mc.id)
       ORDER BY mc.created_at DESC LIMIT 12`, [req.aid, req.gid]);
-  res.json({ collaborateurs: r.rows.map(formaterCollab) });
+  res.json({ collaborateurs: r.rows.map((x) => formaterCollab(x, avisOk)) });
 }));
 
 router.post('/favoris/:collabId', h(async (req, res) => {

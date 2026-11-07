@@ -847,6 +847,7 @@ router.put('/retours/:id/terminer', h((req, res) => actionRetour(req, res, 'appr
 // ════════════════════════════════════════════════════════════════════════════
 
 router.get('/avis', h(async (req, res) => {
+  if (!(await avisMV.addonActif(req.gid, pool))) return res.json({ addon_actif: false, avis: [], total: 0, page: 1, pages: 1, stats: { moyenne: 0, total: 0, repartition: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 } } });
   const where = ['v.collaborateur_id = $1', 'v.gestionnaire_id = $2', 'v.approuve = true'];
   const params = [req.cid, req.gid];
   const note = entier(req.query.note);
@@ -872,18 +873,21 @@ router.get('/avis', h(async (req, res) => {
   const s = stats.rows[0];
   res.json({
     avis: liste.rows, total: n, page, pages: Math.max(1, Math.ceil(n / PAR_PAGE)),
+    addon_actif: true,
     stats: { moyenne: Math.round(parseFloat(s.moyenne) * 10) / 10, total: +s.total, repartition: { 5: +s.n5, 4: +s.n4, 3: +s.n3, 2: +s.n2, 1: +s.n1 } },
   });
 }));
 
 // Avis qui attendent MON approbation (mode « je les approuve moi-même », Configuration → Avis clients)
 router.get('/avis/compte', h(async (req, res) => {
+  if (!(await avisMV.addonActif(req.gid, pool))) return res.json({ attente: 0, addon_actif: false });
   const r = await pool.query(
     `SELECT COUNT(*) AS n FROM avis_collaborateur WHERE collaborateur_id=$1 AND gestionnaire_id=$2 AND approuve = false AND masque_le IS NULL AND approbateur = 'collaborateur'`, [req.cid, req.gid]);
   res.json({ attente: parseInt(r.rows[0].n, 10) });
 }));
 
 router.get('/avis/attente', h(async (req, res) => {
+  if (!(await avisMV.addonActif(req.gid, pool))) return res.json({ addon_actif: false, avis: [], total: 0 });
   const r = await pool.query(
     `SELECT v.id, v.note, v.titre, v.commentaire, v.created_at, v.criteres, v.photos, p.titre AS produit_titre,
             a.prenom AS acheteur_prenom, LEFT(COALESCE(a.nom, ''), 1) AS acheteur_initiale
@@ -894,6 +898,7 @@ router.get('/avis/attente', h(async (req, res) => {
 }));
 
 router.put('/avis/:id/approuver', h(async (req, res) => {
+  if (!(await avisMV.addonActif(req.gid, pool))) bad("L'add-on « Avis clients » n'est pas activé. Activez-le dans Forfait & Plan.", 403);
   const id = entier(req.params.id);
   if (!id) bad('Avis invalide');
   const r = await pool.query(
@@ -905,6 +910,7 @@ router.put('/avis/:id/approuver', h(async (req, res) => {
 }));
 
 router.put('/avis/:id/refuser', h(async (req, res) => {
+  if (!(await avisMV.addonActif(req.gid, pool))) bad("L'add-on « Avis clients » n'est pas activé. Activez-le dans Forfait & Plan.", 403);
   const id = entier(req.params.id);
   if (!id) bad('Avis invalide');
   const raison = texte(req.body && req.body.raison, 'Raison', 300);
@@ -918,6 +924,7 @@ router.put('/avis/:id/refuser', h(async (req, res) => {
 }));
 
 router.put('/avis/:id/reponse', h(async (req, res) => {
+  if (!(await avisMV.addonActif(req.gid, pool))) bad("L'add-on « Avis clients » n'est pas activé. Activez-le dans Forfait & Plan.", 403);
   const id = entier(req.params.id);
   if (!id) bad('Avis invalide');
   const reponse = texte(req.body && req.body.reponse, 'Réponse', 1000);

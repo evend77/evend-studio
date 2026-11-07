@@ -1,285 +1,240 @@
 // src/pages/gestionnaire/MVPremiumPlan.tsx
-// e-Vend Studio — Forfaits Multi-Vendeur Premium
+// e-Vend Studio — Forfait & Plan Multi-Vendeur Premium
+//
+// Les forfaits, leurs prix, limites et add-ons inclus viennent du SERVEUR (admin : ⭐ Forfaits & Plans MV).
+// Rien n'est écrit en dur ici sauf l'apparence (couleur/icône) et les lignes fixes communes à tous les forfaits.
+//   GET    /api/studio-forfaits/mv/mon-forfait          → { forfait, addons[], plans[], total_ht }
+//   PUT    /api/studio-forfaits/mv/mon-forfait          → { plan_id }
+//   POST   /api/studio-forfaits/mv/addons/:code/activer
+//   DELETE /api/studio-forfaits/mv/addons/:code
+// La facturation Stripe viendra plus tard : on enregistre seulement les choix.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 const API_BASE = '/api';
 
 interface Props { gestionnaireId: number; }
 
-const PLANS = [
-  {
-    id: 'mv-demarrage',
-    nom: 'Démarrage',
-    prix: 29.99,
-    vendeurs: 3,
-    stockage_go: 2,
-    couleur: '#6366f1',
-    icone: '🌱',
-    features: [
-      '3 vendeurs actifs',
-      '2 Go de stockage partagé',
-      'Boutiques individuelles',
-      'Catalogue unifié',
-      'Fiche produit complète',
-      'Politiques & documents',
-      'Support standard',
-    ],
-    locked: [],
-  },
-  {
-    id: 'mv-croissance',
-    nom: 'Croissance',
-    prix: 59.99,
-    vendeurs: 10,
-    stockage_go: 5,
-    couleur: '#2563eb',
-    icone: '📈',
-    badge: 'Populaire',
-    features: [
-      '10 vendeurs actifs',
-      '5 Go de stockage partagé',
-      'Boutiques individuelles',
-      'Catalogue unifié',
-      'Fiche produit complète',
-      'Système d\'enchères ✅',
-      'Politiques & documents',
-      'Support standard',
-    ],
-    locked: [],
-  },
-  {
-    id: 'mv-affaires',
-    nom: 'Affaires',
-    prix: 89.99,
-    vendeurs: 25,
-    stockage_go: 15,
-    couleur: '#0891b2',
-    icone: '💼',
-    features: [
-      '25 vendeurs actifs',
-      '15 Go de stockage partagé',
-      'Boutiques individuelles',
-      'Catalogue unifié',
-      'Fiche produit complète',
-      'Système d\'enchères ✅',
-      'Marque blanche ✅',
-      'Politiques & documents',
-      'Support prioritaire ✅',
-    ],
-    locked: [],
-  },
-  {
-    id: 'mv-pro',
-    nom: 'Pro',
-    prix: 119.99,
-    vendeurs: 75,
-    stockage_go: 30,
-    couleur: '#c9a96e',
-    icone: '⭐',
-    features: [
-      '75 vendeurs actifs',
-      '30 Go de stockage partagé',
-      'Boutiques individuelles',
-      'Catalogue unifié',
-      'Fiche produit complète',
-      'Système d\'enchères ✅',
-      'Marque blanche ✅',
-      'Domaine personnalisé inclus ✅',
-      'Support prioritaire ✅',
-    ],
-    locked: [],
-  },
-  {
-    id: 'mv-marche',
-    nom: 'Marché',
-    prix: 149.99,
-    vendeurs: 200,
-    stockage_go: 50,
-    couleur: '#dc2626',
-    icone: '🏪',
-    badge: 'Ultime',
-    features: [
-      '200 vendeurs actifs',
-      '50 Go de stockage partagé',
-      'Boutiques individuelles',
-      'Catalogue unifié',
-      'Fiche produit complète',
-      'Système d\'enchères ✅',
-      'Marque blanche ✅',
-      'Domaine personnalisé inclus ✅',
-      'Support dédié & prioritaire ✅',
-      'Accès API ✅',
-    ],
-    locked: [],
-  },
-];
+interface Plan {
+  plan_id: string; nom: string; prix: number; vendeurs_max: number | null; stockage_go: number | null;
+  actif: boolean; ordre: number; addons_inclus: string[]; tous_addons: boolean;
+}
+interface Addon {
+  code: string; nom: string; description: string; emoji: string; prix_ht: number;
+  inclus: boolean; achete: boolean; actif_pour_gestionnaire: boolean; prix_facture: number;
+}
+interface Etat { forfait: (Plan & { par_defaut?: boolean }) | null; addons: Addon[]; plans: Plan[]; total_ht: number; }
+
+// Apparence seulement (le contenu vient du serveur). Un forfait inconnu reçoit une couleur de la liste, selon sa position.
+const STYLE: Record<string, { couleur: string; icone: string; badge?: string }> = {
+  'mv-demarrage': { couleur: '#6366f1', icone: '🌱' },
+  'mv-croissance': { couleur: '#2563eb', icone: '📈', badge: 'Populaire' },
+  'mv-affaires': { couleur: '#0891b2', icone: '💼' },
+  'mv-pro': { couleur: '#c9a96e', icone: '⭐' },
+  'mv-marche': { couleur: '#dc2626', icone: '🏪', badge: 'Ultime' },
+};
+const PALETTE = ['#6366f1', '#2563eb', '#0891b2', '#c9a96e', '#dc2626', '#7c3aed', '#059669'];
+const styleDe = (p: Plan, i: number) => STYLE[p.plan_id] || { couleur: PALETTE[i % PALETTE.length], icone: '🏷️' };
+
+const $ = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
+const go = (n: number | null) => (n == null ? '—' : `${Number.isInteger(n) ? n : String(n).replace('.', ',')} Go`);
+const nbV = (n: number | null) => (n == null ? 'Vendeurs illimités' : `${n} vendeur${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''}`);
+
+const inclut = (p: Plan | null | undefined, code: string) => !!p && (p.tous_addons || p.addons_inclus.includes(code));
 
 export default function MVPremiumPlan({ gestionnaireId }: Props) {
-  const [planActuel, setPlanActuel]   = useState('mv-croissance');
-  const [loading, setLoading]         = useState(true);
-  const [saving, setSaving]           = useState(false);
-  const [statut, setStatut]           = useState<'idle'|'ok'|'err'>('idle');
-  const [confirmation, setConfirmation]         = useState<string | null>(null);
-  const [confirmationUpgrade, setConfirmationUpgrade] = useState<string | null>(null);
+  const [etat, setEtat] = useState<Etat | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [erreurChargement, setErreurChargement] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; texte: string } | null>(null);
+  const [cible, setCible] = useState<string | null>(null);        // forfait en cours de confirmation
+  const [stockageUtilise] = useState(0);                          // Mo — le calcul réel viendra plus tard
 
-  // Stockage simulé — sera remplacé par le vrai calcul plus tard
-  const [stockageUtilise, setStockageUtilise] = useState(0);
-  const planCourant = PLANS.find(p => p.id === planActuel) || PLANS[1];
-  const stockageMax = planCourant.stockage_go * 1024; // en Mo
-  const stockagePct = Math.min((stockageUtilise / stockageMax) * 100, 100);
-  const stockageAffiche = stockageUtilise < 1024
-    ? `${stockageUtilise.toFixed(0)} Mo`
-    : `${(stockageUtilise / 1024).toFixed(1)} Go`;
+  const entetes = useCallback((json = false): Record<string, string> => {
+    const h: Record<string, string> = { Authorization: `Bearer ${localStorage.getItem('token')}` };
+    if (json) h['Content-Type'] = 'application/json';
+    return h;
+  }, []);
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-      headers: { Authorization: `Bearer ${token}` }, credentials: 'include',
-    }).then(r => r.ok ? r.json() : {} as any).then((data: any) => {
-      if (data?.plan) setPlanActuel(data.plan);
-      // Stockage simulé — nombre aléatoire raisonnable
-      const planInfo = PLANS.find(p => p.id === data?.plan) || PLANS[1];
-      const simule = Math.random() * planInfo.stockage_go * 1024 * 0.3;
-      setStockageUtilise(Math.round(simule));
-    }).catch(() => {}).finally(() => setLoading(false));
-  }, [gestionnaireId]);
+  const charger = useCallback(async () => {
+    try {
+      const r = await fetch(`${API_BASE}/studio-forfaits/mv/mon-forfait`, { headers: entetes(), credentials: 'include' });
+      if (!r.ok) throw new Error();
+      setEtat(await r.json());
+      setErreurChargement(false);
+    } catch { setErreurChargement(true); }
+    setLoading(false);
+  }, [entetes]);
 
-  const choisirPlan = async (planId: string) => {
-    const actuel = PLANS.findIndex(p => p.id === planActuel);
-    const nouveau = PLANS.findIndex(p => p.id === planId);
-    if (nouveau < actuel) {
-      setConfirmation(planId);       // downgrade → popup avertissement
-    } else {
-      setConfirmationUpgrade(planId); // upgrade → popup confirmation frais
-    }
+  useEffect(() => { charger(); }, [charger, gestionnaireId]);
+
+  const notifier = (type: 'ok' | 'err', texte: string) => {
+    setMsg({ type, texte });
+    setTimeout(() => setMsg(null), 4000);
   };
 
-  const sauvegarder = async (planId: string) => {
-    setSaving(true);
-    setConfirmation(null);
-    setConfirmationUpgrade(null);
+  const appeler = async (url: string, method: string, body?: unknown) => {
+    const r = await fetch(`${API_BASE}/studio-forfaits${url}`, {
+      method, headers: entetes(!!body), credentials: 'include', body: body ? JSON.stringify(body) : undefined,
+    });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(j.error || j.message || 'Erreur — réessayez.');
+    return j;
+  };
+
+  const confirmerChangement = async (planId: string) => {
+    setBusy(true); setCible(null);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include',
-        body: JSON.stringify({ plan: planId }),
-      });
-      if (!res.ok) throw new Error();
-      setPlanActuel(planId);
-      setStatut('ok');
-    } catch { setStatut('err'); }
-    setSaving(false);
-    setTimeout(() => setStatut('idle'), 3000);
+      const j = await appeler('/mv/mon-forfait', 'PUT', { plan_id: planId });
+      const devenus: string[] = j.devenus_inclus || [];
+      const noms = devenus.map(c => etat?.addons.find(a => a.code === c)?.nom || c);
+      notifier('ok', noms.length ? `Forfait mis à jour ! ${noms.join(', ')} ${noms.length > 1 ? 'sont maintenant inclus' : 'est maintenant inclus'} — vous ne le payez plus.` : 'Forfait mis à jour !');
+      await charger();
+    } catch (e: any) { notifier('err', e.message); }
+    setBusy(false);
+  };
+
+  const basculerAddon = async (a: Addon) => {
+    setBusy(true);
+    try {
+      if (a.achete) await appeler(`/mv/addons/${encodeURIComponent(a.code)}`, 'DELETE');
+      else await appeler(`/mv/addons/${encodeURIComponent(a.code)}/activer`, 'POST');
+      notifier('ok', a.achete ? `${a.nom} désactivé.` : `${a.nom} activé !`);
+      await charger();
+    } catch (e: any) { notifier('err', e.message); }
+    setBusy(false);
   };
 
   if (loading) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:300, fontFamily:"'Inter',sans-serif", color:'#888' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, fontFamily: "'Inter',sans-serif", color: '#888' }}>
       Chargement...
     </div>
   );
+  if (erreurChargement || !etat || !etat.forfait) return (
+    <div style={{ maxWidth: 520, margin: '60px auto', textAlign: 'center', fontFamily: "'Inter',sans-serif", color: '#555' }}>
+      <div style={{ fontSize: 40, marginBottom: 10 }}>⚠️</div>
+      <p style={{ fontSize: 14 }}>Impossible de charger vos forfaits pour le moment.</p>
+      <button onClick={() => { setLoading(true); charger(); }}
+        style={{ padding: '10px 20px', border: 'none', borderRadius: 10, background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Réessayer</button>
+    </div>
+  );
+
+  const plans = [...etat.plans].sort((a, b) => a.ordre - b.ordre || a.prix - b.prix);
+  const courant = plans.find(p => p.plan_id === etat.forfait!.plan_id) || etat.forfait!;
+  const idxCourant = plans.findIndex(p => p.plan_id === courant.plan_id);
+  const styleCourant = styleDe(courant, Math.max(idxCourant, 0));
+  const stockageMax = (courant.stockage_go || 0) * 1024;
+  const stockagePct = stockageMax ? Math.min((stockageUtilise / stockageMax) * 100, 100) : 0;
+  const stockageAffiche = stockageUtilise < 1024 ? `${stockageUtilise.toFixed(0)} Mo` : `${(stockageUtilise / 1024).toFixed(1)} Go`;
+  const nomAddon = (code: string) => etat.addons.find(a => a.code === code)?.nom || code;
+  const prixAddon = (code: string) => etat.addons.find(a => a.code === code)?.prix_ht || 0;
+
+  // Lignes d'un forfait : ce qu'il ajoute par rapport au précédent (« tout du forfait précédent + … »)
+  const lignes = (p: Plan, i: number): { texte: string; fort?: boolean }[] => {
+    const prec = i > 0 ? plans[i - 1] : null;
+    const out: { texte: string; fort?: boolean }[] = [];
+    if (prec) out.push({ texte: `Tout du forfait ${prec.nom}, plus :`, fort: true });
+    out.push({ texte: nbV(p.vendeurs_max) });
+    out.push({ texte: `${go(p.stockage_go)} de stockage partagé` });
+    if (!prec) {
+      out.push({ texte: 'Boutiques individuelles' });
+      out.push({ texte: 'Catalogue unifié' });
+      out.push({ texte: 'Fiche produit complète' });
+    }
+    if (p.tous_addons) {
+      out.push({ texte: '✨ Tous les add-ons inclus', fort: true });
+    } else {
+      etat.addons.filter(a => inclut(p, a.code) && !inclut(prec, a.code)).forEach(a => out.push({ texte: `${a.emoji} ${a.nom} inclus`, fort: true }));
+    }
+    out.push({ texte: '0 % de commission sur vos ventes', fort: true });
+    return out;
+  };
+
+  const planCible = cible ? plans.find(p => p.plan_id === cible) || null : null;
+  const idxCible = planCible ? plans.findIndex(p => p.plan_id === planCible.plan_id) : -1;
+  const estDowngrade = !!planCible && idxCible < idxCourant;
 
   return (
-    <div style={{ maxWidth:1100, margin:'0 auto', padding:'32px 24px', fontFamily:"'Inter',sans-serif" }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px', fontFamily: "'Inter',sans-serif" }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');`}</style>
 
       {/* En-tête */}
-      <div style={{ textAlign:'center', marginBottom:40 }}>
-        <h1 style={{ fontSize:28, fontWeight:900, color:'#1a1a2e', margin:'0 0 8px' }}>
-          🏪 Forfaits Multi-Vendeur Premium
-        </h1>
-        <p style={{ fontSize:14, color:'#888', margin:0 }}>
-          Tous les prix sont en dollars canadiens + taxes applicables
+      <div style={{ textAlign: 'center', marginBottom: 32 }}>
+        <h1 style={{ fontSize: 28, fontWeight: 900, color: '#1a1a2e', margin: '0 0 8px' }}>🏪 Forfait & Plan Multi-Vendeur Premium</h1>
+        <p style={{ fontSize: 14, color: '#888', margin: 0 }}>
+          Tous les prix sont en dollars canadiens + taxes applicables · <strong style={{ color: '#16a34a' }}>0 % de commission sur vos ventes</strong>
         </p>
+        {etat.forfait.par_defaut && (
+          <p style={{ fontSize: 13, color: '#92400e', background: '#fef9ec', border: '1px solid #fde68a', display: 'inline-block', padding: '6px 14px', borderRadius: 10, margin: '12px 0 0' }}>
+            Vous êtes sur le forfait de départ <strong>{courant.nom}</strong>. Passez à un forfait supérieur quand vous voulez.
+          </p>
+        )}
       </div>
 
       {/* Barre stockage */}
-      <div style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:14, padding:'16px 24px', marginBottom:32, display:'flex', alignItems:'center', gap:20, flexWrap:'wrap' }}>
-        <div style={{ flex:1, minWidth:200 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
-            <span style={{ fontSize:13, fontWeight:700, color:'#1a1a2e' }}>💾 Stockage utilisé</span>
-            <span style={{ fontSize:13, color:'#888' }}>
-              {stockageAffiche} / {planCourant.stockage_go} Go
-            </span>
+      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: '16px 24px', marginBottom: 32, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>💾 Stockage utilisé</span>
+            <span style={{ fontSize: 13, color: '#888' }}>{stockageAffiche} / {go(courant.stockage_go)}</span>
           </div>
-          <div style={{ height:8, background:'#f3f4f6', borderRadius:4, overflow:'hidden' }}>
-            <div style={{ height:'100%', width:`${stockagePct}%`, background: stockagePct > 85 ? '#ef4444' : stockagePct > 60 ? '#f59e0b' : planCourant.couleur, borderRadius:4, transition:'width 0.5s' }} />
+          <div style={{ height: 8, background: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${stockagePct}%`, background: stockagePct > 85 ? '#ef4444' : stockagePct > 60 ? '#f59e0b' : styleCourant.couleur, borderRadius: 4, transition: 'width 0.5s' }} />
           </div>
         </div>
-        <div style={{ fontSize:12, color:'#888', flexShrink:0 }}>
+        <div style={{ fontSize: 12, color: '#888', flexShrink: 0 }}>
           {stockagePct < 60 ? '✅ Espace disponible' : stockagePct < 85 ? '⚠️ Espace limité' : '🔴 Presque plein'}
         </div>
-        <div style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:8, padding:'6px 14px', fontSize:12, color:'#888' }}>
-          ⚡ Stockage simulé — calcul réel à venir
+        <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '6px 14px', fontSize: 12, color: '#888' }}>
+          ⚡ Calcul réel du stockage à venir
         </div>
       </div>
 
       {/* Grille des forfaits */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(190px, 1fr))', gap:16, marginBottom:32 }}>
-        {PLANS.map(plan => {
-          const estActuel = plan.id === planActuel;
-          const indexActuel = PLANS.findIndex(p => p.id === planActuel);
-          const indexPlan   = PLANS.findIndex(p => p.id === plan.id);
-          const estUpgrade  = indexPlan > indexActuel;
-          const estDowngrade = indexPlan < indexActuel;
-
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
+        {plans.map((plan, i) => {
+          const st = styleDe(plan, i);
+          const estActuel = plan.plan_id === courant.plan_id;
+          const estUpgrade = i > idxCourant;
           return (
-            <div key={plan.id} style={{ background:'#fff', border:`2px solid ${estActuel ? plan.couleur : '#e5e7eb'}`, borderRadius:16, overflow:'hidden', transition:'all 0.2s', boxShadow: estActuel ? `0 4px 20px ${plan.couleur}30` : 'none', position:'relative' }}>
-
-              {/* Badge */}
-              {plan.badge && (
-                <div style={{ position:'absolute', top:12, right:12, background:plan.couleur, color:'#fff', fontSize:10, fontWeight:800, padding:'3px 10px', borderRadius:20 }}>
-                  {plan.badge}
-                </div>
+            <div key={plan.plan_id} style={{ background: '#fff', border: `2px solid ${estActuel ? st.couleur : '#e5e7eb'}`, borderRadius: 16, overflow: 'hidden', boxShadow: estActuel ? `0 4px 20px ${st.couleur}30` : 'none', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+              {st.badge && (
+                <div style={{ position: 'absolute', top: 12, right: 12, background: st.couleur, color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 20 }}>{st.badge}</div>
               )}
               {estActuel && (
-                <div style={{ position:'absolute', top:12, left:12, background:plan.couleur, color:'#fff', fontSize:10, fontWeight:800, padding:'3px 10px', borderRadius:20 }}>
-                  Actuel
-                </div>
+                <div style={{ position: 'absolute', top: 12, left: 12, background: st.couleur, color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 20 }}>Actuel</div>
               )}
 
-              {/* En-tête couleur */}
-              <div style={{ background:`linear-gradient(135deg, ${plan.couleur}22, ${plan.couleur}08)`, padding:'24px 16px 16px', borderBottom:`1px solid ${plan.couleur}20`, textAlign:'center' }}>
-                <div style={{ fontSize:32, marginBottom:8 }}>{plan.icone}</div>
-                <h3 style={{ fontSize:16, fontWeight:800, color:'#1a1a2e', margin:'0 0 12px' }}>{plan.nom}</h3>
-                <div style={{ fontSize:28, fontWeight:900, color:plan.couleur }}>
-                  {plan.prix.toFixed(2).replace('.', ',')} $
-                  <span style={{ fontSize:12, fontWeight:500, color:'#888' }}>/mois</span>
+              <div style={{ background: `linear-gradient(135deg, ${st.couleur}22, ${st.couleur}08)`, padding: '28px 16px 16px', borderBottom: `1px solid ${st.couleur}20`, textAlign: 'center' }}>
+                <div style={{ fontSize: 32, marginBottom: 8 }}>{st.icone}</div>
+                <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1a1a2e', margin: '0 0 12px' }}>{plan.nom}</h3>
+                <div style={{ fontSize: 28, fontWeight: 900, color: st.couleur }}>
+                  {$(plan.prix)}<span style={{ fontSize: 12, fontWeight: 500, color: '#888' }}>/mois</span>
                 </div>
               </div>
 
-              {/* Infos clés */}
-              <div style={{ padding:'12px 16px', borderBottom:'1px solid #f3f4f6', display:'flex', gap:8, justifyContent:'center', flexWrap:'wrap' }}>
-                <span style={{ fontSize:11, fontWeight:700, background:`${plan.couleur}15`, color:plan.couleur, padding:'4px 10px', borderRadius:20 }}>
-                  👥 {plan.vendeurs} vendeurs
-                </span>
-                <span style={{ fontSize:11, fontWeight:700, background:'#f3f4f6', color:'#555', padding:'4px 10px', borderRadius:20 }}>
-                  💾 {plan.stockage_go} Go
-                </span>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, background: `${st.couleur}15`, color: st.couleur, padding: '4px 10px', borderRadius: 20 }}>👥 {plan.vendeurs_max ?? '∞'} vendeurs</span>
+                <span style={{ fontSize: 11, fontWeight: 700, background: '#f3f4f6', color: '#555', padding: '4px 10px', borderRadius: 20 }}>💾 {go(plan.stockage_go)}</span>
               </div>
 
-              {/* Features */}
-              <div style={{ padding:'14px 16px' }}>
-                {plan.features.map((f, i) => (
-                  <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:8 }}>
-                    <span style={{ color:plan.couleur, fontSize:12, flexShrink:0, marginTop:1 }}>✓</span>
-                    <span style={{ fontSize:12, color:'#444', lineHeight:1.4 }}>{f}</span>
+              <div style={{ padding: '14px 16px', flex: 1 }}>
+                {lignes(plan, i).map((l, k) => (
+                  <div key={k} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                    <span style={{ color: st.couleur, fontSize: 12, flexShrink: 0, marginTop: 1 }}>✓</span>
+                    <span style={{ fontSize: 12, color: '#444', lineHeight: 1.4, fontWeight: l.fort ? 700 : 400 }}>{l.texte}</span>
                   </div>
                 ))}
               </div>
 
-              {/* Bouton */}
-              <div style={{ padding:'0 16px 16px' }}>
+              <div style={{ padding: '0 16px 16px' }}>
                 {estActuel ? (
-                  <div style={{ textAlign:'center', padding:'10px', background:`${plan.couleur}15`, borderRadius:10, fontSize:13, fontWeight:800, color:plan.couleur }}>
-                    ✅ Forfait actuel
-                  </div>
+                  <div style={{ textAlign: 'center', padding: '10px', background: `${st.couleur}15`, borderRadius: 10, fontSize: 13, fontWeight: 800, color: st.couleur }}>✅ Forfait actuel</div>
                 ) : (
-                  <button onClick={() => choisirPlan(plan.id)} disabled={saving}
-                    style={{ width:'100%', padding:'10px', border:`2px solid ${plan.couleur}`, borderRadius:10, background: estUpgrade ? plan.couleur : 'transparent', color: estUpgrade ? '#fff' : plan.couleur, fontSize:13, fontWeight:800, cursor:'pointer', fontFamily:'inherit', transition:'all 0.15s' }}>
-                    {saving ? '...' : estUpgrade ? `Passer à ${plan.nom} ↑` : `Rétrograder ↓`}
+                  <button onClick={() => setCible(plan.plan_id)} disabled={busy}
+                    style={{ width: '100%', padding: '10px', border: `2px solid ${st.couleur}`, borderRadius: 10, background: estUpgrade ? st.couleur : 'transparent', color: estUpgrade ? '#fff' : st.couleur, fontSize: 13, fontWeight: 800, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                    {estUpgrade ? `Passer à ${plan.nom} ↑` : `Rétrograder à ${plan.nom} ↓`}
                   </button>
                 )}
               </div>
@@ -288,111 +243,144 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
         })}
       </div>
 
-      {/* Statut */}
-      {statut === 'ok' && <div style={{ textAlign:'center', color:'#22c55e', fontWeight:700, marginBottom:16 }}>✅ Forfait mis à jour !</div>}
-      {statut === 'err' && <div style={{ textAlign:'center', color:'#ef4444', fontWeight:700, marginBottom:16 }}>❌ Erreur — réessayez.</div>}
+      {/* Add-ons */}
+      {etat.addons.length > 0 && (
+        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '22px 24px', marginBottom: 24 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1a1a2e', margin: '0 0 4px' }}>🧩 Add-ons</h2>
+          <p style={{ fontSize: 13, color: '#888', margin: '0 0 16px' }}>Ajoutez des fonctionnalités à votre marketplace. Ceux déjà inclus dans votre forfait ne sont jamais facturés.</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {etat.addons.map(a => (
+              <div key={a.code} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 16px', border: `1px solid ${a.actif_pour_gestionnaire ? '#bbf7d0' : '#e5e7eb'}`, background: a.actif_pour_gestionnaire ? '#f0fdf4' : '#fff', borderRadius: 12 }}>
+                <div style={{ fontSize: 28 }}>{a.emoji}</div>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{a.nom}</div>
+                  <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>{a.description}</div>
+                </div>
+                {a.inclus ? (
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#16a34a', whiteSpace: 'nowrap' }}>✅ Inclus dans votre forfait</div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e', whiteSpace: 'nowrap' }}>{$(a.prix_ht)}<span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>/mois</span></div>
+                    <button onClick={() => basculerAddon(a)} disabled={busy}
+                      style={a.achete
+                        ? { padding: '9px 16px', border: '1px solid #fecaca', borderRadius: 10, background: '#fff', color: '#dc2626', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }
+                        : { padding: '9px 16px', border: 'none', borderRadius: 10, background: styleCourant.couleur, color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                      {a.achete ? 'Désactiver' : 'Activer'}
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
-      {/* Note taxes */}
-      <p style={{ textAlign:'center', fontSize:12, color:'#aaa' }}>
-        Tous les prix sont en $ CAD + taxes applicables · Facturé mensuellement · Annulable en tout temps
+      {/* Total */}
+      <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 24px', marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', marginBottom: 6 }}>
+          <span>Forfait {courant.nom}</span><strong>{$(courant.prix)}</strong>
+        </div>
+        {etat.addons.filter(a => a.actif_pour_gestionnaire).map(a => (
+          <div key={a.code} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', marginBottom: 6 }}>
+            <span>{a.emoji} {a.nom}{a.inclus ? ' (inclus)' : ''}</span><strong>{a.inclus ? $(0) : $(a.prix_facture)}</strong>
+          </div>
+        ))}
+        <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 10, paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: '#1a1a2e' }}>
+          <span>Total mensuel</span><span>{$(etat.total_ht)} <span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>+ taxes</span></span>
+        </div>
+      </div>
+
+      {msg && <div style={{ textAlign: 'center', color: msg.type === 'ok' ? '#16a34a' : '#ef4444', fontWeight: 700, marginBottom: 16 }}>{msg.type === 'ok' ? '✅' : '❌'} {msg.texte}</div>}
+
+      <p style={{ textAlign: 'center', fontSize: 12, color: '#aaa' }}>
+        Tous les prix sont en $ CAD + taxes applicables · Facturé mensuellement · Annulable en tout temps · Aucune commission sur vos ventes
       </p>
 
-      {/* Modal confirmation UPGRADE */}
-      {confirmationUpgrade && (() => {
-        const planCible = PLANS.find(p => p.id === confirmationUpgrade)!;
-        const planCourantInfo = PLANS.find(p => p.id === planActuel) || PLANS[1];
-        const diff = planCible.prix - planCourantInfo.prix;
+      {/* Modal confirmation */}
+      {planCible && (() => {
+        const st = styleDe(planCible, idxCible);
+        const diff = planCible.prix - courant.prix;
+        const perdus = estDowngrade ? etat.addons.filter(a => inclut(courant, a.code) && !inclut(planCible, a.code)) : [];
+        const gagnes = !estDowngrade ? etat.addons.filter(a => !inclut(courant, a.code) && inclut(planCible, a.code)) : [];
+        const fusionnes = gagnes.filter(a => a.achete);     // déjà payés → ne les paiera plus
+        const fond = estDowngrade ? 'linear-gradient(135deg,#dc2626,#ef4444)' : `linear-gradient(135deg, ${st.couleur}dd, ${st.couleur})`;
         return (
-          <div onClick={() => setConfirmationUpgrade(null)}
-            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:600, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)' }}>
+          <div onClick={() => setCible(null)}
+            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
             <div onClick={e => e.stopPropagation()}
-              style={{ background:'#fff', borderRadius:20, maxWidth:460, width:'100%', overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.2)', fontFamily:'inherit' }}>
-              <div style={{ background:`linear-gradient(135deg, ${planCible.couleur}dd, ${planCible.couleur})`, padding:'28px 32px', textAlign:'center' }}>
-                <div style={{ fontSize:44, marginBottom:10 }}>{planCible.icone}</div>
-                <h2 style={{ fontSize:20, fontWeight:900, color:'#fff', margin:'0 0 4px' }}>
-                  Passer au forfait {planCible.nom}
+              style={{ background: '#fff', borderRadius: 20, maxWidth: 480, width: '100%', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.2)', fontFamily: 'inherit' }}>
+              <div style={{ background: fond, padding: '26px 30px', textAlign: 'center' }}>
+                <div style={{ fontSize: 40, marginBottom: 8 }}>{estDowngrade ? '⚠️' : st.icone}</div>
+                <h2 style={{ fontSize: 19, fontWeight: 900, color: '#fff', margin: 0 }}>
+                  {estDowngrade ? `Rétrograder au forfait ${planCible.nom}` : `Passer au forfait ${planCible.nom}`}
                 </h2>
-                <p style={{ fontSize:13, color:'rgba(255,255,255,0.85)', margin:0 }}>
-                  Confirmation de changement de forfait
-                </p>
               </div>
-              <div style={{ padding:'24px 32px' }}>
-                {/* Récapitulatif */}
-                <div style={{ background:'#f9fafb', border:'1px solid #e5e7eb', borderRadius:12, padding:'16px', marginBottom:16 }}>
-                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
-                    <span style={{ fontSize:13, color:'#888' }}>Forfait actuel</span>
-                    <span style={{ fontSize:13, fontWeight:700, color:'#1a1a2e' }}>{planCourantInfo.nom} — {planCourantInfo.prix.toFixed(2).replace('.',',')} $/mois</span>
+              <div style={{ padding: '22px 30px 26px' }}>
+                <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, marginBottom: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, gap: 10 }}>
+                    <span style={{ fontSize: 13, color: '#888' }}>Forfait actuel</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{courant.nom} — {$(courant.prix)}/mois</span>
                   </div>
-                  <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8 }}>
-                    <span style={{ fontSize:13, color:'#888' }}>Nouveau forfait</span>
-                    <span style={{ fontSize:13, fontWeight:700, color:planCible.couleur }}>{planCible.nom} — {planCible.prix.toFixed(2).replace('.',',')} $/mois</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, gap: 10 }}>
+                    <span style={{ fontSize: 13, color: '#888' }}>Nouveau forfait</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: st.couleur }}>{planCible.nom} — {$(planCible.prix)}/mois</span>
                   </div>
-                  <div style={{ borderTop:'1px solid #e5e7eb', paddingTop:10, display:'flex', justifyContent:'space-between' }}>
-                    <span style={{ fontSize:13, fontWeight:800, color:'#1a1a2e' }}>Différence</span>
-                    <span style={{ fontSize:14, fontWeight:900, color:planCible.couleur }}>+{diff.toFixed(2).replace('.',',')} $/mois</span>
-                  </div>
-                </div>
-
-                <div style={{ background:'#fef9ec', border:'1px solid #fde68a', borderRadius:10, padding:'12px 14px', marginBottom:20 }}>
-                  <p style={{ margin:0, fontSize:13, color:'#92400e', lineHeight:1.6 }}>
-                    ⚠️ Des frais de <strong>{planCible.prix.toFixed(2).replace('.',',')} $/mois + taxes applicables</strong> seront facturés à votre prochain renouvellement. Le changement est effectif immédiatement.
-                  </p>
-                </div>
-
-                {/* Nouvelles features */}
-                <div style={{ marginBottom:20 }}>
-                  <p style={{ fontSize:12, fontWeight:700, color:'#888', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Ce que vous gagnez :</p>
-                  <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                    <span style={{ fontSize:12, background:`${planCible.couleur}15`, color:planCible.couleur, padding:'4px 10px', borderRadius:20, fontWeight:700 }}>👥 {planCible.vendeurs} vendeurs</span>
-                    <span style={{ fontSize:12, background:'#f3f4f6', color:'#555', padding:'4px 10px', borderRadius:20, fontWeight:700 }}>💾 {planCible.stockage_go} Go stockage</span>
+                  <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e' }}>Différence</span>
+                    <span style={{ fontSize: 14, fontWeight: 900, color: diff >= 0 ? st.couleur : '#16a34a' }}>{diff >= 0 ? '+' : '−'}{$(Math.abs(diff))}/mois</span>
                   </div>
                 </div>
 
-                <div style={{ display:'flex', gap:10 }}>
-                  <button onClick={() => setConfirmationUpgrade(null)}
-                    style={{ flex:1, padding:'11px', border:'1px solid #e5e7eb', borderRadius:10, background:'#fff', fontSize:14, cursor:'pointer', fontFamily:'inherit', color:'#555' }}>
-                    Annuler
-                  </button>
-                  <button onClick={() => sauvegarder(confirmationUpgrade)}
-                    style={{ flex:2, padding:'11px', border:'none', borderRadius:10, background:`linear-gradient(135deg, ${planCible.couleur}dd, ${planCible.couleur})`, color:'#fff', fontSize:14, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>
-                    ✅ Confirmer — {planCible.prix.toFixed(2).replace('.',',')} $/mois
-                  </button>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+                  <span style={{ fontSize: 12, background: `${st.couleur}15`, color: st.couleur, padding: '4px 10px', borderRadius: 20, fontWeight: 700 }}>👥 {planCible.vendeurs_max ?? '∞'} vendeurs</span>
+                  <span style={{ fontSize: 12, background: '#f3f4f6', color: '#555', padding: '4px 10px', borderRadius: 20, fontWeight: 700 }}>💾 {go(planCible.stockage_go)}</span>
                 </div>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
-      {/* Modal confirmation DOWNGRADE */}
-      {confirmation && (() => {
-        const planCible = PLANS.find(p => p.id === confirmation)!;
-        const planCourantInfo = PLANS.find(p => p.id === planActuel) || PLANS[1];
-        return (
-          <div onClick={() => setConfirmation(null)}
-            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:600, display:'flex', alignItems:'center', justifyContent:'center', padding:20, backdropFilter:'blur(4px)' }}>
-            <div onClick={e => e.stopPropagation()}
-              style={{ background:'#fff', borderRadius:20, maxWidth:440, width:'100%', overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,0.2)', fontFamily:'inherit' }}>
-              <div style={{ background:'linear-gradient(135deg,#dc2626,#ef4444)', padding:'24px 28px', textAlign:'center' }}>
-                <div style={{ fontSize:40, marginBottom:8 }}>⚠️</div>
-                <h2 style={{ fontSize:18, fontWeight:900, color:'#fff', margin:0 }}>Confirmer la rétrogradation</h2>
-              </div>
-              <div style={{ padding:'24px 28px' }}>
-                <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:12, padding:'14px 16px', marginBottom:20 }}>
-                  <p style={{ margin:0, fontSize:14, color:'#1a1a2e', lineHeight:1.7 }}>
-                    Vous passez de <strong>{planCourantInfo.nom}</strong> ({planCourantInfo.vendeurs} vendeurs, {planCourantInfo.stockage_go} Go) à <strong>{planCible.nom}</strong> ({planCible.vendeurs} vendeurs, {planCible.stockage_go} Go).
-                    <br /><br />
-                    Si vous avez plus de <strong>{planCible.vendeurs} vendeurs actifs</strong> ou utilisez plus de <strong>{planCible.stockage_go} Go</strong>, certaines fonctionnalités seront limitées.
-                  </p>
-                </div>
-                <div style={{ display:'flex', gap:10 }}>
-                  <button onClick={() => setConfirmation(null)}
-                    style={{ flex:1, padding:'11px', border:'1px solid #e5e7eb', borderRadius:10, background:'#fff', fontSize:14, cursor:'pointer', fontFamily:'inherit', color:'#555' }}>
-                    Annuler
-                  </button>
-                  <button onClick={() => sauvegarder(confirmation)}
-                    style={{ flex:2, padding:'11px', border:'none', borderRadius:10, background:'linear-gradient(135deg,#dc2626,#ef4444)', color:'#fff', fontSize:14, fontWeight:800, cursor:'pointer', fontFamily:'inherit' }}>
-                    Confirmer la rétrogradation
+                {estDowngrade && (
+                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: '#1a1a2e', lineHeight: 1.7 }}>
+                      Vous passez de <strong>{courant.nom}</strong> ({courant.vendeurs_max ?? '∞'} vendeurs, {go(courant.stockage_go)}) à <strong>{planCible.nom}</strong> ({planCible.vendeurs_max ?? '∞'} vendeurs, {go(planCible.stockage_go)}).
+                      Si vous dépassez {planCible.vendeurs_max ?? '∞'} vendeurs actifs ou {go(planCible.stockage_go)}, certaines fonctionnalités seront limitées.
+                    </p>
+                  </div>
+                )}
+
+                {perdus.length > 0 && (
+                  <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
+                    <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 800, color: '#9a3412' }}>Ne seront plus inclus :</p>
+                    {perdus.map(a => (
+                      <p key={a.code} style={{ margin: '0 0 4px', fontSize: 13, color: '#7c2d12', lineHeight: 1.5 }}>
+                        {a.emoji} <strong>{nomAddon(a.code)}</strong> sera désactivé, sauf si vous l'activez ensuite à {$(prixAddon(a.code))}/mois.
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {gagnes.length > 0 && (
+                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
+                    <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 800, color: '#166534' }}>Ce que vous gagnez :</p>
+                    {gagnes.map(a => (
+                      <p key={a.code} style={{ margin: '0 0 4px', fontSize: 13, color: '#14532d', lineHeight: 1.5 }}>
+                        {a.emoji} <strong>{a.nom}</strong> inclus{fusionnes.some(f => f.code === a.code) ? ` — vous ne paierez plus les ${$(a.prix_facture)}/mois de cet add-on.` : '.'}
+                      </p>
+                    ))}
+                  </div>
+                )}
+
+                {!estDowngrade && (
+                  <div style={{ background: '#fef9ec', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+                    <p style={{ margin: 0, fontSize: 13, color: '#92400e', lineHeight: 1.6 }}>
+                      Le changement est effectif immédiatement. La facturation de <strong>{$(planCible.prix)}/mois + taxes</strong> s'appliquera à votre prochain renouvellement.
+                    </p>
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button onClick={() => setCible(null)}
+                    style={{ flex: 1, padding: '11px', border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', color: '#555' }}>Annuler</button>
+                  <button onClick={() => confirmerChangement(planCible.plan_id)}
+                    style={{ flex: 2, padding: '11px', border: 'none', borderRadius: 10, background: fond, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {estDowngrade ? 'Confirmer la rétrogradation' : `✅ Confirmer — ${$(planCible.prix)}/mois`}
                   </button>
                 </div>
               </div>

@@ -273,6 +273,8 @@ router.post('/commandes/:id/annuler', h(async (req, res) => {
 
 // ── Avis clients : modération ────────────────────────────────────────────────
 router.get('/avis', h(async (req, res) => {
+  // Add-on inactif : on ne supprime rien, on cache. L'écran affiche « Add-on non activé ».
+  if (!(await avisMV.addonActif(req.gid, pool))) return res.json({ addon_actif: false, avis: [], total: 0, page: 1, pages: 1, stats: { total: 0, publies: 0, attente: 0, chez_collab: 0, masques: 0, moyenne: 0 } });
   const params = [req.gid];
   const where = ['v.gestionnaire_id = $1'];
   const statut = ['publie', 'attente', 'chez_collab', 'masque', 'tous'].includes(req.query.statut) ? req.query.statut : 'tous';
@@ -316,16 +318,19 @@ router.get('/avis', h(async (req, res) => {
   const s = stats.rows[0];
   res.json({
     avis: liste.rows, total: n, page: pg, pages: Math.max(1, Math.ceil(n / PAR_PAGE)),
+    addon_actif: true,
     stats: { total: +s.total, publies: +s.publies, attente: +s.attente, chez_collab: +s.chez_collab, masques: +s.masques, moyenne: Math.round(parseFloat(s.moyenne) * 10) / 10 },
   });
 }));
 
 router.get('/avis/compte', h(async (req, res) => {
+  if (!(await avisMV.addonActif(req.gid, pool))) return res.json({ attente: 0, addon_actif: false });
   const r = await pool.query(`SELECT COUNT(*) AS n FROM avis_collaborateur WHERE gestionnaire_id = $1 AND approuve = false AND masque_le IS NULL AND approbateur IS DISTINCT FROM 'collaborateur'`, [req.gid]);
   res.json({ attente: parseInt(r.rows[0].n, 10) });
 }));
 
 router.post('/avis/:id/approuver', h(async (req, res) => {
+  if (!(await avisMV.addonActif(req.gid, pool))) bad("L'add-on « Avis clients » n'est pas activé. Activez-le dans Forfait & Plan.", 403);
   const id = entier(req.params.id);
   if (!id) bad('Avis invalide');
   const r = await pool.query(
@@ -336,6 +341,7 @@ router.post('/avis/:id/approuver', h(async (req, res) => {
 }));
 
 router.post('/avis/:id/masquer', h(async (req, res) => {
+  if (!(await avisMV.addonActif(req.gid, pool))) bad("L'add-on « Avis clients » n'est pas activé. Activez-le dans Forfait & Plan.", 403);
   const id = entier(req.params.id);
   if (!id) bad('Avis invalide');
   const raison = texte(req.body && req.body.raison, 'Raison', 300);
@@ -348,6 +354,7 @@ router.post('/avis/:id/masquer', h(async (req, res) => {
 }));
 
 router.post('/avis/:id/retablir', h(async (req, res) => {
+  if (!(await avisMV.addonActif(req.gid, pool))) bad("L'add-on « Avis clients » n'est pas activé. Activez-le dans Forfait & Plan.", 403);
   const id = entier(req.params.id);
   if (!id) bad('Avis invalide');
   const r = await pool.query(

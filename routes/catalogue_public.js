@@ -19,6 +19,7 @@ const pool = require('../db');
 
 const vac = require('../services/studio_vacances');
 const cfgMV = require('../services/studio_config_mv');
+const avisMV = require('../services/studio_avis');
 const router = express.Router();
 
 function entier(v) {
@@ -105,7 +106,7 @@ router.get('/produit/:produitId', async (req, res, next) => {
     // Résumé des avis de l'annonce : avis publiés des commandes qui contenaient ce produit (affiché sous le titre).
     // Absent si les avis clients sont désactivés (Config marketplace → Fonctionnalités) ou s'il n'y en a aucun.
     let avis = null;
-    if (cfgMV.actif(await cfgMV.lire(p.gestionnaire_id, pool), 'avis_actifs', true)) {
+    if (await avisMV.actifs(p.gestionnaire_id, pool)) {
       const ra = await pool.query(
         `SELECT COUNT(*)::int AS total, COALESCE(AVG(av.note), 0)::float AS moyenne
            FROM avis_collaborateur av JOIN marketplace_commandes c ON c.id = av.commande_id
@@ -181,7 +182,8 @@ boutiques.get('/:gestionnaireId/boutiques', async (req, res) => {
     if (q) { params.push('%' + q.replace(/[\\%_]/g, '\\$&') + '%'); where += ` AND (COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) ILIKE $${params.length} OR mc.description_boutique ILIKE $${params.length})`; }
     const limite = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
     const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
-    const tri = TRIS[req.query.tri] || TRIS.alpha_asc;
+    const avisOk = await avisMV.actifs(gid, pool);   // add-on « Avis clients » inactif → pas de points de confiance ni de tri par confiance
+    const tri = (!avisOk && req.query.tri === 'confiance') ? TRIS.alpha_asc : (TRIS[req.query.tri] || TRIS.alpha_asc);
     const r = await pool.query(
       `SELECT *, COUNT(*) OVER()::int AS total_lignes FROM (
          SELECT mc.id, COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.logo_url AS logo,
@@ -193,7 +195,7 @@ boutiques.get('/:gestionnaireId/boutiques', async (req, res) => {
        ) b ORDER BY ${tri} LIMIT ${limite} OFFSET ${(page - 1) * limite}`, params);
     let total = r.rows.length ? r.rows[0].total_lignes : 0;
     if (!r.rows.length && page > 1) total = (await pool.query(`SELECT COUNT(*)::int AS n FROM marketplace_collaborateurs mc ${vac.VAC_JOIN} WHERE ${where}`, params)).rows[0].n;
-    res.json({ boutiques: r.rows.map(({ total_lignes, ...b }) => b), pagination: { total, page, limit: limite, pages: Math.max(1, Math.ceil(total / limite)) } });
+    res.json({ boutiques: r.rows.map(({ total_lignes, ...b }) => (avisOk ? b : { ...b, points_confiance: 0 })), avis_actif: avisOk, pagination: { total, page, limit: limite, pages: Math.max(1, Math.ceil(total / limite)) } });
   } catch (e) {
     console.error('[catalogue_public] boutiques', e.message);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -264,6 +266,7 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/avis', async (req, re
     if (!gid || !cid) return res.json(vide);
     const ok = await pool.query(`SELECT 1 FROM marketplace_collaborateurs WHERE id = $1 AND gestionnaire_id = $2 AND statut = 'actif'`, [cid, gid]);
     if (!ok.rows.length) return res.json(vide);
+    if (!(await avisMV.actifs(gid, pool))) return res.json({ ...vide, avis_actif: false });   // add-on inactif : avis cachés (pas supprimés)
     const st = await pool.query(
       `SELECT COUNT(*)::int AS total, COALESCE(AVG(note), 0)::float AS moyenne,
               COUNT(*) FILTER (WHERE note = 1)::int AS n1, COUNT(*) FILTER (WHERE note = 2)::int AS n2, COUNT(*) FILTER (WHERE note = 3)::int AS n3,
@@ -298,15 +301,15 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/avis', async (req, re
 boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/addons-statut', async (req, res) => {
   try {
     const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
-    if (!gid || !cid) return res.json({ blog_actif: false, faq_actif: false, avis_actif: true });
+    if (!gid || !cid) return res.json({ blog_actif: false, faq_actif: false, avis_actif: false });
     const r = await pool.query(
       `SELECT EXISTS (SELECT 1 FROM collab_blogs WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND statut = 'publie') AS blog,
               EXISTS (SELECT 1 FROM collab_faq   WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND active) AS faq`, [cid, gid]);
-    const avisOk = cfgMV.actif(await cfgMV.lire(gid, pool), 'avis_actifs', true);   // Config marketplace → Fonctionnalités → Avis clients
+    const avisOk = await avisMV.actifs(gid, pool);   // add-on « Avis clients » actif + Config marketplace → Fonctionnalités → Avis clients
     res.json({ blog_actif: r.rows[0].blog, faq_actif: r.rows[0].faq, avis_actif: avisOk });
   } catch (e) {
     console.error('[catalogue_public] addons', e.message);
-    res.json({ blog_actif: false, faq_actif: false, avis_actif: true });
+    res.json({ blog_actif: false, faq_actif: false, avis_actif: false });
   }
 });
 
