@@ -6,8 +6,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { formaterPrix } from '../../templates/shared/devise';
 
 interface Variante { nom: string; prix: string; stock: string; }
-interface Regles { approbation_auto: boolean; gerer_stock: boolean; prix_zero: boolean; prix_min: number; qte_min_active: boolean; qte_min_mode: 'produit' | 'commande'; aide: string; prix_revient: boolean; categories: boolean; }
-const REGLES_DEFAUT: Regles = { approbation_auto: true, gerer_stock: true, prix_zero: false, prix_min: 0, qte_min_active: false, qte_min_mode: 'produit', aide: '', prix_revient: false, categories: true };
+interface Regles { expedition_obligatoire: boolean; approbation_auto: boolean; gerer_stock: boolean; prix_zero: boolean; prix_min: number; qte_min_active: boolean; qte_min_mode: 'produit' | 'commande'; aide: string; prix_revient: boolean; categories: boolean; }
+const REGLES_DEFAUT: Regles = { expedition_obligatoire: false, approbation_auto: true, gerer_stock: true, prix_zero: false, prix_min: 0, qte_min_active: false, qte_min_mode: 'produit', aide: '', prix_revient: false, categories: true };
 interface Props {
   gestionnaireId: number; accent: string; isMobile: boolean;
   produitId: number | null; onRetour: () => void;
@@ -119,7 +119,7 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
     if (categories.length > 0 && !categorieId) { setErreur('Choisissez une catégorie'); return; }
     if (prixPromo !== '' && Number(prixPromo) >= Number(prix)) { setErreur('Le prix promo doit être inférieur au prix'); return; }
     if (poids !== '' && (Number(poids) < 0 || !Number.isFinite(Number(poids)))) { setErreur('Le poids est invalide'); return; }
-    if (methodesVendeur.length > 0 && methodesSel.length === 0) { setErreur("Sélectionnez au moins une méthode d'expédition."); return; }
+    if (regles.expedition_obligatoire && methodesVendeur.length > 0 && methodesSel.length === 0) { setErreur("Sélectionnez au moins une méthode d'expédition."); return; }
     if (methodesVendeur.some(m => methodesSel.includes(m.id) && (m.mode_calcul === 'kg' || m.mode_calcul === 'fixe_kg')) && !(Number(poids) > 0)) { setErreur("Indiquez le poids du produit : une des méthodes choisies calcule les frais au kg."); return; }
     setSauvegarde(true);
     try {
@@ -280,7 +280,8 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
           <label style={lbl}>Poids (kg) pour frais d'expédition</label>
           <input type="number" min="0" step="0.001" value={poids} onChange={e => setPoids(e.target.value)} placeholder="Ex : 0.5" style={champ} />
         </div>
-        <p style={{ fontSize: 13, fontWeight: 600, color: T.text, margin: '0 0 8px' }}>Méthodes d'expédition disponibles pour ce produit <span style={{ color: T.danger }}>*</span></p>
+        <p style={{ fontSize: 13, fontWeight: 600, color: T.text, margin: '0 0 8px' }}>Méthodes d'expédition disponibles pour ce produit {regles.expedition_obligatoire && <span style={{ color: T.danger }}>*</span>}</p>
+        {!regles.expedition_obligatoire && methodesVendeur.length > 0 && <p style={{ fontSize: 12, color: T.light, margin: '0 0 8px' }}>Facultatif : si vous ne choisissez aucune méthode, la livraison est gratuite pour ce produit.</p>}
         {methodesVendeur.length === 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: '2px solid #008060', background: '#f0fdf4' }}>
@@ -312,7 +313,7 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
                 </div>
               );
             })}
-            {methodesSel.length === 0 && <p style={{ fontSize: 12, color: '#d72c0d', margin: '4px 0 0' }}>Sélectionnez au moins une méthode d'expédition.</p>}
+            {regles.expedition_obligatoire && methodesSel.length === 0 && <p style={{ fontSize: 12, color: '#d72c0d', margin: '4px 0 0' }}>Sélectionnez au moins une méthode d'expédition.</p>}
           </div>
         )}
       </div>

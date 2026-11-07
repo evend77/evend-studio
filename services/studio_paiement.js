@@ -17,6 +17,7 @@ const vacances = require('./studio_vacances');
 const { dechiffrer } = require('../src/utils/chiffrement');
 const promo = require('./studio_promo');
 const taxesMV = require('./studio_taxes');
+const regCmd = require('./studio_regles_commande');
 const cfgMV = require('./studio_config_mv');
 const reglesMV = require('./studio_regles_produits');
 
@@ -178,6 +179,7 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
   const mv = (site.config && site.config.multivendeur) || {};
   const devise = String(mv.devise || 'CAD').toLowerCase().replace(/[^a-z]/g, '').slice(0, 3) || 'cad';
   const urlSite = `https://${domaine}`;
+  const rgCmd = regCmd.deMV(mv);
 
   const province = adresse && typeof adresse.province === 'string' ? adresse.province.toUpperCase().slice(0, 2) : 'QC';
 
@@ -251,17 +253,22 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
     if (exp.erreur) refus(exp.erreur, 400);
     const fraisC = cents(exp.frais);
     const lignesNettes = lignes.map((l, i) => ({ ...l, prix: nets[i] / 100, quantite: 1 }));
-    const tx = outils.calculerTaxesProvince(sousNetC / 100, fraisC / 100, province, lignesNettes, 0, taxesMV.tableTaux(mv));
-    // Pourboire : 100 % au vendeur, non taxé, hors commission ; plafonné pour éviter les abus
-    const tipDemande = cents(Math.max(0, parseFloat(pourboire) || 0));
+    const tx = outils.calculerTaxesProvince(sousNetC / 100, fraisC / 100, province, lignesNettes, 0, taxesMV.tableTaux(mv), rgCmd.taxesIncluses);
+    // Pourboire (non taxé, hors commission, plafonné contre les abus). Qui le reçoit : Configuration marketplace → Commande
+    //   vendeurs = 100 % au collaborateur · admin = 100 % au gestionnaire · split50 = moitié/moitié (le cent impair va au collaborateur)
+    //   desactive = pourboire refusé. La part du gestionnaire passe par application_fee_amount (comme la commission).
+    const tipDemande = rgCmd.pourboire === 'desactive' ? 0 : cents(Math.max(0, parseFloat(pourboire) || 0));
     const tipC = Math.min(tipDemande, sousTotalC, 100000);
+    const tipPlatC = rgCmd.pourboire === 'admin' ? tipC : (rgCmd.pourboire === 'split50' ? Math.floor(tipC / 2) : 0);
+    // Taxes incluses dans le prix : déjà comprises dans les montants ; on garde leur détail (extrait) mais on ne les ajoute pas au total
     const taxesC = cents(tx.tps) + cents(tx.tvq) + cents(tx.tvh) + cents(tx.tvp);
-    const totalC = sousNetC + fraisC + taxesC + tipC;
+    const taxesAjouteesC = rgCmd.taxesIncluses ? 0 : taxesC;
+    const totalC = sousNetC + fraisC + taxesAjouteesC + tipC;
     if (totalC < 50) refus('Le montant de la commande est trop bas pour un paiement en ligne.', 400);
     const total = totalC / 100;
 
     // 3) Commission du gestionnaire (en cents, jamais plus que le total) — calculée sur le prix après rabais
-    const commission = commissionDe(mv, { sousTotal: sousNetC / 100, taxes: taxesC / 100, expedition: fraisC / 100, total: (totalC - tipC) / 100 });
+    const commission = commissionDe(mv, { sousTotal: sousNetC / 100, taxes: taxesAjouteesC / 100, expedition: fraisC / 100, total: (totalC - tipC) / 100 });
     const commissionC = Math.min(cents(commission), totalC);
     // Taxes sur la commission : seulement si le gestionnaire l'a choisi (Config multi → Commission). Facturées au collaborateur
     // (prélevées avec la commission), jamais ajoutées au total de l'acheteur. Taux de la province du gestionnaire.
@@ -271,7 +278,8 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       const tp = tbl[mv.commission_province] || tbl.QC;
       comTaxC = Math.round(commissionC * ((tp.tps || 0) + (tp.tvq || 0) + (tp.tvh || 0) + (tp.tvp || 0)) + 1e-7);
     }
-    const fraisCommC = Math.min(commissionC + comTaxC, totalC); // total prélevé par le gestionnaire
+    const fraisCommC = Math.min(commissionC + comTaxC + tipPlatC, totalC); // total prélevé par le gestionnaire (commission + taxes + sa part du pourboire)
+    const comTaxStockeeC = Math.max(0, fraisCommC - commissionC - tipPlatC);
 
     const numero = `MV-${gid}-${Date.now()}`;
     const expireLe = new Date(Date.now() + DUREE_SESSION_MIN * 60000);
@@ -279,13 +287,13 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       `INSERT INTO marketplace_commandes
          (gestionnaire_id, acheteur_id, collaborateur_id, numero_commande, statut, statut_paiement, total, commission, montant_net, commission_taxes,
           articles, adresse_livraison, note, frais_expedition, taxes, stock_reserve, expire_le, stripe_env,
-          code_promo, reduction_id, rabais, reduction_comptee)
-       VALUES ($1,$2,$3,$4,'en_attente','en_attente',$5,$6,$7,$19,$8,$9,$10,$11,$12,true,$13,$14,$15,$16,$17,$18) RETURNING id`,
+          code_promo, reduction_id, rabais, reduction_comptee, pourboire_plateforme)
+       VALUES ($1,$2,$3,$4,'en_attente','en_attente',$5,$6,$7,$19,$8,$9,$10,$11,$12,true,$13,$14,$15,$16,$17,$18,$20) RETURNING id`,
       [gid, acheteurId, collaborateurId, numero, total, commissionC / 100, (totalC - fraisCommC) / 100,
        JSON.stringify(lignes.map((l, i) => (alloc[i] ? { ...l, rabais: alloc[i] / 100 } : l))),
        JSON.stringify(adresse || {}), note ? String(note).slice(0, 500) : null, fraisC / 100,
-       JSON.stringify({ tps: tx.tps, tvq: tx.tvq, tvh: tx.tvh, tvp: tx.tvp, label: tx.label_taxe, province, pourboire: tipC / 100 }), expireLe, ctx.env,
-       reduction ? reduction.code : null, reduction ? reduction.id : null, rabaisC / 100, !!reduction, (fraisCommC - commissionC) / 100]);
+       JSON.stringify({ tps: tx.tps, tvq: tx.tvq, tvh: tx.tvh, tvp: tx.tvp, label: tx.label_taxe, province, pourboire: tipC / 100, incluses: rgCmd.taxesIncluses, pourboire_mode: rgCmd.pourboire }), expireLe, ctx.env,
+       reduction ? reduction.code : null, reduction ? reduction.id : null, rabaisC / 100, !!reduction, comTaxStockeeC / 100, tipPlatC / 100]);
     const commandeId = ins.rows[0].id;
 
     // 4) Session Stripe Checkout : une ligne par article + expédition + taxes (le total Stripe = notre total)
@@ -302,7 +310,7 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
     });
     if (fraisC > 0) lineItems.push({ quantity: 1, price_data: { currency: devise, unit_amount: fraisC, product_data: { name: 'Expédition' } } });
     if (tipC > 0) lineItems.push({ quantity: 1, price_data: { currency: devise, unit_amount: tipC, product_data: { name: 'Pourboire' } } });
-    if (taxesC > 0) lineItems.push({ quantity: 1, price_data: { currency: devise, unit_amount: taxesC, product_data: { name: `Taxes (${tx.label_taxe})` } } });
+    if (taxesAjouteesC > 0) lineItems.push({ quantity: 1, price_data: { currency: devise, unit_amount: taxesC, product_data: { name: `Taxes (${tx.label_taxe})` } } });
 
     const direct = String(ctx.p.processing_method || 'DIRECT CHARGES').toUpperCase().includes('DIRECT');
     const meta = { type: 'mv_commande', commande_id: String(commandeId), gestionnaire_id: String(gid), collaborateur_id: String(collaborateurId) };
@@ -380,9 +388,12 @@ async function confirmerPaiement(gid, session) {
   if (!commandeId) return { ignore: true };
   const pi = typeof session.payment_intent === 'string' ? session.payment_intent : (session.payment_intent && session.payment_intent.id) || null;
 
+  // « Permettre d'accepter les commandes » (défaut : oui) : la commande payée attend l'acceptation du collaborateur (reste « en_attente »).
+  // Désactivé : elle est confirmée automatiquement dès le paiement.
+  const apres = regCmd.statutApresPaiement(await regCmd.lire(gid, pool));
   const r = await pool.query(
     `UPDATE marketplace_commandes
-        SET statut_paiement = 'paye', statut = CASE WHEN statut = 'en_attente' THEN 'confirmee' ELSE statut END,
+        SET statut_paiement = 'paye', statut = CASE WHEN statut = 'en_attente' THEN '${apres === 'confirmee' ? 'confirmee' : 'en_attente'}' ELSE statut END,
             stripe_payment_intent = $1, paye_le = NOW(), expire_le = NULL, stock_reserve = false, updated_at = NOW()
       WHERE id = $2 AND gestionnaire_id = $3 AND stripe_session_id = $4 AND statut_paiement = 'en_attente' AND statut <> 'annulee'
         AND ROUND(total * 100) = $5

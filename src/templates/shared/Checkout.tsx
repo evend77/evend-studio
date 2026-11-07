@@ -176,6 +176,9 @@ function getToken(gid: number): string | null {
 
 export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, config = {} }: CheckoutProps) {
   const couleurAccent = config.couleur_accent || '#fbbf24';
+  // Configuration marketplace → Commande : qui reçoit le pourboire (vendeurs · admin · split50 · desactive)
+  const modePourboire: string = ['vendeurs', 'admin', 'split50', 'desactive'].includes(config.multivendeur?.gestion_pourboire) ? config.multivendeur.gestion_pourboire : 'vendeurs';
+  const nomPlateforme: string = config.nom_boutique || 'la plateforme';
   const isMobile = useIsMobile();
   const [articles, setArticles]     = useState<Article[]>([]);
   const [tousNumeriques, setTousNumeriques] = useState(false);
@@ -1001,9 +1004,12 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
           </Section>
 
           {/* ── 7. POURBOIRE ── */}
-          <Section titre={`Soutenir ${vendeur?.nom_boutique || vendeur?.nom || 'le vendeur'} (optionnel)`} icone="🎁" numero={6}>
+          {modePourboire !== 'desactive' && (
+          <Section titre={`${modePourboire === 'admin' ? 'Soutenir' : 'Soutenir'} ${modePourboire === 'admin' ? nomPlateforme : (vendeur?.nom_boutique || vendeur?.nom || 'le vendeur')} (optionnel)`} icone="🎁" numero={6}>
             <p style={{ fontSize: '13px', color: C.textMuted, marginBottom: '14px', lineHeight: 1.5 }}>
-              Chaque pourboire va directement au vendeur. C'est 100 % pour lui ! 🙌
+              {modePourboire === 'vendeurs' && "Chaque pourboire va directement au vendeur. C'est 100 % pour lui ! 🙌"}
+              {modePourboire === 'admin' && `Votre pourboire est remis à ${nomPlateforme} (et non au vendeur). Merci de soutenir la plateforme ! 🙌`}
+              {modePourboire === 'split50' && `Votre pourboire est partagé également : 50 % pour ${vendeur?.nom_boutique || vendeur?.nom || 'le vendeur'} et 50 % pour ${nomPlateforme}. 🙌`}
             </p>
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               {[0, 1, 2, 5].map(pct => {
@@ -1038,6 +1044,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
               />
             </div>
           </Section>
+          )}
 
           {/* ══ ENCADRÉ INFO e-VEND — RÔLE DE LA PLATEFORME ══════════════════ */}
           <div style={s.infoEvend}>
@@ -1156,10 +1163,10 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                     <LigneRecap label="Taxes" valeur="Non taxable" muted />
                   ) : (
                     <>
-                      {parseFloat(taxes.tps) > 0 && <LigneRecap label="TPS" valeur={`~${taxes.tps} $`} muted />}
-                      {parseFloat(taxes.tvq) > 0 && <LigneRecap label="TVQ" valeur={`~${taxes.tvq} $`} muted />}
-                      {parseFloat(taxes.tvh) > 0 && <LigneRecap label="TVH" valeur={`~${taxes.tvh} $`} muted />}
-                      {parseFloat(taxes.tvp || '0') > 0 && <LigneRecap label="TVP" valeur={`~${taxes.tvp} $`} muted />}
+                      {parseFloat(taxes.tps) > 0 && <LigneRecap label={`${(taxes as any).taxes_incluses ? 'dont ' : ''}TPS`} valeur={`${(taxes as any).taxes_incluses ? '' : '~'}${taxes.tps} $`} muted />}
+                      {parseFloat(taxes.tvq) > 0 && <LigneRecap label={`${(taxes as any).taxes_incluses ? 'dont ' : ''}TVQ`} valeur={`${(taxes as any).taxes_incluses ? '' : '~'}${taxes.tvq} $`} muted />}
+                      {parseFloat(taxes.tvh) > 0 && <LigneRecap label={`${(taxes as any).taxes_incluses ? 'dont ' : ''}TVH`} valeur={`${(taxes as any).taxes_incluses ? '' : '~'}${taxes.tvh} $`} muted />}
+                      {parseFloat(taxes.tvp || '0') > 0 && <LigneRecap label={`${(taxes as any).taxes_incluses ? 'dont ' : ''}TVP`} valeur={`${(taxes as any).taxes_incluses ? '' : '~'}${taxes.tvp} $`} muted />}
                       {parseFloat(taxes.tps) === 0 && parseFloat(taxes.tvq) === 0 && parseFloat(taxes.tvh) === 0 && parseFloat(taxes.tvp || '0') === 0 && (
                         <LigneRecap label="Taxes" valeur={formaterPrix(0)} muted />
                       )}
@@ -1262,18 +1269,18 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                       : `${formaterPrix((sousTotalApresRabais + fraisExp))}`}
                 </span>
                 <p style={{ fontSize: '11px', color: C.textMuted, margin: '2px 0 0' }}>
-                  {taxes ? `${getDevise()} · taxes estimées incluses` : `${getDevise()} · taxes non estimées`}
+                  {taxes ? `${getDevise()} · ${(taxes as any).taxes_incluses ? 'taxes incluses dans les prix' : 'taxes estimées incluses'}` : `${getDevise()} · taxes non estimées`}
                 </p>
               </div>
             </div>
 
             {taxes && adresseLivraison && !(taxes as any).aucune_taxe && (
               <p style={{ fontSize: '11px', color: C.textMuted, margin: '4px 0 4px', textAlign: 'center' }}>
-                Taxes estimées pour {adresseLivraison.province} ({taxes.label_taxe})
+                {(taxes as any).taxes_incluses ? 'Taxes incluses dans les prix pour' : 'Taxes estimées pour'} {adresseLivraison.province} ({taxes.label_taxe})
               </p>
             )}
             {/* Note estimation taxes — masquée si produit non taxable */}
-            {taxes && !(taxes as any).aucune_taxe && (
+            {taxes && !(taxes as any).aucune_taxe && !(taxes as any).taxes_incluses && (
               <p style={{
                 fontSize: '11px', color: C.textMuted, fontStyle: 'italic',
                 margin: '4px 0 12px', textAlign: 'center', lineHeight: 1.5,

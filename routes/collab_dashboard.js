@@ -22,6 +22,7 @@ const vacMV = require('../services/studio_vacances');
 const cfgMV = require('../services/studio_config_mv');
 const regles = require('../services/studio_regles_produits');
 const rembMV = require('../services/studio_remboursement');
+const regCmd = require('../services/studio_regles_commande');
 
 const router = express.Router({ mergeParams: true });
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -243,7 +244,8 @@ router.get('/produits-regles', h(async (req, res) => {
   const r = await regles.lire(req.gid, pool);
   res.json({ approbation_auto: r.approbationAuto, gerer_stock: r.gererStock, prix_zero: r.prixZero, prix_min: r.prixMin, qte_min_active: r.qteMinActive,
              qte_min_mode: r.qteMinMode, aide: r.aide, prix_revient: r.prixRevient, devise: r.devise,
-             categories: cfgMV.actif(await cfgMV.lire(req.gid, pool), 'permettre_categories', true) });
+             categories: cfgMV.actif(await cfgMV.lire(req.gid, pool), 'permettre_categories', true),
+             expedition_obligatoire: (await regCmd.lire(req.gid, pool)).modeExpedition });
 }));
 
 router.get('/produits/:id', h(async (req, res) => {
@@ -346,7 +348,8 @@ async function sauverMethodesProduit(req, produitId, ids) {
     nbConfigurees = +(await pool.query('SELECT COUNT(*) AS n FROM collab_methodes_expedition WHERE collaborateur_id = $1 AND actif = true', [req.cid])).rows[0].n;
     if (ids.length) valides = (await pool.query('SELECT id FROM collab_methodes_expedition WHERE collaborateur_id = $1 AND actif = true AND id = ANY($2::int[])', [req.cid, ids])).rows.map((x) => x.id);
   } catch (e) { return; } // tables absentes : rien à enregistrer (livraison gratuite)
-  if (nbConfigurees > 0 && valides.length === 0) bad("Sélectionnez au moins une méthode d'expédition.");
+  // Obligatoire seulement si le gestionnaire l'exige (Configuration marketplace → Commande) ; sinon, aucune méthode = livraison gratuite
+  if (nbConfigurees > 0 && valides.length === 0 && (await regCmd.lire(req.gid, pool)).modeExpedition) bad("Sélectionnez au moins une méthode d'expédition.");
   await pool.query('DELETE FROM collab_produit_methodes_expedition WHERE produit_id = $1', [produitId]);
   if (valides.length) await pool.query('INSERT INTO collab_produit_methodes_expedition (produit_id, methode_id) SELECT $1, UNNEST($2::int[]) ON CONFLICT DO NOTHING', [produitId, valides]);
 }
@@ -542,6 +545,13 @@ const TRANSITIONS = {
   annulee: [],
 };
 
+// Transitions offertes : « Accepter et expédier » saute l'étape d'acceptation (commande payée seulement)
+function transitionsPour(statut, payee, rg) {
+  const t = [...(TRANSITIONS[statut] || [])];
+  if (statut === 'en_attente' && payee && rg.accepter && rg.accepterExpedier) t.splice(1, 0, 'expediee');
+  return t;
+}
+
 function filtreCommandes(req, ignorerStatut) {
   const where = ['c.collaborateur_id = $1', 'c.gestionnaire_id = $2'];
   const params = [req.cid, req.gid];
@@ -586,24 +596,27 @@ router.get('/commandes/:id', h(async (req, res) => {
   const r = await pool.query(
     `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net, c.articles, c.adresse_livraison,
             c.note, c.date_commande, c.numero_suivi, c.transporteur, c.url_suivi, c.paye_le, c.frais_expedition, c.taxes, c.code_promo, c.rabais,
-            c.montant_rembourse, c.raison_annulation,
+            c.montant_rembourse, c.raison_annulation, c.date_livraison_prevue,
             a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email, a.telephone AS acheteur_telephone
        ${JOIN_ACHETEUR} WHERE c.id = $1 AND c.collaborateur_id = $2 AND c.gestionnaire_id = $3`, [id, req.cid, req.gid]);
   if (!r.rows.length) bad('Commande introuvable', 404);
-  const [retours, rembs, hist, autonome] = await Promise.all([
+  const [retours, rembs, hist, autonome, rg] = await Promise.all([
     pool.query(`SELECT id, motif, statut, created_at FROM demandes_retour WHERE commande_id = $1 AND collaborateur_id = $2 ORDER BY created_at DESC`, [id, req.cid]),
     pool.query(`SELECT id, origine, montant, raison, statut, demande_par, motif_refus, erreur, created_at, traite_le FROM commande_remboursements WHERE commande_id = $1 ORDER BY created_at DESC, id DESC`, [id]),
     pool.query(`SELECT evenement, detail, auteur, created_at FROM commande_historique WHERE commande_id = $1 ORDER BY created_at DESC, id DESC LIMIT 100`, [id]),
     rembMV.collaborateurAutonome(req.gid),
+    regCmd.lire(req.gid, pool),
   ]);
   const cmd = r.rows[0];
   const payee = cmd.statut_paiement === 'paye';
   const restant = rembMV.restantC(cmd) / 100;
   const ouverte = rembs.rows.some((x) => x.statut === 'en_attente' || x.statut === 'en_cours');
-  res.json({ ...cmd, retours: retours.rows, remboursements: rembs.rows, historique: hist.rows, transitions: TRANSITIONS[cmd.statut] || [],
+  res.json({ ...cmd, retours: retours.rows, remboursements: rembs.rows, historique: hist.rows, transitions: transitionsPour(cmd.statut, payee, rg),
     remboursement_autonome: autonome, montant_restant: restant,
     peut_rembourser: payee && restant > 0 && !ouverte,
-    peut_refuser: payee && ['en_attente', 'confirmee'].includes(cmd.statut) && restant > 0 && !ouverte });
+    peut_refuser: regCmd.peutRefuser(rg, cmd.statut, payee) && restant > 0 && !ouverte,
+    regles: { suivi_obligatoire: rg.suiviObligatoire, date_active: rg.dateActive, date_obligatoire: rg.dateObligatoire,
+              accepter: rg.accepter, accepter_expedier: rg.accepter && rg.accepterExpedier } });
 }));
 
 // Refuser une commande : non payée → annulation simple ; payée → remboursement TOTAL avec raison (approbation du gestionnaire si exigée)
@@ -614,6 +627,9 @@ router.post('/commandes/:id/refuser', h(async (req, res) => {
   const c = (await pool.query(`SELECT statut, statut_paiement, acheteur_id, numero_commande FROM marketplace_commandes WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3`, [id, req.cid, req.gid])).rows[0];
   if (!c) bad('Commande introuvable', 404);
   if (c.statut === 'annulee') bad('Commande déjà annulée', 409);
+  if (c.statut_paiement === 'paye' && !regCmd.peutRefuser(await regCmd.lire(req.gid, pool), c.statut, true)) {
+    bad("Cette commande est déjà acceptée : le gestionnaire n'autorise pas son annulation. Utilisez un remboursement si nécessaire.", 409);
+  }
   if (c.statut_paiement !== 'paye') {
     try { await paiementMV.annulerNonPayee(id, { par: 'collaborateur', raison }); }
     catch (e) { if (e instanceof paiementMV.ErreurPaiement) bad(e.message, e.status); throw e; }
@@ -650,6 +666,28 @@ router.delete('/commandes/:id/remboursement-en-attente', h(async (req, res) => {
   res.json({ success: true });
 }));
 
+// Courriel « Commande expédiée » à l'acheteur (seulement si le SMTP du gestionnaire est actif ; n'échoue jamais l'action)
+const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+async function courrielExpedition(gid, cmd, { transp, suivi, url, datePrevue }) {
+  try {
+    if (!cmd.acheteur_id) return;
+    const a = (await pool.query('SELECT email, prenom FROM marketplace_acheteurs WHERE id=$1 AND gestionnaire_id=$2', [cmd.acheteur_id, gid])).rows[0];
+    if (!a || !a.email) return;
+    const lignes = [];
+    if (transp) lignes.push(`<strong>Transporteur :</strong> ${esc(transp)}`);
+    if (suivi) lignes.push(`<strong>Numéro de suivi :</strong> ${esc(suivi)}`);
+    if (datePrevue) {
+      const d = new Date(datePrevue + 'T12:00:00Z').toLocaleDateString('fr-CA', { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' });
+      lignes.push(`<strong>Livraison prévue :</strong> ${esc(d)}`);
+    }
+    await require('../services/studio_courriels').envoyerCourriel({
+      gestionnaireId: gid, cle: 'commande_expediee', a: a.email,
+      variables: { prenom: a.prenom || '', numero_commande: cmd.numero_commande, transporteur: transp, numero_suivi: suivi, lien_suivi: url || '',
+                   detail_expedition: lignes.join('<br>') || 'Votre colis est en route.' },
+    });
+  } catch (e) { console.error('[collab_dashboard] courrielExpedition', e && e.message); }
+}
+
 router.put('/commandes/:id/statut', h(async (req, res) => {
   const id = entier(req.params.id);
   const b = req.body || {};
@@ -658,8 +696,10 @@ router.put('/commandes/:id/statut', h(async (req, res) => {
     `SELECT statut, statut_paiement, acheteur_id, numero_commande FROM marketplace_commandes WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3`, [id, req.cid, req.gid]);
   if (!c.rows.length) bad('Commande introuvable', 404);
   const actuel = c.rows[0];
-  if (!(TRANSITIONS[actuel.statut] || []).includes(b.statut)) bad(`Passage impossible : ${actuel.statut} → ${b.statut}`, 409);
-  if (b.statut === 'annulee' && actuel.statut_paiement === 'paye') {
+  const rg = await regCmd.lire(req.gid, pool);
+  const payee = actuel.statut_paiement === 'paye';
+  if (!transitionsPour(actuel.statut, payee, rg).includes(b.statut)) bad(`Passage impossible : ${actuel.statut} → ${b.statut}`, 409);
+  if (b.statut === 'annulee' && payee) {
     bad('Commande déjà payée : utilisez « Refuser la commande » (remboursement) pour l\'annuler.', 409);
   }
   if (b.statut === 'annulee') {
@@ -671,23 +711,39 @@ router.put('/commandes/:id/statut', h(async (req, res) => {
     }
     return res.json({ success: true });
   }
-  if (['expediee', 'livree'].includes(b.statut) && actuel.statut_paiement !== 'paye') bad("Cette commande n'est pas payée : elle ne peut pas être expédiée.", 409);
-  const suivi = b.statut === 'expediee' ? texte(b.numero_suivi, 'Numéro de suivi', 80) : '';
-  const transp = b.statut === 'expediee' ? texte(b.transporteur, 'Transporteur', 60) : '';
-  const url = b.statut === 'expediee' ? urlSuivi(b.url_suivi) : '';
+  if (['expediee', 'livree'].includes(b.statut) && !payee) bad("Cette commande n'est pas payée : elle ne peut pas être expédiée.", 409);
+  const exp = b.statut === 'expediee';
+  const suivi = exp ? texte(b.numero_suivi, 'Numéro de suivi', 80) : '';
+  const transp = exp ? texte(b.transporteur, 'Transporteur', 60) : '';
+  const url = exp ? urlSuivi(b.url_suivi) : '';
+  // Règles du gestionnaire (Configuration marketplace → Commande)
+  if (exp && rg.suiviObligatoire && (!suivi || !transp)) bad("Le transporteur et le numéro de suivi sont obligatoires pour expédier cette commande.");
+  let datePrevue = null;
+  if (exp && rg.dateActive) {
+    const d = b.date_livraison_prevue ? String(b.date_livraison_prevue).slice(0, 10) : '';
+    if (d) {
+      const dt = new Date(d + 'T12:00:00Z');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(dt.getTime()) || dt.toISOString().slice(0, 10) !== d) bad('Date de livraison prévue invalide.');
+      datePrevue = d;
+    } else if (rg.dateObligatoire) bad('La date de livraison prévue est obligatoire pour expédier cette commande.');
+  }
   await pool.query(
     `UPDATE marketplace_commandes SET statut=$1, updated_at=NOW(),
             numero_suivi = CASE WHEN $7::boolean THEN NULLIF($2::text,'') ELSE numero_suivi END,
             transporteur = CASE WHEN $7::boolean THEN NULLIF($3::text,'') ELSE transporteur END,
-            url_suivi = CASE WHEN $7::boolean THEN NULLIF($8::text,'') ELSE url_suivi END
+            url_suivi = CASE WHEN $7::boolean THEN NULLIF($8::text,'') ELSE url_suivi END,
+            date_livraison_prevue = CASE WHEN $7::boolean THEN $9::date ELSE date_livraison_prevue END
       WHERE id=$4 AND collaborateur_id=$5 AND gestionnaire_id=$6`,
-    [b.statut, suivi, transp, id, req.cid, req.gid, b.statut === 'expediee', url]);
+    [b.statut, suivi, transp, id, req.cid, req.gid, exp, url, datePrevue]);
+  const aEteAccepteeEtExpediee = exp && actuel.statut === 'en_attente';
+  if (aEteAccepteeEtExpediee) await rembMV.noter(pool, id, 'statut_confirmee', 'Acceptée et expédiée en une étape', 'collaborateur');
   await rembMV.noter(pool, id, 'statut_' + b.statut, [transp, suivi].filter(Boolean).join(' · ') || null, 'collaborateur');
   const LIB = { confirmee: 'confirmée', expediee: 'expédiée', livree: 'livrée', annulee: 'annulée' };
   if (LIB[b.statut] && actuel.acheteur_id) {
     await notifierAcheteur(req.gid, actuel.acheteur_id, `Commande ${LIB[b.statut]}`,
       `Votre commande ${actuel.numero_commande} est maintenant ${LIB[b.statut]}.${suivi ? ' Suivi : ' + suivi + '.' : ''}${url ? ' Lien : ' + url : ''}`, 'commande');
   }
+  if (exp && rg.mailExpedition) await courrielExpedition(req.gid, actuel, { transp, suivi, url, datePrevue });
   res.json({ success: true });
 }));
 

@@ -35,7 +35,7 @@ router.get('/rapport', async (req, res) => {
     const table = taxesMV.tableTaux(mv);
 
     const cmd = await pool.query(
-      `SELECT c.id, c.numero_commande, c.articles, c.total, c.montant_rembourse, c.statut_paiement, c.commission, c.commission_taxes, c.frais_expedition, c.taxes, c.adresse_livraison,
+      `SELECT c.id, c.numero_commande, c.articles, c.total, c.montant_rembourse, c.statut_paiement, c.commission, c.commission_taxes, c.frais_expedition, c.pourboire_plateforme, c.taxes, c.adresse_livraison,
               (COALESCE(c.paye_le, c.date_commande) AT TIME ZONE '${FUSEAU}')::date::text AS date_iso
          FROM marketplace_commandes c
         WHERE c.collaborateur_id = $1 AND c.gestionnaire_id = $2
@@ -67,23 +67,30 @@ router.get('/rapport', async (req, res) => {
       const baseTaxable = lignes.reduce((s, l) => s + (l.taxable ? l.base : 0), 0);
       const baseTotale = lignes.reduce((s, l) => s + l.base, 0);
       const frais = num(row.frais_expedition);
-      const tip = num(tx.pourboire);
+      // Pourboire : seulement la part du collaborateur (le gestionnaire peut en garder une partie : Configuration marketplace → Commande)
+      const tip = Math.max(0, num(tx.pourboire) - num(row.pourboire_plateforme));
+      // Taxes incluses dans le prix : prix et expédition sont TTC → on en retire les taxes pour afficher les montants hors taxes
+      const taxesTot = num(tx.tps) + num(tx.tvq) + num(tx.tvh) + num(tx.tvp);
+      const incl = tx.incluses === true && taxesTot > 0;
+      const fraisTaxables = baseTaxable > 0 ? frais : 0;
+      const taxeArticles = incl && baseTaxable + fraisTaxables > 0 ? taxesTot * baseTaxable / (baseTaxable + fraisTaxables) : 0;
+      const taxeFrais = incl ? taxesTot - taxeArticles : 0;
       const n = Math.max(1, lignes.length);
       const ratio = num(row.total) > 0 ? Math.min(1, Math.max(0, num(row.montant_rembourse) / num(row.total))) : 0;
       const common = { orderId: String(row.id), storeOrderId: row.numero_commande || `#${row.id}`, date: dateFr, dateISO: row.date_iso,
         province, taxeRemisePar: 'vendeur', statutPaiement: row.statut_paiement === 'rembourse' ? 'refunded' : 'Paid', ratioRembourse: ratio };
 
       if (!lignes.length) {
-        ventes.push({ id: row.id, ...common, produit: 'Commande', quantite: 1, prixUnitaire: Math.max(0, num(row.total) - frais - tip - num(tx.tps) - num(tx.tvq) - num(tx.tvh) - num(tx.tvp)),
-          expedition: frais, pourboire: tip, tps: num(tx.tps), tvq: num(tx.tvq), tvh: num(tx.tvh), tvp: num(tx.tvp),
+        ventes.push({ id: row.id, ...common, produit: 'Commande', quantite: 1, prixUnitaire: Math.max(0, num(row.total) - frais - num(tx.pourboire) - (incl ? 0 : taxesTot)),
+          expedition: frais - taxeFrais, pourboire: tip, tps: num(tx.tps), tvq: num(tx.tvq), tvh: num(tx.tvh), tvp: num(tx.tvp),
           tpsRembourse: num(tx.tps) * ratio, tvqRembourse: num(tx.tvq) * ratio, tvhRembourse: num(tx.tvh) * ratio, tvpRembourse: num(tx.tvp) * ratio });
       }
       lignes.forEach((l, i) => {
         const part = baseTaxable > 0 && l.taxable ? l.base / baseTaxable : 0;
         ventes.push({
           id: `${row.id}-${i}`, ...common,
-          produit: String(l.a.titre || l.a.nom || 'Produit'), quantite: l.q, prixUnitaire: r2(l.base / l.q),
-          expedition: frais / n, pourboire: tip / n,
+          produit: String(l.a.titre || l.a.nom || 'Produit'), quantite: l.q, prixUnitaire: r2((l.base - taxeArticles * part) / l.q),
+          expedition: (frais - taxeFrais) / n, pourboire: tip / n,
           tps: num(tx.tps) * part, tvq: num(tx.tvq) * part, tvh: num(tx.tvh) * part, tvp: num(tx.tvp) * part,
           tpsRembourse: num(tx.tps) * part * ratio, tvqRembourse: num(tx.tvq) * part * ratio, tvhRembourse: num(tx.tvh) * part * ratio, tvpRembourse: num(tx.tvp) * part * ratio,
         });

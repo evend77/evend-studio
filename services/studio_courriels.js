@@ -25,7 +25,7 @@ const echapper = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').r
 const lienSur = (v) => (/^https?:\/\/[^\s<>"']+$/i.test(String(v)) ? String(v) : '#');
 
 // Variables dont la valeur peut contenir du HTML préparé PAR LE SITE (jamais saisi par un visiteur)
-const VARIABLES_HTML = new Set(['liste_articles']);
+const VARIABLES_HTML = new Set(['liste_articles', 'liste_commandes', 'detail_expedition']);
 
 function rendreHtml(modele, vars) {
   return String(modele).replace(/\{\$([a-z_0-9]+)\}/g, (m, k) => {

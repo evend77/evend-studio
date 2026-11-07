@@ -23,7 +23,7 @@ const EXEMPLES = {
   nom_site: 'Ma Boutique', lien_site: 'https://exemple.e-vendstudio.ca', date: '5 novembre 2026', annee: '2026', couleur: '#c9a96e',
   prenom: 'Marie', nom_client: 'Marie Tremblay', courriel_client: 'marie@exemple.com',
   nom_collaborateur: 'Boutique Idée Cadeaux', prenom_collaborateur: 'Alex',
-  numero_commande: 'CMD-1042', montant_total: '89,99 $', liste_articles: 'Porte-clés en bois × 2<br>Tasse artisanale × 1',
+  numero_commande: 'CMD-1042', nb_commandes: '2', detail_expedition: '<strong>Transporteur :</strong> Postes Canada<br><strong>Numéro de suivi :</strong> RT123456789CA<br><strong>Livraison prévue :</strong> 12 novembre 2026', liste_commandes: '• CMD-1042 — payée il y a 3 jours<br>• CMD-1050 — payée il y a 2 jours', montant_total: '89,99 $', liste_articles: 'Porte-clés en bois × 2<br>Tasse artisanale × 1',
   adresse_livraison: '123, rue Exemple, Québec (QC) G1A 1A1', transporteur: 'Postes Canada', numero_suivi: 'RT123456789CA', lien_suivi: 'https://exemple.com/suivi',
   lien_commande: 'https://exemple.e-vendstudio.ca/commande', lien_connexion: 'https://exemple.e-vendstudio.ca/login', lien_reinit: 'https://exemple.e-vendstudio.ca/reinit?jeton=exemple',
   lien_dashboard: 'https://exemple.e-vendstudio.ca/dashboard', lien_messagerie: 'https://exemple.e-vendstudio.ca/dashboard',
@@ -113,10 +113,16 @@ const MODELES = [
     html: enveloppe('Nouvelle commande', p('Bonjour {$prenom_collaborateur},') + p('Vous avez reçu une nouvelle commande : <strong>{$numero_commande}</strong>.') + encadre('{$liste_articles}<br><br><strong>Total : {$montant_total}</strong>') + p('<strong>À expédier à :</strong><br>{$adresse_livraison}') + bouton('Voir la commande', '{$lien_dashboard}')),
   },
   {
-    cle: 'commande_expediee', section: 'commandes', destinataire: 'acheteur', branche: false,
+    cle: 'commande_expediee', section: 'commandes', destinataire: 'acheteur', branche: true,
     nom: 'Commande expédiée', sujet: 'Votre commande {$numero_commande} est en route',
-    variables: [{ cle: 'prenom', desc: "Prénom de l'acheteur" }, { cle: 'numero_commande', desc: 'Numéro de commande' }, { cle: 'transporteur', desc: 'Transporteur' }, { cle: 'numero_suivi', desc: 'Numéro de suivi' }, { cle: 'lien_suivi', desc: 'Lien de suivi du colis' }],
-    html: enveloppe('Commande expédiée', p('Bonjour {$prenom},') + p('Bonne nouvelle : votre commande <strong>{$numero_commande}</strong> vient d\'être expédiée.') + encadre('<strong>Transporteur :</strong> {$transporteur}<br><strong>Numéro de suivi :</strong> {$numero_suivi}') + bouton('Suivre mon colis', '{$lien_suivi}')),
+    variables: [{ cle: 'prenom', desc: "Prénom de l'acheteur" }, { cle: 'numero_commande', desc: 'Numéro de commande' }, { cle: 'transporteur', desc: 'Transporteur' }, { cle: 'numero_suivi', desc: 'Numéro de suivi' }, { cle: 'detail_expedition', desc: 'Transporteur, numéro de suivi et date de livraison prévue (selon ce qui est rempli)' }, { cle: 'lien_suivi', desc: 'Lien de suivi du colis' }],
+    html: enveloppe('Commande expédiée', p('Bonjour {$prenom},') + p('Bonne nouvelle : votre commande <strong>{$numero_commande}</strong> vient d\'être expédiée.') + encadre('{$detail_expedition}') + bouton('Suivre mon colis', '{$lien_suivi}')),
+  },
+  {
+    cle: 'commande_rappel_expedition', section: 'commandes', destinataire: 'collaborateur', branche: true,
+    nom: "Rappel d'expédition — au collaborateur", sujet: "Rappel : {$nb_commandes} commande(s) à expédier",
+    variables: [{ cle: 'prenom_collaborateur', desc: 'Prénom du collaborateur' }, { cle: 'nb_commandes', desc: 'Nombre de commandes en attente' }, { cle: 'liste_commandes', desc: 'Liste des commandes à expédier' }, { cle: 'lien_dashboard', desc: 'Lien vers votre tableau de bord' }],
+    html: enveloppe("Rappel d'expédition", p('Bonjour {$prenom_collaborateur},') + p("Ces commandes payées attendent encore d'être expédiées :") + encadre('{$liste_commandes}') + p('<a href="{$lien_dashboard}">Ouvrir mon tableau de bord</a>')),
   },
   {
     cle: 'commande_annulee', section: 'commandes', destinataire: 'acheteur', branche: false,

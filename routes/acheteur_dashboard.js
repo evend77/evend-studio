@@ -28,6 +28,7 @@ const bcrypt = require('bcrypt');
 const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 const cfgMV = require('../services/studio_config_mv');
+const regCmd = require('../services/studio_regles_commande');
 const paiementMV = require('../services/studio_paiement');
 const { authenticateToken } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
@@ -238,6 +239,21 @@ router.post('/commandes/:id/retour', h(async (req, res) => {
     [id, req.aid, req.gid]);
   if (!c.rows.length) bad('Commande introuvable', 404);
   if (!['expediee', 'livree'].includes(c.rows[0].statut)) bad('Une demande n\'est possible qu\'après l\'expédition.', 409);
+  // Délai de remboursement (Configuration marketplace → Commande) : N jours après la livraison (sinon la date de livraison prévue,
+  // sinon l'expédition, sinon le paiement). 0 = sans limite.
+  const rg = await regCmd.lire(req.gid, pool);
+  if (rg.joursRemboursement > 0) {
+    const ref = (await pool.query(
+      `SELECT COALESCE(
+                (SELECT MAX(h.created_at) FROM commande_historique h WHERE h.commande_id = c.id AND h.evenement = 'statut_livree'),
+                c.date_livraison_prevue::timestamptz,
+                (SELECT MAX(h.created_at) FROM commande_historique h WHERE h.commande_id = c.id AND h.evenement = 'statut_expediee'),
+                c.paye_le, c.date_commande) AS ref
+         FROM marketplace_commandes c WHERE c.id = $1`, [id])).rows[0];
+    if (ref && ref.ref && Date.now() > new Date(ref.ref).getTime() + rg.joursRemboursement * 86400000) {
+      bad(`Le délai pour demander un remboursement ou un retour (${rg.joursRemboursement} jours) est dépassé.`, 409);
+    }
+  }
   const ouverte = await pool.query(
     `SELECT 1 FROM demandes_retour WHERE commande_id=$1 AND statut IN ('en_attente','approuve') LIMIT 1`, [id]);
   if (ouverte.rows.length) bad('Une demande est déjà en cours pour cette commande.', 409);

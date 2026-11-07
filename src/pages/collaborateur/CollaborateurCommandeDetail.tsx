@@ -14,7 +14,8 @@ interface Detail {
   articles: Article[] | null; adresse_livraison: Record<string, unknown> | null; note: string | null; date_commande: string;
   numero_suivi: string | null; transporteur: string | null; url_suivi: string | null; paye_le: string | null;
   frais_expedition: string | null; taxes: Record<string, unknown> | null; code_promo: string | null; rabais: string | null;
-  montant_rembourse: string | null; raison_annulation: string | null;
+  montant_rembourse: string | null; raison_annulation: string | null; date_livraison_prevue: string | null;
+  regles?: { suivi_obligatoire: boolean; date_active: boolean; date_obligatoire: boolean; accepter: boolean; accepter_expedier: boolean };
   acheteur_prenom: string | null; acheteur_nom: string | null; acheteur_email: string | null; acheteur_telephone: string | null;
   retours: { id: number; motif: string; statut: string }[]; remboursements: Remb[]; historique: Histo[]; transitions: string[];
   remboursement_autonome: boolean; montant_restant: number; peut_rembourser: boolean; peut_refuser: boolean;
@@ -54,7 +55,7 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
   const [erreur, setErreur] = useState(''); const [info, setInfo] = useState('');
   const [occupe, setOccupe] = useState(false);
   const [mode, setMode] = useState<'' | 'expedier' | 'refuser' | 'rembourser' | 'annuler'>('');
-  const [exp, setExp] = useState({ transporteur: '', suivi: '', url: '' });
+  const [exp, setExp] = useState({ transporteur: '', suivi: '', url: '', date: '' });
   const [raison, setRaison] = useState('');
   const [partiel, setPartiel] = useState(false); const [montant, setMontant] = useState('');
 
@@ -82,7 +83,7 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
 
   const confirmer = () => envoyer(`${base}/statut`, 'PUT', { statut: 'confirmee' }, 'Commande acceptée.');
   const livrer = () => envoyer(`${base}/statut`, 'PUT', { statut: 'livree' }, 'Commande marquée livrée.');
-  const expedier = () => envoyer(`${base}/statut`, 'PUT', { statut: 'expediee', transporteur: exp.transporteur, numero_suivi: exp.suivi, url_suivi: exp.url }, 'Commande marquée expédiée : le client est avisé.');
+  const expedier = () => envoyer(`${base}/statut`, 'PUT', { statut: 'expediee', transporteur: exp.transporteur, numero_suivi: exp.suivi, url_suivi: exp.url, date_livraison_prevue: exp.date || undefined }, 'Commande marquée expédiée : le client est avisé.');
   const annulerSimple = () => envoyer(`${base}/statut`, 'PUT', { statut: 'annulee', raison }, 'Commande annulée.');
   const refuser = () => envoyer(`${base}/refuser`, 'POST', { raison }, 'Commande refusée et remboursée.');
   const rembourser = () => {
@@ -119,6 +120,11 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
   const peutExpedier = d.transitions.includes('expediee') && payee;
   const peutLivrer = d.transitions.includes('livree');
   const peutAnnulerSimple = d.transitions.includes('annulee') && !payee;
+  const rgl = d.regles;
+  const manqueSuivi = !!rgl?.suivi_obligatoire && (!exp.transporteur.trim() || !exp.suivi.trim());
+  const manqueDate = !!rgl?.date_active && !!rgl?.date_obligatoire && !exp.date;
+  const expOk = !manqueSuivi && !manqueDate;
+  const accepterEtExpedier = d.statut === 'en_attente' && peutExpedier;
   const montantNum = Number(montant.replace(',', '.'));
   const montantOk = !partiel || (montantNum > 0 && montantNum <= d.montant_restant + 0.001);
 
@@ -207,7 +213,7 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
         {mode === '' && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {peutAccepter && payee && <button disabled={occupe} onClick={confirmer} style={btn(true)}>✔ Accepter la commande</button>}
-            {peutExpedier && <button disabled={occupe} onClick={() => setMode('expedier')} style={btn(true)}>📦 Marquer expédiée</button>}
+            {peutExpedier && <button disabled={occupe} onClick={() => setMode('expedier')} style={btn(true)}>{accepterEtExpedier ? '📦 Accepter et expédier' : '📦 Marquer expédiée'}</button>}
             {peutLivrer && <button disabled={occupe} onClick={livrer} style={btn(true)}>✅ Marquer livrée</button>}
             {d.peut_refuser && <button disabled={occupe} onClick={() => setMode('refuser')} style={btn(false, true)}>✕ Refuser la commande</button>}
             {peutAnnulerSimple && <button disabled={occupe} onClick={() => setMode('annuler')} style={btn(false, true)}>✕ Annuler</button>}
@@ -220,10 +226,21 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
 
         {mode === 'expedier' && (
           <div style={{ display: 'grid', gap: 8 }}>
-            <input value={exp.transporteur} onChange={e => setExp({ ...exp, transporteur: e.target.value })} maxLength={60} placeholder="Transporteur (Postes Canada…)" style={champ} />
-            <input value={exp.suivi} onChange={e => setExp({ ...exp, suivi: e.target.value })} maxLength={80} placeholder="Numéro de suivi (facultatif)" style={champ} />
+            <input value={exp.transporteur} onChange={e => setExp({ ...exp, transporteur: e.target.value })} maxLength={60} placeholder={rgl?.suivi_obligatoire ? 'Transporteur (obligatoire) — Postes Canada…' : 'Transporteur (Postes Canada…)'} style={champ} />
+            <input value={exp.suivi} onChange={e => setExp({ ...exp, suivi: e.target.value })} maxLength={80} placeholder={rgl?.suivi_obligatoire ? 'Numéro de suivi (obligatoire)' : 'Numéro de suivi (facultatif)'} style={champ} />
             <input value={exp.url} onChange={e => setExp({ ...exp, url: e.target.value })} maxLength={300} placeholder="Lien de suivi (facultatif) https://…" style={champ} />
-            <div style={{ display: 'flex', gap: 8 }}><button disabled={occupe} onClick={expedier} style={btn(true)}>✔ Confirmer l'expédition</button><button onClick={fermer} style={btn(false)}>Annuler</button></div>
+            {rgl?.date_active && (
+              <label style={{ fontSize: 12, color: T.light, display: 'grid', gap: 4 }}>
+                Date de livraison prévue{rgl.date_obligatoire ? ' (obligatoire)' : ' (facultatif)'}
+                <input type="date" value={exp.date} onChange={e => setExp({ ...exp, date: e.target.value })} style={champ} />
+              </label>
+            )}
+            {!expOk && (
+              <div style={{ background: '#FEF5E7', color: '#B9770E', padding: '8px 12px', borderRadius: 8, fontSize: 12 }}>
+                ⚠️ {manqueSuivi && 'Le transporteur et le numéro de suivi sont obligatoires'}{manqueSuivi && manqueDate && ' · '}{manqueDate && 'La date de livraison prévue est obligatoire'} pour expédier cette commande.
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 8 }}><button disabled={occupe || !expOk} onClick={expedier} style={{ ...btn(true), opacity: occupe || !expOk ? 0.5 : 1 }}>{accepterEtExpedier ? "✔ Accepter et confirmer l'expédition" : "✔ Confirmer l'expédition"}</button><button onClick={fermer} style={btn(false)}>Annuler</button></div>
           </div>
         )}
 
@@ -265,11 +282,12 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
         )}
       </div>
 
-      {(d.numero_suivi || d.transporteur || lienSuivi) && (
+      {(d.numero_suivi || d.transporteur || lienSuivi || d.date_livraison_prevue) && (
         <div style={carte}>
           <p style={titre}>Expédition</p>
           <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7 }}>
             🚚 {d.transporteur || 'Transporteur non précisé'}{d.numero_suivi ? <> · suivi <strong>{d.numero_suivi}</strong></> : null}
+            {d.date_livraison_prevue && <><br />📅 Livraison prévue : <strong>{new Date(String(d.date_livraison_prevue).slice(0, 10) + 'T12:00:00').toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' })}</strong></>}
             {lienSuivi && <><br /><a href={lienSuivi} target="_blank" rel="noopener noreferrer" style={{ color: accent, fontWeight: 700 }}>Ouvrir le suivi ↗</a></>}
           </p>
         </div>
@@ -304,7 +322,7 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
       <button onClick={onRetour} style={{ background: 'none', border: 'none', color: accent, fontWeight: 700, cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 10 }}>← Retour aux commandes</button>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <h2 style={{ margin: 0, fontSize: 20, color: T.text }}>Commande {d.numero_commande}</h2>
-        <Pastille info={STATUTS[d.statut]} /><Pastille info={PAIEMENTS[d.statut_paiement]} />
+        <Pastille info={d.statut === 'en_attente' && payee && d.regles?.accepter ? { l: '🔔 À accepter', bg: '#FEF5E7', c: '#B9770E' } : STATUTS[d.statut]} /><Pastille info={PAIEMENTS[d.statut_paiement]} />
         <span style={{ fontSize: 12, color: T.light }}>{dateLongue(d.date_commande)}</span>
       </div>
       <div style={{ display: isMobile ? 'block' : 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 16, alignItems: 'start' }}>

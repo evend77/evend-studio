@@ -108,7 +108,7 @@ export default function CollaborateurCommandes({ gestionnaireId, accent, isMobil
               <span style={{ color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nomClient(c)}</span>
               <span style={{ color: T.light }}>{dateCourte(c.date_commande)}</span>
               <span>{c.nb_articles}</span>
-              <span><Pastille info={STATUTS[c.statut]} /></span>
+              <span><Pastille info={c.statut === 'en_attente' && c.statut_paiement === 'paye' ? { l: '🔔 À accepter', bg: '#FEF5E7', c: '#B9770E' } : STATUTS[c.statut]} /></span>
               <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                 <Pastille info={PAIEMENTS[c.statut_paiement]} />
                 {c.remboursement_en_attente && <span title="Remboursement en attente d'approbation" style={{ background: '#FEF9E7', color: '#B7950B', padding: '2px 7px', borderRadius: 12, fontSize: 11, fontWeight: 700 }}>⏳ Remb.</span>}

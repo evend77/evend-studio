@@ -693,8 +693,8 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
               <span style={{ ...s.recapCalcValeur, color: "#16a34a" }}>Calculés à l'étape suivante</span>
             </div>
             <div style={s.recapLigneCalc}>
-              <span style={s.recapCalcLabel}>Taxes (TPS/TVQ)</span>
-              <span style={{ ...s.recapCalcValeur, color: "#78716c" }}>Calculées à l'étape suivante</span>
+              <span style={s.recapCalcLabel}>{config.multivendeur?.taxes_incluses_prix === true ? 'Taxes' : 'Taxes (TPS/TVQ)'}</span>
+              <span style={{ ...s.recapCalcValeur, color: "#78716c" }}>{config.multivendeur?.taxes_incluses_prix === true ? 'Incluses dans les prix' : "Calculées à l'étape suivante"}</span>
             </div>
 
             <div style={s.recapTotalWrap}>
@@ -704,7 +704,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                   <span style={s.recapTotalMontant}>{formaterPrix(totalSelectionne)}</span>
                 </div>
               </div>
-              <p style={s.recapTotalNote}>Avant taxes et livraison</p>
+              <p style={s.recapTotalNote}>{config.multivendeur?.taxes_incluses_prix === true ? 'Taxes incluses, avant livraison' : 'Avant taxes et livraison'}</p>
             </div>
 
             {!peutPayer && articlesSelectionnes === 0 && (

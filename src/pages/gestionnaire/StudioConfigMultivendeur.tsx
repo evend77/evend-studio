@@ -164,18 +164,16 @@ interface ConfigMV {
   destinataire_taxes: 'admin' | 'vendeur';
   // Config commande
   mode_expedition_obligatoire: boolean; numero_suivi_obligatoire: boolean;
-  statut_preparation_commande: boolean; heures_preparation: string;
-  taxes_incluses_prix: boolean; deduire_expedition_remboursement: boolean;
-  deduire_taxes_remboursement: boolean; taxes_sur_expedition: boolean;
+  heures_preparation: string;
+  taxes_incluses_prix: boolean;
   permettre_etiquette_expedition: boolean; jours_remboursement: string; remboursement_collab_autonome: boolean;
-  permettre_accepter_commande: boolean; annuler_auto_rejet: boolean;
+  permettre_accepter_commande: boolean;
   permettre_annuler_commande_acceptee: boolean; accepter_et_expedier: boolean;
   envoyer_mail_expedition: boolean; permettre_date_livraison_prevue: boolean;
   date_livraison_obligatoire: boolean; gestion_pourboire: string;
   permettre_cc_email_commande: boolean; rappel_expedition_auto: boolean;
   jours_avant_rappel: string; jours_max_rappel: string;
-  tcs_sur_commandes: boolean; tds_sur_commandes: boolean;
-  restreindre_expedition_fraude: boolean; generation_facture: string;
+  generation_facture: string;
   permettre_infos_supplementaires: boolean;
   // Avancé
   google_translation: boolean; translation_panel: string; rtl_alignment: boolean;
@@ -239,18 +237,16 @@ const DEFAUTS: ConfigMV = {
   dimension_unit: 'cm', sauvegarder_brouillon: false,
   mode_taxe: 'libre', destinataire_taxes: 'admin',
   mode_expedition_obligatoire: false, numero_suivi_obligatoire: false,
-  statut_preparation_commande: false, heures_preparation: '0',
-  taxes_incluses_prix: false, deduire_expedition_remboursement: false,
-  deduire_taxes_remboursement: false, taxes_sur_expedition: false,
+  heures_preparation: '0',
+  taxes_incluses_prix: false,
   permettre_etiquette_expedition: false, jours_remboursement: '14', remboursement_collab_autonome: false,
-  permettre_accepter_commande: true, annuler_auto_rejet: false,
+  permettre_accepter_commande: true,
   permettre_annuler_commande_acceptee: false, accepter_et_expedier: false,
   envoyer_mail_expedition: true, permettre_date_livraison_prevue: false,
   date_livraison_obligatoire: false, gestion_pourboire: 'vendeurs',
   permettre_cc_email_commande: false, rappel_expedition_auto: false,
   jours_avant_rappel: '2', jours_max_rappel: '30',
-  tcs_sur_commandes: false, tds_sur_commandes: false,
-  restreindre_expedition_fraude: false, generation_facture: 'anyTime',
+  generation_facture: 'anyTime',
   permettre_infos_supplementaires: false,
   google_translation: false, translation_panel: 'both', rtl_alignment: false,
   calcul_commission_base: 'normal', type_commission_globale: '%',
@@ -277,6 +273,8 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
   const [loading, setLoading]   = useState(true);
   const [onglet, setOnglet]     = useState<'generalite' | 'vendeur' | 'produits' | 'commande' | 'commission' | 'encheres' | 'stripe' | 'avance'>('generalite');
   const [toast, setToast]       = useState<{ msg: string; type: 'success' | 'danger' } | null>(null);
+  // SMTP du gestionnaire (Modèles de courriel → Serveur d'envoi) : sans serveur actif, l'email d'expédition automatique est bloqué
+  const [smtpOk, setSmtpOk] = useState<boolean | null>(null);
   const [modalConfirm, setModalConfirm] = useState<{ titre: string; message: string; action: () => void } | null>(null);
   const [modifie, setModifie]   = useState(false);
 
@@ -304,7 +302,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
         if (k.startsWith('banniere_vendeur_')) { const n = k.replace('banniere_vendeur_', 'banniere_collab_'); if (mv[n] === undefined) mv[n] = mv[k]; delete mv[k]; }
       }
       delete mv.approuver_auto_vendeur;   // ancien réglage inactif (valeur par défaut « true » jamais appliquée) : on ne la reprend pas
-      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif']) delete mv[k];   // réglages supprimés de Config vendeur
+      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif', 'statut_preparation_commande', 'restreindre_expedition_fraude', 'deduire_expedition_remboursement', 'deduire_taxes_remboursement', 'taxes_sur_expedition', 'tcs_sur_commandes', 'tds_sur_commandes', 'annuler_auto_rejet']) delete mv[k];   // réglages supprimés de Config vendeur
       if (mv.bloquer_inscription_vendeur !== undefined) { if (mv.bloquer_inscription_collaborateur === undefined) mv.bloquer_inscription_collaborateur = mv.bloquer_inscription_vendeur; delete mv.bloquer_inscription_vendeur; }
       // Nom de la marketplace et courriel de contact : une seule source, partagée avec « Configurer mes pages »
       try {
@@ -322,6 +320,13 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
   }, [gestionnaireId, token]);
 
   useEffect(() => { charger(); }, [charger]);
+  useEffect(() => {
+    if (onglet !== 'commande') return;
+    fetch(`${API_BASE}/studio/courriels/${gestionnaireId}/smtp`, { credentials: 'include', headers: { Authorization: `Bearer ${token}` } })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setSmtpOk(!!(d && d.smtp && d.smtp.actif && d.smtp.host && d.smtp.expediteur_email)))
+      .catch(() => setSmtpOk(false));
+  }, [onglet, gestionnaireId, token]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(null), 4000); return () => clearTimeout(t); }, [toast]);
 
   // ── Sauvegarder ──────────────────────────────────────────────────────────
@@ -869,113 +874,90 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'start' }}>
           <div>
             <Section titre="Expédition et livraison" icon="🚚">
-              <ParamLigne label="Mode d'expédition obligatoire">
+              <ParamLigne label="Mode d'expédition obligatoire" description="Activé : le collaborateur doit choisir au moins une méthode d'expédition dans « Créer une annonce ». Désactivé : facultatif, et sans méthode choisie la livraison est gratuite.">
                 <Toggle actif={config.mode_expedition_obligatoire} onChange={set('mode_expedition_obligatoire')} />
               </ParamLigne>
-              <ParamLigne label="Numéro de suivi obligatoire">
+              <ParamLigne label="Numéro de suivi obligatoire" description="Activé : pour marquer une commande expédiée, le collaborateur doit remplir le transporteur et le numéro de suivi.">
                 <Toggle actif={config.numero_suivi_obligatoire} onChange={set('numero_suivi_obligatoire')} />
               </ParamLigne>
-              <ParamLigne label="Statut de préparation commande">
-                <Toggle actif={config.statut_preparation_commande} onChange={set('statut_preparation_commande')} />
+              <ParamLigne label="Heures de préparation">
+                <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.heures_preparation} onChange={e => set('heures_preparation')(e.target.value)} min="0" />
               </ParamLigne>
-              {config.statut_preparation_commande && (
-                <ParamLigne label="Heures de préparation">
-                  <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.heures_preparation} onChange={e => set('heures_preparation')(e.target.value)} min="0" />
-                </ParamLigne>
-              )}
-              <ParamLigne label="Permettre les étiquettes d'expédition">
+              <ParamLigne label="Permettre les étiquettes d'expédition" description="À venir : étiquettes d'expédition (Shippo / EasyPost).">
                 <Toggle actif={config.permettre_etiquette_expedition} onChange={set('permettre_etiquette_expedition')} />
               </ParamLigne>
-              <ParamLigne label="Rappel d'expédition automatique">
+              <ParamLigne label="Rappel d'expédition automatique" description="Un message dans la messagerie du collaborateur (et un courriel si votre serveur d'envoi est actif) lui rappelle ses commandes payées non expédiées.">
                 <Toggle actif={config.rappel_expedition_auto} onChange={set('rappel_expedition_auto')} />
               </ParamLigne>
               {config.rappel_expedition_auto && (<>
-                <ParamLigne label="Jours avant rappel">
+                <ParamLigne label="Jours avant rappel" description="Premier rappel : nombre de jours après le paiement. Ensuite, un rappel par jour.">
                   <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.jours_avant_rappel} onChange={e => set('jours_avant_rappel')(e.target.value)} min="1" />
                 </ParamLigne>
-                <ParamLigne label="Jours max rappel">
+                <ParamLigne label="Jours max rappel" description="Plus aucun rappel après ce nombre de jours depuis le paiement.">
                   <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.jours_max_rappel} onChange={e => set('jours_max_rappel')(e.target.value)} min="1" />
                 </ParamLigne>
               </>)}
-              <ParamLigne label="Email d'expédition automatique">
-                <Toggle actif={config.envoyer_mail_expedition} onChange={set('envoyer_mail_expedition')} />
+              <ParamLigne label="Email d'expédition automatique" description={smtpOk === false ? "Bloqué : configurez et activez votre serveur d'envoi (SMTP) dans Modèles de courriel → Serveur d'envoi pour débloquer cette option." : "Un courriel est envoyé à l'acheteur quand la commande est expédiée (transporteur, suivi, date prévue)."}>
+                <div style={smtpOk === false ? { opacity: 0.45, pointerEvents: 'none' } : undefined} title={smtpOk === false ? "Serveur d'envoi (SMTP) non configuré" : undefined}>
+                  <Toggle actif={smtpOk === false ? false : config.envoyer_mail_expedition} onChange={set('envoyer_mail_expedition')} />
+                </div>
               </ParamLigne>
-              <ParamLigne label="Date de livraison prévue">
+              <ParamLigne label="Date de livraison prévue" description="Le collaborateur peut indiquer une date de livraison prévue en expédiant. À venir : l'afficher aussi à l'acheteur dans son tableau de bord.">
                 <Toggle actif={config.permettre_date_livraison_prevue} onChange={set('permettre_date_livraison_prevue')} />
               </ParamLigne>
               {config.permettre_date_livraison_prevue && (
-                <ParamLigne label="Date livraison obligatoire">
+                <ParamLigne label="Date livraison obligatoire" derniere>
                   <Toggle actif={config.date_livraison_obligatoire} onChange={set('date_livraison_obligatoire')} />
                 </ParamLigne>
               )}
-              <ParamLigne label="Restreindre expédition (fraude)" derniere>
-                <Toggle actif={config.restreindre_expedition_fraude} onChange={set('restreindre_expedition_fraude')} />
-              </ParamLigne>
             </Section>
           </div>
 
           <div>
             <Section titre="Remboursements" icon="↩️">
-              <ParamLigne label="Le vendeur peut rembourser lui-même (sans mon approbation)">
+              <ParamLigne label="Le collaborateur peut rembourser lui-même (sans mon approbation)">
                 <Toggle actif={config.remboursement_collab_autonome} onChange={set('remboursement_collab_autonome')} />
               </ParamLigne>
               <p style={{ margin: '-4px 0 10px', fontSize: 11, color: '#888', lineHeight: 1.5 }}>
                 {config.remboursement_collab_autonome
-                  ? 'Activé : quand un vendeur refuse une commande ou rembourse un client, le remboursement part tout de suite.'
-                  : 'Désactivé : chaque refus ou remboursement du vendeur attend votre approbation (encadré orange en haut de la page Commandes).'}
+                  ? 'Activé : quand un collaborateur refuse une commande ou rembourse un client, le remboursement part tout de suite.'
+                  : 'Désactivé : chaque refus ou remboursement du collaborateur attend votre approbation (encadré orange en haut de la page Commandes).'}
               </p>
-              <ParamLigne label="Taxes incluses dans le prix">
+              <ParamLigne label="Taxes incluses dans le prix" description="Activé : les prix contiennent déjà les taxes. Le panier et le paiement les extraient du prix au lieu de les ajouter.">
                 <Toggle actif={config.taxes_incluses_prix} onChange={set('taxes_incluses_prix')} />
               </ParamLigne>
-              <ParamLigne label="Déduire expédition du remboursement">
-                <Toggle actif={config.deduire_expedition_remboursement} onChange={set('deduire_expedition_remboursement')} />
-              </ParamLigne>
-              <ParamLigne label="Déduire taxes du remboursement">
-                <Toggle actif={config.deduire_taxes_remboursement} onChange={set('deduire_taxes_remboursement')} />
-              </ParamLigne>
-              <ParamLigne label="Taxes sur l'expédition">
-                <Toggle actif={config.taxes_sur_expedition} onChange={set('taxes_sur_expedition')} />
-              </ParamLigne>
-              <ParamLigne label="Délai de remboursement (jours)" derniere>
+              <ParamLigne label="Délai de remboursement (jours)" description="Après la livraison, l'acheteur a ce nombre de jours pour demander un retour ou un remboursement. 0 = sans limite." derniere>
                 <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.jours_remboursement} onChange={e => set('jours_remboursement')(e.target.value)} min="0" />
               </ParamLigne>
             </Section>
 
             <Section titre="Gestion des commandes" icon="🛒">
-              <ParamLigne label="Permettre d'accepter les commandes">
+              <ParamLigne label="Permettre d'accepter les commandes" description="Activé : une commande payée attend que le collaborateur l'accepte. Désactivé : elle est confirmée automatiquement au paiement.">
                 <Toggle actif={config.permettre_accepter_commande} onChange={set('permettre_accepter_commande')} />
               </ParamLigne>
-              <ParamLigne label="Annulation auto si rejet">
-                <Toggle actif={config.annuler_auto_rejet} onChange={set('annuler_auto_rejet')} />
-              </ParamLigne>
-              <ParamLigne label="Annuler commande acceptée">
+              <ParamLigne label="Annuler commande acceptée" description="Activé : le collaborateur peut encore refuser (et rembourser) une commande déjà acceptée. Désactivé : il ne peut refuser qu'avant de l'accepter.">
                 <Toggle actif={config.permettre_annuler_commande_acceptee} onChange={set('permettre_annuler_commande_acceptee')} />
               </ParamLigne>
-              <ParamLigne label="Accepter et expédier en une étape">
+              <ParamLigne label="Accepter et expédier en une étape" description="Ajoute le bouton « Accepter et expédier » (nécessite d'avoir activé l'acceptation des commandes).">
                 <Toggle actif={config.accepter_et_expedier} onChange={set('accepter_et_expedier')} />
               </ParamLigne>
-              <ParamLigne label="CC email commande">
+              <ParamLigne label="CC email commande" description="À venir : recevoir une copie des courriels de commande.">
                 <Toggle actif={config.permettre_cc_email_commande} onChange={set('permettre_cc_email_commande')} />
               </ParamLigne>
-              <ParamLigne label="Gestion du pourboire">
-                <select style={{ ...selectStyle, width: '160px' }} value={config.gestion_pourboire} onChange={e => set('gestion_pourboire')(e.target.value)}>
-                  <option value="vendeurs">Aux vendeurs</option>
+              <ParamLigne label="Gestion du pourboire" description={{ vendeurs: "100 % du pourboire va au collaborateur.", admin: "100 % du pourboire vous est versé (retenu comme la commission, via Stripe).", split50: "Moitié au collaborateur, moitié à vous (retenue via Stripe). Le cent impair va au collaborateur.", desactive: "Aucun pourboire n'est offert à l'acheteur." }[config.gestion_pourboire] || ''}>
+                <select style={{ ...selectStyle, width: '200px' }} value={config.gestion_pourboire} onChange={e => set('gestion_pourboire')(e.target.value)}>
+                  <option value="vendeurs">Aux collaborateurs</option>
                   <option value="admin">À la plateforme</option>
+                  <option value="split50">Partagé 50 / 50</option>
                   <option value="desactive">Désactivé</option>
                 </select>
               </ParamLigne>
-              <ParamLigne label="Génération de facture">
+              <ParamLigne label="Génération de facture" description="À venir : factures automatiques." derniere>
                 <select style={{ ...selectStyle, width: '160px' }} value={config.generation_facture} onChange={e => set('generation_facture')(e.target.value)}>
                   <option value="anyTime">À tout moment</option>
                   <option value="afterPayment">Après paiement</option>
                   <option value="afterDelivery">Après livraison</option>
                 </select>
-              </ParamLigne>
-              <ParamLigne label="TCS sur commandes">
-                <Toggle actif={config.tcs_sur_commandes} onChange={set('tcs_sur_commandes')} />
-              </ParamLigne>
-              <ParamLigne label="TDS sur commandes" derniere>
-                <Toggle actif={config.tds_sur_commandes} onChange={set('tds_sur_commandes')} />
               </ParamLigne>
             </Section>
           </div>
