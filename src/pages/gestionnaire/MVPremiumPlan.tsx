@@ -10,7 +10,7 @@
 // La facturation Stripe viendra plus tard : on enregistre seulement les choix.
 
 import { useState, useEffect, useCallback } from 'react';
-import MVAddonsCatalogue, { ItemAddon, emojiEvend, nomCategorie } from './MVAddonsCatalogue';
+import MVAddonsCatalogue, { ItemAddon } from './MVAddonsCatalogue';
 
 const API_BASE = '/api';
 
@@ -24,13 +24,8 @@ interface Addon {
   code: string; nom: string; description: string; emoji: string; prix_ht: number;
   inclus: boolean; achete: boolean; actif_pour_gestionnaire: boolean; prix_facture: number;
 }
-interface AddonEvend {
-  code: string; nom: string; description: string; prix: number; periode: string; categorie: string; categorie_nom: string | null;
-  companie: string | null; lien_documentation: string | null; badges: string[];
-  inclus: boolean; achete: boolean; prix_ht: number; prix_facture: number;
-}
 interface LigneResume { code: string; nom: string; emoji: string; inclus: boolean; prix_ht: number; }
-interface Etat { forfait: (Plan & { par_defaut?: boolean }) | null; addons: Addon[]; addons_evend: AddonEvend[]; lignes: LigneResume[]; plans: Plan[]; total_ht: number; }
+interface Etat { forfait: (Plan & { par_defaut?: boolean }) | null; addons: Addon[]; lignes: LigneResume[]; plans: Plan[]; total_ht: number; }
 
 const mensuel = (it: ItemAddon) => (it.periode === 'an' ? it.prix / 12 : it.periode === 'mois' ? it.prix : 0);
 
@@ -49,13 +44,6 @@ const $ = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 const go = (n: number | null) => (n == null ? '—' : `${Number.isInteger(n) ? n : String(n).replace('.', ',')} Go`);
 const nbV = (n: number | null) => (n == null ? 'Vendeurs illimités' : `${n} vendeur${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''}`);
 
-// Anciens add-ons « Branding & options » (table options_gestionnaire) : toujours facturés, donc comptés dans le total
-// pour que cette page et « Mes services » donnent le même montant. Même catalogue que BrandingEtOptions.tsx / MesServices.tsx.
-const ADDONS_ANCIENS: { id: string; nom: string; prix_ht: number }[] = [
-  { id: 'cacher_propulse', nom: 'Cacher le branding', prix_ht: 2 },
-  { id: 'verificateur_age', nom: "Vérificateur d'âge", prix_ht: 5 },
-  { id: 'popup_annonce', nom: 'Popup Annonce', prix_ht: 3 },
-];
 interface LigneAncienne { nom: string; prix_ht: number; }
 
 const inclut = (p: Plan | null | undefined, code: string) => !!p && (p.tous_addons || p.addons_inclus.includes(code));
@@ -83,14 +71,9 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
       setEtat(await r.json());
       setErreurChargement(false);
       try {
-        const [o, b] = await Promise.all([
-          fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/options`, { headers: entetes(), credentials: 'include' }),
-          fetch(`${API_BASE}/messagerie-contact/gestionnaire/${gestionnaireId}/facturation-cycle`, { headers: entetes(), credentials: 'include' }),
-        ]);
-        const od = o.ok ? await o.json().catch(() => ({})) : {};
+        const b = await fetch(`${API_BASE}/messagerie-contact/gestionnaire/${gestionnaireId}/facturation-cycle`, { headers: entetes(), credentials: 'include' });
         const bd = b.ok ? await b.json().catch(() => ({ achats: [] })) : { achats: [] };
         setAnciens([
-          ...ADDONS_ANCIENS.filter(a => !!od?.[a.id]).map(a => ({ nom: a.nom, prix_ht: a.prix_ht })),
           ...(bd.achats || []).map((a: any) => ({ nom: `Bloc de ${a.quantite_messages} messages (formulaire de contact)`, prix_ht: parseFloat(a.prix_ht) || 0 })),
         ]);
       } catch { setAnciens([]); }
@@ -129,7 +112,7 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
   const basculerAddon = async (it: ItemAddon) => {
     setBusy(true);
     try {
-      const base = it.source === 'evend' ? '/mv/addons-evend' : '/mv/addons';
+      const base = '/mv/addons';
       const id = encodeURIComponent(it.code);
       if (it.achete) await appeler(`${base}/${id}`, 'DELETE');
       else await appeler(`${base}/${id}/activer`, 'POST');
@@ -160,16 +143,11 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
   const stockageMax = (courant.stockage_go || 0) * 1024;
   const stockagePct = stockageMax ? Math.min((stockageUtilise / stockageMax) * 100, 100) : 0;
   const stockageAffiche = stockageUtilise < 1024 ? `${stockageUtilise.toFixed(0)} Mo` : `${(stockageUtilise / 1024).toFixed(1)} Go`;
-  // Une seule liste d'add-ons : ceux de Studio (ex. Avis clients) + le catalogue e-Vend
+  // Add-ons du multi-vendeur (leur propre catalogue, géré dans ⭐ Forfaits & Plans MV)
   const items: ItemAddon[] = [
     ...etat.addons.map((a): ItemAddon => ({
       cle: 'studio:' + a.code, source: 'studio', code: a.code, nom: a.nom, description: a.description, emoji: a.emoji, prix: a.prix_ht, periode: 'mois',
       categorie_id: 'marketplace', categorie_nom: 'Marketplace', badges: [], inclus: a.inclus, achete: a.achete, prix_facture: a.prix_facture, guide_id: 'avis-clients',
-    })),
-    ...(etat.addons_evend || []).map((a): ItemAddon => ({
-      cle: 'evend:' + a.code, source: 'evend', code: a.code, nom: a.nom, description: a.description, emoji: emojiEvend(a.code), prix: a.prix, periode: a.periode,
-      categorie_id: a.categorie, categorie_nom: nomCategorie(a.categorie, a.categorie_nom), badges: a.badges, companie: a.companie, lien_documentation: a.lien_documentation,
-      inclus: a.inclus, achete: a.achete, prix_facture: a.prix_facture, guide_id: a.code,
     })),
   ];
   const nomAddon = (code: string) => items.find(a => a.code === code)?.nom || code;
@@ -303,7 +281,7 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
         ))}
         {anciens.map((l, i) => (
           <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', marginBottom: 6 }}>
-            <span>⚙️ {l.nom} <span style={{ color: '#aaa' }}>(Branding & options)</span></span><strong>{$(l.prix_ht)}</strong>
+            <span>⚙️ {l.nom} <span style={{ color: '#aaa' }}>(messagerie)</span></span><strong>{$(l.prix_ht)}</strong>
           </div>
         ))}
         <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 10, paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: '#1a1a2e' }}>

@@ -43,9 +43,13 @@ const champ: React.CSSProperties = { width: '100%', boxSizing: 'border-box', pad
 const etiquette: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: T.accent, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 5 };
 
 interface Brouillon { code: string; nom: string; description: string; emoji: string; prix_ht: string; actif: boolean; ordre: string; templates: string[]; }
-const vide: Brouillon = { code: '', nom: '', description: '', emoji: '🧩', prix_ht: '0', actif: true, ordre: '0', templates: [] };
+const videBase: Brouillon = { code: '', nom: '', description: '', emoji: '🧩', prix_ht: '0', actif: true, ordre: '0', templates: [] };
 
-export default function AdminFonctionnalitesStudio() {
+const TPL_MV = 'multivendeur-premium';
+
+// portee « mv »     : add-ons du template Multi-vendeur (système séparé, géré avec ⭐ Forfaits & Plans MV)
+// portee « autres » : add-ons de tous les autres templates (ensemble)
+export default function AdminFonctionnalitesStudio({ portee = 'autres' }: { portee?: 'mv' | 'autres' }) {
   const [liste, setListe] = useState<Addon[]>([]);
   const [chargement, setChargement] = useState(true);
   const [erreur, setErreur] = useState('');
@@ -55,6 +59,8 @@ export default function AdminFonctionnalitesStudio() {
   const [enCours, setEnCours] = useState(false);
   const [aSupprimer, setASupprimer] = useState<Addon | null>(null);
 
+  const visibles = liste.filter(a => (portee === 'mv' ? a.templates.includes(TPL_MV) : !a.templates.includes(TPL_MV)));
+  const vide: Brouillon = { ...videBase, templates: portee === 'mv' ? [TPL_MV] : [] };
   const flash = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); };
 
   const charger = useCallback(async () => {
@@ -120,8 +126,8 @@ export default function AdminFonctionnalitesStudio() {
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 4px', color: T.text, textTransform: 'uppercase', letterSpacing: '.5px' }}>🧩 Fonctionnalités & add-ons</h1>
-          <p style={{ fontSize: 13, color: T.textLight, margin: 0 }}>Liste maître : prix, templates concernés et interrupteur global. Les forfaits choisissent ce qu'ils incluent dans « Forfaits & Plans MV ».</p>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 4px', color: T.text, textTransform: 'uppercase', letterSpacing: '.5px' }}>🧩 Fonctionnalités & add-ons {portee === 'mv' ? 'MV' : '(autres templates)'}</h1>
+          <p style={{ fontSize: 13, color: T.textLight, margin: 0 }}>{portee === 'mv' ? "Add-ons du template Multi-vendeur Premium : prix et interrupteur global. Chaque forfait MV choisit ce qu'il inclut dans « Gérer les forfaits MV »." : "Add-ons de tous les autres templates (système séparé du multi-vendeur) : prix et interrupteur global."}</p>
         </div>
         <button onClick={() => { setErreurModal(''); setModal({ edition: false, d: { ...vide } }); }}
           style={{ background: T.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>➕ Nouvel add-on</button>
@@ -129,16 +135,15 @@ export default function AdminFonctionnalitesStudio() {
 
       <div style={{ background: T.accentLight, border: `1px solid ${T.accent}40`, borderRadius: 10, padding: '12px 16px', marginBottom: 16, fontSize: 12, color: T.accent, lineHeight: 1.6 }}>
         <strong>Règle :</strong> un add-on est actif pour un gestionnaire si l'interrupteur est ouvert <em>et</em> (son forfait l'inclut <em>ou</em> il l'a acheté). Un add-on déjà inclus dans le forfait n'est jamais offert à l'achat.
-        Un add-on sans template coché est offert à <strong>tous</strong> les templates.
       </div>
 
       {erreur && <div style={{ background: '#fee2e2', border: '1px solid #fecaca', color: T.danger, padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: 13 }}>{erreur} <button onClick={charger} style={{ marginLeft: 8, cursor: 'pointer' }}>Réessayer</button></div>}
 
-      {chargement ? <p style={{ textAlign: 'center', color: T.textLight, padding: 60 }}>⏳ Chargement…</p> : liste.length === 0 ? (
+      {chargement ? <p style={{ textAlign: 'center', color: T.textLight, padding: 60 }}>⏳ Chargement…</p> : visibles.length === 0 ? (
         <p style={{ textAlign: 'center', color: T.textLight, padding: 60 }}>Aucun add-on. Créez le premier.</p>
       ) : (
         <div style={{ background: T.card, border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
-          {liste.map((a, i) => (
+          {visibles.map((a, i) => (
             <div key={a.code} style={{ display: 'grid', gridTemplateColumns: '44px 1fr 120px 150px auto', gap: 14, alignItems: 'center', padding: '14px 18px', borderBottom: i < liste.length - 1 ? `1px solid ${T.border}` : 'none', opacity: a.actif ? 1 : 0.6, background: a.actif ? '#fff' : '#fafafa' }}>
               <div style={{ fontSize: 24, textAlign: 'center' }}>{a.emoji}</div>
               <div style={{ minWidth: 0 }}>
@@ -148,7 +153,7 @@ export default function AdminFonctionnalitesStudio() {
                 </div>
                 <code style={{ fontSize: 11, color: T.textLight, background: '#f3f4f6', padding: '1px 6px', borderRadius: 4 }}>{a.code}</code>
                 <div style={{ fontSize: 11, color: T.textLight, marginTop: 4 }}>
-                  {a.templates.length === 0 ? '🌐 Tous les templates' : a.templates.map(nomTemplate).join(', ')}
+                  {a.templates.length === 0 ? '🌐 Autres templates' : a.templates.map(nomTemplate).join(', ')}
                   {' · '}
                   {a.forfaits_inclus.length ? `Inclus : ${a.forfaits_inclus.join(', ')}` : 'Inclus dans aucun forfait'}
                   {' · '}
@@ -215,17 +220,6 @@ export default function AdminFonctionnalitesStudio() {
                     <button key={e} onClick={() => majD({ emoji: e })} style={{ fontSize: 18, padding: '5px 8px', borderRadius: 6, cursor: 'pointer', border: `2px solid ${modal.d.emoji === e ? T.accent : T.border}`, background: modal.d.emoji === e ? T.accentLight : '#fff' }}>{e}</button>
                   ))}
                 </div>
-              </div>
-              <div>
-                <label style={etiquette}>Templates concernés</label>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {TEMPLATES_CONNUS.map(t => (
-                    <label key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                      <input type="checkbox" checked={modal.d.templates.includes(t.id)} onChange={() => basculeTemplate(t.id)} /> {t.nom}
-                    </label>
-                  ))}
-                </div>
-                <p style={{ fontSize: 11, color: T.textLight, margin: '6px 0 0' }}>Aucune case cochée = offert à tous les templates.</p>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#f8fafc', borderRadius: 8, border: `1px solid ${T.border}` }}>
                 <div>

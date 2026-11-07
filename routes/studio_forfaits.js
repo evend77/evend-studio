@@ -49,21 +49,16 @@ if (typeof auth.verifierPermission === 'function') admin.push(auth.verifierPermi
 
 // ── Validation ───────────────────────────────────────────────────────────────
 const CODE_RE = /^[a-z0-9_]{2,50}$/;
-const ADDON_ID_RE = /^[a-z0-9_-]{2,80}$/;   // identifiants du catalogue e-Vend (avec tirets)
 const PLAN_ID_RE = /^[a-z0-9-]{2,50}$/;
 const txt = (v, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u0008\u000b-\u001f\u007f]/g, '').trim().slice(0, max) : '');
 const num = (v, min, max) => { const n = parseFloat(v); return Number.isFinite(n) && n >= min && n <= max ? n : null; };
 
 async function codesAddonsValides(liste) {
   if (!Array.isArray(liste)) return [];
-  const propres = [...new Set(liste.filter(c => typeof c === 'string' && ADDON_ID_RE.test(c)))];
+  const propres = [...new Set(liste.filter(c => typeof c === 'string' && CODE_RE.test(c)))];
   if (!propres.length) return [];
-  // codes Studio (options_studio) ET add-ons du catalogue e-Vend (evend_addons.addon_id)
-  const [r, e] = await Promise.all([
-    pool.query('SELECT code FROM options_studio WHERE code = ANY($1::text[])', [propres]),
-    pool.query('SELECT addon_id FROM evend_addons WHERE addon_id = ANY($1::text[])', [propres]),
-  ]);
-  return [...r.rows.map(x => x.code), ...e.rows.map(x => x.addon_id)];
+  const r = await pool.query('SELECT code FROM options_studio WHERE code = ANY($1::text[])', [propres]);
+  return r.rows.map(x => x.code);
 }
 
 // ════════════════════════ GESTIONNAIRE ════════════════════════════════════════
@@ -73,16 +68,15 @@ router.get('/mv/plans', authenticateToken, gestionnaire, h(async (req, res) => {
 }));
 
 router.get('/mv/mon-forfait', authenticateToken, gestionnaire, h(async (req, res) => {
-  await addons.syncInclusEvend(req.gid).catch(() => {});   // aligne les add-ons e-Vend inclus sur le forfait actuel
-  const [etat, resume, plans, site, evend] = await Promise.all([
+  await addons.syncInclus(req.gid).catch((e) => console.error('[studio_forfaits] sync', e.message));   // aligne les add-ons inclus sur le forfait actuel
+  const [etat, resume, plans, site] = await Promise.all([
     addons.etatAddonsMV(req.gid),
     addons.resumeFacturationMV(req.gid),
     addons.listerPlansMV({ actifSeulement: true }),
     pool.query('SELECT 1 FROM sites WHERE gestionnaire_id = $1 AND template_id = $2 LIMIT 1', [req.gid, addons.TEMPLATE_MV]),
-    addons.etatEvendMV(req.gid),
   ]);
   // est_mv : seuls les gestionnaires dont le site utilise le template multi-vendeur ont un forfait MV à afficher dans « Mes services »
-  res.json({ est_mv: site.rowCount > 0, forfait: etat.forfait, addons: etat.addons, addons_evend: evend.addons, lignes: resume.addons, plans, total_ht: resume.total_ht });
+  res.json({ est_mv: site.rowCount > 0, forfait: etat.forfait, addons: etat.addons, lignes: resume.addons, plans, total_ht: resume.total_ht });
 }));
 
 router.put('/mv/mon-forfait', authenticateToken, gestionnaire, h(async (req, res) => {
@@ -96,18 +90,6 @@ router.post('/mv/addons/:code/activer', authenticateToken, gestionnaire, h(async
   const code = String(req.params.code || '');
   if (!CODE_RE.test(code)) return res.status(400).json({ error: 'Add-on invalide.' });
   res.json({ success: true, ...(await addons.activerAddon(req.gid, code)) });
-}));
-
-router.post('/mv/addons-evend/:id/activer', authenticateToken, gestionnaire, h(async (req, res) => {
-  const id = String(req.params.id || '');
-  if (!ADDON_ID_RE.test(id)) return res.status(400).json({ error: 'Add-on invalide.' });
-  res.json({ success: true, ...(await addons.activerEvend(req.gid, id)) });
-}));
-
-router.delete('/mv/addons-evend/:id', authenticateToken, gestionnaire, h(async (req, res) => {
-  const id = String(req.params.id || '');
-  if (!ADDON_ID_RE.test(id)) return res.status(400).json({ error: 'Add-on invalide.' });
-  res.json({ success: true, ...(await addons.desactiverEvend(req.gid, id)) });
 }));
 
 router.delete('/mv/addons/:code', authenticateToken, gestionnaire, h(async (req, res) => {
@@ -197,16 +179,12 @@ router.get('/admin/addons', ...admin, h(async (req, res) => {
                  GROUP BY o.code`),
   ]);
   const nAchats = new Map(achats.rows.map(r => [r.code, r.n]));
+  for (const [code, col] of Object.entries(addons.LEGACY_COLS)) {
+    const n = await pool.query(`SELECT COUNT(*)::int AS n FROM options_gestionnaire WHERE ${col} = true`);   // col = liste fermée
+    nAchats.set(code, n.rows[0].n);
+  }
   const parForfait = new Map(inclus.rows.map(r => [r.code, r.forfaits]));
   const out = liste.map(a => ({ ...a, nb_achats: nAchats.get(a.code) || 0, forfaits_inclus: parForfait.get(a.code) || [] }));
-  // ?avec_evend=1 (éditeur de forfaits) : ajoute le catalogue e-Vend pour pouvoir inclure ces add-ons dans un forfait
-  if (req.query.avec_evend === '1') {
-    const ev = await pool.query('SELECT addon_id, nom, description, prix, periode, actif FROM evend_addons WHERE NOT (addon_id = ANY($1::text[])) ORDER BY nom', [addons.EVEND_MASQUES]);
-    ev.rows.forEach((a, i) => out.push({
-      code: a.addon_id, nom: a.nom, description: a.description || '', emoji: '🧩', prix_ht: parseFloat(a.prix) || 0, actif: a.actif !== false,
-      ordre: 1000 + i, templates: [], nb_achats: 0, forfaits_inclus: [], evend: true,
-    }));
-  }
   res.json({ addons: out });
 }));
 
@@ -256,6 +234,7 @@ router.put('/admin/addons/:code', ...admin, h(async (req, res) => {
 router.delete('/admin/addons/:code', ...admin, h(async (req, res) => {
   const code = String(req.params.code || '');
   if (!CODE_RE.test(code)) return res.status(400).json({ error: 'Code invalide.' });
+  if (addons.LEGACY_COLS[code]) return res.status(409).json({ error: 'Cet add-on est relié à une fonctionnalité existante (options du gestionnaire). Désactivez-le (kill switch) plutôt que de le supprimer.' });
   const [a, p] = await Promise.all([
     pool.query('SELECT COUNT(*)::int AS n FROM gestionnaire_addons WHERE code = $1', [code]),
     pool.query('SELECT COUNT(*)::int AS n FROM plans_multivendeur WHERE $1 = ANY(addons_inclus)', [code]),

@@ -19,6 +19,31 @@ class ErreurAddon extends Error {
 
 const TEMPLATE_MV = 'multivendeur-premium';
 
+// ── Add-ons « anciens » : activation conservée dans options_gestionnaire (une colonne booléenne par add-on) ──
+// code options_studio → colonne. Les autres pages (Branding & options des autres templates, vérif. d'âge, popup…) continuent
+// de lire ces booleans : on n'a donc RIEN à changer ailleurs. Le forfait MV les active/désactive via cette même colonne.
+const LEGACY_COLS = {
+  badge_evend_masquer: 'cacher_propulse',
+  verificateur_age: 'verificateur_age',
+  popup_annonce: 'popup_annonce',
+};
+
+async function etatLegacy(gid, db) {
+  const c = db || pool;
+  const [o, f] = await Promise.all([
+    c.query('SELECT * FROM options_gestionnaire WHERE gestionnaire_id = $1 LIMIT 1', [gid]),
+    c.query('SELECT code FROM options_gestionnaire_inclus WHERE gestionnaire_id = $1', [gid]),
+  ]);
+  return { row: o.rows[0] || {}, flags: new Set(f.rows.map(x => x.code)) };
+}
+
+async function poserLegacy(gid, code, valeur, db) {
+  const col = LEGACY_COLS[code];   // colonne issue de la liste fermée ci-dessus (jamais d'entrée utilisateur)
+  await (db || pool).query(
+    `INSERT INTO options_gestionnaire (gestionnaire_id, ${col}) VALUES ($1, $2)
+     ON CONFLICT (gestionnaire_id) DO UPDATE SET ${col} = $2`, [gid, valeur]);
+}
+
 // ── Forfaits MV ──────────────────────────────────────────────────────────────
 
 function nombre(v) { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; }
@@ -83,7 +108,7 @@ async function listerCatalogue({ templateId = null, actifSeulement = true, db } 
   const r = await (db || pool).query(
     `SELECT * FROM options_studio
       WHERE ($1::boolean = false OR actif = true)
-        AND ($2::text IS NULL OR cardinality(templates) = 0 OR $2 = ANY(templates))
+        AND ($2::text IS NULL OR $2 = ANY(templates) OR (cardinality(templates) = 0 AND $2 <> 'multivendeur-premium'))
       ORDER BY ordre, id`,
     [actifSeulement, templateId]
   );
@@ -95,25 +120,28 @@ async function listerCatalogue({ templateId = null, actifSeulement = true, db } 
 /** État complet des add-ons d'un gestionnaire MV : inclus / acheté / disponible. */
 async function etatAddonsMV(gid, db) {
   const c = db || pool;
-  const [forfait, catalogue, achetes] = await Promise.all([
+  const [forfait, catalogue, achetes, leg] = await Promise.all([
     forfaitMV(gid, c),
     listerCatalogue({ templateId: TEMPLATE_MV, actifSeulement: true, db: c }),
     c.query('SELECT code, prix_ht, active_le FROM gestionnaire_addons WHERE gestionnaire_id = $1', [gid]),
+    etatLegacy(gid, c),
   ]);
   const achat = new Map(achetes.rows.map(a => [a.code, a]));
 
   const addons = catalogue.map(a => {
     const estInclus = forfaitInclut(forfait, a.code);
     const a2 = achat.get(a.code);
+    const col = LEGACY_COLS[a.code];
     // Un add-on inclus n'est JAMAIS offert à l'achat ni facturé, même s'il a une vieille ligne d'achat.
-    const estAchete = !estInclus && !!a2;
+    // Add-on « ancien » : acheté = la colonne options_gestionnaire est vraie (au prix du catalogue).
+    const estAchete = !estInclus && (col ? leg.row[col] === true : !!a2);
     return {
       ...a,
       inclus: estInclus,
       achete: estAchete,
       actif_pour_gestionnaire: estInclus || estAchete,
-      prix_facture: estInclus ? 0 : (estAchete ? nombre(a2.prix_ht) : 0),
-      active_le: estAchete ? a2.active_le : null,
+      prix_facture: estInclus ? 0 : (estAchete ? (col ? a.prix_ht : nombre(a2.prix_ht)) : 0),
+      active_le: estAchete && a2 ? a2.active_le : null,
     };
   });
   return { forfait, addons };
@@ -142,7 +170,7 @@ async function addonActifRapide(gid, code, db) {
        FROM options_studio o
       WHERE EXISTS (SELECT 1 FROM g)
         AND o.code = $2 AND o.actif = true
-        AND (cardinality(o.templates) = 0 OR $3 = ANY(o.templates))
+        AND $3 = ANY(o.templates)
         AND ( EXISTS (SELECT 1 FROM p WHERE p.tous_addons = true OR $2 = ANY(p.addons_inclus))
            OR EXISTS (SELECT 1 FROM gestionnaire_addons ga WHERE ga.gestionnaire_id = $1 AND ga.code = $2) )
       LIMIT 1`,
@@ -151,115 +179,39 @@ async function addonActifRapide(gid, code, db) {
   return r.rowCount > 0;
 }
 
-// ── Add-ons du catalogue e-Vend (evend_addons) ───────────────────────────────
-// Même règle que les add-ons Studio : inclus au forfait (liste explicite ou « tous ») OU acheté.
-// L'activation reste dans evend_addons_gestionnaires (le reste du code lit toujours cette table) :
-//   - acheté  → actif = true,  inclus_forfait = false  (facturé)
-//   - inclus  → actif = true,  inclus_forfait = true   (0,00 $, géré automatiquement selon le forfait)
-// « avis-clients » (ancien catalogue) est remplacé par l'add-on Studio « Avis clients » : on le cache pour éviter un doublon.
+// ── Add-ons MV dont l'activation vit dans options_gestionnaire (Cacher le branding, Vérificateur d'âge, Popup Annonce) ──
 
-const EVEND_MASQUES = ['avis-clients'];
-
-/** Prix mensuel d'un add-on e-Vend (annuel ÷ 12 ; gratuit / variable = 0). */
-function mensuelEvend(prix, periode) {
-  const p = nombre(prix);
-  if (periode === 'mois') return p;
-  if (periode === 'an') return Math.round((p / 12) * 100) / 100;
-  return 0;
-}
-
-async function etatEvendMV(gid, db) {
+/** Aligne options_gestionnaire sur le forfait : inclus → activé (0,00 $) ; plus inclus après une rétrogradation → désactivé. */
+async function syncInclusLegacy(gid, db) {
   const c = db || pool;
-  const [forfait, r] = await Promise.all([
-    forfaitMV(gid, c),
-    c.query(
-      `SELECT a.addon_id, a.nom, a.description, a.prix, a.periode, a.categorie, a.popularite, a.companie, a.lien_documentation, a.badges,
-              cat.nom AS categorie_nom, cat.icon AS categorie_icon, cat.couleur AS categorie_couleur,
-              COALESCE(av.actif, false) AS actif_g, COALESCE(av.inclus_forfait, false) AS inclus_forfait, av.date_activation
-         FROM evend_addons a
-         LEFT JOIN evend_addons_categories cat ON cat.categorie_id = a.categorie
-         LEFT JOIN evend_addons_gestionnaires av ON av.addon_id = a.addon_id AND av.gestionnaire_id = $1
-        WHERE a.actif = true AND NOT (a.addon_id = ANY($2::text[]))
-        ORDER BY cat.ordre_affichage, a.nom`, [gid, EVEND_MASQUES]),
-  ]);
-  const addons = r.rows.map(a => {
-    const estInclus = forfaitInclut(forfait, a.addon_id);
-    const estAchete = !estInclus && a.actif_g === true;
-    const prixM = mensuelEvend(a.prix, a.periode);
-    return {
-      code: a.addon_id, nom: a.nom, description: a.description || '', prix: nombre(a.prix), periode: a.periode || 'mois',
-      categorie: a.categorie, categorie_nom: a.categorie_nom || null, categorie_couleur: a.categorie_couleur || null,
-      popularite: a.popularite || 0, companie: a.companie || null, lien_documentation: a.lien_documentation || null,
-      badges: Array.isArray(a.badges) ? a.badges : [],
-      inclus: estInclus, achete: estAchete, actif_pour_gestionnaire: estInclus || estAchete,
-      prix_ht: prixM, prix_facture: estAchete ? prixM : 0,
-    };
-  });
-  return { forfait, addons };
-}
-
-/**
- * Aligne evend_addons_gestionnaires sur le forfait : les add-ons inclus sont activés (inclus_forfait = true),
- * ceux qui ne sont plus inclus après une rétrogradation sont désactivés. Un add-on déjà acheté qui devient inclus n'est plus facturé.
- */
-async function syncInclusEvend(gid, db) {
-  const c = db || pool;
-  const forfait = await forfaitMV(gid, c);
-  const vide = { devenus_inclus: [], perdus: [] };
-  if (!forfait) return vide;
-  const cat = await c.query('SELECT addon_id FROM evend_addons WHERE actif = true AND NOT (addon_id = ANY($1::text[]))', [EVEND_MASQUES]);
-  const inclus = cat.rows.map(x => x.addon_id).filter(id => forfaitInclut(forfait, id));
-  const lignes = await c.query('SELECT id, addon_id, actif, inclus_forfait FROM evend_addons_gestionnaires WHERE gestionnaire_id = $1', [gid]);
-  const parId = new Map(lignes.rows.map(x => [x.addon_id, x]));
   const out = { devenus_inclus: [], perdus: [] };
-  for (const id of inclus) {
-    const ex = parId.get(id);
-    if (!ex) {
-      await c.query('INSERT INTO evend_addons_gestionnaires (gestionnaire_id, addon_id, date_activation, actif, inclus_forfait) VALUES ($1,$2,NOW(),true,true)', [gid, id]);
-    } else if (!ex.actif || !ex.inclus_forfait) {
-      if (ex.actif && !ex.inclus_forfait) out.devenus_inclus.push(id);
-      await c.query('UPDATE evend_addons_gestionnaires SET actif = true, inclus_forfait = true, date_activation = CASE WHEN actif THEN date_activation ELSE NOW() END WHERE id = $1', [ex.id]);
-    }
-  }
-  for (const ex of lignes.rows) {
-    if (ex.inclus_forfait && !inclus.includes(ex.addon_id)) {
-      await c.query('UPDATE evend_addons_gestionnaires SET actif = false, inclus_forfait = false WHERE id = $1', [ex.id]);
-      out.perdus.push(ex.addon_id);
+  const forfait = await forfaitMV(gid, c);
+  if (!forfait) return out;
+  const cat = await listerCatalogue({ templateId: TEMPLATE_MV, actifSeulement: true, db: c });
+  const { row, flags } = await etatLegacy(gid, c);
+  for (const code of Object.keys(LEGACY_COLS)) {
+    const dansCat = cat.some(a => a.code === code);
+    const inclus = dansCat && forfaitInclut(forfait, code);
+    const actif = row[LEGACY_COLS[code]] === true;
+    if (inclus) {
+      if (actif && !flags.has(code)) out.devenus_inclus.push(code);     // déjà acheté → n'est plus facturé
+      if (!actif) await poserLegacy(gid, code, true, c);
+      if (!flags.has(code)) await c.query('INSERT INTO options_gestionnaire_inclus (gestionnaire_id, code) VALUES ($1,$2) ON CONFLICT DO NOTHING', [gid, code]);
+    } else if (flags.has(code)) {
+      if (actif) await poserLegacy(gid, code, false, c);                 // n'est plus inclus → désactivé
+      await c.query('DELETE FROM options_gestionnaire_inclus WHERE gestionnaire_id = $1 AND code = $2', [gid, code]);
+      out.perdus.push(code);
     }
   }
   return out;
 }
 
+const syncInclus = syncInclusLegacy;
+
 /** Après qu'un admin modifie un forfait : remet à jour tous les gestionnaires qui l'utilisent. */
 async function syncGestionnairesDuPlan(planId) {
   const g = await pool.query('SELECT id FROM gestionnaires WHERE plan = $1', [planId]);
-  for (const x of g.rows) await syncInclusEvend(x.id);
-}
-
-async function activerEvend(gid, addonId) {
-  const { addons } = await etatEvendMV(gid);
-  const a = addons.find(x => x.code === addonId);
-  if (!a) throw new ErreurAddon('Add-on introuvable ou non disponible.', 404);
-  if (a.inclus) throw new ErreurAddon('Cet add-on est déjà inclus dans votre forfait.', 409);
-  if (a.achete) return { deja: true };
-  const ex = await pool.query('SELECT id FROM evend_addons_gestionnaires WHERE gestionnaire_id = $1 AND addon_id = $2', [gid, addonId]);
-  if (ex.rows.length) await pool.query('UPDATE evend_addons_gestionnaires SET actif = true, inclus_forfait = false, date_activation = NOW() WHERE id = $1', [ex.rows[0].id]);
-  else await pool.query('INSERT INTO evend_addons_gestionnaires (gestionnaire_id, addon_id, date_activation, actif, inclus_forfait) VALUES ($1,$2,NOW(),true,false)', [gid, addonId]);
-  try {
-    await pool.query('INSERT INTO evend_addons_logs (addon_id, gestionnaire_id, action, details, utilisateur_id) VALUES ($1,$2,$3,$4,$5)', [addonId, gid, 'active_gestionnaire', JSON.stringify({ via: 'forfait-mv' }), gid]);
-  } catch { /* le journal ne doit jamais bloquer l'activation */ }
-  return { deja: false, prix_ht: a.prix_ht };
-}
-
-async function desactiverEvend(gid, addonId) {
-  const ex = await pool.query('SELECT id, inclus_forfait FROM evend_addons_gestionnaires WHERE gestionnaire_id = $1 AND addon_id = $2', [gid, addonId]);
-  if (!ex.rows.length) return { retire: false };
-  if (ex.rows[0].inclus_forfait) throw new ErreurAddon('Cet add-on est inclus dans votre forfait : il ne peut pas être désactivé.', 409);
-  await pool.query('UPDATE evend_addons_gestionnaires SET actif = false WHERE id = $1', [ex.rows[0].id]);
-  try {
-    await pool.query('INSERT INTO evend_addons_logs (addon_id, gestionnaire_id, action, details, utilisateur_id) VALUES ($1,$2,$3,$4,$5)', [addonId, gid, 'desactive_gestionnaire', JSON.stringify({ via: 'forfait-mv' }), gid]);
-  } catch { /* idem */ }
-  return { retire: true };
+  for (const x of g.rows) await syncInclus(x.id);
 }
 
 // ── Actions du gestionnaire ──────────────────────────────────────────────────
@@ -270,6 +222,7 @@ async function activerAddon(gid, code) {
   if (!a) throw new ErreurAddon('Add-on introuvable ou non disponible pour ce template.', 404);
   if (a.inclus) throw new ErreurAddon('Cet add-on est déjà inclus dans votre forfait.', 409);
   if (a.achete) return { deja: true };
+  if (LEGACY_COLS[code]) { await poserLegacy(gid, code, true); return { deja: false, prix_ht: a.prix_ht }; }
   await pool.query(
     `INSERT INTO gestionnaire_addons (gestionnaire_id, code, prix_ht) VALUES ($1,$2,$3)
      ON CONFLICT (gestionnaire_id, code) DO NOTHING`,
@@ -279,6 +232,12 @@ async function activerAddon(gid, code) {
 }
 
 async function desactiverAddon(gid, code) {
+  if (LEGACY_COLS[code]) {
+    const { flags } = await etatLegacy(gid);
+    if (flags.has(code)) throw new ErreurAddon('Cet add-on est inclus dans votre forfait : il ne peut pas être désactivé.', 409);
+    await poserLegacy(gid, code, false);
+    return { retire: true };
+  }
   const r = await pool.query('DELETE FROM gestionnaire_addons WHERE gestionnaire_id = $1 AND code = $2', [gid, code]);
   return { retire: r.rowCount > 0 };
 }
@@ -311,9 +270,10 @@ async function changerForfaitMV(gid, planId) {
       );
       r.rows.forEach(x => fusionnes.push(x.code));
     }
-    const ev = await syncInclusEvend(gid, client);
+    const ev = await syncInclus(gid, client);
     await client.query('COMMIT');
-    return { plan: nouveau, devenus_inclus: [...fusionnes, ...ev.devenus_inclus], perdus: [...perdus, ...ev.perdus] };
+    const unique = (l) => Array.from(new Set(l));
+    return { plan: nouveau, devenus_inclus: unique([...fusionnes, ...ev.devenus_inclus]), perdus: unique([...perdus, ...ev.perdus]) };
   } catch (e) {
     await client.query('ROLLBACK');
     throw e;
@@ -324,11 +284,10 @@ async function changerForfaitMV(gid, planId) {
 
 /** Résumé Mes services : forfait + add-ons facturés + total HT. */
 async function resumeFacturationMV(gid) {
-  const [{ forfait, addons }, ev] = await Promise.all([etatAddonsMV(gid), etatEvendMV(gid)]);
-  const lignesAddons = [
-    ...addons.filter(a => a.actif_pour_gestionnaire).map(a => ({ code: a.code, nom: a.nom, emoji: a.emoji, inclus: a.inclus, prix_ht: a.prix_facture })),
-    ...ev.addons.filter(a => a.actif_pour_gestionnaire).map(a => ({ code: a.code, nom: a.nom, emoji: '🧩', inclus: a.inclus, prix_ht: a.prix_facture })),
-  ];
+  const { forfait, addons } = await etatAddonsMV(gid);
+  const lignesAddons = addons
+    .filter(a => a.actif_pour_gestionnaire)
+    .map(a => ({ code: a.code, nom: a.nom, emoji: a.emoji, inclus: a.inclus, prix_ht: a.prix_facture }));
   const totalAddons = lignesAddons.reduce((s, l) => s + l.prix_ht, 0);
   const prixForfait = forfait ? forfait.prix : 0;
   return {
@@ -343,5 +302,5 @@ module.exports = {
   listerPlansMV, forfaitMV, forfaitInclut, listerCatalogue,
   etatAddonsMV, addonActif, addonActifRapide,
   activerAddon, desactiverAddon, changerForfaitMV, resumeFacturationMV,
-  EVEND_MASQUES, etatEvendMV, syncInclusEvend, syncGestionnairesDuPlan, activerEvend, desactiverEvend,
+  LEGACY_COLS, etatLegacy, syncInclusLegacy, syncInclus, syncGestionnairesDuPlan,
 };

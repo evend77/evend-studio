@@ -135,8 +135,9 @@ export default function MesServices({ gestionnaireId }: Props) {
       setCodesMV(mv ? (mvData.addons || []).map((a: any) => a.code) : []);
 
       // Transformer les options actives (booléens) en lignes de facturation affichables
+      // Pour un multi-vendeur, ces add-ons (Cacher le branding, Vérificateur d'âge, Popup) sont déjà dans les lignes du forfait MV
       const lignesAddons: Ligne[] = ADDONS_CATALOGUE
-        .filter(a => !!addonsData?.[a.id])
+        .filter(a => !mv && !!addonsData?.[a.id])
         .map(a => ({ id: -1000 - ADDONS_CATALOGUE.indexOf(a), type: 'addon', code: a.id, nom: a.nom, prix_ht: a.prix_ht, actif: true }));
 
       // Chaque bloc de messages acheté ce cycle = sa propre ligne, pour la transparence

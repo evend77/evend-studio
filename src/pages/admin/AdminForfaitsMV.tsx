@@ -68,13 +68,13 @@ export default function AdminForfaitsMV({ ongletInitial = 'forfaits' }: { onglet
     try {
       const [rp, ra, rg] = await Promise.all([
         fetch(`${API_BASE}/studio-forfaits/admin/mv/plans`, { headers: entetes(), credentials: 'include' }),
-        fetch(`${API_BASE}/studio-forfaits/admin/addons?avec_evend=1`, { headers: entetes(), credentials: 'include' }),
+        fetch(`${API_BASE}/studio-forfaits/admin/addons`, { headers: entetes(), credentials: 'include' }),
         fetch(`${API_BASE}/studio-forfaits/admin/mv/gestionnaires`, { headers: entetes(), credentials: 'include' }),
       ]);
       const [jp, ja, jg] = await Promise.all([rp.json(), ra.json(), rg.json()]);
       if (!rp.ok) throw new Error(jp.error || 'Erreur de chargement des forfaits.');
       setPlans(jp.plans || []);
-      setCatalogue((ja.addons || []).filter((a: AddonCat) => a.templates.length === 0 || a.templates.includes(TEMPLATE_MV)));
+      setCatalogue((ja.addons || []).filter((a: AddonCat) => a.templates.includes(TEMPLATE_MV)));
       setGest(jg.gestionnaires || []);
     } catch (e: any) { setErreur(e.message || 'Erreur de chargement.'); }
     finally { setChargement(false); }
@@ -139,20 +139,13 @@ export default function AdminForfaitsMV({ ongletInitial = 'forfaits' }: { onglet
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 4px', color: T.text, textTransform: 'uppercase', letterSpacing: '.5px' }}>⭐ Forfaits & Plans MV</h1>
-          <p style={{ fontSize: 13, color: T.textLight, margin: 0 }}>Template Multi-vendeur Premium · le forfait gère le nombre de vendeurs, le stockage et les add-ons inclus. Aucune commission sur les ventes.</p>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: '0 0 4px', color: T.text, textTransform: 'uppercase', letterSpacing: '.5px' }}>{onglet === 'forfaits' ? '🗂️ Forfaits MV' : '👥 Gestionnaires MV'}</h1>
+          <p style={{ fontSize: 13, color: T.textLight, margin: 0 }}>{onglet === 'forfaits' ? 'Template Multi-vendeur Premium · le forfait gère le nombre de vendeurs, le stockage et les add-ons inclus. Aucune commission sur les ventes.' : 'Quel forfait et quels add-ons ont les gestionnaires du template Multi-vendeur Premium (lecture seule).'}</p>
         </div>
         {onglet === 'forfaits' && (
           <button onClick={() => { setErreurModal(''); setModal({ ...vide, ordre: String((plans.reduce((m, p) => Math.max(m, p.ordre), 0)) + 10) }); }}
             style={{ background: T.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>➕ Nouveau forfait</button>
         )}
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-        {([['forfaits', '🗂️ Forfaits'], ['gestionnaires', '👥 Gestionnaires MV']] as const).map(([id, lbl]) => (
-          <button key={id} onClick={() => setOnglet(id)}
-            style={{ padding: '8px 18px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: `2px solid ${onglet === id ? T.accent : T.border}`, background: onglet === id ? T.accentLight : '#fff', color: onglet === id ? T.accent : T.textLight }}>{lbl}</button>
-        ))}
       </div>
 
       {erreur && <div style={{ background: '#fee2e2', border: '1px solid #fecaca', color: T.danger, padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: 13 }}>{erreur} <button onClick={charger} style={{ marginLeft: 8, cursor: 'pointer' }}>Réessayer</button></div>}
