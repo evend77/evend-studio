@@ -97,6 +97,7 @@ function formaterAddon(r) {
     nom: r.nom,
     description: r.description || '',
     emoji: r.emoji || '🧩',
+    guide_url: r.guide_url || '',
     prix_ht: nombre(r.prix_ht),
     actif: r.actif !== false,
     ordre: r.ordre || 0,

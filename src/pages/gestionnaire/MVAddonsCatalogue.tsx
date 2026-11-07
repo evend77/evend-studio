@@ -4,7 +4,6 @@
 // avec recherche, catégories, « Voir détail » (modal + guide) et la règle « inclus au forfait = jamais facturé ».
 
 import React, { useState, useMemo } from 'react';
-import ModalGuideAddon from '../../components/ModalGuideAddon';
 
 export interface ItemAddon {
   cle: string;
@@ -23,7 +22,6 @@ export interface ItemAddon {
   inclus: boolean;              // compris dans le forfait → 0,00 $
   achete: boolean;              // activé et facturé
   prix_facture: number;         // prix mensuel facturé (0 si inclus ou inactif)
-  guide_id?: string | null;     // identifiant du guide (ModalGuideAddon)
 }
 
 const T = {
@@ -83,7 +81,6 @@ export default function MVAddonsCatalogue({ items, busy, couleur, onBasculer }: 
   const [detail, setDetail] = useState<ItemAddon | null>(null);
   const [aActiver, setAActiver] = useState<ItemAddon | null>(null);
   const [aDesactiver, setADesactiver] = useState<ItemAddon | null>(null);
-  const [guide, setGuide] = useState<ItemAddon | null>(null);
 
   const categories = useMemo(() => {
     const m = new Map<string, string>();
@@ -206,11 +203,9 @@ export default function MVAddonsCatalogue({ items, busy, couleur, onBasculer }: 
               <p style={{ fontSize: 15, color: T.text, lineHeight: 1.6, margin: '0 0 24px' }}>{detail.description}</p>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', flex: 1, minWidth: 180 }}>{bouton(detail, true)}</div>
-                <button onClick={() => setGuide(detail)}
-                  style={{ padding: '14px 20px', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, color: T.text, fontSize: 15, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit' }}>📖 Guide</button>
                 {detail.lien_documentation && (
                   <a href={detail.lien_documentation} target="_blank" rel="noopener noreferrer"
-                    style={{ padding: '14px 20px', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, color: T.text, fontSize: 15, fontWeight: 600, textDecoration: 'none' }}>📚 Doc</a>
+                    style={{ padding: '14px 20px', background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, color: T.text, fontSize: 15, fontWeight: 600, textDecoration: 'none' }}>📖 Guide</a>
                 )}
               </div>
               <p style={{ fontSize: 11, color: T.textLight, margin: '20px 0 0', textAlign: 'center' }}>
@@ -220,7 +215,6 @@ export default function MVAddonsCatalogue({ items, busy, couleur, onBasculer }: 
           </div>
         </div>
       )}
-      {guide && <ModalGuideAddon addonId={guide.guide_id || guide.code} addonNom={guide.nom} onClose={() => setGuide(null)} />}
 
       {/* ── Confirmation d'activation ── */}
       {aActiver && (

@@ -21,7 +21,7 @@ interface Plan {
   actif: boolean; ordre: number; addons_inclus: string[]; tous_addons: boolean;
 }
 interface Addon {
-  code: string; nom: string; description: string; emoji: string; prix_ht: number;
+  code: string; nom: string; description: string; emoji: string; prix_ht: number; guide_url?: string;
   inclus: boolean; achete: boolean; actif_pour_gestionnaire: boolean; prix_facture: number;
 }
 interface LigneResume { code: string; nom: string; emoji: string; inclus: boolean; prix_ht: number; }
@@ -147,7 +147,7 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
   const items: ItemAddon[] = [
     ...etat.addons.map((a): ItemAddon => ({
       cle: 'studio:' + a.code, source: 'studio', code: a.code, nom: a.nom, description: a.description, emoji: a.emoji, prix: a.prix_ht, periode: 'mois',
-      categorie_id: 'marketplace', categorie_nom: 'Marketplace', badges: [], inclus: a.inclus, achete: a.achete, prix_facture: a.prix_facture, guide_id: 'avis-clients',
+      categorie_id: 'marketplace', categorie_nom: 'Marketplace', badges: [], inclus: a.inclus, achete: a.achete, prix_facture: a.prix_facture, lien_documentation: a.guide_url || null,
     })),
   ];
   const nomAddon = (code: string) => items.find(a => a.code === code)?.nom || code;

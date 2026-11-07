@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { API_BASE } from '../../config/api';
 
 interface Addon {
-  code: string; nom: string; description: string; emoji: string;
+  code: string; nom: string; description: string; emoji: string; guide_url?: string;
   prix_ht: number; actif: boolean; ordre: number; templates: string[];
   nb_achats: number; forfaits_inclus: string[];
 }
@@ -42,8 +42,8 @@ function Interrupteur({ actif, onChange, disabled }: { actif: boolean; onChange:
 const champ: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: '#fff' };
 const etiquette: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: T.accent, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 5 };
 
-interface Brouillon { code: string; nom: string; description: string; emoji: string; prix_ht: string; actif: boolean; ordre: string; templates: string[]; }
-const videBase: Brouillon = { code: '', nom: '', description: '', emoji: '🧩', prix_ht: '0', actif: true, ordre: '0', templates: [] };
+interface Brouillon { code: string; nom: string; description: string; emoji: string; guide_url: string; prix_ht: string; actif: boolean; ordre: string; templates: string[]; }
+const videBase: Brouillon = { code: '', nom: '', description: '', emoji: '🧩', guide_url: '', prix_ht: '0', actif: true, ordre: '0', templates: [] };
 
 const TPL_MV = 'multivendeur-premium';
 
@@ -80,7 +80,7 @@ export default function AdminFonctionnalitesStudio({ portee = 'autres' }: { port
     const d = modal.d;
     setEnCours(true); setErreurModal('');
     try {
-      const corps = { code: d.code, nom: d.nom, description: d.description, emoji: d.emoji, prix_ht: parseFloat(d.prix_ht), actif: d.actif, ordre: parseInt(d.ordre, 10) || 0, templates: d.templates };
+      const corps = { code: d.code, nom: d.nom, description: d.description, emoji: d.emoji, guide_url: d.guide_url.trim(), prix_ht: parseFloat(d.prix_ht), actif: d.actif, ordre: parseInt(d.ordre, 10) || 0, templates: d.templates };
       const r = await fetch(`${API_BASE}/studio-forfaits/admin/addons${modal.edition ? '/' + d.code : ''}`, {
         method: modal.edition ? 'PUT' : 'POST', headers: entetes(), credentials: 'include', body: JSON.stringify(corps),
       });
@@ -95,7 +95,7 @@ export default function AdminFonctionnalitesStudio({ portee = 'autres' }: { port
     try {
       const r = await fetch(`${API_BASE}/studio-forfaits/admin/addons/${a.code}`, {
         method: 'PUT', headers: entetes(), credentials: 'include',
-        body: JSON.stringify({ nom: a.nom, description: a.description, emoji: a.emoji, prix_ht: a.prix_ht, actif, ordre: a.ordre, templates: a.templates }),
+        body: JSON.stringify({ nom: a.nom, description: a.description, emoji: a.emoji, guide_url: a.guide_url || '', prix_ht: a.prix_ht, actif, ordre: a.ordre, templates: a.templates }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error);
@@ -169,7 +169,7 @@ export default function AdminFonctionnalitesStudio({ portee = 'autres' }: { port
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 6 }}>
-                <button onClick={() => { setErreurModal(''); setModal({ edition: true, d: { code: a.code, nom: a.nom, description: a.description, emoji: a.emoji, prix_ht: String(a.prix_ht), actif: a.actif, ordre: String(a.ordre), templates: [...a.templates] } }); }}
+                <button onClick={() => { setErreurModal(''); setModal({ edition: true, d: { code: a.code, nom: a.nom, description: a.description, emoji: a.emoji, guide_url: a.guide_url || '', prix_ht: String(a.prix_ht), actif: a.actif, ordre: String(a.ordre), templates: [...a.templates] } }); }}
                   style={{ padding: '6px 12px', border: `1px solid ${T.border}`, borderRadius: 6, background: '#fff', cursor: 'pointer' }} title="Modifier">✏️</button>
                 <button onClick={() => setASupprimer(a)} style={{ padding: '6px 12px', border: '1px solid #fecaca', borderRadius: 6, background: '#fff5f5', color: T.danger, cursor: 'pointer' }} title="Supprimer">🗑️</button>
               </div>
@@ -202,6 +202,10 @@ export default function AdminFonctionnalitesStudio({ portee = 'autres' }: { port
               <div>
                 <label style={etiquette}>Description (vue par le gestionnaire)</label>
                 <textarea rows={3} value={modal.d.description} onChange={e => majD({ description: e.target.value })} style={{ ...champ, resize: 'vertical' }} />
+              </div>
+              <div style={{ marginTop: 14 }}>
+                <label style={etiquette}>Lien du guide (bouton 📖 Guide chez le gestionnaire)</label>
+                <input value={modal.d.guide_url} onChange={e => majD({ guide_url: e.target.value })} placeholder="https://e-vendstudio.ca/documents/..." style={champ} />
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>

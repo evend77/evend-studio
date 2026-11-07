@@ -197,6 +197,7 @@ function lireAddonBody(b) {
     .filter(t => typeof t === 'string' && /^[a-z0-9-]{2,60}$/.test(t));
   return {
     nom, prix_ht: prix, description: txt(b.description, 1000), emoji: txt(b.emoji, 8) || '🧩',
+    guide_url: /^https?:\/\/\S{3,500}$/i.test(txt(b.guide_url, 500)) ? txt(b.guide_url, 500) : '',
     actif: b.actif !== false, ordre: Number.isInteger(parseInt(b.ordre, 10)) ? parseInt(b.ordre, 10) : 0,
     templates: [...new Set(templates)],
   };
@@ -210,9 +211,9 @@ router.post('/admin/addons', ...admin, h(async (req, res) => {
   const dup = await pool.query('SELECT 1 FROM options_studio WHERE code = $1', [code]);
   if (dup.rowCount) return res.status(409).json({ error: 'Ce code existe déjà.' });
   const r = await pool.query(
-    `INSERT INTO options_studio (code, nom, description, prix_ht, actif, ordre, templates, emoji)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [code, d.nom, d.description, d.prix_ht, d.actif, d.ordre, d.templates, d.emoji]
+    `INSERT INTO options_studio (code, nom, description, prix_ht, actif, ordre, templates, emoji, guide_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [code, d.nom, d.description, d.prix_ht, d.actif, d.ordre, d.templates, d.emoji, d.guide_url]
   );
   res.status(201).json({ addon: r.rows[0] });
 }));
@@ -223,9 +224,9 @@ router.put('/admin/addons/:code', ...admin, h(async (req, res) => {
   const d = lireAddonBody(req.body || {});
   if (d.erreur) return res.status(400).json({ error: d.erreur });
   const r = await pool.query(
-    `UPDATE options_studio SET nom=$1, description=$2, prix_ht=$3, actif=$4, ordre=$5, templates=$6, emoji=$7
-      WHERE code=$8 RETURNING *`,
-    [d.nom, d.description, d.prix_ht, d.actif, d.ordre, d.templates, d.emoji, code]
+    `UPDATE options_studio SET nom=$1, description=$2, prix_ht=$3, actif=$4, ordre=$5, templates=$6, emoji=$7, guide_url=$8
+      WHERE code=$9 RETURNING *`,
+    [d.nom, d.description, d.prix_ht, d.actif, d.ordre, d.templates, d.emoji, d.guide_url, code]
   );
   if (!r.rowCount) return res.status(404).json({ error: 'Add-on introuvable.' });
   res.json({ addon: r.rows[0] });
