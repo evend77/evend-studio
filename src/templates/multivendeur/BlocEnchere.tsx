@@ -4,6 +4,7 @@
 // ce composant ne fait qu'afficher et envoyer le montant.
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { formaterPrix } from '../shared/devise';
 
 const API_BASE = '/api';
 
@@ -123,7 +124,7 @@ export default function BlocEnchere({ gId, produitId, couleurAccent, naviguer, o
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 30, fontWeight: 800, color: '#fff' }}>
-          {(e.mise_actuelle ?? e.prix_depart).toFixed(2)} $
+          {formaterPrix((e.mise_actuelle ?? e.prix_depart))}
         </span>
         <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>
           {e.mise_actuelle == null ? 'mise de départ' : `mise actuelle · ${e.nb_mises} mise${e.nb_mises > 1 ? 's' : ''}`}
@@ -145,7 +146,7 @@ export default function BlocEnchere({ gId, produitId, couleurAccent, naviguer, o
       {!fini && prochaine != null && !e.en_tete && (
         <div style={{ marginTop: 14 }}>
           <label style={{ display: 'block', fontSize: 12, color: 'rgba(255,255,255,0.55)', marginBottom: 6 }}>
-            Votre mise (minimum {prochaine.toFixed(2)} $)
+            Votre mise (minimum {formaterPrix(prochaine)})
           </label>
           <div style={{ display: 'flex', gap: 8 }}>
             <input
@@ -165,7 +166,7 @@ export default function BlocEnchere({ gId, produitId, couleurAccent, naviguer, o
               return (
                 <button key={k} onClick={() => { saisieModifiee.current = true; setMontant(v.toFixed(2)); }}
                   style={{ padding: '5px 10px', borderRadius: 20, border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: 12, cursor: 'pointer' }}>
-                  {v.toFixed(2)} $
+                  {formaterPrix(v)}
                 </button>
               );
             })}

@@ -2,6 +2,7 @@
 // e-Vend Studio — Checkout acheteur — partagé tous templates transactionnels
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { formaterPrix, getDevise } from './devise';
 
 const API_BASE = '/api';
 
@@ -735,9 +736,9 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                       <span style={{ fontSize: '11px', fontWeight: 700, color: '#4ade80', backgroundColor: 'rgba(74,222,128,0.1)', padding: '1px 7px', borderRadius: '20px', marginBottom: '4px', display: 'inline-block' }}>📲 Numérique</span>
                     )}
                     <p style={s.articleVendeur}>Vendu par {vendeur?.nom_boutique || vendeur?.nom}</p>
-                    <p style={s.articlePrixUnit}>{parseFloat(String(article.prix)).toFixed(2)} $ / unité</p>
+                    <p style={s.articlePrixUnit}>{formaterPrix(parseFloat(String(article.prix)))} / unité</p>
                   </div>
-                  <p style={s.articleTotal}>{(parseFloat(String(article.prix)) * article.quantite).toFixed(2)} $</p>
+                  <p style={s.articleTotal}>{formaterPrix((parseFloat(String(article.prix)) * article.quantite))}</p>
                 </div>
               ))}
             </div>
@@ -859,7 +860,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                     const fraisCalcule = methode.frais_calcule ?? methode.frais_fixes ?? 0;
                     const estGratuit = methode.gratuit_applique || fraisCalcule === 0;
                     const estSelectionnee = expedition === methode.id;
-                    const prixAffiche = estGratuit ? 'Gratuit' : `${fraisCalcule.toFixed(2)} $`;
+                    const prixAffiche = estGratuit ? 'Gratuit' : `${formaterPrix(fraisCalcule)}`;
                     return (
                       <div
                         key={methode.id}
@@ -884,7 +885,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                           )}
                           {methode.gratuit_superieur && !methode.gratuit_applique && (
                             <p style={{ fontSize: '11px', color: C.success, margin: '2px 0 0', fontWeight: 600 }}>
-                              🎁 Gratuit dès {methode.gratuit_superieur.toFixed(2)} $ d'achat
+                              🎁 Gratuit dès {formaterPrix(methode.gratuit_superieur)} d'achat
                             </p>
                           )}
                           {methode.gratuit_applique && (
@@ -1007,7 +1008,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
               {[0, 1, 2, 5].map(pct => {
                 const montant = pct === 0 ? 0 : Math.round(sousTotal * pct) / 100 * 100 / 100;
-                const label = pct === 0 ? 'Aucun' : `${pct}% (${montant.toFixed(2)} $)`;
+                const label = pct === 0 ? 'Aucun' : `${pct}% (${formaterPrix(montant)})`;
                 const isActif = pourboire === (pct === 0 ? 0 : sousTotal * pct / 100) && pourboireCustom === '';
                 return (
                   <button
@@ -1131,7 +1132,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                     <div style={s.recapQteBadge}>{a.quantite}</div>
                   </div>
                   <span style={s.recapArticleNom}>{a.titre}</span>
-                  <span style={s.recapArticlePrix}>{(parseFloat(String(a.prix)) * a.quantite).toFixed(2)} $</span>
+                  <span style={s.recapArticlePrix}>{formaterPrix((parseFloat(String(a.prix)) * a.quantite))}</span>
                 </div>
               ))}
             </div>
@@ -1139,10 +1140,10 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
             <div style={s.divider} />
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
-              <LigneRecap label={`Sous-total (${articles.reduce((s, a) => s + a.quantite, 0)} art.)`} valeur={`${sousTotal.toFixed(2)} $`} />
+              <LigneRecap label={`Sous-total (${articles.reduce((s, a) => s + a.quantite, 0)} art.)`} valeur={`${formaterPrix(sousTotal)}`} />
               <LigneRecap
                 label={methodeExpeditionSelectionnee ? `Expédition — ${methodeExpeditionSelectionnee.nom}` : 'Expédition'}
-                valeur={!methodeExpeditionSelectionnee ? '—' : fraisExp === 0 ? 'Gratuite' : `${fraisExp.toFixed(2)} $`}
+                valeur={!methodeExpeditionSelectionnee ? '—' : fraisExp === 0 ? 'Gratuite' : `${formaterPrix(fraisExp)}`}
                 couleur={fraisExp === 0 ? C.success : undefined}
                 note={methodeExpeditionSelectionnee?.delais_estime || methodeExpeditionSelectionnee?.detail_calcul}
               />
@@ -1160,7 +1161,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                       {parseFloat(taxes.tvh) > 0 && <LigneRecap label="TVH" valeur={`~${taxes.tvh} $`} muted />}
                       {parseFloat(taxes.tvp || '0') > 0 && <LigneRecap label="TVP" valeur={`~${taxes.tvp} $`} muted />}
                       {parseFloat(taxes.tps) === 0 && parseFloat(taxes.tvq) === 0 && parseFloat(taxes.tvh) === 0 && parseFloat(taxes.tvp || '0') === 0 && (
-                        <LigneRecap label="Taxes" valeur="0,00 $" muted />
+                        <LigneRecap label="Taxes" valeur={formaterPrix(0)} muted />
                       )}
                     </>
                   )}
@@ -1169,9 +1170,9 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                 <LigneRecap label="Taxes (est.)" valeur="—" muted note="Sélectionnez une adresse" />
               )}
               {codePromoInfo && (
-                <LigneRecap label={`Code promo — ${codePromoInfo.code}`} valeur={`-${parseFloat(codePromoInfo.rabais).toFixed(2)} $`} couleur={C.success} />
+                <LigneRecap label={`Code promo — ${codePromoInfo.code}`} valeur={`-${formaterPrix(parseFloat(codePromoInfo.rabais))}`} couleur={C.success} />
               )}
-              {pourboire > 0 && <LigneRecap label="Pourboire" valeur={`${pourboire.toFixed(2)} $`} muted />}
+              {pourboire > 0 && <LigneRecap label="Pourboire" valeur={`${formaterPrix(pourboire)}`} muted />}
             </div>
 
             <div style={s.divider} />
@@ -1201,7 +1202,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.25)', borderRadius: '10px', padding: '10px 12px' }}>
                   <div>
                     <p style={{ fontSize: '13px', fontWeight: 900, color: C.success, margin: '0 0 2px', letterSpacing: '1px', fontFamily: 'monospace' }}>✅ {codePromoInfo.code}</p>
-                    <p style={{ fontSize: '12px', color: C.success, margin: 0, opacity: 0.8 }}>-{parseFloat(codePromoInfo.rabais).toFixed(2)} $ de rabais</p>
+                    <p style={{ fontSize: '12px', color: C.success, margin: 0, opacity: 0.8 }}>-{formaterPrix(parseFloat(codePromoInfo.rabais))} de rabais</p>
                   </div>
                   <button onClick={retirerCodePromo} style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, fontSize: '20px', padding: '0 4px', lineHeight: 1 }}>×</button>
                 </div>
@@ -1257,11 +1258,11 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                   {taxesLoading
                     ? '...'
                     : taxes
-                      ? `${parseFloat(taxes.total).toFixed(2)} $`
-                      : `${(sousTotalApresRabais + fraisExp).toFixed(2)} $`}
+                      ? `${formaterPrix(parseFloat(taxes.total))}`
+                      : `${formaterPrix((sousTotalApresRabais + fraisExp))}`}
                 </span>
                 <p style={{ fontSize: '11px', color: C.textMuted, margin: '2px 0 0' }}>
-                  {taxes ? 'CAD · taxes estimées incluses' : 'CAD · taxes non estimées'}
+                  {taxes ? `${getDevise()} · taxes estimées incluses` : `${getDevise()} · taxes non estimées`}
                 </p>
               </div>
             </div>
@@ -1327,7 +1328,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
               ) : (
                 <>
                   {modePaiement === 'stripe' ? '💳' : '🅿️'}
-                  {' '}Payer {taxes ? `${taxes.total} $ CAD` : `${(sousTotal + fraisExp).toFixed(2)} $ CAD`}
+                  {' '}Payer {taxes ? formaterPrix(taxes.total) : `${formaterPrix((sousTotal + fraisExp))}`}
                 </>
               )}
             </button>

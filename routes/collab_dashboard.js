@@ -19,6 +19,7 @@ const pool = require('../db');
 const paiementMV = require('../services/studio_paiement');
 const expMV = require('../services/studio_expedition');
 const vacMV = require('../services/studio_vacances');
+const cfgMV = require('../services/studio_config_mv');
 const rembMV = require('../services/studio_remboursement');
 
 const router = express.Router({ mergeParams: true });
@@ -321,6 +322,12 @@ router.post('/produits', h(async (req, res) => {
   p.categorie = await nomCategorie(req, p.categorieId);
   const n = await pool.query(`SELECT COUNT(*) AS n FROM produits WHERE collaborateur_id = $1`, [req.cid]);
   if (+n.rows[0].n >= 1000) bad('Limite de 1000 produits atteinte', 409);
+  // Limite fixée par le gestionnaire (Config marketplace → Max produits par vendeur), tant que les plans vendeur ne sont pas utilisés
+  const mvCfg = await cfgMV.lire(req.gid, pool);
+  if (!cfgMV.actif(mvCfg, 'utiliser_plans_vendeur', false)) {
+    const max = parseInt(mvCfg.max_produits, 10);
+    if (Number.isFinite(max) && max > 0 && +n.rows[0].n >= max) bad(`Limite atteinte : cette marketplace permet ${max} annonce${max > 1 ? 's' : ''} par vendeur. Supprimez une annonce ou contactez le gestionnaire.`, 409);
+  }
   const r = await pool.query(
     `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
                            photo_principale, photos, variantes, statut, poids)
@@ -934,7 +941,7 @@ router.put('/configuration', h(async (req, res) => {
   if (vacances) {
     if (!(await vacMV.permisParGestionnaire(pool, req.gid))) bad("Le mode vacances n'est pas activé par le gestionnaire de cette boutique.", 403);
     if (debut && retour && retour <= debut) bad('La date de retour doit être après la date de début');
-    const auj = (await pool.query(`SELECT (NOW() AT TIME ZONE '${vacMV.FUSEAU}')::date::text AS d`)).rows[0].d;
+    const auj = (await pool.query(`SELECT (NOW() AT TIME ZONE $1)::date::text AS d`, [await cfgMV.fuseau(req.gid, pool)])).rows[0].d;
     if (retour && retour <= auj) bad('La date de retour est déjà passée');
   }
   const delai = Math.trunc(nombre(b.delai_traitement_jours, 'Délai de traitement', 0, 30));
@@ -973,7 +980,8 @@ router.get('/methodes-expedition/details', h(async (req, res) => {
   let rows = [];
   try { rows = (await pool.query('SELECT * FROM collab_methodes_expedition WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND actif = true ORDER BY transporteur_id', [req.cid, req.gid])).rows; }
   catch (e) { return res.json([]); }
-  res.json(rows.map((m) => ({ ...expMV.enrichir(m, null, 0, 'QC'), libelle_prix: expMV.libellePrix(m) })));
+  const devCollab = await cfgMV.devise(req.gid, pool);
+  res.json(rows.map((m) => ({ ...expMV.enrichir(m, null, 0, 'QC'), libelle_prix: expMV.libellePrix(m, devCollab) })));
 }));
 
 function lireMethodeExpedition(m) {

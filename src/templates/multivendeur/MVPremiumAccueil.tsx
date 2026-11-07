@@ -7,6 +7,7 @@ import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche } from './mvSecurite';
 import MVPremiumAvantages from './MVPremiumAvantages';
+import { formaterPrix } from '../shared/devise';
 
 const API_BASE = '/api';
 
@@ -304,7 +305,7 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
                         {img ? <img src={img} alt={p.nom} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                               : <div style={s.carteImgPlaceholder}>📦</div>}
                         <div style={{ ...s.cartePrixBadge, background: `${couleurAccent}f0`, color: '#000' }}>
-                          {p.prix?.toFixed(2)} $
+                          {formaterPrix(p.prix)}
                         </div>
                       </div>
                       <div style={s.carteBody}>

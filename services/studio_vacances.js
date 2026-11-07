@@ -7,10 +7,12 @@
 // Le mode n'agit que si le gestionnaire l'autorise (Config multi → « Mode vacances vendeur »).
 
 const pool = require('../db');
+const cfgMV = require('./studio_config_mv');
 
 const FUSEAU = 'America/Toronto';
 const MESSAGE_DEFAUT = 'Ce vendeur est en vacances. Les commandes seront traitées à son retour.';
-const AUJOURDHUI = `(NOW() AT TIME ZONE '${FUSEAU}')::date`;
+// « Aujourd'hui » dans le fuseau réglé par le gestionnaire (Config marketplace → Généralité)
+const AUJOURDHUI = `(NOW() AT TIME ZONE ${cfgMV.fuseauSql('mc.gestionnaire_id')})::date`;
 
 // Fragments SQL. Alias attendus : mc (marketplace_collaborateurs) et cvac (collaborateur_config, jointure gauche).
 const VAC_JOIN = 'LEFT JOIN collaborateur_config cvac ON cvac.collaborateur_id = mc.id';

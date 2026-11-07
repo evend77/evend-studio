@@ -2,6 +2,7 @@
 // e-Vend Studio — Panier acheteur — partagé tous templates transactionnels
 
 import { useState, useEffect } from "react";
+import { formaterPrix } from './devise';
 
 const API_BASE = "/api";
 
@@ -409,7 +410,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                       </div>
                       <p style={{ ...s.vendeurStats, fontSize: isMobile ? "12px" : "13px" }}>
                         {groupe.articles.length} article{groupe.articles.length > 1 ? "s" : ""} &nbsp;·&nbsp;
-                        <strong style={{ color: "#b47828" }}>{groupe.sous_total.toFixed(2)} $</strong>
+                        <strong style={{ color: "#b47828" }}>{formaterPrix(groupe.sous_total)}</strong>
                         {!estSelectionne && multiVendeurs && !isMobile && (
                           <span style={{ color: "#a8926a", marginLeft: "8px", fontSize: "11px" }}>— Cliquez pour sélectionner</span>
                         )}
@@ -448,9 +449,9 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                               <p style={{ fontSize: "13px", fontWeight: 600, color: "#1c1917", margin: "0 0 4px", lineHeight: 1.4 }}>{article.titre}</p>
                               {article.enchere_id ? <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 700, color: "#7c3aed", background: "#f3e8ff", borderRadius: "6px", padding: "2px 8px", margin: "0 0 4px" }}>🔨 Gagné aux enchères</span> : null}
                               <span style={s.articleVendeurTag}>Vendu par {article.vendeur_nom}</span>
-                              <p style={{ fontSize: "15px", fontWeight: 700, color: "#b47828", margin: "6px 0 2px" }}>{parseFloat(String(article.prix)).toFixed(2)} $ / unité</p>
+                              <p style={{ fontSize: "15px", fontWeight: 700, color: "#b47828", margin: "6px 0 2px" }}>{formaterPrix(parseFloat(String(article.prix)))} / unité</p>
                               <p style={{ fontSize: "14px", fontWeight: 800, color: "#1c1917", margin: 0 }}>
-                                Total : {(parseFloat(String(article.prix)) * article.quantite).toFixed(2)} $
+                                Total : {formaterPrix((parseFloat(String(article.prix)) * article.quantite))}
                                 {article.quantite > 1 && <span style={{ fontSize: "11px", color: "#a8926a", fontWeight: 400, marginLeft: "4px" }}>{article.quantite}×</span>}
                               </p>
                             </div>
@@ -500,7 +501,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                             {article.enchere_id ? <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 700, color: "#7c3aed", background: "#f3e8ff", borderRadius: "6px", padding: "2px 8px", margin: "0 0 4px" }}>🔨 Gagné aux enchères</span> : null}
                             <div style={s.articleMeta}><span style={s.articleVendeurTag}>Vendu par {article.vendeur_nom}</span></div>
                             <div style={s.articlePrixWrap}>
-                              <span style={s.articlePrixUnit}>{parseFloat(String(article.prix)).toFixed(2)} $</span>
+                              <span style={s.articlePrixUnit}>{formaterPrix(parseFloat(String(article.prix)))}</span>
                               <span style={s.articlePrixUnitLabel}>/ unité</span>
                             </div>
                           </div>
@@ -546,11 +547,11 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                       <div style={{ ...s.articleTotal, display: isMobile ? "none" : undefined }}>
                         <p style={s.articleTotalLabel}>Total</p>
                         <p style={s.articleTotalMontant}>
-                          {(parseFloat(String(article.prix)) * article.quantite).toFixed(2)} $
+                          {formaterPrix((parseFloat(String(article.prix)) * article.quantite))}
                         </p>
                         {article.quantite > 1 && (
                           <p style={s.articleTotalDetail}>
-                            {article.quantite} x {parseFloat(String(article.prix)).toFixed(2)} $
+                            {article.quantite} x {formaterPrix(parseFloat(String(article.prix)))}
                           </p>
                         )}
                       </div>
@@ -618,7 +619,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                     <span style={s.groupeFooterLabel}>Sous-total {groupe.vendeur_nom}</span>
                   </div>
                   <span style={{ ...s.groupeFooterMontant, color: "#b47828" }}>
-                    {groupe.sous_total.toFixed(2)} $ CAD
+                    {formaterPrix(groupe.sous_total)}
                   </span>
                 </div>
               </div>
@@ -646,7 +647,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                   <span style={{ fontSize: "12px", color: "#a8926a" }}>{articlesSelectionnes} article{articlesSelectionnes > 1 ? "s" : ""}</span>
                 </div>
                 <p style={{ fontSize: "15px", fontWeight: 700, color: "#1c1917", margin: "0 0 2px" }}>{groupeSelectionne.vendeur_nom}</p>
-                <p style={{ fontSize: "18px", fontWeight: 800, color: "#b47828", margin: 0 }}>{totalSelectionne.toFixed(2)} $ CAD</p>
+                <p style={{ fontSize: "18px", fontWeight: 800, color: "#b47828", margin: 0 }}>{formaterPrix(totalSelectionne)}</p>
               </div>
             ) : (
               <div style={{ background: "#f3f4f6", borderRadius: "10px", padding: "12px", marginBottom: "14px", textAlign: "center" }}>
@@ -663,7 +664,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                 {groupes.filter(g => g.vendeur_id !== vendeurSelectionne).map(g => (
                   <div key={g.vendeur_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px", opacity: 0.6 }}>
                     <span style={{ fontSize: "13px", color: "#78716c" }}>{g.vendeur_nom}</span>
-                    <span style={{ fontSize: "13px", color: "#78716c" }}>{g.sous_total.toFixed(2)} $</span>
+                    <span style={{ fontSize: "13px", color: "#78716c" }}>{formaterPrix(g.sous_total)}</span>
                   </div>
                 ))}
               </div>
@@ -674,7 +675,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
             {/* Lignes calcul */}
             <div style={s.recapLigneCalc}>
               <span style={s.recapCalcLabel}>Sous-total sélectionné</span>
-              <span style={s.recapCalcValeur}>{totalSelectionne.toFixed(2)} $</span>
+              <span style={s.recapCalcValeur}>{formaterPrix(totalSelectionne)}</span>
             </div>
             <div style={s.recapLigneCalc}>
               <span style={s.recapCalcLabel}>Frais de livraison</span>
@@ -689,8 +690,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
               <div style={s.recapTotalLigne}>
                 <span style={s.recapTotalLabel}>Total estimé</span>
                 <div>
-                  <span style={s.recapTotalMontant}>{totalSelectionne.toFixed(2)} $</span>
-                  <span style={s.recapTotalDevise}> CAD</span>
+                  <span style={s.recapTotalMontant}>{formaterPrix(totalSelectionne)}</span>
                 </div>
               </div>
               <p style={s.recapTotalNote}>Avant taxes et livraison</p>
@@ -813,7 +813,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                 <div style={s.plusTardInfos}>
                   <p style={s.plusTardVendeur}>{article.vendeur_nom}</p>
                   <p style={{ ...s.plusTardNom as React.CSSProperties, fontSize: isMobile ? "11px" : "14px", margin: isMobile ? "0 0 3px" : "0 0 6px" }}>{article.titre}</p>
-                  <p style={{ ...s.plusTardPrix, fontSize: isMobile ? "13px" : "16px" }}>{parseFloat(String(article.prix)).toFixed(2)} $</p>
+                  <p style={{ ...s.plusTardPrix, fontSize: isMobile ? "13px" : "16px" }}>{formaterPrix(parseFloat(String(article.prix)))}</p>
                   {!isMobile && <p style={s.plusTardDate}>
                     Mis de côté le {new Date(article.created_at).toLocaleDateString("fr-CA", { day: "numeric", month: "long" })}
                   </p>}

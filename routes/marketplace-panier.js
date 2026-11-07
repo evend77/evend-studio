@@ -12,6 +12,7 @@ const promo = require('../services/studio_promo');
 const taxesMV = require('../services/studio_taxes');
 const expMV = require('../services/studio_expedition');
 const vacMV = require('../services/studio_vacances');
+const cfgMV = require('../services/studio_config_mv');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -419,8 +420,9 @@ router.get('/:gid/produits/:produitId/methodes-expedition', async (req, res) => 
         `SELECT vme.* FROM collab_produit_methodes_expedition pme JOIN collab_methodes_expedition vme ON vme.id = pme.methode_id
           WHERE pme.produit_id = $1 AND vme.actif = true AND vme.collaborateur_id = $2 ORDER BY vme.transporteur_id`, [pid, p.collaborateur_id])).rows;
     } catch (e) { rows = []; }
+    const devMethodes = await cfgMV.devise(parseInt(req.params.gid, 10), pool);
     const methodes = rows.length
-      ? rows.map((m) => ({ ...expMV.enrichir(m, null, 0, 'QC'), libelle_prix: expMV.libellePrix(m) }))
+      ? rows.map((m) => ({ ...expMV.enrichir(m, null, 0, 'QC'), libelle_prix: expMV.libellePrix(m, devMethodes) }))
       : [{ ...expMV.GRATUITE_PAR_DEFAUT, libelle_prix: 'Gratuit' }];
     const c = await expMV.infosCollab(pool, p.collaborateur_id);
     res.json({

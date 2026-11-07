@@ -53,6 +53,12 @@ export default function MarketplaceLogin({ vendeurId, isDemo, config = {}, navig
   const [messageDeblocage, setMessageDeblocage] = useState('');
 
   const accent = type === 'acheteur' ? ACCENT_ACHETEUR : ACCENT_COLLABORATEUR;
+
+  // Inscriptions fermées par le gestionnaire (Config marketplace → Inscriptions) : le lien disparaît (le serveur refuse aussi l'inscription)
+  const mv = config.multivendeur || {};
+  const fermeAcheteur = mv.bloquer_inscription_acheteur === true;
+  const fermeCollab = (mv.bloquer_inscription_collaborateur ?? mv.bloquer_inscription_vendeur) === true;
+  const inscriptionFermee = type === 'acheteur' ? fermeAcheteur : fermeCollab;
   // Doit correspondre exactement à la clé utilisée côté serveur dans
   // marketplace-auth.js : `${type}_${gestionnaireId}`.
   const userTypeKey = `${type}_${gestionnaireId}`;
@@ -227,15 +233,17 @@ export default function MarketplaceLogin({ vendeurId, isDemo, config = {}, navig
             </button>
           </form>
 
-          <p style={s.bas}>
-            Pas encore de compte ?{' '}
-            <span
-              style={{ color: accent, cursor: 'pointer', fontWeight: 700 }}
-              onClick={() => naviguer({ page: type === 'acheteur' ? 'inscription-acheteur' : 'inscription-collaborateur' })}
-            >
-              {type === 'acheteur' ? 'Creer un compte acheteur' : 'Devenir collaborateur'}
-            </span>
-          </p>
+          {!inscriptionFermee && (
+            <p style={s.bas}>
+              Pas encore de compte ?{' '}
+              <span
+                style={{ color: accent, cursor: 'pointer', fontWeight: 700 }}
+                onClick={() => naviguer({ page: type === 'acheteur' ? 'inscription-acheteur' : 'inscription-collaborateur' })}
+              >
+                {type === 'acheteur' ? 'Creer un compte acheteur' : 'Devenir collaborateur'}
+              </span>
+            </p>
+          )}
           </>
           ) : (
           <>

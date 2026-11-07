@@ -256,8 +256,12 @@ async function notifierAcheteur(gid, acheteurId, titre, message) {
   } catch (e) { console.error('[encheres] notifierAcheteur', e.message); }
 }
 const fmt = (n) => `${Number(n).toFixed(2)} $`;
-const quand = (d) => new Date(d).toLocaleString('fr-CA', { dateStyle: 'long', timeStyle: 'short', timeZone: 'America/Toronto' });
+const quandTz = (d, tz) => new Date(d).toLocaleString('fr-CA', { dateStyle: 'long', timeStyle: 'short', timeZone: tz || 'America/Toronto' });
 const courriels = () => require('./studio_courriels');
+const cfgMV = require('./studio_config_mv');
+// Montants et dates des messages selon la devise et le fuseau réglés par le gestionnaire (Config marketplace → Généralité)
+const fmtGestionnaire = async (gid) => { const dev = cfgMV.deviseDe(await cfgMV.lire(gid, pool)); return (n) => cfgMV.montant(n, dev); };
+const quandGestionnaire = async (gid) => { const tz = cfgMV.fuseauDe(await cfgMV.lire(gid, pool)); return (d) => quandTz(d, tz); };
 
 async function courrielAcheteur(gid, acheteurId, cle, variables) {
   const a = (await pool.query('SELECT email, prenom FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2', [acheteurId, gid])).rows[0];
@@ -267,6 +271,7 @@ async function courrielAcheteur(gid, acheteurId, cle, variables) {
 async function courrielCollab(e, cle, extra = {}) {
   const c = (await pool.query('SELECT email, nom_responsable FROM marketplace_collaborateurs WHERE id = $1 AND gestionnaire_id = $2', [e.collaborateur_id, e.gestionnaire_id])).rows[0];
   if (!c || !c.email) return;
+  const fmt = await fmtGestionnaire(e.gestionnaire_id);
   const site = await infosSite(e.gestionnaire_id);
   await courriels().envoyerCourriel({
     gestionnaireId: e.gestionnaire_id, cle, a: c.email,
@@ -276,6 +281,7 @@ async function courrielCollab(e, cle, extra = {}) {
 }
 
 async function surpasse(e, precedent) {
+  const fmt = await fmtGestionnaire(e.gestionnaire_id), quand = await quandGestionnaire(e.gestionnaire_id);
   await notifierAcheteur(e.gestionnaire_id, precedent.acheteur_id, 'Vous avez été surenchéri', `Quelqu'un a misé ${fmt(e.mise_actuelle)} sur « ${e.titre} ». Misez à nouveau pour reprendre la tête.`);
   const site = await infosSite(e.gestionnaire_id);
   await courrielAcheteur(e.gestionnaire_id, precedent.acheteur_id, 'enchere_surpassee', {
@@ -286,6 +292,7 @@ async function surpasse(e, precedent) {
 
 async function notifierFin({ type, e, delaiH }) {
   if (type === 'sans_gagnant') { await courrielCollab(e, 'enchere_sans_gagnant'); return; }
+  const fmt = await fmtGestionnaire(e.gestionnaire_id), quand = await quandGestionnaire(e.gestionnaire_id);
   const site = await infosSite(e.gestionnaire_id);
   await notifierAcheteur(e.gestionnaire_id, e.gagnant_id, 'Vous avez gagné une enchère 🎉', `Félicitations ! « ${e.titre} » est à vous pour ${fmt(e.prix_final)}. Payez-le depuis votre panier avant le ${quand(e.paiement_expire_le)}.`);
   await courrielAcheteur(e.gestionnaire_id, e.gagnant_id, 'enchere_gagnee', {

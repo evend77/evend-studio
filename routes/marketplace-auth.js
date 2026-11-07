@@ -7,6 +7,7 @@ const express = require('express');
 const router = express.Router();
 const pool = require('../db');
 const bcrypt = require('bcrypt');
+const cfgMV = require('../services/studio_config_mv');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -35,6 +36,11 @@ router.post('/:gestionnaireId/acheteurs/inscription', async (req, res) => {
   try {
     const { gestionnaireId } = req.params;
     const { prenom, nom, email, mot_de_passe, telephone, infolettre } = req.body;
+
+    // Inscriptions acheteur fermées par le gestionnaire (Config marketplace → Inscriptions)
+    if (cfgMV.actif(await cfgMV.lire(parseInt(gestionnaireId, 10), pool), 'bloquer_inscription_acheteur', false)) {
+      return res.status(403).json({ message: "Les inscriptions d'acheteurs sont fermées sur cette marketplace.", ferme: true });
+    }
 
     if (!prenom || !nom || !email || !mot_de_passe) {
       return res.status(400).json({ message: 'Champs obligatoires manquants' });
@@ -66,6 +72,12 @@ router.post('/:gestionnaireId/collaborateurs/inscription', async (req, res) => {
   try {
     const { gestionnaireId } = req.params;
     const { nom_responsable, nom_boutique, email, mot_de_passe, telephone, type_entreprise } = req.body;
+
+    // Inscriptions collaborateur fermées par le gestionnaire (ancienne clé : bloquer_inscription_vendeur)
+    const mvIns = await cfgMV.lire(parseInt(gestionnaireId, 10), pool);
+    if (cfgMV.actif(mvIns, 'bloquer_inscription_collaborateur', cfgMV.actif(mvIns, 'bloquer_inscription_vendeur', false))) {
+      return res.status(403).json({ message: 'Les inscriptions de collaborateurs sont fermées sur cette marketplace.', ferme: true });
+    }
 
     if (!nom_responsable || !nom_boutique || !email || !mot_de_passe || !type_entreprise) {
       return res.status(400).json({ message: 'Champs obligatoires manquants' });

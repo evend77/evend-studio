@@ -11,9 +11,9 @@
 const express = require('express');
 const pool = require('../db');
 const taxesMV = require('../services/studio_taxes');
+const cfgMV = require('../services/studio_config_mv');
 
 const router = express.Router();
-const FUSEAU = 'America/Toronto';
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 const r2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
@@ -25,12 +25,13 @@ function json(v) {
 
 router.get('/rapport', async (req, res) => {
   try {
+    const cfg = (await pool.query('SELECT config FROM sites WHERE gestionnaire_id = $1', [req.gid])).rows[0];
+    const mv = (cfg && cfg.config && cfg.config.multivendeur) || {};
+    const FUSEAU = cfgMV.fuseauDe(mv);
     const aujourdhui = new Intl.DateTimeFormat('en-CA', { timeZone: FUSEAU }).format(new Date());
     const debut = DATE_RE.test(req.query.date_debut || '') ? req.query.date_debut : `${aujourdhui.slice(0, 4)}-01-01`;
     const fin = DATE_RE.test(req.query.date_fin || '') ? req.query.date_fin : aujourdhui;
 
-    const cfg = (await pool.query('SELECT config FROM sites WHERE gestionnaire_id = $1', [req.gid])).rows[0];
-    const mv = (cfg && cfg.config && cfg.config.multivendeur) || {};
     const table = taxesMV.tableTaux(mv);
 
     const cmd = await pool.query(

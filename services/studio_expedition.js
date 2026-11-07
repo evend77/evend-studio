@@ -126,17 +126,19 @@ function enrichir(m, articles, sousTotal, province) {
 }
 
 // Texte de prix pour la page produit (la province et le poids ne sont pas encore connus)
-function libellePrix(m) {
+function libellePrix(m, devise) {
+  const cfg = require('./studio_config_mv');
+  const $ = (n) => cfg.montant(n, devise);
   const f = num(m.frais_fixes), k = num(m.frais_par_kg);
-  if (m.mode_calcul === 'kg') return `${k.toFixed(2)} $/kg`;
-  if (m.mode_calcul === 'fixe_kg') return `${f.toFixed(2)} $ + ${k.toFixed(2)} $/kg`;
+  if (m.mode_calcul === 'kg') return `${$(k)}/kg`;
+  if (m.mode_calcul === 'fixe_kg') return `${$(f)} + ${$(k)}/kg`;
   if (m.mode_calcul === 'zone') {
     const v = Object.values(m.frais_zones || {}).filter((x) => x !== null && x !== 'non' && x !== undefined).map(num);
     if (!v.length) return 'Selon la province';
     const a = Math.min(...v), b = Math.max(...v);
-    return a === b ? (a === 0 ? 'Gratuit' : `${a.toFixed(2)} $`) : `${a.toFixed(2)} $ à ${b.toFixed(2)} $`;
+    return a === b ? (a === 0 ? 'Gratuit' : $(a)) : `${$(a)} à ${$(b)}`;
   }
-  return f === 0 ? 'Gratuit' : `${f.toFixed(2)} $`;
+  return f === 0 ? 'Gratuit' : $(f);
 }
 
 // Méthodes actives choisies pour ces annonces (une seule requête)

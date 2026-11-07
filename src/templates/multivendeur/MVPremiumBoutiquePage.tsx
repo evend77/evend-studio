@@ -7,6 +7,7 @@ import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche, nettoyerTexte } from './mvSecurite';
+import { formaterPrix } from '../shared/devise';
 
 const API_BASE = '/api';
 
@@ -483,7 +484,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                         </div>
                         <div style={{ padding: 12 }}>
                           <p style={{ fontSize: 13, color: '#fff', margin: '0 0 6px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{p.nom}</p>
-                          <p style={{ fontSize: 15, fontWeight: 800, color: couleurAccent, margin: 0 }}>{parseFloat(String(p.prix)).toFixed(2)} $</p>
+                          <p style={{ fontSize: 15, fontWeight: 800, color: couleurAccent, margin: 0 }}>{formaterPrix(parseFloat(String(p.prix)))}</p>
                         </div>
                       </div>
                     ))}

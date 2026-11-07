@@ -18,6 +18,7 @@ const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 
 const vac = require('../services/studio_vacances');
+const cfgMV = require('../services/studio_config_mv');
 const router = express.Router();
 
 function entier(v) {
@@ -260,7 +261,8 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/addons-statut', async
     const r = await pool.query(
       `SELECT EXISTS (SELECT 1 FROM collab_blogs WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND statut = 'publie') AS blog,
               EXISTS (SELECT 1 FROM collab_faq   WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND active) AS faq`, [cid, gid]);
-    res.json({ blog_actif: r.rows[0].blog, faq_actif: r.rows[0].faq, avis_actif: true });
+    const avisOk = cfgMV.actif(await cfgMV.lire(gid, pool), 'avis_actifs', true);   // Config marketplace → Fonctionnalités → Avis clients
+    res.json({ blog_actif: r.rows[0].blog, faq_actif: r.rows[0].faq, avis_actif: avisOk });
   } catch (e) {
     console.error('[catalogue_public] addons', e.message);
     res.json({ blog_actif: false, faq_actif: false, avis_actif: true });

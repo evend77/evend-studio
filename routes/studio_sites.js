@@ -58,6 +58,18 @@ function validerFormatDomainePerso(domaine) {
   return { valide: true };
 }
 
+// Mode maintenance : réglé soit dans Config générale (Avancé) du site, soit dans Config marketplace → Généralité (multi-vendeur),
+// soit imposé par l'admin (statut « en_maintenance »). Le message du gestionnaire passe en priorité.
+function etatMaintenance(row) {
+  const cfg = row.config || {};
+  const gen = cfg.generale?.mode_maintenance === true;
+  const mv = cfg.multivendeur?.mode_maintenance === true;
+  const message = gen
+    ? (cfg.generale?.message_maintenance || null)
+    : (mv ? (String(cfg.multivendeur?.message_maintenance || '').trim() || null) : null);
+  return { maintenance: gen || mv || row.gestionnaire_statut === 'en_maintenance', message };
+}
+
 // =====================================================================
 // GET /api/studio/sites/sousdomaine/verifier/:slug
 // Vérification en temps réel (pour l'UI pendant que le gestionnaire tape)
@@ -140,15 +152,14 @@ router.get('/domaine-perso/public/:domaine', async (req, res) => {
       });
     }
 
-    const modeMaintenanceGestionnaire = result.rows[0].config?.generale?.mode_maintenance === true;
-    const maintenance = modeMaintenanceGestionnaire || result.rows[0].gestionnaire_statut === 'en_maintenance';
+    const etatMaint = etatMaintenance(result.rows[0]);
 
     return res.json({
       success: true,
       ...result.rows[0],
       site_suspendu: result.rows[0].site_suspendu_email === true,
-      maintenance,
-      message_maintenance: modeMaintenanceGestionnaire ? (result.rows[0].config?.generale?.message_maintenance || null) : null,
+      maintenance: etatMaint.maintenance,
+      message_maintenance: etatMaint.message,
     });
   } catch (err) {
     console.error('GET /studio/sites/domaine-perso/public/:domaine', err);
@@ -187,15 +198,14 @@ router.get('/sous-domaine/public/:slug', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Aucun site trouvé pour ce sous-domaine.' });
     }
 
-    const modeMaintenanceGestionnaire = result.rows[0].config?.generale?.mode_maintenance === true;
-    const maintenance = modeMaintenanceGestionnaire || result.rows[0].gestionnaire_statut === 'en_maintenance';
+    const etatMaint = etatMaintenance(result.rows[0]);
 
     return res.json({
       success: true,
       ...result.rows[0],
       site_suspendu: result.rows[0].site_suspendu_email === true,
-      maintenance,
-      message_maintenance: modeMaintenanceGestionnaire ? (result.rows[0].config?.generale?.message_maintenance || null) : null,
+      maintenance: etatMaint.maintenance,
+      message_maintenance: etatMaint.message,
     });
   } catch (err) {
     console.error('GET /studio/sites/sous-domaine/public/:slug', err);

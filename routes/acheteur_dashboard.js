@@ -27,6 +27,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
+const cfgMV = require('../services/studio_config_mv');
 const paiementMV = require('../services/studio_paiement');
 const { authenticateToken } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
@@ -251,6 +252,7 @@ router.post('/commandes/:id/retour', h(async (req, res) => {
 router.post('/commandes/:id/avis', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Commande invalide');
+  if (!cfgMV.actif(await cfgMV.lire(req.gid, pool), 'avis_actifs', true)) bad('Les avis sont désactivés sur cette marketplace.', 403);
   const b = req.body || {};
   const note = Number(b.note);
   if (!Number.isInteger(note) || note < 1 || note > 5) bad('Note invalide (1 à 5)');

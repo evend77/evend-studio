@@ -876,6 +876,43 @@ router.put('/:id/config-multivendeur', authenticateToken, async (req, res) => {
 
 
 
+// ── PATCH /api/gestionnaires/:id/config-multivendeur/identite ─────────────────
+// Nom de la marketplace + courriel de contact : UNE seule source de vérité, modifiable depuis
+// « Configurer mes pages » ET « Configuration marketplace → Généralité ».
+//   nom  → config_multivendeur_premium.nom_boutique        courriel → config_multivendeur_premium.extra.contact.courriel
+router.patch('/:id/config-multivendeur/identite', authenticateToken, async (req, res) => {
+  try {
+    const gestionnaireId = parseInt(req.params.id, 10);
+    const admin = req.user.role === 'admin' || req.user.role === 'administration';
+    if (!gestionnaireId || (!admin && req.user.id !== gestionnaireId))
+      return res.status(403).json({ success: false, message: 'Acces refuse.' });
+    const propre = (v, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, max) : '');
+    const nom = propre(req.body && req.body.nom_boutique, 100);
+    const courriel = propre(req.body && req.body.courriel_contact, 254);
+    if (!nom) return res.status(400).json({ success: false, message: 'Le nom de la marketplace est obligatoire.' });
+    if (courriel && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(courriel))
+      return res.status(400).json({ success: false, message: 'Courriel de contact invalide.' });
+
+    const maj = await pool.query(
+      `UPDATE config_multivendeur_premium
+          SET nom_boutique = $2,
+              extra = jsonb_set(COALESCE(extra, '{}'::jsonb), '{contact}',
+                        COALESCE(extra->'contact', '{}'::jsonb) || jsonb_build_object('courriel', $3::text), true),
+              updated_at = NOW()
+        WHERE gestionnaire_id = $1`, [gestionnaireId, nom, courriel]);
+    if (!maj.rowCount) {
+      await pool.query(
+        `INSERT INTO config_multivendeur_premium (gestionnaire_id, nom_boutique, extra, updated_at)
+         VALUES ($1, $2, jsonb_build_object('contact', jsonb_build_object('courriel', $3::text)), NOW())`,
+        [gestionnaireId, nom, courriel]);
+    }
+    return res.json({ success: true, nom_boutique: nom, courriel_contact: courriel });
+  } catch (err) {
+    console.error('PATCH /config-multivendeur/identite:', err.message);
+    return res.status(500).json({ success: false, message: 'Enregistrement impossible.' });
+  }
+});
+
 // ── GET /api/gestionnaires/:id/addons-statut — verifie si blog/faq sont actifs
 router.get('/:id/addons-statut', async (req, res) => {
   try {
