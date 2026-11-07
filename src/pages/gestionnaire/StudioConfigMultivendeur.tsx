@@ -160,7 +160,6 @@ interface ConfigMV {
   texte_alternatif_media: boolean; prix_solde: boolean;
   arrondi_prix: string; frais_manutention: boolean;
   weight_unit: string; dimension_unit: string; sauvegarder_brouillon: boolean;
-  mode_taxe: 'libre' | 'force_taxable' | 'force_non_taxable';
   destinataire_taxes: 'admin' | 'vendeur';
   // Config commande
   mode_expedition_obligatoire: boolean; numero_suivi_obligatoire: boolean;
@@ -180,7 +179,7 @@ interface ConfigMV {
   // Commission
   calcul_commission_base: string; type_commission_globale: string;
   commission_globale: string; seconde_commission_globale: string;
-  type_commission_fixe: string; activer_commission_max: boolean;
+  commission_fixe_application: string; activer_commission_max: boolean;
   commission_max: string; baremes_commission: CommissionSlab[];
   commission_taxable: boolean; commission_province: string;
   // Taux de taxes (en %, réglés par le gestionnaire ; tous les collaborateurs les utilisent)
@@ -235,7 +234,7 @@ const DEFAUTS: ConfigMV = {
   montant_fixe_frais: '0.30', texte_alternatif_media: true, prix_solde: false,
   arrondi_prix: '2', frais_manutention: false, weight_unit: 'kg',
   dimension_unit: 'cm', sauvegarder_brouillon: false,
-  mode_taxe: 'libre', destinataire_taxes: 'admin',
+  destinataire_taxes: 'admin',
   mode_expedition_obligatoire: false, numero_suivi_obligatoire: false,
   heures_preparation: '0',
   taxes_incluses_prix: false,
@@ -251,7 +250,7 @@ const DEFAUTS: ConfigMV = {
   google_translation: false, translation_panel: 'both', rtl_alignment: false,
   calcul_commission_base: 'normal', type_commission_globale: '%',
   commission_globale: '10.00', seconde_commission_globale: '0.00',
-  type_commission_fixe: 'produit', activer_commission_max: false,
+  commission_fixe_application: 'commande', activer_commission_max: false,
   commission_max: '0.00', baremes_commission: [],
   commission_taxable: false, commission_province: 'QC',
   taxe_tps: '5', taxe_tvq: '9.975',
@@ -264,6 +263,30 @@ const DEFAUTS: ConfigMV = {
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 interface Props { gestionnaireId: number; }
+
+// Validation des barèmes de commission : retourne la liste des problèmes (vide = OK)
+function problemesBaremes(liste: ConfigMV['baremes_commission']): string[] {
+  const pb: string[] = [];
+  const nb = (v: unknown) => parseFloat(String(v ?? '').replace(',', '.'));
+  const plages: { i: number; min: number; max: number }[] = [];
+  (liste as any[]).forEach((b, i) => {
+    const n = i + 1;
+    const min = String(b.min ?? '').trim() === '' ? 0 : nb(b.min);
+    const max = String(b.max ?? '').trim() === '' ? Infinity : nb(b.max);
+    const a = nb(b.premiereCommission), f = String(b.secondeCommission ?? '').trim() === '' ? 0 : nb(b.secondeCommission);
+    if (!Number.isFinite(min) || min < 0) pb.push(`Barème ${n} : le minimum est invalide.`);
+    else if (Number.isNaN(max) || max < 0) pb.push(`Barème ${n} : le maximum est invalide.`);
+    else if (max < min) pb.push(`Barème ${n} : le maximum doit être plus grand que le minimum.`);
+    else plages.push({ i: n, min, max });
+    if (!Number.isFinite(a) || a < 0) pb.push(`Barème ${n} : le taux est obligatoire (0 ou plus).`);
+    else if (b.type !== 'FIXED' && a > 100) pb.push(`Barème ${n} : le pourcentage ne peut pas dépasser 100.`);
+    if (b.type === '% + FIXED' && (!Number.isFinite(f) || f < 0)) pb.push(`Barème ${n} : le montant fixe est invalide.`);
+  });
+  for (let x = 0; x < plages.length; x++) for (let y = x + 1; y < plages.length; y++) {
+    if (plages[x].min <= plages[y].max && plages[y].min <= plages[x].max) pb.push(`Barèmes ${plages[x].i} et ${plages[y].i} : les montants se chevauchent.`);
+  }
+  return pb;
+}
 
 export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
   const token = localStorage.getItem('token');
@@ -302,7 +325,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
         if (k.startsWith('banniere_vendeur_')) { const n = k.replace('banniere_vendeur_', 'banniere_collab_'); if (mv[n] === undefined) mv[n] = mv[k]; delete mv[k]; }
       }
       delete mv.approuver_auto_vendeur;   // ancien réglage inactif (valeur par défaut « true » jamais appliquée) : on ne la reprend pas
-      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif', 'statut_preparation_commande', 'restreindre_expedition_fraude', 'deduire_expedition_remboursement', 'deduire_taxes_remboursement', 'taxes_sur_expedition', 'tcs_sur_commandes', 'tds_sur_commandes', 'annuler_auto_rejet']) delete mv[k];   // réglages supprimés de Config vendeur
+      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif', 'statut_preparation_commande', 'restreindre_expedition_fraude', 'deduire_expedition_remboursement', 'deduire_taxes_remboursement', 'taxes_sur_expedition', 'tcs_sur_commandes', 'tds_sur_commandes', 'annuler_auto_rejet', 'mode_taxe', 'type_commission_fixe']) delete mv[k];   // réglages supprimés de Config vendeur
       if (mv.bloquer_inscription_vendeur !== undefined) { if (mv.bloquer_inscription_collaborateur === undefined) mv.bloquer_inscription_collaborateur = mv.bloquer_inscription_vendeur; delete mv.bloquer_inscription_vendeur; }
       // Nom de la marketplace et courriel de contact : une seule source, partagée avec « Configurer mes pages »
       try {
@@ -340,6 +363,10 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
       if (!Number.isFinite(n) || n < 0 || n > 30) { showToast('❌ Taux de taxe invalide : entrez un nombre entre 0 et 30', 'danger'); setOnglet('generalite'); return; }
       (aSauver as any)[k] = String(n);
     }
+    const pbBar = problemesBaremes(aSauver.baremes_commission);
+    if (pbBar.length) { showToast('❌ ' + pbBar[0], 'danger'); setOnglet('commission'); return; }
+    const cg = parseFloat(String(aSauver.commission_globale).replace(',', '.'));
+    if (!Number.isFinite(cg) || cg < 0 || (aSauver.type_commission_globale === '%' && cg > 100)) { showToast('❌ Commission globale invalide', 'danger'); setOnglet('commission'); return; }
     // Validations simples
     const courrielOk = (v: string) => v === '' || /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(v.trim());
     if (!aSauver.nom_marketplace.trim()) { showToast('❌ Le nom de la marketplace est obligatoire', 'danger'); setOnglet('generalite'); return; }
@@ -785,23 +812,6 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
 
           <div>
             <Section titre="Taxes et frais" icon="💰">
-              <ParamLigne label="Mode de taxation" description="À venir : on y revient plus tard (les taxes actuelles sont gérées par collaborateur).">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {([
-                    { val: 'libre', label: '🔓 Libre — le vendeur choisit', desc: 'La checkbox est visible et modifiable.' },
-                    { val: 'force_taxable', label: '✅ Forcer taxable', desc: 'Checkbox cochée et verrouillée.' },
-                    { val: 'force_non_taxable', label: '🚫 Forcer non-taxable', desc: 'Checkbox désactivée.' },
-                  ] as const).map(opt => (
-                    <label key={opt.val} onClick={() => set('mode_taxe')(opt.val)} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', border: `2px solid ${config.mode_taxe === opt.val ? T.accent : T.border}`, backgroundColor: config.mode_taxe === opt.val ? T.accentLight : '#f8fafc', transition: 'all 0.15s' }}>
-                      <div style={{ width: '16px', height: '16px', borderRadius: '50%', flexShrink: 0, marginTop: '2px', border: `2px solid ${config.mode_taxe === opt.val ? T.accent : '#9ca3af'}`, backgroundColor: config.mode_taxe === opt.val ? T.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        {config.mode_taxe === opt.val && <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: 'white' }} />}
-                      </div>
-                      <div><p style={{ fontSize: '12px', fontWeight: 700, color: T.text, margin: '0 0 2px' }}>{opt.label}</p><p style={{ fontSize: '11px', color: T.textLight, margin: 0 }}>{opt.desc}</p></div>
-                    </label>
-                  ))}
-                </div>
-              </ParamLigne>
-
               <ParamLigne label="Destinataire des taxes" description="À venir : on y revient plus tard.">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {([
@@ -996,6 +1006,14 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
                 </div>
               </ParamLigne>
             )}
+            {config.type_commission_globale !== '%' && (
+              <ParamLigne label="Commission fixe appliquée" description="Par commande : le montant fixe est prélevé une seule fois. Par article : il est multiplié par le nombre d'articles achetés (s'applique aussi aux barèmes).">
+                <select style={{ ...selectStyle, width: '200px' }} value={config.commission_fixe_application} onChange={e => set('commission_fixe_application')(e.target.value)}>
+                  <option value="commande">Par commande</option>
+                  <option value="article">Par article acheté</option>
+                </select>
+              </ParamLigne>
+            )}
             <ParamLigne label="Commission maximum" description="Plafond de la commission par commande.">
               <Toggle actif={config.activer_commission_max} onChange={set('activer_commission_max')} />
             </ParamLigne>
@@ -1024,10 +1042,10 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
 
           <Section titre="Barèmes de commission" icon="📊">
             <p style={{ fontSize: '13px', color: T.textLight, margin: '0 0 16px', lineHeight: 1.6 }}>
-              Définissez des taux de commission différents selon le montant de la commande. Les barèmes sont prioritaires sur la commission globale.
+              Définissez des taux de commission différents selon le montant de la commande. Les barèmes sont prioritaires sur la commission globale. Les montants Min/Max suivent la base de calcul choisie plus haut ; si aucun barème ne correspond à la commande, la commission globale s'applique.
             </p>
             {config.baremes_commission.map((bareme, idx) => (
-              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr auto', gap: '8px', alignItems: 'center', marginBottom: '10px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: `1px solid ${T.border}` }}>
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: bareme.type === '% + FIXED' ? '1fr 1fr 1fr 1fr 1fr auto' : '1fr 1fr 1fr 1fr auto', gap: '8px', alignItems: 'center', marginBottom: '10px', padding: '10px', background: '#f8fafc', borderRadius: '8px', border: `1px solid ${T.border}` }}>
                 <div>
                   <p style={{ fontSize: '11px', color: T.textLight, margin: '0 0 4px', fontWeight: 600 }}>Min ($)</p>
                   <input type="number" style={{ ...inputStyle }} value={bareme.min} onChange={e => { const b = [...config.baremes_commission]; b[idx] = { ...b[idx], min: e.target.value }; set('baremes_commission')(b); }} placeholder="0" />
@@ -1045,12 +1063,23 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
                   </select>
                 </div>
                 <div>
-                  <p style={{ fontSize: '11px', color: T.textLight, margin: '0 0 4px', fontWeight: 600 }}>Taux</p>
+                  <p style={{ fontSize: '11px', color: T.textLight, margin: '0 0 4px', fontWeight: 600 }}>{bareme.type === 'FIXED' ? 'Montant ($)' : bareme.type === '% + FIXED' ? 'Taux (%)' : 'Taux (%)'}</p>
                   <input type="number" style={{ ...inputStyle }} value={bareme.premiereCommission} onChange={e => { const b = [...config.baremes_commission]; b[idx] = { ...b[idx], premiereCommission: e.target.value }; set('baremes_commission')(b); }} placeholder="10" />
                 </div>
+                {bareme.type === '% + FIXED' && (
+                  <div>
+                    <p style={{ fontSize: '11px', color: T.textLight, margin: '0 0 4px', fontWeight: 600 }}>Fixe ($)</p>
+                    <input type="number" min="0" step="0.01" style={{ ...inputStyle }} value={bareme.secondeCommission ?? ''} onChange={e => { const b = [...config.baremes_commission]; b[idx] = { ...b[idx], secondeCommission: e.target.value }; set('baremes_commission')(b); }} placeholder="0.30" />
+                  </div>
+                )}
                 <button onClick={() => set('baremes_commission')(config.baremes_commission.filter((_, i) => i !== idx))} style={{ padding: '6px 10px', background: '#fff', border: `1px solid ${T.danger}`, borderRadius: '8px', color: T.danger, cursor: 'pointer', fontSize: '14px', marginTop: '18px' }}>🗑</button>
               </div>
             ))}
+            {problemesBaremes(config.baremes_commission).length > 0 && (
+              <div style={{ background: '#FEF5E7', color: '#B9770E', padding: '10px 12px', borderRadius: '8px', fontSize: '12px', marginBottom: '12px', lineHeight: 1.6 }}>
+                {problemesBaremes(config.baremes_commission).map((m, i) => <div key={i}>⚠️ {m}</div>)}
+              </div>
+            )}
             <button onClick={() => set('baremes_commission')([...config.baremes_commission, { min: '', max: '', type: '% + FIXED', premiereCommission: '', secondeCommission: '' }])} style={{ padding: '9px 18px', background: T.accentLight, border: `1px dashed ${T.accent}`, borderRadius: '8px', color: T.accent, fontSize: '13px', fontWeight: 700, cursor: 'pointer', width: '100%' }}>
               ＋ Ajouter un barème
             </button>

@@ -30,7 +30,9 @@ const nombre = (v, d = 0) => { const n = parseFloat(v); return Number.isFinite(n
 const cents = (v) => Math.round((Number(v) || 0) * 100);
 
 // ── Commission (réglée par le gestionnaire : Config multi → Commission) ──────
-function commissionDe(mv, { sousTotal, taxes, expedition, total }) {
+// La partie FIXE de la commission s'applique une fois par commande (défaut) ou pour chaque article acheté
+// (mv.commission_fixe_application = 'article' × nbArticles). Le plafond « Commission maximum » s'applique ensuite.
+function commissionDe(mv, { sousTotal, taxes, expedition, total, nbArticles }) {
   mv = mv || {};
   let base = sousTotal;
   if (mv.calcul_commission_base === 'avec_taxes') base = sousTotal + taxes;
@@ -43,9 +45,10 @@ function commissionDe(mv, { sousTotal, taxes, expedition, total }) {
   const bareme = baremes.find((x) => x && base >= nombre(x.min, 0) && base <= (String(x.max ?? '').trim() === '' ? Infinity : nombre(x.max, Infinity)));
   if (bareme) { type = bareme.type || '%'; a = nombre(bareme.premiereCommission, 0); b = nombre(bareme.secondeCommission, 0); }
 
+  const fois = mv.commission_fixe_application === 'article' ? Math.max(1, parseInt(nbArticles, 10) || 1) : 1;
   let c = 0;
-  if (type === 'FIXED') c = a;
-  else if (type === '% + FIXED') c = base * a / 100 + b;
+  if (type === 'FIXED') c = a * fois;
+  else if (type === '% + FIXED') c = base * a / 100 + b * fois;
   else c = base * a / 100;
   if (mv.activer_commission_max && nombre(mv.commission_max, 0) > 0) c = Math.min(c, nombre(mv.commission_max, 0));
   c = Math.max(0, Math.min(c, total)); // jamais négative, jamais plus que la commande
@@ -268,7 +271,15 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
     const total = totalC / 100;
 
     // 3) Commission du gestionnaire (en cents, jamais plus que le total) — calculée sur le prix après rabais
-    const commission = commissionDe(mv, { sousTotal: sousNetC / 100, taxes: taxesAjouteesC / 100, expedition: fraisC / 100, total: (totalC - tipC) / 100 });
+    // Taxes incluses : « Normal » = montant sans taxes (taxes des articles extraites), « Avec taxes » = prix complet des articles
+    let baseSousC = sousNetC, baseTaxesC = taxesAjouteesC;
+    if (rgCmd.taxesIncluses && taxesC > 0) {
+      const taxableC = lignesNettes.reduce((s2, l) => s2 + (l.facturation_taxes !== false ? cents(l.prix) * l.quantite : 0), 0);
+      const taxArtC = taxableC + fraisC > 0 ? Math.round(taxesC * taxableC / (taxableC + fraisC)) : 0;
+      baseSousC = sousNetC - taxArtC; baseTaxesC = taxArtC;
+    }
+    const nbArticles = lignes.reduce((s2, l) => s2 + (parseInt(l.quantite, 10) || 0), 0);
+    const commission = commissionDe(mv, { sousTotal: baseSousC / 100, taxes: baseTaxesC / 100, expedition: fraisC / 100, nbArticles, total: (totalC - tipC) / 100 });
     const commissionC = Math.min(cents(commission), totalC);
     // Taxes sur la commission : seulement si le gestionnaire l'a choisi (Config multi → Commission). Facturées au collaborateur
     // (prélevées avec la commission), jamais ajoutées au total de l'acheteur. Taux de la province du gestionnaire.
