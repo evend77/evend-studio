@@ -39,6 +39,7 @@ const webhooksStudioStripe    = require('./routes/webhooks_studio_stripe');
 const adminDomainesRoutes     = require('./routes/admin_domaines');
 const cronDomaineModule       = require('./routes/cron_domaine');
 const abonnementsStudioRoutes = require('./routes/abonnements_studio');
+const studioForfaitsRoutes     = require('./routes/studio_forfaits');
 const cronAbonnementsModule   = require('./routes/cron_abonnements_studio');
 const cronVerificationEmailModule = require('./routes/cron_verification_email');
 const modelesModule           = require('./routes/modelescouriels');
@@ -194,6 +195,8 @@ app.use('/api/dynadot', require('./routes/dynadot'));
 app.use('/api/admin/domaines',     adminDomainesRoutes);
 app.use('/api/cron-domaine',       cronDomaineModule);
 app.use('/api/abonnements-studio', abonnementsStudioRoutes);
+// Forfaits multi-vendeur + add-ons (inclus / achetés) — gestionnaire + admin
+app.use('/api/studio-forfaits', studioForfaitsRoutes);
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
 app.use('/api/cron-verification-email', cronVerificationEmailModule);
 // ✅ Config Stripe Connect du gestionnaire (template multivendeur)

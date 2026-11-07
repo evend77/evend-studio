@@ -9,6 +9,8 @@ import LitigesRetours        from './pages/admin/LitigesRetours';
 import FinancesCommissions   from './pages/admin/FinancesCommissions';
 import RapportsFinanciers    from './pages/admin/RapportsFinanciers';
 import AbonnementsActifs     from './pages/admin/AbonnementsActifs';
+import AdminFonctionnalitesStudio from './pages/admin/AdminFonctionnalitesStudio';
+import AdminForfaitsMV       from './pages/admin/AdminForfaitsMV';
 import AbonnementDetail      from './pages/admin/AbonnementDetail';
 import ApprobationsEnAttente from './pages/admin/ApprobationsEnAttente';
 import ComptesSuspendus      from './pages/admin/ComptesSuspendus';
@@ -160,9 +162,14 @@ const NAV_ITEMS: NavItem[] = [
   {
     id: 'forfaits', label: 'Forfaits & Plans', icon: '⭐',
     sousSections: [
-      { id: 'forfaits-liste',       label: 'Gérer les plans',    icon: '🗂️' },
-      { id: 'forfaits-creer',       label: 'Créer un plan',      icon: '➕' },
-      { id: 'forfaits-abonnements', label: 'Abonnements actifs', icon: '✅' },
+      { id: 'forfaits-fonctionnalites', label: 'Fonctionnalités & add-ons', icon: '🧩' },
+    ],
+  },
+  {
+    id: 'fmv', label: 'Forfaits & Plans MV', icon: '⭐',
+    sousSections: [
+      { id: 'fmv-plans',         label: 'Gérer les forfaits MV', icon: '🗂️' },
+      { id: 'fmv-gestionnaires', label: 'Gestionnaires MV',      icon: '👥' },
     ],
   },
   {
@@ -702,6 +709,13 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
         return <GestionDomaines />;
 
       case 'forfaits':
+      case 'forfaits-fonctionnalites':
+        return <AdminFonctionnalitesStudio />;
+      case 'fmv':
+      case 'fmv-plans':
+      case 'fmv-gestionnaires':
+        return <AdminForfaitsMV key={pageActive} ongletInitial={pageActive === 'fmv-gestionnaires' ? 'gestionnaires' : 'forfaits'} />;
+      // Anciennes pages copiées d'e-Vend (retirées du menu, gardées au cas où)
       case 'forfaits-liste':
         return <GestionPlans naviguerVers={naviguerVers} />;
       case 'forfaits-creer':
