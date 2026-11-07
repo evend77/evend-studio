@@ -17,6 +17,8 @@ const vacances = require('./studio_vacances');
 const { dechiffrer } = require('../src/utils/chiffrement');
 const promo = require('./studio_promo');
 const taxesMV = require('./studio_taxes');
+const cfgMV = require('./studio_config_mv');
+const reglesMV = require('./studio_regles_produits');
 
 const DUREE_SESSION_MIN = 30; // minimum permis par Stripe
 
@@ -53,9 +55,11 @@ function commissionDe(mv, { sousTotal, taxes, expedition, total }) {
 // delta < 0 : retire ; delta > 0 : remet. Retourne false si le stock est insuffisant.
 // Stock vide (NULL) = illimité. Une variante avec son propre stock le gère elle-même.
 async function ajusterStock(client, produitId, variante, delta) {
-  const r = await client.query('SELECT stock, variantes FROM produits WHERE id = $1 FOR UPDATE', [produitId]);
+  const r = await client.query('SELECT stock, variantes, gestionnaire_id FROM produits WHERE id = $1 FOR UPDATE', [produitId]);
   const p = r.rows[0];
   if (!p) return true;
+  // Config produits → Gérer l'inventaire désactivé : le stock n'est plus suivi (ni retiré, ni remis)
+  if (!reglesMV.deMV(await cfgMV.lire(p.gestionnaire_id, client)).gererStock) return true;
   let vars = p.variantes;
   if (typeof vars === 'string') { try { vars = JSON.parse(vars); } catch (e) { vars = null; } }
   if (variante && Array.isArray(vars)) {
@@ -194,6 +198,7 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
     const taxMap = await taxesMV.taxabilite(client, gid, panier.map((l) => l.produit_id));
 
     // 1) Prix et stock relus dans la base — le navigateur n'envoie que l'adresse et le mode d'expédition
+    const reglesPrd = await reglesMV.lire(gid, client);   // Config produits (stock géré ou non, quantité minimum)
     const lignes = [];
     for (const ligne of panier) {
       // Article gagné aux enchères : prix = mise gagnante, quantité 1, stock déjà retiré à la création de l'enchère
@@ -209,19 +214,23 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       }
       const pid = parseInt(ligne.produit_id, 10);
       const prod = pid ? (await client.query(
-        `SELECT id, titre, prix, prix_promo, stock, variantes, statut FROM produits
+        `SELECT id, titre, prix, prix_promo, stock, variantes, statut, quantite_min FROM produits
           WHERE id = $1 AND gestionnaire_id = $2 AND collaborateur_id = $3 FOR UPDATE`, [pid, gid, collaborateurId])).rows[0] : null;
       if (!prod || prod.statut !== 'actif') refus(`« ${ligne.titre} » n'est plus disponible. Retirez-le de votre panier.`, 409);
       const variante = ligne.variante || '';
-      const choix = outils.prixEtStock(prod, variante);
+      const choix = outils.prixEtStock(prod, variante, reglesPrd.gererStock);
       if (choix.erreur) refus(`« ${ligne.titre} » : ${choix.erreur}`, 409);
       const qte = parseInt(ligne.quantite, 10);
       if (!(qte >= 1)) refus('Quantité invalide.', 400);
       if (qte > choix.stock) refus(choix.stock <= 0 ? `« ${ligne.titre} » est épuisé.` : `« ${ligne.titre} » : il n'en reste que ${choix.stock}.`, 409);
       if (!(await ajusterStock(client, pid, variante, -qte))) refus(`« ${ligne.titre} » est épuisé.`, 409);
-      lignes.push({ produit_id: pid, titre: ligne.titre, variante, quantite: qte, prix: choix.prix, image_url: ligne.image_url || null,
+      lignes.push({ produit_id: pid, titre: ligne.titre, variante, quantite: qte, quantite_min: prod.quantite_min, prix: choix.prix, image_url: ligne.image_url || null,
                     produit_numerique: ligne.produit_numerique === true, facturation_taxes: taxMap.get(pid) === true });
     }
+
+    // Quantité minimum d'achat : l'acheteur est averti dans le panier, et le paiement est refusé ici tant que le minimum n'est pas atteint
+    const minimums = reglesMV.verifierQuantitesMin(reglesPrd, lignes);
+    if (minimums.length) refus(minimums.map((m) => m.message).join(' '), 409);
 
     // 2) Code promo (rabais sur les articles seulement), expédition, taxes, total — tout calculé ici, en cents
     const sousTotalC = lignes.reduce((s, l) => s + cents(l.prix) * l.quantite, 0);

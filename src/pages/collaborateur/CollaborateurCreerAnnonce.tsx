@@ -3,8 +3,11 @@
 // Adapté de CreerAnnonce.tsx (e-Vend). API : /api/collab/:gestionnaireId/produits, /upload, /categories
 
 import React, { useState, useEffect, useRef } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 interface Variante { nom: string; prix: string; stock: string; }
+interface Regles { approbation_auto: boolean; gerer_stock: boolean; prix_zero: boolean; prix_min: number; qte_min_active: boolean; qte_min_mode: 'produit' | 'commande'; aide: string; prix_revient: boolean; categories: boolean; }
+const REGLES_DEFAUT: Regles = { approbation_auto: true, gerer_stock: true, prix_zero: false, prix_min: 0, qte_min_active: false, qte_min_mode: 'produit', aide: '', prix_revient: false, categories: true };
 interface Props {
   gestionnaireId: number; accent: string; isMobile: boolean;
   produitId: number | null; onRetour: () => void;
@@ -21,6 +24,9 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
   const [prixPromo, setPrixPromo] = useState('');
   const [stock, setStock] = useState('');
   const [sku, setSku] = useState('');
+  const [quantiteMin, setQuantiteMin] = useState('');
+  const [prixRevient, setPrixRevient] = useState('');
+  const [regles, setRegles] = useState<Regles>(REGLES_DEFAUT);
   const [categorieId, setCategorieId] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [variantes, setVariantes] = useState<Variante[]>([]);
@@ -35,6 +41,11 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
   const [erreur, setErreur] = useState('');
   const [succes, setSucces] = useState<string | null>(null);
   const fichier = useRef<HTMLInputElement>(null);
+
+  // Règles du gestionnaire (Config marketplace → Config produits)
+  useEffect(() => {
+    fetch(`${base}/produits-regles`, { credentials: 'include' }).then(r => (r.ok ? r.json() : null)).then(d => { if (d) setRegles({ ...REGLES_DEFAUT, ...d }); }).catch(() => {});
+  }, [base]);
 
   useEffect(() => {
     fetch(`${base}/categories`, { credentials: 'include' }).then(r => (r.ok ? r.json() : [])).then(setCategories).catch(() => {});
@@ -54,6 +65,7 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
         setTitre(p.titre || ''); setDescription(p.description || '');
         setPrix(p.prix ?? ''); setPrixPromo(p.prix_promo ?? '');
         setStock(p.stock === null || p.stock === undefined ? '' : String(p.stock));
+        setQuantiteMin(p.quantite_min ? String(p.quantite_min) : ''); setPrixRevient(p.prix_revient === null || p.prix_revient === undefined ? '' : String(p.prix_revient));
         setSku(p.sku || ''); setCategorieId(p.categorie_id ? String(p.categorie_id) : '');
         setPoids(p.poids === null || p.poids === undefined ? '' : String(Number(p.poids)));
         setMethodesSel(Array.isArray(p.methodes_expedition_ids) ? p.methodes_expedition_ids : []);
@@ -93,7 +105,17 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
   const enregistrer = async (statut: 'actif' | 'brouillon') => {
     setErreur('');
     if (!titre.trim()) { setErreur('Le titre est obligatoire'); return; }
-    if (prix === '' || Number(prix) < 0) { setErreur('Le prix est obligatoire'); return; }
+    if (prix === '' || !Number.isFinite(Number(prix)) || Number(prix) < 0) { setErreur('Le prix est obligatoire'); return; }
+    const verifPrix = (v: number, nom: string): string | null => {
+      if (v === 0) return regles.prix_zero ? null : `${nom} : le prix doit être supérieur à 0 (les annonces gratuites ne sont pas permises ici).`;
+      if (regles.prix_min > 0 && v < regles.prix_min) return `${nom} : le prix minimum est de ${formaterPrix(regles.prix_min)}.`;
+      return null;
+    };
+    const ep = verifPrix(Number(prix), 'Prix') || (prixPromo !== '' && Number(prixPromo) > 0 ? verifPrix(Number(prixPromo), 'Prix promo') : null)
+      || variantes.filter(v => v.nom.trim() && v.prix !== '').map(v => verifPrix(Number(v.prix), `Variante « ${v.nom.trim()} »`)).find(Boolean) || null;
+    if (ep) { setErreur(ep); return; }
+    if (regles.qte_min_active && quantiteMin !== '' && (!Number.isInteger(Number(quantiteMin)) || Number(quantiteMin) < 1 || Number(quantiteMin) > 9999)) { setErreur('La quantité minimum doit être un nombre entier entre 1 et 9 999'); return; }
+    if (regles.prix_revient && prixRevient !== '' && (!Number.isFinite(Number(prixRevient)) || Number(prixRevient) < 0)) { setErreur('Le prix de revient est invalide'); return; }
     if (categories.length > 0 && !categorieId) { setErreur('Choisissez une catégorie'); return; }
     if (prixPromo !== '' && Number(prixPromo) >= Number(prix)) { setErreur('Le prix promo doit être inférieur au prix'); return; }
     if (poids !== '' && (Number(poids) < 0 || !Number.isFinite(Number(poids)))) { setErreur('Le poids est invalide'); return; }
@@ -104,14 +126,16 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
       const res = await fetch(produitId ? `${base}/produits/${produitId}` : `${base}/produits`, {
         method: produitId ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          titre, description, prix, prix_promo: prixPromo, stock, sku, categorie_id: categorieId || null, photos, statut,
+          titre, description, prix, prix_promo: prixPromo, stock, sku, quantite_min: regles.qte_min_active ? quantiteMin : '', ...(regles.prix_revient ? { prix_revient: prixRevient } : {}), categorie_id: categorieId || null, photos, statut,
           poids: poids === '' ? null : poids,
           methodes_expedition_ids: methodesVendeur.length > 0 ? methodesSel : [],
           variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock })),
         }),
       });
       if (res.ok) {
-        setSucces(produitId ? 'Votre annonce a été mise à jour avec succès.' : statut === 'actif' ? 'Votre annonce a été publiée avec succès. Elle est maintenant visible dans votre boutique.' : 'Votre annonce a été enregistrée comme brouillon. Elle n\'est pas encore visible dans votre boutique.');
+        const retour = await res.clone().json().catch(() => ({}));
+        const enAttente = statut === 'actif' && retour.statut === 'en_attente';
+        setSucces(enAttente ? 'Votre annonce a été envoyée au gestionnaire pour approbation. Elle sera visible dans votre boutique dès qu\'elle sera approuvée.' : produitId ? 'Votre annonce a été mise à jour avec succès.' : statut === 'actif' ? 'Votre annonce a été publiée avec succès. Elle est maintenant visible dans votre boutique.' : 'Votre annonce a été enregistrée comme brouillon. Elle n\'est pas encore visible dans votre boutique.');
         setSauvegarde(false);
         return;
       }
@@ -132,6 +156,17 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
         <button onClick={onRetour} style={{ background: 'none', border: `1px solid ${T.border}`, borderRadius: 8, padding: '8px 12px', cursor: 'pointer', fontWeight: 700 }}>← Retour</button>
         <h2 style={{ margin: 0, fontSize: 20, color: T.text }}>{produitId ? '✏️ Modifier l\'annonce' : '➕ Nouvelle annonce'}</h2>
       </div>
+
+      {regles.aide && (
+        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e3a8a', borderRadius: 10, padding: '12px 14px', fontSize: 13, lineHeight: 1.5, marginBottom: 16, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          <strong>ℹ️ Message du gestionnaire</strong><br />{regles.aide}
+        </div>
+      )}
+      {!regles.approbation_auto && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', borderRadius: 10, padding: '10px 14px', fontSize: 12, marginBottom: 16 }}>
+          ⏳ Sur cette marketplace, une annonce publiée doit être approuvée par le gestionnaire avant d'être visible.
+        </div>
+      )}
 
       {(erreur || succes) && (
         <div onClick={() => { if (erreur) setErreur(''); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000, padding: 20 }}>
@@ -183,12 +218,49 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
       </div>
 
       <div style={carte}>
-        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : `repeat(${regles.gerer_stock ? 4 : 3}, 1fr)`, gap: 12 }}>
           <div><label style={lbl}>Prix ($) *</label><input type="number" min="0" step="0.01" value={prix} onChange={e => setPrix(e.target.value)} style={champ} /></div>
           <div><label style={lbl}>Prix promo ($)</label><input type="number" min="0" step="0.01" value={prixPromo} onChange={e => setPrixPromo(e.target.value)} style={champ} /></div>
-          <div><label style={lbl}>Stock</label><input type="number" min="0" step="1" value={stock} onChange={e => setStock(e.target.value)} placeholder="Illimité" style={champ} /></div>
+          {regles.gerer_stock && <div><label style={lbl}>Stock</label><input type="number" min="0" step="1" value={stock} onChange={e => setStock(e.target.value)} placeholder="Illimité" style={champ} /></div>}
           <div><label style={lbl}>SKU</label><input value={sku} onChange={e => setSku(e.target.value)} maxLength={60} style={champ} /></div>
         </div>
+        {(regles.prix_min > 0 || regles.prix_zero) && (
+          <p style={{ fontSize: 11, color: T.light, margin: '8px 0 0' }}>
+            {regles.prix_min > 0 ? `Prix minimum : ${formaterPrix(regles.prix_min)}.` : ''}{regles.prix_zero ? ' Les annonces gratuites (0 $) sont permises.' : ''}
+          </p>
+        )}
+        {regles.prix_revient && (() => {
+          const vente = prixPromo !== '' && Number(prixPromo) > 0 && Number(prixPromo) < Number(prix) ? Number(prixPromo) : Number(prix);
+          const cout = Number(prixRevient);
+          const profit = vente - cout;
+          return (
+            <div style={{ marginTop: 14 }}>
+              <label style={lbl}>Prix de revient (cost price)</label>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                <input type="number" min="0" step="0.01" value={prixRevient} onChange={e => setPrixRevient(e.target.value)} placeholder="Votre coût" style={{ ...champ, maxWidth: 200 }} />
+                {prix !== '' && prixRevient !== '' && Number.isFinite(profit) && (
+                  <span style={{ background: profit >= 0 ? '#e6f7e6' : '#fdecea', color: profit >= 0 ? '#2e7d32' : '#c0392b', border: `1px solid ${profit >= 0 ? '#a5d6a7' : '#f5b7b1'}`, padding: '8px 16px', borderRadius: 20, fontSize: 14, fontWeight: 600 }}>
+                    📈 Profit : {formaterPrix(profit)}
+                  </span>
+                )}
+              </div>
+              <p style={{ fontSize: 11, color: T.light, margin: '6px 0 0' }}>Jamais visible par les acheteurs : sert seulement à calculer votre profit.</p>
+            </div>
+          );
+        })()}
+        {regles.qte_min_active && (
+          <div style={{ marginTop: 14 }}>
+            <label style={lbl}>Quantité minimum d'achat</label>
+            <input type="number" min="1" max="9999" step="1" value={quantiteMin} onChange={e => setQuantiteMin(e.target.value)} placeholder="Aucune (1)" style={{ ...champ, maxWidth: 200 }} />
+            <p style={{ fontSize: 11, color: T.light, margin: '6px 0 0' }}>
+              {regles.qte_min_mode === 'produit'
+                ? "L'acheteur doit mettre au moins cette quantité de ce produit dans son panier."
+                : "La commande doit contenir au moins ce nombre d'articles au total (tous produits de votre boutique confondus)."}
+              {' '}L'acheteur est averti dans le panier et ne peut pas payer tant que ce n'est pas respecté. Laissez vide pour aucun minimum.
+            </p>
+          </div>
+        )}
+        {regles.categories && (
         <div style={{ marginTop: 12 }}>
           <label style={lbl}>Catégorie *</label>
           {categories.length > 0 ? (
@@ -199,6 +271,7 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
             </select>
           ) : <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>Le gestionnaire n'a pas encore créé de catégories.</p>}
         </div>
+        )}
       </div>
 
       <div style={carte}>
@@ -251,10 +324,10 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
         </div>
         {variantes.length === 0 && <p style={{ fontSize: 12, color: T.light, margin: 0 }}>Aucune variante — le produit est vendu tel quel.</p>}
         {variantes.map((v, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr 32px' : '2fr 1fr 1fr 32px', gap: 8, marginBottom: 8 }}>
-            <input value={v.nom} onChange={e => setVariantes(a => a.map((x, k) => (k === i ? { ...x, nom: e.target.value } : x)))} maxLength={60} placeholder="Nom (ex : Rouge, M)" style={{ ...champ, gridColumn: isMobile ? '1 / 4' : undefined }} />
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: isMobile ? (regles.gerer_stock ? '1fr 1fr 32px' : '1fr 32px') : (regles.gerer_stock ? '2fr 1fr 1fr 32px' : '2fr 1fr 32px'), gap: 8, marginBottom: 8 }}>
+            <input value={v.nom} onChange={e => setVariantes(a => a.map((x, k) => (k === i ? { ...x, nom: e.target.value } : x)))} maxLength={60} placeholder="Nom (ex : Rouge, M)" style={{ ...champ, gridColumn: isMobile ? '1 / -1' : undefined }} />
             <input type="number" min="0" step="0.01" value={v.prix} onChange={e => setVariantes(a => a.map((x, k) => (k === i ? { ...x, prix: e.target.value } : x)))} placeholder="Prix ($)" style={champ} />
-            <input type="number" min="0" step="1" value={v.stock} onChange={e => setVariantes(a => a.map((x, k) => (k === i ? { ...x, stock: e.target.value } : x)))} placeholder="Stock" style={champ} />
+            {regles.gerer_stock && <input type="number" min="0" step="1" value={v.stock} onChange={e => setVariantes(a => a.map((x, k) => (k === i ? { ...x, stock: e.target.value } : x)))} placeholder="Stock" style={champ} />}
             <button onClick={() => setVariantes(a => a.filter((_, k) => k !== i))} style={{ border: 'none', background: 'none', color: T.danger, cursor: 'pointer', fontSize: 16 }}>✕</button>
           </div>
         ))}

@@ -92,7 +92,7 @@ router.get('/produits', h(async (req, res) => {
   if (m) { params.push(m); where.push(`(p.titre ILIKE $${params.length} OR p.sku ILIKE $${params.length})`); }
   const cid = entier(req.query.collaborateur_id);
   if (cid) { params.push(cid); where.push(`p.collaborateur_id = $${params.length}`); }
-  if (STATUTS_PRODUIT.includes(req.query.statut)) { params.push(req.query.statut); where.push(`p.statut = $${params.length}`); }
+  if ([...STATUTS_PRODUIT, 'en_attente'].includes(req.query.statut)) { params.push(req.query.statut); where.push(`p.statut = $${params.length}`); }
   if (req.query.stock === 'rupture') where.push('p.stock = 0');
   const W = where.join(' AND ');
   const pg = page(req);
@@ -105,11 +105,11 @@ router.get('/produits', h(async (req, res) => {
         WHERE ${W} ORDER BY p.created_at DESC, p.id DESC LIMIT ${PAR_PAGE} OFFSET ${(pg - 1) * PAR_PAGE}`, params),
     pool.query(`SELECT COUNT(*) AS n FROM produits p WHERE ${W}`, params),
     pool.query(`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE statut = 'actif') AS actifs, COUNT(*) FILTER (WHERE statut = 'brouillon') AS brouillons,
-                       COUNT(*) FILTER (WHERE stock = 0) AS ruptures FROM produits WHERE gestionnaire_id = $1`, [req.gid]),
+                       COUNT(*) FILTER (WHERE statut = 'en_attente') AS en_attente, COUNT(*) FILTER (WHERE stock = 0) AS ruptures FROM produits WHERE gestionnaire_id = $1`, [req.gid]),
   ]);
   const n = parseInt(total.rows[0].n, 10), s = stats.rows[0];
   res.json({ produits: liste.rows, total: n, page: pg, pages: Math.max(1, Math.ceil(n / PAR_PAGE)),
-             stats: { total: +s.total, actifs: +s.actifs, brouillons: +s.brouillons, ruptures: +s.ruptures } });
+             stats: { total: +s.total, actifs: +s.actifs, brouillons: +s.brouillons, en_attente: +s.en_attente, ruptures: +s.ruptures } });
 }));
 
 router.get('/produits/:id', h(async (req, res) => {

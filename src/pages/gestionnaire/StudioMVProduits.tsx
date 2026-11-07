@@ -10,10 +10,10 @@ const C = { accent: '#c9a96e', green: '#10b981', red: '#ef4444', orange: '#f59e0
 
 interface Produit {
   id: number; titre: string; prix: string; prix_promo: string | null; stock: number | null; sku: string | null; categorie: string | null;
-  photo_principale: string | null; statut: 'actif' | 'brouillon'; collaborateur_id: number; boutique: string | null; en_enchere: boolean;
+  photo_principale: string | null; statut: 'actif' | 'brouillon' | 'en_attente'; collaborateur_id: number; boutique: string | null; en_enchere: boolean;
 }
 interface Fiche extends Produit { description: string | null; categorie_id: number | null; }
-interface Reponse { produits: Produit[]; total: number; page: number; pages: number; stats: { total: number; actifs: number; brouillons: number; ruptures: number } }
+interface Reponse { produits: Produit[]; total: number; page: number; pages: number; stats: { total: number; actifs: number; brouillons: number; en_attente?: number; ruptures: number } }
 
 function entetes(): Record<string, string> {
   let token: string | null = null;
@@ -60,6 +60,16 @@ const StudioMVProduits: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId
 
   const recherche = (v: string) => { setQ(v); if (minuterie.current) clearTimeout(minuterie.current); minuterie.current = setTimeout(() => { setPage(1); setQEff(v.trim()); }, 350); };
 
+  const changer = async (p: Produit, nouveau: 'actif' | 'brouillon') => {
+    setOccupe(true);
+    try {
+      const r = await fetch(`${base}/produits/${p.id}/statut`, { method: 'PATCH', credentials: 'include', headers: entetes(), body: JSON.stringify({ statut: nouveau }) });
+      if (!r.ok) setErreur((await r.json().catch(() => ({}))).error || 'Action impossible'); else setErreur('');
+      await charger();
+    } catch { setErreur('Erreur réseau'); }
+    setOccupe(false);
+  };
+
   const basculer = async (p: Produit) => {
     setOccupe(true);
     try {
@@ -88,7 +98,7 @@ const StudioMVProduits: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId
     if (!edition) return;
     setOccupe(true); setErrForm('');
     try {
-      const r = await fetch(`${base}/produits/${edition.id}`, { method: 'PUT', credentials: 'include', headers: entetes(), body: JSON.stringify(form) });
+      const r = await fetch(`${base}/produits/${edition.id}`, { method: 'PUT', credentials: 'include', headers: entetes(), body: JSON.stringify(form.statut === 'en_attente' ? { ...form, statut: undefined } : form) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) setErrForm(d.error || 'Enregistrement impossible');
       else { setEdition(null); await charger(); }
@@ -107,8 +117,14 @@ const StudioMVProduits: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId
       <h2 style={{ margin: '0 0 4px', fontSize: 22 }}>📦 Produits des collaborateurs</h2>
       <p style={{ margin: '0 0 16px', color: C.textLight, fontSize: 13 }}>Vous pouvez corriger le titre, la description, le prix, le stock ou retirer un produit. Les photos et les variantes restent gérées par le collaborateur.</p>
 
+      {(st?.en_attente ?? 0) > 0 && statut !== 'en_attente' && (
+        <button onClick={() => { setStatut('en_attente'); setPage(1); }} style={{ display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', background: '#FFF7ED', border: '1px solid #FED7AA', color: '#9A3412', borderRadius: 10, padding: '12px 16px', fontSize: 14, fontWeight: 700, marginBottom: 14 }}>
+          ⏳ {st?.en_attente} annonce{(st?.en_attente ?? 0) > 1 ? 's' : ''} en attente de ton approbation — cliquer pour les voir
+        </button>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 10, marginBottom: 14 }}>
-        {[['Total', st?.total, C.text], ['Actifs', st?.actifs, C.green], ['Brouillons', st?.brouillons, C.orange], ['En rupture', st?.ruptures, C.red]].map(([l, v, c]) => (
+        {[['Total', st?.total, C.text], ['Actifs', st?.actifs, C.green], ['À approuver', st?.en_attente, '#C2570C'], ['Brouillons', st?.brouillons, C.orange], ['En rupture', st?.ruptures, C.red]].map(([l, v, c]) => (
           <div key={String(l)} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: '10px 14px' }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: String(c) }}>{v ?? 0}</div><div style={{ fontSize: 11, color: C.textLight, textTransform: 'uppercase' }}>{l}</div>
           </div>
@@ -121,7 +137,7 @@ const StudioMVProduits: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId
           <option value="">Tous les collaborateurs</option>{collabs.map(c => <option key={c.id} value={c.id}>{c.nom_boutique || `Collaborateur ${c.id}`}</option>)}
         </select>
         <select value={statut} onChange={e => { setStatut(e.target.value); setPage(1); }} style={{ ...champ, width: 'auto' }}>
-          <option value="">Tous les statuts</option><option value="actif">Actifs</option><option value="brouillon">Brouillons</option>
+          <option value="">Tous les statuts</option><option value="actif">Actifs</option><option value="en_attente">À approuver</option><option value="brouillon">Brouillons</option>
         </select>
       </div>
 
@@ -144,10 +160,15 @@ const StudioMVProduits: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId
                 {p.prix_promo ? (<><strong style={{ color: C.red }}>{argent(p.prix_promo)}</strong> <s style={{ color: C.textLight, fontSize: 11 }}>{argent(p.prix)}</s></>) : <strong>{argent(p.prix)}</strong>}
               </div>
               <div style={{ fontSize: 13, minWidth: 60, color: p.stock === 0 ? C.red : C.text, fontWeight: p.stock === 0 ? 700 : 400 }}>{p.stock === null ? '∞' : p.stock === 0 ? 'Rupture' : p.stock}</div>
-              <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: p.statut === 'actif' ? '#E9F7EF' : '#FEF9E7', color: p.statut === 'actif' ? '#1E8449' : '#B7950B' }}>{p.statut === 'actif' ? 'Actif' : 'Brouillon'}</span>
+              <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: p.statut === 'actif' ? '#E9F7EF' : p.statut === 'en_attente' ? '#FFF3E0' : '#FEF9E7', color: p.statut === 'actif' ? '#1E8449' : p.statut === 'en_attente' ? '#C2570C' : '#B7950B' }}>{p.statut === 'actif' ? 'Actif' : p.statut === 'en_attente' ? '⏳ À approuver' : 'Brouillon'}</span>
               <div style={{ display: 'flex', gap: 6 }}>
                 <button disabled={occupe} onClick={() => ouvrir(p)} style={bouton(C.accent)}>✏️ Modifier</button>
-                <button disabled={occupe} onClick={() => basculer(p)} style={bouton(C.textLight)}>{p.statut === 'actif' ? '⏸ Retirer' : '▶ Publier'}</button>
+                {p.statut === 'en_attente' ? (<>
+                  <button disabled={occupe} onClick={() => basculer(p)} style={bouton(C.green)}>✅ Approuver</button>
+                  <button disabled={occupe} onClick={() => changer(p, 'brouillon')} style={bouton(C.red)} title="Renvoie l'annonce en brouillon chez le collaborateur">✖ Refuser</button>
+                </>) : (
+                  <button disabled={occupe} onClick={() => basculer(p)} style={bouton(C.textLight)}>{p.statut === 'actif' ? '⏸ Retirer' : '▶ Publier'}</button>
+                )}
               </div>
             </div>
           ))}
@@ -184,7 +205,7 @@ const StudioMVProduits: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId
               <div><label style={{ fontSize: 12, fontWeight: 700 }}>Catégorie</label>
                 <select value={form.categorie_id} onChange={set('categorie_id')} style={champ}><option value="">—</option>{categories.map(c => <option key={c.id} value={c.id}>{c.nom}</option>)}</select></div>
               <div><label style={{ fontSize: 12, fontWeight: 700 }}>Statut</label>
-                <select value={form.statut} onChange={set('statut')} style={champ}><option value="actif">Actif</option><option value="brouillon">Brouillon</option></select></div>
+                <select value={form.statut} onChange={set('statut')} style={champ}>{form.statut === 'en_attente' && <option value="en_attente">À approuver</option>}<option value="actif">Actif (approuvé)</option><option value="brouillon">Brouillon</option></select></div>
             </div>
             {errForm && <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{errForm}</div>}
             <div style={{ display: 'flex', gap: 10 }}>

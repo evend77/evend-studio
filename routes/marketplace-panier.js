@@ -13,6 +13,7 @@ const taxesMV = require('../services/studio_taxes');
 const expMV = require('../services/studio_expedition');
 const vacMV = require('../services/studio_vacances');
 const cfgMV = require('../services/studio_config_mv');
+const regles = require('../services/studio_regles_produits');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -84,11 +85,12 @@ function calculerTaxesProvince(sousTotal, fraisExp, province, articles, pourboir
 
 // Prix unitaire et stock disponible d'un produit, ou de la variante choisie.
 // Variantes : [{ nom, prix (vide = prix du produit), stock (vide = stock du produit) }] ; stock vide = illimité.
-function prixEtStock(produit, nomVariante) {
+function prixEtStock(produit, nomVariante, gererStock = true) {
   const base = Number(produit.prix) || 0;
   const promo = produit.prix_promo !== null && produit.prix_promo !== undefined ? Number(produit.prix_promo) : 0;
   const prixProduit = promo > 0 && promo < base ? promo : base;
-  const stockProduit = produit.stock === null || produit.stock === undefined ? 999999 : Math.max(0, Number(produit.stock) || 0);
+  // gererStock = false (Config produits → Gérer l'inventaire) : le stock n'est plus suivi, les ventes continuent même à 0
+  const stockProduit = !gererStock || produit.stock === null || produit.stock === undefined ? 999999 : Math.max(0, Number(produit.stock) || 0);
   let vars = produit.variantes;
   if (typeof vars === 'string') { try { vars = JSON.parse(vars); } catch (e) { vars = []; } }
   vars = Array.isArray(vars) ? vars.filter((v) => v && typeof v.nom === 'string' && v.nom.trim()) : [];
@@ -97,7 +99,7 @@ function prixEtStock(produit, nomVariante) {
   const v = vars.find((x) => x.nom.trim() === nomVariante);
   if (!v) return { erreur: 'Variante inconnue.' };
   const prixVar = v.prix === null || v.prix === undefined || v.prix === '' || !(Number(v.prix) >= 0) ? prixProduit : Number(v.prix);
-  const stockVar = v.stock === null || v.stock === undefined || v.stock === '' ? stockProduit : Math.max(0, Math.trunc(Number(v.stock)) || 0);
+  const stockVar = !gererStock ? 999999 : v.stock === null || v.stock === undefined || v.stock === '' ? stockProduit : Math.max(0, Math.trunc(Number(v.stock)) || 0);
   return { prix: prixVar, stock: stockVar };
 }
 
@@ -107,14 +109,23 @@ router.get('/:gid/panier', authMV, async (req, res) => {
   const acheteurId = req.mvUser.id;
   try {
     const r = await pool.query(
-      `SELECT mp.*, mp.collaborateur_id AS vendeur_id, COALESCE(mc.nom_boutique, mc.nom_responsable) AS vendeur_nom
+      `SELECT mp.*, mp.collaborateur_id AS vendeur_id, COALESCE(mc.nom_boutique, mc.nom_responsable) AS vendeur_nom,
+              (SELECT p.quantite_min FROM produits p WHERE p.id = NULLIF(regexp_replace(mp.produit_id, '[^0-9].*$', ''), '')::int) AS quantite_min
        FROM marketplace_panier mp
        JOIN marketplace_collaborateurs mc ON mc.id = mp.collaborateur_id
        WHERE mp.acheteur_id = $1 AND mp.gestionnaire_id = $2
        ORDER BY mp.created_at ASC`,
       [acheteurId, gid]
     );
-    res.json({ articles: await taxesMV.marquerLignes(pool, parseInt(gid, 10), r.rows) });
+    // Quantité minimum d'achat (Config produits) : on avertit ici, et le paiement est refusé tant que ce n'est pas respecté
+    const regP = await regles.lire(gid, pool);
+    const avertissements = [];
+    if (regP.qteMinActive) {
+      const parVendeur = new Map();
+      for (const l of r.rows) { if (!parVendeur.has(l.vendeur_id)) parVendeur.set(l.vendeur_id, []); parVendeur.get(l.vendeur_id).push({ produit_id: l.produit_id, titre: l.titre, quantite: l.quantite, quantite_min: l.quantite_min, enchere_id: l.enchere_id }); }
+      for (const [vendeurId, lignes] of parVendeur) for (const a of regles.verifierQuantitesMin(regP, lignes)) avertissements.push({ vendeur_id: vendeurId, produit_id: a.produit_id, message: a.message });
+    }
+    res.json({ articles: await taxesMV.marquerLignes(pool, parseInt(gid, 10), r.rows), avertissements });
   } catch (err) { res.status(500).json({ error: 'Erreur serveur' }); }
 });
 
@@ -143,7 +154,7 @@ router.post('/:gid/panier', authMV, async (req, res) => {
     if (vacs && vacs.mode === 'masque') return res.status(409).json({ error: vacMV.texteBlocage(vacs) });
 
     // Prix et stock viennent de la base (jamais du navigateur) ; la variante choisie les remplace si elle en a.
-    const choix = prixEtStock(produit, nomVariante);
+    const choix = prixEtStock(produit, nomVariante, (await regles.lire(gid, pool)).gererStock);
     if (choix.erreur) return res.status(400).json({ error: choix.erreur });
 
     const existant = await pool.query(
@@ -188,7 +199,7 @@ router.patch('/:gid/panier/:id', authMV, async (req, res) => {
     if (!l.rows[0]) return res.status(404).json({ error: 'Article introuvable' });
     if (l.rows[0].enchere_id) return res.status(409).json({ error: 'Article gagné aux enchères : la quantité ne peut pas être modifiée.' });
     if (l.rows[0].prix !== null) {
-      const c = prixEtStock(l.rows[0], l.rows[0].variante || '');
+      const c = prixEtStock(l.rows[0], l.rows[0].variante || '', (await regles.lire(gid, pool)).gererStock);
       if (!c.erreur && qte > c.stock) return res.status(409).json({ error: c.stock <= 0 ? 'Cet article est épuisé.' : `Stock insuffisant : il n'en reste que ${c.stock}.` });
     }
     await pool.query(

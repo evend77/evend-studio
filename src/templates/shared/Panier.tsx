@@ -59,6 +59,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
   const getToken = () => localStorage.getItem(`mv_token_${gestionnaireId}`);
   const isMobile = useIsMobile();
   const [groupes, setGroupes] = useState<GroupeVendeur[]>([]);
+  const [avertissements, setAvertissements] = useState<{ vendeur_id: number; produit_id: string; message: string }[]>([]);   // quantité minimum non atteinte
   const [plusTard, setPlusTard] = useState<ArticlePlusTard[]>([]);
   const [vendeurSelectionne, setVendeurSelectionne] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -129,6 +130,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
       const data = await res.json();
       const g = grouperParVendeur(data.articles || []);
       setGroupes(g);
+      setAvertissements(Array.isArray(data.avertissements) ? data.avertissements : []);
       // Sélectionner le premier vendeur par défaut
       if (g.length > 0) {
         setVendeurSelectionne(prev => prev !== null && g.find(x => x.vendeur_id === prev) ? prev : g[0].vendeur_id);
@@ -202,7 +204,8 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
   const totalSelectionne = groupeSelectionne?.sous_total || 0;
   const articlesSelectionnes = groupeSelectionne?.articles.reduce((s, a) => s + a.quantite, 0) || 0;
   const multiVendeurs = groupes.length > 1;
-  const peutPayer = articlesSelectionnes > 0;
+  const avisSelectionne = avertissements.filter(a => a.vendeur_id === vendeurSelectionne);
+  const peutPayer = articlesSelectionnes > 0 && avisSelectionne.length === 0;
 
   // ── LOADING ──────────────────────────────────────────────────────────────
   if (loading) return (
@@ -419,6 +422,14 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                   </div>
                 </div>
 
+
+                {avertissements.filter(a => a.vendeur_id === groupe.vendeur_id).length > 0 && (
+                  <div role="alert" style={{ background: '#FFF7ED', border: '1px solid #FED7AA', color: '#9A3412', borderRadius: 10, padding: '10px 14px', margin: '0 0 10px', fontSize: 13, lineHeight: 1.5 }}>
+                    <strong>⚠️ Quantité minimum non atteinte</strong>
+                    {avertissements.filter(a => a.vendeur_id === groupe.vendeur_id).map((a, i) => <div key={i}>{a.message}</div>)}
+                    <div style={{ fontSize: 12, marginTop: 4 }}>Augmentez la quantité pour pouvoir passer à la caisse.</div>
+                  </div>
+                )}
 
                 {/* Liste des articles */}
                 <div style={s.articlesListe}>
@@ -725,7 +736,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
               ) : (
                 <>
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  {articlesSelectionnes === 0 ? "Sélectionnez un vendeur" : "Caisse indisponible"}
+                  {articlesSelectionnes === 0 ? "Sélectionnez un vendeur" : avisSelectionne.length > 0 ? "Quantité minimum non atteinte" : "Caisse indisponible"}
                 </>
               )}
             </button>

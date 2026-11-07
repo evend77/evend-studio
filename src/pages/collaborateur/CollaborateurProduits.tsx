@@ -8,11 +8,11 @@ import { formaterPrix } from '../../templates/shared/devise';
 interface Produit {
   id: number; titre: string; prix: string; prix_promo: string | null; stock: number | null;
   sku: string | null; categorie: string | null; photo_principale: string | null;
-  statut: 'actif' | 'brouillon'; created_at: string;
+  statut: 'actif' | 'brouillon' | 'en_attente'; created_at: string;
 }
 interface Reponse {
   produits: Produit[]; total: number; page: number; pages: number;
-  stats: { total: number; actifs: number; brouillons: number; ruptures: number };
+  stats: { total: number; actifs: number; brouillons: number; en_attente?: number; ruptures: number };
 }
 interface EnchereCollab {
   id: number; produit_id: number; statut: string; prix_depart: number; mise_actuelle: number | null; nb_mises: number; date_fin: string;
@@ -166,11 +166,12 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
       </div>
 
       {/* Compteurs */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)', gap: 10, marginBottom: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : `repeat(${(data?.stats.en_attente ?? 0) > 0 ? 5 : 4}, 1fr)`, gap: 10, marginBottom: 16 }}>
         {[
           { l: 'Total', v: data?.stats.total ?? 0, f: () => { setStatut(''); setRupture(false); setPage(1); } },
           { l: 'Actives', v: data?.stats.actifs ?? 0, f: () => { setStatut('actif'); setRupture(false); setPage(1); } },
           { l: 'Brouillons', v: data?.stats.brouillons ?? 0, f: () => { setStatut('brouillon'); setRupture(false); setPage(1); } },
+          ...((data?.stats.en_attente ?? 0) > 0 ? [{ l: 'En attente', v: data?.stats.en_attente ?? 0, f: () => { setStatut('en_attente'); setRupture(false); setPage(1); } }] : []),
           { l: 'En rupture', v: data?.stats.ruptures ?? 0, f: () => { setStatut(''); setRupture(true); setPage(1); } },
         ].map(c => (
           <button key={c.l} onClick={c.f} style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 14px', textAlign: 'left', cursor: 'pointer' }}>
@@ -189,6 +190,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
           <option value="">Tous les statuts</option>
           <option value="actif">Actives</option>
           <option value="brouillon">Brouillons</option>
+          <option value="en_attente">En attente d'approbation</option>
         </select>
         {rupture && <button onClick={() => { setRupture(false); setPage(1); }} style={bouton(accent)}>En rupture ✕</button>}
         {choisis.length > 0 && (
@@ -235,11 +237,11 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
               <div style={{ fontSize: 13, color: p.stock === 0 ? T.danger : T.text, fontWeight: p.stock === 0 ? 700 : 400 }}>
                 {p.stock === null ? '∞' : p.stock === 0 ? 'Rupture' : p.stock}
               </div>
-              <div><span style={badge(p.statut)}>{p.statut === 'actif' ? 'Active' : 'Brouillon'}</span></div>
+              <div><span style={p.statut === 'en_attente' ? { ...badge('x'), background: '#FFF3E0', color: '#C2570C' } : badge(p.statut)} title={p.statut === 'en_attente' ? 'Le gestionnaire doit approuver cette annonce avant sa publication' : undefined}>{p.statut === 'actif' ? 'Active' : p.statut === 'en_attente' ? '⏳ En attente' : 'Brouillon'}</span></div>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 <button disabled={occupe} onClick={() => onModifier(p.id)} style={bouton(accent)}>✏️ Modifier</button>
-                <button disabled={occupe} onClick={() => action(`/produits/${p.id}/statut`, 'PATCH', { statut: p.statut === 'actif' ? 'brouillon' : 'actif' })} style={bouton(T.light)}>
-                  {p.statut === 'actif' ? '⏸ Retirer' : '▶ Publier'}
+                <button disabled={occupe} onClick={() => action(`/produits/${p.id}/statut`, 'PATCH', { statut: p.statut === 'brouillon' ? 'actif' : 'brouillon' })} style={bouton(T.light)}>
+                  {p.statut === 'actif' ? '⏸ Retirer' : p.statut === 'en_attente' ? '↩ Annuler la demande' : '▶ Publier'}
                 </button>
                 {encheres[p.id] ? (
                   encheres[p.id].statut === 'active' && encheres[p.id].nb_mises === 0

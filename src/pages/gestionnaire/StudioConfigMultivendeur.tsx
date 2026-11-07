@@ -148,9 +148,8 @@ interface ConfigMV {
   approuver_auto_produit: boolean; gerer_inventaire_par_defaut: boolean;
   quantite_minimum_achat: boolean; application_quantite_minimum: string;
   prix_zero_autorise: boolean; texte_aide_formulaire: boolean;
-  delais_livraison: boolean; cacher_champ_tags: boolean;
   support_video_media: boolean; permettre_ajout_prix_revient: boolean;
-  afficher_nom_marque: boolean; type_prix_libre: boolean;
+  texte_aide_produit: string;
   prix_minimum: string; date_publication_future: boolean;
   date_vente_future: boolean; afficher_produits_futurs: boolean;
   liste_produits_desactives_mail: boolean;
@@ -228,9 +227,8 @@ const DEFAUTS: ConfigMV = {
   approuver_auto_produit: true, gerer_inventaire_par_defaut: true,
   quantite_minimum_achat: false, application_quantite_minimum: 'produit',
   prix_zero_autorise: false, texte_aide_formulaire: false,
-  delais_livraison: false, cacher_champ_tags: false,
   support_video_media: false, permettre_ajout_prix_revient: false,
-  afficher_nom_marque: false, type_prix_libre: false, prix_minimum: '0',
+  texte_aide_produit: '', prix_minimum: '0',
   date_publication_future: false, date_vente_future: false,
   afficher_produits_futurs: false, liste_produits_desactives_mail: false,
   restreindre_caracteres_speciaux: false, frais_transaction: false,
@@ -306,7 +304,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
         if (k.startsWith('banniere_vendeur_')) { const n = k.replace('banniere_vendeur_', 'banniere_collab_'); if (mv[n] === undefined) mv[n] = mv[k]; delete mv[k]; }
       }
       delete mv.approuver_auto_vendeur;   // ancien réglage inactif (valeur par défaut « true » jamais appliquée) : on ne la reprend pas
-      for (const k of ['permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif']) delete mv[k];   // réglages supprimés de Config vendeur
+      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif']) delete mv[k];   // réglages supprimés de Config vendeur
       if (mv.bloquer_inscription_vendeur !== undefined) { if (mv.bloquer_inscription_collaborateur === undefined) mv.bloquer_inscription_collaborateur = mv.bloquer_inscription_vendeur; delete mv.bloquer_inscription_vendeur; }
       // Nom de la marketplace et courriel de contact : une seule source, partagée avec « Configurer mes pages »
       try {
@@ -342,6 +340,8 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
     if (!aSauver.nom_marketplace.trim()) { showToast('❌ Le nom de la marketplace est obligatoire', 'danger'); setOnglet('generalite'); return; }
     if (!courrielOk(aSauver.email_contact) || !courrielOk(aSauver.store_email)) { showToast('❌ Courriel invalide (Généralité)', 'danger'); setOnglet('generalite'); return; }
     const max = parseInt(String(aSauver.max_produits), 10);
+    const pmin = Number(aSauver.prix_minimum);
+    if (aSauver.prix_minimum !== '' && (!Number.isFinite(pmin) || pmin < 0 || pmin > 1000000)) { showToast('❌ Prix minimum invalide : entrez un nombre positif (0 = aucun minimum)', 'danger'); setOnglet('produits'); return; }
     if (aSauver.max_produits !== '' && (!Number.isFinite(max) || max < 0 || max > 100000)) { showToast('❌ Max produits : entrez un nombre entre 0 et 100000 (0 = illimité)', 'danger'); setOnglet('generalite'); return; }
     for (const k of ['social_facebook', 'social_instagram', 'social_x', 'social_linkedin', 'social_youtube', 'social_tiktok', 'social_pinterest'] as const) {
       const v = String(aSauver[k] || '').trim();
@@ -729,59 +729,50 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'start' }}>
           <div>
             <Section titre="Gestion des produits" icon="📦">
-              <ParamLigne label="Approuver automatiquement les produits">
+              <ParamLigne label="Approuver automatiquement les produits" description="Activé : une annonce publiée est visible tout de suite. Désactivé : elle reste « en attente » jusqu'à ce que tu l'approuves (page Produits).">
                 <Toggle actif={config.approuver_auto_produit} onChange={set('approuver_auto_produit')} />
               </ParamLigne>
-              <ParamLigne label="Gérer l'inventaire par défaut">
+              <ParamLigne label="Gérer l'inventaire" description="Désactivé : on ne gère plus le stock. Les ventes continuent même à 0 et le champ stock disparaît du formulaire d'annonce.">
                 <Toggle actif={config.gerer_inventaire_par_defaut} onChange={set('gerer_inventaire_par_defaut')} />
               </ParamLigne>
-              <ParamLigne label="Prix zéro autorisé">
+              <ParamLigne label="Prix zéro autorisé" description="Activé : une annonce peut être gratuite (0 $). Désactivé : un prix supérieur à 0 est obligatoire.">
                 <Toggle actif={config.prix_zero_autorise} onChange={set('prix_zero_autorise')} />
               </ParamLigne>
-              <ParamLigne label="Type de prix libre" description="Les vendeurs peuvent fixer un type de prix libre.">
-                <Toggle actif={config.type_prix_libre} onChange={set('type_prix_libre')} />
+              <ParamLigne label="Prix minimum" description="Prix de vente minimum d'une annonce (0 = aucun minimum). Appliqué à la création et à la modification.">
+                <input type="number" style={{ ...inputStyle, width: '100px' }} value={config.prix_minimum} onChange={e => set('prix_minimum')(e.target.value)} min="0" step="0.01" />
               </ParamLigne>
-              {config.type_prix_libre && (
-                <ParamLigne label="Prix minimum">
-                  <input type="number" style={{ ...inputStyle, width: '100px' }} value={config.prix_minimum} onChange={e => set('prix_minimum')(e.target.value)} min="0" />
-                </ParamLigne>
-              )}
-              <ParamLigne label="Quantité minimum d'achat">
+              <ParamLigne label="Quantité minimum d'achat" description="Le collaborateur peut fixer une quantité minimum par annonce. L'acheteur est averti dans le panier et bloqué au paiement tant qu'elle n'est pas atteinte.">
                 <Toggle actif={config.quantite_minimum_achat} onChange={set('quantite_minimum_achat')} />
               </ParamLigne>
               {config.quantite_minimum_achat && (
-                <ParamLigne label="Application quantité minimum">
+                <ParamLigne label="Application de la quantité minimum" description="Par produit : l'acheteur doit prendre au moins X unités de ce produit. Par commande : la commande doit contenir au moins X articles au total.">
                   <select style={{ ...selectStyle, width: '160px' }} value={config.application_quantite_minimum} onChange={e => set('application_quantite_minimum')(e.target.value)}>
                     <option value="produit">Par produit</option>
                     <option value="commande">Par commande</option>
                   </select>
                 </ParamLigne>
               )}
-              <ParamLigne label="Texte d'aide formulaire produit">
+              <ParamLigne label="Texte d'aide du formulaire d'annonce" description="Activé : une zone de texte apparaît ici. Ton message s'affiche en haut du formulaire « Créer une annonce » de tes collaborateurs.">
                 <Toggle actif={config.texte_aide_formulaire} onChange={set('texte_aide_formulaire')} />
               </ParamLigne>
-              <ParamLigne label="Délais de livraison">
-                <Toggle actif={config.delais_livraison} onChange={set('delais_livraison')} />
-              </ParamLigne>
-              <ParamLigne label="Cacher le champ tags">
-                <Toggle actif={config.cacher_champ_tags} onChange={set('cacher_champ_tags')} />
-              </ParamLigne>
-              <ParamLigne label="Support vidéo media">
-                <Toggle actif={config.support_video_media} onChange={set('support_video_media')} />
-              </ParamLigne>
-              <ParamLigne label="Ajouter le prix de revient">
+              {config.texte_aide_formulaire && (
+                <ParamLigne label="Ton texte d'aide" description="Ex. : consignes pour les photos, règles de la marketplace, produits interdits… (1 000 caractères max.)">
+                  <textarea style={{ ...inputStyle, width: '100%', minHeight: '90px', resize: 'vertical', boxSizing: 'border-box' }} maxLength={1000} value={config.texte_aide_produit} onChange={e => set('texte_aide_produit')(e.target.value)} placeholder="Texte affiché aux collaborateurs…" />
+                </ParamLigne>
+              )}
+              <ParamLigne label="Prix de revient" description="Activé : le collaborateur peut entrer son prix de revient (jamais visible par les acheteurs) et voit son profit calculé dans le formulaire d'annonce.">
                 <Toggle actif={config.permettre_ajout_prix_revient} onChange={set('permettre_ajout_prix_revient')} />
               </ParamLigne>
-              <ParamLigne label="Afficher le nom de marque">
-                <Toggle actif={config.afficher_nom_marque} onChange={set('afficher_nom_marque')} />
+              <ParamLigne label="Support vidéo média" description="À venir : ce réglage n'est pas encore actif.">
+                <Toggle actif={config.support_video_media} onChange={set('support_video_media')} />
               </ParamLigne>
-              <ParamLigne label="Publication future" description="Programmer la publication d'un produit.">
+              <ParamLigne label="Publication future" description="À venir : ce réglage n'est pas encore actif. Programmer la publication d'une annonce.">
                 <Toggle actif={config.date_publication_future} onChange={set('date_publication_future')} />
               </ParamLigne>
-              <ParamLigne label="Vente future" description="Programmer la date de début de vente.">
+              <ParamLigne label="Vente future" description="À venir : ce réglage n'est pas encore actif. Programmer la date de début de vente.">
                 <Toggle actif={config.date_vente_future} onChange={set('date_vente_future')} />
               </ParamLigne>
-              <ParamLigne label="Afficher les produits futurs" derniere>
+              <ParamLigne label="Afficher les produits futurs" description="À venir : ce réglage n'est pas encore actif." derniere>
                 <Toggle actif={config.afficher_produits_futurs} onChange={set('afficher_produits_futurs')} />
               </ParamLigne>
             </Section>
@@ -789,7 +780,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
 
           <div>
             <Section titre="Taxes et frais" icon="💰">
-              <ParamLigne label="Mode de taxation">
+              <ParamLigne label="Mode de taxation" description="À venir : on y revient plus tard (les taxes actuelles sont gérées par collaborateur).">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {([
                     { val: 'libre', label: '🔓 Libre — le vendeur choisit', desc: 'La checkbox est visible et modifiable.' },
@@ -806,7 +797,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
                 </div>
               </ParamLigne>
 
-              <ParamLigne label="Destinataire des taxes">
+              <ParamLigne label="Destinataire des taxes" description="À venir : on y revient plus tard.">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {([
                     { val: 'admin', label: '🏢 Admin', desc: 'Les taxes vont à la plateforme.' },
@@ -822,11 +813,11 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
                 </div>
               </ParamLigne>
 
-              <ParamLigne label="Frais de transaction" description="Ajouter des frais sur chaque transaction.">
+              <ParamLigne label="Frais de transaction" description="À venir : on y revient plus tard (à revoir avec l'onglet Commission).">
                 <Toggle actif={config.frais_transaction} onChange={set('frais_transaction')} />
               </ParamLigne>
               {config.frais_transaction && (<>
-                <ParamLigne label="Porteur des frais">
+                <ParamLigne label="Porteur des frais" description="À venir : on y revient plus tard.">
                   <select style={{ ...selectStyle, width: '160px' }} value={config.porteur_frais_transaction} onChange={e => set('porteur_frais_transaction')(e.target.value)}>
                     <option value="admin">Plateforme</option>
                     <option value="vendeur">Vendeur</option>
@@ -847,13 +838,13 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
                 </ParamLigne>
               </>)}
 
-              <ParamLigne label="Arrondi des prix (décimales)" derniere>
+              <ParamLigne label="Arrondi des prix (décimales)" description="À venir : on y revient plus tard." derniere>
                 <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.arrondi_prix} onChange={e => set('arrondi_prix')(e.target.value)} min="0" max="4" />
               </ParamLigne>
             </Section>
 
             <Section titre="Unités et mesures" icon="📏">
-              <ParamLigne label="Unité de poids">
+              <ParamLigne label="Unité de poids" description="À venir : pas encore actif (le poids des annonces est en kg pour l'instant).">
                 <select style={{ ...selectStyle, width: '120px' }} value={config.weight_unit} onChange={e => set('weight_unit')(e.target.value)}>
                   <option value="kg">kg</option>
                   <option value="lb">lb</option>
@@ -861,7 +852,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
                   <option value="oz">oz</option>
                 </select>
               </ParamLigne>
-              <ParamLigne label="Unité de dimension" derniere>
+              <ParamLigne label="Unité de dimension" description="À venir : servira au système d'étiquettes Shippo / EasyPost." derniere>
                 <select style={{ ...selectStyle, width: '120px' }} value={config.dimension_unit} onChange={e => set('dimension_unit')(e.target.value)}>
                   <option value="cm">cm</option>
                   <option value="in">in</option>

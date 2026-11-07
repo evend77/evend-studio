@@ -20,6 +20,7 @@ const paiementMV = require('../services/studio_paiement');
 const expMV = require('../services/studio_expedition');
 const vacMV = require('../services/studio_vacances');
 const cfgMV = require('../services/studio_config_mv');
+const regles = require('../services/studio_regles_produits');
 const rembMV = require('../services/studio_remboursement');
 
 const router = express.Router({ mergeParams: true });
@@ -189,7 +190,8 @@ function urlImage(req, v, nom) {
 // PRODUITS (annonces)
 // ════════════════════════════════════════════════════════════════════════════
 
-const STATUTS_PRODUIT = ['actif', 'brouillon'];
+const STATUTS_PRODUIT = ['actif', 'brouillon'];           // ce que le collaborateur peut demander
+const STATUTS_FILTRE = ['actif', 'brouillon', 'en_attente']; // ce qui peut exister en base (en_attente = attend l'approbation du gestionnaire)
 
 router.get('/categories', h(async (req, res) => {
   // Catégories désactivées par le gestionnaire (Config vendeur → Permettre les catégories) : liste vide = le champ disparaît du formulaire.
@@ -207,7 +209,7 @@ router.get('/produits', h(async (req, res) => {
   const params = [req.cid, req.gid];
   const m = motif(req.query.q);
   if (m) { params.push(m); where.push(`(titre ILIKE $${params.length} OR sku ILIKE $${params.length})`); }
-  if (STATUTS_PRODUIT.includes(req.query.statut)) { params.push(req.query.statut); where.push(`statut = $${params.length}`); }
+  if (STATUTS_FILTRE.includes(req.query.statut)) { params.push(req.query.statut); where.push(`statut = $${params.length}`); }
   if (req.query.stock === 'rupture') where.push('stock = 0');
   const W = where.join(' AND ');
   const page = pageDemandee(req);
@@ -218,14 +220,14 @@ router.get('/produits', h(async (req, res) => {
     pool.query(`SELECT COUNT(*) AS n FROM produits WHERE ${W}`, params),
     pool.query(
       `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE statut = 'actif') AS actifs,
-              COUNT(*) FILTER (WHERE statut = 'brouillon') AS brouillons, COUNT(*) FILTER (WHERE stock = 0) AS ruptures
+              COUNT(*) FILTER (WHERE statut = 'brouillon') AS brouillons, COUNT(*) FILTER (WHERE statut = 'en_attente') AS en_attente, COUNT(*) FILTER (WHERE stock = 0) AS ruptures
          FROM produits WHERE collaborateur_id = $1 AND gestionnaire_id = $2`, [req.cid, req.gid]),
   ]);
   const n = parseInt(total.rows[0].n, 10);
   const s = stats.rows[0];
   res.json({
     produits: liste.rows, total: n, page, pages: Math.max(1, Math.ceil(n / PAR_PAGE)),
-    stats: { total: +s.total, actifs: +s.actifs, brouillons: +s.brouillons, ruptures: +s.ruptures },
+    stats: { total: +s.total, actifs: +s.actifs, brouillons: +s.brouillons, en_attente: +s.en_attente, ruptures: +s.ruptures },
   });
 }));
 
@@ -236,11 +238,19 @@ async function uniteReserveeEnchere(db, produitId) {
   } catch (err) { return false; } // table des enchères absente
 }
 
+// Règles fixées par le gestionnaire (Config produits) : le formulaire « Créer une annonce » s'adapte
+router.get('/produits-regles', h(async (req, res) => {
+  const r = await regles.lire(req.gid, pool);
+  res.json({ approbation_auto: r.approbationAuto, gerer_stock: r.gererStock, prix_zero: r.prixZero, prix_min: r.prixMin, qte_min_active: r.qteMinActive,
+             qte_min_mode: r.qteMinMode, aide: r.aide, prix_revient: r.prixRevient, devise: r.devise,
+             categories: cfgMV.actif(await cfgMV.lire(req.gid, pool), 'permettre_categories', true) });
+}));
+
 router.get('/produits/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
   const r = await pool.query(
-    `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id, photo_principale, photos, variantes, statut, poids
+    `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id, photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient
        FROM produits WHERE id = $1 AND collaborateur_id = $2 AND gestionnaire_id = $3`, [id, req.cid, req.gid]);
   if (!r.rows.length) bad('Produit introuvable', 404);
   let methodes = [];
@@ -248,6 +258,7 @@ router.get('/produits/:id', h(async (req, res) => {
   // Enchère en cours : 1 unité est retirée du stock vendable. Le formulaire affiche le stock TOTAL (vente directe + unité de l'enchère).
   const reserve = await uniteReserveeEnchere(pool, id);
   const prod = { ...r.rows[0], methodes_expedition_ids: methodes, stock_reserve_enchere: reserve };
+  if (!(await regles.lire(req.gid, pool)).prixRevient) delete prod.prix_revient;   // champ masqué si le gestionnaire ne l'active pas
   if (reserve && prod.stock !== null && prod.stock !== undefined) prod.stock = Number(prod.stock) + 1;
   res.json(prod);
 }));
@@ -294,7 +305,28 @@ function lireProduit(req) {
     if (!Array.isArray(b.methodes_expedition_ids) || b.methodes_expedition_ids.length > 50) bad("Méthodes d'expédition invalides");
     methodesIds = [...new Set(b.methodes_expedition_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
   }
-  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes, poids, methodesIds };
+  // Quantité minimum d'achat (ignorée plus bas si le gestionnaire n'active pas l'option) et prix de revient (idem)
+  let quantiteMin = null;
+  if (b.quantite_min !== undefined && b.quantite_min !== null && b.quantite_min !== '') {
+    quantiteMin = Math.trunc(Number(b.quantite_min));
+    if (!Number.isFinite(quantiteMin) || quantiteMin < 1 || quantiteMin > 9999) bad('Quantité minimum invalide (entre 1 et 9 999)');
+    if (quantiteMin === 1) quantiteMin = null;
+  }
+  const prixRevient = b.prix_revient === undefined ? undefined : nombre(b.prix_revient, 'Prix de revient', 0, 1000000, null);
+  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes, poids, methodesIds, quantiteMin, prixRevient };
+}
+
+// Règles du gestionnaire appliquées à une annonce enregistrée (prix, quantité minimum, prix de revient, approbation).
+async function appliquerRegles(req, p, ancienStatut) {
+  const r = await regles.lire(req.gid, pool);
+  let msg = regles.erreurPrix(r, p.prix, 'Prix');
+  if (!msg && p.prixPromo !== null && p.prixPromo > 0) msg = regles.erreurPrix(r, p.prixPromo, 'Prix promo');
+  if (!msg) for (const v of p.variantes) { if (v.prix !== null && (msg = regles.erreurPrix(r, v.prix, `Variante « ${v.nom} »`))) break; }
+  if (msg) bad(msg);
+  if (!r.qteMinActive) p.quantiteMin = null;
+  if (!r.prixRevient) p.prixRevient = undefined;
+  p.statut = regles.statutPublication(r, ancienStatut, p.statut);
+  return r;
 }
 
 // La catégorie doit exister, être active et appartenir au gestionnaire de cette boutique.
@@ -322,6 +354,7 @@ async function sauverMethodesProduit(req, produitId, ids) {
 router.post('/produits', h(async (req, res) => {
   const p = lireProduit(req);
   p.categorie = await nomCategorie(req, p.categorieId);
+  await appliquerRegles(req, p, null);
   const n = await pool.query(`SELECT COUNT(*) AS n FROM produits WHERE collaborateur_id = $1`, [req.cid]);
   if (+n.rows[0].n >= 1000) bad('Limite de 1000 produits atteinte', 409);
   // Limite fixée par le gestionnaire (Config marketplace → Max produits par vendeur), tant que les plans vendeur ne sont pas utilisés
@@ -332,13 +365,13 @@ router.post('/produits', h(async (req, res) => {
   }
   const r = await pool.query(
     `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
-                           photo_principale, photos, variantes, statut, poids)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+                           photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING id`,
     [req.gid, req.cid, p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
-     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, p.poids]);
+     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, p.poids, p.quantiteMin, p.prixRevient === undefined ? null : p.prixRevient]);
   try { await sauverMethodesProduit(req, r.rows[0].id, p.methodesIds); }
   catch (e) { await pool.query('DELETE FROM produits WHERE id = $1', [r.rows[0].id]); throw e; }
-  res.status(201).json({ id: r.rows[0].id });
+  res.status(201).json({ id: r.rows[0].id, statut: p.statut });
 }));
 
 router.put('/produits/:id', h(async (req, res) => {
@@ -346,6 +379,9 @@ router.put('/produits/:id', h(async (req, res) => {
   if (!id) bad('Produit invalide');
   const p = lireProduit(req);
   p.categorie = await nomCategorie(req, p.categorieId);
+  const ancien = await pool.query('SELECT statut FROM produits WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3', [id, req.cid, req.gid]);
+  if (!ancien.rows.length) bad('Produit introuvable', 404);
+  await appliquerRegles(req, p, ancien.rows[0].statut);
   // Le stock saisi est le total : on garde 1 unité réservée à l'enchère en cours
   if (p.stock !== null && await uniteReserveeEnchere(pool, id)) {
     if (p.stock < 1) bad("Une enchère est en cours : il faut au moins 1 unité en stock (celle de l'enchère).");
@@ -353,24 +389,27 @@ router.put('/produits/:id', h(async (req, res) => {
   }
   const r = await pool.query(
     `UPDATE produits SET titre=$1, description=$2, prix=$3, prix_promo=$4, stock=$5, sku=$6, categorie=$7, categorie_id=$8,
-            photo_principale=$9, photos=$10, variantes=$11, statut=$12, poids=$16, updated_at=NOW()
+            photo_principale=$9, photos=$10, variantes=$11, statut=$12, poids=$16, quantite_min=$17,
+            prix_revient = CASE WHEN $18::boolean THEN $19::numeric ELSE prix_revient END, updated_at=NOW()
       WHERE id=$13 AND collaborateur_id=$14 AND gestionnaire_id=$15`,
     [p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
-     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, id, req.cid, req.gid, p.poids]);
+     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, id, req.cid, req.gid, p.poids,
+     p.quantiteMin, p.prixRevient !== undefined, p.prixRevient === undefined ? null : p.prixRevient]);
   if (!r.rowCount) bad('Produit introuvable', 404);
   await sauverMethodesProduit(req, id, p.methodesIds);
-  res.json({ success: true });
+  res.json({ success: true, statut: p.statut });
 }));
 
 router.patch('/produits/:id/statut', h(async (req, res) => {
   const id = entier(req.params.id);
   const statut = req.body && req.body.statut;
   if (!id || !STATUTS_PRODUIT.includes(statut)) bad('Statut invalide');
-  const r = await pool.query(
-    `UPDATE produits SET statut=$1, updated_at=NOW() WHERE id=$2 AND collaborateur_id=$3 AND gestionnaire_id=$4`,
-    [statut, id, req.cid, req.gid]);
-  if (!r.rowCount) bad('Produit introuvable', 404);
-  res.json({ success: true });
+  const ancien = await pool.query('SELECT statut FROM produits WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3', [id, req.cid, req.gid]);
+  if (!ancien.rows.length) bad('Produit introuvable', 404);
+  // Publier passe par l'approbation du gestionnaire si l'option n'est pas automatique
+  const reel = regles.statutPublication(await regles.lire(req.gid, pool), ancien.rows[0].statut, statut);
+  await pool.query(`UPDATE produits SET statut=$1, updated_at=NOW() WHERE id=$2 AND collaborateur_id=$3 AND gestionnaire_id=$4`, [reel, id, req.cid, req.gid]);
+  res.json({ success: true, statut: reel });
 }));
 
 router.post('/produits/:id/dupliquer', h(async (req, res) => {
@@ -378,9 +417,9 @@ router.post('/produits/:id/dupliquer', h(async (req, res) => {
   if (!id) bad('Produit invalide');
   const r = await pool.query(
     `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
-                           photo_principale, photos, variantes, statut)
+                           photo_principale, photos, variantes, statut, quantite_min, prix_revient)
      SELECT gestionnaire_id, collaborateur_id, LEFT('Copie de ' || titre, 150), description, prix, prix_promo, stock, NULL, categorie, categorie_id,
-            photo_principale, photos, variantes, 'brouillon'
+            photo_principale, photos, variantes, 'brouillon', quantite_min, prix_revient
        FROM produits WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3 RETURNING id`,
     [id, req.cid, req.gid]);
   if (!r.rowCount) bad('Produit introuvable', 404);

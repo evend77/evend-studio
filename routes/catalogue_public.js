@@ -26,11 +26,13 @@ function entier(v) {
   return Number.isInteger(n) && n > 0 && n < 2147483647 ? n : null;
 }
 
+// Gérer l'inventaire désactivé (Config produits) : le stock n'est plus suivi, tout est « en stock »
+const SANS_STOCK = `COALESCE((SELECT st.config->'multivendeur'->>'gerer_inventaire_par_defaut' = 'false' FROM sites st WHERE st.gestionnaire_id = p.gestionnaire_id LIMIT 1), false)`;
 const COLS = `p.id, p.titre, p.description, p.prix, p.prix_promo, p.stock, p.categorie, p.photo_principale, p.photos,
   p.created_at, p.collaborateur_id, p.variantes,
   COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.ville AS vendeur_ville, mc.politique_livraison, mc.politique_retour,
   p.categorie_id, COALESCE(sc.nom, cp.label) AS categorie_nom, sg.nom AS groupe_nom,
-  (mc.inscrit_taxes IS TRUE AND COALESCE(sc.taxable, true)) AS facturation_taxes, ${vac.VAC_COLS}`;
+  (mc.inscrit_taxes IS TRUE AND COALESCE(sc.taxable, true)) AS facturation_taxes, ${SANS_STOCK} AS sans_stock, ${vac.VAC_COLS}`;
 const FROM = `FROM produits p
   JOIN marketplace_collaborateurs mc ON mc.id = p.collaborateur_id AND mc.statut = 'actif'
   ${vac.VAC_JOIN}
@@ -41,14 +43,14 @@ const FROM = `FROM produits p
 const FILTRE = `p.gestionnaire_id = $1 AND p.statut = 'actif' AND p.collaborateur_id IS NOT NULL AND NOT ${vac.VAC_MASQUE}`;
 
 // Variantes saisies par le collaborateur : [{ nom, prix (vide = prix du produit), stock (vide = stock du produit) }]
-function formaterVariantes(r, stockProduit) {
+function formaterVariantes(r, stockProduit, sansStock) {
   let v = r.variantes;
   if (typeof v === 'string') { try { v = JSON.parse(v); } catch (e) { v = []; } }
   if (!Array.isArray(v)) return [];
   return v.filter((x) => x && typeof x.nom === 'string' && x.nom.trim()).slice(0, 20).map((x) => ({
     nom: x.nom.trim().slice(0, 60),
     prix: x.prix === null || x.prix === undefined || x.prix === '' || !(Number(x.prix) >= 0) ? null : Number(x.prix),
-    stock: x.stock === null || x.stock === undefined || x.stock === '' ? stockProduit : Math.max(0, Math.trunc(Number(x.stock)) || 0),
+    stock: sansStock || x.stock === null || x.stock === undefined || x.stock === '' ? stockProduit : Math.max(0, Math.trunc(Number(x.stock)) || 0),
   }));
 }
 
@@ -66,7 +68,7 @@ function formater(r) {
     description: r.description,
     prix: enPromo ? promo : prix,
     prix_original: enPromo ? prix : undefined,
-    stock: r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0), // stock vide = illimité
+    stock: r.sans_stock === true || r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0), // stock vide = illimité
     image: r.photo_principale || photos[0] || null,
     images: JSON.stringify(photos),
     categorie: r.categorie,
@@ -82,7 +84,7 @@ function formater(r) {
     facturation_taxes: r.facturation_taxes === true, // décidé par le serveur : collaborateur inscrit aux taxes ET catégorie taxable
     statut: 'actif',
     created_at: r.created_at,
-    variantes: formaterVariantes(r, r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0)),
+    variantes: formaterVariantes(r, r.sans_stock === true || r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0), r.sans_stock === true),
     vacances: vac.publicDe(r), // { mode, message, retour } si le vendeur est en vacances, sinon null
   };
 }
@@ -129,7 +131,7 @@ router.get('/:gestionnaireId', async (req, res, next) => {
       const pmin = Number(req.query.prix_min), pmax = Number(req.query.prix_max);
       if (req.query.prix_min !== undefined && req.query.prix_min !== '' && Number.isFinite(pmin)) { params.push(pmin); where += ` AND (${prixEff}) >= $${params.length}`; }
       if (req.query.prix_max !== undefined && req.query.prix_max !== '' && Number.isFinite(pmax)) { params.push(pmax); where += ` AND (${prixEff}) <= $${params.length}`; }
-      if (req.query.en_stock === '1') where += ' AND (p.stock IS NULL OR p.stock > 0)';
+      if (req.query.en_stock === '1') where += ` AND (p.stock IS NULL OR p.stock > 0 OR ${SANS_STOCK})`;
       const TRIS_PROD = { recent: 'p.created_at DESC', prix_asc: `(${prixEff}) ASC`, prix_desc: `(${prixEff}) DESC`, alpha_az: 'LOWER(p.titre) ASC', alpha_za: 'LOWER(p.titre) DESC' };
       const tri = TRIS_PROD[req.query.tri] || TRIS_PROD.recent;
       const lim = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
