@@ -10,6 +10,7 @@
 // La facturation Stripe viendra plus tard : on enregistre seulement les choix.
 
 import { useState, useEffect, useCallback } from 'react';
+import MVAddonsCatalogue, { ItemAddon, emojiEvend, nomCategorie } from './MVAddonsCatalogue';
 
 const API_BASE = '/api';
 
@@ -23,7 +24,15 @@ interface Addon {
   code: string; nom: string; description: string; emoji: string; prix_ht: number;
   inclus: boolean; achete: boolean; actif_pour_gestionnaire: boolean; prix_facture: number;
 }
-interface Etat { forfait: (Plan & { par_defaut?: boolean }) | null; addons: Addon[]; plans: Plan[]; total_ht: number; }
+interface AddonEvend {
+  code: string; nom: string; description: string; prix: number; periode: string; categorie: string; categorie_nom: string | null;
+  companie: string | null; lien_documentation: string | null; badges: string[];
+  inclus: boolean; achete: boolean; prix_ht: number; prix_facture: number;
+}
+interface LigneResume { code: string; nom: string; emoji: string; inclus: boolean; prix_ht: number; }
+interface Etat { forfait: (Plan & { par_defaut?: boolean }) | null; addons: Addon[]; addons_evend: AddonEvend[]; lignes: LigneResume[]; plans: Plan[]; total_ht: number; }
+
+const mensuel = (it: ItemAddon) => (it.periode === 'an' ? it.prix / 12 : it.periode === 'mois' ? it.prix : 0);
 
 // Apparence seulement (le contenu vient du serveur). Un forfait inconnu reçoit une couleur de la liste, selon sa position.
 const STYLE: Record<string, { couleur: string; icone: string; badge?: string }> = {
@@ -40,6 +49,15 @@ const $ = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
 const go = (n: number | null) => (n == null ? '—' : `${Number.isInteger(n) ? n : String(n).replace('.', ',')} Go`);
 const nbV = (n: number | null) => (n == null ? 'Vendeurs illimités' : `${n} vendeur${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''}`);
 
+// Anciens add-ons « Branding & options » (table options_gestionnaire) : toujours facturés, donc comptés dans le total
+// pour que cette page et « Mes services » donnent le même montant. Même catalogue que BrandingEtOptions.tsx / MesServices.tsx.
+const ADDONS_ANCIENS: { id: string; nom: string; prix_ht: number }[] = [
+  { id: 'cacher_propulse', nom: 'Cacher le branding', prix_ht: 2 },
+  { id: 'verificateur_age', nom: "Vérificateur d'âge", prix_ht: 5 },
+  { id: 'popup_annonce', nom: 'Popup Annonce', prix_ht: 3 },
+];
+interface LigneAncienne { nom: string; prix_ht: number; }
+
 const inclut = (p: Plan | null | undefined, code: string) => !!p && (p.tous_addons || p.addons_inclus.includes(code));
 
 export default function MVPremiumPlan({ gestionnaireId }: Props) {
@@ -49,6 +67,7 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; texte: string } | null>(null);
   const [cible, setCible] = useState<string | null>(null);        // forfait en cours de confirmation
+  const [anciens, setAnciens] = useState<LigneAncienne[]>([]);
   const [stockageUtilise] = useState(0);                          // Mo — le calcul réel viendra plus tard
 
   const entetes = useCallback((json = false): Record<string, string> => {
@@ -63,11 +82,23 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
       if (!r.ok) throw new Error();
       setEtat(await r.json());
       setErreurChargement(false);
+      try {
+        const [o, b] = await Promise.all([
+          fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/options`, { headers: entetes(), credentials: 'include' }),
+          fetch(`${API_BASE}/messagerie-contact/gestionnaire/${gestionnaireId}/facturation-cycle`, { headers: entetes(), credentials: 'include' }),
+        ]);
+        const od = o.ok ? await o.json().catch(() => ({})) : {};
+        const bd = b.ok ? await b.json().catch(() => ({ achats: [] })) : { achats: [] };
+        setAnciens([
+          ...ADDONS_ANCIENS.filter(a => !!od?.[a.id]).map(a => ({ nom: a.nom, prix_ht: a.prix_ht })),
+          ...(bd.achats || []).map((a: any) => ({ nom: `Bloc de ${a.quantite_messages} messages (formulaire de contact)`, prix_ht: parseFloat(a.prix_ht) || 0 })),
+        ]);
+      } catch { setAnciens([]); }
     } catch { setErreurChargement(true); }
     setLoading(false);
-  }, [entetes]);
+  }, [entetes, gestionnaireId]);
 
-  useEffect(() => { charger(); }, [charger, gestionnaireId]);
+  useEffect(() => { charger(); }, [charger]);
 
   const notifier = (type: 'ok' | 'err', texte: string) => {
     setMsg({ type, texte });
@@ -95,12 +126,14 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
     setBusy(false);
   };
 
-  const basculerAddon = async (a: Addon) => {
+  const basculerAddon = async (it: ItemAddon) => {
     setBusy(true);
     try {
-      if (a.achete) await appeler(`/mv/addons/${encodeURIComponent(a.code)}`, 'DELETE');
-      else await appeler(`/mv/addons/${encodeURIComponent(a.code)}/activer`, 'POST');
-      notifier('ok', a.achete ? `${a.nom} désactivé.` : `${a.nom} activé !`);
+      const base = it.source === 'evend' ? '/mv/addons-evend' : '/mv/addons';
+      const id = encodeURIComponent(it.code);
+      if (it.achete) await appeler(`${base}/${id}`, 'DELETE');
+      else await appeler(`${base}/${id}/activer`, 'POST');
+      notifier('ok', it.achete ? `${it.nom} désactivé.` : `${it.nom} activé !`);
       await charger();
     } catch (e: any) { notifier('err', e.message); }
     setBusy(false);
@@ -127,8 +160,20 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
   const stockageMax = (courant.stockage_go || 0) * 1024;
   const stockagePct = stockageMax ? Math.min((stockageUtilise / stockageMax) * 100, 100) : 0;
   const stockageAffiche = stockageUtilise < 1024 ? `${stockageUtilise.toFixed(0)} Mo` : `${(stockageUtilise / 1024).toFixed(1)} Go`;
-  const nomAddon = (code: string) => etat.addons.find(a => a.code === code)?.nom || code;
-  const prixAddon = (code: string) => etat.addons.find(a => a.code === code)?.prix_ht || 0;
+  // Une seule liste d'add-ons : ceux de Studio (ex. Avis clients) + le catalogue e-Vend
+  const items: ItemAddon[] = [
+    ...etat.addons.map((a): ItemAddon => ({
+      cle: 'studio:' + a.code, source: 'studio', code: a.code, nom: a.nom, description: a.description, emoji: a.emoji, prix: a.prix_ht, periode: 'mois',
+      categorie_id: 'marketplace', categorie_nom: 'Marketplace', badges: [], inclus: a.inclus, achete: a.achete, prix_facture: a.prix_facture, guide_id: 'avis-clients',
+    })),
+    ...(etat.addons_evend || []).map((a): ItemAddon => ({
+      cle: 'evend:' + a.code, source: 'evend', code: a.code, nom: a.nom, description: a.description, emoji: emojiEvend(a.code), prix: a.prix, periode: a.periode,
+      categorie_id: a.categorie, categorie_nom: nomCategorie(a.categorie, a.categorie_nom), badges: a.badges, companie: a.companie, lien_documentation: a.lien_documentation,
+      inclus: a.inclus, achete: a.achete, prix_facture: a.prix_facture, guide_id: a.code,
+    })),
+  ];
+  const nomAddon = (code: string) => items.find(a => a.code === code)?.nom || code;
+  const prixAddon = (code: string) => { const it = items.find(a => a.code === code); return it ? mensuel(it) : 0; };
 
   // Lignes d'un forfait : ce qu'il ajoute par rapport au précédent (« tout du forfait précédent + … »)
   const lignes = (p: Plan, i: number): { texte: string; fort?: boolean }[] => {
@@ -145,7 +190,7 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
     if (p.tous_addons) {
       out.push({ texte: '✨ Tous les add-ons inclus', fort: true });
     } else {
-      etat.addons.filter(a => inclut(p, a.code) && !inclut(prec, a.code)).forEach(a => out.push({ texte: `${a.emoji} ${a.nom} inclus`, fort: true }));
+      items.filter(a => inclut(p, a.code) && !inclut(prec, a.code)).forEach(a => out.push({ texte: `${a.emoji} ${a.nom} inclus`, fort: true }));
     }
     out.push({ texte: '0 % de commission sur vos ventes', fort: true });
     return out;
@@ -243,50 +288,26 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
         })}
       </div>
 
-      {/* Add-ons */}
-      {etat.addons.length > 0 && (
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '22px 24px', marginBottom: 24 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1a1a2e', margin: '0 0 4px' }}>🧩 Add-ons</h2>
-          <p style={{ fontSize: 13, color: '#888', margin: '0 0 16px' }}>Ajoutez des fonctionnalités à votre marketplace. Ceux déjà inclus dans votre forfait ne sont jamais facturés.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {etat.addons.map(a => (
-              <div key={a.code} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 16px', border: `1px solid ${a.actif_pour_gestionnaire ? '#bbf7d0' : '#e5e7eb'}`, background: a.actif_pour_gestionnaire ? '#f0fdf4' : '#fff', borderRadius: 12 }}>
-                <div style={{ fontSize: 28 }}>{a.emoji}</div>
-                <div style={{ flex: 1, minWidth: 220 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{a.nom}</div>
-                  <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>{a.description}</div>
-                </div>
-                {a.inclus ? (
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#16a34a', whiteSpace: 'nowrap' }}>✅ Inclus dans votre forfait</div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e', whiteSpace: 'nowrap' }}>{$(a.prix_ht)}<span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>/mois</span></div>
-                    <button onClick={() => basculerAddon(a)} disabled={busy}
-                      style={a.achete
-                        ? { padding: '9px 16px', border: '1px solid #fecaca', borderRadius: 10, background: '#fff', color: '#dc2626', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }
-                        : { padding: '9px 16px', border: 'none', borderRadius: 10, background: styleCourant.couleur, color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      {a.achete ? 'Désactiver' : 'Activer'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Add-ons (Studio + catalogue e-Vend) */}
+      {items.length > 0 && <MVAddonsCatalogue items={items} busy={busy} couleur={styleCourant.couleur} onBasculer={basculerAddon} />}
 
       {/* Total */}
       <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 24px', marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', marginBottom: 6 }}>
           <span>Forfait {courant.nom}</span><strong>{$(courant.prix)}</strong>
         </div>
-        {etat.addons.filter(a => a.actif_pour_gestionnaire).map(a => (
-          <div key={a.code} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', marginBottom: 6 }}>
-            <span>{a.emoji} {a.nom}{a.inclus ? ' (inclus)' : ''}</span><strong>{a.inclus ? $(0) : $(a.prix_facture)}</strong>
+        {(etat.lignes || []).map(l => (
+          <div key={l.code} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', marginBottom: 6 }}>
+            <span>{l.emoji} {l.nom}{l.inclus ? ' (inclus)' : ''}</span><strong>{l.inclus ? $(0) : $(l.prix_ht)}</strong>
+          </div>
+        ))}
+        {anciens.map((l, i) => (
+          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', marginBottom: 6 }}>
+            <span>⚙️ {l.nom} <span style={{ color: '#aaa' }}>(Branding & options)</span></span><strong>{$(l.prix_ht)}</strong>
           </div>
         ))}
         <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 10, paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: '#1a1a2e' }}>
-          <span>Total mensuel</span><span>{$(etat.total_ht)} <span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>+ taxes</span></span>
+          <span>Total mensuel</span><span>{$(etat.total_ht + anciens.reduce((t, l) => t + l.prix_ht, 0))} <span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>+ taxes</span></span>
         </div>
       </div>
 
@@ -300,8 +321,8 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
       {planCible && (() => {
         const st = styleDe(planCible, idxCible);
         const diff = planCible.prix - courant.prix;
-        const perdus = estDowngrade ? etat.addons.filter(a => inclut(courant, a.code) && !inclut(planCible, a.code)) : [];
-        const gagnes = !estDowngrade ? etat.addons.filter(a => !inclut(courant, a.code) && inclut(planCible, a.code)) : [];
+        const perdus = estDowngrade ? items.filter(a => inclut(courant, a.code) && !inclut(planCible, a.code)) : [];
+        const gagnes = !estDowngrade ? items.filter(a => !inclut(courant, a.code) && inclut(planCible, a.code)) : [];
         const fusionnes = gagnes.filter(a => a.achete);     // déjà payés → ne les paiera plus
         const fond = estDowngrade ? 'linear-gradient(135deg,#dc2626,#ef4444)' : `linear-gradient(135deg, ${st.couleur}dd, ${st.couleur})`;
         return (

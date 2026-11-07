@@ -1,308 +1,295 @@
-// CHEMIN : src/AppAdminStudio.tsx
-import React, { useState, useEffect, useRef } from 'react';
-import GestionPlans          from './pages/admin/GestionPlans';
-import CreerPlan             from './pages/admin/CreerPlan';
-import GestionCommandes      from './pages/admin/GestionCommandes';
-import GestionDomaines       from './pages/admin/GestionDomaines';
-import DetailCommande        from './pages/admin/DetailCommande';
-import LitigesRetours        from './pages/admin/LitigesRetours';
-import FinancesCommissions   from './pages/admin/FinancesCommissions';
-import RapportsFinanciers    from './pages/admin/RapportsFinanciers';
-import AbonnementsActifs     from './pages/admin/AbonnementsActifs';
-import AdminFonctionnalitesStudio from './pages/admin/AdminFonctionnalitesStudio';
-import AdminForfaitsMV       from './pages/admin/AdminForfaitsMV';
-import AbonnementDetail      from './pages/admin/AbonnementDetail';
-import ApprobationsEnAttente from './pages/admin/ApprobationsEnAttente';
-import ComptesSuspendus      from './pages/admin/ComptesSuspendus';
-import PaiementsVendeurs     from './pages/admin/PaiementsVendeurs';
-import Notifications         from './pages/admin/Notifications';
-import ChatVendeurs          from './pages/admin/ChatVendeurs';
-import ChatAcheteurs         from './pages/admin/ChatAcheteurs';
-import SurveillanceLitiges   from './pages/admin/SurveillanceLitiges';
-import Marketing             from './pages/admin/Marketing';
-import ReponseClient         from './pages/admin/ReponseClient';
-import JournauxAudits        from './pages/admin/JournauxAudits';
-import ConfigurationGenerale from './pages/admin/ConfigurationGenerale';
-import ConfigurationEnchere  from './pages/admin/ConfigurationEnchere';
-import GestionEncheres       from './pages/admin/GestionEncheres';
-import ConfigurationStripe    from './pages/admin/ConfigurationStripe';
-import ConfigurationPaypal    from './pages/admin/ConfigurationPaypal';
-import ConfigurationWishList  from './pages/admin/ConfigurationWishList';
-import ConfigurationParutionFutur from './pages/admin/ConfigurationParutionFutur';
-import ConfigurationMakeOffer    from './pages/admin/ConfigurationMakeOffer';
-import ModelesCourriel      from './pages/admin/ModelesCourriel';
-import ModelesDocument      from './pages/admin/ModelesDocument';
-import ListeVendeurs, { Vendeur } from './pages/admin/ListeVendeurs';
-import ListeGestionnaires, { Gestionnaire } from './pages/admin/ListeGestionnaires';
-import ListeSponsors, { Sponsor } from './pages/admin/ListeSponsors';
-import AdminForfaitsPhoto from './pages/admin/AdminForfaitsPhoto';
-import AdminForfaitsPub from './pages/admin/AdminForfaitsPub';
-import AdminPhotosSponsors from './pages/admin/AdminPhotosSponsors';
-import AdminPubsSponsors from './pages/admin/AdminPubsSponsors';
-import AdminMonetisationSponsors from './pages/admin/AdminMonetisationSponsors';
-import AdminSignalementsSponsors from './pages/admin/AdminSignalementsSponsors';
-import ListeProduits         from './pages/admin/ListeProduits';
-import GestionTagsEtTypes    from './pages/admin/GestionTagsEtTypes';
-import GestionBadges         from './pages/admin/GestionBadges';
-import BadgesAttitres        from './pages/admin/BadgesAttitres';
-// (import InscriptionVendeur retiré — fonctionnalité "admin crée un compte
-// vendeur" abandonnée, tout passe désormais par les formulaires d'inscription officiels)
-import GestionCategories    from './pages/admin/GestionCategories';
-import ListeAcheteurs        from './pages/admin/ListeAcheteurs';
-import GestionSignalements   from './pages/admin/GestionSignalements';
-import IntegrationCode from './pages/admin/IntegrationCode';
-import AdminAddons from './pages/admin/AdminAddons';
-import GuidesAddons from './pages/admin/GuidesAddons';
-import ReferencementSEO from './pages/admin/ReferencementSEO';
-import AddonsActives from './pages/admin/AddonsActives';
-import PageAdminTemplatesPrix from './pages/admin/PageAdminTemplatesPrix';
-import StatistiquesSignalements from './pages/admin/StatistiquesSignalements';
-import MonForfaitPlateforme from './pages/admin/MonForfaitPlateforme';
-import ChampsPersonnalises from './pages/admin/ChampsPersonnalises';
-import BlacklistContact from './pages/admin/BlacklistContact';
-import ListeAlertesPrix from './pages/admin/ListeAlertesPrix';
-import ListeWishlists from './pages/admin/ListeWishlists';
-import GestionMenus from './pages/admin/GestionMenus';
-import BlogPlateforme from './pages/admin/BlogPlateforme';
-import FaqPlateformeAdmin from './pages/admin/FaqPlateformeAdmin';
-import GestionCookies from './pages/admin/GestionCookies';
-import PolitiquesPlateforme from './pages/admin/PolitiquesPlateforme';
-import PagesPlateforme from './pages/admin/PagesPlateforme';
-import Photo from './pages/admin/Photo';
-import { API_BASE } from './config/api';
+// CHEMIN : src/AppGestionnaireStudio.tsx
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import Dashboard          from './pages/gestionnaire/Dashboard';
+import PageChoisirTemplate        from './pages/gestionnaire/PageChoisirTemplate';
+import ConfigTemplate          from './pages/gestionnaire/ConfigTemplate';
+import MonDomaine          from './pages/gestionnaire/MonDomaine';
+import MesServices         from './pages/gestionnaire/MesServices';
+import ImportEvend          from './pages/gestionnaire/ImportEvend';
+import ModalUnsplash from './components/ModalUnsplash';
+import BandeauEssai  from './components/BandeauEssai';
+import ConfigStoreEffects from './pages/gestionnaire/ConfigStoreEffects';
 
-// Imports pour les traductions
-import { TranslationProvider } from './contexts/TranslationContext';
+// ── Imports composants vendeur présents dans e-Vend Studio ──
+const API_BASE = '/api';
 
-// ── Thème ─────────────────────────────────────────────────────────────────────
-const THEME = {
-  sidebar:      '#1a2436',
-  sidebarHover: '#243044',
-  sidebarActive:'#2d6a9f',
-  accent:       '#2d6a9f',
-  accentLight:  '#e8f2fb',
-  topbar:       '#ffffff',
-  bg:           '#f0f2f5',
-  card:         '#ffffff',
-  border:       '#e1e4e8',
-  text:         '#1a2332',
-  textLight:    '#6b7280',
-  danger:       '#dc2626',
-  success:      '#16a34a',
-  warning:      '#d97706',
-};
+// ── e-Vend Studio ──
+import MaCagnotte                   from './pages/studio/MaCagnotte';
+import ModelesCourrielStudio from './pages/gestionnaire/ModelesCourrielStudio';
+import GestionReservations   from './pages/studio/GestionReservations';
+import MesReservationsEcole  from './pages/gestionnaire/MesReservationsEcole';
+import MesAbonnementsEcole   from './pages/gestionnaire/MesAbonnementsEcole';
+import MesSponsorsGestionnaire from './pages/gestionnaire/MesSponsorsGestionnaire';
+import AnalytiqueGestionnaire from './pages/gestionnaire/AnalytiqueGestionnaire';
+import ChatbotConfig from './pages/gestionnaire/ChatbotConfig';
+import ConfigurationPaiements from './pages/gestionnaire/ConfigurationPaiements';
+import MesAcheteurs                  from './pages/studio/MesAcheteurs';
+import StudioConfigPage404   from './pages/gestionnaire/StudioConfigPage404';
+import StudioMesPolitiques  from './pages/gestionnaire/StudioMesPolitiques';
+import StudioMesPages       from './pages/gestionnaire/StudioMesPages';
+import StudioSeoSite        from './pages/gestionnaire/StudioSeoSite';
+import StudioCookiesSite    from './pages/gestionnaire/StudioCookiesSite';
+import StudioGestionPhotosVendeur from './pages/gestionnaire/StudioGestionPhotosGestionnaire';
+import StudioConfigGenerale      from './pages/gestionnaire/StudioConfigGenerale';
+import StudioConfigMultivendeur  from './pages/gestionnaire/StudioConfigMultivendeur';
+import StudioMonCompte          from './pages/gestionnaire/StudioMonCompte';
+import StudioBlogSousVendeur    from './pages/gestionnaire/StudioBlogCollaborateur';
+import StudioFaqSousVendeur     from './pages/gestionnaire/StudioFaqCollaborateur';
+import SurveillanceChats        from './pages/gestionnaire/SurveillanceChats';
+import ChatAvecCollaborateur    from './pages/gestionnaire/ChatAvecCollaborateur';
+import StudioSignalements       from './pages/gestionnaire/StudioSignalements';
+import StudioContactMessages   from './pages/gestionnaire/StudioContactMessages';
+import StudioModelesCourriel   from './pages/gestionnaire/StudioModelesCourriel';
+import StudioEncheres          from './pages/gestionnaire/StudioEncheres';
+import StudioMVProduits        from './pages/gestionnaire/StudioMVProduits';
+import StudioMVCommandes       from './pages/gestionnaire/StudioMVCommandes';
+import StudioMVAvis            from './pages/gestionnaire/StudioMVAvis';
+import StudioSousVendeurs       from './pages/gestionnaire/StudioCollaborateurs';
+import StudioGestionBadges      from './pages/gestionnaire/StudioGestionBadges';
+import StudioBadgesAttribues    from './pages/gestionnaire/StudioBadgesAttribues';
+import AddOn                    from './pages/gestionnaire/AddOn';
+import ConfigMesPagesSimplisse     from './pages/gestionnaire/ConfigMesPagesSimplisse';
+import ConfigMesPagesPremium       from './pages/gestionnaire/ConfigMesPagesPremium';
+import ConfigMesPagesSimplisseMode from './pages/gestionnaire/ConfigMesPagesSimplisseMode';
+import SimplissePlan               from './pages/gestionnaire/SimplissePlan';
+import PremiumPlan                 from './pages/gestionnaire/PremiumPlan';
+import BrandingEtOptions            from './pages/gestionnaire/BrandingEtOptions';
+import CreerAnnonce                from './pages/gestionnaire/CreerAnnonce';
+import ConfigMesPagesBeaute        from './pages/gestionnaire/ConfigMesPagesBeaute';
+import BeautePlan                  from './pages/gestionnaire/BeautePlan';
+import ConfigVerificateurAge        from './pages/gestionnaire/ConfigVerificateurAge';
+import ConfigFormulaireContact      from './pages/gestionnaire/ConfigFormulaireContact';
+import MessagerieFormulaireContact  from './pages/gestionnaire/MessagerieFormulaireContact';
+import ConfigPopupAnnonce           from './pages/gestionnaire/ConfigPopupAnnonce';
+import MVPremiumPlan               from './pages/gestionnaire/MVPremiumPlan';
+import ConfigMultiVendeurPremium   from './pages/gestionnaire/ConfigMultiVendeurPremium';
 
-interface SousSection { id: string; label: string; icon: string; badge?: number; }
-interface NavItem {
-  id: string; label: string; icon: string; badge?: number;
-  sousSections?: SousSection[];
+// =====================================================================
+// 🚧 PAGES EN CONSTRUCTION — placeholders compilables
+// =====================================================================
+
+function PageEnConstruction({ titre, icone = '🚧', description }: { titre: string; icone?: string; description?: string }) {
+  return (
+    <div style={{ maxWidth: 700, margin: '60px auto', padding: '0 24px', fontFamily: "'Inter', sans-serif", textAlign: 'center' }}>
+      <div style={{ fontSize: 64, marginBottom: 20 }}>{icone}</div>
+      <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1a1a2e', marginBottom: 12 }}>{titre}</h1>
+      <p style={{ fontSize: 15, color: '#888', marginBottom: 32, lineHeight: 1.6 }}>
+        {description || 'Cette section est en cours de développement. Elle sera disponible très bientôt.'}
+      </p>
+      <div style={{ display: 'inline-block', padding: '10px 24px', background: '#f3f4f6', borderRadius: 20, fontSize: 13, color: '#666', fontWeight: 600 }}>
+        🔨 En construction
+      </div>
+    </div>
+  );
 }
 
-// ── Navigation ─────────────────────────────────────────────────────────────
-const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Tableau de bord', icon: '📊' },
-  
-  {
-    id: 'acheteurs', label: 'Acheteurs', icon: '🛒',
-    sousSections: [
-      { id: 'acheteurs-liste',        label: 'Liste des acheteurs',      icon: '📋' },
-      { id: 'acheteurs-suspendus',    label: 'Compte acheteurs suspendus', icon: '🚫' },
-    ],
-  },
+// ── Placeholders pages gestionnaire ────────────────────────────────────────────────
 
-  {
-    id: 'gestionnaires', label: 'Gestionnaires', icon: '🧑',
-    sousSections: [
-      { id: 'gestionnaires-liste', label: 'Liste des gestionnaires', icon: '📋' },
-    ],
-  },
+const MonCompte           = ({ vendeurId }: any) =>
+  <PageEnConstruction titre="Mon compte" icone="👤" description="Gérez vos informations personnelles et votre profil gestionnaire." />;
 
-  {
-    id: 'vendeurs', label: 'Vendeurs', icon: '🏪',
-    sousSections: [
-      { id: 'vendeurs-liste',        label: 'Liste des vendeurs',      icon: '📋' },
-      { id: 'vendeurs-approbations', label: 'Approbations en attente', icon: '⏳' },
-      { id: 'vendeurs-suspendus',    label: 'Comptes suspendus',       icon: '🚫' },
-    ],
-  },
-  {
-    id: 'sponsors', label: 'Sponsors', icon: '⭐',
-    sousSections: [
-      { id: 'sponsors-liste',       label: 'Liste sponsors',   icon: '📋' },
-      { id: 'sponsors-photos',      label: 'Photos sponsors',  icon: '🖼️' },
-      { id: 'sponsors-pubs',        label: 'Pub sponsor',      icon: '📢' },
-      { id: 'sponsors-signalements', label: 'Signalements',    icon: '🚩' },
-      { id: 'sponsors-monetisation', label: 'Monétisation',    icon: '💰' },
-      { id: 'sponsors-forfait-photo', label: 'Forfait photo',  icon: '📸' },
-      { id: 'sponsors-forfait-pub',  label: 'Forfait pub',     icon: '📣' },
-    ],
-  },
-  {
-    id: 'produits', label: 'Produits', icon: '📦',
-    sousSections: [
-      { id: 'produits-liste',   label: 'Liste des produits',      icon: '📋' },
-      { id: 'produits-encheres', label: 'Enchères',               icon: '🔨' },
-      { id: 'produits-collections', label: 'Catégories',         icon: '🗂️' },
-      { id: 'produits-tags-types', label: 'Tags & Types',         icon: '🏷️' },
-    ],
-  },
-  {
-    id: 'commandes', label: 'Commandes', icon: '📦',
-    sousSections: [
-      { id: 'commandes-toutes',  label: 'Toutes les commandes', icon: '📋' },
-      { id: 'commandes-litiges', label: 'Litiges & retours',    icon: '⚠️' },
-    ],
-  },
-  {
-    id: 'domaines', label: 'Domaines', icon: '🌐',
-    sousSections: [
-      { id: 'domaines-gestion', label: 'Gestion domaines', icon: '🛠️' },
-    ],
-  },
-  {
-    id: 'forfaits', label: 'Forfaits & Plans', icon: '⭐',
-    sousSections: [
-      { id: 'forfaits-fonctionnalites', label: 'Fonctionnalités & add-ons', icon: '🧩' },
-    ],
-  },
-  {
-    id: 'fmv', label: 'Forfaits & Plans MV', icon: '⭐',
-    sousSections: [
-      { id: 'fmv-plans',         label: 'Gérer les forfaits MV', icon: '🗂️' },
-      { id: 'fmv-gestionnaires', label: 'Gestionnaires MV',      icon: '👥' },
-    ],
-  },
-  {
-    id: 'badges', label: 'Les Badges', icon: '🏅',
-    sousSections: [
-      { id: 'badges-gerer',     label: 'Gérer les badges',   icon: '📋' },
-      { id: 'badges-attitres',  label: 'Les badges attitrés', icon: '🎯' },
-    ],
-  },
-  {
-    id: 'finances', label: 'Finances', icon: '💰',
-    sousSections: [
-      { id: 'finances-commissions', label: 'Commissions',         icon: '💸' },
-      { id: 'finances-paiements',   label: 'Paiements vendeurs',  icon: '💳' },
-      { id: 'finances-rapports',    label: 'Rapports financiers', icon: '📊' },
-    ],
-  },
-  {
-    id: 'wishlist', label: 'Wish list', icon: '❤️',
-    sousSections: [
-      { id: 'wishlist-listes',     label: 'Liste des wish list', icon: '📋' },
-      { id: 'wishlist-alertes',    label: 'Liste alertes prix',  icon: '💰' },
-    ],
-  },
-  {
-    id: 'messagerie', label: 'Messagerie', icon: '✉️',
-    sousSections: [
-      { id: 'messagerie-notifications', label: 'Notifications',        icon: '📢' },
-      { id: 'messagerie-vendeurs',      label: 'Chat — Vendeurs',      icon: '🏪' },
-      { id: 'messagerie-acheteurs',     label: 'Chat — Acheteurs',     icon: '🛒' },
-      { id: 'messagerie-litiges',       label: 'Surveillance Litiges', icon: '⚖️' },
-      { id: 'messagerie-email-manuel',  label: 'E-mail manuel',        icon: '✉️' },
-      { id: 'messagerie-email-marketing', label: 'E-mail marketing',   icon: '📧' },
-    ],
-  },
-  {
-    id: 'signalements', label: 'Signalements', icon: '🚩',
-    sousSections: [
-      { id: 'signalements-liste',         label: 'Tous les signalements', icon: '📋' },
-      { id: 'signalements-en-cours',      label: 'En cours de traitement', icon: '⏳' },
-      { id: 'signalements-resolus',       label: 'Résolus / Archivés',     icon: '✅' },
-      { id: 'signalements-statistiques',  label: 'Statistiques',           icon: '📊' },
-    ],
-  },
-  {
-    id: 'plateforme', label: 'Plateforme', icon: '⚙️',
-    sousSections: [
-      { id: 'plateforme-champs-personnalises', label: 'Champs personnalisés (Méta)', icon: '🔖' },
-      { id: 'plateforme-blacklist-contact', label: 'Liste noire anti-spam', icon: '🚫' },
-      { id: 'plateforme-config',      label: 'Configuration générale', icon: '🔧' },
-      { id: 'plateforme-parution',    label: 'Configuration date futur', icon: '🗓️' },
-      { id: 'plateforme-enchere',     label: 'Configuration enchères',   icon: '🔨' },
-      { id: 'plateforme-make-offer',  label: 'Configuration Make Offer', icon: '💬' },
-      { id: 'plateforme-stripe',      label: 'Configuration Stripe',     icon: '💳' },
-      { id: 'plateforme-paypal',      label: 'Configuration PayPal',     icon: '🅿️' },
-      { id: 'plateforme-wishlist',    label: 'Configuration Wish List', icon: '❤️' },
-      { id: 'plateforme-emails',      label: 'Modèles de courriels',   icon: '📧' },
-      { id: 'plateforme-documents',   label: 'Modèles documents',      icon: '📄' },
-      { id: 'plateforme-integration', label: 'Integration de code',    icon: '🔌' },
-      { id: 'plateforme-mon-forfait', label: 'Mon forfait plateforme', icon: '⭐' },
-    ],
-  },
-  {
-    id: 'addons', label: 'Add-ons', icon: '🧩',
-    sousSections: [
-      { id: 'addons-gestion',  label: 'Gestion add-ons',  icon: '⚙️' },
-      { id: 'addons-guides',   label: 'Guides add-ons',   icon: '📖' },
-      { id: 'addons-actives',  label: 'Add-ons activés',  icon: '✅' },
-    ],
-  },
-  {
-    id: 'templates', label: 'Templates', icon: '🎨',
-    sousSections: [
-      { id: 'templates-prix', label: 'Prix Template', icon: '💰' },
-    ],
-  },
-  {
-    id: 'parametres', label: 'Paramètres', icon: '🛠️',
-    sousSections: [
-      { id: 'parametres-menu',          label: 'Menu',                        icon: '📋' },
-      { id: 'parametres-pages',         label: 'Pages',                       icon: '📄' },
-      { id: 'parametres-photo',         label: 'Photo',                       icon: '🖼️' },
-      { id: 'parametres-politique',     label: 'Politique',                   icon: '📜' },
-      { id: 'parametres-blog',          label: 'Blog plateforme',             icon: '✏️' },
-      { id: 'parametres-faq',           label: 'FAQ plateforme',              icon: '❓' },
-      { id: 'parametres-cookies',       label: 'Gestion des cookies',         icon: '🍪' },
-      { id: 'parametres-seo',           label: 'Référencement naturel (SEO)', icon: '🔍' },
-      { id: 'parametres-config-pages',  label: 'Configuration des pages',    icon: '📄' },
-    ],
-  },
-  { id: 'logs', label: 'Journaux & Audits', icon: '📋' },
-];
+const ListeCommandes      = ({ naviguerVers, vendeurId, onVoirCommande }: any) =>
+  <PageEnConstruction titre="Liste des commandes" icone="📋" description="Toutes vos commandes clients apparaîtront ici." />;
 
-// ============================================================================
+const DetailCommande      = ({ commandeId, retourListe }: any) =>
+  <PageEnConstruction titre="Détail de la commande" icone="🔍" />;
+
+const PaiementsCommandes  = () =>
+  <PageEnConstruction titre="Paiements & commissions" icone="💰" description="Consultez vos paiements reçus et commissions dues." />;
+
+const RetourRemboursements = () =>
+  <PageEnConstruction titre="Retours & remboursements" icone="🔄" description="Gérez les demandes de retour de vos clients." />;
+
+const CommandesBrouillons = () =>
+  <PageEnConstruction titre="Commandes brouillons" icone="📝" description="Créez des commandes manuelles pour vos clients." />;
+
+const DocumentsVendeur    = () =>
+  <PageEnConstruction titre="Documents gestionnaire" icone="📄" description="Vos bons de livraison, factures et autres documents." />;
+
+const ConfigurationGenerale = () =>
+  <PageEnConstruction titre="Configuration générale" icone="🔧" description="Paramètres de base de votre boutique : nom, adresse, Stripe Connect." />;
+
+import ListeProduits from './pages/gestionnaire/ListeProduits';
+import StudioCategories from './pages/gestionnaire/StudioCategories';
+import BulkEditProduits from './pages/gestionnaire/BulkEditProduits';
+
+const Categories          = () =>
+  <PageEnConstruction titre="Collections" icone="🗂️" description="Organisez vos produits en collections." />;
+
+const MessagerieAdministration = () =>
+  <PageEnConstruction titre="Messagerie administration" icone="🛡️" description="Vos échanges avec l'équipe e-Vend Studio." />;
+
+const MessagerieNotifications  = () =>
+  <PageEnConstruction titre="Notifications e-Vend" icone="🔔" description="Toutes vos notifications de la plateforme." />;
+
+const MonForfait          = () =>
+  <PageEnConstruction titre="Mon forfait" icone="📊" description="Consultez et modifiez votre plan d'abonnement." />;
+
+const PlansMembership     = ({ naviguerVers }: any) =>
+  <PageEnConstruction titre="Plans & membership" icone="💎" description="Comparez les différents forfaits disponibles." />;
+
+const RapportVendeur      = ({ nomVendeur }: any) =>
+  <PageEnConstruction titre="Rapport financier" icone="📈" description="Analysez vos performances de vente." />;
+
+const MesAvis             = () =>
+  <PageEnConstruction titre="Mes avis" icone="⭐" description="Les avis de vos clients apparaîtront ici." />;
+
+const AvisProduits        = () =>
+  <PageEnConstruction titre="Avis produits" icone="📝" description="Avis laissés sur vos produits spécifiques." />;
+
+const MesBlogs            = () =>
+  <PageEnConstruction titre="Mes blogs" icone="✍️" description="Créez du contenu pour attirer vos clients." />;
+
+const MaFaq               = () =>
+  <PageEnConstruction titre="Ma FAQ" icone="❓" description="Répondez aux questions fréquentes de vos clients." />;
+
+const FacturesVendeur     = ({ naviguerVers }: any) =>
+  <PageEnConstruction titre="Factures" icone="🧾" description="Vos factures d'abonnement e-Vend Studio." />;
+
+const MesEncheres         = () =>
+  <PageEnConstruction titre="Mes enchères" icone="🔨" description="Gérez vos ventes aux enchères." />;
+
+const ReductionsRabais    = () =>
+  <PageEnConstruction titre="Réductions & codes promo" icone="🏷️" description="Créez des codes de réduction pour vos clients." />;
+
+const TagsProduits        = () =>
+  <PageEnConstruction titre="Tags produits" icone="🏷️" description="Organisez vos produits avec des étiquettes." />;
+
+const TypesProduits       = () =>
+  <PageEnConstruction titre="Types de produits" icone="📑" description="Définissez les types de produits que vous vendez." />;
+
+const ConnecterBoutique   = ({ onRetour, vendorId }: any) =>
+  <PageEnConstruction titre="Connecter ma boutique" icone="🔗" description="Connectez votre compte Stripe pour recevoir des paiements." />;
+
+const MesBadges           = () =>
+  <PageEnConstruction titre="Mes badges" icone="🏅" description="Vos certifications et badges de confiance." />;
+
+const MethodesExpedition  = ({ vendeurId, onRetour }: any) =>
+  <PageEnConstruction titre="Méthodes d'expédition" icone="🚚" description="Configurez vos options de livraison." />;
+
+const MesOffres           = () =>
+  <PageEnConstruction titre="Mes offres reçues" icone="💬" description="Offres soumises par des acheteurs sur vos produits." />;
+
+// =====================================================================
+// TYPES
+// =====================================================================
+export interface GestionnaireUser {
+  id:               number;
+  email:            string;
+  nom:              string;
+  nom_boutique:     string | null;
+  role:             string;
+  seller_id?:       string;
+  statut?:          string;
+  plan?:            string;
+  site_template_id?: string;
+  email_verifie?:   boolean;
+  premiere_verification_faite?: boolean;
+  email_verification_expire?: string;
+}
+
+interface StatsVendeur {
+  revenus: {
+    total: number;
+    mois: number;
+    aujourdhui: number;
+    croissance: number;
+  };
+  commandes: {
+    total: number;
+    enAttente: number;
+    expediees: number;
+    livrees: number;
+    annulees: number;
+    croissance: number;
+  };
+  produits: {
+    total: number;
+    actifs: number;
+    enRupture: number;
+    vues: number;
+    vuesCroissance: number;
+  };
+  avis: {
+    moyenne: number;
+    total: number;
+    cinqEtoiles: number;
+    quatreEtoiles: number;
+    troisEtoiles: number;
+    deuxEtoiles: number;
+    uneEtoile: number;
+  };
+  graphiques: {
+    ventes30j: { date: string; ventes: number; commandes: number }[];
+    topProduits: { nom: string; ventes: number; revenu: number }[];
+    repartitionStatuts: { nom: string; valeur: number; couleur: string }[];
+    visites: { date: string; vues: number }[];
+  };
+}
+
+// Types pour le menu
+interface SousMenuItem {
+  id: string;
+  label: string;
+  icon: string;
+  badge?: number;
+  onClick?: () => void;
+  href?: string;
+  bloque?: boolean;
+  cleAcces?: string;
+}
+
+interface MenuItem {
+  id: string;
+  label: string;
+  icon: string;
+  badge?: number;
+  sousMenu?: SousMenuItem[];
+  cleAcces?: string;
+}
+
+// =====================================================================
+// COMPOSANTS UTILITAIRES
+// =====================================================================
+const tooltipStyle: React.CSSProperties = {
+  position: 'absolute', bottom: '-32px', left: '50%',
+  transform: 'translateX(-50%)',
+  backgroundColor: 'rgba(0,0,0,0.75)', color: 'white',
+  padding: '4px 8px', borderRadius: '4px', fontSize: '12px',
+  whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 1000,
+};
+
+// =====================================================================
 // COMPOSANT INDICATEUR DE SESSION
-// ============================================================================
-function SessionIndicator() {
+// =====================================================================
+function SessionIndicator({ statut }: { statut?: string }) {
   const [isConnected, setIsConnected] = useState<boolean | null>(null);
   const intervalRef = useRef<any>(null);
 
-  // La session est un cookie httpOnly (illisible en JS) : seul le serveur peut dire si elle est valide.
-  // On ne dépend donc plus de la présence d'un jeton dans localStorage.
-  const verifierToken = async () => {
-    const token = localStorage.getItem('token');
+  const verifierSession = async () => {
     try {
-      const response = await fetch(`${API_BASE}/auth/verify`, {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/auth/verify', {
         credentials: 'include',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
-      setIsConnected(response.ok);
-    } catch (error) {
-      console.error('Erreur vérification session:', error);
+      const data = await res.json().catch(() => null);
+      setIsConnected(res.ok && data?.valid === true);
+    } catch {
       setIsConnected(false);
     }
   };
 
   useEffect(() => {
-    verifierToken();
-    intervalRef.current = window.setInterval(verifierToken, 10000);
-    
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'token') verifierToken();
-    };
-    window.addEventListener('storage', handleStorageChange);
-    
+    verifierSession();
+    intervalRef.current = setInterval(verifierSession, 60000);
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
   if (isConnected === null) {
-    return <span style={{ color: '#aaa', fontSize: '11px' }}>⏳ Vérification...</span>;
+    return <span style={{ color: '#aaa', fontSize: '12px' }}>⏳ Vérification...</span>;
   }
 
   return (
@@ -310,909 +297,1754 @@ function SessionIndicator() {
       display: 'flex',
       alignItems: 'center',
       gap: '6px',
-      padding: '4px 12px',
+      marginLeft: '16px',
+      padding: '4px 10px',
       borderRadius: '20px',
-      backgroundColor: isConnected ? 'rgba(22,163,74,0.1)' : 'rgba(220,38,38,0.1)',
-      border: `1px solid ${isConnected ? 'rgba(22,163,74,0.3)' : 'rgba(220,38,38,0.3)'}`,
+      backgroundColor: isConnected ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.15)',
+      border: `1px solid ${isConnected ? 'rgba(74,222,128,0.4)' : 'rgba(239,68,68,0.4)'}`,
     }}>
-      <span style={{ fontSize: '12px' }}>{isConnected ? '✅' : '❌'}</span>
+      <span style={{ fontSize: '14px' }}>{isConnected ? '✅' : '❌'}</span>
       <span style={{ 
         fontSize: '11px', 
         fontWeight: 600,
-        color: isConnected ? '#16a34a' : '#dc2626'
+        color: isConnected ? '#4ade80' : '#f87171'
       }}>
         {isConnected ? 'Session connectée' : 'Session déconnectée'}
       </span>
-    </div>
-  );
-}
-
-// ── KPI Card ──────────────────────────────────────────────────────────────────
-function KPICard({ icon, titre, valeur, sousTitre, couleur, tendance }: {
-  icon: string; titre: string; valeur: string; sousTitre: string;
-  couleur: string; tendance?: { val: string; positif: boolean };
-}) {
-  return (
-    <div style={{ backgroundColor: THEME.card, borderRadius: '12px', border: `1px solid ${THEME.border}`, padding: '20px 24px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-        <div style={{ width: '44px', height: '44px', borderRadius: '10px', backgroundColor: couleur + '18', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>{icon}</div>
-        {tendance && (
-          <span style={{ fontSize: '12px', fontWeight: '700', color: tendance.positif ? THEME.success : THEME.danger, backgroundColor: tendance.positif ? '#dcfce7' : '#fee2e2', padding: '3px 8px', borderRadius: '20px' }}>
-            {tendance.positif ? '↑' : '↓'} {tendance.val}
+      {statut && (() => {
+        const cfg: Record<string, { color: string; label: string }> = {
+          actif:      { color: '#4ade80', label: 'Actif' },
+          vacances:   { color: '#38bdf8', label: 'Vacances' },
+          suspendu:   { color: '#f87171', label: 'Suspendu' },
+          banni:      { color: '#f87171', label: 'Banni' },
+          rejected:   { color: '#f87171', label: 'Refusé' },
+          pending:    { color: '#fb923c', label: 'En attente' },
+          en_attente: { color: '#fb923c', label: 'En attente' },
+        };
+        const s = cfg[statut] || { color: '#aaa', label: statut };
+        return (
+          <span style={{ borderLeft: '1px solid rgba(255,255,255,0.15)', paddingLeft: '8px', marginLeft: '2px', fontSize: '11px', fontWeight: 600, color: s.color }}>
+            Statut : {s.label}
           </span>
-        )}
-      </div>
-      <p style={{ fontSize: '28px', fontWeight: '800', color: THEME.text, margin: '0 0 4px 0', lineHeight: 1 }}>{valeur}</p>
-      <p style={{ fontSize: '13px', fontWeight: '600', color: THEME.textLight, margin: '0 0 2px 0' }}>{titre}</p>
-      <p style={{ fontSize: '11px', color: '#aaa', margin: 0 }}>{sousTitre}</p>
+        );
+      })()}
     </div>
   );
 }
 
-// ── Dashboard ─────────────────────────────────────────────────────────────────
-function DashboardStats({ naviguerVers, vendeurs }: { naviguerVers: (p: string) => void; vendeurs: Vendeur[] }) {
-  const totalVentes      = vendeurs.reduce((s, v) => s + (Number(v.totalVentes) || 0), 0);
-  const totalCommissions = vendeurs.reduce((s, v) => s + (Number(v.commission) || 0), 0);
-  const vendActifs       = vendeurs.filter(v => v.statut === 'actif').length;
-  const enAttente        = vendeurs.filter(v => v.statut === 'en_attente' || v.statut === 'pending').length;
-  const activite = [...vendeurs]
-    .filter(v => v.dateInscription)
-    .sort((a, b) => b.dateInscription.localeCompare(a.dateInscription))
-    .slice(0, 5)
-    .map(v => {
-      const suspendu = v.statut === 'suspendu';
-      const actif = v.statut === 'actif';
-      return {
-        id: v.id,
-        date: v.dateInscription,
-        texte: `${v.nom} a créé un compte${v.nom_boutique ? ` (${v.nom_boutique})` : ''} — ${actif ? 'actif' : suspendu ? 'suspendu' : "en attente d'approbation"}`,
-        couleur: actif ? THEME.success : suspendu ? THEME.danger : THEME.warning,
-        icon: actif ? '✅' : suspendu ? '🚨' : '⏳',
-      };
-    });
-
-  return (
-    <div style={{ padding: '28px 32px', maxWidth: '1200px' }}>
-      <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontSize: '22px', fontWeight: '800', margin: '0 0 4px 0', color: THEME.text, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Tableau de bord</h1>
-        <p style={{ fontSize: '13px', color: THEME.textLight, margin: 0 }}>Vue d'ensemble de la plateforme e-Vend Studio</p>
-      </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
-        <KPICard icon="💰" titre="Revenus totaux"           valeur={`${totalVentes.toFixed(0)} $`}      sousTitre="Toutes boutiques" couleur={THEME.success} />
-        <KPICard icon="🏦" titre="Commissions perçues"      valeur={`${totalCommissions.toFixed(0)} $`} sousTitre="Cumul"            couleur={THEME.accent} />
-        <KPICard icon="🏪" titre="Vendeurs actifs"          valeur={String(vendActifs)}                  sousTitre={`${vendeurs.length} au total`} couleur={THEME.warning} />
-        <KPICard icon="⏳" titre="En attente d'approbation" valeur={String(enAttente)}                   sousTitre="Nouveaux vendeurs" couleur={THEME.danger} tendance={enAttente > 0 ? { val: `${enAttente} nouveau${enAttente > 1 ? 'x' : ''}`, positif: false } : undefined} />
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-        {/* Vendeurs récents */}
-        <div style={{ backgroundColor: THEME.card, borderRadius: '12px', border: `1px solid ${THEME.border}`, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-          <div style={{ padding: '16px 20px', borderBottom: `2px solid ${THEME.accent}`, backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '13px', fontWeight: '700', margin: 0, color: THEME.accent, textTransform: 'uppercase', letterSpacing: '0.5px' }}>🏪 Vendeurs récents</h3>
-            <button onClick={() => naviguerVers('vendeurs-liste')} style={{ fontSize: '12px', color: THEME.accent, background: 'none', border: 'none', cursor: 'pointer', fontWeight: '600' }}>Voir tous →</button>
-          </div>
-          {vendeurs.length === 0 && <p style={{ padding: '16px 20px', margin: 0, fontSize: '12px', color: '#aaa' }}>Aucun vendeur pour le moment.</p>}
-          {vendeurs.slice(0, 5).map((v, i) => (
-            <div key={v.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderBottom: i < 4 ? `1px solid #f5f5f5` : 'none', backgroundColor: i % 2 === 0 ? 'white' : '#fafafa' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{ width: '34px', height: '34px', borderRadius: '50%', backgroundColor: THEME.accent + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '800', color: THEME.accent }}>{v.nom.charAt(0)}</div>
-                <div>
-                  <p style={{ fontSize: '13px', fontWeight: '700', color: THEME.text, margin: 0 }}>{v.nom}</p>
-                  <p style={{ fontSize: '11px', color: THEME.textLight, margin: 0 }}>{v.nom_boutique} · {v.plan}</p>
-                </div>
-              </div>
-              <span style={{ fontSize: '10px', fontWeight: '700', padding: '3px 8px', borderRadius: '20px', backgroundColor: v.statut === 'actif' ? '#dcfce7' : v.statut === 'suspendu' ? '#fee2e2' : '#fef9c3', color: v.statut === 'actif' ? THEME.success : v.statut === 'suspendu' ? THEME.danger : THEME.warning }}>
-                {v.statut === 'actif' ? '✓ Actif' : v.statut === 'suspendu' ? '✗ Suspendu' : '⏳ En attente'}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        {/* Répartition par plan */}
-        <div style={{ backgroundColor: THEME.card, borderRadius: '12px', border: `1px solid ${THEME.border}`, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-          <div style={{ padding: '16px 20px', borderBottom: `2px solid ${THEME.accent}`, backgroundColor: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '13px', fontWeight: '700', margin: 0, color: THEME.accent, textTransform: 'uppercase', letterSpacing: '0.5px' }}>⭐ Répartition par forfait</h3>
-            <button onClick={() => naviguerVers('forfaits-abonnements')} style={{ fontSize: '12px', color: THEME.accent, background: 'none', border: 'none', cursor: 'pointer', fontWeight: '600' }}>Détails →</button>
-          </div>
-          <div style={{ padding: '20px' }}>
-            {[
-              { plan: '👑 Plan Fondateur', count: vendeurs.filter(v => v.plan === 'Plan Fondateur').length, couleur: '#6d4fc2' },
-              { plan: '🚀 Plan Extrême',   count: vendeurs.filter(v => v.plan === 'Plan Extrême').length,   couleur: '#537373' },
-              { plan: '🥇 Plan Or',        count: vendeurs.filter(v => v.plan === 'Plan Or').length,        couleur: '#c9961a' },
-              { plan: '🥈 Plan Argent',    count: vendeurs.filter(v => v.plan === 'Plan Argent').length,    couleur: '#7a8fa6' },
-              { plan: '🥉 Plan Bronze',    count: vendeurs.filter(v => v.plan === 'Plan Bronze').length,    couleur: '#a07850' },
-            ].map((item, i) => {
-              const pourcentage = vendeurs.length > 0 ? (item.count / vendeurs.length) * 100 : 0;
-              return (
-                <div key={i} style={{ marginBottom: '14px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span style={{ fontSize: '12px', fontWeight: '600', color: THEME.text }}>{item.plan}</span>
-                    <span style={{ fontSize: '12px', fontWeight: '700', color: THEME.textLight }}>{item.count} vendeur{item.count > 1 ? 's' : ''}</span>
-                  </div>
-                  <div style={{ backgroundColor: '#f0f0f0', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
-                    <div style={{ backgroundColor: item.couleur, height: '100%', width: `${Math.max(pourcentage, item.count > 0 ? 6 : 0)}%`, borderRadius: '4px' }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {/* Dernières inscriptions (données réelles) */}
-      <div style={{ backgroundColor: THEME.card, borderRadius: '12px', border: `1px solid ${THEME.border}`, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.05)' }}>
-        <div style={{ padding: '16px 20px', borderBottom: `2px solid ${THEME.accent}`, backgroundColor: '#f8fafc' }}>
-          <h3 style={{ fontSize: '13px', fontWeight: '700', margin: 0, color: THEME.accent, textTransform: 'uppercase', letterSpacing: '0.5px' }}>🕐 Dernières inscriptions</h3>
-        </div>
-        {activite.length === 0 && (
-          <p style={{ padding: '16px 20px', margin: 0, fontSize: '12px', color: '#aaa' }}>Aucune inscription pour le moment.</p>
-        )}
-        {activite.map((a, i) => (
-          <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '10px 20px', borderBottom: i < activite.length - 1 ? '1px solid #f8f8f8' : 'none' }}>
-            <span style={{ fontSize: '16px', flexShrink: 0 }}>{a.icon}</span>
-            <span style={{ fontSize: '11px', color: '#aaa', minWidth: '74px', fontWeight: '600' }}>{a.date}</span>
-            <div style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: a.couleur, flexShrink: 0 }} />
-            <span style={{ fontSize: '12px', color: THEME.text }}>{a.texte}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+// =====================================================================
+// APP GESTIONNAIRE PRINCIPALE
+// =====================================================================
+interface AppGestionnaireProps {
+  isAdminImpersonation?: boolean;
+  onLogout?:   () => void;
+  gestionnaireUser?: GestionnaireUser | null;
 }
 
-// ── Placeholder ───────────────────────────────────────────────────────────────
-function PageEnConstruction({ titre }: { titre: string }) {
-  return (
-    <div style={{ padding: '28px 32px', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-      <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-        <div style={{ fontSize: '56px', marginBottom: '16px', opacity: 0.3 }}>🔧</div>
-        <h2 style={{ fontSize: '18px', fontWeight: '800', color: THEME.text, margin: '0 0 8px 0', textTransform: 'uppercase' }}>{titre}</h2>
-        <p style={{ fontSize: '13px', color: THEME.textLight, margin: 0 }}>Cette section est en cours de développement.</p>
-      </div>
-    </div>
-  );
+function formaterDeadlineFr(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const date = d.toLocaleDateString('fr-CA', { day: 'numeric', month: 'long' });
+    const heure = d.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' });
+    return `${date} à ${heure}`;
+  } catch {
+    return '';
+  }
 }
 
-// ── Composant principal ───────────────────────────────────────────────────────
-function AppAdmin({ onLogout, onImpersonate, onImpersonateAcheteur, onImpersonateGestionnaire }: { onLogout?: () => void; onImpersonate?: (vendeur: any) => void; onImpersonateAcheteur?: (acheteur: any) => void; onImpersonateGestionnaire?: (gestionnaire: any, token: string) => void }) {
-  return (
-    <TranslationProvider>
-      <AppAdminContent onLogout={onLogout} onImpersonate={onImpersonate} onImpersonateAcheteur={onImpersonateAcheteur} onImpersonateGestionnaire={onImpersonateGestionnaire} />
-    </TranslationProvider>
-  );
-}
+function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = false }: AppGestionnaireProps) {
+  const getToken = () => localStorage.getItem('token');
 
-// ── Contenu principal de l'admin ───────────────────────────────────────────
-function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImpersonateGestionnaire }: { onLogout?: () => void; onImpersonate?: (vendeur: any) => void; onImpersonateAcheteur?: (acheteur: any) => void; onImpersonateGestionnaire?: (gestionnaire: any, token: string) => void }) {
-  const [pageActive, setPageActive] = useState('dashboard');
-  const [sectionOuverte, setSectionOuverte] = useState<string | null>(null);
-  const [heureActuelle, setHeureActuelle] = useState(new Date());
-  const [vendeurImpersonne, setVendeurImpersonne] = useState<Vendeur | null>(null);
-  const [vendeurAImpersonner, setVendeurAImpersonner] = useState<Vendeur | null>(null);
-  const [modalImpersonateOuvert, setModalImpersonateOuvert] = useState(false);
-  const [gestionnaireImpersonne, setGestionnaireImpersonne] = useState<Gestionnaire | null>(null);
-  const [gestionnaireAImpersonner, setGestionnaireAImpersonner] = useState<{ gestionnaire: Gestionnaire; token: string } | null>(null);
-  const [modalImpersonateGestionnaireOuvert, setModalImpersonateGestionnaireOuvert] = useState(false);
-  const [sponsorAImpersonner, setSponsorAImpersonner] = useState<{ sponsor: Sponsor; token: string } | null>(null);
-  const [modalImpersonateSponsorOuvert, setModalImpersonateSponsorOuvert] = useState(false);
-  const [planAEditer, setPlanAEditer] = useState<any>(null);
-  const [pageData, setPageData] = useState<any>(null);
+  const [pageActive, setPageActive]         = useState('dashboard');
+  const [templateIdChoisi, setTemplateIdChoisi] = useState<string>('');
+  const [modalOuvert, setModalOuvert] = useState(false);
+  const [message, setMessage] = useState('');
+  const [nonLus, setNonLus] = useState({ acheteurs: 0, admin: 0, notifs: 0, contact: 0, total: 0 });
+  const [modalPhotoOuvert, setModalPhotoOuvert] = useState(false);
+  const [signalementsNouveaux, setSignalementsNouveaux] = useState(0);
+  const [contactNonLus, setContactNonLus] = useState(0); // messages du formulaire Contact du site multi-vendeur
+  const [avisAttente, setAvisAttente] = useState(0);     // avis clients en attente d'approbation
+
+  useEffect(() => {
+    const chargerNonLus = async () => {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      try {
+        const r = await fetch(`${API_BASE}/messagerie/gestionnaire/non-lus-total`, {
+          credentials: 'include', headers: { Authorization: `Bearer ${token}` }
+        });
+        if (r.ok) setNonLus(await r.json());
+      } catch {}
+    };
+    chargerNonLus();
+    const interval = setInterval(chargerNonLus, 30000);
+    return () => clearInterval(interval);
+  }, []);
   
-  // États pour les données de la base de données
-  const [vendeurs, setVendeurs] = useState<Vendeur[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [nbSignalementsNouveaux, setNbSignalementsNouveaux] = useState(0);
-  const [nbSignalementsPubNouveaux, setNbSignalementsPubNouveaux] = useState(0);
-  const [footerText, setFooterText] = useState(`© Copyright ${new Date().getFullYear()} e-Vend Studio Administration — Accès restreint`);
+  const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [menuOuvert, setMenuOuvert] = useState<string | null>(null);
+  const [footerText, setFooterText] = useState(`© Copyright ${new Date().getFullYear()} e-Vend Studio, Tous droits réservés`);
+  const [resetConfirm, setResetConfirm] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetDone,    setResetDone]    = useState(false);
   const [nomPlateforme, setNomPlateforme] = useState('e-Vend');
+  const [banniereVendeurActive, setBanniereVendeurActive] = useState(false);
+  const [hauteurBandeauEssai, setHauteurBandeauEssai] = useState(0);
+  const [banniereVendeurMessage, setBanniereVendeurMessage] = useState('');
+  const [banniereVendeurCouleurBg, setBanniereVendeurCouleurBg] = useState('#1e3a5f');
+  const [banniereVendeurCouleurTx, setBanniereVendeurCouleurTx] = useState('#ffffff');
+  const [banniereVendeurHauteur, setBanniereVendeurHauteur] = useState('36');
+  const [banniereVendeurPolice, setBanniereVendeurPolice] = useState('13');
+  const [commandeSelectionnee, setCommandeSelectionnee] = useState<number | null>(null);
+  const [fonctionnalitesPlan, setFonctionnalitesPlan] = useState<Record<string, boolean> | null>(null);
+  const [fonctsMaster, setFonctsMaster] = useState<Record<string, boolean>>({});
 
-  // Charger les vendeurs depuis l'API
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('stripe') === 'success' || params.get('stripe') === 'refresh') {
+      setPageActive('config-generale');
+      setMenuOuvert('config');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
+
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+      if (window.innerWidth > 768) setMenuMobileOuvert(false);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    const aller = () => setPageActive('mes-services');
+    window.addEventListener('naviguer-mes-services', aller);
+    return () => window.removeEventListener('naviguer-mes-services', aller);
+  }, []);
+
   useEffect(() => {
     fetch(`${API_BASE}/admin/configuration/config-publique`)
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data?.footer_text) setFooterText(data.footer_text + ' — Accès restreint');
+        if (data?.footer_text) setFooterText(data.footer_text);
         if (data?.nom_plateforme) setNomPlateforme(data.nom_plateforme);
+        if (data?.banniere_vendeur_active !== undefined) setBanniereVendeurActive(data.banniere_vendeur_active);
+        if (data?.banniere_vendeur_message) setBanniereVendeurMessage(data.banniere_vendeur_message);
+        if (data?.banniere_vendeur_couleur_bg) setBanniereVendeurCouleurBg(data.banniere_vendeur_couleur_bg);
+        if (data?.banniere_vendeur_couleur_tx) setBanniereVendeurCouleurTx(data.banniere_vendeur_couleur_tx);
+        if (data?.banniere_vendeur_hauteur) setBanniereVendeurHauteur(data.banniere_vendeur_hauteur);
+        if (data?.banniere_vendeur_police) setBanniereVendeurPolice(data.banniere_vendeur_police);
       })
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    fetch(`${API_BASE}/gestionnaires`, { credentials: 'include' })
-      .then(res => {
-        if (!res.ok) {
-          throw new Error(`Erreur HTTP: ${res.status}`);
+  const [gestionnaire, setGestionnaire] = useState<GestionnaireUser>(() => {
+    if (gestionnaireUser) return gestionnaireUser;
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return { id: 0, email: '', nom: 'Gestionnaire', nom_boutique: null, role: 'gestionnaire' };
+  });
+
+  // ── Bannière courriel non vérifié ────────────────────────────────────────
+  const HAUTEUR_BANNIERE_EMAIL = 48;
+  const [renvoiEnCours, setRenvoiEnCours] = useState(false);
+  const [renvoiMessage, setRenvoiMessage] = useState<string | null>(null);
+  const [renvoiCooldown, setRenvoiCooldown] = useState(0);
+  const [deadlineVerifEmail, setDeadlineVerifEmail] = useState<string | null>(gestionnaire.email_verification_expire || null);
+
+  const rafraichirStatutEmail = () => {
+    if (!gestionnaire?.id) return;
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE}/gestionnaires/moi`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && typeof data.email_verifie === 'boolean') {
+          setGestionnaire(prev => ({
+            ...prev,
+            email_verifie: data.email_verifie,
+            premiere_verification_faite: data.premiere_verification_faite,
+          }));
         }
-        return res.json();
+        if (data?.email_verification_expire) {
+          setDeadlineVerifEmail(data.email_verification_expire);
+        }
       })
-      .then((data: any[]) => {
-        const transformedData: Vendeur[] = data.map((v) => ({
-          id: v.id,
-          sellerId: v.seller_id || `VEN-${String(v.id).padStart(6, '0')}`,
-          nom: v.nom,
-          email: v.email,
-          nom_boutique: v.nom_boutique || v.boutique || '',
-          plan: v.plan,
-          statut: v.statut,
-          dateInscription: v.date_inscription ? v.date_inscription.split('T')[0] : '',
-          totalVentes: parseFloat(v.total_ventes) || 0,
-          commission: parseFloat(v.commission) || 0,
-          produits: v.produits || 0,
-          notes: [],
-          nbSignalements: v.nb_signalements || 0,
-          nbCommandes: 0,
-          gravite: (v.gravite as 'faible' | 'moyenne' | 'grave') || 'faible',
-          twoFactorEnabled: v.two_factor_enabled ?? false,
-        }));
-        setVendeurs(transformedData);
-        setLoading(false);
-      })
-      .catch(err => {
-        console.error('❌ Erreur chargement vendeurs:', err);
-        setLoading(false);
-        // Pas de fausses données en cas d'échec : liste vide, plus honnête qu'une fausse liste convaincante.
-        setVendeurs([]);
+      .catch(() => {});
+  };
+  useEffect(() => {
+    rafraichirStatutEmail();
+    const onFocus = () => rafraichirStatutEmail();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [gestionnaire?.id]);
+
+  useEffect(() => {
+    if (renvoiCooldown <= 0) return;
+    const t = setTimeout(() => setRenvoiCooldown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [renvoiCooldown]);
+
+  const renvoyerVerificationEmail = async () => {
+    if (renvoiEnCours || renvoiCooldown > 0) return;
+    setRenvoiEnCours(true);
+    setRenvoiMessage(null);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/gestionnaires/${gestionnaire.id}/renvoyer-verification`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
       });
-  }, []);
+      const data = await res.json();
+      if (res.ok) {
+        setRenvoiMessage('✅ Courriel envoyé ! Vérifiez votre boîte de réception.');
+        setRenvoiCooldown(60);
+      } else {
+        setRenvoiMessage(data.error || 'Erreur lors de l\'envoi.');
+      }
+    } catch {
+      setRenvoiMessage('Erreur de connexion.');
+    }
+    setRenvoiEnCours(false);
+  };
+
+  // Options add-ons du gestionnaire
+  const [options, setOptions] = useState<Record<string, any>>({});
+  const rechargerOptions = () => {
+    if (!gestionnaire?.id) return;
+    const token = localStorage.getItem('token');
+    fetch(`${API_BASE}/gestionnaires/${gestionnaire.id}/options`, {
+      headers: { Authorization: `Bearer ${token}` }, credentials: 'include',
+    }).then(r => r.ok ? r.json() : {}).then(data => { if (data) setOptions(data); }).catch(() => {});
+  };
+  useEffect(() => { rechargerOptions(); }, [gestionnaire?.id]);
 
   useEffect(() => {
-    const t = setInterval(() => setHeureActuelle(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
+    if (gestionnaireUser) setGestionnaire(gestionnaireUser);
+  }, [gestionnaireUser]);
 
-  // Badge signalements
+  // ── Charger le template_id du site Studio ──────────────────────────────
+  const [templateCharge, setTemplateCharge] = useState(false);
   useEffect(() => {
-    const fetchCount = () => {
-      const token = localStorage.getItem('token');
-      fetch(`${API_BASE}/signalements/count`, {
-        credentials: 'include',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+    if (!gestionnaire?.id || templateCharge) return;
+    setTemplateCharge(true);
+    fetch(`${API_BASE}/studio/sites/${gestionnaire.id}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+      credentials: 'include',
+    })
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data?.template_id && !templateIdChoisi) {
+          setGestionnaire(prev => ({ ...prev, site_template_id: data.template_id }));
+        }
       })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) setNbSignalementsNouveaux(data.nouveaux || 0); })
-        .catch(() => {});
+      .catch(() => {});
+  }, [gestionnaire?.id]);
+
+  useEffect(() => {
+    if (!gestionnaire?.id) return;
+    const chargerFonctionnalites = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/fonctionnalites/vendeur/${gestionnaire.id}/resolues`, {
+          credentials: 'include', headers: { Authorization: `Bearer ${getToken()}` }
+        });
+        if (!res.ok) {
+          const res2 = await fetch(`${API_BASE}/plans/vendeur/${gestionnaire.id}/plan-actif`, {
+            credentials: 'include', headers: { Authorization: `Bearer ${getToken()}` }
+          });
+          if (!res2.ok) return;
+          const data2 = await res2.json();
+          if (data2?.limites?.fonctionnalites) setFonctionnalitesPlan(data2.limites.fonctionnalites);
+          return;
+        }
+        const data = await res.json();
+        if (data?.fonctionnalites) setFonctionnalitesPlan(data.fonctionnalites);
+      } catch (e) {
+        console.error('Erreur chargement fonctionnalités plan:', e);
+      }
     };
-    fetchCount();
-    const interval = setInterval(fetchCount, 60000);
+    chargerFonctionnalites();
+  }, [gestionnaire?.id, gestionnaire?.plan]);
+
+  useEffect(() => {
+    const chargerMaster = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/fonctionnalites`);
+        if (!res.ok) return;
+        const liste: Array<{ cle: string; actif: boolean }> = await res.json();
+        const map: Record<string, boolean> = {};
+        liste.forEach(f => { if (f.actif) map[f.cle] = true; });
+        setFonctsMaster(map);
+      } catch (e) {
+        console.warn('⚠️ fonctionnalites_master non chargé:', e);
+      }
+    };
+    chargerMaster();
+    const interval = setInterval(chargerMaster, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Badge signalements de pubs sponsors (système séparé, propre à Studio)
+  const aAcces = (cle: string): boolean => {
+    if (isAdminImpersonation) return true;
+    if (Object.keys(fonctsMaster).length > 0 && !fonctsMaster[cle]) return false;
+    if (fonctionnalitesPlan === null) return true;
+    return fonctionnalitesPlan[cle] === true;
+  };
+
+  const ouvrirModal = useCallback(() => setModalOuvert(true), []);
+  const fermerModal = useCallback(() => setModalOuvert(false), []);
+  const envoyerMessage = useCallback(() => { setMessage(''); fermerModal(); }, [fermerModal]);
+
+  const handleSelectPhoto = (photo) => {
+    const url = photo.urls.regular;
+    console.log('📷 Photo sélectionnée:', url);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(url).then(() => {
+        alert('✅ URL de la photo copiée !');
+      }).catch(() => {});
+    }
+    setModalPhotoOuvert(false);
+  };
+
+  const initialeAvatar = gestionnaire.nom?.charAt(0)?.toUpperCase() || 'V';
+
+  const ouvrirBoutiqueNouvelOnglet = async () => {
+    try {
+      const res = await fetch(`/api/studio/sites/${gestionnaire.id}`);
+      const data = res.ok ? await res.json() : null;
+      if (data?.domaine_perso && data?.domaine_statut !== 'suspendu') {
+        window.open(`https://${data.domaine_perso}`, '_blank', 'noopener,noreferrer');
+      } else if (data?.sous_domaine) {
+        window.open(`https://${data.sous_domaine}.e-vendstudio.ca`, '_blank', 'noopener,noreferrer');
+      } else {
+        window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer');
+      }
+    } catch {
+      window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handleMenuClick = (menuId: string) => setMenuOuvert(menuOuvert === menuId ? null : menuId);
+
+  // ── Item page 404 — commun à tous les menus CONFIGURATION ───────────────
+  const itemPage404: SousMenuItem = { id: 'studio-page-404', label: 'Page 404', icon: '🔍' };
+  const itemPolitiques: SousMenuItem = { id: 'studio-mes-politiques', label: 'Mes politiques', icon: '📜' };
+  const itemPages: SousMenuItem      = { id: 'studio-mes-pages',      label: 'Mes pages',             icon: '📄' };
+  const itemSeo: SousMenuItem        = { id: 'studio-seo-site',        label: 'Référencement SEO',     icon: '🔍' };
+  const itemCookies: SousMenuItem    = { id: 'studio-cookies-site',    label: 'Gestion des cookies',   icon: '🍪' };
+  const itemVerificateurAge = { id:'config-verificateur-age', label:'Vérificateur d\'âge 🔞', icon:'🔞' };
+  const itemPopupAnnonce    = { id:'config-popup-annonce',    label:'Popup Annonce 📢',          icon:'📢' };
+  const itemPhotos: SousMenuItem     = { id: 'studio-photos-vendeur',   label: 'Mes photos de site',    icon: '🖼️' };
+  const itemFormulaireContact = { id: 'config-formulaire-contact', label: 'Formulaire de contact', icon: '📋' };
+  const itemConfigGenerale: SousMenuItem = { id: 'config-generale',     label: 'Config générale',    icon: '⚙️' };
+  const itemConfigMV: SousMenuItem       = { id: 'config-multivendeur', label: 'Config multivendeur', icon: '🏪' };
+  const itemConfigPaiements: SousMenuItem = { id: 'config-paiements',   label: 'Config paiement',     icon: '💳' };
+
+  // ── Groupe du template actif ──────────────────────────────────────────────
+  const templateActif = templateIdChoisi || gestionnaire.site_template_id || '';
+  const estVitrine       = templateActif.startsWith('vitrine-') || templateActif === 'vitrine';
+  const estReservation   = templateActif.startsWith('reservation-');
+  const estCagnotte      = templateActif.startsWith('cagnotte-');
+  const estBoutiqueSimple   = templateActif === 'boutique-simple';
+  const estBoutiqueComplete = templateActif === 'boutique-complete';
+  const estBoutique      = estBoutiqueSimple || estBoutiqueComplete;
+  const estEnchere       = ['enchere-flash', 'enchere-galerie', 'enchere-live'].includes(templateActif);
+  const estVitrinePro    = ['vitrine-pro-entrepreneur', 'vitrine-pro-tech', 'vitrine-pro-beaute', 'vitrine-pro-mariage', 'vitrine-pro-sante', 'vitrine-paysager', 'vitrine-avocat', 'vitrine-resto', 'vitrine-bistro', 'cours-piano', 'cours-langues', 'cours-web', 'cours-cuisine', 'cours-yoga', 'cours-equitation','cours-peinture','cours-danse','vitrine-foodtruck','vitrine-boulangerie','cours-coach'].includes(templateActif);
+  const estSalon         = templateActif === 'salon-coiffure';
+  const estSimplisse     = templateActif.startsWith('boutique-simplisse') && !templateActif.startsWith('boutique-simplisse-mode');
+  const estPremium       = templateActif.startsWith('boutique-premium');
+  const estSimplisseMode = templateActif.startsWith('boutique-simplisse-mode');
+  const estBeaute        = templateActif.startsWith('boutique-beaute');
+  const estMultiVendeur  = templateActif.startsWith('multi-vendeur-premium');
+  const aucunTemplate    = !templateActif;
+
+  // ── Menus Studio (communs à tous) ────────────────────────────────────────
+  const menuStudio: MenuItem = {
+    id: 'studio', label: 'MON SITE STUDIO', icon: '🎨',
+    sousMenu: [
+      { id: 'studio-apercu',            label: 'Aperçu de mon site',          icon: '👁',  onClick: () => window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer') },
+      { id: 'studio-choisir-template',  label: 'Choisir un template',         icon: '🗂️' },
+      { id: 'studio-config-template',   label: 'Modifier mon site',           icon: '✏️' },
+      { id: 'studio-domaine',           label: 'Mon domaine',                 icon: '🌐' },
+      { id: 'studio-import-evend',      label: 'Importer mes annonces e-Vend',icon: '📦' },
+    ]
+  };
+
+  // ── Mes réservations école ──────────────────────────────────────────────
+  const menuMesReservations: MenuItem = {
+    id: 'mes-reservations', label: 'MES RÉSERVATIONS ÉCOLES', icon: '📅',
+  };
+
+  // ── Mes abonnements clients ─────────────────────────────────────────────
+  const menuMesAbonnements: MenuItem = {
+    id: 'abonnements-clients', label: 'ABONNEMENTS CLIENTS', icon: '💳',
+  };
+
+  // ── Mes sponsors ─────────────────────────────────────────────────────────
+  const menuMesSponsors: MenuItem = {
+    id: 'mes-sponsors', label: 'MES SPONSORS', icon: '⭐',
+  };
+
+  const menuMesAnalytique: MenuItem = {
+    id: 'mes-analytique', label: 'ANALYTIQUE', icon: '📈',
+  };
+
+  const menuMesChatbot: MenuItem = {
+    id: 'mes-chatbot', label: 'CHAT BOT', icon: '💬',
+  };
+
+  // 🔥 NOUVEAU MENU EFFETS VISUELS
+  const menuMesEffetsVisuels: MenuItem = {
+    id: 'mes-effets-visuels', label: 'EFFETS VISUELS', icon: '✨',
+  };
+
+  // Signalements de boutiques non ouverts (pastille rouge du menu MES COLLABORATEURS)
   useEffect(() => {
-    const fetchCountPub = () => {
+    if (!gestionnaire?.id) return;
+    const charger = async () => {
       const token = localStorage.getItem('token');
-      fetch(`/api/sponsors/admin/signalements/compte`, {
-        credentials: 'include',
-        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => { if (data) setNbSignalementsPubNouveaux(data.nouveaux || 0); })
-        .catch(() => {});
+      try {
+        const r = await fetch(`${API_BASE}/studio/collaborateurs/${gestionnaire.id}/signalements/count`, {
+          credentials: 'include', headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (r.ok) { const d = await r.json(); setSignalementsNouveaux(Number(d.nouveaux) || 0); }
+      } catch {}
     };
-    fetchCountPub();
-    const interval = setInterval(fetchCountPub, 60000);
-    return () => clearInterval(interval);
-  }, []);
+    charger();
+    const interval = setInterval(charger, 30000);
+    window.addEventListener('signalements-maj', charger);
+    return () => { clearInterval(interval); window.removeEventListener('signalements-maj', charger); };
+  }, [gestionnaire?.id]);
 
-  // ── Cercles rouges : uniquement de vrais compteurs ────────────────────────
-  // (la Messagerie n'en a pas encore : il faudra une route serveur qui compte les messages non lus)
-  const nbEnAttente = vendeurs.filter(v => v.statut === 'en_attente' || v.statut === 'pending').length;
-  const badgeSection = (id: string): number => {
-    if (id === 'vendeurs') return nbEnAttente + nbSignalementsNouveaux;
-    if (id === 'signalements') return nbSignalementsNouveaux;
-    return 0;
-  };
-  const badgeSousSection = (id: string): number => {
-    if (id === 'vendeurs-liste') return nbSignalementsNouveaux;
-    if (id === 'vendeurs-approbations') return nbEnAttente;
-    if (id === 'sponsors-signalements') return nbSignalementsPubNouveaux;
-    if (id === 'signalements-liste') return nbSignalementsNouveaux;
-    return 0;
+  // Messages non lus du formulaire Contact (pastille rouge du menu MULTI-VENDEUR › Contact)
+  useEffect(() => {
+    if (!gestionnaire?.id) return;
+    const charger = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const r = await fetch(`${API_BASE}/mv-contact/${gestionnaire.id}/count`, {
+          credentials: 'include', headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (r.ok) { const d = await r.json(); setContactNonLus(Number(d.non_lus) || 0); }
+      } catch {}
+    };
+    charger();
+    const interval = setInterval(charger, 30000);
+    window.addEventListener('contact-maj', charger);
+    return () => { clearInterval(interval); window.removeEventListener('contact-maj', charger); };
+  }, [gestionnaire?.id]);
+
+  // Avis clients à approuver (pastille du menu MULTI-VENDEUR › Avis)
+  useEffect(() => {
+    if (!gestionnaire?.id) return;
+    const charger = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const r = await fetch(`${API_BASE}/studio/mv/${gestionnaire.id}/avis/compte`, {
+          credentials: 'include', headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (r.ok) { const d = await r.json(); setAvisAttente(Number(d.attente) || 0); }
+      } catch {}
+    };
+    charger();
+    const interval = setInterval(charger, 60000);
+    window.addEventListener('avis-maj', charger);
+    return () => { clearInterval(interval); window.removeEventListener('avis-maj', charger); };
+  }, [gestionnaire?.id]);
+
+  // ── Mes collaborateurs ──────────────────────────────────────────────────
+  const menuSousVendeurs: MenuItem = {
+    id: 'collaborateurs', label: 'MES COLLABORATEURS', icon: '🏪',
+    sousMenu: [
+      { id: 'collaborateurs-liste',  label: 'Liste des collaborateurs', icon: '👥' },
+      { id: 'collaborateurs-blogs',  label: 'Blog collaborateurs',      icon: '📝' },
+      ...(estMultiVendeur ? [{ id: 'faqs-collaborateurs', label: 'FAQ collaborateurs', icon: '❓' }] : []),
+      { id: 'collaborateurs-messages', label: 'Messages collaborateurs', icon: '💬' },
+      { id: 'collaborateurs-signalements', label: 'Signalements', icon: '🚩', badge: signalementsNouveaux > 0 ? signalementsNouveaux : undefined },
+    ],
+    badge: signalementsNouveaux > 0 ? signalementsNouveaux : undefined,
   };
 
-  const toggleSection = (id: string) => {
-    setSectionOuverte(prev => prev === id ? null : id);
+  // ── Badges ────────────────────────────────────────────────────────────────
+  const menuBadges: MenuItem = {
+    id: 'badges', label: 'BADGES', icon: '🏅',
+    sousMenu: [
+      { id: 'badges-gestion',   label: 'Gérer les badges',  icon: '🏅' },
+      { id: 'badges-attribues', label: 'Badges attribués',  icon: '🎖️' },
+    ]
   };
 
-  const naviguerVers = (page: string, data?: any) => {
-    if (page === 'forfaits-creer') setPlanAEditer(data ?? null);
-    setPageData(data ?? null);
-    setPageActive(page);
+  // ── Blog / FAQ collaborateurs (menus séparés, templates hors multi-vendeur) ──
+  const menuBlogsSV: MenuItem = {
+    id: 'blogs-collaborateurs', label: 'BLOGS COLLABORATEURS', icon: '📝',
   };
 
-  // ── Routeur complet ──────────────────────────────────────────────────────
+  const menuFaqsSV: MenuItem = {
+    id: 'faqs-collaborateurs', label: 'FAQ COLLABORATEURS', icon: '❓',
+  };
+
+  const menuChatSV: MenuItem = {
+    id: 'chat-acheteur-sv', label: 'CHAT ACHETEUR-COLLAB', icon: '💬',
+  };
+
+  // ── Profil ────────────────────────────────────────────────────────────────
+  const menuProfil: MenuItem = {
+    id: 'profil', label: 'PROFIL', icon: '👤',
+    sousMenu: [
+      { id: 'profil-compte',        label: 'Mon compte',        icon: '👤' },
+      { id: 'profil-paiement',      label: 'Détails de paiement', icon: '💳' },
+      { id: 'profil-forfait',       label: 'Mon forfait',       icon: '📊' },
+      { id: 'mes-services',          label: 'Mes services',      icon: '💼' },
+      { id: 'profil-rapport',       label: 'Rapport financier', icon: '📈' },
+      { id: 'profil-factures',      label: 'Factures',          icon: '🧾' },
+    ]
+  };
+
+  // ── Messagerie ────────────────────────────────────────────────────────────
+  const menuMessagerie: MenuItem = {
+    id: 'messagerie', label: 'MESSAGERIE', icon: '✉️',
+    badge: nonLus.total > 0 ? nonLus.total : undefined,
+    cleAcces: 'messagerie',
+    sousMenu: [
+      { id: 'messagerie-admin',         label: 'Message administration', icon: '🛡️', badge: nonLus.admin > 0 ? nonLus.admin : undefined },
+      { id: 'messagerie-notifications', label: 'Notifications e-Vend',  icon: '🔔', badge: nonLus.notifs > 0 ? nonLus.notifs : undefined },
+      { id: 'messagerie-contact',       label: 'Messages via formulaire contact', icon: '📋', badge: nonLus.contact > 0 ? nonLus.contact : undefined },
+    ]
+  };
+
+  // ── Add-ons ───────────────────────────────────────────────────────────────
+  const menuAddOn: MenuItem = {
+    id: 'addon', label: 'ADD-ONS', icon: '🧩',
+  };
+
+  // 🟢 Branding & options
+  const menuBrandingOptions: MenuItem = {
+    id: 'branding-options', label: 'Branding & options', icon: '⚙️',
+  };
+
+  const menuStudioSimplisse: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuVosAnnoncesSimplisse: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-encheres',label:'Mes enchères',icon:'🔨',cleAcces:'modeEncheres' },{ id:'annonces-make-offer',label:'Mes offres reçues',icon:'💬' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-types',label:'Types produits',icon:'📑' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
+  const menuConfigMesPages: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🎨',sousMenu:[{ id:'simplisse-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'simplisse-plan',label:'Mon plan & limites',icon:'📊' },{ id:'simplisse-branding',label:'Branding & options',icon:'⚙️' }] };
+
+  const menuStudioPremium: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuVosAnnoncesPremium: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-encheres',label:'Mes enchères',icon:'🔨',cleAcces:'modeEncheres' },{ id:'annonces-make-offer',label:'Mes offres reçues',icon:'💬' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-types',label:'Types produits',icon:'📑' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
+  const menuConfigPremium: MenuItem = { id:'config-premium',label:'CONFIG MES PAGES',icon:'💎',sousMenu:[{ id:'premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'premium-branding',label:'Branding & options',icon:'⚙️' }] };
+
+  const menuStudioMode: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuVosAnnoncesMode: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'👗',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
+  const menuConfigMode: MenuItem = { id:'config-mode',label:'CONFIG MES PAGES',icon:'👗',sousMenu:[{ id:'mode-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'mode-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mode-branding',label:'Branding & options',icon:'⚙️' }] };
+
+  const menuStudioBeaute: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuVosAnnoncesBeaute: MenuItem = { id:'annonces',label:'VOS PRODUITS',icon:'💄',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
+  const menuConfigBeaute: MenuItem = { id:'config-beaute',label:'CONFIG MES PAGES',icon:'💄',sousMenu:[{ id:'beaute-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'beaute-plan',label:'Mon plan & limites',icon:'📊' },{ id:'beaute-branding',label:'Branding & options',icon:'⚙️' }] };
+  const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-avis',label:'Avis',icon:'⭐',badge: avisAttente > 0 ? avisAttente : undefined },{ id:'mv-encheres',label:'Enchères',icon:'🔨' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined }], badge: (contactNonLus + avisAttente) > 0 ? (contactNonLus + avisAttente) : undefined };
+
+  // ── Construction du menu selon le template ────────────────────────────────
+  let menuItems: MenuItem[];
+
+  if (aucunTemplate) {
+    menuItems = [
+      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+      menuSousVendeurs,
+      menuBadges,
+      menuBlogsSV,
+      menuFaqsSV,
+      menuChatSV,
+      menuStudio,
+      menuProfil,
+      menuMessagerie,
+      menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn,
+    ];
+  } else if (estVitrine) {
+    menuItems = [
+      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+      menuSousVendeurs,
+      menuBadges,
+      menuBlogsSV,
+      menuFaqsSV,
+      menuChatSV,
+      menuStudio,
+      {
+        id: 'config', label: 'CONFIGURATION', icon: '⚙️',
+        sousMenu: [
+          itemConfigGenerale,
+          itemConfigMV,
+          itemConfigPaiements,
+          { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
+          itemPage404,
+          itemPolitiques,
+          itemPages,
+          itemSeo,
+          itemCookies,
+          itemPhotos, itemFormulaireContact, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
+        ]
+      },
+      menuProfil,
+      menuMessagerie,
+      menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn,
+    ];
+  } else if (estReservation) {
+    menuItems = [
+      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+      {
+        id: 'commandes', label: 'RÉSERVATIONS', icon: '📅',
+        sousMenu: [
+          { id: 'commandes-reservations', label: 'Gestion des réservations', icon: '📅' },
+          { id: 'commandes-liste',        label: 'Liste des commandes',      icon: '📋' },
+          { id: 'commandes-paiements',    label: 'Paiements',                icon: '💰' },
+          { id: 'commandes-documents',    label: 'Documents',                icon: '📄' },
+        ]
+      },
+      menuSousVendeurs,
+      menuBadges,
+      menuBlogsSV,
+      menuFaqsSV,
+      menuChatSV,
+      menuStudio,
+      {
+        id: 'config', label: 'CONFIGURATION', icon: '⚙️',
+        sousMenu: [
+          itemConfigGenerale,
+          itemConfigMV,
+          itemConfigPaiements,
+          { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
+          itemPage404,
+          itemPolitiques,
+          itemPages,
+          itemSeo,
+          itemCookies,
+          itemPhotos, itemFormulaireContact, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
+        ]
+      },
+      menuProfil,
+      menuMessagerie,
+      menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn,
+    ];
+  } else if (estCagnotte) {
+    menuItems = [
+      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+      {
+        id: 'commandes', label: 'MA CAGNOTTE', icon: '💝',
+        sousMenu: [
+          { id: 'commandes-cagnotte',  label: 'Ma Cagnotte',          icon: '💝' },
+          { id: 'commandes-paiements', label: 'Paiements reçus',      icon: '💰' },
+          { id: 'commandes-documents', label: 'Documents',            icon: '📄' },
+        ]
+      },
+      menuSousVendeurs,
+      menuBadges,
+      menuBlogsSV,
+      menuFaqsSV,
+      menuChatSV,
+      menuStudio,
+      {
+        id: 'config', label: 'CONFIGURATION', icon: '⚙️',
+        sousMenu: [
+          itemConfigGenerale,
+          itemConfigMV,
+          itemConfigPaiements,
+          { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
+          itemPage404,
+          itemPolitiques,
+          itemPages,
+          itemSeo,
+          itemCookies,
+          itemPhotos, itemFormulaireContact, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
+        ]
+      },
+      menuProfil,
+      menuMessagerie,
+      menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn,
+    ];
+  } else if (estVitrinePro) {
+    menuItems = [
+      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+      ...(options?.reservation_ecole ? [menuMesReservations] : []),
+      ...(options?.abonnement_ecole ? [menuMesAbonnements] : []),
+      ...(options?.pub_sponsor ? [menuMesSponsors] : []),
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT ICI
+      menuSousVendeurs,
+      menuBadges,
+      menuBlogsSV,
+      menuFaqsSV,
+      menuChatSV,
+      menuStudio,
+      {
+        id: 'config', label: 'CONFIGURATION', icon: '⚙️',
+        sousMenu: [
+          itemConfigGenerale,
+          itemConfigMV,
+          itemConfigPaiements,
+          { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
+          itemPage404,
+          itemPolitiques,
+          itemPages,
+          itemSeo,
+          itemCookies,
+          itemPhotos, itemFormulaireContact, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
+        ]
+      },
+      menuProfil,
+      menuMessagerie,
+      menuBrandingOptions,
+      menuAddOn,
+    ];
+  } else if (estSalon) {
+    menuItems = [
+      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+      {
+        id: 'commandes', label: 'RÉSERVATIONS', icon: '📅',
+        sousMenu: [
+          { id: 'commandes-reservations', label: 'Gestion des réservations', icon: '📅' },
+          { id: 'commandes-paiements',    label: 'Paiements reçus',          icon: '💰' },
+          { id: 'commandes-documents',    label: 'Documents',                icon: '📄' },
+        ]
+      },
+      menuSousVendeurs,
+      menuBadges,
+      menuBlogsSV,
+      menuFaqsSV,
+      menuChatSV,
+      menuStudio,
+      {
+        id: 'config', label: 'CONFIGURATION', icon: '⚙️',
+        sousMenu: [
+          itemConfigGenerale,
+          itemConfigMV,
+          itemConfigPaiements,
+          { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
+          itemPage404,
+          itemPolitiques,
+          itemPages,
+          itemSeo,
+          itemCookies,
+          itemPhotos, itemFormulaireContact, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
+        ]
+      },
+      menuProfil,
+      menuMessagerie,
+      menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn,
+    ];
+  } else if (estEnchere) {
+    menuItems = [
+      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+      {
+        id: 'commandes', label: 'MES ENCHÈRES', icon: '🔨',
+        sousMenu: [
+          { id: 'annonces-encheres', label: 'Mes enchères actives', icon: '🔨' },
+          { id: 'commandes-paiements', label: 'Paiements reçus',   icon: '💰' },
+          { id: 'commandes-documents', label: 'Documents',         icon: '📄' },
+        ]
+      },
+      menuSousVendeurs,
+      menuBadges,
+      menuBlogsSV,
+      menuFaqsSV,
+      menuChatSV,
+      menuStudio,
+      {
+        id: 'config', label: 'CONFIGURATION', icon: '⚙️',
+        sousMenu: [
+          itemConfigGenerale,
+          itemConfigMV,
+          itemConfigPaiements,
+          { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
+          itemPage404,
+          itemPolitiques,
+          itemPages,
+          itemSeo,
+          itemCookies,
+          itemPhotos, itemFormulaireContact, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
+        ]
+      },
+      menuProfil,
+      menuMessagerie,
+      menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn,
+    ];
+  } else if (estSimplisse) {
+    menuItems = [
+      { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
+      menuVosAnnoncesSimplisse,
+      { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
+        { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
+        { id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },
+        { id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },
+        { id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }
+      ]},
+      { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
+      menuStudioSimplisse,
+      menuConfigMesPages,
+      { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
+        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
+        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
+      ]},
+      menuProfil,
+      menuMessagerie,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn
+    ];
+  } else if (estPremium) {
+    menuItems = [
+      { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
+      menuVosAnnoncesPremium,
+      { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
+        { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
+        { id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },
+        { id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },
+        { id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }
+      ]},
+      { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
+      menuStudioPremium,
+      menuConfigPremium,
+      { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
+        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
+        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
+      ]},
+      menuProfil,
+      menuMessagerie,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn
+    ];
+  } else if (estSimplisseMode) {
+    menuItems = [
+      { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
+      menuVosAnnoncesMode,
+      { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
+        { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
+        { id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },
+        { id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },
+        { id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }
+      ]},
+      { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
+      menuStudioMode,
+      menuConfigMode,
+      { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
+        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
+        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
+      ]},
+      menuProfil,
+      menuMessagerie,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn
+    ];
+  } else if (estMultiVendeur) {
+    menuItems = [
+      { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
+      menuSousVendeurs,
+      menuBadges,
+      menuChatSV,
+      menuStudioMV,
+      menuConfigMV,
+      { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
+        itemConfigGenerale,itemConfigPaiements,
+        { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-courriels-boutique',label:'Modèles de courriel',icon:'📧' },
+        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
+      ]},
+      menuProfil,
+      menuMessagerie,
+      menuMesEffetsVisuels, // 🔥 AJOUT
+    ];
+  } else if (estBeaute) {
+    menuItems = [
+      { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
+      menuVosAnnoncesBeaute,
+      { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
+        { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
+        { id:'commandes-paiements',label:'Paiements & commissions',icon:'💰' },
+        { id:'commandes-retours',label:'Retour & remboursement',icon:'🔄' },
+        { id:'commandes-documents',label:'Documents gestionnaire',icon:'📄' }
+      ]},
+      { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
+      menuStudioBeaute,
+      menuConfigBeaute,
+      { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
+        itemConfigGenerale,itemConfigMV,itemConfigPaiements,
+        { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
+        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
+      ]},
+      menuProfil,
+      menuMessagerie,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn
+    ];
+  } else if (estBoutiqueSimple) {
+    menuItems = [
+      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+      {
+        id: 'commandes', label: 'VOS COMMANDES', icon: '📦',
+        sousMenu: [
+          { id: 'commandes-liste',    label: 'Liste des commandes',      icon: '📋' },
+          { id: 'commandes-paiements',label: 'Paiements & commissions',  icon: '💰' },
+          { id: 'commandes-retours',  label: 'Retour & remboursement',   icon: '🔄' },
+          { id: 'commandes-documents',label: 'Documents gestionnaire',       icon: '📄' },
+        ]
+      },
+      {
+        id: 'acheteurs', label: 'MES ACHETEURS', icon: '👥',
+        sousMenu: [
+          { id: 'acheteurs-liste', label: 'Liste des acheteurs', icon: '👥' },
+        ]
+      },
+      menuSousVendeurs,
+      menuBadges,
+      menuBlogsSV,
+      menuFaqsSV,
+      menuChatSV,
+      menuStudio,
+      {
+        id: 'config', label: 'CONFIGURATION', icon: '⚙️',
+        sousMenu: [
+          itemConfigGenerale,
+          itemConfigMV,
+          itemConfigPaiements,
+          { id: 'config-expedition',       label: "Méthode d'expédition",    icon: '🚚' },
+          { id: 'config-modeles-courriel', label: 'Modèles de courriel',     icon: '📧' },
+          { id: 'config-facture',          label: 'Modèle de facture',       icon: '🧾' },
+          itemPage404,
+          itemPolitiques,
+          itemPages,
+          itemSeo,
+          itemCookies,
+          itemPhotos, itemFormulaireContact, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
+        ]
+      },
+      menuProfil,
+      menuMessagerie,
+      menuBrandingOptions,
+      ...(options?.analytique ? [menuMesAnalytique] : []),
+      ...(options?.chatbot ? [menuMesChatbot] : []),
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn,
+    ];
+  } else {
+    // boutique-complete + défaut → menu COMPLET e-Vend
+    menuItems = [
+      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+      {
+        id: 'annonces', label: 'VOS ANNONCES', icon: '📦',
+        sousMenu: [
+          { id: 'annonces-liste',      label: 'Liste des produits',    icon: '📋' },
+          { id: 'annonces-encheres',   label: 'Mes enchères',          icon: '🔨', cleAcces: 'modeEncheres' },
+          { id: 'annonces-make-offer', label: 'Mes offres reçues',     icon: '💬' },
+          { id: 'annonces-tags',       label: 'Tags produits',         icon: '🏷️' },
+          { id: 'annonces-types',      label: 'Types produits',        icon: '📑' },
+          { id: 'annonces-categories', label: 'Collections',           icon: '🗂️', cleAcces: 'collections' },
+          { id: 'annonces-promos',     label: 'Réductions & codes',    icon: '🏷️', cleAcces: 'codesPromo' },
+        ]
+      },
+      {
+        id: 'commandes', label: 'VOS COMMANDES', icon: '📦',
+        sousMenu: [
+          { id: 'commandes-liste',        label: 'Liste des commandes',      icon: '📋' },
+          { id: 'commandes-cagnotte',     label: 'Ma Cagnotte',              icon: '💝' },
+          { id: 'commandes-paiements',    label: 'Paiements & commissions',  icon: '💰' },
+          { id: 'commandes-retours',      label: 'Retour & remboursement',   icon: '🔄' },
+          { id: 'commandes-brouillon',    label: 'Commande brouillon',       icon: '📝', cleAcces: 'commandesBrouillon' },
+          { id: 'commandes-documents',    label: 'Documents gestionnaire',       icon: '📄' },
+          { id: 'commandes-reservations', label: 'Gestion des réservations', icon: '📅' },
+        ]
+      },
+      {
+        id: 'acheteurs', label: 'MES ACHETEURS', icon: '👥',
+        sousMenu: [
+          { id: 'acheteurs-liste', label: 'Liste des acheteurs', icon: '👥' },
+        ]
+      },
+      {
+        id: 'config', label: 'CONFIGURATION', icon: '⚙️',
+        sousMenu: [
+          itemConfigGenerale,
+          itemConfigMV,
+          itemConfigPaiements,
+          { id: 'config-expedition',       label: "Méthode d'expédition",    icon: '🚚' },
+          { id: 'config-modeles-courriel', label: 'Modèles de courriel',     icon: '📧' },
+          { id: 'config-facture',          label: 'Modèle de facture',       icon: '🧾' },
+        ]
+      },
+      {
+        id: 'profil', label: 'PROFIL', icon: '👤',
+        sousMenu: [
+          { id: 'profil-compte',        label: 'Mon compte',          icon: '👤' },
+          { id: 'ma-boutique',          label: 'Ma boutique',         icon: '🏪', onClick: ouvrirBoutiqueNouvelOnglet },
+          { id: 'profil-paiement',      label: 'Détails de paiement', icon: '💳' },
+          { id: 'profil-avis',          label: 'Mes avis',            icon: '⭐' },
+          { id: 'profil-avis-produits', label: 'Mes avis produits',   icon: '📝' },
+          { id: 'profil-blogs',         label: 'Mes Blogs',           icon: '📝', cleAcces: 'blog' },
+          { id: 'profil-faq',           label: 'Ma FAQ',              icon: '❓', cleAcces: 'faq' },
+          { id: 'profil-badges',        label: 'Mes badges',          icon: '🏅' },
+          { id: 'profil-forfait',       label: 'Mon forfait',         icon: '📊' },
+          { id: 'mes-services',          label: 'Mes services',        icon: '💼' },
+          { id: 'profil-rapport',       label: 'Rapport financier',   icon: '📈' },
+          { id: 'profil-factures',      label: 'Factures',            icon: '🧾' },
+        ]
+      },
+      {
+        id: 'guides', label: 'GUIDES', icon: '📚',
+        sousMenu: [
+          { id: 'guides-baisse-prix',  label: 'Alerte de baisse de prix',       icon: '🔔', href: 'https://e-vend.ca/documents/alerte-de-baisse-de-prix' },
+          { id: 'guides-faq',          label: 'FAQ',                             icon: '❓', href: 'https://e-vend.ca/documents/faq-vendeur' },
+          { id: 'guides-expedition',   label: "Frais et méthodes d'expédition", icon: '📦', href: 'https://e-vend.ca/documents/frais-expedition' },
+          { id: 'guides-commandes',    label: 'Gestion des commandes',          icon: '🛒', href: 'https://e-vend.ca/documents/gestion-des-commandes' },
+          { id: 'guides-vendeur',      label: 'Guide du gestionnaire',               icon: '📘', href: 'https://e-vend.ca/documents/tableau-bord-vendeur' },
+          { id: 'guides-plans',        label: 'Les plans gestionnaires (Forfaits)',   icon: '💎', href: 'https://e-vend.ca/documents/les-vendeurs-e-vend' },
+          { id: 'guides-score',        label: 'Score de confiance',             icon: '⭐', href: 'https://e-vend.ca/documents/guide-systeme-scores-confiances' },
+          { id: 'guides-stripe',       label: 'Guide Stripe Connect',           icon: '💳', href: 'https://e-vend.ca/documents/introduction-compte-stripe' },
+        ]
+      },
+      menuMessagerie,
+      menuBrandingOptions,
+      menuMesEffetsVisuels, // 🔥 AJOUT
+      menuAddOn,
+      menuSousVendeurs,
+      menuBadges,
+      menuBlogsSV,
+      menuFaqsSV,
+      menuChatSV,
+      menuStudio,
+      { id: 'creer', label: 'CRÉER UNE ANNONCE', icon: '➕' },
+    ];
+  }
+
+  // ... le reste du fichier (menuStyle, mainContentStyle, topBarFixedStyle, footerFixedStyle, renderPage, topBarContent, return)
+  // ⚠️ Je continue avec la suite du fichier...
+
+  const menuStyle: React.CSSProperties = {
+    width: isMobile ? (menuMobileOuvert ? '280px' : '0px') : '280px',
+    background: '#111111',
+    backgroundImage: 'linear-gradient(180deg, #111111 0%, #1a1a1a 100%)',
+    borderRight: '1px solid rgba(255,255,255,0.1)',
+    position: 'fixed',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    height: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    overflowY: 'auto',
+    color: '#fff',
+    boxShadow: '2px 0 10px rgba(0,0,0,0.3)',
+    zIndex: 1000,
+    transition: 'width 0.3s ease',
+    overflowX: 'hidden'
+  };
+
+  const mainContentStyle: React.CSSProperties = {
+    flex: 1,
+    marginLeft: isMobile ? '0px' : '280px',
+    display: 'flex',
+    flexDirection: 'column',
+    minHeight: '100vh',
+    backgroundColor: '#f4f6f8',
+    overflow: 'hidden',
+    transition: 'margin-left 0.3s ease'
+  };
+
+  const topBarFixedStyle: React.CSSProperties = {
+    position: 'fixed',
+    top: 0,
+    left: isMobile ? '0px' : '280px',
+    right: 0,
+    zIndex: 900,
+    height: '56px',
+    transition: 'left 0.3s ease'
+  };
+
+  const footerFixedStyle: React.CSSProperties = {
+    position: 'fixed',
+    bottom: 0,
+    left: isMobile ? '0px' : '280px',
+    right: 0,
+    height: '40px',
+    backgroundColor: '#2c3e50',
+    borderTop: '1px solid #34495e',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: isMobile ? '10px' : '12px',
+    color: '#ecf0f1',
+    zIndex: 900,
+    transition: 'left 0.3s ease'
+  };
+
+  const handleResetConfig = async () => {
+    setResetLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/studio/sites/${gestionnaire.id}/reset`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error();
+      setResetDone(true);
+      setResetConfirm(false);
+      setTimeout(() => window.location.reload(), 1500);
+    } catch {
+      alert('Erreur lors de la réinitialisation.');
+    }
+    setResetLoading(false);
+  };
+
   const renderPage = () => {
-    if (loading && pageActive === 'dashboard') {
-      return (
-        <div style={{ padding: '28px 32px', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '40px', marginBottom: '16px' }}>⏳</div>
-            <p style={{ color: THEME.textLight }}>Chargement des données...</p>
+    if (pageActive === 'creer') return <CreerAnnonce onRetour={() => setPageActive('annonces-liste')} />;
+    if (pageActive.startsWith('creer-annonce?dupliquer=')) {
+      const dupliquerDeId = pageActive.replace('creer-annonce?dupliquer=', '');
+      return <CreerAnnonce dupliquerDeId={dupliquerDeId} onRetour={() => setPageActive('annonces-liste')} gestionnaireId={gestionnaire.id} />;
+    }
+    if (pageActive.startsWith('modifier-annonce?id=')) {
+      const produitId = pageActive.replace('modifier-annonce?id=', '');
+      return <CreerAnnonce produitId={produitId} gestionnaireId={gestionnaire.id} onRetour={() => setPageActive('annonces-liste')} />;
+    }
+    if (pageActive.startsWith('modifier-annonce-')) {
+      const produitId = pageActive.replace('modifier-annonce-', '');
+      return <CreerAnnonce produitId={produitId} gestionnaireId={gestionnaire.id} onRetour={() => setPageActive('annonces-liste')} />;
+    }
+    if (pageActive === 'profil-compte')         return <StudioMonCompte           gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'commandes-liste') return <ListeCommandes naviguerVers={(page: string) => setPageActive(page)} gestionnaireId={gestionnaire.id} onVoirCommande={(id: number) => { setCommandeSelectionnee(id); setPageActive('commande-detail'); }} />;
+    if (pageActive === 'commande-detail') {
+      if (!commandeSelectionnee) { setPageActive('commandes-liste'); return null; }
+      return <DetailCommande commandeId={commandeSelectionnee} retourListe={() => setPageActive('commandes-liste')} />;
+    }
+    if (pageActive === 'commandes-paiements') return <PaiementsCommandes />;
+    if (pageActive === 'commandes-retours') return <RetourRemboursements />;
+    if (pageActive === 'commandes-brouillon') return <CommandesBrouillons />;
+    if (pageActive === 'commandes-documents') return <DocumentsVendeur />;
+    if (pageActive === 'config-generale') return <StudioConfigGenerale gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-expedition') return <MethodesExpedition gestionnaireId={gestionnaire.id} onRetour={() => setPageActive('dashboard')} />;
+    if (pageActive === 'config-modeles-courriel') return <ModelesCourrielStudio vendeurId={gestionnaire.id} />;
+    if (pageActive === 'commandes-reservations') return <GestionReservations vendeurId={gestionnaire.id} />;
+    if (pageActive === 'mes-reservations') return <MesReservationsEcole gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'abonnements-clients') return <MesAbonnementsEcole gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mes-sponsors') return <MesSponsorsGestionnaire gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mes-analytique') return <AnalytiqueGestionnaire gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mes-chatbot') return <ChatbotConfig gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mes-effets-visuels') return <ConfigStoreEffects gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
+    if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
+    if (pageActive === 'collaborateurs-liste') return <StudioSousVendeurs    gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'collaborateurs-blogs')      return <StudioBlogSousVendeur gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'blogs-collaborateurs')      return <StudioBlogSousVendeur gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'faqs-collaborateurs')       return <StudioFaqSousVendeur  gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'collaborateurs-messages')  return <ChatAvecCollaborateur gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'collaborateurs-signalements') return <StudioSignalements gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-produits') return <StudioMVProduits gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-commandes') return <StudioMVCommandes gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-avis') return <StudioMVAvis gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-encheres') return <StudioEncheres gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-courriels-boutique') return <StudioModelesCourriel gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'chat-acheteur-sv')         return <SurveillanceChats     gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'badges-gestion')      return <StudioGestionBadges   gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'badges-attribues')    return <StudioBadgesAttribues gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'addon')               return <AddOn />;
+    if (pageActive === 'branding-options')     return <BrandingEtOptions gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'annonces-liste') return <ListeProduits naviguerVers={setPageActive} gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'annonces-studio-categories') return <StudioCategories gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'annonces-encheres') return <MesEncheres />;
+    if (pageActive === 'annonces-make-offer') return <MesOffres />;
+    if (pageActive === 'annonces-categories') return <Categories />;
+    if (pageActive === 'annonces-promos') return <ReductionsRabais />;
+    if (pageActive === 'annonces-tags') return <TagsProduits />;
+    if (pageActive === 'annonces-types') return <TypesProduits />;
+    if (pageActive === 'messagerie-gestionnaire') return <MessagerieAdministration />;
+    if (pageActive === 'messagerie-admin') return <MessagerieAdministration />;
+    if (pageActive === 'messagerie-notifications') return <MessagerieNotifications />;
+    if (pageActive === 'messagerie-contact') return <MessagerieFormulaireContact gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'profil-forfait') return <MonForfait />;
+    if (pageActive === 'mes-services')   return <MesServices gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'plans-membership') return <PlansMembership naviguerVers={setPageActive} />;
+    if (pageActive === 'profil-rapport') return <RapportVendeur nomVendeur={gestionnaire.nom_boutique || gestionnaire.nom} />;
+    if (pageActive === 'profil-avis') return <MesAvis />;
+    if (pageActive === 'profil-avis-produits') return <AvisProduits />;
+    if (pageActive === 'profil-blogs') return <MesBlogs />;
+    if (pageActive === 'profil-faq') return <MaFaq />;
+    if (pageActive === 'profil-badges') return <MesBadges />;
+    if (pageActive === 'profil-factures') return <FacturesVendeur naviguerVers={setPageActive} />;
+    if (pageActive === 'connecter-boutique') return <ConnecterBoutique onRetour={() => setPageActive('dashboard')} vendorId={gestionnaire.id.toString()} />;
+
+    // ── Routes e-Vend Studio ──
+    if (pageActive === 'studio-choisir-template') return (
+      <PageChoisirTemplate gestionnaireId={gestionnaire.id} onChoisir={(templateId) => {
+        const token = localStorage.getItem('token');
+        fetch(`/api/studio/sites/${gestionnaire.id}/config`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          credentials: 'include',
+          body: JSON.stringify({ template_id: templateId }),
+        })
+        .then(r => { if (!r.ok) console.error('Erreur sauvegarde template'); else console.log('Template sauvegardé:', templateId); })
+        .catch(err => console.error('Erreur fetch template:', err));
+        setTemplateIdChoisi(templateId);
+        setGestionnaire(prev => ({ ...prev, site_template_id: templateId }));
+        if (templateId === 'boutique-complete') {
+          setPageActive('dashboard');
+        } else if (templateId.startsWith('boutique-simplisse-mode')) {
+          setPageActive('mode-config-pages');
+        } else if (templateId.startsWith('boutique-simplisse')) {
+          setPageActive('simplisse-config-pages');
+        } else if (templateId.startsWith('boutique-premium')) {
+          setPageActive('premium-config-pages');
+        } else if (templateId.startsWith('boutique-beaute')) {
+          setPageActive('beaute-config-pages');
+        } else if (templateId.startsWith('multi-vendeur-premium')) {
+          setPageActive('mv-premium-plan');
+        } else if (['enchere-flash', 'enchere-galerie', 'enchere-live'].includes(templateId)) {
+          setPageActive('studio-config-template');
+        } else {
+          setPageActive('studio-config-template');
+        }
+      }} />
+    );
+    if (pageActive === 'studio-config-template') {
+      if (aucunTemplate) {
+        return (
+          <div style={{ maxWidth: 600, margin: '80px auto', padding: '0 24px', fontFamily: "'Inter', sans-serif", textAlign: 'center' }}>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>🎨</div>
+            <h2 style={{ fontSize: 24, fontWeight: 800, color: '#1a1a1a', marginBottom: 10 }}>Aucun template selectionne</h2>
+            <p style={{ fontSize: 15, color: '#666', marginBottom: 28, lineHeight: 1.6 }}>
+              Vous devez d'abord choisir un template avant de pouvoir modifier votre site.
+            </p>
+            <button
+              onClick={() => setPageActive('studio-choisir-template')}
+              style={{ background: 'linear-gradient(135deg,#c9a96e,#a07840)', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 36px', fontSize: 16, fontWeight: 800, cursor: 'pointer', boxShadow: '0 6px 20px rgba(201,169,110,0.35)' }}>
+              Choisir un template →
+            </button>
           </div>
+        );
+      }
+      const templateId = templateIdChoisi || gestionnaire.site_template_id || 'vitrine';
+      console.log('DEBUG templateIdChoisi:', templateIdChoisi, '| site_template_id:', gestionnaire.site_template_id);
+      return (
+        <ConfigTemplate
+          vendeurId={gestionnaire.id}
+          templateId={templateId}
+          resetConfirm={resetConfirm}
+          resetLoading={resetLoading}
+          resetDone={resetDone}
+          setResetConfirm={setResetConfirm}
+          onResetConfig={handleResetConfig}
+        />
+      );
+    }
+    if (pageActive === 'studio-domaine') return <MonDomaine gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'studio-import-evend') return <ImportEvend gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'simplisse-config-pages') return <ConfigMesPagesSimplisse    gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'simplisse-plan')         return <SimplissePlan              gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'simplisse-branding')     return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'premium-config-pages')   return <ConfigMesPagesPremium      gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'premium-plan')           return <PremiumPlan                gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'premium-branding')       return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'mode-config-pages')      return <ConfigMesPagesSimplisseMode gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mode-plan')              return <SimplissePlan              gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mode-branding')          return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'beaute-config-pages')    return <ConfigMesPagesBeaute       gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'beaute-plan')            return <BeautePlan                 gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-premium-config-pages') return <ConfigMultiVendeurPremium  gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-premium-plan')        return <MVPremiumPlan              gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-premium-branding')    return <AddOn />;
+    if (pageActive === 'mv-contact')             return <StudioContactMessages gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'beaute-branding')        return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'annonces-creer')         return <CreerAnnonce onRetour={() => setPageActive('annonces-liste')} gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'studio-apercu') return null;
+    if (pageActive === 'studio-page-404') return <StudioConfigPage404 gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'studio-mes-politiques') return <StudioMesPolitiques gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'studio-mes-pages')      return <StudioMesPages      gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'studio-seo-site')       return <StudioSeoSite       gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'studio-cookies-site')   return <StudioCookiesSite   gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-verificateur-age') return <ConfigVerificateurAge gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-popup-annonce') return <ConfigPopupAnnonce gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-formulaire-contact') return <ConfigFormulaireContact gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'studio-photos-vendeur') return <StudioGestionPhotosVendeur gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-generale')       return <StudioConfigGenerale      gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-multivendeur')   return <StudioConfigMultivendeur  gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'profil-compte')         return <StudioMonCompte           gestionnaireId={gestionnaire.id} />;
+
+    // ── Premier login : aucun template choisi → forcer le choix ────────────
+    if (aucunTemplate && pageActive === 'dashboard') {
+      return (
+        <div style={{ maxWidth: 700, margin: '60px auto', padding: '0 24px', fontFamily: "'Inter', sans-serif", textAlign: 'center' }}>
+          <div style={{ fontSize: 64, marginBottom: 20 }}>🎨</div>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a2e', marginBottom: 12 }}>Bienvenue sur e-Vend Studio!</h1>
+          <p style={{ fontSize: 16, color: '#666', marginBottom: 32, lineHeight: 1.6 }}>
+            Pour commencer, choisissez le type de site qui correspond à votre activité.<br/>
+            Votre dashboard sera adapté selon votre choix.
+          </p>
+          <button
+            onClick={() => setPageActive('studio-choisir-template')}
+            style={{ background: 'linear-gradient(135deg, #c9a96e, #a07840)', color: '#fff', border: 'none', borderRadius: 14, padding: '18px 48px', fontSize: 18, fontWeight: 800, cursor: 'pointer', boxShadow: '0 8px 28px rgba(201,169,110,0.4)' }}>
+            Choisir mon template →
+          </button>
+          <p style={{ fontSize: 13, color: '#aaa', marginTop: 16 }}>Vous pourrez changer de template en tout temps depuis le menu <strong>MON SITE STUDIO</strong>.</p>
         </div>
       );
     }
 
-    switch (pageActive) {
-      case 'dashboard':
-        return <DashboardStats naviguerVers={naviguerVers} vendeurs={vendeurs} />;
-
-      case 'acheteurs':
-      case 'acheteurs-liste':
-        return <ListeAcheteurs onNaviguerVers={naviguerVers} onImpersonate={onImpersonateAcheteur} />;
-      case 'acheteurs-suspendus':
-        return <PageEnConstruction titre="Acheteurs suspendus" />;
-
-      case 'gestionnaires':
-      case 'gestionnaires-liste':
-        return <ListeGestionnaires
-                 onImpersonate={(gestionnaire, token) => { setGestionnaireAImpersonner({ gestionnaire, token }); setModalImpersonateGestionnaireOuvert(true); }}
-                 onNaviguerVers={naviguerVers}
-               />;
-
-      case 'sponsors':
-      case 'sponsors-liste':
-        return <ListeSponsors
-                 onImpersonate={(sponsor, token) => { setSponsorAImpersonner({ sponsor, token }); setModalImpersonateSponsorOuvert(true); }}
-                 onNaviguerVers={naviguerVers}
-               />;
-      case 'sponsors-photos':
-        return <AdminPhotosSponsors />;
-      case 'sponsors-pubs':
-        return <AdminPubsSponsors />;
-      case 'sponsors-signalements':
-        return <AdminSignalementsSponsors />;
-      case 'sponsors-monetisation':
-        return <AdminMonetisationSponsors />;
-      case 'sponsors-forfait-photo':
-        return <AdminForfaitsPhoto />;
-      case 'sponsors-forfait-pub':
-        return <AdminForfaitsPub />;
-
-      case 'vendeurs':
-      case 'vendeurs-liste':
-        return <ListeVendeurs 
-                 onImpersonate={v => { setVendeurAImpersonner(v); setModalImpersonateOuvert(true); }} 
-                 onNaviguerVers={naviguerVers}
-                 vendeurs={vendeurs}
-                 onStatutChange={(vendeurId, nouveauStatut) => {
-                   setVendeurs(prev => prev.map(v => v.id === vendeurId ? { ...v, statut: nouveauStatut as any } : v));
-                 }}
-               />;
-      case 'vendeurs-approbations':
-        return <ApprobationsEnAttente naviguerVers={naviguerVers} />;
-      case 'vendeurs-suspendus':
-        return <ComptesSuspendus naviguerVers={naviguerVers} />;
-
-      case 'produits':
-      case 'produits-liste':
-        return <ListeProduits />;
-      case 'produits-encheres':
-        return <GestionEncheres naviguerVers={naviguerVers} />;
-      case 'produits-collections':
-        return <GestionCategories onNaviguerVers={naviguerVers} />;
-      case 'produits-tags-types':
-        return <GestionTagsEtTypes />;
-
-      case 'commandes':
-      case 'commandes-toutes':
-        return <GestionCommandes naviguerVers={naviguerVers} />;
-      case 'commande-detail':
-        return pageData
-          ? <DetailCommande commande={pageData} naviguerVers={naviguerVers} />
-          : <GestionCommandes naviguerVers={naviguerVers} />;
-      case 'commandes-litiges':
-        return <LitigesRetours naviguerVers={naviguerVers} />;
-
-      case 'domaines':
-      case 'domaines-gestion':
-        return <GestionDomaines />;
-
-      case 'forfaits':
-      case 'forfaits-fonctionnalites':
-        return <AdminFonctionnalitesStudio />;
-      case 'fmv':
-      case 'fmv-plans':
-      case 'fmv-gestionnaires':
-        return <AdminForfaitsMV key={pageActive} ongletInitial={pageActive === 'fmv-gestionnaires' ? 'gestionnaires' : 'forfaits'} />;
-      // Anciennes pages copiées d'e-Vend (retirées du menu, gardées au cas où)
-      case 'forfaits-liste':
-        return <GestionPlans naviguerVers={naviguerVers} />;
-      case 'forfaits-creer':
-        return <CreerPlan naviguerVers={naviguerVers} planAEditer={planAEditer} />;
-      case 'forfaits-abonnements':
-        return <AbonnementsActifs naviguerVers={naviguerVers} />;
-      case 'abonnement-detail':
-        return pageData
-          ? <AbonnementDetail vendeur={pageData} naviguerVers={naviguerVers} />
-          : <AbonnementsActifs naviguerVers={naviguerVers} />;
-
-      case 'badges':
-      case 'badges-gerer':
-        return <GestionBadges />;
-      case 'badges-attitres':
-        return <BadgesAttitres />;
-
-      case 'finances-commissions':
-        return <FinancesCommissions naviguerVers={naviguerVers} />;
-      case 'finances-paiements':
-        return <PaiementsVendeurs naviguerVers={naviguerVers} />;
-      case 'finances-rapports':
-        return <RapportsFinanciers naviguerVers={naviguerVers} />;
-
-      case 'wishlist':
-      case 'wishlist-listes':
-        return <ListeWishlists />;
-      case 'wishlist-alertes':
-        return <ListeAlertesPrix />;
-
-      case 'messagerie':
-      case 'messagerie-notifications':
-        return <Notifications naviguerVers={naviguerVers} />;
-      case 'messagerie-vendeurs':
-        return <ChatVendeurs naviguerVers={naviguerVers} />;
-      case 'messagerie-acheteurs':
-        return <ChatAcheteurs naviguerVers={naviguerVers} />;
-      case 'messagerie-litiges':
-        return <SurveillanceLitiges naviguerVers={naviguerVers} />;
-      case 'messagerie-email-manuel':
-        return <ReponseClient />;
-      case 'messagerie-email-marketing':
-        return <Marketing />;
-
-      case 'signalements':
-      case 'signalements-liste':
-        return <GestionSignalements filtre="tous" naviguerVers={naviguerVers} />;
-      case 'signalements-en-cours':
-        return <GestionSignalements filtre="en_cours" naviguerVers={naviguerVers} />;
-      case 'signalements-resolus':
-        return <GestionSignalements filtre="resolus" naviguerVers={naviguerVers} />;
-      case 'signalements-statistiques':
-        return <StatistiquesSignalements naviguerVers={naviguerVers} />;
-
-      case 'plateforme-champs-personnalises':
-        return <ChampsPersonnalises naviguerVers={naviguerVers} />;
-      case 'plateforme-blacklist-contact':
-        return <BlacklistContact />;
-      case 'plateforme-paypal':
-        return <ConfigurationPaypal naviguerVers={naviguerVers} />;
-      case 'plateforme-wishlist':
-        return <ConfigurationWishList naviguerVers={naviguerVers} />;
-      case 'plateforme-mon-forfait':
-        return <MonForfaitPlateforme naviguerVers={naviguerVers} />;
-
-      case 'logs':
-        return <JournauxAudits naviguerVers={naviguerVers} />;
-      case 'plateforme-parution':
-        return <ConfigurationParutionFutur naviguerVers={naviguerVers} />;
-      case 'plateforme-enchere':
-        return <ConfigurationEnchere naviguerVers={naviguerVers} />;
-      case 'plateforme-make-offer':
-        return <ConfigurationMakeOffer naviguerVers={naviguerVers} />;
-      case 'plateforme-config':
-        return <ConfigurationGenerale naviguerVers={naviguerVers} />;
-      case 'plateforme-stripe':
-        return <ConfigurationStripe naviguerVers={naviguerVers} />;
-      case 'plateforme-emails':
-        return <ModelesCourriel naviguerVers={naviguerVers} />;
-      case 'plateforme-documents':
-        return <ModelesDocument naviguerVers={naviguerVers} />;
-      case 'plateforme-integration':
-        return <IntegrationCode naviguerVers={naviguerVers} />;
-      // ✅ ROUTE CORRIGÉE - Utilise AdminAddons
-      case 'plateforme-addon':
-      case 'addons':
-      case 'addons-gestion':
-        return <AdminAddons naviguerVers={naviguerVers} />;
-      case 'addons-guides':
-        return <GuidesAddons />;
-      case 'addons-actives':
-        return <AddonsActives naviguerVers={naviguerVers} />;
-
-      case 'templates':
-      case 'templates-prix':
-        return <PageAdminTemplatesPrix />;
-
-      case 'parametres':
-      case 'parametres-menu':
-        return <GestionMenus naviguerVers={naviguerVers} />;
-      case 'parametres-pages':
-        return <PagesPlateforme naviguerVers={naviguerVers} />;
-      case 'parametres-photo':
-        return <Photo />;
-      case 'parametres-politique':
-        return <PolitiquesPlateforme naviguerVers={naviguerVers} />;
-      case 'parametres-blog':
-        return <BlogPlateforme naviguerVers={naviguerVers} />;
-      case 'parametres-faq':
-        return <FaqPlateformeAdmin naviguerVers={naviguerVers} />;
-      case 'parametres-cookies':
-        return <GestionCookies naviguerVers={naviguerVers} />;
-      case 'parametres-seo':
-        return <ReferencementSEO naviguerVers={naviguerVers} />;
-      case 'parametres-config-pages':
-        return <PageEnConstruction titre={pageActive.replace('parametres-', '').replace(/-/g, ' ')} />;
-
-      default:
-        return <PageEnConstruction titre={pageActive.replace(/-/g, ' ')} />;
-    }
+    return <Dashboard vendeur={gestionnaire} />;
   };
 
-  const pageAppartientA = (itemId: string) => {
-    if (pageActive === itemId) return true;
-    if (pageActive.startsWith(itemId + '-')) return true;
-    if (itemId === 'forfaits'  && pageActive === 'abonnement-detail') return true;
-    if (itemId === 'commandes' && pageActive === 'commande-detail')   return true;
-    if (itemId === 'signalements' && (pageActive.startsWith('signalements-'))) return true;
-    if (itemId === 'addons' && pageActive.startsWith('addons-')) return true;
-    if (itemId === 'plateforme' && pageActive === 'plateforme-tags') {
-      setPageActive('produits-tags-types');
-      return true;
-    }
-    return false;
-  };
-
-  const ssEstActif = (ssId: string) => {
-    if (pageActive === ssId) return true;
-    if (ssId === 'forfaits-abonnements' && pageActive === 'abonnement-detail') return true;
-    if (ssId === 'commandes-toutes'     && pageActive === 'commande-detail')   return true;
-    if (ssId === 'signalements-liste' && pageActive.startsWith('signalements-')) return true;
-    return false;
-  };
-
-  const pageFullHeight = [
-    'messagerie-vendeurs',
-    'messagerie-acheteurs',
-    'messagerie-litiges',
-  ].includes(pageActive);
-
-  const handleLogout = () => {
-    if (onLogout) {
-      onLogout();
-    } else {
-      window.location.href = '/login';
-    }
-  };
-
-  const sidebar = (
-    <div style={{ width: '250px', backgroundColor: THEME.sidebar, height: '100vh', position: 'fixed', left: 0, top: 0, bottom: 0, display: 'flex', flexDirection: 'column', zIndex: 100, overflowY: 'auto' }}>
-      <div style={{ padding: '20px 18px 16px', borderBottom: '1px solid rgba(255,255,255,0.07)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-          <img src="https://cdn.shopify.com/s/files/1/0704/8734/3260/files/logo5.png?v=1758814369" alt="e-Vend" style={{ width: '32px', height: '32px', objectFit: 'contain' }} />
-          <div>
-            <p style={{ color: 'white', fontSize: '15px', fontWeight: '800', margin: 0, fontFamily: "'Sora', sans-serif" }}>
-              {nomPlateforme.includes('-')
-                ? (() => {
-                    const idx = nomPlateforme.indexOf('-');
-                    const avant = nomPlateforme.slice(0, idx);
-                    const apres = nomPlateforme.slice(idx + 1);
-                    return <>{avant}<span style={{ color: '#93c5fd' }}>-</span>{apres}</>;
-                  })()
-                : nomPlateforme
-              }
-            </p>
-            <p style={{ color: 'rgba(255,255,255,0.35)', fontSize: '10px', fontWeight: '700', margin: 0, textTransform: 'uppercase', letterSpacing: '1.5px' }}>Administration</p>
-          </div>
-        </div>
-        <div style={{ backgroundColor: 'rgba(45,106,159,0.25)', border: '1px solid rgba(45,106,159,0.4)', borderRadius: '6px', padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-          <div style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#4ade80' }} />
-          <span style={{ fontSize: '11px', fontWeight: '700', color: '#93c5fd' }}>Mode Admin</span>
-        </div>
-      </div>
-
-      <nav style={{ flex: 1, padding: '8px 0 16px' }}>
-        {NAV_ITEMS.map(item => {
-          const estOuvert = sectionOuverte === item.id;
-          const sectionActive = pageAppartientA(item.id);
-
-          return (
-            <div key={item.id}>
-              <div
-                onClick={() => item.sousSections ? toggleSection(item.id) : naviguerVers(item.id)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '10px',
-                  padding: '9px 16px 9px 14px', cursor: 'pointer',
-                  borderLeft: sectionActive && !item.sousSections
-                    ? '3px solid #60a5fa'
-                    : sectionActive ? '3px solid rgba(96,165,250,0.4)' : '3px solid transparent',
-                  backgroundColor: sectionActive && !item.sousSections
-                    ? THEME.sidebarActive
-                    : sectionActive ? 'rgba(45,106,159,0.15)' : 'transparent',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (!sectionActive) (e.currentTarget as HTMLElement).style.backgroundColor = THEME.sidebarHover; }}
-                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = sectionActive && !item.sousSections ? THEME.sidebarActive : sectionActive ? 'rgba(45,106,159,0.15)' : 'transparent'; }}>
-                <span style={{ fontSize: '16px', flexShrink: 0 }}>{item.icon}</span>
-                <span style={{ fontSize: '13px', fontWeight: sectionActive ? '700' : '500', color: sectionActive ? 'white' : 'rgba(255,255,255,0.65)', flex: 1 }}>{item.label}</span>
-                {badgeSection(item.id) > 0 ? (
-                  <span style={{ backgroundColor: THEME.danger, color: 'white', fontSize: '10px', fontWeight: '800', padding: '2px 6px', borderRadius: '10px', minWidth: '18px', textAlign: 'center' }}>
-                    {badgeSection(item.id)}
-                  </span>
-                ) : null}
-                {item.sousSections && (
-                  <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '9px' }}>{estOuvert ? '▲' : '▼'}</span>
-                )}
-              </div>
-
-              {item.sousSections && estOuvert && (
-                <div style={{ paddingTop: '2px', paddingBottom: '4px' }}>
-                  {item.sousSections.map(ss => {
-                    const actif = ssEstActif(ss.id);
-                    return (
-                      <div key={ss.id} onClick={() => naviguerVers(ss.id)}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: '8px',
-                          marginLeft: '36px', marginRight: '10px',
-                          padding: '7px 10px 7px 12px', borderRadius: '7px', marginBottom: '2px',
-                          cursor: 'pointer',
-                          backgroundColor: actif ? 'rgba(45,106,159,0.4)' : 'transparent',
-                          borderLeft: actif ? '2px solid #60a5fa' : '2px solid rgba(255,255,255,0.1)',
-                          transition: 'all 0.12s',
-                        }}
-                        onMouseEnter={e => { if (!actif) (e.currentTarget as HTMLElement).style.backgroundColor = 'rgba(255,255,255,0.07)'; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = actif ? 'rgba(45,106,159,0.4)' : 'transparent'; }}>
-                        <span style={{ fontSize: '13px', opacity: actif ? 1 : 0.55 }}>{ss.icon}</span>
-                        <span style={{ fontSize: '12px', fontWeight: actif ? '700' : '400', color: actif ? 'white' : 'rgba(255,255,255,0.5)', flex: 1 }}>{ss.label}</span>
-                        {badgeSousSection(ss.id) > 0 ? (
-                          <span style={{ backgroundColor: (ss.id === 'vendeurs-liste' || ss.id === 'sponsors-signalements') ? '#dc2626' : THEME.danger, color: 'white', fontSize: '9px', fontWeight: '800', padding: '1px 5px', borderRadius: '8px', minWidth: '16px', textAlign: 'center' }}>
-                            {ss.id === 'vendeurs-liste' ? `🚩${badgeSousSection(ss.id)}` : badgeSousSection(ss.id)}
-                          </span>
-                        ) : null}
-                        {actif && <div style={{ width: '5px', height: '5px', borderRadius: '50%', backgroundColor: '#60a5fa', flexShrink: 0 }} />}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </nav>
-
-      <div style={{ padding: '14px 16px', borderTop: '1px solid rgba(255,255,255,0.07)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-          <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: THEME.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: '800', color: 'white' }}>A</div>
-          <div>
-            <p style={{ fontSize: '12px', fontWeight: '700', color: 'white', margin: 0 }}>Administrateur</p>
-            <p style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', margin: 0 }}>admin@evend.ca</p>
-          </div>
-        </div>
-        
-        <button
-          onClick={handleLogout}
+  const topBarContent = (
+    <div style={{
+      backgroundColor: '#0f0f0f',
+      height: '56px',
+      display: 'flex',
+      alignItems: 'center',
+      paddingLeft: isMobile ? '12px' : '24px',
+      paddingRight: isMobile ? '12px' : '24px',
+      gap: isMobile ? '8px' : '12px',
+      width: '100%',
+      borderBottom: '1px solid rgba(201,169,110,0.2)',
+    }}>
+      {isMobile && <button onClick={() => setMenuMobileOuvert(!menuMobileOuvert)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer', padding: '8px' }}>☰</button>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? '12px' : '20px', marginLeft: 'auto' }}>
+        <button 
+          onClick={() => setModalPhotoOuvert(true)}
           style={{
-            width: '100%',
-            backgroundColor: 'rgba(220, 38, 38, 0.15)',
-            color: '#ef4444',
-            border: '1px solid rgba(220, 38, 38, 0.3)',
+            background: 'linear-gradient(135deg, #c9a96e, #a07840)',
+            border: 'none',
             borderRadius: '8px',
-            padding: '10px 12px',
+            padding: '6px 16px',
+            color: '#fff',
             fontSize: '13px',
-            fontWeight: '700',
+            fontWeight: 700,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            gap: '8px',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.25)';
-            e.currentTarget.style.borderColor = 'rgba(220, 38, 38, 0.5)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'rgba(220, 38, 38, 0.15)';
-            e.currentTarget.style.borderColor = 'rgba(220, 38, 38, 0.3)';
+            gap: '6px',
+            boxShadow: '0 2px 8px rgba(201,169,110,0.3)'
           }}
         >
-          <span>🚪</span>
-          <span>Déconnexion sécuritaire</span>
+          <span>📷</span> Photos
         </button>
-      </div>
-    </div>
-  );
-
-  const topbar = (
-    <div style={{ position: 'fixed', top: 0, left: '250px', right: 0, height: '56px', backgroundColor: THEME.topbar, borderBottom: `1px solid ${THEME.border}`, display: 'flex', alignItems: 'center', paddingLeft: '24px', paddingRight: '24px', gap: '16px', zIndex: 99, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-      {vendeurImpersonne && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#fef9c3', border: '1px solid #d97706', borderRadius: '8px', padding: '6px 14px' }}>
-          <span>👤</span>
-          <span style={{ fontSize: '12px', fontWeight: '700', color: '#92400e' }}>Impersonation : {vendeurImpersonne.nom} — {vendeurImpersonne.nom_boutique}</span>
-          <button onClick={() => setVendeurImpersonne(null)} style={{ backgroundColor: '#d97706', color: 'white', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>✕ Quitter</button>
-        </div>
-      )}
-      {gestionnaireImpersonne && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#fef9c3', border: '1px solid #d97706', borderRadius: '8px', padding: '6px 14px' }}>
-          <span>👤</span>
-          <span style={{ fontSize: '12px', fontWeight: '700', color: '#92400e' }}>Impersonation : {gestionnaireImpersonne.nom} — {gestionnaireImpersonne.nom_boutique}</span>
-          <button onClick={() => setGestionnaireImpersonne(null)} style={{ backgroundColor: '#d97706', color: 'white', border: 'none', borderRadius: '5px', padding: '3px 10px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}>✕ Quitter</button>
-        </div>
-      )}
-      
-      <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-        <span style={{ fontSize: '13px', color: THEME.textLight, fontWeight: '500' }}>
-          {heureActuelle.toLocaleDateString('fr-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          <span style={{ marginLeft: '16px', color: '#aaa' }}>{heureActuelle.toLocaleTimeString('fr-CA')}</span>
-        </span>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-        <div
-          style={{ position: 'relative', cursor: 'pointer', fontSize: '20px' }}
-          onClick={() => { setPageActive('signalements-liste'); setSectionOuverte('signalements'); }}
-          title={nbSignalementsNouveaux > 0 ? `${nbSignalementsNouveaux} signalement(s) nouveau(x)` : 'Notifications'}>
+        <button onClick={() => setPageActive('messagerie')} title="Vos messages"
+          style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, display: 'flex', alignItems: 'center' }}>
           🔔
-          {nbSignalementsNouveaux > 0 && (
-            <span style={{ position: 'absolute', top: '-6px', right: '-8px', backgroundColor: THEME.danger, borderRadius: '10px', padding: '1px 5px', fontSize: '9px', fontWeight: '900', color: 'white', border: '2px solid white', whiteSpace: 'nowrap' }}>
-              🚩{nbSignalementsNouveaux}
+          {nonLus.total > 0 && (
+            <span style={{ position: 'absolute', top: -6, left: 12, background: '#E74C3C', borderRadius: '50%', minWidth: 16, height: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid #1a1a1a', fontSize: 9, fontWeight: 800, color: '#fff', padding: '0 2px' }}>
+              {nonLus.total > 99 ? '99+' : nonLus.total}
             </span>
           )}
-        </div>
-        <div
-          style={{ position: 'relative', cursor: 'pointer', fontSize: '20px' }}
-          onClick={() => { setPageActive('sponsors-signalements'); setSectionOuverte('sponsors'); }}
-          title={nbSignalementsPubNouveaux > 0 ? `${nbSignalementsPubNouveaux} signalement(s) de pub non lu(s)` : 'Signalements de pubs sponsors'}>
-          🚩
-          {nbSignalementsPubNouveaux > 0 && (
-            <span style={{ position: 'absolute', top: '-6px', right: '-8px', backgroundColor: THEME.danger, borderRadius: '50%', minWidth: '16px', height: '16px', padding: '0 3px', fontSize: '9px', fontWeight: '900', color: 'white', border: '2px solid white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              {nbSignalementsPubNouveaux}
-            </span>
-          )}
-        </div>
-        <SessionIndicator />
-        <button 
-          onClick={() => window.open('/', '_self')} 
-          style={{ 
-            color: THEME.accent, 
-            fontWeight: '700', 
-            fontSize: '13px', 
-            backgroundColor: THEME.accentLight, 
-            padding: '6px 14px', 
-            borderRadius: '8px', 
-            border: `1px solid ${THEME.accent}40`, 
-            cursor: 'pointer', 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px', 
-            transition: 'all 0.2s' 
-          }} 
-          onMouseEnter={e => { 
-            e.currentTarget.style.backgroundColor = THEME.accent; 
-            e.currentTarget.style.color = 'white'; 
-          }} 
-          onMouseLeave={e => { 
-            e.currentTarget.style.backgroundColor = THEME.accentLight; 
-            e.currentTarget.style.color = THEME.accent; 
-          }}
-        >
-          🏠 Retour à la plateforme
         </button>
+        <button onClick={() => window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer')} title="Voir mon site"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22 }}>
+          👁️
+        </button>
+        {!isMobile && (
+          <button onClick={() => window.open('/', '_self')} style={{ backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.75)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px 14px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s', flexShrink: 0 }}>
+            🏠 Retour à la plateforme
+          </button>
+        )}
       </div>
+      {!isMobile && (
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '16px' }}>
+          <SessionIndicator statut={gestionnaire.statut} />
+        </div>
+      )}
+      {isMobile && (
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <SessionIndicator statut={gestionnaire.statut} />
+        </div>
+      )}
     </div>
   );
 
   return (
     <>
-      <div style={{ fontFamily: 'inherit', backgroundColor: THEME.bg, minHeight: '100vh' }}>
-        {sidebar}
-        {topbar}
+      {gestionnaire.premiere_verification_faite === false && (
         <div style={{
-          marginLeft: '250px',
-          marginTop: '56px',
-          minHeight: 'calc(100vh - 56px)',
-          ...(pageFullHeight
-            ? { height: 'calc(100vh - 56px)', overflow: 'hidden' }
-            : { paddingBottom: '60px' }),
+          position: 'fixed', inset: 0, zIndex: 99999,
+          background: 'rgba(10,10,10,0.92)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px',
         }}>
-          {renderPage()}
+          <div style={{
+            background: '#fff', borderRadius: '20px', padding: '40px 32px',
+            maxWidth: '440px', width: '100%', textAlign: 'center',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 18 }}>📧</div>
+            <h2 style={{ margin: '0 0 10px', fontSize: '19px', fontWeight: 800, color: '#1a2332' }}>
+              Confirmez votre adresse courriel
+            </h2>
+            <p style={{ margin: '0 0 24px', fontSize: '14px', color: '#64748b', lineHeight: 1.6 }}>
+              Un courriel a été envoyé à <strong>{gestionnaire.email}</strong>. Cliquez sur le lien
+              qu'il contient pour accéder à votre tableau de bord — c'est nécessaire une seule fois,
+              avant de commencer.
+            </p>
+            <button
+              onClick={renvoyerVerificationEmail}
+              disabled={renvoiEnCours || renvoiCooldown > 0}
+              style={{
+                width: '100%', padding: '12px', marginBottom: '12px',
+                background: (renvoiEnCours || renvoiCooldown > 0) ? '#9ca3af' : 'linear-gradient(135deg, #c9a96e, #a07840)',
+                border: 'none', borderRadius: '10px', color: '#fff', fontWeight: 700, fontSize: '14px',
+                cursor: (renvoiEnCours || renvoiCooldown > 0) ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {renvoiEnCours ? '⏳ Envoi...' : renvoiCooldown > 0 ? `Renvoyer (${renvoiCooldown}s)` : '📧 Renvoyer le courriel'}
+            </button>
+            {renvoiMessage && <p style={{ margin: '0 0 12px', fontSize: '13px', color: renvoiMessage.startsWith('✅') ? '#16a34a' : '#dc2626' }}>{renvoiMessage}</p>}
+            <button
+              onClick={rafraichirStatutEmail}
+              style={{ width: '100%', padding: '10px', background: 'transparent', border: '1px solid #e2e8f0', borderRadius: '10px', color: '#64748b', fontWeight: 600, fontSize: '13px', cursor: 'pointer', marginBottom: '16px' }}
+            >
+              🔄 J'ai vérifié, actualiser
+            </button>
+            {onLogout && (
+              <button onClick={onLogout} style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>
+                Se déconnecter
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&display=swap');
+        html, body { margin: 0; padding: 0; }
+        * { box-sizing: border-box; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+        
+        .menu-item { 
+          transition: all .2s ease; 
+          border-radius: 8px; 
+          margin: 2px 10px;
+          color: rgba(255,255,255,0.9);
+        }
+        .menu-item:hover { 
+          background: rgba(59,130,246,0.3); 
+        }
+        .menu-item.active { 
+          background: linear-gradient(135deg, #2563eb, #1e40af);
+          box-shadow: 0 4px 10px rgba(37,99,235,0.3);
+        }
+        .menu-item.active .menu-label { 
+          color:#fff; 
+          font-weight:700; 
+        }
+        .sous-menu-item { 
+          transition: all .2s ease; 
+          border-radius: 6px; 
+          color: rgba(255,255,255,0.8);
+        }
+        .sous-menu-item:hover { 
+          background: rgba(59,130,246,0.2); 
+        }
+        .sous-menu-item.active { 
+          background: rgba(37,99,235,0.4); 
+          border-left: 3px solid #60a5fa; 
+        }
+        .menu-header {
+          padding: 10px 16px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          border-radius: 8px;
+          margin: 2px 10px;
+          transition: all .2s ease;
+        }
+        .menu-header:hover {
+          background: rgba(59,130,246,0.3);
+        }
+        .menu-header.open {
+          background: rgba(37,99,235,0.2);
+          border-left: 3px solid #3b82f6;
+        }
+        
+        .app-container {
+          min-height: 100vh;
+          font-family: 'DM Sans', sans-serif;
+          display: flex;
+          overflow: hidden;
+        }
+        
+        .scrollable-area {
+          flex: 1;
+          overflow-y: auto;
+          height: calc(100vh - 40px);
+          color: #333;
+          padding-bottom: 40px;
+        }
+        
+        .mobile-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0,0,0,0.5);
+          z-index: 999;
+        }
+      `}</style>
+
+      <div className="app-container">
+        <div style={menuStyle}>
+          <div style={{ padding: isMobile ? '16px' : '20px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: isMobile ? '28px' : '32px' }}>🛍️</span>
+              {(!isMobile || menuMobileOuvert) && (
+                <span style={{ fontSize: isMobile ? '20px' : '24px', fontFamily: "'Sora', sans-serif", fontWeight: 800, color: '#fff' }}>
+                  {nomPlateforme.includes('-') ? <>{nomPlateforme.slice(0, nomPlateforme.indexOf('-'))}<span style={{ color: '#60a5fa' }}>-</span>{nomPlateforme.slice(nomPlateforme.indexOf('-') + 1)}</> : nomPlateforme}
+                </span>
+              )}
+            </div>
+            {(!isMobile || menuMobileOuvert) && <p style={{ margin: '4px 0 0', fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>Espace gestionnaire</p>}
+          </div>
+
+          <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
+            {menuItems.map((item) => (
+              <div key={item.id}>
+                {!item.sousMenu ? (
+                  <div
+                    className={`menu-item ${pageActive === item.id ? 'active' : ''}`}
+                    onClick={() => {
+                      if (item.cleAcces && !aAcces(item.cleAcces)) { setPageActive('profil-forfait'); if (isMobile) setMenuMobileOuvert(false); return; }
+                      setPageActive(item.id); setMenuOuvert(null); if (isMobile) setMenuMobileOuvert(false);
+                    }}
+                    style={{ padding: isMobile ? '10px 12px' : '12px 16px', cursor: item.cleAcces && !aAcces(item.cleAcces) ? 'not-allowed' : 'pointer', opacity: item.cleAcces && !aAcces(item.cleAcces) ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: '14px' }}
+                  >
+                    <span style={{ fontSize: isMobile ? '20px' : '22px', width: '28px' }}>{item.icon}</span>
+                    {(!isMobile || menuMobileOuvert) && (
+                      <>
+                        <span className="menu-label" style={{ fontSize: isMobile ? '13px' : '15px', fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>{item.label}</span>
+                        {item.cleAcces && !aAcces(item.cleAcces) ? <span style={{ marginLeft: 'auto', fontSize: '13px' }}>🔒</span> : item.badge ? <span style={{ marginLeft: 'auto', background: '#ef4444', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '2px 6px', borderRadius: '12px' }}>{item.badge}</span> : null}
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  (!isMobile || menuMobileOuvert) && (
+                    <>
+                      <div
+                        className={`menu-header ${menuOuvert === item.id ? 'open' : ''}`}
+                        onClick={() => {
+                          if (item.cleAcces && !aAcces(item.cleAcces)) { setPageActive('profil-forfait'); if (isMobile) setMenuMobileOuvert(false); return; }
+                          handleMenuClick(item.id);
+                        }}
+                        style={{ 
+                          padding: isMobile ? '10px 12px' : '12px 16px',
+                          cursor: item.cleAcces && !aAcces(item.cleAcces) ? 'not-allowed' : 'pointer',
+                          opacity: item.cleAcces && !aAcces(item.cleAcces) ? 0.5 : 1,
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '14px',
+                          backgroundColor: menuOuvert === item.id ? 'rgba(201,169,110,0.15)' : 'transparent',
+                          borderLeft: menuOuvert === item.id ? '3px solid #c9a96e' : '3px solid transparent'
+                        }}
+                      >
+                        <span style={{ fontSize: isMobile ? '20px' : '22px', width: '28px' }}>{item.icon}</span>
+                        <span style={{ fontSize: isMobile ? '13px' : '15px', fontWeight: 700, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.5px', flex: 1 }}>
+                          {item.label}
+                        </span>
+                        {item.badge && !(item.cleAcces && !aAcces(item.cleAcces)) ? <span style={{ background: '#ef4444', color: '#fff', fontSize: '11px', fontWeight: 700, minWidth: '20px', height: '20px', padding: '0 6px', borderRadius: '10px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', boxSizing: 'border-box' }}>{Number(item.badge) > 99 ? '99+' : item.badge}</span> : null}
+                        <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)' }}>
+                          {item.cleAcces && !aAcces(item.cleAcces) ? '🔒' : menuOuvert === item.id ? '▼' : '▶'}
+                        </span>
+                      </div>
+                      {menuOuvert === item.id && (
+                        <div style={{ marginTop: '4px', marginBottom: '8px' }}>
+                          {item.sousMenu.map((sousItem) => {
+                            const estBloque = sousItem.cleAcces ? !aAcces(sousItem.cleAcces) : false;
+                            const styleCommun: React.CSSProperties = { 
+                              padding: isMobile ? '8px 10px' : '8px 12px', 
+                              marginLeft: isMobile ? '32px' : '46px', 
+                              marginRight: '10px', 
+                              marginBottom: '2px', 
+                              cursor: estBloque ? 'not-allowed' : 'pointer', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '12px', 
+                              position: 'relative',
+                              opacity: estBloque ? 0.5 : 1,
+                              backgroundColor: pageActive === sousItem.id ? 'rgba(201,169,110,0.2)' : 'transparent',
+                              borderRadius: '6px',
+                              textDecoration: 'none',
+                            };
+                            const contenuSousItem = (
+                              <>
+                                <span style={{ fontSize: isMobile ? '16px' : '18px', width: '24px', flexShrink: 0 }}>{sousItem.icon}</span>
+                                <span style={{ fontSize: isMobile ? '12px' : '14px', color: pageActive === sousItem.id ? '#fff' : 'rgba(255,255,255,0.9)', lineHeight: '1.3' }}>{sousItem.label}</span>
+                                {estBloque ? <span style={{ marginLeft: 'auto', fontSize: '13px' }} title="Non inclus dans votre plan">🔒</span> : sousItem.href ? <span style={{ marginLeft: 'auto', fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>↗</span> : sousItem.badge ? <span style={{ marginLeft: 'auto', background: '#ef4444', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '2px 6px', borderRadius: '12px' }}>{sousItem.badge}</span> : null}
+                              </>
+                            );
+                            return sousItem.href ? (
+                              <a key={sousItem.id} href={estBloque ? undefined : sousItem.href} target="_blank" rel="noopener noreferrer" className="sous-menu-item" onClick={() => { if (isMobile) setMenuMobileOuvert(false); }} style={styleCommun}>{contenuSousItem}</a>
+                            ) : (
+                              <div key={sousItem.id} className={`sous-menu-item ${pageActive === sousItem.id ? 'active' : ''}`} onClick={() => { if (estBloque) { setPageActive('profil-forfait'); if (isMobile) setMenuMobileOuvert(false); return; } if (sousItem.onClick) sousItem.onClick(); else setPageActive(sousItem.id); if (isMobile) setMenuMobileOuvert(false); }} style={styleCommun}>{contenuSousItem}</div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </>
+                  )
+                )}
+              </div>
+            ))}
+          </div>
+
+          {(!isMobile || menuMobileOuvert) && (
+            <div style={{ padding: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '15px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'linear-gradient(135deg,#c9a96e,#a07840)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px', fontWeight: 700, color: '#fff', flexShrink: 0, border: '2px solid rgba(201,169,110,0.3)' }}>{initialeAvatar}</div>
+                <div style={{ minWidth: 0 }}>
+                  <p style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{gestionnaire.nom}</p>
+                  <p style={{ margin: '4px 0 0', fontSize: '11px', color: '#c9a96e', fontWeight: 600 }}>ID: {gestionnaire?.id}</p>
+                  <p style={{ margin: '2px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.5)' }}>{gestionnaire.nom_boutique || gestionnaire.nom || 'Gestionnaire'}</p>
+                  {templateActif
+                    ? <span style={{ display: 'inline-block', marginTop: 4, fontSize: 10, fontWeight: 700, background: 'rgba(201,169,110,0.2)', color: '#c9a96e', padding: '2px 8px', borderRadius: 12, letterSpacing: '0.05em' }}>
+                        🎨 {templateActif}
+                      </span>
+                    : <span style={{ display: 'inline-block', marginTop: 4, fontSize: 10, fontWeight: 700, background: 'rgba(239,68,68,0.2)', color: '#f87171', padding: '2px 8px', borderRadius: 12, cursor: 'pointer' }}
+                        onClick={() => setPageActive('studio-choisir-template')}>
+                        ⚠️ Choisir un template
+                      </span>
+                  }
+                </div>
+              </div>
+              {onLogout && (
+                <button onClick={onLogout} style={{ width: '100%', padding: '12px', background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '8px', color: '#fca5a5', fontSize: '14px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>🚪 Déconnexion</button>
+              )}
+            </div>
+          )}
         </div>
 
-        {!pageFullHeight && (
-          <div style={{ position: 'fixed', bottom: 0, left: '250px', right: 0, backgroundColor: '#e8eaed', borderTop: `1px solid ${THEME.border}`, padding: '8px', textAlign: 'center', fontSize: '12px', color: THEME.textLight, zIndex: 99 }}>
-            © {footerText}
-          </div>
-        )}
+        {isMobile && menuMobileOuvert && <div className="mobile-overlay" onClick={() => setMenuMobileOuvert(false)} />}
 
-        {modalImpersonateOuvert && vendeurAImpersonner && (
-          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div style={{ backgroundColor: 'white', borderRadius: '14px', width: '100%', maxWidth: '420px', boxShadow: '0 12px 48px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-              <div style={{ padding: '20px 24px', backgroundColor: '#fef9c3', borderBottom: '2px solid #d97706' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '0 0 2px 0', color: '#92400e', textTransform: 'uppercase' }}>👤 Accéder en tant que vendeur</h3>
-                <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Vous allez accéder au dashboard de ce vendeur</p>
-              </div>
-              <div style={{ padding: '24px' }}>
-                <div style={{ backgroundColor: '#f8fafc', borderRadius: '10px', padding: '16px', marginBottom: '16px', border: `1px solid ${THEME.border}` }}>
-                  <p style={{ fontSize: '15px', fontWeight: '800', color: THEME.text, margin: '0 0 4px 0' }}>{vendeurAImpersonner.nom}</p>
-                  <p style={{ fontSize: '13px', color: THEME.textLight, margin: '0 0 2px 0' }}>🏪 {vendeurAImpersonner.nom_boutique}</p>
-                  <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>{vendeurAImpersonner.email} · {vendeurAImpersonner.plan}</p>
-                </div>
-                <div style={{ backgroundColor: '#fef9c3', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', border: '1px solid #d97706' }}>
-                  <p style={{ fontSize: '12px', color: '#92400e', fontWeight: '600', margin: 0 }}>⚠️ Toutes vos actions seront enregistrées dans les journaux d'audit.</p>
-                </div>
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                  <button onClick={() => setModalImpersonateOuvert(false)} style={{ backgroundColor: 'white', color: '#666', border: '1px solid #ddd', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Annuler</button>
-                  <button onClick={() => {
-                    setVendeurImpersonne(vendeurAImpersonner);
-                    setModalImpersonateOuvert(false);
-                    if (onImpersonate && vendeurAImpersonner) {
-                      onImpersonate(vendeurAImpersonner);
-                    }
-                  }} style={{ backgroundColor: THEME.accent, color: 'white', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
-                    👤 Accéder au dashboard
-                  </button>
-                </div>
-              </div>
+        <div className="main-content" style={mainContentStyle}>
+          <div className="top-bar-fixed" style={topBarFixedStyle}>{topBarContent}</div>
+          {banniereVendeurActive && banniereVendeurMessage && (
+            <div style={{ position: 'fixed', top: '56px', left: isMobile ? '0px' : '280px', right: 0, zIndex: 899, height: `${banniereVendeurHauteur}px`, backgroundColor: banniereVendeurCouleurBg, color: banniereVendeurCouleurTx, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: `${banniereVendeurPolice}px`, fontWeight: '600', padding: '0 16px', textAlign: 'center', transition: 'left 0.3s ease' }}>
+              {banniereVendeurMessage}
             </div>
-          </div>
-        )}
-
-        {modalImpersonateGestionnaireOuvert && gestionnaireAImpersonner && (
-          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div style={{ backgroundColor: 'white', borderRadius: '14px', width: '100%', maxWidth: '420px', boxShadow: '0 12px 48px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-              <div style={{ padding: '20px 24px', backgroundColor: '#fef9c3', borderBottom: '2px solid #d97706' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '0 0 2px 0', color: '#92400e', textTransform: 'uppercase' }}>👤 Accéder en tant que gestionnaire</h3>
-                <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Vous allez accéder au dashboard de ce gestionnaire</p>
-              </div>
-              <div style={{ padding: '24px' }}>
-                <div style={{ backgroundColor: '#f8fafc', borderRadius: '10px', padding: '16px', marginBottom: '16px', border: `1px solid ${THEME.border}` }}>
-                  <p style={{ fontSize: '15px', fontWeight: '800', color: THEME.text, margin: '0 0 4px 0' }}>{gestionnaireAImpersonner.gestionnaire.nom}</p>
-                  <p style={{ fontSize: '13px', color: THEME.textLight, margin: '0 0 2px 0' }}>🏪 {gestionnaireAImpersonner.gestionnaire.nom_boutique}</p>
-                  <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>{gestionnaireAImpersonner.gestionnaire.email} · {gestionnaireAImpersonner.gestionnaire.plan}</p>
-                </div>
-                <div style={{ backgroundColor: '#fef9c3', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', border: '1px solid #d97706' }}>
-                  <p style={{ fontSize: '12px', color: '#92400e', fontWeight: '600', margin: 0 }}>⚠️ Toutes vos actions seront enregistrées dans les journaux d'audit.</p>
-                </div>
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                  <button onClick={() => setModalImpersonateGestionnaireOuvert(false)} style={{ backgroundColor: 'white', color: '#666', border: '1px solid #ddd', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Annuler</button>
-                  <button onClick={() => {
-                    setGestionnaireImpersonne(gestionnaireAImpersonner.gestionnaire);
-                    setModalImpersonateGestionnaireOuvert(false);
-                    if (onImpersonateGestionnaire) {
-                      onImpersonateGestionnaire(gestionnaireAImpersonner.gestionnaire, gestionnaireAImpersonner.token);
-                    }
-                  }} style={{ backgroundColor: THEME.accent, color: 'white', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
-                    👤 Accéder au dashboard
-                  </button>
-                </div>
-              </div>
+          )}
+          {gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false && (
+            <div style={{
+              position: 'fixed',
+              top: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0)}px`,
+              left: isMobile ? '0px' : '280px', right: 0, zIndex: 898,
+              minHeight: `${HAUTEUR_BANNIERE_EMAIL}px`,
+              backgroundColor: '#dc2626', color: '#fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap',
+              gap: '10px', fontSize: '13px', fontWeight: 600, padding: '8px 16px', textAlign: 'center',
+              transition: 'left 0.3s ease',
+            }}>
+              <span>
+                🔒 Vous devez confirmer votre nouvelle adresse courriel
+                {deadlineVerifEmail ? ` avant le ${formaterDeadlineFr(deadlineVerifEmail)}` : ''} — passé ce délai, votre site sera automatiquement suspendu.
+              </span>
+              <button
+                onClick={renvoyerVerificationEmail}
+                disabled={renvoiEnCours || renvoiCooldown > 0}
+                style={{
+                  background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.5)',
+                  borderRadius: '6px', color: '#fff', padding: '4px 12px', fontSize: '12px', fontWeight: 700,
+                  cursor: (renvoiEnCours || renvoiCooldown > 0) ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                {renvoiEnCours ? '⏳ Envoi...' : renvoiCooldown > 0 ? `Renvoyer (${renvoiCooldown}s)` : '📧 Renvoyer le courriel'}
+              </button>
+              {renvoiMessage && <span style={{ fontSize: '12px', fontWeight: 400 }}>{renvoiMessage}</span>}
             </div>
+          )}
+          <BandeauEssai
+            gestionnaireId={gestionnaire.id}
+            isMobile={isMobile}
+            offsetTop={56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0)}
+            onHauteur={setHauteurBandeauEssai}
+          />
+          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0) + hauteurBandeauEssai}px`, backgroundColor: pageActive === 'studio-choisir-template' ? '#0d0d12' : undefined }}>
+            {renderPage()}
           </div>
-        )}
-
-        {modalImpersonateSponsorOuvert && sponsorAImpersonner && (
-          <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-            <div style={{ backgroundColor: 'white', borderRadius: '14px', width: '100%', maxWidth: '420px', boxShadow: '0 12px 48px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
-              <div style={{ padding: '20px 24px', backgroundColor: '#fef3c7', borderBottom: '2px solid #f59e0b' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: '800', margin: '0 0 2px 0', color: '#92400e', textTransform: 'uppercase' }}>⭐ Accéder en tant que sponsor</h3>
-                <p style={{ fontSize: '12px', color: '#888', margin: 0 }}>Vous allez accéder au dashboard de ce sponsor</p>
-              </div>
-              <div style={{ padding: '24px' }}>
-                <div style={{ backgroundColor: '#f8fafc', borderRadius: '10px', padding: '16px', marginBottom: '16px', border: `1px solid ${THEME.border}` }}>
-                  <p style={{ fontSize: '15px', fontWeight: '800', color: THEME.text, margin: '0 0 4px 0' }}>{sponsorAImpersonner.sponsor.nom}</p>
-                  <p style={{ fontSize: '12px', color: '#aaa', margin: 0 }}>{sponsorAImpersonner.sponsor.email}</p>
-                </div>
-                <div style={{ backgroundColor: '#fef3c7', borderRadius: '8px', padding: '10px 14px', marginBottom: '20px', border: '1px solid #f59e0b' }}>
-                  <p style={{ fontSize: '12px', color: '#92400e', fontWeight: '600', margin: 0 }}>⚠️ Toutes vos actions seront enregistrées dans les journaux d'audit.</p>
-                </div>
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-                  <button onClick={() => setModalImpersonateSponsorOuvert(false)} style={{ backgroundColor: 'white', color: '#666', border: '1px solid #ddd', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>Annuler</button>
-                  <button onClick={() => {
-                    // Le cookie httpOnly a déjà été posé par le serveur au
-                    // moment de l'appel à /api/sponsors/admin/:id/impersonate
-                    // — plus besoin (et plus question) de stocker le JWT ici.
-                    setModalImpersonateSponsorOuvert(false);
-                    window.location.href = '/sponsor-dashboard';
-                  }} style={{ backgroundColor: THEME.accent, color: 'white', border: 'none', borderRadius: '8px', padding: '10px 20px', fontSize: '13px', fontWeight: '700', cursor: 'pointer' }}>
-                    👤 Accéder au dashboard
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+          <div className="footer-fixed" style={footerFixedStyle}>{footerText}</div>
+        </div>
       </div>
+
+      <ModalUnsplash 
+        isOpen={modalPhotoOuvert}
+        onClose={() => setModalPhotoOuvert(false)}
+        onSelectPhoto={handleSelectPhoto}
+      />
+
+      {modalOuvert && (
+        <div onClick={fermerModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 20px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ margin: 0, fontSize: 16, fontWeight: 700 }}>Contacter l'administration</h3>
+              <button onClick={fermerModal} style={{ background: '#f3f4f6', border: 'none', borderRadius: 8, width: 32, height: 32, cursor: 'pointer', fontSize: 16 }}>✕</button>
+            </div>
+            <div style={{ padding: 20 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 600, marginBottom: 6, color: '#374151' }}>Votre message</label>
+              <textarea
+                value={message} onChange={e => setMessage(e.target.value)} rows={5}
+                placeholder="Écrivez votre message ici..."
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit', resize: 'vertical', boxSizing: 'border-box' }}
+              />
+            </div>
+            <div style={{ padding: '12px 20px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button onClick={fermerModal} style={{ padding: '8px 18px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', cursor: 'pointer', fontSize: 14 }}>Annuler</button>
+              <button onClick={envoyerMessage} style={{ padding: '8px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 14, fontWeight: 700 }}>Envoyer</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
 
-export default AppAdmin;
+export default AppGestionnaire;

@@ -68,7 +68,7 @@ export default function AdminForfaitsMV({ ongletInitial = 'forfaits' }: { onglet
     try {
       const [rp, ra, rg] = await Promise.all([
         fetch(`${API_BASE}/studio-forfaits/admin/mv/plans`, { headers: entetes(), credentials: 'include' }),
-        fetch(`${API_BASE}/studio-forfaits/admin/addons`, { headers: entetes(), credentials: 'include' }),
+        fetch(`${API_BASE}/studio-forfaits/admin/addons?avec_evend=1`, { headers: entetes(), credentials: 'include' }),
         fetch(`${API_BASE}/studio-forfaits/admin/mv/gestionnaires`, { headers: entetes(), credentials: 'include' }),
       ]);
       const [jp, ja, jg] = await Promise.all([rp.json(), ra.json(), rg.json()]);
