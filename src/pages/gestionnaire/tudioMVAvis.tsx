@@ -11,8 +11,10 @@ interface Avis {
   id: number; note: number; titre: string | null; commentaire: string | null; approuve: boolean; masque_raison: string | null; masque_le: string | null;
   reponse: string | null; created_at: string; commande_id: number | null; numero_commande: string | null;
   boutique: string | null; acheteur_nom: string; acheteur_email: string | null;
+  approbateur: string | null; masque_par: string | null;
+  criteres?: { delai_respecte?: boolean | null; communication?: number | null; emballage?: number | null }; photos?: string[];
 }
-interface Reponse { avis: Avis[]; total: number; page: number; pages: number; stats: { total: number; publies: number; attente: number; masques: number; moyenne: number } }
+interface Reponse { avis: Avis[]; total: number; page: number; pages: number; stats: { total: number; publies: number; attente: number; chez_collab: number; masques: number; moyenne: number } }
 
 function entetes(): Record<string, string> {
   let token: string | null = null;
@@ -101,7 +103,7 @@ const StudioMVAvis: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId }) 
 
       {s && (
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-          {[{ l: 'Avis au total', v: s.total, c: C.blue }, { l: 'En ligne', v: s.publies, c: C.green }, { l: 'À approuver', v: s.attente, c: C.orange }, { l: 'Masqués/refusés', v: s.masques, c: C.red }, { l: 'Note moyenne', v: s.publies ? `${s.moyenne.toFixed(1)} / 5` : '—', c: C.orange }].map(k => (
+          {[{ l: 'Avis au total', v: s.total, c: C.blue }, { l: 'En ligne', v: s.publies, c: C.green }, { l: 'À approuver', v: s.attente, c: C.orange }, ...(s.chez_collab ? [{ l: 'Chez le collaborateur', v: s.chez_collab, c: C.blue }] : []), { l: 'Masqués/refusés', v: s.masques, c: C.red }, { l: 'Note moyenne', v: s.publies ? `${s.moyenne.toFixed(1)} / 5` : '—', c: C.orange }].map(k => (
             <div key={k.l} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '12px 18px', minWidth: 130 }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: k.c }}>{k.v}</div>
               <div style={{ fontSize: 12, color: C.textLight, fontWeight: 600 }}>{k.l}</div>
@@ -124,7 +126,7 @@ const StudioMVAvis: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId }) 
           {[5, 4, 3, 2, 1].map(n => <option key={n} value={n}>{n} étoile{n > 1 ? 's' : ''}</option>)}
         </select>
         <select value={statut} onChange={e => { setStatut(e.target.value); setPage(1); }} style={champ}>
-          <option value="tous">Tous</option><option value="attente">À approuver</option><option value="publie">En ligne</option><option value="masque">Masqués / refusés</option>
+          <option value="tous">Tous</option><option value="attente">À approuver</option><option value="chez_collab">Chez le collaborateur</option><option value="publie">En ligne</option><option value="masque">Masqués / refusés</option>
         </select>
         <select value={collab} onChange={e => { setCollab(e.target.value); setPage(1); }} style={champ}>
           <option value="">Toutes les boutiques</option>
@@ -151,15 +153,28 @@ const StudioMVAvis: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId }) 
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 4 }}>
                     <Etoiles note={a.note} />
                     <span style={{ fontSize: 12, color: C.textLight }}>{quand(a.created_at)}</span>
-                    {enAttente(a) && <span style={{ padding: '2px 9px', borderRadius: 12, fontSize: 11, fontWeight: 700, color: '#b45309', background: '#f59e0b24' }}>À approuver</span>}
+                    {enAttente(a) && a.approbateur !== 'collaborateur' && <span style={{ padding: '2px 9px', borderRadius: 12, fontSize: 11, fontWeight: 700, color: '#b45309', background: '#f59e0b24' }}>À approuver</span>}
+                    {enAttente(a) && a.approbateur === 'collaborateur' && <span style={{ padding: '2px 9px', borderRadius: 12, fontSize: 11, fontWeight: 700, color: C.blue, background: '#3b82f61f' }}>Chez le collaborateur</span>}
                     {!a.approuve && !enAttente(a) && <span style={{ padding: '2px 9px', borderRadius: 12, fontSize: 11, fontWeight: 700, color: C.red, background: '#ef44441f' }}>Masqué</span>}
                   </div>
                   <div style={{ fontSize: 13, fontWeight: 600 }}>🛒 {a.acheteur_nom}{a.acheteur_email && <span style={{ fontWeight: 400, color: C.textLight }}> ({a.acheteur_email})</span>}</div>
                   <div style={{ fontSize: 12, color: C.textLight, margin: '2px 0 8px' }}>🏪 {a.boutique || 'Boutique'}{a.numero_commande ? ` · Commande ${a.numero_commande}` : ''}</div>
                   {a.titre && <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 2 }}>{a.titre}</div>}
                   {a.commentaire && <div style={{ fontSize: 13, background: C.bg, borderRadius: 8, padding: '9px 12px', whiteSpace: 'pre-wrap' }}>{a.commentaire}</div>}
+                  {a.criteres && ((a.criteres.delai_respecte !== undefined && a.criteres.delai_respecte !== null) || a.criteres.communication || a.criteres.emballage) && (
+                    <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12, color: C.textLight, marginTop: 8 }}>
+                      {a.criteres.delai_respecte !== undefined && a.criteres.delai_respecte !== null && <span>Délai respecté : {a.criteres.delai_respecte ? '✅ oui' : '❌ non'}</span>}
+                      {!!a.criteres.communication && <span>Communication : {a.criteres.communication}/5</span>}
+                      {!!a.criteres.emballage && <span>Emballage : {a.criteres.emballage}/5</span>}
+                    </div>
+                  )}
+                  {a.photos && a.photos.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                      {a.photos.map((u, i) => <a key={i} href={u} target="_blank" rel="noopener noreferrer"><img src={u} alt="" loading="lazy" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8 }} /></a>)}
+                    </div>
+                  )}
                   {a.reponse && <div style={{ fontSize: 12, color: C.textLight, borderLeft: `3px solid ${C.green}`, paddingLeft: 10, marginTop: 8 }}><b style={{ color: C.green }}>Réponse du collaborateur :</b> {a.reponse}</div>}
-                  {!a.approuve && a.masque_le && a.masque_raison && <div style={{ fontSize: 12, color: '#b91c1c', marginTop: 8 }}>Masqué le {quand(a.masque_le)} — {a.masque_raison}</div>}
+                  {!a.approuve && a.masque_le && a.masque_raison && <div style={{ fontSize: 12, color: '#b91c1c', marginTop: 8 }}>{a.masque_par === 'collaborateur' ? 'Refusé par le collaborateur' : 'Masqué'} le {quand(a.masque_le)} — {a.masque_raison}</div>}
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   {enAttente(a) && <button disabled={occupe} onClick={() => approuver(a)} style={{ padding: '8px 14px', borderRadius: 8, border: 'none', background: C.green, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>✓ Approuver</button>}

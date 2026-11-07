@@ -6,7 +6,7 @@ import React, { useState, useEffect } from 'react';
 
 interface Config {
   vacances: boolean; vacances_message: string; vacances_retour: string; vacances_debut: string; vacances_mode: 'visible' | 'masque'; delai_traitement_jours: number;
-  notif_commande: boolean; notif_message: boolean; notif_avis: boolean; message_remerciement: string; avis_auto_approbation: boolean;
+  notif_commande: boolean; notif_message: boolean; notif_avis: boolean; message_remerciement: string; avis_mode: 'gestionnaire' | 'auto' | 'moi';
 }
 interface Props { gestionnaireId: number; accent: string; isMobile: boolean; naviguer?: (page: string) => void; }
 interface VacInfo { permises: boolean; actif: boolean; messageDefaut: string; }
@@ -33,7 +33,7 @@ export default function CollaborateurConfiguration({ gestionnaireId, accent, isM
             vacances: !!d.vacances, vacances_message: d.vacances_message || d.vacances_message_defaut || '', vacances_retour: d.vacances_retour ? String(d.vacances_retour).slice(0, 10) : '',
             vacances_debut: d.vacances_debut ? String(d.vacances_debut).slice(0, 10) : '', vacances_mode: d.vacances_mode === 'masque' ? 'masque' : 'visible',
             delai_traitement_jours: Number(d.delai_traitement_jours ?? 2), notif_commande: d.notif_commande !== false,
-            notif_message: d.notif_message !== false, notif_avis: d.notif_avis !== false, message_remerciement: d.message_remerciement || '', avis_auto_approbation: !!d.avis_auto_approbation,
+            notif_message: d.notif_message !== false, notif_avis: d.notif_avis !== false, message_remerciement: d.message_remerciement || '', avis_mode: d.avis_mode === 'auto' || d.avis_mode === 'moi' ? d.avis_mode : 'gestionnaire',
           });
         } else setMsg({ t: 'err', m: (await res.json().catch(() => ({}))).error || 'Chargement impossible' });
       } catch { setMsg({ t: 'err', m: 'Erreur réseau' }); }
@@ -132,10 +132,19 @@ export default function CollaborateurConfiguration({ gestionnaireId, accent, isM
         {avisInfo.global ? (
           <p style={{ fontSize: 13, color: T.light, margin: 0 }}>Les avis de vos clients sont publiés dès qu'ils sont envoyés.</p>
         ) : avisInfo.permis ? (
-          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer' }}>
-            <span><strong style={{ fontSize: 14, color: T.text }}>Publier automatiquement les avis de ma boutique</strong><br /><span style={{ fontSize: 12, color: T.light }}>Activé : chaque avis est publié tout de suite. Désactivé : votre gestionnaire l'approuve avant publication.</span></span>
-            <input type="checkbox" checked={c.avis_auto_approbation} onChange={e => setC({ ...c, avis_auto_approbation: e.target.checked })} style={{ width: 20, height: 20, accentColor: accent }} />
-          </label>
+          <div>
+            <p style={{ fontSize: 13, color: T.light, margin: '0 0 10px' }}>Votre gestionnaire vous laisse choisir comment les avis de votre boutique sont publiés.</p>
+            {([
+              ['gestionnaire', 'Mon gestionnaire les approuve', "Chaque avis attend l'approbation de votre gestionnaire avant d'être publié."],
+              ['auto', 'Publier automatiquement', 'Chaque avis est publié tout de suite.'],
+              ['moi', "Je les approuve moi-même", "Chaque avis attend votre approbation (onglet « À approuver » de Mes avis clients) avant d'être publié."],
+            ] as const).map(([v, titre, aide]) => (
+              <label key={v} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 12px', border: `1px solid ${c.avis_mode === v ? accent : T.border}`, borderRadius: 10, marginBottom: 8, cursor: 'pointer' }}>
+                <input type="radio" name="avis_mode" checked={c.avis_mode === v} onChange={() => setC({ ...c, avis_mode: v })} style={{ marginTop: 3, accentColor: accent }} />
+                <span><strong style={{ fontSize: 14, color: T.text }}>{titre}</strong><br /><span style={{ fontSize: 12, color: T.light }}>{aide}</span></span>
+              </label>
+            ))}
+          </div>
         ) : (
           <p style={{ fontSize: 13, color: T.light, margin: 0 }}>Les avis de vos clients sont approuvés par votre gestionnaire avant d'être publiés.</p>
         )}

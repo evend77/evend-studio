@@ -23,6 +23,9 @@
 //   DELETE /gestionnaire/support/messages/:msgId · GET /gestionnaire/support/non-lus
 
 const express = require('express');
+const crypto = require('crypto');
+const multer = require('multer');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sanitizeHtml = require('sanitize-html');
@@ -184,7 +187,7 @@ router.get('/commandes', h(async (req, res) => {
       ORDER BY c.date_commande DESC, c.id DESC LIMIT 300`,
     [req.aid, req.gid]);
   const rg = await regCmd.lire(req.gid, pool);
-  res.json({ commandes: r.rows.map((x) => avecAvis(rg, x)), jours_delai_avis: rg.joursAvis });
+  res.json({ commandes: r.rows.map((x) => avecAvis(rg, x)), jours_delai_avis: rg.joursAvis, avis_detailles: avisMV.detailles(await cfgMV.lire(req.gid, pool)) });
 }));
 
 router.get('/commandes/:id', h(async (req, res) => {
@@ -274,33 +277,94 @@ router.post('/commandes/:id/retour', h(async (req, res) => {
   res.status(201).json({ success: true, id: r.rows[0].id });
 }));
 
+// ── Avis détaillés : photos (option « Avis détaillés » de Configuration marketplace → Gestion des avis) ──
+const MEDIA_URL = 'https://media.e-vend.ca';
+const s3 = new S3Client({
+  region: 'auto', endpoint: process.env.R2_ENDPOINT,
+  credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
+});
+const envoiPhoto = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024, files: 1 } }).single('file');
+function extensionSelonContenu(b) {
+  if (b.length < 12) return null;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpg';
+  if (b[0] === 0x89 && b.toString('latin1', 1, 4) === 'PNG') return 'png';
+  if (b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP') return 'webp';
+  return null;
+}
+const MAX_PHOTOS_AVIS = 5;
+
+router.post('/avis/photo', (req, res) => {
+  if (!limite(`avph-${req.aid}`, 20, 10 * 60 * 1000)) return res.status(429).json({ error: 'Trop d\'envois. Réessayez dans quelques minutes.' });
+  envoiPhoto(req, res, (err) => {
+    if (err) {
+      const gros = err.code === 'LIMIT_FILE_SIZE';
+      return res.status(gros ? 413 : 400).json({ error: gros ? 'Image trop lourde (max 5 Mo)' : 'Envoi invalide' });
+    }
+    h(async () => {
+      if (!avisMV.detailles(await cfgMV.lire(req.gid, pool))) bad('Les photos ne sont pas activées pour les avis.', 403);
+      if (!req.file) bad('Aucun fichier reçu');
+      const ext = extensionSelonContenu(req.file.buffer);
+      if (!ext) bad('Format non accepté (JPEG, PNG ou WebP seulement)');
+      const cle = `studio/avis/${req.gid}/${req.aid}/${crypto.randomBytes(16).toString('hex')}.${ext}`;
+      const mimes = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+      await s3.send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_PRODUITS, Key: cle, Body: req.file.buffer, ContentType: mimes[ext] }));
+      res.status(201).json({ url: `${MEDIA_URL}/${cle}` });
+    })(req, res);
+  });
+});
+
+// Critères et photos d'un avis détaillé. Ignorés (vides) si l'option est désactivée.
+function detailsAvis(req, b, actif) {
+  if (!actif) return { criteres: {}, photos: [] };
+  const c = b.criteres && typeof b.criteres === 'object' ? b.criteres : {};
+  const delai = c.delai_respecte === undefined || c.delai_respecte === null ? null : c.delai_respecte;
+  if (delai !== null && typeof delai !== 'boolean') bad('Délai respecté invalide');
+  const etoile = (v, nom) => {
+    if (v === undefined || v === null) return null;
+    if (!Number.isInteger(v) || v < 1 || v > 5) bad(`${nom} invalide (1 à 5)`);
+    return v;
+  };
+  const criteres = { delai_respecte: delai, communication: etoile(c.communication, 'Communication'), emballage: etoile(c.emballage, 'Emballage') };
+  const photos = b.photos === undefined || b.photos === null ? [] : b.photos;
+  if (!Array.isArray(photos) || photos.length > MAX_PHOTOS_AVIS) bad(`Maximum ${MAX_PHOTOS_AVIS} photos`);
+  const re = new RegExp(`^${MEDIA_URL.replace(/\./g, '\\.')}/studio/avis/${req.gid}/${req.aid}/[a-f0-9]{32}\\.(jpg|png|webp)$`);
+  for (const u of photos) if (typeof u !== 'string' || !re.test(u)) bad("Photo invalide (utilisez le bouton d'envoi)");
+  return { criteres, photos: [...new Set(photos)] };
+}
+
 router.post('/commandes/:id/avis', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Commande invalide');
-  if (!cfgMV.actif(await cfgMV.lire(req.gid, pool), 'avis_actifs', true)) bad('Les avis sont désactivés sur cette marketplace.', 403);
+  const mvCfg = await cfgMV.lire(req.gid, pool);
+  if (!cfgMV.actif(mvCfg, 'avis_actifs', true)) bad('Les avis sont désactivés sur cette marketplace.', 403);
   const b = req.body || {};
   const note = Number(b.note);
   if (!Number.isInteger(note) || note < 1 || note > 5) bad('Note invalide (1 à 5)');
   const titre = texte(b.titre, 'Titre', 120);
   const commentaire = texte(b.commentaire, 'Commentaire', 1500);
+  const det = detailsAvis(req, b, avisMV.detailles(mvCfg));
   const c = await pool.query(
     `SELECT c.statut, c.collaborateur_id, ${regCmd.SQL_LIVREE_LE} AS livree_le FROM marketplace_commandes c WHERE c.id=$1 AND c.acheteur_id=$2 AND c.gestionnaire_id=$3`,
     [id, req.aid, req.gid]);
   if (!c.rows.length) bad('Commande introuvable', 404);
   if (c.rows[0].statut !== 'livree') bad('Vous pouvez donner un avis une fois la commande livrée.', 409);
-  // Délai pour laisser un avis (Configuration marketplace → Fonctionnalités) : N jours après la livraison, 0 = sans limite
-  const rgAvis = await regCmd.lire(req.gid, pool);
+  // Délai pour laisser un avis (Configuration marketplace → Gestion des avis) : N jours après la livraison, 0 = sans limite
+  const rgAvis = regCmd.deMV(mvCfg);
   if (regCmd.avisExpire(rgAvis, c.rows[0].livree_le)) bad(`Le délai pour donner un avis (${rgAvis.joursAvis} jours après la livraison) est dépassé.`, 409);
   const deja = await pool.query(`SELECT 1 FROM avis_collaborateur WHERE commande_id=$1 AND acheteur_id=$2`, [id, req.aid]);
   if (deja.rows.length) bad('Vous avez déjà donné un avis pour cette commande.', 409);
-  // Publié tout de suite, ou en attente d'approbation (Configuration marketplace → Gestion des avis)
-  const auto = await avisMV.approbationAuto(req.gid, c.rows[0].collaborateur_id, pool);
+  // Publié tout de suite, ou en attente : qui doit l'approuver ? (Configuration marketplace → Gestion des avis)
+  const d = await avisMV.decision(req.gid, c.rows[0].collaborateur_id, pool);
   const ins = await pool.query(
-    `INSERT INTO avis_collaborateur (gestionnaire_id, collaborateur_id, acheteur_id, commande_id, note, titre, commentaire, approuve)
-     VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),NULLIF($7,''),$8) RETURNING id`,
-    [req.gid, c.rows[0].collaborateur_id, req.aid, id, note, titre, commentaire, auto]);
-  if (auto) avisMV.notifierNouvelAvis(req.gid, ins.rows[0].id, pool);   // en arrière-plan : ne ralentit pas l'acheteur
-  res.status(201).json({ success: true, en_attente: !auto, message_acheteur: auto ? undefined : 'Merci ! Votre avis sera publié après approbation.' });
+    `INSERT INTO avis_collaborateur (gestionnaire_id, collaborateur_id, acheteur_id, commande_id, note, titre, commentaire, approuve, approbateur, criteres, photos)
+     VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),NULLIF($7,''),$8,$9,$10::jsonb,$11::jsonb) RETURNING id`,
+    [req.gid, c.rows[0].collaborateur_id, req.aid, id, note, titre, commentaire, d.publie, d.approbateur, JSON.stringify(det.criteres), JSON.stringify(det.photos)]);
+  const avisId = ins.rows[0].id;
+  // Notifications en arrière-plan : ne ralentissent pas l'acheteur
+  if (d.publie) avisMV.notifierNouvelAvis(req.gid, avisId, pool);
+  else if (d.approbateur === 'collaborateur') avisMV.notifierAvisAApprouver(req.gid, avisId, pool);
+  else avisMV.notifierGestionnaire(req.gid, avisId, pool);
+  res.status(201).json({ success: true, en_attente: !d.publie, message_acheteur: d.publie ? undefined : 'Merci ! Votre avis sera publié après approbation.' });
 }));
 
 // ════════════════════════════════════════════════════════════════════════════

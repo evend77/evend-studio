@@ -43,6 +43,7 @@ interface FaqItem { id: number; question: string; reponse: string; }
 
 interface Avis {
   id: number; nom_client: string; note_globale: number; titre?: string; commentaire?: string; created_at: string;
+  criteres?: { delai_respecte?: boolean | null; communication?: number | null; emballage?: number | null }; photos?: string[]; reponse?: string | null;
 }
 
 type Onglet = 'produits' | 'apropos' | 'details' | 'blog' | 'faq' | 'avis';
@@ -624,7 +625,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
             </div>
 
             {avis.length === 0 ? (
-              <div style={s.vide}><p style={{ color: 'rgba(255,255,255,0.5)' }}>Aucun avis pour le moment — soyez le premier !</p></div>
+              <div style={s.vide}><p style={{ color: 'rgba(255,255,255,0.5)' }}>Aucun avis pour le moment.</p></div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {avis.map(a => (
@@ -638,6 +639,24 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                     </div>
                     {a.titre && <p style={{ fontWeight: 700, color: '#fff', margin: '0 0 4px', fontSize: 14 }}>{a.titre}</p>}
                     {a.commentaire && <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: 1.6, margin: 0 }}>{a.commentaire}</p>}
+                    {a.criteres && (a.criteres.delai_respecte !== undefined && a.criteres.delai_respecte !== null || a.criteres.communication || a.criteres.emballage) && (
+                      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 8, fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
+                        {a.criteres.delai_respecte !== undefined && a.criteres.delai_respecte !== null && <span>Délai respecté : {a.criteres.delai_respecte ? '✅ oui' : '❌ non'}</span>}
+                        {!!a.criteres.communication && <span>Communication : {a.criteres.communication}/5</span>}
+                        {!!a.criteres.emballage && <span>Emballage : {a.criteres.emballage}/5</span>}
+                      </div>
+                    )}
+                    {a.photos && a.photos.length > 0 && (
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 10 }}>
+                        {a.photos.map((u, i) => <a key={i} href={u} target="_blank" rel="noopener noreferrer"><img src={u} alt="" loading="lazy" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8 }} /></a>)}
+                      </div>
+                    )}
+                    {a.reponse && (
+                      <div style={{ marginTop: 10, borderLeft: `3px solid ${couleurAccent}`, paddingLeft: 10 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)' }}>Réponse de la boutique</div>
+                        <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 13, lineHeight: 1.5, margin: '4px 0 0' }}>{a.reponse}</p>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -136,7 +136,7 @@ interface ConfigMV {
   permettre_tags: boolean;
   permettre_categories: boolean;
   permettre_changement_unite_poids: boolean;
-  approuver_auto_avis: boolean; permettre_gestion_auto_approbation_avis: boolean;
+  approuver_auto_avis: boolean; permettre_gestion_auto_approbation_avis: boolean; avis_detailles: boolean;
   notification_stock_faible: boolean; seuil_stock_faible: string;
   vacances_vendeur: boolean;
   verification_email: boolean;
@@ -210,7 +210,7 @@ const DEFAUTS: ConfigMV = {
   permettre_tags: true,
   permettre_categories: true,
   permettre_changement_unite_poids: false,
-  approuver_auto_avis: true, permettre_gestion_auto_approbation_avis: false,
+  approuver_auto_avis: true, permettre_gestion_auto_approbation_avis: false, avis_detailles: false,
   notification_stock_faible: false, seuil_stock_faible: '5',
   vacances_vendeur: false,
   verification_email: true,
@@ -731,8 +731,11 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
               <ParamLigne label="Approuver automatiquement les avis" description="Activé : un avis est publié dès que l'acheteur l'envoie. Désactivé : il attend votre approbation dans Multi-vendeur → Avis (une pastille vous prévient), sauf pour les boutiques à qui vous laissez le choix ci-dessous.">
                 <Toggle actif={config.approuver_auto_avis} onChange={set('approuver_auto_avis')} />
               </ParamLigne>
-              <ParamLigne label="Auto-approbation gérable par collaborateur" description={config.approuver_auto_avis ? "Sans effet tant que « Approuver automatiquement les avis » est activé : tous les avis sont déjà publiés tout de suite." : "Activé : chaque collaborateur peut, dans sa Configuration, publier automatiquement les avis de sa boutique. Désactivé : tous ses avis passent par vous."}>
+              <ParamLigne label="Auto-approbation gérable par collaborateur" description={config.approuver_auto_avis ? "Sans effet tant que « Approuver automatiquement les avis » est activé : tous les avis sont déjà publiés tout de suite." : "Activé : chaque collaborateur choisit, dans sa Configuration, comment les avis de sa boutique sont publiés : vous les approuvez (défaut), publication automatique, ou il les approuve lui-même. Désactivé : tous les avis passent par vous."}>
                 <Toggle actif={config.permettre_gestion_auto_approbation_avis} onChange={set('permettre_gestion_auto_approbation_avis')} />
+              </ParamLigne>
+              <ParamLigne label="Avis détaillés" description="Désactivé (boutique simple) : l'acheteur donne seulement des étoiles, un titre et un commentaire. Activé : il ajoute aussi, s'il le veut, délai respecté, communication, emballage et jusqu'à 5 photos.">
+                <Toggle actif={config.avis_detailles} onChange={set('avis_detailles')} />
               </ParamLigne>
               <ParamLigne label="Délai pour laisser un avis (jours)" description="L'acheteur peut donner son avis une fois la commande livrée (ou confirmée reçue), pendant ce nombre de jours. 0 = sans limite. S'applique seulement si « Avis clients » est activé dans Généralité." derniere>
                 <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.jours_delai_avis} onChange={e => set('jours_delai_avis')(e.target.value)} min="0" max="3650" />

@@ -219,6 +219,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const [menuOuvert, setMenuOuvert]   = useState<string | null>(retourStripe ? 'configuration' : null);
   const [heure,      setHeure]        = useState(new Date());
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
+  const [avisAttente, setAvisAttente] = useState(0);   // avis qui attendent mon approbation
   const [produitEnEdition, setProduitEnEdition] = useState<number | null>(null);
   const [commandeOuverte, setCommandeOuverte] = useState<number | null>(null);
 
@@ -284,6 +285,21 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     } catch {}
   }, [compte?.id, gestionnaireId]);
 
+  // Avis à approuver (mode « je les approuve moi-même ») : pastille sur Mes avis clients
+  const chargerAvisAttente = useCallback(async () => {
+    if (!compte?.id) return;
+    try {
+      const r = await fetch(`${API_BASE}/collab/${gestionnaireId}/avis/compte`, { credentials: 'include' });
+      if (r.ok) setAvisAttente(Number((await r.json()).attente) || 0);
+    } catch {}
+  }, [compte?.id, gestionnaireId]);
+  useEffect(() => {
+    chargerAvisAttente();
+    const iv = setInterval(chargerAvisAttente, 60000);
+    window.addEventListener('avis-collab-maj', chargerAvisAttente);
+    return () => { clearInterval(iv); window.removeEventListener('avis-collab-maj', chargerAvisAttente); };
+  }, [chargerAvisAttente]);
+
   useEffect(() => {
     chargerNonLus();
     const t = setInterval(chargerNonLus, 30000);
@@ -341,11 +357,11 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
       ]
     },
     {
-      id: 'profil', label: 'MON PROFIL', icon: '👤',
+      id: 'profil', label: 'MON PROFIL', icon: '👤', badge: avisAttente > 0 ? avisAttente : undefined,
       sousMenu: [
         { id: 'profil-compte',  label: 'Mon compte',        icon: '👤' },
         { id: 'profil-boutique',label: 'Ma boutique',       icon: '🏪' },
-        { id: 'profil-avis',    label: 'Mes avis clients',  icon: '⭐' },
+        { id: 'profil-avis',    label: 'Mes avis clients',  icon: '⭐', badge: avisAttente > 0 ? avisAttente : undefined },
         { id: 'profil-blogs',   label: 'Mes blogs',         icon: '📝' },
         { id: 'profil-faq',     label: 'Ma FAQ',            icon: '❓' },
         { id: 'profil-rapport', label: 'Rapport financier', icon: '📈' },

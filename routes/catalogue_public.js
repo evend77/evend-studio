@@ -247,7 +247,7 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/avis', async (req, re
     const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
     if (!gid || !cid) return res.json({ avis: [], moyenne: 0 });
     const r = await pool.query(
-      `SELECT av.id, av.note AS note_globale, av.titre, av.commentaire, av.created_at,
+      `SELECT av.id, av.note AS note_globale, av.titre, av.commentaire, av.created_at, av.criteres, av.photos, av.reponse, av.reponse_le,
               TRIM(COALESCE(a.prenom,'') || ' ' || COALESCE(LEFT(a.nom,1) || '.', '')) AS nom_client
          FROM avis_collaborateur av
          JOIN marketplace_collaborateurs mc ON mc.id = av.collaborateur_id AND mc.gestionnaire_id = $2 AND mc.statut = 'actif'

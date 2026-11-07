@@ -856,7 +856,7 @@ router.get('/avis', h(async (req, res) => {
   const page = pageDemandee(req);
   const [liste, total, stats] = await Promise.all([
     pool.query(
-      `SELECT v.id, v.note, v.titre, v.commentaire, v.reponse, v.reponse_le, v.created_at, p.titre AS produit_titre,
+      `SELECT v.id, v.note, v.titre, v.commentaire, v.reponse, v.reponse_le, v.created_at, v.criteres, v.photos, p.titre AS produit_titre,
               a.prenom AS acheteur_prenom, LEFT(COALESCE(a.nom, ''), 1) AS acheteur_initiale
          FROM avis_collaborateur v LEFT JOIN marketplace_acheteurs a ON a.id = v.acheteur_id
          LEFT JOIN produits p ON p.id = v.produit_id
@@ -874,6 +874,47 @@ router.get('/avis', h(async (req, res) => {
     avis: liste.rows, total: n, page, pages: Math.max(1, Math.ceil(n / PAR_PAGE)),
     stats: { moyenne: Math.round(parseFloat(s.moyenne) * 10) / 10, total: +s.total, repartition: { 5: +s.n5, 4: +s.n4, 3: +s.n3, 2: +s.n2, 1: +s.n1 } },
   });
+}));
+
+// Avis qui attendent MON approbation (mode « je les approuve moi-même », Configuration → Avis clients)
+router.get('/avis/compte', h(async (req, res) => {
+  const r = await pool.query(
+    `SELECT COUNT(*) AS n FROM avis_collaborateur WHERE collaborateur_id=$1 AND gestionnaire_id=$2 AND approuve = false AND masque_le IS NULL AND approbateur = 'collaborateur'`, [req.cid, req.gid]);
+  res.json({ attente: parseInt(r.rows[0].n, 10) });
+}));
+
+router.get('/avis/attente', h(async (req, res) => {
+  const r = await pool.query(
+    `SELECT v.id, v.note, v.titre, v.commentaire, v.created_at, v.criteres, v.photos, p.titre AS produit_titre,
+            a.prenom AS acheteur_prenom, LEFT(COALESCE(a.nom, ''), 1) AS acheteur_initiale
+       FROM avis_collaborateur v LEFT JOIN marketplace_acheteurs a ON a.id = v.acheteur_id LEFT JOIN produits p ON p.id = v.produit_id
+      WHERE v.collaborateur_id=$1 AND v.gestionnaire_id=$2 AND v.approuve = false AND v.masque_le IS NULL AND v.approbateur = 'collaborateur'
+      ORDER BY v.created_at DESC, v.id DESC LIMIT 200`, [req.cid, req.gid]);
+  res.json({ avis: r.rows, total: r.rows.length });
+}));
+
+router.put('/avis/:id/approuver', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Avis invalide');
+  const r = await pool.query(
+    `UPDATE avis_collaborateur SET approuve = true
+      WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3 AND approuve = false AND masque_le IS NULL AND approbateur = 'collaborateur'`,
+    [id, req.cid, req.gid]);
+  if (!r.rowCount) bad('Avis introuvable ou déjà traité', 404);
+  res.json({ success: true });
+}));
+
+router.put('/avis/:id/refuser', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Avis invalide');
+  const raison = texte(req.body && req.body.raison, 'Raison', 300);
+  if (raison.length < 5) bad('Indiquez la raison (au moins 5 caractères)');
+  const r = await pool.query(
+    `UPDATE avis_collaborateur SET approuve = false, masque_raison = $1, masque_le = NOW(), masque_par = 'collaborateur'
+      WHERE id=$2 AND collaborateur_id=$3 AND gestionnaire_id=$4 AND approuve = false AND masque_le IS NULL AND approbateur = 'collaborateur'`,
+    [raison, id, req.cid, req.gid]);
+  if (!r.rowCount) bad('Avis introuvable ou déjà traité', 404);
+  res.json({ success: true });
 }));
 
 router.put('/avis/:id/reponse', h(async (req, res) => {
@@ -1025,13 +1066,13 @@ router.put('/boutique', h(async (req, res) => {
 
 const DEFAUT_CONFIG = {
   vacances: false, vacances_message: '', vacances_debut: null, vacances_retour: null, vacances_mode: 'visible', delai_traitement_jours: 2,
-  notif_commande: true, notif_message: true, notif_avis: true, message_remerciement: '', avis_auto_approbation: false,
+  notif_commande: true, notif_message: true, notif_avis: true, message_remerciement: '', avis_mode: 'gestionnaire',
 };
 
 router.get('/configuration', h(async (req, res) => {
   const r = await pool.query(
     `SELECT vacances, vacances_message, vacances_debut::text AS vacances_debut, vacances_retour::text AS vacances_retour, vacances_mode,
-            delai_traitement_jours, notif_commande, notif_message, notif_avis, message_remerciement, avis_auto_approbation
+            delai_traitement_jours, notif_commande, notif_message, notif_avis, message_remerciement, avis_mode
        FROM collaborateur_config WHERE collaborateur_id=$1 AND gestionnaire_id=$2`, [req.cid, req.gid]);
   const [permises, actuel, avisReg] = await Promise.all([vacMV.permisParGestionnaire(pool, req.gid), vacMV.etat(pool, req.gid, req.cid), avisMV.reglagesCollab(req.gid, pool)]);
   res.json({ ...(r.rows[0] || DEFAUT_CONFIG), vacances_permises: permises, vacances_actif_maintenant: !!actuel, vacances_message_defaut: vacMV.MESSAGE_DEFAUT,
@@ -1055,20 +1096,21 @@ router.put('/configuration', h(async (req, res) => {
   }
   const delai = Math.trunc(nombre(b.delai_traitement_jours, 'Délai de traitement', 0, 30));
   const remerciement = texte(b.message_remerciement, 'Message de remerciement', 500);
-  // Auto-approbation des avis : seulement si le gestionnaire l'autorise (sinon la valeur déjà enregistrée est conservée)
-  const avisAuto = typeof b.avis_auto_approbation === 'boolean' && (await avisMV.reglagesCollab(req.gid, pool)).permis ? b.avis_auto_approbation : null;
+  // Approbation des avis : seulement si le gestionnaire laisse le choix (sinon la valeur déjà enregistrée est conservée)
+  if (b.avis_mode !== undefined && !['gestionnaire', 'auto', 'moi'].includes(b.avis_mode)) bad("Choix d'approbation des avis invalide");
+  const avisMode = b.avis_mode !== undefined && (await avisMV.reglagesCollab(req.gid, pool)).permis ? b.avis_mode : null;
   await pool.query(
     `INSERT INTO collaborateur_config (collaborateur_id, gestionnaire_id, vacances, vacances_message, vacances_retour,
-            delai_traitement_jours, notif_commande, notif_message, notif_avis, message_remerciement, vacances_debut, vacances_mode, avis_auto_approbation, updated_at)
-     VALUES ($1,$2,$3,NULLIF($4,''),$5,$6,$7,$8,$9,NULLIF($10,''),$11,$12,COALESCE($13::boolean,false),NOW())
+            delai_traitement_jours, notif_commande, notif_message, notif_avis, message_remerciement, vacances_debut, vacances_mode, avis_mode, updated_at)
+     VALUES ($1,$2,$3,NULLIF($4,''),$5,$6,$7,$8,$9,NULLIF($10,''),$11,$12,COALESCE($13::text,'gestionnaire'),NOW())
      ON CONFLICT (collaborateur_id) DO UPDATE SET vacances=EXCLUDED.vacances, vacances_message=EXCLUDED.vacances_message,
             vacances_retour=EXCLUDED.vacances_retour, vacances_debut=EXCLUDED.vacances_debut, vacances_mode=EXCLUDED.vacances_mode,
             delai_traitement_jours=EXCLUDED.delai_traitement_jours,
             notif_commande=EXCLUDED.notif_commande, notif_message=EXCLUDED.notif_message, notif_avis=EXCLUDED.notif_avis,
             message_remerciement=EXCLUDED.message_remerciement,
-            avis_auto_approbation=COALESCE($13::boolean, collaborateur_config.avis_auto_approbation), updated_at=NOW()`,
+            avis_mode=COALESCE($13::text, collaborateur_config.avis_mode), updated_at=NOW()`,
     [req.cid, req.gid, vacances, message, retour, delai, bool(b.notif_commande, 'Notification commande'),
-     bool(b.notif_message, 'Notification message'), bool(b.notif_avis, 'Notification avis'), remerciement, debut, modeVac, avisAuto]);
+     bool(b.notif_message, 'Notification message'), bool(b.notif_avis, 'Notification avis'), remerciement, debut, modeVac, avisMode]);
   res.json({ success: true });
 }));
 

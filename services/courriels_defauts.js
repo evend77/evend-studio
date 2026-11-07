@@ -207,6 +207,18 @@ const MODELES = [
     html: enveloppe('Nouvel avis', p('Bonjour {$prenom_collaborateur},') + p('<strong>{$nom_client}</strong> vient de laisser un avis sur la commande {$numero_commande} : <strong>{$etoiles} ({$note})</strong>') + encadre('{$extrait_avis}') + bouton('Voir et répondre', '{$lien_dashboard}')),
   },
 
+  {
+    cle: 'avis_a_approuver', section: 'avis', destinataire: 'collaborateur', branche: true,
+    nom: 'Avis à approuver — au collaborateur', sujet: 'Un avis attend votre approbation {$etoiles}',
+    variables: [{ cle: 'prenom_collaborateur', desc: 'Prénom du collaborateur' }, { cle: 'etoiles', desc: 'Étoiles de la note' }, { cle: 'note', desc: 'Note sur 5' }, { cle: 'nom_client', desc: 'Prénom et initiale du client' }, { cle: 'numero_commande', desc: 'Numéro de commande' }, { cle: 'extrait_avis', desc: "Texte de l'avis" }, { cle: 'lien_dashboard', desc: 'Lien vers votre tableau de bord' }],
+    html: enveloppe('Avis à approuver', p('Bonjour {$prenom_collaborateur},') + p('<strong>{$nom_client}</strong> a laissé un avis sur la commande {$numero_commande} : <strong>{$etoiles} ({$note})</strong>') + encadre('{$extrait_avis}') + p("Il sera publié sur votre boutique dès que vous l'aurez approuvé.") + bouton('Approuver ou refuser', '{$lien_dashboard}')),
+  },
+  {
+    cle: 'avis_a_approuver_gestionnaire', section: 'avis', destinataire: 'gestionnaire', branche: true,
+    nom: 'Avis à approuver — au gestionnaire', sujet: 'Un avis attend votre approbation',
+    variables: [{ cle: 'nom_collaborateur', desc: 'Boutique concernée' }, { cle: 'etoiles', desc: 'Étoiles de la note' }, { cle: 'note', desc: 'Note sur 5' }, { cle: 'nom_client', desc: 'Prénom et initiale du client' }, { cle: 'numero_commande', desc: 'Numéro de commande' }, { cle: 'extrait_avis', desc: "Texte de l'avis" }],
+    html: enveloppe('Avis à approuver', p('Bonjour,') + p('<strong>{$nom_client}</strong> a laissé un avis sur la boutique <strong>{$nom_collaborateur}</strong> (commande {$numero_commande}) : <strong>{$etoiles} ({$note})</strong>') + encadre('{$extrait_avis}') + p('Pour le publier ou le refuser, ouvrez <strong>Multi-vendeur → Avis</strong> dans votre tableau de bord.')),
+  },
   // ───────── Modération ─────────
   {
     cle: 'boutique_signalee', section: 'moderation', destinataire: 'gestionnaire', branche: false,

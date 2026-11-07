@@ -84,6 +84,12 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
   const [note, setNote] = useState(5);
   const [titreAvis, setTitreAvis] = useState('');
   const [commentaire, setCommentaire] = useState('');
+  const [avisDetailles, setAvisDetailles] = useState(false);       // option « Avis détaillés » du gestionnaire
+  const [delaiRespecte, setDelaiRespecte] = useState<boolean | null>(null);
+  const [communication, setCommunication] = useState(0);
+  const [emballage, setEmballage] = useState(0);
+  const [photos, setPhotos] = useState<string[]>([]);
+  const [envoiPhoto, setEnvoiPhoto] = useState(false);
 
   const base = `${API}/acheteur/${gestionnaireId}`;
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3500); };
@@ -94,6 +100,7 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'Chargement impossible');
       setListe(j.commandes || []);
+      setAvisDetailles(!!j.avis_detailles);
       setErreur('');
     } catch (e: any) { setErreur(e.message || 'Erreur réseau'); }
     finally { setLoading(false); }
@@ -114,8 +121,27 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
     finally { setOccupe(false); }
   };
 
+  const ajouterPhotos = async (fichiers: FileList | null) => {
+    if (!fichiers) return;
+    for (const f of Array.from(fichiers)) {
+      if (photos.length >= 5) { showToast('Maximum 5 photos', false); break; }
+      if (!/^image\/(jpeg|png|webp)$/.test(f.type)) { showToast(`« ${f.name} » n'est pas une image JPEG, PNG ou WebP`, false); continue; }
+      if (f.size > 5 * 1024 * 1024) { showToast(`« ${f.name} » dépasse 5 Mo`, false); continue; }
+      setEnvoiPhoto(true);
+      try {
+        const fd = new FormData(); fd.append('file', f);
+        const r = await fetch(`${base}/avis/photo`, { method: 'POST', credentials: 'include', body: fd });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Envoi impossible');
+        setPhotos(p => [...p, j.url].slice(0, 5));
+      } catch (e: any) { showToast(e.message || 'Envoi impossible', false); }
+      setEnvoiPhoto(false);
+    }
+  };
+
   const ouvrirModal = (type: 'annuler' | 'retour' | 'avis', cmd: Commande) => {
     setRaisonAnnul(''); setTypeDemande('retour'); setRaisons([]); setDetails(''); setNote(5); setTitreAvis(''); setCommentaire('');
+    setDelaiRespecte(null); setCommunication(0); setEmballage(0); setPhotos([]);
     setModal({ type, cmd });
   };
 
@@ -304,10 +330,47 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
                 </div>
                 <input value={titreAvis} maxLength={120} onChange={e => setTitreAvis(e.target.value)} placeholder="Titre (facultatif)" style={{ ...champ, marginBottom: 10 }} />
                 <textarea value={commentaire} maxLength={1500} onChange={e => setCommentaire(e.target.value)} rows={4} placeholder="Votre commentaire…" style={{ ...champ, resize: 'vertical' }} />
+                {avisDetailles && (
+                  <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: C.textLight, marginBottom: 6 }}>📦 Délai de livraison respecté ?</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        {[{ v: true, l: '✅ Oui' }, { v: false, l: '❌ Non' }].map(o => (
+                          <button key={String(o.v)} type="button" onClick={() => setDelaiRespecte(delaiRespecte === o.v ? null : o.v)}
+                            style={{ padding: '6px 16px', borderRadius: 20, fontSize: 12, cursor: 'pointer', color: '#fff', border: `1px solid ${delaiRespecte === o.v ? (o.v ? C.green : C.red) : C.border}`, background: delaiRespecte === o.v ? (o.v ? 'rgba(16,185,129,.2)' : 'rgba(239,68,68,.2)') : 'rgba(255,255,255,.05)' }}>{o.l}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {([['💬 Communication avec le vendeur', communication, setCommunication], ["📦 Qualité de l'emballage", emballage, setEmballage]] as const).map(([titre, val, set]) => (
+                      <div key={titre}>
+                        <div style={{ fontSize: 13, color: C.textLight, marginBottom: 4 }}>{titre}</div>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          {[1, 2, 3, 4, 5].map(n => <button key={n} type="button" onClick={() => set(val === n ? 0 : n)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: n <= val ? '#fbbf24' : 'rgba(255,255,255,.2)', padding: 0 }}>★</button>)}
+                        </div>
+                      </div>
+                    ))}
+                    <div>
+                      <div style={{ fontSize: 13, color: C.textLight, marginBottom: 6 }}>📷 Photos (max 5) {envoiPhoto && <span style={{ color: C.amber }}>⏳ envoi…</span>}</div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        {photos.map((u, i) => (
+                          <div key={u} style={{ position: 'relative', width: 56, height: 56, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.border}` }}>
+                            <img src={u} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <button type="button" onClick={() => setPhotos(photos.filter((_, j) => j !== i))} style={{ position: 'absolute', top: 2, right: 2, width: 18, height: 18, borderRadius: '50%', border: 'none', background: C.red, color: '#fff', fontSize: 11, cursor: 'pointer', lineHeight: '18px', padding: 0 }}>✕</button>
+                          </div>
+                        ))}
+                        {photos.length < 5 && (
+                          <label style={{ width: 56, height: 56, borderRadius: 10, border: `1px dashed ${C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 22, color: C.textLight }}>
+                            +<input type="file" accept="image/jpeg,image/png,image/webp" multiple hidden disabled={envoiPhoto} onChange={e => { ajouterPhotos(e.target.files); e.target.value = ''; }} />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
                   <button style={{ ...bouton('rgba(255,255,255,.1)'), flex: 1 }} onClick={() => setModal(null)} disabled={occupe}>Fermer</button>
-                  <button style={{ ...bouton('linear-gradient(135deg,#8b5cf6,#6366f1)', !occupe), flex: 1 }} disabled={occupe}
-                    onClick={() => appeler(`/commandes/${modal.cmd.id}/avis`, 'POST', { note, titre: titreAvis, commentaire }, '⭐ Merci pour votre avis')}>{occupe ? '⏳…' : 'Publier'}</button>
+                  <button style={{ ...bouton('linear-gradient(135deg,#8b5cf6,#6366f1)', !occupe), flex: 1 }} disabled={occupe || envoiPhoto}
+                    onClick={() => appeler(`/commandes/${modal.cmd.id}/avis`, 'POST', { note, titre: titreAvis, commentaire, ...(avisDetailles ? { criteres: { delai_respecte: delaiRespecte, communication: communication || null, emballage: emballage || null }, photos } : {}) }, '⭐ Merci pour votre avis')}>{occupe ? '⏳…' : 'Publier'}</button>
                 </div>
               </>
             )}

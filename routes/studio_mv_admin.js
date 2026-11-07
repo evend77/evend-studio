@@ -275,9 +275,10 @@ router.post('/commandes/:id/annuler', h(async (req, res) => {
 router.get('/avis', h(async (req, res) => {
   const params = [req.gid];
   const where = ['v.gestionnaire_id = $1'];
-  const statut = ['publie', 'attente', 'masque', 'tous'].includes(req.query.statut) ? req.query.statut : 'tous';
+  const statut = ['publie', 'attente', 'chez_collab', 'masque', 'tous'].includes(req.query.statut) ? req.query.statut : 'tous';
   if (statut === 'publie') where.push('v.approuve = true');
-  if (statut === 'attente') where.push('v.approuve = false AND v.masque_le IS NULL');
+  if (statut === 'attente') where.push(`v.approuve = false AND v.masque_le IS NULL AND v.approbateur IS DISTINCT FROM 'collaborateur'`);
+  if (statut === 'chez_collab') where.push(`v.approuve = false AND v.masque_le IS NULL AND v.approbateur = 'collaborateur'`);
   if (statut === 'masque') where.push('v.approuve = false AND v.masque_le IS NOT NULL');
   const note = entier(req.query.note);
   if (note && note <= 5) { params.push(note); where.push(`v.note = $${params.length}`); }
@@ -297,7 +298,7 @@ router.get('/avis', h(async (req, res) => {
               LEFT JOIN marketplace_collaborateurs mc ON mc.id = v.collaborateur_id`;
   const [liste, total, stats] = await Promise.all([
     pool.query(
-      `SELECT v.id, v.note, v.titre, v.commentaire, v.approuve, v.masque_raison, v.masque_le, v.reponse, v.created_at, v.commande_id,
+      `SELECT v.id, v.note, v.titre, v.commentaire, v.approuve, v.approbateur, v.masque_raison, v.masque_le, v.masque_par, v.criteres, v.photos, v.reponse, v.created_at, v.commande_id,
               COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS boutique,
               COALESCE(NULLIF(TRIM(COALESCE(a.prenom,'') || ' ' || COALESCE(a.nom,'')), ''), 'Acheteur supprimé') AS acheteur_nom,
               a.email AS acheteur_email, c.numero_commande
@@ -306,7 +307,8 @@ router.get('/avis', h(async (req, res) => {
     pool.query(`SELECT COUNT(*) AS n ${DE} WHERE ${W}`, params),
     pool.query(
       `SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE approuve) AS publies,
-              COUNT(*) FILTER (WHERE NOT approuve AND masque_le IS NULL) AS attente, COUNT(*) FILTER (WHERE NOT approuve AND masque_le IS NOT NULL) AS masques,
+              COUNT(*) FILTER (WHERE NOT approuve AND masque_le IS NULL AND approbateur IS DISTINCT FROM 'collaborateur') AS attente,
+              COUNT(*) FILTER (WHERE NOT approuve AND masque_le IS NULL AND approbateur = 'collaborateur') AS chez_collab, COUNT(*) FILTER (WHERE NOT approuve AND masque_le IS NOT NULL) AS masques,
               COALESCE(AVG(note) FILTER (WHERE approuve), 0) AS moyenne
          FROM avis_collaborateur WHERE gestionnaire_id = $1`, [req.gid]),
   ]);
@@ -314,12 +316,12 @@ router.get('/avis', h(async (req, res) => {
   const s = stats.rows[0];
   res.json({
     avis: liste.rows, total: n, page: pg, pages: Math.max(1, Math.ceil(n / PAR_PAGE)),
-    stats: { total: +s.total, publies: +s.publies, attente: +s.attente, masques: +s.masques, moyenne: Math.round(parseFloat(s.moyenne) * 10) / 10 },
+    stats: { total: +s.total, publies: +s.publies, attente: +s.attente, chez_collab: +s.chez_collab, masques: +s.masques, moyenne: Math.round(parseFloat(s.moyenne) * 10) / 10 },
   });
 }));
 
 router.get('/avis/compte', h(async (req, res) => {
-  const r = await pool.query(`SELECT COUNT(*) AS n FROM avis_collaborateur WHERE gestionnaire_id = $1 AND approuve = false AND masque_le IS NULL`, [req.gid]);
+  const r = await pool.query(`SELECT COUNT(*) AS n FROM avis_collaborateur WHERE gestionnaire_id = $1 AND approuve = false AND masque_le IS NULL AND approbateur IS DISTINCT FROM 'collaborateur'`, [req.gid]);
   res.json({ attente: parseInt(r.rows[0].n, 10) });
 }));
 
@@ -339,7 +341,7 @@ router.post('/avis/:id/masquer', h(async (req, res) => {
   const raison = texte(req.body && req.body.raison, 'Raison', 300);
   if (raison.length < 5) bad('Indiquez la raison (au moins 5 caractères).');
   const r = await pool.query(
-    `UPDATE avis_collaborateur SET approuve = false, masque_raison = $1, masque_le = NOW()
+    `UPDATE avis_collaborateur SET approuve = false, masque_raison = $1, masque_le = NOW(), masque_par = 'gestionnaire'
       WHERE id = $2 AND gestionnaire_id = $3 AND (approuve = true OR masque_le IS NULL)`, [raison, id, req.gid]);
   if (!r.rowCount) bad('Avis introuvable ou déjà masqué.', 404);
   res.json({ success: true });
@@ -349,7 +351,7 @@ router.post('/avis/:id/retablir', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Avis invalide');
   const r = await pool.query(
-    `UPDATE avis_collaborateur SET approuve = true, masque_raison = NULL, masque_le = NULL
+    `UPDATE avis_collaborateur SET approuve = true, masque_raison = NULL, masque_le = NULL, masque_par = NULL
       WHERE id = $1 AND gestionnaire_id = $2 AND approuve = false AND masque_le IS NOT NULL`, [id, req.gid]);
   if (!r.rowCount) bad('Avis introuvable ou pas masqué.', 404);
   res.json({ success: true });
