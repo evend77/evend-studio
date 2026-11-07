@@ -336,6 +336,10 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               {produit.stock > 0 ? `✓ En stock (${produit.stock} disponible${produit.stock > 1 ? 's' : ''})` : enchereActive ? 'Aucune unité disponible en vente directe : seule l\'enchère est ouverte.' : '✗ Épuisé'}
             </p>
 
+            {enchereActive && produit.stock < 9999 && (
+              <p style={{ fontSize: 14, fontWeight: 600, color: '#f59e0b', margin: '-12px 0 20px' }}>🔨 En stock (1 réservé enchère)</p>
+            )}
+
             <div className="mvp-action">
             {/* Quantité */}
             {produit.stock > 0 && produit.vacances?.mode !== 'masque' && (

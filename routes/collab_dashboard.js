@@ -225,6 +225,13 @@ router.get('/produits', h(async (req, res) => {
   });
 }));
 
+async function uniteReserveeEnchere(db, produitId) {
+  try {
+    const e = await db.query(`SELECT 1 FROM encheres WHERE produit_id = $1 AND statut IN ('active','attente_paiement') AND stock_reserve = true LIMIT 1`, [produitId]);
+    return e.rows.length > 0;
+  } catch (err) { return false; } // table des enchères absente
+}
+
 router.get('/produits/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
@@ -234,7 +241,11 @@ router.get('/produits/:id', h(async (req, res) => {
   if (!r.rows.length) bad('Produit introuvable', 404);
   let methodes = [];
   try { methodes = (await pool.query('SELECT methode_id FROM collab_produit_methodes_expedition WHERE produit_id = $1', [id])).rows.map((x) => x.methode_id); } catch (e) { /* tables absentes */ }
-  res.json({ ...r.rows[0], methodes_expedition_ids: methodes });
+  // Enchère en cours : 1 unité est retirée du stock vendable. Le formulaire affiche le stock TOTAL (vente directe + unité de l'enchère).
+  const reserve = await uniteReserveeEnchere(pool, id);
+  const prod = { ...r.rows[0], methodes_expedition_ids: methodes, stock_reserve_enchere: reserve };
+  if (reserve && prod.stock !== null && prod.stock !== undefined) prod.stock = Number(prod.stock) + 1;
+  res.json(prod);
 }));
 
 function lireProduit(req) {
@@ -325,6 +336,11 @@ router.put('/produits/:id', h(async (req, res) => {
   if (!id) bad('Produit invalide');
   const p = lireProduit(req);
   p.categorie = await nomCategorie(req, p.categorieId);
+  // Le stock saisi est le total : on garde 1 unité réservée à l'enchère en cours
+  if (p.stock !== null && await uniteReserveeEnchere(pool, id)) {
+    if (p.stock < 1) bad("Une enchère est en cours : il faut au moins 1 unité en stock (celle de l'enchère).");
+    p.stock -= 1;
+  }
   const r = await pool.query(
     `UPDATE produits SET titre=$1, description=$2, prix=$3, prix_promo=$4, stock=$5, sku=$6, categorie=$7, categorie_id=$8,
             photo_principale=$9, photos=$10, variantes=$11, statut=$12, poids=$16, updated_at=NOW()
