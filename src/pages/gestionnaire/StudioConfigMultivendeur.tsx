@@ -163,7 +163,6 @@ interface ConfigMV {
   destinataire_taxes: 'admin' | 'vendeur';
   // Config commande
   mode_expedition_obligatoire: boolean; numero_suivi_obligatoire: boolean;
-  heures_preparation: string;
   taxes_incluses_prix: boolean;
   permettre_etiquette_expedition: boolean; jours_remboursement: string; remboursement_collab_autonome: boolean;
   permettre_accepter_commande: boolean;
@@ -236,7 +235,6 @@ const DEFAUTS: ConfigMV = {
   dimension_unit: 'cm', sauvegarder_brouillon: false,
   destinataire_taxes: 'admin',
   mode_expedition_obligatoire: false, numero_suivi_obligatoire: false,
-  heures_preparation: '0',
   taxes_incluses_prix: false,
   permettre_etiquette_expedition: false, jours_remboursement: '14', remboursement_collab_autonome: false,
   permettre_accepter_commande: true,
@@ -325,7 +323,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
         if (k.startsWith('banniere_vendeur_')) { const n = k.replace('banniere_vendeur_', 'banniere_collab_'); if (mv[n] === undefined) mv[n] = mv[k]; delete mv[k]; }
       }
       delete mv.approuver_auto_vendeur;   // ancien réglage inactif (valeur par défaut « true » jamais appliquée) : on ne la reprend pas
-      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif', 'statut_preparation_commande', 'restreindre_expedition_fraude', 'deduire_expedition_remboursement', 'deduire_taxes_remboursement', 'taxes_sur_expedition', 'tcs_sur_commandes', 'tds_sur_commandes', 'annuler_auto_rejet', 'mode_taxe', 'type_commission_fixe', 'rtl_alignment']) delete mv[k];   // réglages supprimés de Config vendeur
+      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif', 'statut_preparation_commande', 'restreindre_expedition_fraude', 'deduire_expedition_remboursement', 'deduire_taxes_remboursement', 'taxes_sur_expedition', 'tcs_sur_commandes', 'tds_sur_commandes', 'annuler_auto_rejet', 'mode_taxe', 'type_commission_fixe', 'rtl_alignment', 'heures_preparation']) delete mv[k];   // réglages supprimés de Config vendeur
       if (mv.bloquer_inscription_vendeur !== undefined) { if (mv.bloquer_inscription_collaborateur === undefined) mv.bloquer_inscription_collaborateur = mv.bloquer_inscription_vendeur; delete mv.bloquer_inscription_vendeur; }
       // Nom de la marketplace et courriel de contact : une seule source, partagée avec « Configurer mes pages »
       try {
@@ -901,9 +899,6 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
               </ParamLigne>
               <ParamLigne label="Numéro de suivi obligatoire" description="Activé : pour marquer une commande expédiée, le collaborateur doit remplir le transporteur et le numéro de suivi.">
                 <Toggle actif={config.numero_suivi_obligatoire} onChange={set('numero_suivi_obligatoire')} />
-              </ParamLigne>
-              <ParamLigne label="Heures de préparation">
-                <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.heures_preparation} onChange={e => set('heures_preparation')(e.target.value)} min="0" />
               </ParamLigne>
               <ParamLigne label="Permettre les étiquettes d'expédition" description="À venir : étiquettes d'expédition (Shippo / EasyPost).">
                 <Toggle actif={config.permettre_etiquette_expedition} onChange={set('permettre_etiquette_expedition')} />
