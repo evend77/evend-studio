@@ -23,6 +23,7 @@ import CollaborateurConfiguration from './pages/collaborateur/CollaborateurConfi
 import CollaborateurMethodesExpedition from './pages/collaborateur/CollaborateurMethodesExpedition';
 import CollaborateurBlogs from './pages/collaborateur/CollaborateurBlogs';
 import CollaborateurFaq from './pages/collaborateur/CollaborateurFaq';
+import CollaborateurRapportFinancier from './pages/collaborateur/CollaborateurRapportFinancier';
 
 const API_BASE = '/api';
 
@@ -343,6 +344,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
         { id: 'profil-avis',    label: 'Mes avis clients',  icon: '⭐' },
         { id: 'profil-blogs',   label: 'Mes blogs',         icon: '📝' },
         { id: 'profil-faq',     label: 'Ma FAQ',            icon: '❓' },
+        { id: 'profil-rapport', label: 'Rapport financier', icon: '📈' },
       ]
     },
     {
@@ -377,6 +379,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'profil-avis')       return <CollaborateurAvis {...commun} />;
     if (pageActive === 'profil-blogs')      return <CollaborateurBlogs {...commun} />;
     if (pageActive === 'profil-faq')        return <CollaborateurFaq {...commun} />;
+    if (pageActive === 'profil-rapport')    return <CollaborateurRapportFinancier {...commun} nomVendeur={compte.nom_boutique} />;
     if (pageActive === 'config-stripe')
       return <CollaborateurStripe gestionnaireId={gestionnaireId} collaborateurId={compte.id} accent={accent} isMobile={isMobile} />;
     if (pageActive === 'config-generale')   return <CollaborateurConfiguration {...commun} naviguer={naviguer} />;

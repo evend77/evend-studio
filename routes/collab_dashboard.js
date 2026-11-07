@@ -1134,4 +1134,7 @@ router.delete('/blogs/:id', h(async (req, res) => {
   res.json({ success: true });
 }));
 
+// Rapport financier (ventes, taxes, commissions) — voir routes/rapport_collab.js
+router.use('/', require('./rapport_collab'));
+
 module.exports = router;
