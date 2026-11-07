@@ -24,6 +24,10 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
   const [categorieId, setCategorieId] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [variantes, setVariantes] = useState<Variante[]>([]);
+  // Expédition (comme e-Vend) : poids en kg + méthodes du collaborateur offertes pour cette annonce
+  const [poids, setPoids] = useState('');
+  const [methodesVendeur, setMethodesVendeur] = useState<any[]>([]);
+  const [methodesSel, setMethodesSel] = useState<number[]>([]);
   const [categories, setCategories] = useState<{ id: number; nom: string; groupe_nom: string | null }[]>([]);
   const [chargement, setChargement] = useState(!!produitId);
   const [envoi, setEnvoi] = useState(false);
@@ -37,6 +41,10 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
   }, [base]);
 
   useEffect(() => {
+    fetch(`${base}/methodes-expedition/details`, { credentials: 'include' }).then(r => (r.ok ? r.json() : [])).then(d => setMethodesVendeur(Array.isArray(d) ? d : [])).catch(() => {});
+  }, [base]);
+
+  useEffect(() => {
     if (!produitId) return;
     (async () => {
       try {
@@ -47,6 +55,8 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
         setPrix(p.prix ?? ''); setPrixPromo(p.prix_promo ?? '');
         setStock(p.stock === null || p.stock === undefined ? '' : String(p.stock));
         setSku(p.sku || ''); setCategorieId(p.categorie_id ? String(p.categorie_id) : '');
+        setPoids(p.poids === null || p.poids === undefined ? '' : String(Number(p.poids)));
+        setMethodesSel(Array.isArray(p.methodes_expedition_ids) ? p.methodes_expedition_ids : []);
         setPhotos(Array.isArray(p.photos) ? p.photos : []);
         setVariantes((Array.isArray(p.variantes) ? p.variantes : []).map((v: any) => ({
           nom: v.nom || '', prix: v.prix === null || v.prix === undefined ? '' : String(v.prix), stock: v.stock === null || v.stock === undefined ? '' : String(v.stock),
@@ -86,12 +96,17 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
     if (prix === '' || Number(prix) < 0) { setErreur('Le prix est obligatoire'); return; }
     if (categories.length > 0 && !categorieId) { setErreur('Choisissez une catégorie'); return; }
     if (prixPromo !== '' && Number(prixPromo) >= Number(prix)) { setErreur('Le prix promo doit être inférieur au prix'); return; }
+    if (poids !== '' && (Number(poids) < 0 || !Number.isFinite(Number(poids)))) { setErreur('Le poids est invalide'); return; }
+    if (methodesVendeur.length > 0 && methodesSel.length === 0) { setErreur("Sélectionnez au moins une méthode d'expédition."); return; }
+    if (methodesVendeur.some(m => methodesSel.includes(m.id) && (m.mode_calcul === 'kg' || m.mode_calcul === 'fixe_kg')) && !(Number(poids) > 0)) { setErreur("Indiquez le poids du produit : une des méthodes choisies calcule les frais au kg."); return; }
     setSauvegarde(true);
     try {
       const res = await fetch(produitId ? `${base}/produits/${produitId}` : `${base}/produits`, {
         method: produitId ? 'PUT' : 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           titre, description, prix, prix_promo: prixPromo, stock, sku, categorie_id: categorieId || null, photos, statut,
+          poids: poids === '' ? null : poids,
+          methodes_expedition_ids: methodesVendeur.length > 0 ? methodesSel : [],
           variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock })),
         }),
       });
@@ -184,6 +199,49 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
             </select>
           ) : <p style={{ margin: 0, fontSize: 12, color: '#6b7280' }}>Le gestionnaire n'a pas encore créé de catégories.</p>}
         </div>
+      </div>
+
+      <div style={carte}>
+        <label style={lbl}>🚚 Expédition</label>
+        <div style={{ maxWidth: 260, marginBottom: 14 }}>
+          <label style={lbl}>Poids (kg) pour frais d'expédition</label>
+          <input type="number" min="0" step="0.001" value={poids} onChange={e => setPoids(e.target.value)} placeholder="Ex : 0.5" style={champ} />
+        </div>
+        <p style={{ fontSize: 13, fontWeight: 600, color: T.text, margin: '0 0 8px' }}>Méthodes d'expédition disponibles pour ce produit <span style={{ color: T.danger }}>*</span></p>
+        {methodesVendeur.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: '2px solid #008060', background: '#f0fdf4' }}>
+              <input type="checkbox" checked readOnly style={{ width: 16, height: 16, accentColor: '#008060' }} />
+              <span style={{ fontSize: 20 }}>🎁</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 600, color: T.text, margin: '0 0 2px' }}>Livraison gratuite</p>
+                <p style={{ fontSize: 12, color: T.light, margin: 0 }}>Appliquée par défaut — configurez vos méthodes dans Configuration</p>
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#008060', background: '#f0fdf4', padding: '3px 10px', borderRadius: 20 }}>Gratuit</span>
+            </div>
+            <p style={{ fontSize: 12, color: T.light, margin: 0 }}>💡 Ajoutez vos méthodes dans <strong>Configuration → Méthodes d'expédition</strong> pour plus d'options.</p>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {methodesVendeur.map((m: any) => {
+              const choisi = methodesSel.includes(m.id);
+              const gratuit = m.libelle_prix === 'Gratuit';
+              return (
+                <div key={m.id} onClick={() => setMethodesSel(prev => (prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]))}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderRadius: 10, border: `2px solid ${choisi ? '#008060' : '#e1e3e5'}`, background: choisi ? '#f0fdf4' : '#fff', cursor: 'pointer', transition: 'all 0.15s' }}>
+                  <input type="checkbox" checked={choisi} onChange={() => {}} style={{ width: 16, height: 16, accentColor: '#008060', cursor: 'pointer' }} />
+                  <span style={{ fontSize: 20 }}>{m.logo || '📦'}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 14, fontWeight: 600, color: T.text, margin: '0 0 2px' }}>{m.nom || 'Expédition'}</p>
+                    {m.delais_estime && <p style={{ fontSize: 12, color: T.light, margin: 0 }}>⏱ {m.delais_estime}</p>}
+                  </div>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: gratuit ? '#008060' : T.text, background: gratuit ? '#f0fdf4' : '#f5f5f5', padding: '3px 10px', borderRadius: 20, textAlign: 'center' }}>{m.libelle_prix}</span>
+                </div>
+              );
+            })}
+            {methodesSel.length === 0 && <p style={{ fontSize: 12, color: '#d72c0d', margin: '4px 0 0' }}>Sélectionnez au moins une méthode d'expédition.</p>}
+          </div>
+        )}
       </div>
 
       <div style={carte}>

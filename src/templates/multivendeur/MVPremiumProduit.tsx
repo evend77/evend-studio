@@ -119,6 +119,9 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   const [ajoutEnCours, setAjoutEnCours]= useState(false);
   const [enchereActive, setEnchereActive] = useState(false); // vrai : produit en vente aux enchères (pas d'achat direct)
   const [rechargement, setRechargement] = useState(0);
+  // Options d'expédition choisies par le collaborateur pour cette annonce (affichées aussi pendant une enchère)
+  const [methodesExp, setMethodesExp] = useState<any[]>([]);
+  const [gratuiteGlobale, setGratuiteGlobale] = useState<{ seuil: number; provinces: string[] } | null>(null);
 
   useEffect(() => {
     if (!produitId) return;
@@ -147,6 +150,23 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [produitId, isDemo, rechargement]);
+
+  useEffect(() => {
+    if (isDemo) {
+      setMethodesExp([
+        { id: 1, nom: 'Postes Canada', logo: '📮', delais_estime: '3-5 jours ouvrables', libelle_prix: '9.99 $', gratuit_superieur: 100 },
+        { id: 2, nom: 'Purolator', logo: '🚚', delais_estime: '1-2 jours ouvrables', libelle_prix: '19.99 $' },
+      ]);
+      return;
+    }
+    if (!produit?.id || !gId) return;
+    let annule = false;
+    fetch(`${API_BASE}/marketplace/${gId}/produits/${produit.id}/methodes-expedition`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (annule || !d) return; setMethodesExp(Array.isArray(d.methodes) ? d.methodes : []); setGratuiteGlobale(d.livraison_gratuite_globale || null); })
+      .catch(() => {});
+    return () => { annule = true; };
+  }, [produit?.id, gId, isDemo]);
 
   const ajouterPanier = async () => {
     if (!produit) return;
@@ -352,6 +372,39 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               {produit.ville && <div style={s.infoItem}><span style={s.infoLabel}>Localisation</span><span style={s.infoVal}>📍 {produit.ville}</span></div>}
               {produit.sku && <div style={s.infoItem}><span style={s.infoLabel}>SKU</span><span style={s.infoVal}>{produit.sku}</span></div>}
             </div>
+
+            {/* Options d'expédition — aussi visibles pendant une enchère (le gagnant paie la livraison) */}
+            {methodesExp.length > 0 && (
+              <div style={{ marginTop: 20, border: '1px solid rgba(255,255,255,0.08)', borderRadius: 14, background: 'rgba(255,255,255,0.03)', overflow: 'hidden' }}>
+                <p style={{ margin: 0, padding: '12px 16px', fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: couleurAccent, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>🚚 Options d'expédition</p>
+                {methodesExp.map((m: any, i: number) => {
+                  const gratuit = m.libelle_prix === 'Gratuit';
+                  return (
+                    <div key={m.id ?? i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', flexWrap: 'wrap', background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)' }}>
+                      <span style={{ fontSize: 18, flexShrink: 0 }}>{m.logo || '📦'}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.8)', overflowWrap: 'anywhere' }}>{m.nom || 'Expédition'}</span>
+                        {m.delais_estime && <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>⏱ {m.delais_estime}</span>}
+                        {m.gratuit_superieur ? <span style={{ display: 'block', fontSize: 11, color: '#4ade80', fontWeight: 600, marginTop: 1 }}>🎁 Gratuit dès {Number(m.gratuit_superieur).toFixed(2)} $ d'achat</span> : null}
+                      </div>
+                      <span style={{ fontSize: 13, fontWeight: 700, padding: '4px 10px', borderRadius: 8, whiteSpace: 'nowrap',
+                        color: gratuit ? '#4ade80' : '#e2e8f0', background: gratuit ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.06)',
+                        border: `1px solid ${gratuit ? 'rgba(74,222,128,0.35)' : 'rgba(255,255,255,0.08)'}` }}>
+                        {gratuit ? '✓ Gratuit' : m.libelle_prix}
+                      </span>
+                    </div>
+                  );
+                })}
+                {gratuiteGlobale && (
+                  <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: 12, color: '#4ade80', fontWeight: 600 }}>
+                    🎁 Livraison gratuite dès {gratuiteGlobale.seuil.toFixed(2)} $ d'achat{gratuiteGlobale.provinces.length ? ` (${gratuiteGlobale.provinces.join(', ')})` : ''}
+                  </div>
+                )}
+                <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+                  <p style={{ margin: 0, fontSize: 11, color: 'rgba(255,255,255,0.35)', textAlign: 'center' }}>Choisissez votre méthode d'expédition lors du paiement</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

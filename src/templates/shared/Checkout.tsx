@@ -198,6 +198,8 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
 
   const [expedition, setExpedition] = useState<number | null>(null); // ID de la méthode sélectionnée
   const [methodesExpedition, setMethodesExpedition] = useState<MethodeExpedition[]>([]);
+  // Le vendeur ne livre pas dans la province de l'adresse choisie : on bloque le paiement (jamais de livraison gratuite par erreur)
+  const [expeditionIndisponible, setExpeditionIndisponible] = useState(false);
   const [pourboire, setPourboire] = useState(0);
   const [pourboireCustom, setPourboireCustom] = useState('');
   const [modePaiement, setModePaiement] = useState<'stripe' | 'paypal' | null>(null);
@@ -271,6 +273,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
         logo: m.logo || TRANSPORTEURS_NOMS[m.transporteur_id]?.logo || '📦',
       }));
       setMethodesExpedition(methodes);
+      setExpeditionIndisponible(data.expedition_indisponible === true);
       // ✅ Sélectionner automatiquement la 1ère méthode (souvent free shipping)
       if (methodes.length > 0) setExpedition(methodes[0].id);
       const vendeurData = data.vendeur || null;
@@ -313,6 +316,8 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
         logo: m.logo || TRANSPORTEURS_NOMS[m.transporteur_id]?.logo || '📦',
       }));
       setMethodesExpedition(methodes);
+      setExpeditionIndisponible(data.expedition_indisponible === true);
+      if (methodes.length === 0) setExpedition(null);
       // Garder la méthode sélectionnée si elle existe encore, sinon prendre la première
       if (methodes.length > 0) {
         const existeEncore = methodes.find((m: MethodeExpedition) => m.id === expedition);
@@ -511,7 +516,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
   // Produit numérique : l'adresse de livraison n'est pas obligatoire
   const peutPayer = modePaiement !== null && !aucunPaiement
     && (tousNumeriques || adresseLivraison !== null)
-    && (tousNumeriques || methodesExpedition.length === 0 || expedition !== null);
+    && (tousNumeriques || (!expeditionIndisponible && (methodesExpedition.length === 0 || expedition !== null)));
 
   // ─── POPUP PAIEMENT BLOQUÉ ────────────────────────────────────────────
   if (paiementBloque && vendeur) return (
@@ -830,6 +835,11 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                     {panierMixte && <span style={{ color: '#fbbf24', fontSize: '11px', display: 'block', marginTop: '3px' }}>⚠️ Frais calculés pour les articles physiques seulement — les produits numériques sont gratuits.</span>}
                   </span>
                 </div>
+                {expeditionIndisponible && (
+                  <div style={{ marginTop: '12px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', color: '#fca5a5', fontSize: '13px', fontWeight: 600 }}>
+                    🚫 Ce vendeur ne livre pas dans {adresseLivraison.province}. Choisissez une autre adresse de livraison.
+                  </div>
+                )}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
                   {methodesExpedition.map((methode) => {
                     const fraisCalcule = methode.frais_calcule ?? methode.frais_fixes ?? 0;
@@ -1294,6 +1304,8 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                 <>🔒 Choisir un mode de paiement</>
               ) : !adresseLivraison ? (
                 <>📍 Adresse requise</>
+              ) : expeditionIndisponible && !tousNumeriques ? (
+                <>🚫 Livraison impossible dans cette province</>
               ) : methodesExpedition.length > 0 && expedition === null ? (
                 <>🚚 Choisir une méthode d'expédition</>
               ) : (

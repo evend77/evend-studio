@@ -20,6 +20,7 @@ import CollaborateurCompte from './pages/collaborateur/CollaborateurCompte';
 import CollaborateurBoutique from './pages/collaborateur/CollaborateurBoutique';
 import CollaborateurAvis from './pages/collaborateur/CollaborateurAvis';
 import CollaborateurConfiguration from './pages/collaborateur/CollaborateurConfiguration';
+import CollaborateurMethodesExpedition from './pages/collaborateur/CollaborateurMethodesExpedition';
 import CollaborateurBlogs from './pages/collaborateur/CollaborateurBlogs';
 import CollaborateurFaq from './pages/collaborateur/CollaborateurFaq';
 
@@ -349,6 +350,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
       sousMenu: [
         { id: 'config-generale', label: 'Configuration generale', icon: '⚙️' },
         { id: 'config-stripe',   label: 'Paiements Stripe',       icon: '💳' },
+        { id: 'config-expedition', label: "Méthodes d'expédition", icon: '🚚' },
       ]
     },
   ];
@@ -378,6 +380,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'config-stripe')
       return <CollaborateurStripe gestionnaireId={gestionnaireId} collaborateurId={compte.id} accent={accent} isMobile={isMobile} />;
     if (pageActive === 'config-generale')   return <CollaborateurConfiguration {...commun} naviguer={naviguer} />;
+    if (pageActive === 'config-expedition') return <CollaborateurMethodesExpedition {...commun} />;
     return null;
   };
 

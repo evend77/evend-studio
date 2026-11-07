@@ -10,6 +10,7 @@ const jwt     = require('jsonwebtoken');
 const paiement = require('../services/studio_paiement');
 const promo = require('../services/studio_promo');
 const taxesMV = require('../services/studio_taxes');
+const expMV = require('../services/studio_expedition');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -306,45 +307,17 @@ router.get('/:gid/checkout/infos', authMV, async (req, res) => {
     const tousNumeriques = articles.every(a => a.produit_numerique === true);
     const panierMixte = !tousNumeriques && articles.some(a => a.produit_numerique === true);
 
-    // Expedition : cherche les methodes du collaborateur (table vendeur_methodes_expedition par vendeur_id=collab.id)
+    // Expédition : méthodes choisies pour les annonces du panier (voir services/studio_expedition.js).
+    // Sans méthode configurée : livraison gratuite. Province non desservie : aucune méthode + expedition_indisponible.
     let methodesExpedition = [];
+    let expeditionIndisponible = false;
+    let gratuiteGlobale = false;
+    const codeProvince = String(province || 'QC').toUpperCase().slice(0, 2);
     if (!tousNumeriques) {
-      const produitIds = articles.filter(a => !a.produit_numerique).map(a => parseInt(a.produit_id)).filter(Boolean);
-      if (produitIds.length) {
-        // Les tables de méthodes d'expédition n'existent pas encore dans Studio : sans elles, livraison gratuite.
-        let methRes = { rows: [] };
-        try {
-          methRes = await pool.query(
-            `SELECT DISTINCT vme.*
-             FROM produit_methodes_expedition pme
-             JOIN vendeur_methodes_expedition vme ON vme.id = pme.methode_id
-             WHERE pme.produit_id = ANY($1::int[]) AND vme.actif = true
-             ORDER BY vme.frais_fixes ASC NULLS LAST`,
-            [produitIds]
-          );
-        } catch (e) { methRes = { rows: [] }; }
-        const codeProvince = province || 'QC';
-        methodesExpedition = methRes.rows.map(m => ({
-          id: m.id,
-          nom: m.nom || 'Expedition',
-          logo: '📦',
-          mode_calcul: m.mode_calcul || 'fixe',
-          frais_fixes: parseFloat(m.frais_fixes) || 0,
-          frais_par_kg: parseFloat(m.frais_par_kg) || 0,
-          gratuit_superieur: m.gratuit_superieur ? parseFloat(m.gratuit_superieur) : null,
-          delais_estime: m.delais_estime || '',
-          frais_calcule: parseFloat(m.frais_fixes) || 0,
-          detail_calcul: '',
-          gratuit: (parseFloat(m.frais_fixes) || 0) === 0,
-          ramassage: false,
-          non_disponible: false,
-          gratuit_applique: sousTotal >= (parseFloat(m.gratuit_superieur) || Infinity),
-        }));
-      }
-      if (!methodesExpedition.length) {
-        // Fallback livraison gratuite
-        methodesExpedition = [{ id: -1, nom: 'Livraison gratuite', logo: '🎁', mode_calcul: 'fixe', frais_fixes: 0, frais_calcule: 0, delais_estime: 'Variable', gratuit: true, ramassage: false, non_disponible: false, gratuit_applique: true }];
-      }
+      const r = await expMV.methodesPourPanier(pool, { collaborateurId: parseInt(collaborateur_id, 10), lignes: articles, sousTotal, province: codeProvince });
+      methodesExpedition = r.methodes;
+      expeditionIndisponible = r.indisponible;
+      gratuiteGlobale = r.gratuite_globale;
     }
 
     const peutEncaisser = await paiement.collaborateurPeutEncaisser(parseInt(gid, 10), parseInt(collaborateur_id, 10));
@@ -367,6 +340,8 @@ router.get('/:gid/checkout/infos', authMV, async (req, res) => {
       acheteur: acheteurRes.rows[0] || null,
       adresses: [],
       methodes_expedition: methodesExpedition,
+      expedition_indisponible: expeditionIndisponible,
+      livraison_gratuite_globale: gratuiteGlobale,
     });
   } catch (err) {
     console.error('GET checkout/infos:', err);
@@ -414,30 +389,38 @@ router.post('/:gid/checkout/taxes', authMV, async (req, res) => {
 });
 
 // Frais d'expédition recalculés côté serveur (jamais ceux envoyés par le navigateur).
-// Les tables de méthodes peuvent ne pas exister : SAVEPOINT pour ne pas casser la transaction en cours.
-async function fraisExpedition(client, lignes, sousTotal, methodeId) {
-  const physiques = lignes.filter((l) => !l.produit_numerique).map((l) => parseInt(l.produit_id, 10)).filter(Boolean);
-  if (!physiques.length) return { frais: 0 };
-  let methodes = [];
-  try {
-    await client.query('SAVEPOINT exp');
-    methodes = (await client.query(
-      `SELECT DISTINCT vme.*
-         FROM produit_methodes_expedition pme
-         JOIN vendeur_methodes_expedition vme ON vme.id = pme.methode_id
-        WHERE pme.produit_id = ANY($1::int[]) AND vme.actif = true`, [physiques])).rows;
-    await client.query('RELEASE SAVEPOINT exp');
-  } catch (e) {
-    await client.query('ROLLBACK TO SAVEPOINT exp');
-    methodes = [];
-  }
-  if (!methodes.length) return { frais: 0 }; // aucune méthode configurée : livraison gratuite
-  const m = methodes.find((x) => String(x.id) === String(methodeId));
-  if (!m) return { erreur: "Choisissez un mode d'expédition." };
-  const fixes = parseFloat(m.frais_fixes) || 0;
-  const seuil = m.gratuit_superieur ? parseFloat(m.gratuit_superieur) : null;
-  return { frais: seuil !== null && sousTotal >= seuil ? 0 : fixes };
+// ctx : { collaborateurId, province, sousTotalNet } — le seuil « livraison gratuite » se juge sur le montant après rabais.
+async function fraisExpedition(client, lignes, sousTotal, methodeId, ctx) {
+  return expMV.fraisPourPaiement(client, {
+    collaborateurId: ctx.collaborateurId, lignes, sousTotal, sousTotalNet: ctx.sousTotalNet, province: ctx.province, methodeId,
+  });
 }
+
+// GET /api/marketplace/:gid/produits/:produitId/methodes-expedition — public : options d'expédition affichées sur la page produit
+router.get('/:gid/produits/:produitId/methodes-expedition', async (req, res) => {
+  const gid = parseInt(req.params.gid, 10);
+  const pid = parseInt(req.params.produitId, 10);
+  if (!gid || !pid) return res.status(400).json({ error: 'Requête invalide' });
+  try {
+    const p = (await pool.query(`SELECT collaborateur_id FROM produits WHERE id = $1 AND gestionnaire_id = $2 AND statut = 'actif'`, [pid, gid])).rows[0];
+    if (!p) return res.status(404).json({ error: 'Produit introuvable' });
+    let rows = [];
+    try {
+      rows = (await pool.query(
+        `SELECT vme.* FROM collab_produit_methodes_expedition pme JOIN collab_methodes_expedition vme ON vme.id = pme.methode_id
+          WHERE pme.produit_id = $1 AND vme.actif = true AND vme.collaborateur_id = $2 ORDER BY vme.transporteur_id`, [pid, p.collaborateur_id])).rows;
+    } catch (e) { rows = []; }
+    const methodes = rows.length
+      ? rows.map((m) => ({ ...expMV.enrichir(m, null, 0, 'QC'), libelle_prix: expMV.libellePrix(m) }))
+      : [{ ...expMV.GRATUITE_PAR_DEFAUT, libelle_prix: 'Gratuit' }];
+    const c = await expMV.infosCollab(pool, p.collaborateur_id);
+    res.json({
+      methodes,
+      livraison_gratuite_globale: c && c.livraison_gratuite_globale_actif && Number(c.livraison_gratuite_globale_seuil) > 0
+        ? { seuil: Number(c.livraison_gratuite_globale_seuil), provinces: c.livraison_gratuite_globale_provinces || [] } : null,
+    });
+  } catch (err) { console.error('GET produit methodes-expedition:', err.message); res.status(500).json({ error: 'Erreur serveur' }); }
+});
 
 // POST /api/marketplace/:gid/checkout/commande
 // Le navigateur n'envoie que le collaborateur, l'adresse, le mode d'expédition et une note.

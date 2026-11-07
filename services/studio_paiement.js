@@ -233,7 +233,7 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
     // Prix net de chaque ligne (après rabais) : base des taxes et des lignes Stripe
     const nets = lignes.map((l, i) => cents(l.prix) * l.quantite - alloc[i]);
     const sousNetC = sousTotalC - rabaisC;
-    const exp = await outils.fraisExpedition(client, lignes, sousTotalC / 100, methodeId);
+    const exp = await outils.fraisExpedition(client, lignes, sousTotalC / 100, methodeId, { collaborateurId, province, sousTotalNet: sousNetC / 100 });
     if (exp.erreur) refus(exp.erreur, 400);
     const fraisC = cents(exp.frais);
     const lignesNettes = lignes.map((l, i) => ({ ...l, prix: nets[i] / 100, quantite: 1 }));

@@ -17,6 +17,7 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 const paiementMV = require('../services/studio_paiement');
+const expMV = require('../services/studio_expedition');
 
 const router = express.Router({ mergeParams: true });
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -227,10 +228,12 @@ router.get('/produits/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
   const r = await pool.query(
-    `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id, photo_principale, photos, variantes, statut
+    `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id, photo_principale, photos, variantes, statut, poids
        FROM produits WHERE id = $1 AND collaborateur_id = $2 AND gestionnaire_id = $3`, [id, req.cid, req.gid]);
   if (!r.rows.length) bad('Produit introuvable', 404);
-  res.json(r.rows[0]);
+  let methodes = [];
+  try { methodes = (await pool.query('SELECT methode_id FROM collab_produit_methodes_expedition WHERE produit_id = $1', [id])).rows.map((x) => x.methode_id); } catch (e) { /* tables absentes */ }
+  res.json({ ...r.rows[0], methodes_expedition_ids: methodes });
 }));
 
 function lireProduit(req) {
@@ -262,7 +265,20 @@ function lireProduit(req) {
       stock: v.stock === '' || v.stock === undefined || v.stock === null ? null : Math.trunc(nombre(v.stock, 'Stock de variante', 0, 1000000)),
     };
   });
-  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes };
+  // Poids en kg (3 décimales) pour les modes d'expédition « par kg »
+  let poids = null;
+  if (b.poids !== undefined && b.poids !== null && b.poids !== '') {
+    poids = Number(b.poids);
+    if (!Number.isFinite(poids) || poids < 0 || poids > 10000) bad('Poids invalide (entre 0 et 10 000 kg)');
+    poids = Math.round(poids * 1000) / 1000;
+  }
+  // Méthodes d'expédition choisies pour l'annonce (undefined = ne pas toucher)
+  let methodesIds;
+  if (b.methodes_expedition_ids !== undefined) {
+    if (!Array.isArray(b.methodes_expedition_ids) || b.methodes_expedition_ids.length > 50) bad("Méthodes d'expédition invalides");
+    methodesIds = [...new Set(b.methodes_expedition_ids.map(Number).filter((n) => Number.isInteger(n) && n > 0))];
+  }
+  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes, poids, methodesIds };
 }
 
 // La catégorie doit exister, être active et appartenir au gestionnaire de cette boutique.
@@ -273,6 +289,20 @@ async function nomCategorie(req, categorieId) {
   return r.rows[0].nom;
 }
 
+// Enregistre les méthodes d'expédition de l'annonce (seulement celles du collaborateur, actives)
+async function sauverMethodesProduit(req, produitId, ids) {
+  if (ids === undefined) return;
+  let valides = [];
+  let nbConfigurees = 0;
+  try {
+    nbConfigurees = +(await pool.query('SELECT COUNT(*) AS n FROM collab_methodes_expedition WHERE collaborateur_id = $1 AND actif = true', [req.cid])).rows[0].n;
+    if (ids.length) valides = (await pool.query('SELECT id FROM collab_methodes_expedition WHERE collaborateur_id = $1 AND actif = true AND id = ANY($2::int[])', [req.cid, ids])).rows.map((x) => x.id);
+  } catch (e) { return; } // tables absentes : rien à enregistrer (livraison gratuite)
+  if (nbConfigurees > 0 && valides.length === 0) bad("Sélectionnez au moins une méthode d'expédition.");
+  await pool.query('DELETE FROM collab_produit_methodes_expedition WHERE produit_id = $1', [produitId]);
+  if (valides.length) await pool.query('INSERT INTO collab_produit_methodes_expedition (produit_id, methode_id) SELECT $1, UNNEST($2::int[]) ON CONFLICT DO NOTHING', [produitId, valides]);
+}
+
 router.post('/produits', h(async (req, res) => {
   const p = lireProduit(req);
   p.categorie = await nomCategorie(req, p.categorieId);
@@ -280,10 +310,12 @@ router.post('/produits', h(async (req, res) => {
   if (+n.rows[0].n >= 1000) bad('Limite de 1000 produits atteinte', 409);
   const r = await pool.query(
     `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
-                           photo_principale, photos, variantes, statut)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
+                           photo_principale, photos, variantes, statut, poids)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
     [req.gid, req.cid, p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
-     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut]);
+     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, p.poids]);
+  try { await sauverMethodesProduit(req, r.rows[0].id, p.methodesIds); }
+  catch (e) { await pool.query('DELETE FROM produits WHERE id = $1', [r.rows[0].id]); throw e; }
   res.status(201).json({ id: r.rows[0].id });
 }));
 
@@ -294,11 +326,12 @@ router.put('/produits/:id', h(async (req, res) => {
   p.categorie = await nomCategorie(req, p.categorieId);
   const r = await pool.query(
     `UPDATE produits SET titre=$1, description=$2, prix=$3, prix_promo=$4, stock=$5, sku=$6, categorie=$7, categorie_id=$8,
-            photo_principale=$9, photos=$10, variantes=$11, statut=$12, updated_at=NOW()
+            photo_principale=$9, photos=$10, variantes=$11, statut=$12, poids=$16, updated_at=NOW()
       WHERE id=$13 AND collaborateur_id=$14 AND gestionnaire_id=$15`,
     [p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
-     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, id, req.cid, req.gid]);
+     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, id, req.cid, req.gid, p.poids]);
   if (!r.rowCount) bad('Produit introuvable', 404);
+  await sauverMethodesProduit(req, id, p.methodesIds);
   res.json({ success: true });
 }));
 
@@ -814,6 +847,118 @@ router.put('/configuration', h(async (req, res) => {
             message_remerciement=EXCLUDED.message_remerciement, updated_at=NOW()`,
     [req.cid, req.gid, vacances, message, retour, delai, bool(b.notif_commande, 'Notification commande'),
      bool(b.notif_message, 'Notification message'), bool(b.notif_avis, 'Notification avis'), remerciement]);
+  res.json({ success: true });
+}));
+
+// ════════════════════════════════════════════════════════════
+// MÉTHODES D'EXPÉDITION (comme e-Vend : 4 modes, combine shipping, zones par province, transporteurs personnalisés)
+// ════════════════════════════════════════════════════════════
+
+const MODES_CALCUL = ['fixe', 'fixe_kg', 'kg', 'zone'];
+const IDS_TRANSPORTEURS = [...Object.keys(expMV.TRANSPORTEURS).map(Number), ...expMV.IDS_PERSONNALISES];
+
+// Liste complète (actives ou non) — pour la page « Méthodes d'expédition »
+router.get('/methodes-expedition', h(async (req, res) => {
+  let rows = [];
+  try { rows = (await pool.query('SELECT * FROM collab_methodes_expedition WHERE collaborateur_id = $1 AND gestionnaire_id = $2 ORDER BY transporteur_id', [req.cid, req.gid])).rows; }
+  catch (e) { return res.json([]); }
+  res.json(rows);
+}));
+
+// Méthodes actives enrichies (nom, logo, libellé de prix) — pour le choix dans l'annonce
+router.get('/methodes-expedition/details', h(async (req, res) => {
+  let rows = [];
+  try { rows = (await pool.query('SELECT * FROM collab_methodes_expedition WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND actif = true ORDER BY transporteur_id', [req.cid, req.gid])).rows; }
+  catch (e) { return res.json([]); }
+  res.json(rows.map((m) => ({ ...expMV.enrichir(m, null, 0, 'QC'), libelle_prix: expMV.libellePrix(m) })));
+}));
+
+function lireMethodeExpedition(m) {
+  if (!m || typeof m !== 'object') bad('Méthode invalide');
+  const tid = Number(m.transporteur_id);
+  if (!IDS_TRANSPORTEURS.includes(tid)) bad('Transporteur invalide');
+  const perso = expMV.IDS_PERSONNALISES.includes(tid);
+  let nomPerso = null, logoPerso = null;
+  if (perso) {
+    nomPerso = texte(m.nom_personnalise, 'Nom du transporteur', 100, true);
+    if (!expMV.LOGOS_PERSONNALISES.includes(m.logo_personnalise)) bad('Logo de transporteur personnalisé invalide');
+    logoPerso = m.logo_personnalise;
+  }
+  const mode = MODES_CALCUL.includes(m.mode_calcul) ? m.mode_calcul : 'fixe';
+  const montant = (v, nom) => (v === undefined || v === null || v === '' ? null : nombre(v, nom, 0, 100000, null));
+  let zones = null;
+  if (mode === 'zone') {
+    if (!m.frais_zones || typeof m.frais_zones !== 'object') bad('Frais par province requis');
+    zones = {};
+    for (const code of expMV.PROVINCES) {
+      const v = m.frais_zones[code];
+      if (v === undefined) bad(`Frais manquant pour ${code}`);
+      zones[code] = v === null || v === 'non' ? null : String(nombre(v, `Frais ${code}`, 0, 100000));
+    }
+  }
+  return {
+    tid, mode, nomPerso, logoPerso, zones,
+    fixes: montant(m.frais_fixes, 'Frais fixe'), parKg: montant(m.frais_par_kg, 'Frais par kg'), gratuit: montant(m.gratuit_superieur, 'Livraison gratuite dès'),
+    delais: texte(m.delais_estime, 'Délais estimés', 100) || null,
+    combine: m.combine_shipping === true, fixeUnique: m.combine_frais_fixe_unique !== false, kgAdd: m.combine_kg_additionne !== false,
+  };
+}
+
+router.put('/methodes-expedition', h(async (req, res) => {
+  const liste = req.body && req.body.methodes;
+  if (!Array.isArray(liste) || liste.length > 20) bad('Données invalides');
+  const ms = liste.map(lireMethodeExpedition);
+  ms.forEach((m) => {
+    if ((m.mode === 'fixe' || m.mode === 'fixe_kg') && m.fixes === null && m.tid !== 14) bad('Frais fixe requis');
+    if ((m.mode === 'kg' || m.mode === 'fixe_kg') && !m.parKg) bad('Frais par kg requis');
+  });
+  if (new Set(ms.map((m) => m.tid)).size !== ms.length) bad('Transporteur en double');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // On ne supprime que les transporteurs retirés : les identifiants restent stables, donc les choix des annonces aussi
+    await client.query('DELETE FROM collab_methodes_expedition WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND transporteur_id <> ALL($3::int[])',
+      [req.cid, req.gid, ms.map((m) => m.tid)]);
+    for (const m of ms) {
+      await client.query(
+        `INSERT INTO collab_methodes_expedition (collaborateur_id, gestionnaire_id, transporteur_id, actif, frais_fixes, frais_par_kg, delais_estime,
+                gratuit_superieur, mode_calcul, combine_shipping, combine_frais_fixe_unique, combine_kg_additionne, frais_zones,
+                nom_personnalise, logo_personnalise, updated_at)
+         VALUES ($1,$2,$3,true,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+         ON CONFLICT (collaborateur_id, transporteur_id) DO UPDATE SET actif=true, frais_fixes=EXCLUDED.frais_fixes, frais_par_kg=EXCLUDED.frais_par_kg,
+                delais_estime=EXCLUDED.delais_estime, gratuit_superieur=EXCLUDED.gratuit_superieur, mode_calcul=EXCLUDED.mode_calcul,
+                combine_shipping=EXCLUDED.combine_shipping, combine_frais_fixe_unique=EXCLUDED.combine_frais_fixe_unique,
+                combine_kg_additionne=EXCLUDED.combine_kg_additionne, frais_zones=EXCLUDED.frais_zones,
+                nom_personnalise=EXCLUDED.nom_personnalise, logo_personnalise=EXCLUDED.logo_personnalise, updated_at=NOW()`,
+        [req.cid, req.gid, m.tid, m.fixes, m.parKg, m.delais, m.gratuit, m.mode, m.combine, m.fixeUnique, m.kgAdd,
+         m.zones ? JSON.stringify(m.zones) : null, m.nomPerso, m.logoPerso]);
+    }
+    await client.query('COMMIT');
+  } catch (e) { await client.query('ROLLBACK'); throw e; }
+  finally { client.release(); }
+  res.json({ success: true, message: "Méthodes d'expédition sauvegardées avec succès" });
+}));
+
+// Livraison gratuite globale (à partir d'un montant d'achat)
+router.get('/expedition-config', h(async (req, res) => {
+  const c = await expMV.infosCollab(pool, req.cid);
+  res.json({
+    livraison_gratuite_globale_actif: !!(c && c.livraison_gratuite_globale_actif),
+    livraison_gratuite_globale_seuil: c && c.livraison_gratuite_globale_seuil !== null ? Number(c.livraison_gratuite_globale_seuil) : 0,
+    livraison_gratuite_globale_provinces: (c && c.livraison_gratuite_globale_provinces) || [],
+  });
+}));
+
+router.patch('/expedition-config', h(async (req, res) => {
+  const b = req.body || {};
+  if (typeof b.livraison_gratuite_globale_actif !== 'boolean') bad('Valeur invalide');
+  const seuil = nombre(b.livraison_gratuite_globale_seuil, 'Montant minimum', 0, 1000000, 0);
+  const provs = b.livraison_gratuite_globale_provinces === undefined ? [] : b.livraison_gratuite_globale_provinces;
+  if (!Array.isArray(provs) || provs.some((p) => !expMV.PROVINCES.includes(p))) bad('Provinces invalides');
+  if (b.livraison_gratuite_globale_actif && !(seuil > 0)) bad("Indiquez un montant d'achat minimum supérieur à 0 $");
+  await pool.query(
+    `UPDATE marketplace_collaborateurs SET livraison_gratuite_globale_actif=$1, livraison_gratuite_globale_seuil=$2, livraison_gratuite_globale_provinces=$3::jsonb
+      WHERE id=$4 AND gestionnaire_id=$5`, [b.livraison_gratuite_globale_actif, seuil, JSON.stringify([...new Set(provs)]), req.cid, req.gid]);
   res.json({ success: true });
 }));
 
