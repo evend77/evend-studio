@@ -15,14 +15,21 @@ const API_BASE = '/api';
 
 interface LienPage { slug: string; titre: string; }
 
-// Réseaux sociaux configurés par le gestionnaire (config.extra.reseaux_sociaux)
+// Réseaux sociaux configurés par le gestionnaire : Config marketplace → Généralité → Réseaux sociaux (config.multivendeur.social_*)
 const RESEAUX: { cle: string; nom: string }[] = [
   { cle: 'facebook', nom: 'Facebook' }, { cle: 'instagram', nom: 'Instagram' }, { cle: 'x', nom: 'X' },
   { cle: 'linkedin', nom: 'LinkedIn' }, { cle: 'youtube', nom: 'YouTube' }, { cle: 'tiktok', nom: 'TikTok' },
   { cle: 'pinterest', nom: 'Pinterest' },
 ];
 
-const lienSur = (u: any): string => (typeof u === 'string' && /^https:\/\/[^\s<>"']+$/i.test(u.trim()) ? u.trim() : '');
+// Accepte « https://… », « http://… » ou « www.… » / « facebook.com/… » (https ajouté) ; tout le reste est refusé
+const lienSur = (u: any): string => {
+  if (typeof u !== 'string') return '';
+  let v = u.trim();
+  if (!v || /[\s<>"']/.test(v)) return '';
+  if (!/^https?:\/\//i.test(v)) { if (/^[a-z][a-z0-9+.-]*:/i.test(v)) return ''; v = `https://${v}`; }
+  return /^https?:\/\/[^/.]+\.[^/]+/i.test(v) ? v : '';
+};
 
 function IconeReseau({ cle }: { cle: string }) {
   const trait = { fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
@@ -60,9 +67,16 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
   const [politiques, setPolitiques] = useState<LienPage[]>([]);
   const [dropdownOuvert, setDropdownOuvert] = useState(false);
 
+  const mv = config?.multivendeur || {};
   const reseauxActifs = RESEAUX
-    .map(r => ({ ...r, url: lienSur(config?.extra?.reseaux_sociaux?.[r.cle]) }))
+    .map(r => ({ ...r, url: lienSur(mv[`social_${r.cle}`]) || lienSur(config?.extra?.reseaux_sociaux?.[r.cle]) }))
     .filter(r => r.url);
+
+  // Texte du pied de page (Config marketplace → Généralité → Texte du footer). ($annee) = année en cours, ($nom) = nom de la marketplace.
+  const annee = String(new Date().getFullYear());
+  const texteBrut: string | undefined = typeof mv.footer_text === 'string' ? mv.footer_text : undefined;
+  const texteFooter = (texteBrut === undefined ? `© ${annee} ${nom}` : texteBrut)
+    .replace(/\(\$annee\)|\$annee/g, annee).replace(/\(\$nom\)/g, nom).trim();
 
   const veutDocuments = config.footer_documents_actif !== false;
   const veutPolitiques = config.footer_politiques_actif !== false;
@@ -104,7 +118,8 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
         @media(max-width:640px){
           .mvf-inner { flex-direction:column !important; align-items:flex-start !important; gap:20px !important; }
           .mvf-links { flex-wrap:wrap !important; gap:16px !important; }
-          .mvf-copy { margin-left:0 !important; }
+          .mvf-bande-inner { grid-template-columns:1fr !important; justify-items:center !important; text-align:center !important; }
+          .mvf-espace { display:none !important; }
         }
       `}</style>
       <div className="mvf-inner" style={s.inner}>
@@ -112,16 +127,6 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
           <div style={{ ...s.logoIcon, background: `linear-gradient(135deg,${accent},${accent}cc)` }}>{(nom[0] || 'M').toUpperCase()}</div>
           <span style={s.logoText}>{nom}</span>
         </div>
-
-        {reseauxActifs.length > 0 && (
-          <div className="mvf-reseaux" style={s.reseaux}>
-            {reseauxActifs.map(r => (
-              <a key={r.cle} href={r.url} target="_blank" rel="noopener noreferrer" aria-label={r.nom} title={r.nom} className="mvf-reseau" style={s.reseau}>
-                <IconeReseau cle={r.cle} />
-              </a>
-            ))}
-          </div>
-        )}
 
         <div className="mvf-links" style={s.links}>
           <span className="mvf-link" style={s.link} onClick={() => naviguer({ page: 'catalogue' })}>Catalogue</span>
@@ -168,8 +173,26 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
           )}
         </div>
 
-        <span className="mvf-copy" style={s.copy}>© {new Date().getFullYear()} {nom}</span>
       </div>
+
+      {/* Bande du bas : texte du footer à gauche, réseaux sociaux au centre */}
+      {(texteFooter || reseauxActifs.length > 0) && (
+        <div className="mvf-bande" style={s.bande}>
+          <div className="mvf-bande-inner" style={s.bandeInner}>
+            <span className="mvf-texte" style={s.texte}>{texteFooter}</span>
+            {reseauxActifs.length > 0 && (
+              <div className="mvf-reseaux" style={s.reseaux}>
+                {reseauxActifs.map(r => (
+                  <a key={r.cle} href={r.url} target="_blank" rel="noopener noreferrer" aria-label={r.nom} title={r.nom} className="mvf-reseau" style={s.reseau}>
+                    <IconeReseau cle={r.cle} />
+                  </a>
+                ))}
+              </div>
+            )}
+            <span className="mvf-espace" />
+          </div>
+        </div>
+      )}
     </footer>
   );
 }
@@ -184,5 +207,7 @@ const s: Record<string, React.CSSProperties> = {
   reseau:   { width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', transition: 'all 0.2s' },
   links:    { display: 'flex', gap: 24, flex: 1, flexWrap: 'wrap' },
   link:     { color: 'rgba(255,255,255,0.4)', fontSize: 14, cursor: 'pointer', transition: 'color 0.2s' },
-  copy:     { fontSize: 13, color: 'rgba(255,255,255,0.25)', marginLeft: 'auto' },
+  bande:    { maxWidth: 1280, margin: '28px auto 0', padding: '20px 24px 0', borderTop: '1px solid rgba(255,255,255,0.06)' },
+  bandeInner: { display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 16 },
+  texte:    { fontSize: 13, color: 'rgba(255,255,255,0.35)', justifySelf: 'start' },
 };

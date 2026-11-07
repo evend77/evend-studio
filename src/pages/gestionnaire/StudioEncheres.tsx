@@ -3,6 +3,7 @@
 // API : GET /api/studio/encheres/:gid · POST /api/studio/encheres/:gid/:id/annuler
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { formaterPrix, useDevise } from '../../templates/shared/devise';
 
 const API_BASE = '/api';
 const C = {
@@ -30,10 +31,11 @@ function entetes(): Record<string, string> {
   try { token = localStorage.getItem('token'); } catch { /* ignore */ }
   return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
-const argent = (v: number | null) => (v === null || v === undefined ? '—' : v.toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' }));
+const argent = (v: number | null) => (v === null || v === undefined ? '—' : formaterPrix(v));
 const quand = (d: string) => new Date(d).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 const StudioEncheres: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId }) => {
+  useDevise(gestionnaireId);   // devise réglée dans Config marketplace
   const base = `${API_BASE}/studio/encheres/${gestionnaireId}`;
   const [statut, setStatut] = useState('active');
   const [page, setPage] = useState(1);

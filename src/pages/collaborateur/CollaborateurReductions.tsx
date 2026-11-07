@@ -3,6 +3,7 @@
 // Adapté de ReductionsRabais.tsx (e-Vend). API : /api/collab/:gestionnaireId/reductions
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 interface Reduction {
   id: number; code: string; type: 'pourcentage' | 'montant'; valeur: string; montant_minimum: string;
@@ -104,10 +105,10 @@ export default function CollaborateurReductions({ gestionnaireId, accent, isMobi
                   <span style={{ background: e.bg, color: e.c, padding: '2px 9px', borderRadius: 12, fontSize: 11, fontWeight: 700 }}>{e.l}</span>
                 </div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: accent }}>
-                  {r.type === 'pourcentage' ? `${Number(r.valeur)} %` : `${Number(r.valeur).toFixed(2)} $`} <span style={{ fontSize: 12, color: T.light, fontWeight: 400 }}>de rabais</span>
+                  {r.type === 'pourcentage' ? `${Number(r.valeur)} %` : `${formaterPrix(Number(r.valeur))}`} <span style={{ fontSize: 12, color: T.light, fontWeight: 400 }}>de rabais</span>
                 </div>
                 <div style={{ fontSize: 12, color: T.light, margin: '6px 0 12px', lineHeight: 1.6 }}>
-                  {Number(r.montant_minimum) > 0 && <div>Achat minimum : {Number(r.montant_minimum).toFixed(2)} $</div>}
+                  {Number(r.montant_minimum) > 0 && <div>Achat minimum : {formaterPrix(Number(r.montant_minimum))}</div>}
                   {(r.date_debut || r.date_fin) && <div>{jour(r.date_debut) || '…'} → {jour(r.date_fin) || '…'}</div>}
                   <div>Utilisé {r.utilisations}{r.utilisations_max ? ` / ${r.utilisations_max}` : ''} fois</div>
                 </div>

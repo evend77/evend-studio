@@ -16,6 +16,8 @@ import MessagerieGestionnaire  from './pages/acheteur/MessagerieGestionnaire';
 import ChatAvecCollaborateurs  from './pages/acheteur/ChatAvecCollaborateurs';
 import Documents               from './pages/acheteur/Documents';
 import MesEncheres             from './pages/acheteur/MesEncheres';
+import { formaterPrix } from './templates/shared/devise';
+import BanniereDashboard from './templates/shared/BanniereDashboard';
 
 const API_BASE = '/api';
 
@@ -148,7 +150,7 @@ function VueDashboard({
     { label: 'Commandes', valeur: stats?.commandes_total ?? commandes.length, icon: '📦', couleur: '#3b82f6' },
     { label: 'En cours', valeur: stats?.commandes_en_cours ?? commandes.filter(c => !['livree','annulee'].includes(c.statut)).length, icon: '🚚', couleur: '#8b5cf6' },
     { label: 'Livrees', valeur: stats?.commandes_livrees ?? commandes.filter(c => c.statut === 'livree').length, icon: '✅', couleur: '#10b981' },
-    { label: 'Depenses', valeur: `${Number(stats?.total_depense ?? commandes.reduce((a, c) => a + (Number(c.total) || 0), 0)).toFixed(2)} $`, icon: '💳', couleur: couleurAccent },
+    { label: 'Depenses', valeur: `${formaterPrix(Number(stats?.total_depense ?? commandes.reduce((a, c) => a + (Number(c.total) || 0), 0)))}`, icon: '💳', couleur: couleurAccent },
   ];
 
   const nonLus = messages.filter(m => !m.lu).length + notifications.filter(n => !n.lu).length;
@@ -203,7 +205,7 @@ function VueDashboard({
               </div>
               <div style={{ textAlign: 'right' }}>
                 <StatutBadge statut={c.statut} />
-                <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{(Number(c.total) || 0).toFixed(2)} $</p>
+                <p style={{ margin: '3px 0 0', fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>{formaterPrix((Number(c.total) || 0))}</p>
               </div>
             </div>
           ))}
@@ -556,6 +558,9 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
               {heure.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}
             </span>
           </div>
+
+          {/* Bannière du gestionnaire (Config marketplace) */}
+          <BanniereDashboard config={config} type="acheteur" />
 
           {/* Page content */}
           <main style={{ flex: 1, padding: isMobile ? '16px' : '28px', overflowY: 'auto', overflowX: 'hidden' }}>

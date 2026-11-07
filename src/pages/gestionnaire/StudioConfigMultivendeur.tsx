@@ -14,6 +14,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import StripeGestionnaire from './StripeGestionnaire';
+import { oublierDevise } from '../../templates/shared/devise';
 
 const API_BASE = (window as any).API_BASE || '/api';
 
@@ -118,11 +119,11 @@ interface ConfigMV {
   fuseau_horaire: string; date_format: string; footer_text: string;
   stripe_actif: boolean; avis_actifs: boolean; notifs_auto_vendeurs: boolean;
   utiliser_plans_vendeur: boolean; max_produits: string;
-  bloquer_inscription_vendeur: boolean; bloquer_inscription_acheteur: boolean;
+  bloquer_inscription_collaborateur: boolean; bloquer_inscription_acheteur: boolean;
   mode_maintenance: boolean; message_maintenance: string;
-  banniere_vendeur_active: boolean; banniere_vendeur_message: string;
-  banniere_vendeur_couleur_bg: string; banniere_vendeur_couleur_tx: string;
-  banniere_vendeur_hauteur: string; banniere_vendeur_police: string;
+  banniere_collab_active: boolean; banniere_collab_message: string;
+  banniere_collab_couleur_bg: string; banniere_collab_couleur_tx: string;
+  banniere_collab_hauteur: string; banniere_collab_police: string;
   banniere_acheteur_active: boolean; banniere_acheteur_message: string;
   banniere_acheteur_couleur_bg: string; banniere_acheteur_couleur_tx: string;
   banniere_acheteur_hauteur: string; banniere_acheteur_police: string;
@@ -203,11 +204,11 @@ const DEFAUTS: ConfigMV = {
   date_format: 'DD-MMM-YYYY', footer_text: 'Copyright ($annee) Tous droits réservés',
   stripe_actif: true, avis_actifs: true, notifs_auto_vendeurs: true,
   utiliser_plans_vendeur: false, max_produits: '50',
-  bloquer_inscription_vendeur: false, bloquer_inscription_acheteur: false,
+  bloquer_inscription_collaborateur: false, bloquer_inscription_acheteur: false,
   mode_maintenance: false, message_maintenance: '',
-  banniere_vendeur_active: false, banniere_vendeur_message: '',
-  banniere_vendeur_couleur_bg: '#1e3a5f', banniere_vendeur_couleur_tx: '#ffffff',
-  banniere_vendeur_hauteur: '36', banniere_vendeur_police: '13',
+  banniere_collab_active: false, banniere_collab_message: '',
+  banniere_collab_couleur_bg: '#1e3a5f', banniere_collab_couleur_tx: '#ffffff',
+  banniere_collab_hauteur: '36', banniere_collab_police: '13',
   banniere_acheteur_active: false, banniere_acheteur_message: '',
   banniere_acheteur_couleur_bg: '#1e3a5f', banniere_acheteur_couleur_tx: '#ffffff',
   banniere_acheteur_hauteur: '36', banniere_acheteur_police: '13',
@@ -302,7 +303,21 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
       if (!res.ok) throw new Error();
       const data = await res.json();
       setSiteId(data.id);
-      const mv = data.config?.multivendeur ?? {};
+      const mv = { ...(data.config?.multivendeur ?? {}) };
+      // Anciennes clés « vendeur » → « collaborateur » (reprise des valeurs déjà enregistrées)
+      for (const k of Object.keys(mv)) {
+        if (k.startsWith('banniere_vendeur_')) { const n = k.replace('banniere_vendeur_', 'banniere_collab_'); if (mv[n] === undefined) mv[n] = mv[k]; delete mv[k]; }
+      }
+      if (mv.bloquer_inscription_vendeur !== undefined) { if (mv.bloquer_inscription_collaborateur === undefined) mv.bloquer_inscription_collaborateur = mv.bloquer_inscription_vendeur; delete mv.bloquer_inscription_vendeur; }
+      // Nom de la marketplace et courriel de contact : une seule source, partagée avec « Configurer mes pages »
+      try {
+        const r2 = await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/config-multivendeur`);
+        if (r2.ok) {
+          const pages = await r2.json();
+          if (typeof pages?.nom_boutique === 'string' && pages.nom_boutique) mv.nom_marketplace = pages.nom_boutique;
+          if (typeof pages?.extra?.contact?.courriel === 'string') mv.email_contact = pages.extra.contact.courriel;
+        }
+      } catch { /* on garde les valeurs actuelles */ }
       const cfg = { ...DEFAUTS, ...mv };
       setConfig(cfg); setOriginal({ ...cfg });
     } catch { /* garder défauts */ }
@@ -323,14 +338,35 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
       if (!Number.isFinite(n) || n < 0 || n > 30) { showToast('❌ Taux de taxe invalide : entrez un nombre entre 0 et 30', 'danger'); setOnglet('generalite'); return; }
       (aSauver as any)[k] = String(n);
     }
+    // Validations simples
+    const courrielOk = (v: string) => v === '' || /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(v.trim());
+    if (!aSauver.nom_marketplace.trim()) { showToast('❌ Le nom de la marketplace est obligatoire', 'danger'); setOnglet('generalite'); return; }
+    if (!courrielOk(aSauver.email_contact) || !courrielOk(aSauver.store_email)) { showToast('❌ Courriel invalide (Généralité)', 'danger'); setOnglet('generalite'); return; }
+    const max = parseInt(String(aSauver.max_produits), 10);
+    if (aSauver.max_produits !== '' && (!Number.isFinite(max) || max < 0 || max > 100000)) { showToast('❌ Max produits : entrez un nombre entre 0 et 100000 (0 = illimité)', 'danger'); setOnglet('generalite'); return; }
+    for (const k of ['social_facebook', 'social_instagram', 'social_x', 'social_linkedin', 'social_youtube', 'social_tiktok', 'social_pinterest'] as const) {
+      const v = String(aSauver[k] || '').trim();
+      if (v && (/[\s<>"']/.test(v) || /^(javascript|data|vbscript):/i.test(v) || !/^(https?:\/\/)?[^/.\s]+\.[^/\s]+/i.test(v))) { showToast('❌ Lien de réseau social invalide : ' + k.replace('social_', ''), 'danger'); setOnglet('generalite'); return; }
+      (aSauver as any)[k] = v === '' || /^https?:\/\//i.test(v) ? v : `https://${v}`;
+    }
     try {
+      // 1) Nom + courriel de contact : enregistrés à la source commune avec « Configurer mes pages »
+      const resId = await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/config-multivendeur/identite`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ nom_boutique: aSauver.nom_marketplace.trim(), courriel_contact: aSauver.email_contact.trim() }),
+      });
+      if (!resId.ok) throw new Error((await resId.json().catch(() => ({}))).message || 'identite');
+      // 2) Le reste de la config (sans les 2 champs partagés, pour ne pas les garder en double)
+      const { nom_marketplace: _n, email_contact: _e, ...sansIdentite } = aSauver as any;
       // Le serveur attend l'identifiant du GESTIONNAIRE dans l'URL et la config sous la clé « config »
       const res = await fetch(`${API_BASE}/studio/sites/${gestionnaireId}/config`, {
         method: 'PUT', credentials: 'include',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ config: { multivendeur: aSauver } }),
+        body: JSON.stringify({ config: { multivendeur: sansIdentite } }),
       });
       if (!res.ok) throw new Error();
+      oublierDevise(gestionnaireId);
       setConfig(aSauver); setOriginal({ ...aSauver }); setModifie(false);
       showToast('✅ Configuration sauvegardée !', 'success');
     } catch { showToast('❌ Erreur lors de la sauvegarde', 'danger'); }
@@ -391,19 +427,19 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'start' }}>
           <div>
             <Section titre="Informations marketplace" icon="🌍">
-              <ParamLigne label="Nom de votre marketplace" description="Affiché dans l'interface et les emails.">
+              <ParamLigne label="Nom de votre marketplace" description="Affiché dans le menu, la connexion, le pied de page et les courriels. C'est le même champ que « Configurer mes pages → Identité » : modifié ici ou là, il change aux deux endroits.">
                 <input style={{ ...inputStyle, width: '220px' }} value={config.nom_marketplace} onChange={e => set('nom_marketplace')(e.target.value)} placeholder="Ma Marketplace" />
               </ParamLigne>
-              <ParamLigne label="Email de contact" description="Email principal de la marketplace.">
+              <ParamLigne label="Email de contact" description="Affiché sur la page Contact du site. Même champ que « Configurer mes pages → Contact » : modifié ici ou là, il change aux deux endroits.">
                 <input style={{ ...inputStyle, width: '220px' }} type="email" value={config.email_contact} onChange={e => set('email_contact')(e.target.value)} placeholder="contact@mamarketplace.ca" />
               </ParamLigne>
-              <ParamLigne label="Email de la boutique" description="Expéditeur des emails transactionnels.">
+              <ParamLigne label="Email de la boutique" description="Adresse officielle de la boutique (enregistrée avec cette configuration).">
                 <input style={{ ...inputStyle, width: '220px' }} type="email" value={config.store_email} onChange={e => set('store_email')(e.target.value)} placeholder="noreply@mamarketplace.ca" />
               </ParamLigne>
               <ParamLigne label="Numéro de téléphone">
                 <input style={{ ...inputStyle, width: '180px' }} value={config.contact_number} onChange={e => set('contact_number')(e.target.value)} placeholder="514 555-1234" />
               </ParamLigne>
-              <ParamLigne label="Devise">
+              <ParamLigne label="Devise" description="S'applique à tous les prix du site, des dashboards, du panier, du paiement Stripe et des courriels. Aucune conversion : les prix gardent leur valeur numérique.">
                 <select style={{ ...selectStyle, width: '160px' }} value={config.devise} onChange={e => set('devise')(e.target.value)}>
                   <option value="CAD">🇨🇦 CAD ($)</option>
                   <option value="USD">🇺🇸 USD ($)</option>
@@ -411,29 +447,36 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
                   <option value="GBP">🇬🇧 GBP (£)</option>
                 </select>
               </ParamLigne>
-              <ParamLigne label="Langue">
+              <ParamLigne label="Langue" description="Le site est en français pour le moment. La traduction viendra plus tard.">
                 <select style={{ ...selectStyle, width: '160px' }} value={config.langue} onChange={e => set('langue')(e.target.value)}>
                   <option value="fr">🇫🇷 Français</option>
                   <option value="en">🇬🇧 English</option>
                 </select>
               </ParamLigne>
-              <ParamLigne label="Fuseau horaire">
+              <ParamLigne label="Fuseau horaire" description="Détermine « aujourd'hui » pour le mode vacances, le rapport financier et les dates des courriels d'enchères.">
                 <select style={{ ...selectStyle, width: '220px' }} value={config.fuseau_horaire} onChange={e => set('fuseau_horaire')(e.target.value)}>
-                  <option value="America/Toronto">EST — Toronto / Montréal</option>
-                  <option value="America/Vancouver">PST — Vancouver</option>
-                  <option value="America/Winnipeg">CST — Winnipeg</option>
-                  <option value="America/Halifax">AST — Halifax</option>
-                  <option value="America/New_York">EST — New York</option>
-                  <option value="Europe/Paris">CET — Paris</option>
+                  <option value="America/Toronto">Toronto / Montréal (heure de l'Est)</option>
+                  <option value="America/Halifax">Halifax (heure de l'Atlantique)</option>
+                  <option value="America/St_Johns">Terre-Neuve (St. John's)</option>
+                  <option value="America/Winnipeg">Winnipeg (heure du Centre)</option>
+                  <option value="America/Regina">Regina (Saskatchewan)</option>
+                  <option value="America/Edmonton">Edmonton (heure des Rocheuses)</option>
+                  <option value="America/Vancouver">Vancouver (heure du Pacifique)</option>
+                  <option value="America/New_York">New York (heure de l'Est)</option>
+                  <option value="America/Chicago">Chicago (heure du Centre)</option>
+                  <option value="America/Denver">Denver (heure des Rocheuses)</option>
+                  <option value="America/Los_Angeles">Los Angeles (heure du Pacifique)</option>
+                  <option value="Europe/London">Londres</option>
+                  <option value="Europe/Paris">Paris</option>
                 </select>
               </ParamLigne>
-              <ParamLigne label="Texte du footer" derniere>
+              <ParamLigne label="Texte du footer" description="Affiché en bas de chaque page, à gauche. ($annee) est remplacé par l'année en cours." derniere>
                 <input style={{ ...inputStyle, width: '220px' }} value={config.footer_text} onChange={e => set('footer_text')(e.target.value)} placeholder="Copyright ($annee)…" />
               </ParamLigne>
             </Section>
 
             <Section titre="Méthode de paiement" icon="💳">
-              <ParamLigne label="Stripe Connect" description="Paiements et virements vendeurs via Stripe." derniere>
+              <ParamLigne label="Stripe Connect" description="Paiements et virements vendeurs via Stripe. Le paiement hors plateforme (Interac, etc.) viendra plus tard, en add-on." derniere>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '11px', fontWeight: 700, color: config.stripe_actif ? '#635bff' : T.textLight }}>{config.stripe_actif ? '⚡ Actif' : '— Inactif'}</span>
                   <Toggle actif={config.stripe_actif} onChange={() => toggleCritique(config.stripe_actif, v => set('stripe_actif')(v), 'Désactiver Stripe Connect', 'Les vendeurs ne recevront plus de virements Stripe. Confirmez-vous ?')} />
@@ -442,13 +485,13 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
             </Section>
 
             <Section titre="Fonctionnalités" icon="⭐">
-              <ParamLigne label="Avis clients">
+              <ParamLigne label="Avis clients" description="Désactivé : les acheteurs ne peuvent plus laisser d'avis et l'onglet Avis disparaît des boutiques. (Le système d'avis complet viendra plus tard.)">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '11px', fontWeight: 700, color: config.avis_actifs ? T.success : T.textLight }}>{config.avis_actifs ? '✓ Actif' : '— Inactif'}</span>
                   <Toggle actif={config.avis_actifs} onChange={set('avis_actifs')} />
                 </div>
               </ParamLigne>
-              <ParamLigne label="Notifications automatiques vendeurs" description="Emails aux vendeurs pour les nouvelles commandes.">
+              <ParamLigne label="Notifications automatiques vendeurs" description="À venir : notifications dans la messagerie du collaborateur.">
                 <Toggle actif={config.notifs_auto_vendeurs} onChange={set('notifs_auto_vendeurs')} />
               </ParamLigne>
               <ParamLigne label="Marketplace C2C" description="Permet aux acheteurs de devenir vendeurs." derniere>
@@ -457,7 +500,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
             </Section>
 
             <Section titre="Mode maintenance" icon="🛠️" danger={config.mode_maintenance}>
-              <ParamLigne label="Activer le mode maintenance">
+              <ParamLigne label="Activer le mode maintenance" description="Le site n'est plus accessible : les visiteurs voient la page de maintenance (votre message ci-dessous). Vous gardez accès à votre dashboard.">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                   <span style={{ fontSize: '11px', fontWeight: 700, color: config.mode_maintenance ? T.danger : T.textLight }}>{config.mode_maintenance ? '🛑 Actif' : '— Inactif'}</span>
                   <Toggle actif={config.mode_maintenance} onChange={set('mode_maintenance')} />
@@ -502,55 +545,55 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
             </Section>
 
             <Section titre="Paramètres financiers" icon="💰">
-              <ParamLigne label="Utiliser les plans vendeur" description="Les commissions sont gérées par les plans vendeur.">
+              <ParamLigne label="Utiliser les plans vendeur" description="À venir (add-on) : plans de collaborateurs avec leurs propres limites.">
                 <Toggle actif={config.utiliser_plans_vendeur} onChange={set('utiliser_plans_vendeur')} />
               </ParamLigne>
-              <ParamLigne label="Max produits par vendeur par défaut" derniere>
-                <input type="number" style={{ ...inputStyle, width: '100px', textAlign: 'center' }} value={config.max_produits} onChange={e => set('max_produits')(e.target.value)} min="1" max="9999" />
+              <ParamLigne label="Max produits par vendeur par défaut" description="Un collaborateur ne peut pas créer plus d'annonces que cette limite (tant que les plans vendeur ne sont pas utilisés). 0 = illimité." derniere>
+                <input type="number" style={{ ...inputStyle, width: '100px', textAlign: 'center' }} value={config.max_produits} onChange={e => set('max_produits')(e.target.value)} min="0" max="100000" />
               </ParamLigne>
             </Section>
 
             <Section titre="Inscriptions" icon="🔐">
               <ParamLigne label="Bloquer les inscriptions vendeur">
-                <Toggle actif={config.bloquer_inscription_vendeur} onChange={set('bloquer_inscription_vendeur')} />
+                <Toggle actif={config.bloquer_inscription_collaborateur} onChange={set('bloquer_inscription_collaborateur')} />
               </ParamLigne>
-              <ParamLigne label="Bloquer les inscriptions acheteur" derniere>
+              <ParamLigne label="Bloquer les inscriptions acheteur" description="Cache le lien « Créer un compte acheteur » et refuse toute nouvelle inscription." derniere>
                 <Toggle actif={config.bloquer_inscription_acheteur} onChange={set('bloquer_inscription_acheteur')} />
               </ParamLigne>
             </Section>
 
-            <Section titre="Bannière dashboard vendeur" icon="🏪">
-              <ParamLigne label="Activer la bannière vendeur">
-                <Toggle actif={config.banniere_vendeur_active} onChange={set('banniere_vendeur_active')} />
+            <Section titre="Bannière dashboard collaborateur" icon="🏪">
+              <ParamLigne label="Activer la bannière collaborateur" description="S'affiche en haut du dashboard de tous vos collaborateurs.">
+                <Toggle actif={config.banniere_collab_active} onChange={set('banniere_collab_active')} />
               </ParamLigne>
-              {config.banniere_vendeur_active && (<>
+              {config.banniere_collab_active && (<>
                 <ParamLigne label="Message">
-                  <input style={{ ...inputStyle, width: '250px' }} value={config.banniere_vendeur_message} onChange={e => set('banniere_vendeur_message')(e.target.value)} placeholder="Nouvelle fonctionnalité !" />
+                  <input style={{ ...inputStyle, width: '250px' }} value={config.banniere_collab_message} onChange={e => set('banniere_collab_message')(e.target.value)} placeholder="Nouvelle fonctionnalité !" />
                 </ParamLigne>
                 <ParamLigne label="Fond">
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input type="color" value={config.banniere_vendeur_couleur_bg} onChange={e => set('banniere_vendeur_couleur_bg')(e.target.value)} style={{ width: '36px', height: '32px', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', padding: '2px' }} />
-                    <input style={{ ...inputStyle, width: '90px', fontFamily: 'monospace' }} value={config.banniere_vendeur_couleur_bg} onChange={e => set('banniere_vendeur_couleur_bg')(e.target.value)} />
+                    <input type="color" value={config.banniere_collab_couleur_bg} onChange={e => set('banniere_collab_couleur_bg')(e.target.value)} style={{ width: '36px', height: '32px', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', padding: '2px' }} />
+                    <input style={{ ...inputStyle, width: '90px', fontFamily: 'monospace' }} value={config.banniere_collab_couleur_bg} onChange={e => set('banniere_collab_couleur_bg')(e.target.value)} />
                   </div>
                 </ParamLigne>
                 <ParamLigne label="Texte">
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <input type="color" value={config.banniere_vendeur_couleur_tx} onChange={e => set('banniere_vendeur_couleur_tx')(e.target.value)} style={{ width: '36px', height: '32px', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', padding: '2px' }} />
-                    <input style={{ ...inputStyle, width: '90px', fontFamily: 'monospace' }} value={config.banniere_vendeur_couleur_tx} onChange={e => set('banniere_vendeur_couleur_tx')(e.target.value)} />
+                    <input type="color" value={config.banniere_collab_couleur_tx} onChange={e => set('banniere_collab_couleur_tx')(e.target.value)} style={{ width: '36px', height: '32px', border: `1px solid ${T.border}`, borderRadius: '6px', cursor: 'pointer', padding: '2px' }} />
+                    <input style={{ ...inputStyle, width: '90px', fontFamily: 'monospace' }} value={config.banniere_collab_couleur_tx} onChange={e => set('banniere_collab_couleur_tx')(e.target.value)} />
                   </div>
                 </ParamLigne>
                 <ParamLigne label="Hauteur (px)">
-                  <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.banniere_vendeur_hauteur} onChange={e => set('banniere_vendeur_hauteur')(e.target.value)} min="20" max="120" />
+                  <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.banniere_collab_hauteur} onChange={e => set('banniere_collab_hauteur')(e.target.value)} min="20" max="120" />
                 </ParamLigne>
                 <ParamLigne label="Police (px)" derniere>
-                  <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.banniere_vendeur_police} onChange={e => set('banniere_vendeur_police')(e.target.value)} min="10" max="72" />
+                  <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.banniere_collab_police} onChange={e => set('banniere_collab_police')(e.target.value)} min="10" max="72" />
                 </ParamLigne>
-                <BanPreview bg={config.banniere_vendeur_couleur_bg} tx={config.banniere_vendeur_couleur_tx} hauteur={config.banniere_vendeur_hauteur} police={config.banniere_vendeur_police} message={config.banniere_vendeur_message} />
+                <BanPreview bg={config.banniere_collab_couleur_bg} tx={config.banniere_collab_couleur_tx} hauteur={config.banniere_collab_hauteur} police={config.banniere_collab_police} message={config.banniere_collab_message} />
               </>)}
             </Section>
 
             <Section titre="Bannière dashboard acheteur" icon="🛍️">
-              <ParamLigne label="Activer la bannière acheteur" derniere>
+              <ParamLigne label="Activer la bannière acheteur" description="S'affiche en haut du dashboard de vos acheteurs." derniere>
                 <Toggle actif={config.banniere_acheteur_active} onChange={set('banniere_acheteur_active')} />
               </ParamLigne>
               {config.banniere_acheteur_active && (<>
@@ -574,6 +617,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
             </Section>
 
             <Section titre="Réseaux sociaux" icon="📱">
+              <p style={{ margin: '0 0 10px', fontSize: '12px', color: T.textLight, lineHeight: 1.5 }}>Les réseaux remplis s'affichent en logos cliquables au centre du bas de page (ils s'ouvrent dans un nouvel onglet).</p>
               {([
                 { key: 'social_facebook', label: '📘 Facebook', placeholder: 'https://facebook.com/mapage' },
                 { key: 'social_instagram', label: '📸 Instagram', placeholder: 'https://instagram.com/moncompte' },

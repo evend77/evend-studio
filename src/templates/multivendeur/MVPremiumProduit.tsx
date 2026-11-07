@@ -6,6 +6,7 @@ import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import BlocEnchere from './BlocEnchere';
 import Navbar from './MVPremiumNavbar';
 import { fondDe } from './mvTheme';
+import { formaterPrix } from '../shared/devise';
 
 const API_BASE = '/api';
 
@@ -305,10 +306,10 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             {!enchereActive && (
             <div style={s.prixBloc}>
                 <span className="mvp-prix-actuel" style={{ ...s.prixActuel, color: couleurAccent }}>
-                  {prixAffiche.toFixed(2)} $ CAD
+                  {formaterPrix(prixAffiche)}
                 </span>
                 {produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche && (
-                  <span style={s.prixOriginal}>{parseFloat(String(produit.prix_original)).toFixed(2)} $</span>
+                  <span style={s.prixOriginal}>{formaterPrix(parseFloat(String(produit.prix_original)))}</span>
                 )}
                 <span style={{ fontSize: 13, fontWeight: 700, color: produit.facturation_taxes ? '#ef4444' : '#10b981' }}>
                   {produit.facturation_taxes ? '+ taxe' : 'sans taxe'}
@@ -328,7 +329,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             )}
             {enchereActive && produit.stock > 0 && (
               <div style={{ ...s.prixBloc, marginBottom: 8 }}>
-                <span className="mvp-prix-actuel" style={{ ...s.prixActuel, color: couleurAccent }}>{prixAffiche.toFixed(2)} $ CAD</span>
+                <span className="mvp-prix-actuel" style={{ ...s.prixActuel, color: couleurAccent }}>{formaterPrix(prixAffiche)}</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: produit.facturation_taxes ? '#ef4444' : '#10b981' }}>{produit.facturation_taxes ? '+ taxe' : 'sans taxe'}</span>
               </div>
             )}
@@ -396,7 +397,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: 'rgba(255,255,255,0.8)', overflowWrap: 'anywhere' }}>{m.nom || 'Expédition'}</span>
                         {m.delais_estime && <span style={{ display: 'block', fontSize: 11, color: 'rgba(255,255,255,0.4)', marginTop: 1 }}>⏱ {m.delais_estime}</span>}
-                        {m.gratuit_superieur ? <span style={{ display: 'block', fontSize: 11, color: '#4ade80', fontWeight: 600, marginTop: 1 }}>🎁 Gratuit dès {Number(m.gratuit_superieur).toFixed(2)} $ d'achat</span> : null}
+                        {m.gratuit_superieur ? <span style={{ display: 'block', fontSize: 11, color: '#4ade80', fontWeight: 600, marginTop: 1 }}>🎁 Gratuit dès {formaterPrix(Number(m.gratuit_superieur))} d'achat</span> : null}
                       </div>
                       <span style={{ fontSize: 13, fontWeight: 700, padding: '4px 10px', borderRadius: 8, whiteSpace: 'nowrap',
                         color: gratuit ? '#4ade80' : '#e2e8f0', background: gratuit ? 'rgba(74,222,128,0.12)' : 'rgba(255,255,255,0.06)',
@@ -408,7 +409,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                 })}
                 {gratuiteGlobale && (
                   <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', fontSize: 12, color: '#4ade80', fontWeight: 600 }}>
-                    🎁 Livraison gratuite dès {gratuiteGlobale.seuil.toFixed(2)} $ d'achat{gratuiteGlobale.provinces.length ? ` (${gratuiteGlobale.provinces.join(', ')})` : ''}
+                    🎁 Livraison gratuite dès {formaterPrix(gratuiteGlobale.seuil)} d'achat{gratuiteGlobale.provinces.length ? ` (${gratuiteGlobale.provinces.join(', ')})` : ''}
                   </div>
                 )}
                 <div style={{ padding: '10px 16px', borderTop: '1px solid rgba(255,255,255,0.05)' }}>
@@ -490,7 +491,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                   <div style={{ padding: 12 }}>
                     {(p.nom_boutique || p.vendeur_nom) && <p style={{ fontSize: 11, color: couleurAccent, fontWeight: 700, margin: '0 0 4px' }}>{p.nom_boutique || p.vendeur_nom}</p>}
                     <p style={{ fontSize: 13, color: '#fff', margin: '0 0 6px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{p.nom}</p>
-                    <p style={{ fontSize: 14, fontWeight: 800, color: couleurAccent, margin: 0 }}>{parseFloat(String(p.prix)).toFixed(2)} $</p>
+                    <p style={{ fontSize: 14, fontWeight: 800, color: couleurAccent, margin: 0 }}>{formaterPrix(parseFloat(String(p.prix)))}</p>
                   </div>
                 </div>
               ))}

@@ -4,6 +4,7 @@
 // API : GET/POST/DELETE /api/acheteur/:gid/wishlist · POST /api/marketplace/:gid/panier
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 const API = '/api';
 
@@ -119,7 +120,7 @@ export default function Wishlist({ gestionnaireId, isMobile = false, couleurAcce
       <div style={{ background: `linear-gradient(135deg, ${C.rose} 0%, ${C.pink} 100%)`, borderRadius: 18, padding: isMobile ? '18px 16px' : '24px 28px', marginBottom: 20 }}>
         <h1 style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontSize: isMobile ? 20 : 26, fontWeight: 800, color: '#fff' }}>❤️ Liste de souhaits</h1>
         <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,.85)' }}>
-          {items.length} produit{items.length > 1 ? 's' : ''}{items.length > 0 ? ` · valeur ${valeurTotale.toFixed(2)} $` : ''}
+          {items.length} produit{items.length > 1 ? 's' : ''}{items.length > 0 ? ` · valeur ${formaterPrix(valeurTotale)}` : ''}
         </p>
       </div>
 
@@ -168,8 +169,8 @@ export default function Wishlist({ gestionnaireId, isMobile = false, couleurAcce
                   <h3 style={{ margin: 0, fontSize: isMobile ? 13 : 15, fontWeight: 700, color: '#fff', fontFamily: "'Sora',sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{it.titre}</h3>
                   {it.boutique && <p style={{ margin: '3px 0 0', fontSize: 11, color: C.textLight, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🏪 {it.boutique}</p>}
                   <div style={{ margin: '10px 0 12px', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: isMobile ? 16 : 19, fontWeight: 800, color: '#fff' }}>{prixFinal(it).toFixed(2)} $</span>
-                    {enPromo(it) && <span style={{ fontSize: 12, color: C.textLight, textDecoration: 'line-through' }}>{num(it.prix).toFixed(2)} $</span>}
+                    <span style={{ fontSize: isMobile ? 16 : 19, fontWeight: 800, color: '#fff' }}>{formaterPrix(prixFinal(it))}</span>
+                    {enPromo(it) && <span style={{ fontSize: 12, color: C.textLight, textDecoration: 'line-through' }}>{formaterPrix(num(it.prix))}</span>}
                   </div>
                   <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
                     <button onClick={() => ajouterPanier(it)} disabled={!dispo || occupe === it.produit_id}

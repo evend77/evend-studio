@@ -6,6 +6,7 @@ import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche } from './mvSecurite';
+import { formaterPrix } from '../shared/devise';
 
 const API_BASE = '/api';
 
@@ -473,10 +474,10 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
                       <p style={s.produitNom}>{p.nom}</p>
                       <div style={s.prixRow}>
                         <span style={{ ...s.prixActuel, color: couleurAccent }}>
-                          {parseFloat(String(p.prix)).toFixed(2)} $
+                          {formaterPrix(parseFloat(String(p.prix)))}
                         </span>
                         {p.prix_original && parseFloat(String(p.prix_original)) > parseFloat(String(p.prix)) && (
-                          <span style={s.prixOriginal}>{parseFloat(String(p.prix_original)).toFixed(2)} $</span>
+                          <span style={s.prixOriginal}>{formaterPrix(parseFloat(String(p.prix_original)))}</span>
                         )}
                       </div>
                       {p.categorie_nom && <div style={s.badgeCat}>{p.categorie_nom || p.categorie}</div>}

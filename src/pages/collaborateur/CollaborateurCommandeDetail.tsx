@@ -4,6 +4,7 @@
 // API : /api/collab/:gestionnaireId/commandes/:id[/statut|/refuser|/rembourser|/remboursement-en-attente]
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 interface Article { titre?: string; prix?: number | string; quantite?: number; image_url?: string; variante?: string }
 interface Remb { id: number; origine: string; montant: string; raison: string; statut: string; demande_par: string | null; motif_refus: string | null; erreur: string | null; created_at: string; traite_le: string | null }
@@ -37,7 +38,7 @@ const EVENEMENTS: Record<string, string> = {
   remboursement_refuse: 'Remboursement refusé', remboursement_echoue: 'Remboursement échoué', remboursement_retire: 'Demande retirée',
 };
 const TAXES_LIB: Record<string, string> = { tps: 'TPS', tvq: 'TVQ', tvh: 'TVH', tvp: 'TVP' };
-const argent = (v: string | number | null | undefined) => (v === null || v === undefined || v === '' ? '—' : Number(v).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' }));
+const argent = (v: string | number | null | undefined) => (v === null || v === undefined || v === '' ? '—' : formaterPrix(v));
 const dateLongue = (d: string | null) => { if (!d) return ''; try { return new Date(d).toLocaleString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
 const urlSure = (u: string | null) => (u && /^https?:\/\//i.test(u) ? u : null);
 
@@ -251,7 +252,7 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
             </p>
             <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><input type="radio" checked={!partiel} onChange={() => setPartiel(false)} /> Remboursement total ({argent(d.montant_restant)})</label>
             <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}><input type="radio" checked={partiel} onChange={() => setPartiel(true)} /> Remboursement partiel</label>
-            {partiel && <input value={montant} onChange={e => setMontant(e.target.value)} inputMode="decimal" placeholder={`Montant (max ${d.montant_restant.toFixed(2)} $)`} style={champ} />}
+            {partiel && <input value={montant} onChange={e => setMontant(e.target.value)} inputMode="decimal" placeholder={`Montant (max ${formaterPrix(d.montant_restant)})`} style={champ} />}
             <textarea value={raison} onChange={e => setRaison(e.target.value)} maxLength={500} rows={3} placeholder="Raison (obligatoire)" style={{ ...champ, resize: 'vertical' }} />
             <p style={{ margin: 0, fontSize: 11, color: T.light }}>Remarque : un remboursement partiel n'annule pas la commande ni ne remet le stock en vente.</p>
             <div style={{ display: 'flex', gap: 8 }}>

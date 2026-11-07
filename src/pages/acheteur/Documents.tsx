@@ -5,6 +5,7 @@
 // Le PDF est produit par la fenêtre d'impression du navigateur (« Enregistrer en PDF »).
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 const API = '/api';
 
@@ -76,15 +77,15 @@ export default function Documents({ gestionnaireId, isMobile = false, couleurAcc
     const lignes = cmds.map(c => `
       <tr><td>${esc(c.numero_commande)}</td><td>${esc(new Date(c.date_commande).toLocaleDateString('fr-CA'))}</td><td>${esc(c.boutique || '')}</td>
       <td>${esc((c.articles || []).map(a => `${a.titre || a.nom || 'Article'} × ${a.quantite || 1}`).join(', '))}</td>
-      <td style="text-align:right">${num(c.total).toFixed(2)} $</td></tr>`).join('');
+      <td style="text-align:right">${formaterPrix(num(c.total))}</td></tr>`).join('');
     w.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Sommaire ${esc(s.periode_label)}</title>
       <style>body{font-family:Arial,sans-serif;color:#111;padding:32px}h1{margin:0 0 4px;font-size:22px}p{margin:2px 0;color:#555;font-size:13px}
       table{width:100%;border-collapse:collapse;margin-top:20px;font-size:12px}th,td{border-bottom:1px solid #ddd;padding:8px 6px;text-align:left;vertical-align:top}
       th{background:#f3f4f6}.t{margin-top:16px;text-align:right;font-size:15px;font-weight:bold}</style></head><body>
       <h1>${esc(nomSite)} — Sommaire d'achats</h1><p>${esc(s.periode_label)}</p>
-      <p>${s.nb_commandes} commande(s) · Total dépensé : ${num(s.total_depense).toFixed(2)} $</p>
+      <p>${s.nb_commandes} commande(s) · Total dépensé : ${formaterPrix(num(s.total_depense))}</p>
       <table><thead><tr><th>N°</th><th>Date</th><th>Boutique</th><th>Articles</th><th style="text-align:right">Total</th></tr></thead><tbody>${lignes}</tbody></table>
-      <p class="t">Total : ${num(s.total_depense).toFixed(2)} $</p>
+      <p class="t">Total : ${formaterPrix(num(s.total_depense))}</p>
       <p style="margin-top:24px;font-size:11px">Document généré le ${esc(new Date().toLocaleDateString('fr-CA'))}. Ce sommaire ne remplace pas vos reçus de paiement.</p>
       <script>window.onload=function(){window.print()}</script></body></html>`);
     w.document.close();
@@ -100,7 +101,7 @@ export default function Documents({ gestionnaireId, isMobile = false, couleurAcc
     <div style={{ maxWidth: 900, margin: '0 auto' }}>
       <div style={{ background: 'linear-gradient(135deg,#0ea5e9 0%,#6366f1 100%)', borderRadius: 18, padding: isMobile ? '18px 16px' : '24px 28px', marginBottom: 18 }}>
         <h1 style={{ margin: 0, fontFamily: "'Sora',sans-serif", fontSize: isMobile ? 20 : 26, fontWeight: 800, color: '#fff' }}>📄 Mes documents</h1>
-        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,.9)' }}>Sommaires mensuels de vos achats · {totalAffiche.toFixed(2)} $ au total</p>
+        <p style={{ margin: '4px 0 0', fontSize: 13, color: 'rgba(255,255,255,.9)' }}>Sommaires mensuels de vos achats · {formaterPrix(totalAffiche)} au total</p>
       </div>
 
       {erreur && <div style={{ background: 'rgba(239,68,68,.12)', border: '1px solid rgba(239,68,68,.35)', color: '#fca5a5', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13 }}>{erreur}</div>}
@@ -130,7 +131,7 @@ export default function Documents({ gestionnaireId, isMobile = false, couleurAcc
                     <p style={{ margin: 0, fontSize: 15, fontWeight: 800, color: '#fff' }}>{s.periode_label}</p>
                     <p style={{ margin: '2px 0 0', fontSize: 11, color: C.textLight, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.nb_commandes} commande{s.nb_commandes > 1 ? 's' : ''}{s.boutiques.length ? ` · ${s.boutiques.join(', ')}` : ''}</p>
                   </div>
-                  <span style={{ fontSize: 16, fontWeight: 800, color: couleurAccent }}>{num(s.total_depense).toFixed(2)} $</span>
+                  <span style={{ fontSize: 16, fontWeight: 800, color: couleurAccent }}>{formaterPrix(num(s.total_depense))}</span>
                   <button onClick={() => imprimer(s)} disabled={occupe === k} style={{ padding: '8px 14px', borderRadius: 10, border: '1px solid rgba(14,165,233,.5)', background: 'rgba(14,165,233,.15)', color: '#7dd3fc', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>{occupe === k ? '⏳…' : '🖨️ PDF'}</button>
                   <button onClick={() => basculer(s)} style={{ background: 'none', border: 'none', color: C.textLight, cursor: 'pointer', fontSize: 12 }}>{open ? '▲' : '▼'}</button>
                 </div>
@@ -142,7 +143,7 @@ export default function Documents({ gestionnaireId, isMobile = false, couleurAcc
                           <b style={{ color: '#fff' }}>{c.numero_commande}</b> <span style={{ color: C.textLight }}>· {new Date(c.date_commande).toLocaleDateString('fr-CA')}{c.boutique ? ` · ${c.boutique}` : ''}</span>
                           <div style={{ color: 'rgba(255,255,255,.6)', wordBreak: 'break-word' }}>{(c.articles || []).map(a => `${a.titre || a.nom || 'Article'} × ${a.quantite || 1}`).join(', ')}</div>
                         </div>
-                        <b style={{ whiteSpace: 'nowrap' }}>{num(c.total).toFixed(2)} $</b>
+                        <b style={{ whiteSpace: 'nowrap' }}>{formaterPrix(num(c.total))}</b>
                       </div>
                     ))}
                   </div>

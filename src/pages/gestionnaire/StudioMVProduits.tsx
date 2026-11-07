@@ -3,6 +3,7 @@
 // API : /api/studio/mv/:gid/(collaborateurs|categories|produits)
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { formaterPrix, useDevise } from '../../templates/shared/devise';
 
 const API_BASE = '/api';
 const C = { accent: '#c9a96e', green: '#10b981', red: '#ef4444', orange: '#f59e0b', bg: '#f4f6f8', card: '#fff', border: '#e1e4e8', text: '#1a2332', textLight: '#64748b' };
@@ -19,11 +20,12 @@ function entetes(): Record<string, string> {
   try { token = localStorage.getItem('token'); } catch { /* ignore */ }
   return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
-const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' }));
+const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : formaterPrix(v));
 const champ: React.CSSProperties = { width: '100%', padding: '9px 11px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, color: C.text, background: '#fff', boxSizing: 'border-box', fontFamily: 'inherit' };
 const bouton = (couleur: string): React.CSSProperties => ({ background: 'none', border: `1px solid ${couleur}`, color: couleur, borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' });
 
 const StudioMVProduits: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId }) => {
+  useDevise(gestionnaireId);   // devise réglée dans Config marketplace
   const base = `${API_BASE}/studio/mv/${gestionnaireId}`;
   const [data, setData] = useState<Reponse | null>(null);
   const [collabs, setCollabs] = useState<{ id: number; nom_boutique: string }[]>([]);

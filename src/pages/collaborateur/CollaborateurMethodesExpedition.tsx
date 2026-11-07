@@ -2,6 +2,7 @@
 // e-Vend Studio — Config expédition du collaborateur — 4 modes + combine shipping + zones province
 // Adapté de MethodesExpedition.tsx (e-Vend) : même logique, API /api/collab/:gestionnaireId/...
 import React, { useState, useEffect, useCallback } from 'react';
+import { getDevise, formaterPrix } from '../../templates/shared/devise';
 
 const PROVINCES = [
   { code: 'AB', nom: 'Alberta' },
@@ -454,7 +455,7 @@ export default function CollaborateurMethodesExpedition({ gestionnaireId, accent
             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '14px', borderTop: `1px solid ${C.border}`, paddingTop: '16px' }}>
               <div>
                 <label style={{ fontSize: '11px', fontWeight: 700, color: C.textLight, display: 'block', marginBottom: '6px', textTransform: 'uppercase' }}>
-                  Montant d'achat minimum ($ CAD)
+                  Montant d'achat minimum ({getDevise()})
                 </label>
                 <input
                   type="number" step="0.01" min="0"
@@ -551,16 +552,16 @@ export default function CollaborateurMethodesExpedition({ gestionnaireId, accent
                             <strong>Mode:</strong> {MODES_CALCUL.find(m => m.value === cfg.mode_calcul)?.label || cfg.mode_calcul}
                           </span>
                           {(cfg.mode_calcul === 'fixe' || cfg.mode_calcul === 'fixe_kg') && cfg.frais_fixes !== null && (
-                            <span style={{ fontSize: '13px', color: C.textLight }}><strong>💰 Frais fixe:</strong> {cfg.frais_fixes} $</span>
+                            <span style={{ fontSize: '13px', color: C.textLight }}><strong>💰 Frais fixe:</strong> {formaterPrix(cfg.frais_fixes)}</span>
                           )}
                           {(cfg.mode_calcul === 'kg' || cfg.mode_calcul === 'fixe_kg') && cfg.frais_par_kg && (
-                            <span style={{ fontSize: '13px', color: C.textLight }}><strong>⚖️ Par kg:</strong> {cfg.frais_par_kg} $/kg</span>
+                            <span style={{ fontSize: '13px', color: C.textLight }}><strong>⚖️ Par kg:</strong> {formaterPrix(cfg.frais_par_kg)}/kg</span>
                           )}
                           {cfg.mode_calcul === 'zone' && (
                             <span style={{ fontSize: '13px', color: C.textLight }}><strong>🗺️ Zones:</strong> {Object.keys(cfg.frais_zones || {}).length} provinces configurées</span>
                           )}
                           {cfg.gratuit_superieur && (
-                            <span style={{ fontSize: '13px', color: C.green, fontWeight: 600 }}>🎁 Gratuit dès {cfg.gratuit_superieur} $</span>
+                            <span style={{ fontSize: '13px', color: C.green, fontWeight: 600 }}>🎁 Gratuit dès {formaterPrix(cfg.gratuit_superieur)}</span>
                           )}
                           {cfg.combine_shipping && (
                             <span style={{ fontSize: '13px', color: '#7c3aed', fontWeight: 600 }}>📦 Combine shipping actif</span>
@@ -841,10 +842,10 @@ export default function CollaborateurMethodesExpedition({ gestionnaireId, accent
                     <span>{t?.logo}</span>
                     <span>{t?.nom}</span>
                     {cfg?.mode_calcul === 'fixe' && cfg.frais_fixes !== null && (
-                      <span style={{ background: C.teal, color: '#fff', padding: '1px 6px', borderRadius: '10px', fontSize: '11px' }}>{cfg.frais_fixes} $</span>
+                      <span style={{ background: C.teal, color: '#fff', padding: '1px 6px', borderRadius: '10px', fontSize: '11px' }}>{formaterPrix(cfg.frais_fixes)}</span>
                     )}
                     {cfg?.mode_calcul === 'zone' && <span style={{ background: C.teal, color: '#fff', padding: '1px 6px', borderRadius: '10px', fontSize: '11px' }}>Zones</span>}
-                    {cfg?.gratuit_superieur && <span style={{ background: C.green, color: '#fff', padding: '1px 6px', borderRadius: '10px', fontSize: '11px' }}>Gratuit dès {cfg.gratuit_superieur}$</span>}
+                    {cfg?.gratuit_superieur && <span style={{ background: C.green, color: '#fff', padding: '1px 6px', borderRadius: '10px', fontSize: '11px' }}>Gratuit dès {formaterPrix(cfg.gratuit_superieur)}</span>}
                   </div>
                 );
               })}

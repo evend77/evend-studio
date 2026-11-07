@@ -25,6 +25,8 @@ import CollaborateurBlogs from './pages/collaborateur/CollaborateurBlogs';
 import CollaborateurFaq from './pages/collaborateur/CollaborateurFaq';
 import CollaborateurRapportFinancier from './pages/collaborateur/CollaborateurRapportFinancier';
 import CollaborateurCommandeDetail from './pages/collaborateur/CollaborateurCommandeDetail';
+import BanniereDashboard from './templates/shared/BanniereDashboard';
+import { formaterPrix } from './templates/shared/devise';
 
 const API_BASE = '/api';
 
@@ -122,7 +124,7 @@ function VueDashboard({ compte, stats, loading, isMobile, naviguer, accent }: {
   }
 
   const kpis = [
-    { emoji: '💰', titre: 'Revenus ce mois', valeur: `${(stats?.revenus?.mois ?? 0).toFixed(2)} $`, sousTitre: `Total: ${(stats?.revenus?.total ?? 0).toFixed(2)} $`, couleur: '#008060' },
+    { emoji: '💰', titre: 'Revenus ce mois', valeur: `${formaterPrix((stats?.revenus?.mois ?? 0))}`, sousTitre: `Total: ${formaterPrix((stats?.revenus?.total ?? 0))}`, couleur: '#008060' },
     { emoji: '🛒', titre: 'Commandes', valeur: String(stats?.commandes?.total ?? 0), sousTitre: `${stats?.commandes?.en_attente ?? 0} en attente`, couleur: '#3b82f6' },
     { emoji: '📦', titre: 'Produits actifs', valeur: String(stats?.produits?.actifs ?? 0), sousTitre: `${stats?.produits?.en_rupture ?? 0} en rupture`, couleur: '#f59e0b' },
     { emoji: '⭐', titre: 'Note moyenne', valeur: (stats?.avis?.moyenne ?? 0).toFixed(1), sousTitre: `${stats?.avis?.total ?? 0} avis`, couleur: '#8b5cf6' },
@@ -160,7 +162,7 @@ function VueDashboard({ compte, stats, loading, isMobile, naviguer, accent }: {
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="date" stroke="#aaa" fontSize={11} />
               <YAxis stroke="#aaa" fontSize={11} tickFormatter={v => `${v}$`} />
-              <Tooltip formatter={(v: any) => `${Number(v).toFixed(2)} $`} />
+              <Tooltip formatter={(v: any) => `${formaterPrix(Number(v))}`} />
               <Area type="monotone" dataKey="ventes" stroke={accent} strokeWidth={2} fill="url(#colVentes)" />
             </AreaChart>
           </ResponsiveContainer>
@@ -536,6 +538,9 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
               </button>
             </div>
           </div>
+
+          {/* Bannière du gestionnaire (Config marketplace) */}
+          <BanniereDashboard config={config} type="collab" />
 
           {/* PAGE */}
           <main style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden' }}>

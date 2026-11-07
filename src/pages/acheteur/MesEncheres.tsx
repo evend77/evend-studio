@@ -4,6 +4,7 @@
 // API : GET /api/marketplace/:gid/encheres/mes-encheres · POST /api/marketplace/:gid/encheres/:id/remettre-panier
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 const API = '/api';
 
@@ -38,7 +39,7 @@ const C = {
   border: 'rgba(255,255,255,0.08)', textLight: 'rgba(255,255,255,0.5)', cardBg: 'rgba(255,255,255,0.03)',
 };
 
-const argent = (v: number | null) => (v === null || v === undefined ? '—' : `${Number(v).toFixed(2)} $`);
+const argent = (v: number | null) => (v === null || v === undefined ? '—' : `${formaterPrix(Number(v))}`);
 
 function duree(ms: number): string {
   if (ms <= 0) return 'Terminé';

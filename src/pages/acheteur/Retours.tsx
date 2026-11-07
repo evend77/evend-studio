@@ -4,6 +4,7 @@
 // API : GET /api/acheteur/:gid/retours   (les demandes se créent depuis « Mes commandes »)
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 const API = '/api';
 
@@ -117,8 +118,8 @@ export default function Retours({ gestionnaireId, isMobile = false, couleurAccen
                     <p style={{ margin: '0 0 6px' }}><b style={{ color: '#fff' }}>Raisons :</b> {r.motif}</p>
                     {r.details && <p style={{ margin: '0 0 6px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}><b style={{ color: '#fff' }}>Détails :</b> {r.details}</p>}
                     <p style={{ margin: '0 0 6px' }}><b style={{ color: '#fff' }}>Articles :</b> {(r.articles || []).map(a => `${a.titre || a.nom || 'Article'} × ${a.quantite || 1}`).join(', ') || '—'}</p>
-                    <p style={{ margin: '0 0 6px' }}><b style={{ color: '#fff' }}>Total de la commande :</b> {num(r.commande_total).toFixed(2)} $</p>
-                    {r.montant_remboursement !== null && num(r.montant_remboursement) > 0 && <p style={{ margin: '0 0 6px', color: '#6ee7b7' }}><b>Remboursement accordé :</b> {num(r.montant_remboursement).toFixed(2)} $</p>}
+                    <p style={{ margin: '0 0 6px' }}><b style={{ color: '#fff' }}>Total de la commande :</b> {formaterPrix(num(r.commande_total))}</p>
+                    {r.montant_remboursement !== null && num(r.montant_remboursement) > 0 && <p style={{ margin: '0 0 6px', color: '#6ee7b7' }}><b>Remboursement accordé :</b> {formaterPrix(num(r.montant_remboursement))}</p>}
                     {r.reponse && (
                       <div style={{ marginTop: 10, padding: '10px 12px', borderRadius: 10, background: 'rgba(255,255,255,.05)', borderLeft: `3px solid ${s.couleur}` }}>
                         <p style={{ margin: '0 0 4px', fontSize: 11, color: C.textLight }}>Réponse du collaborateur · {fmt(r.updated_at)}</p>

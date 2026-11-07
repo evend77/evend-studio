@@ -3,6 +3,7 @@
 // Adapté de RetourRemboursements.tsx (e-Vend). API : /api/collab/:gestionnaireId/retours
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 interface Retour {
   id: number; commande_id: number; motif: string; details: string | null; statut: 'en_attente' | 'approuve' | 'refuse' | 'termine';
@@ -16,7 +17,7 @@ const STATUTS: Record<string, { l: string; bg: string; c: string }> = {
   en_attente: { l: 'À traiter', bg: '#FEF9E7', c: '#B7950B' }, approuve: { l: 'Approuvé', bg: '#EAF2F8', c: '#2874A6' },
   refuse: { l: 'Refusé', bg: '#FDECEA', c: '#C0392B' }, termine: { l: 'Terminé', bg: '#E9F7EF', c: '#1E8449' },
 };
-const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' }));
+const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : formaterPrix(v));
 const dateCourte = (d: string) => { try { return new Date(d).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return ''; } };
 
 export default function CollaborateurRetours({ gestionnaireId, accent, isMobile }: Props) {

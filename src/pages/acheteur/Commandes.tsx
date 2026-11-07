@@ -5,6 +5,7 @@
 //       POST /commandes/:id/retour · POST /commandes/:id/avis
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 const API = '/api';
 
@@ -145,7 +146,7 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', gap: isMobile ? 10 : 14, marginBottom: 18 }}>
-        {[{ l: 'Commandes', v: kpis.total, c: '#3b82f6' }, { l: 'En cours', v: kpis.enCours, c: '#8b5cf6' }, { l: 'Livrées', v: kpis.livrees, c: '#10b981' }, { l: 'Dépensé', v: `${kpis.depense.toFixed(2)} $`, c: couleurAccent }].map(k => (
+        {[{ l: 'Commandes', v: kpis.total, c: '#3b82f6' }, { l: 'En cours', v: kpis.enCours, c: '#8b5cf6' }, { l: 'Livrées', v: kpis.livrees, c: '#10b981' }, { l: 'Dépensé', v: `${formaterPrix(kpis.depense)}`, c: couleurAccent }].map(k => (
           <div key={k.l} style={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '14px 16px' }}>
             <div style={{ fontSize: isMobile ? 20 : 24, fontWeight: 800, color: k.c }}>{k.v}</div>
             <div style={{ fontSize: 11, color: C.textLight, marginTop: 2 }}>{k.l}</div>
@@ -186,7 +187,7 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                     <Pastille statut={c.statut} />
                     {c.retour_statut && <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20, background: 'rgba(245,158,11,.15)', color: '#fbbf24' }}>🔄 Retour : {c.retour_statut.replace('_', ' ')}</span>}
-                    <span style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{num(c.total).toFixed(2)} $</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>{formaterPrix(num(c.total))}</span>
                     <span style={{ color: C.textLight, fontSize: 12 }}>{open ? '▲' : '▼'}</span>
                   </div>
                 </div>
@@ -218,7 +219,7 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
                             {(a.image_url || a.image) ? <img src={a.image_url || a.image} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '🛍️'}
                           </div>
                           <span style={{ flex: 1, fontSize: 13, color: '#fff', minWidth: 0, wordBreak: 'break-word' }}>{nomArticle(a)} <span style={{ color: C.textLight }}>× {a.quantite || 1}</span></span>
-                          <span style={{ fontSize: 13, fontWeight: 700 }}>{(num(a.prix) * (a.quantite || 1)).toFixed(2)} $</span>
+                          <span style={{ fontSize: 13, fontWeight: 700 }}>{formaterPrix((num(a.prix) * (a.quantite || 1)))}</span>
                         </div>
                       ))}
                     </div>

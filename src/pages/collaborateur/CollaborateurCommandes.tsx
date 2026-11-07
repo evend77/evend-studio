@@ -4,6 +4,7 @@
 // Chaque ligne a un bouton « Détail » → page de gestion CollaborateurCommandeDetail
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 interface Commande {
   id: number; numero_commande: string; statut: string; statut_paiement: string; total: string;
@@ -23,7 +24,7 @@ const PAIEMENTS: Record<string, { l: string; bg: string; c: string }> = {
   en_attente: { l: 'À payer', bg: '#FEF9E7', c: '#B7950B' }, paye: { l: 'Payé', bg: '#E9F7EF', c: '#1E8449' },
   rembourse: { l: 'Remboursé', bg: '#f3f4f6', c: '#6b7280' }, echoue: { l: 'Échoué', bg: '#FDECEA', c: '#C0392B' },
 };
-const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' }));
+const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : formaterPrix(v));
 const dateCourte = (d: string) => { try { return new Date(d).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' }); } catch { return ''; } };
 
 function Pastille({ info }: { info?: { l: string; bg: string; c: string } }) {

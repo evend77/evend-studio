@@ -4,6 +4,7 @@
 
 import { useState, useEffect } from 'react';
 import MVPremiumAccueil    from './MVPremiumAccueil';
+import { setDevise } from '../shared/devise';
 import MVPremiumCatalogue  from './MVPremiumCatalogue';
 import MVPremiumBoutiques  from './MVPremiumBoutiques';
 import MVPremiumBoutiquePage from './MVPremiumBoutiquePage';
@@ -55,6 +56,7 @@ type TypeCompte = 'acheteur' | 'collaborateur';
 
 export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false, config = {} }: Props) {
   const gestionnaireId = vendeurId || config.gestionnaire_id;
+  setDevise(config?.multivendeur?.devise);   // Config marketplace → Devise : tous les montants du site l'utilisent
   const cleCompte = `mv_compte_${gestionnaireId}`;
 
   // Infos d'affichage non sensibles du compte connecté (le vrai jeton est dans

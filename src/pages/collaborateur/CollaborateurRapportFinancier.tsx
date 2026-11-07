@@ -3,6 +3,7 @@
 // Copie de RapportVendeur.tsx (e-Vend), adaptée à Studio : API /api/collab/:gestionnaireId/rapport ; pas d'onglet Abonnements
 // (à venir avec les addons) ; les commissions sont payées au GESTIONNAIRE ; les taxes sont toujours remises par le collaborateur.
 import React, { useState, useEffect, useCallback } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 // ✅ Détection mobile (≤768px)
 function useIsMobile(breakpoint = 768) {
@@ -82,7 +83,7 @@ const TAXES_PROVINCE: Record<string, { tps: number; tvq: number; tvh: number; tv
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtMoney(n: number) {
-  return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + ' $';
+  return formaterPrix(n);
 }
 
 // Extraction taxe d'un montant TTC (commission du gestionnaire, taxes incluses) — repli

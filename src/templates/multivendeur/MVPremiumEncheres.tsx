@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import Navbar from './MVPremiumNavbar';
 import { fondDe } from './mvTheme';
+import { formaterPrix } from '../shared/devise';
 
 const API_BASE = '/api';
 
@@ -91,7 +92,7 @@ function CarteEnchere({ enc, naviguer, couleurAccent }: { enc: Enchere; naviguer
               <span style={{ fontSize:10, color:'rgba(255,255,255,0.4)', textTransform:'uppercase', letterSpacing:'0.5px', display:'block' }}>
                 {enc.mise_courante > 0 ? 'Mise courante' : 'Mise de depart'}
               </span>
-              <span style={{ fontSize:20, fontWeight:900, color:couleurAccent }}>{montant.toFixed(2)} $</span>
+              <span style={{ fontSize:20, fontWeight:900, color:couleurAccent }}>{formaterPrix(montant)}</span>
             </div>
             <div style={{ textAlign:'right' }}>
               <span style={{ fontSize:10, color:'rgba(255,255,255,0.4)', display:'block' }}>Mises</span>

@@ -3,6 +3,7 @@
 // API : /api/studio/mv/:gid/(collaborateurs|commandes)
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { formaterPrix, useDevise } from '../../templates/shared/devise';
 
 const API_BASE = '/api';
 const C = { accent: '#c9a96e', green: '#10b981', red: '#ef4444', orange: '#f59e0b', blue: '#3b82f6', bg: '#f4f6f8', card: '#fff', border: '#e1e4e8', text: '#1a2332', textLight: '#64748b' };
@@ -36,12 +37,13 @@ function entetes(): Record<string, string> {
   try { token = localStorage.getItem('token'); } catch { /* ignore */ }
   return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
-const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' }));
+const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : formaterPrix(v));
 const quand = (d: string | null) => (d ? new Date(d).toLocaleString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
 const champ: React.CSSProperties = { padding: '9px 11px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, color: C.text, background: '#fff', fontFamily: 'inherit' };
 const puce = (x?: { t: string; c: string }): React.CSSProperties => ({ padding: '2px 9px', borderRadius: 12, fontSize: 11, fontWeight: 700, color: x?.c, background: `${x?.c || '#999'}1f`, whiteSpace: 'nowrap' });
 
 const StudioMVCommandes: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId }) => {
+  useDevise(gestionnaireId);
   const base = `${API_BASE}/studio/mv/${gestionnaireId}`;
   const [data, setData] = useState<Reponse | null>(null);
   const [collabs, setCollabs] = useState<{ id: number; nom_boutique: string }[]>([]);

@@ -3,6 +3,7 @@
 // Adapté de ListeProduits.tsx (e-Vend). API : /api/collab/:gestionnaireId/produits
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { formaterPrix } from '../../templates/shared/devise';
 
 interface Produit {
   id: number; titre: string; prix: string; prix_promo: string | null; stock: number | null;
@@ -22,7 +23,7 @@ interface Props {
 }
 
 const T = { border: '#e1e4e8', text: '#1a2332', light: '#6b7280', danger: '#dc2626', success: '#16a34a', bg: '#f4f6f8' };
-const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : Number(v).toLocaleString('fr-CA', { style: 'currency', currency: 'CAD' }));
+const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : formaterPrix(v));
 
 export default function CollaborateurProduits({ gestionnaireId, accent, isMobile, onCreer, onModifier }: Props) {
   const base = `/api/collab/${gestionnaireId}`;
