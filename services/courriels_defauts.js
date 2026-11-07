@@ -29,6 +29,7 @@ const EXEMPLES = {
   lien_dashboard: 'https://exemple.e-vendstudio.ca/dashboard', lien_messagerie: 'https://exemple.e-vendstudio.ca/dashboard',
   produit: 'Porte-clés en bois', photo_produit: '', prix_depart: '10,00 $', prix_final: '45,00 $', ancienne_mise: '35,00 $', date_fin: '12 novembre 2026 à 20 h 00',
   delai_paiement: '24 heures', lien_enchere: 'https://exemple.e-vendstudio.ca/produit/1', lien_paiement: 'https://exemple.e-vendstudio.ca/panier',
+  etoiles: '★★★★★', note: '5 / 5', extrait_avis: 'Très belle qualité, livraison rapide. Je recommande !',
   motif: 'Le produit ne correspond pas à la description.', montant_rembourse: '45,00 $',
   expediteur: 'Marie Tremblay', extrait_message: 'Bonjour, est-ce que cet article est toujours disponible ?',
   raison_signalement: 'Comportement inapproprié', nom_boutique_signalee: 'Boutique Idée Cadeaux', lien_signalements: 'https://exemple.e-vendstudio.ca/dashboard',
@@ -59,6 +60,7 @@ const SECTIONS = [
   { cle: 'commandes',  label: 'Commandes et livraison',  icone: '📦', couleur: '#15803d' },
   { cle: 'retours',    label: 'Retours et remboursements', icone: '🔄', couleur: '#b91c1c' },
   { cle: 'encheres',   label: 'Enchères',                icone: '🔨', couleur: '#7c3aed' },
+  { cle: 'avis',       label: 'Avis clients',            icone: '⭐', couleur: '#b45309' },
   { cle: 'messages',   label: 'Messages',                icone: '💬', couleur: '#0e7490' },
   { cle: 'moderation', label: 'Modération',              icone: '🚩', couleur: '#a16207' },
 ];
@@ -195,6 +197,14 @@ const MODELES = [
     nom: 'Nouveau message reçu', sujet: 'Nouveau message de {$expediteur}',
     variables: [{ cle: 'prenom', desc: 'Prénom du destinataire' }, { cle: 'expediteur', desc: "Nom de l'expéditeur" }, { cle: 'extrait_message', desc: 'Début du message' }, { cle: 'lien_messagerie', desc: 'Lien vers la messagerie' }],
     html: enveloppe('Nouveau message', p('Bonjour {$prenom},') + p('Vous avez reçu un nouveau message de <strong>{$expediteur}</strong> :') + encadre('{$extrait_message}') + bouton('Lire et répondre', '{$lien_messagerie}')),
+  },
+
+  // ───────── Avis ─────────
+  {
+    cle: 'avis_nouveau', section: 'avis', destinataire: 'collaborateur', branche: true,
+    nom: 'Nouvel avis — au collaborateur', sujet: 'Nouvel avis {$etoiles} sur votre boutique',
+    variables: [{ cle: 'prenom_collaborateur', desc: 'Prénom du collaborateur' }, { cle: 'etoiles', desc: 'Étoiles de la note' }, { cle: 'note', desc: 'Note sur 5' }, { cle: 'nom_client', desc: 'Prénom et initiale du client' }, { cle: 'numero_commande', desc: 'Numéro de commande' }, { cle: 'extrait_avis', desc: "Texte de l'avis" }, { cle: 'lien_dashboard', desc: 'Lien vers votre tableau de bord' }],
+    html: enveloppe('Nouvel avis', p('Bonjour {$prenom_collaborateur},') + p('<strong>{$nom_client}</strong> vient de laisser un avis sur la commande {$numero_commande} : <strong>{$etoiles} ({$note})</strong>') + encadre('{$extrait_avis}') + bouton('Voir et répondre', '{$lien_dashboard}')),
   },
 
   // ───────── Modération ─────────

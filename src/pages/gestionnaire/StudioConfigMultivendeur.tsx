@@ -136,14 +136,12 @@ interface ConfigMV {
   permettre_tags: boolean;
   permettre_categories: boolean;
   permettre_changement_unite_poids: boolean;
-  restreindre_desactivation_avis: boolean; approuver_auto_avis: boolean;
-  permettre_gestion_auto_approbation_avis: boolean; avis_avance: boolean;
+  approuver_auto_avis: boolean; permettre_gestion_auto_approbation_avis: boolean;
   notification_stock_faible: boolean; seuil_stock_faible: string;
   vacances_vendeur: boolean;
   verification_email: boolean;
   shop_faq: boolean; c2c_marketplace: boolean;
-  login_as_seller: boolean; check_customer_login: boolean;
-  check_customer_purchase: boolean; minimum_purchase_amount: boolean;
+  login_as_seller: boolean; minimum_purchase_amount: boolean;
   // Config produits
   approuver_auto_produit: boolean; gerer_inventaire_par_defaut: boolean;
   quantite_minimum_achat: boolean; application_quantite_minimum: string;
@@ -211,15 +209,13 @@ const DEFAUTS: ConfigMV = {
   voir_details_client: true, voir_email_client: false, voir_telephone_client: false,
   permettre_tags: true,
   permettre_categories: true,
-  permettre_changement_unite_poids: false, restreindre_desactivation_avis: false,
+  permettre_changement_unite_poids: false,
   approuver_auto_avis: true, permettre_gestion_auto_approbation_avis: false,
-  avis_avance: false,
   notification_stock_faible: false, seuil_stock_faible: '5',
   vacances_vendeur: false,
   verification_email: true,
   shop_faq: false, c2c_marketplace: false,
-  login_as_seller: false, check_customer_login: false,
-  check_customer_purchase: false, minimum_purchase_amount: false,
+  login_as_seller: false, minimum_purchase_amount: false,
   approuver_auto_produit: true, gerer_inventaire_par_defaut: true,
   quantite_minimum_achat: false, application_quantite_minimum: 'produit',
   prix_zero_autorise: false, texte_aide_formulaire: false,
@@ -323,7 +319,7 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
         if (k.startsWith('banniere_vendeur_')) { const n = k.replace('banniere_vendeur_', 'banniere_collab_'); if (mv[n] === undefined) mv[n] = mv[k]; delete mv[k]; }
       }
       delete mv.approuver_auto_vendeur;   // ancien réglage inactif (valeur par défaut « true » jamais appliquée) : on ne la reprend pas
-      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif', 'statut_preparation_commande', 'restreindre_expedition_fraude', 'deduire_expedition_remboursement', 'deduire_taxes_remboursement', 'taxes_sur_expedition', 'tcs_sur_commandes', 'tds_sur_commandes', 'annuler_auto_rejet', 'mode_taxe', 'type_commission_fixe', 'rtl_alignment', 'heures_preparation']) delete mv[k];   // réglages supprimés de Config vendeur
+      for (const k of ['delais_livraison', 'cacher_champ_tags', 'afficher_nom_marque', 'type_prix_libre', 'permettre_expedition', 'vendeur_sur_boutique', 'permettre_nom_boutique_inscription', 'option_inscription', 'restreindre_tags_inscription', 'restreindre_categories_inscription', 'permettre_devise_propre', 'methode_conversion', 'voir_total_du', 'sso_actif', 'statut_preparation_commande', 'restreindre_expedition_fraude', 'deduire_expedition_remboursement', 'deduire_taxes_remboursement', 'taxes_sur_expedition', 'tcs_sur_commandes', 'tds_sur_commandes', 'annuler_auto_rejet', 'mode_taxe', 'type_commission_fixe', 'rtl_alignment', 'heures_preparation', 'restreindre_desactivation_avis', 'avis_avance', 'check_customer_login', 'check_customer_purchase']) delete mv[k];   // réglages supprimés de Config vendeur
       if (mv.bloquer_inscription_vendeur !== undefined) { if (mv.bloquer_inscription_collaborateur === undefined) mv.bloquer_inscription_collaborateur = mv.bloquer_inscription_vendeur; delete mv.bloquer_inscription_vendeur; }
       // Nom de la marketplace et courriel de contact : une seule source, partagée avec « Configurer mes pages »
       try {
@@ -532,11 +528,6 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
                   <Toggle actif={config.avis_actifs} onChange={set('avis_actifs')} />
                 </div>
               </ParamLigne>
-              {config.avis_actifs && (
-                <ParamLigne label="Délai pour laisser un avis (jours)" description="L'acheteur peut donner son avis une fois la commande livrée (ou confirmée reçue), pendant ce nombre de jours. 0 = sans limite.">
-                  <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.jours_delai_avis} onChange={e => set('jours_delai_avis')(e.target.value)} min="0" max="3650" />
-                </ParamLigne>
-              )}
               <ParamLigne label="Notifications automatiques vendeurs" description="À venir : notifications dans la messagerie du collaborateur.">
                 <Toggle actif={config.notifs_auto_vendeurs} onChange={set('notifs_auto_vendeurs')} />
               </ParamLigne>
@@ -737,23 +728,14 @@ export default function StudioConfigMultivendeur({ gestionnaireId }: Props) {
             </Section>
 
             <Section titre="Gestion des avis" icon="⭐">
-              <ParamLigne label="Approuver automatiquement les avis" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet.">
+              <ParamLigne label="Approuver automatiquement les avis" description="Activé : un avis est publié dès que l'acheteur l'envoie. Désactivé : il attend votre approbation dans Multi-vendeur → Avis (une pastille vous prévient), sauf pour les boutiques à qui vous laissez le choix ci-dessous.">
                 <Toggle actif={config.approuver_auto_avis} onChange={set('approuver_auto_avis')} />
               </ParamLigne>
-              <ParamLigne label="Restreindre la désactivation des avis" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet.">
-                <Toggle actif={config.restreindre_desactivation_avis} onChange={set('restreindre_desactivation_avis')} />
-              </ParamLigne>
-              <ParamLigne label="Auto-approbation gérable par collaborateur" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet.">
+              <ParamLigne label="Auto-approbation gérable par collaborateur" description={config.approuver_auto_avis ? "Sans effet tant que « Approuver automatiquement les avis » est activé : tous les avis sont déjà publiés tout de suite." : "Activé : chaque collaborateur peut, dans sa Configuration, publier automatiquement les avis de sa boutique. Désactivé : tous ses avis passent par vous."}>
                 <Toggle actif={config.permettre_gestion_auto_approbation_avis} onChange={set('permettre_gestion_auto_approbation_avis')} />
               </ParamLigne>
-              <ParamLigne label="Avis avancé" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet.">
-                <Toggle actif={config.avis_avance} onChange={set('avis_avance')} />
-              </ParamLigne>
-              <ParamLigne label="Exiger connexion pour avis" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet.">
-                <Toggle actif={config.check_customer_login} onChange={set('check_customer_login')} />
-              </ParamLigne>
-              <ParamLigne label="Exiger achat avant avis" description="À venir : ce réglage n'est pas encore actif. Sera réglé avec le système d'avis complet." derniere>
-                <Toggle actif={config.check_customer_purchase} onChange={set('check_customer_purchase')} />
+              <ParamLigne label="Délai pour laisser un avis (jours)" description="L'acheteur peut donner son avis une fois la commande livrée (ou confirmée reçue), pendant ce nombre de jours. 0 = sans limite. S'applique seulement si « Avis clients » est activé dans Généralité." derniere>
+                <input type="number" style={{ ...inputStyle, width: '80px' }} value={config.jours_delai_avis} onChange={e => set('jours_delai_avis')(e.target.value)} min="0" max="3650" />
               </ParamLigne>
             </Section>
 

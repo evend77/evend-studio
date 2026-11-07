@@ -107,7 +107,7 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
       const r = await fetch(`${base}${url}`, { method, credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'Action impossible');
-      showToast(ok);
+      showToast(j.message_acheteur || ok);
       setModal(null);
       await charger();
     } catch (e: any) { showToast(e.message || 'Action impossible', false); }

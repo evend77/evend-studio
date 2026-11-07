@@ -6,10 +6,11 @@ import React, { useState, useEffect } from 'react';
 
 interface Config {
   vacances: boolean; vacances_message: string; vacances_retour: string; vacances_debut: string; vacances_mode: 'visible' | 'masque'; delai_traitement_jours: number;
-  notif_commande: boolean; notif_message: boolean; notif_avis: boolean; message_remerciement: string;
+  notif_commande: boolean; notif_message: boolean; notif_avis: boolean; message_remerciement: string; avis_auto_approbation: boolean;
 }
 interface Props { gestionnaireId: number; accent: string; isMobile: boolean; naviguer?: (page: string) => void; }
 interface VacInfo { permises: boolean; actif: boolean; messageDefaut: string; }
+interface AvisInfo { permis: boolean; global: boolean; }
 const T = { border: '#e1e4e8', text: '#1a2332', light: '#6b7280', ok: '#1E8449' };
 
 export default function CollaborateurConfiguration({ gestionnaireId, accent, isMobile, naviguer }: Props) {
@@ -18,6 +19,7 @@ export default function CollaborateurConfiguration({ gestionnaireId, accent, isM
   const [msg, setMsg] = useState<{ t: 'ok' | 'err'; m: string } | null>(null);
   const [occupe, setOccupe] = useState(false);
   const [vac, setVac] = useState<VacInfo>({ permises: true, actif: false, messageDefaut: '' });
+  const [avisInfo, setAvisInfo] = useState<AvisInfo>({ permis: false, global: true });
 
   useEffect(() => {
     (async () => {
@@ -26,11 +28,12 @@ export default function CollaborateurConfiguration({ gestionnaireId, accent, isM
         if (res.ok) {
           const d = await res.json();
           setVac({ permises: d.vacances_permises !== false, actif: !!d.vacances_actif_maintenant, messageDefaut: d.vacances_message_defaut || '' });
+          setAvisInfo({ permis: !!d.avis_auto_permis, global: d.avis_auto_global !== false });
           setC({
             vacances: !!d.vacances, vacances_message: d.vacances_message || d.vacances_message_defaut || '', vacances_retour: d.vacances_retour ? String(d.vacances_retour).slice(0, 10) : '',
             vacances_debut: d.vacances_debut ? String(d.vacances_debut).slice(0, 10) : '', vacances_mode: d.vacances_mode === 'masque' ? 'masque' : 'visible',
             delai_traitement_jours: Number(d.delai_traitement_jours ?? 2), notif_commande: d.notif_commande !== false,
-            notif_message: d.notif_message !== false, notif_avis: d.notif_avis !== false, message_remerciement: d.message_remerciement || '',
+            notif_message: d.notif_message !== false, notif_avis: d.notif_avis !== false, message_remerciement: d.message_remerciement || '', avis_auto_approbation: !!d.avis_auto_approbation,
           });
         } else setMsg({ t: 'err', m: (await res.json().catch(() => ({}))).error || 'Chargement impossible' });
       } catch { setMsg({ t: 'err', m: 'Erreur réseau' }); }
@@ -122,6 +125,20 @@ export default function CollaborateurConfiguration({ gestionnaireId, accent, isM
         {interrupteur('notif_commande', 'Nouvelle commande', 'Un courriel à chaque commande reçue')}
         {interrupteur('notif_message', 'Nouveau message', 'Quand un acheteur ou votre gestionnaire vous écrit')}
         {interrupteur('notif_avis', 'Nouvel avis', 'Quand un client laisse un avis')}
+      </div>
+
+      <div style={carte}>
+        <h3 style={{ margin: '0 0 8px', fontSize: 15, color: T.text }}>⭐ Avis clients</h3>
+        {avisInfo.global ? (
+          <p style={{ fontSize: 13, color: T.light, margin: 0 }}>Les avis de vos clients sont publiés dès qu'ils sont envoyés.</p>
+        ) : avisInfo.permis ? (
+          <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer' }}>
+            <span><strong style={{ fontSize: 14, color: T.text }}>Publier automatiquement les avis de ma boutique</strong><br /><span style={{ fontSize: 12, color: T.light }}>Activé : chaque avis est publié tout de suite. Désactivé : votre gestionnaire l'approuve avant publication.</span></span>
+            <input type="checkbox" checked={c.avis_auto_approbation} onChange={e => setC({ ...c, avis_auto_approbation: e.target.checked })} style={{ width: 20, height: 20, accentColor: accent }} />
+          </label>
+        ) : (
+          <p style={{ fontSize: 13, color: T.light, margin: 0 }}>Les avis de vos clients sont approuvés par votre gestionnaire avant d'être publiés.</p>
+        )}
       </div>
 
       <div style={carte}>

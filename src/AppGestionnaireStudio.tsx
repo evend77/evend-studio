@@ -363,6 +363,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [modalPhotoOuvert, setModalPhotoOuvert] = useState(false);
   const [signalementsNouveaux, setSignalementsNouveaux] = useState(0);
   const [contactNonLus, setContactNonLus] = useState(0); // messages du formulaire Contact du site multi-vendeur
+  const [avisAttente, setAvisAttente] = useState(0);     // avis clients en attente d'approbation
 
   useEffect(() => {
     const chargerNonLus = async () => {
@@ -737,6 +738,24 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     return () => { clearInterval(interval); window.removeEventListener('contact-maj', charger); };
   }, [gestionnaire?.id]);
 
+  // Avis clients à approuver (pastille du menu MULTI-VENDEUR › Avis)
+  useEffect(() => {
+    if (!gestionnaire?.id) return;
+    const charger = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const r = await fetch(`${API_BASE}/studio/mv/${gestionnaire.id}/avis/compte`, {
+          credentials: 'include', headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        if (r.ok) { const d = await r.json(); setAvisAttente(Number(d.attente) || 0); }
+      } catch {}
+    };
+    charger();
+    const interval = setInterval(charger, 60000);
+    window.addEventListener('avis-maj', charger);
+    return () => { clearInterval(interval); window.removeEventListener('avis-maj', charger); };
+  }, [gestionnaire?.id]);
+
   // ── Mes collaborateurs ──────────────────────────────────────────────────
   const menuSousVendeurs: MenuItem = {
     id: 'collaborateurs', label: 'MES COLLABORATEURS', icon: '🏪',
@@ -823,7 +842,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuVosAnnoncesBeaute: MenuItem = { id:'annonces',label:'VOS PRODUITS',icon:'💄',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigBeaute: MenuItem = { id:'config-beaute',label:'CONFIG MES PAGES',icon:'💄',sousMenu:[{ id:'beaute-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'beaute-plan',label:'Mon plan & limites',icon:'📊' },{ id:'beaute-branding',label:'Branding & options',icon:'⚙️' }] };
   const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
-  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-avis',label:'Avis',icon:'⭐' },{ id:'mv-encheres',label:'Enchères',icon:'🔨' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-branding',label:'Branding & options',icon:'⚙️' },{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined }], badge: contactNonLus > 0 ? contactNonLus : undefined };
+  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-avis',label:'Avis',icon:'⭐',badge: avisAttente > 0 ? avisAttente : undefined },{ id:'mv-encheres',label:'Enchères',icon:'🔨' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-branding',label:'Branding & options',icon:'⚙️' },{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined }], badge: (contactNonLus + avisAttente) > 0 ? (contactNonLus + avisAttente) : undefined };
 
   // ── Construction du menu selon le template ────────────────────────────────
   let menuItems: MenuItem[];

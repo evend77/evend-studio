@@ -30,6 +30,7 @@ const pool = require('../db');
 const cfgMV = require('../services/studio_config_mv');
 const regCmd = require('../services/studio_regles_commande');
 const rembMV = require('../services/studio_remboursement');
+const avisMV = require('../services/studio_avis');
 const paiementMV = require('../services/studio_paiement');
 const { authenticateToken } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
@@ -292,11 +293,14 @@ router.post('/commandes/:id/avis', h(async (req, res) => {
   if (regCmd.avisExpire(rgAvis, c.rows[0].livree_le)) bad(`Le délai pour donner un avis (${rgAvis.joursAvis} jours après la livraison) est dépassé.`, 409);
   const deja = await pool.query(`SELECT 1 FROM avis_collaborateur WHERE commande_id=$1 AND acheteur_id=$2`, [id, req.aid]);
   if (deja.rows.length) bad('Vous avez déjà donné un avis pour cette commande.', 409);
-  await pool.query(
-    `INSERT INTO avis_collaborateur (gestionnaire_id, collaborateur_id, acheteur_id, commande_id, note, titre, commentaire)
-     VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),NULLIF($7,''))`,
-    [req.gid, c.rows[0].collaborateur_id, req.aid, id, note, titre, commentaire]);
-  res.status(201).json({ success: true });
+  // Publié tout de suite, ou en attente d'approbation (Configuration marketplace → Gestion des avis)
+  const auto = await avisMV.approbationAuto(req.gid, c.rows[0].collaborateur_id, pool);
+  const ins = await pool.query(
+    `INSERT INTO avis_collaborateur (gestionnaire_id, collaborateur_id, acheteur_id, commande_id, note, titre, commentaire, approuve)
+     VALUES ($1,$2,$3,$4,$5,NULLIF($6,''),NULLIF($7,''),$8) RETURNING id`,
+    [req.gid, c.rows[0].collaborateur_id, req.aid, id, note, titre, commentaire, auto]);
+  if (auto) avisMV.notifierNouvelAvis(req.gid, ins.rows[0].id, pool);   // en arrière-plan : ne ralentit pas l'acheteur
+  res.status(201).json({ success: true, en_attente: !auto, message_acheteur: auto ? undefined : 'Merci ! Votre avis sera publié après approbation.' });
 }));
 
 // ════════════════════════════════════════════════════════════════════════════
