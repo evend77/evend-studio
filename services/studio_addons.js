@@ -18,6 +18,8 @@ class ErreurAddon extends Error {
 }
 
 const TEMPLATE_MV = 'multivendeur-premium';
+// Identifiants possibles du template MV dans la table `sites` (le site peut être enregistré avec ou sans tiret).
+const SITE_TEMPLATES_MV = ['multivendeur-premium', 'multi-vendeur-premium'];
 
 // ── Add-ons « anciens » : activation conservée dans options_gestionnaire (une colonne booléenne par add-on) ──
 // code options_studio → colonne. Les autres pages (Branding & options des autres templates, vérif. d'âge, popup…) continuent
@@ -299,7 +301,7 @@ async function resumeFacturationMV(gid) {
 }
 
 module.exports = {
-  ErreurAddon, TEMPLATE_MV,
+  ErreurAddon, TEMPLATE_MV, SITE_TEMPLATES_MV,
   listerPlansMV, forfaitMV, forfaitInclut, listerCatalogue,
   etatAddonsMV, addonActif, addonActifRapide,
   activerAddon, desactiverAddon, changerForfaitMV, resumeFacturationMV,

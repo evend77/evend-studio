@@ -61,6 +61,18 @@ async function codesAddonsValides(liste) {
   return r.rows.map(x => x.code);
 }
 
+// ════════════════════════ PUBLIC (pied de page de la marketplace) ═════════════
+
+// Badge « Propulsé par e-Vend Studio » : masqué seulement si l'add-on « Cacher le branding » est actif
+// (kill switch ouvert + inclus au forfait ou acheté). Lecture seule, sans donnée sensible.
+router.get('/public/:gid/branding', h(async (req, res) => {
+  const gid = parseInt(req.params.gid, 10);
+  if (!Number.isInteger(gid) || gid <= 0) return res.status(400).json({ error: 'Identifiant invalide.' });
+  const masque = await addons.addonActif(gid, 'badge_evend_masquer');
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json({ badge_masque: masque });
+}));
+
 // ════════════════════════ GESTIONNAIRE ════════════════════════════════════════
 
 router.get('/mv/plans', authenticateToken, gestionnaire, h(async (req, res) => {
@@ -73,7 +85,7 @@ router.get('/mv/mon-forfait', authenticateToken, gestionnaire, h(async (req, res
     addons.etatAddonsMV(req.gid),
     addons.resumeFacturationMV(req.gid),
     addons.listerPlansMV({ actifSeulement: true }),
-    pool.query('SELECT 1 FROM sites WHERE gestionnaire_id = $1 AND template_id = $2 LIMIT 1', [req.gid, addons.TEMPLATE_MV]),
+    pool.query('SELECT 1 FROM sites WHERE gestionnaire_id = $1 AND template_id = ANY($2::text[]) LIMIT 1', [req.gid, addons.SITE_TEMPLATES_MV]),
   ]);
   // est_mv : seuls les gestionnaires dont le site utilise le template multi-vendeur ont un forfait MV à afficher dans « Mes services »
   res.json({ est_mv: site.rowCount > 0, forfait: etat.forfait, addons: etat.addons, lignes: resume.addons, plans, total_ht: resume.total_ht });
@@ -253,9 +265,9 @@ router.get('/admin/mv/gestionnaires', ...admin, h(async (req, res) => {
   const g = await pool.query(
     `SELECT g.id, g.nom, g.email, g.nom_boutique, g.plan, g.statut
        FROM gestionnaires g
-      WHERE EXISTS (SELECT 1 FROM sites s WHERE s.gestionnaire_id = g.id AND s.template_id = $1)
+      WHERE EXISTS (SELECT 1 FROM sites s WHERE s.gestionnaire_id = g.id AND s.template_id = ANY($1::text[]))
       ORDER BY g.id DESC LIMIT 500`,
-    [addons.TEMPLATE_MV]
+    [addons.SITE_TEMPLATES_MV]
   );
   const out = [];
   for (const row of g.rows) {

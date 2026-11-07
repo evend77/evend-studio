@@ -66,6 +66,9 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
   const [documents, setDocuments] = useState<LienPage[]>([]);
   const [politiques, setPolitiques] = useState<LienPage[]>([]);
   const [dropdownOuvert, setDropdownOuvert] = useState(false);
+  // Badge « Propulsé par e-Vend Studio » : affiché partout, sauf si l'add-on « Cacher le branding » est actif.
+  // null = pas encore su (rien d'affiché pour ne pas faire clignoter le badge chez ceux qui l'ont masqué).
+  const [badgeMasque, setBadgeMasque] = useState<boolean | null>(isDemo ? false : null);
 
   const mv = config?.multivendeur || {};
   const reseauxActifs = RESEAUX
@@ -104,6 +107,18 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
     return () => { actif = false; };
   }, [gId, isDemo, veutDocuments, veutPolitiques]);
 
+  useEffect(() => {
+    if (isDemo || !gId) return;
+    let actif = true;
+    fetch(`${API_BASE}/studio-forfaits/public/${gId}/branding`)
+      .then(r => (r.ok ? r.json() : { badge_masque: false }))
+      .then(d => { if (actif) setBadgeMasque(d?.badge_masque === true); })
+      .catch(() => { if (actif) setBadgeMasque(false); });
+    return () => { actif = false; };
+  }, [gId, isDemo]);
+
+  const afficherBadge = badgeMasque === false;
+
   const ouvrirPolitique = (slug: string) => {
     setDropdownOuvert(false);
     naviguer({ page: 'politique', politiqueSlug: slug });
@@ -115,11 +130,13 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
         .mvf-link:hover { color:#fff !important; }
         .mvf-reseau:hover { background:rgba(255,255,255,0.16) !important; color:#fff !important; }
         .mvf-pol-item:hover { background:rgba(255,255,255,0.08) !important; color:#fff !important; }
+        .mvf-badge:hover { color:rgba(255,255,255,0.7) !important; }
         @media(max-width:640px){
           .mvf-inner { flex-direction:column !important; align-items:flex-start !important; gap:20px !important; }
           .mvf-links { flex-wrap:wrap !important; gap:16px !important; }
           .mvf-bande-inner { grid-template-columns:1fr !important; justify-items:center !important; text-align:center !important; }
           .mvf-espace { display:none !important; }
+          .mvf-badge { justify-self:center !important; }
         }
       `}</style>
       <div className="mvf-inner" style={s.inner}>
@@ -176,7 +193,7 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
       </div>
 
       {/* Bande du bas : texte du footer à gauche, réseaux sociaux au centre */}
-      {(texteFooter || reseauxActifs.length > 0) && (
+      {(texteFooter || reseauxActifs.length > 0 || afficherBadge) && (
         <div className="mvf-bande" style={s.bande}>
           <div className="mvf-bande-inner" style={s.bandeInner}>
             <span className="mvf-texte" style={s.texte}>{texteFooter}</span>
@@ -189,7 +206,9 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
                 ))}
               </div>
             )}
-            <span className="mvf-espace" />
+            {afficherBadge
+              ? <a className="mvf-badge" href="https://e-vendstudio.ca" target="_blank" rel="noopener noreferrer" style={s.badge}>Propulsé par e-Vend Studio</a>
+              : <span className="mvf-espace" />}
           </div>
         </div>
       )}
@@ -209,5 +228,6 @@ const s: Record<string, React.CSSProperties> = {
   link:     { color: 'rgba(255,255,255,0.4)', fontSize: 14, cursor: 'pointer', transition: 'color 0.2s' },
   bande:    { maxWidth: 1280, margin: '28px auto 0', padding: '20px 24px 0', borderTop: '1px solid rgba(255,255,255,0.06)' },
   bandeInner: { display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: 16 },
+  badge:    { fontSize: 13, color: 'rgba(255,255,255,0.35)', justifySelf: 'end', textDecoration: 'none', transition: 'color 0.2s' },
   texte:    { fontSize: 13, color: 'rgba(255,255,255,0.35)', justifySelf: 'start' },
 };
