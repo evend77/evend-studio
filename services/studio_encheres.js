@@ -10,6 +10,7 @@
 'use strict';
 
 const pool = require('../db');
+const vacances = require('./studio_vacances');
 const { ajusterStock } = require('./studio_paiement');
 
 class ErreurEnchere extends Error { constructor(m, s) { super(m); this.status = s || 400; } }
@@ -53,6 +54,7 @@ const prochaineMise = (e) => (e.mise_actuelle === null || e.mise_actuelle === un
 async function creerEnchere({ gid, collaborateurId, produitId, prixDepart, prixReserve, dureeH }) {
   const cfg = await reglages(gid);
   if (!cfg.actives) refus("Les enchères ne sont pas activées sur cette boutique.", 403);
+  if (await vacances.estMasque(pool, gid, collaborateurId)) refus("Vous êtes en vacances (annonces masquées) : vous ne pouvez pas créer de nouvelle enchère. Celles en cours se terminent normalement.", 409);
 
   const depart = arrondi(nombre(prixDepart, NaN));
   if (!(depart > 0) || depart > MISE_MAX) refus('Prix de départ invalide.');

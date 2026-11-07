@@ -200,6 +200,8 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
   const [methodesExpedition, setMethodesExpedition] = useState<MethodeExpedition[]>([]);
   // Le vendeur ne livre pas dans la province de l'adresse choisie : on bloque le paiement (jamais de livraison gratuite par erreur)
   const [expeditionIndisponible, setExpeditionIndisponible] = useState(false);
+  const [vacances, setVacances] = useState<{ mode: 'visible' | 'masque'; message: string; retour: string | null } | null>(null);
+  const [achatBloque, setAchatBloque] = useState(false);
   const [pourboire, setPourboire] = useState(0);
   const [pourboireCustom, setPourboireCustom] = useState('');
   const [modePaiement, setModePaiement] = useState<'stripe' | 'paypal' | null>(null);
@@ -274,6 +276,8 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
       }));
       setMethodesExpedition(methodes);
       setExpeditionIndisponible(data.expedition_indisponible === true);
+      setVacances(data.vacances || null);
+      setAchatBloque(data.achat_bloque === true);
       // ✅ Sélectionner automatiquement la 1ère méthode (souvent free shipping)
       if (methodes.length > 0) setExpedition(methodes[0].id);
       const vendeurData = data.vendeur || null;
@@ -317,6 +321,8 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
       }));
       setMethodesExpedition(methodes);
       setExpeditionIndisponible(data.expedition_indisponible === true);
+      setVacances(data.vacances || null);
+      setAchatBloque(data.achat_bloque === true);
       if (methodes.length === 0) setExpedition(null);
       // Garder la méthode sélectionnée si elle existe encore, sinon prendre la première
       if (methodes.length > 0) {
@@ -514,7 +520,7 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
   const aucunPaiement = vendeur && !vendeur.stripe_actif && !vendeur.paypal_actif;
   // Les taxes sont indicatives seulement — Stripe les recalcule côté vendeur
   // Produit numérique : l'adresse de livraison n'est pas obligatoire
-  const peutPayer = modePaiement !== null && !aucunPaiement
+  const peutPayer = modePaiement !== null && !aucunPaiement && !achatBloque
     && (tousNumeriques || adresseLivraison !== null)
     && (tousNumeriques || (!expeditionIndisponible && (methodesExpedition.length === 0 || expedition !== null)));
 
@@ -673,6 +679,14 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                 {vendeur.ville && <p style={{ fontSize: '12px', color: C.textMuted, margin: '2px 0 0' }}>📍 {vendeur.ville}</p>}
               </div>
               <div style={s.vendeurBadge}>✓ Vendeur vérifié</div>
+            </div>
+          )}
+
+          {vacances && (
+            <div style={{ padding: '12px 16px', borderRadius: '12px', background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.4)', color: '#fcd34d', fontSize: '14px', lineHeight: 1.5, marginBottom: '16px' }}>
+              <strong>🌴 Vendeur en vacances{vacances.retour ? ` — de retour le ${new Date(`${vacances.retour}T12:00:00`).toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}</strong><br />
+              <span style={{ color: 'rgba(255,255,255,0.8)' }}>{vacances.message}</span>
+              {achatBloque && <><br /><span style={{ color: '#fff', fontWeight: 600 }}>Les achats sont fermés pendant cette période : retirez ces articles du panier. (Une enchère déjà gagnée reste payable.)</span></>}
             </div>
           )}
 
@@ -1300,6 +1314,8 @@ export default function Checkout({ naviguer, vendeurId, gestionnaireId = 0, conf
                 <><div style={{ ...s.spinner, width: '16px', height: '16px', borderWidth: '2px', borderTopColor: '#fff' }} /> Traitement...</>
               ) : aucunPaiement ? (
                 <>⚠️ Paiement indisponible</>
+              ) : achatBloque ? (
+                <>🌴 Boutique en vacances : achat fermé</>
               ) : !modePaiement ? (
                 <>🔒 Choisir un mode de paiement</>
               ) : !adresseLivraison ? (

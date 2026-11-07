@@ -13,6 +13,7 @@
 
 const Stripe = require('stripe');
 const pool = require('../db');
+const vacances = require('./studio_vacances');
 const { dechiffrer } = require('../src/utils/chiffrement');
 const promo = require('./studio_promo');
 const taxesMV = require('./studio_taxes');
@@ -184,6 +185,10 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       `SELECT * FROM marketplace_panier WHERE acheteur_id = $1 AND gestionnaire_id = $2 AND collaborateur_id = $3 ORDER BY created_at ASC`,
       [acheteurId, gid, collaborateurId])).rows;
     if (!panier.length) refus('Votre panier est vide.', 404);
+
+    // Vendeur en vacances avec annonces masquées : plus d'achat direct (le paiement d'une enchère déjà gagnée reste permis)
+    const vacs = await vacances.etat(client, gid, collaborateurId);
+    if (vacs && vacs.mode === 'masque' && panier.some((l) => !l.enchere_id)) refus(vacances.texteBlocage(vacs), 409);
 
     // Taxe : décidée ici seulement (collaborateur inscrit aux taxes ET catégorie taxable) — jamais par le navigateur
     const taxMap = await taxesMV.taxabilite(client, gid, panier.map((l) => l.produit_id));

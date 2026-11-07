@@ -83,11 +83,16 @@ router.get('/', authenticateToken, async (req, res) => {
          NULL::text         AS description,
          c.created_at,
          c.created_at       AS updated_at,
-         COUNT(n.id)::int   AS nb_notes
+         COUNT(n.id)::int   AS nb_notes,
+         (cv.vacances IS TRUE AND (cv.vacances_debut IS NULL OR cv.vacances_debut <= (NOW() AT TIME ZONE 'America/Toronto')::date)
+           AND (cv.vacances_retour IS NULL OR cv.vacances_retour > (NOW() AT TIME ZONE 'America/Toronto')::date)) AS en_vacances,
+         cv.vacances_mode,
+         cv.vacances_retour::text AS vacances_retour
        FROM marketplace_collaborateurs c
+       LEFT JOIN collaborateur_config cv ON cv.collaborateur_id = c.id
        LEFT JOIN notes_collaborateur n ON n.collaborateur_id = c.id
        WHERE c.gestionnaire_id = $1
-       GROUP BY c.id
+       GROUP BY c.id, cv.collaborateur_id
        ORDER BY c.created_at DESC`,
       [gid]
     );

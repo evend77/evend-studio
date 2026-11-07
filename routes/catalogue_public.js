@@ -17,6 +17,7 @@ const express = require('express');
 const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 
+const vac = require('../services/studio_vacances');
 const router = express.Router();
 
 function entier(v) {
@@ -28,13 +29,15 @@ const COLS = `p.id, p.titre, p.description, p.prix, p.prix_promo, p.stock, p.cat
   p.created_at, p.collaborateur_id, p.variantes,
   COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.ville AS vendeur_ville, mc.politique_livraison, mc.politique_retour,
   p.categorie_id, COALESCE(sc.nom, cp.label) AS categorie_nom, sg.nom AS groupe_nom,
-  (mc.inscrit_taxes IS TRUE AND COALESCE(sc.taxable, true)) AS facturation_taxes`;
+  (mc.inscrit_taxes IS TRUE AND COALESCE(sc.taxable, true)) AS facturation_taxes, ${vac.VAC_COLS}`;
 const FROM = `FROM produits p
   JOIN marketplace_collaborateurs mc ON mc.id = p.collaborateur_id AND mc.statut = 'actif'
+  ${vac.VAC_JOIN}
   LEFT JOIN categories_pub cp ON cp.cle = p.categorie
   LEFT JOIN studio_categories sc ON sc.id = p.categorie_id
   LEFT JOIN studio_groupes_categories sg ON sg.id = sc.groupe_id`;
-const FILTRE = `p.gestionnaire_id = $1 AND p.statut = 'actif' AND p.collaborateur_id IS NOT NULL`;
+// Les boutiques en vacances « annonces masquées » ne sortent ni dans les listes, ni dans la recherche, ni dans les produits similaires
+const FILTRE = `p.gestionnaire_id = $1 AND p.statut = 'actif' AND p.collaborateur_id IS NOT NULL AND NOT ${vac.VAC_MASQUE}`;
 
 // Variantes saisies par le collaborateur : [{ nom, prix (vide = prix du produit), stock (vide = stock du produit) }]
 function formaterVariantes(r, stockProduit) {
@@ -79,6 +82,7 @@ function formater(r) {
     statut: 'actif',
     created_at: r.created_at,
     variantes: formaterVariantes(r, r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0)),
+    vacances: vac.publicDe(r), // { mode, message, retour } si le vendeur est en vacances, sinon null
   };
 }
 
@@ -156,7 +160,7 @@ boutiques.get('/:gestionnaireId/boutiques', async (req, res) => {
     const gid = entier(req.params.gestionnaireId);
     if (!gid) return res.json({ boutiques: [] });
     const params = [gid];
-    let where = `mc.gestionnaire_id = $1 AND mc.statut = 'actif'`;
+    let where = `mc.gestionnaire_id = $1 AND mc.statut = 'actif' AND NOT ${vac.VAC_MASQUE}`;
     const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
     if (q) { params.push('%' + q.replace(/[\\%_]/g, '\\$&') + '%'); where += ` AND (COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) ILIKE $${params.length} OR mc.description_boutique ILIKE $${params.length})`; }
     const limite = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
@@ -167,11 +171,12 @@ boutiques.get('/:gestionnaireId/boutiques', async (req, res) => {
          SELECT mc.id, COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.logo_url AS logo,
                 mc.description_boutique, mc.ville, mc.province, mc.created_at,
                 (SELECT COUNT(*) FROM produits p WHERE p.collaborateur_id = mc.id AND p.statut = 'actif')::int AS nb_produits,
-                COALESCE(ROUND((SELECT AVG(a.note) FROM avis_collaborateur a WHERE a.collaborateur_id = mc.id AND a.approuve) * 20), 0)::int AS points_confiance
-           FROM marketplace_collaborateurs mc WHERE ${where}
+                COALESCE(ROUND((SELECT AVG(a.note) FROM avis_collaborateur a WHERE a.collaborateur_id = mc.id AND a.approuve) * 20), 0)::int AS points_confiance,
+                ${vac.VAC_ACTIF} AS en_vacances
+           FROM marketplace_collaborateurs mc ${vac.VAC_JOIN} WHERE ${where}
        ) b ORDER BY ${tri} LIMIT ${limite} OFFSET ${(page - 1) * limite}`, params);
     let total = r.rows.length ? r.rows[0].total_lignes : 0;
-    if (!r.rows.length && page > 1) total = (await pool.query(`SELECT COUNT(*)::int AS n FROM marketplace_collaborateurs mc WHERE ${where}`, params)).rows[0].n;
+    if (!r.rows.length && page > 1) total = (await pool.query(`SELECT COUNT(*)::int AS n FROM marketplace_collaborateurs mc ${vac.VAC_JOIN} WHERE ${where}`, params)).rows[0].n;
     res.json({ boutiques: r.rows.map(({ total_lignes, ...b }) => b), pagination: { total, page, limit: limite, pages: Math.max(1, Math.ceil(total / limite)) } });
   } catch (e) {
     console.error('[catalogue_public] boutiques', e.message);
@@ -187,8 +192,9 @@ async function boutiqueActive(gid, cid) {
             (SELECT COUNT(*) FROM produits p WHERE p.collaborateur_id = mc.id AND p.statut = 'actif')::int AS nb_produits,
             (SELECT COALESCE(SUM(CASE WHEN (e->>'quantite') ~ '^[0-9]{1,6}$' THEN (e->>'quantite')::int ELSE 1 END), 0)::int
                FROM marketplace_commandes c, jsonb_array_elements(CASE WHEN jsonb_typeof(c.articles) = 'array' THEN c.articles ELSE '[]'::jsonb END) e
-              WHERE c.collaborateur_id = mc.id AND c.statut_paiement = 'paye' AND c.statut <> 'annulee') AS nb_vendus
-       FROM marketplace_collaborateurs mc WHERE mc.id = $1 AND mc.gestionnaire_id = $2 AND mc.statut = 'actif'`, [cid, gid]);
+              WHERE c.collaborateur_id = mc.id AND c.statut_paiement = 'paye' AND c.statut <> 'annulee') AS nb_vendus,
+            ${vac.VAC_COLS}
+       FROM marketplace_collaborateurs mc ${vac.VAC_JOIN} WHERE mc.id = $1 AND mc.gestionnaire_id = $2 AND mc.statut = 'actif'`, [cid, gid]);
   return r.rows[0] || null;
 }
 
@@ -216,6 +222,7 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId', async (req, res) =>
       description_longue: desc, ville: b.ville, province: b.province,
       logo_url: b.logo_url, banniere_url: b.banniere_url, details,
       nb_produits: b.nb_produits, nb_vendus: b.nb_vendus, date_inscription: b.created_at,
+      vacances: vac.publicDe(b),
     });
   } catch (e) {
     console.error('[catalogue_public] boutique', e.message);

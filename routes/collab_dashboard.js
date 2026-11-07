@@ -18,6 +18,7 @@ const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 const paiementMV = require('../services/studio_paiement');
 const expMV = require('../services/studio_expedition');
+const vacMV = require('../services/studio_vacances');
 
 const router = express.Router({ mergeParams: true });
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -818,15 +819,17 @@ router.put('/boutique', h(async (req, res) => {
 // ════════════════════════════════════════════════════════════════════════════
 
 const DEFAUT_CONFIG = {
-  vacances: false, vacances_message: '', vacances_retour: null, delai_traitement_jours: 2,
+  vacances: false, vacances_message: '', vacances_debut: null, vacances_retour: null, vacances_mode: 'visible', delai_traitement_jours: 2,
   notif_commande: true, notif_message: true, notif_avis: true, message_remerciement: '',
 };
 
 router.get('/configuration', h(async (req, res) => {
   const r = await pool.query(
-    `SELECT vacances, vacances_message, vacances_retour::text AS vacances_retour, delai_traitement_jours, notif_commande, notif_message, notif_avis, message_remerciement
+    `SELECT vacances, vacances_message, vacances_debut::text AS vacances_debut, vacances_retour::text AS vacances_retour, vacances_mode,
+            delai_traitement_jours, notif_commande, notif_message, notif_avis, message_remerciement
        FROM collaborateur_config WHERE collaborateur_id=$1 AND gestionnaire_id=$2`, [req.cid, req.gid]);
-  res.json(r.rows[0] || DEFAUT_CONFIG);
+  const [permises, actuel] = await Promise.all([vacMV.permisParGestionnaire(pool, req.gid), vacMV.etat(pool, req.gid, req.cid)]);
+  res.json({ ...(r.rows[0] || DEFAUT_CONFIG), vacances_permises: permises, vacances_actif_maintenant: !!actuel, vacances_message_defaut: vacMV.MESSAGE_DEFAUT });
 }));
 
 router.put('/configuration', h(async (req, res) => {
@@ -834,19 +837,29 @@ router.put('/configuration', h(async (req, res) => {
   const bool = (v, nom) => { if (typeof v !== 'boolean') bad(`${nom} invalide`); return v; };
   const vacances = bool(b.vacances, 'Vacances');
   const message = texte(b.vacances_message, 'Message de vacances', 300);
+  const debut = dateISO(b.vacances_debut, 'Date de début');
   const retour = dateISO(b.vacances_retour, 'Date de retour');
+  const modeVac = b.vacances_mode === undefined ? 'visible' : b.vacances_mode;
+  if (modeVac !== 'visible' && modeVac !== 'masque') bad('Choix de mode vacances invalide');
+  if (vacances) {
+    if (!(await vacMV.permisParGestionnaire(pool, req.gid))) bad("Le mode vacances n'est pas activé par le gestionnaire de cette boutique.", 403);
+    if (debut && retour && retour <= debut) bad('La date de retour doit être après la date de début');
+    const auj = (await pool.query(`SELECT (NOW() AT TIME ZONE '${vacMV.FUSEAU}')::date::text AS d`)).rows[0].d;
+    if (retour && retour <= auj) bad('La date de retour est déjà passée');
+  }
   const delai = Math.trunc(nombre(b.delai_traitement_jours, 'Délai de traitement', 0, 30));
   const remerciement = texte(b.message_remerciement, 'Message de remerciement', 500);
   await pool.query(
     `INSERT INTO collaborateur_config (collaborateur_id, gestionnaire_id, vacances, vacances_message, vacances_retour,
-            delai_traitement_jours, notif_commande, notif_message, notif_avis, message_remerciement, updated_at)
-     VALUES ($1,$2,$3,NULLIF($4,''),$5,$6,$7,$8,$9,NULLIF($10,''),NOW())
+            delai_traitement_jours, notif_commande, notif_message, notif_avis, message_remerciement, vacances_debut, vacances_mode, updated_at)
+     VALUES ($1,$2,$3,NULLIF($4,''),$5,$6,$7,$8,$9,NULLIF($10,''),$11,$12,NOW())
      ON CONFLICT (collaborateur_id) DO UPDATE SET vacances=EXCLUDED.vacances, vacances_message=EXCLUDED.vacances_message,
-            vacances_retour=EXCLUDED.vacances_retour, delai_traitement_jours=EXCLUDED.delai_traitement_jours,
+            vacances_retour=EXCLUDED.vacances_retour, vacances_debut=EXCLUDED.vacances_debut, vacances_mode=EXCLUDED.vacances_mode,
+            delai_traitement_jours=EXCLUDED.delai_traitement_jours,
             notif_commande=EXCLUDED.notif_commande, notif_message=EXCLUDED.notif_message, notif_avis=EXCLUDED.notif_avis,
             message_remerciement=EXCLUDED.message_remerciement, updated_at=NOW()`,
     [req.cid, req.gid, vacances, message, retour, delai, bool(b.notif_commande, 'Notification commande'),
-     bool(b.notif_message, 'Notification message'), bool(b.notif_avis, 'Notification avis'), remerciement]);
+     bool(b.notif_message, 'Notification message'), bool(b.notif_avis, 'Notification avis'), remerciement, debut, modeVac]);
   res.json({ success: true });
 }));
 

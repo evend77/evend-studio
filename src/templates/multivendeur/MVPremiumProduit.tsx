@@ -67,6 +67,7 @@ interface Produit {
   garantie?: string;
   retour_offert?: string;
   lien_youtube?: string;
+  vacances?: { mode: 'visible' | 'masque'; message: string; retour: string | null } | null;
 }
 
 interface Similaire {
@@ -292,6 +293,12 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               </div>
             )}
 
+            {produit.vacances && (
+            <div style={{ margin: '0 0 16px', padding: '12px 16px', borderRadius: 12, background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.4)', color: '#fcd34d', fontSize: 14, lineHeight: 1.5 }}>
+              <strong>🌴 Boutique en vacances{produit.vacances.retour ? ` — de retour le ${new Date(`${produit.vacances.retour}T12:00:00`).toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' })}` : ''}</strong><br />
+              <span style={{ color: 'rgba(255,255,255,0.8)' }}>{produit.vacances.message}</span>{produit.vacances.mode === 'masque' && <><br /><span style={{ color: '#fff', fontWeight: 600 }}>Les achats directs sont fermés pendant cette période.</span></>}
+            </div>
+      )}
             <h1 className="mvp-titre" style={s.titre}>{produit.nom}</h1>
 
             {/* Prix (avec enchère : affiché sous « Vente directe ») */}
@@ -331,7 +338,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
             <div className="mvp-action">
             {/* Quantité */}
-            {produit.stock > 0 && (
+            {produit.stock > 0 && produit.vacances?.mode !== 'masque' && (
               <div className="mvp-qty" style={{ marginBottom: 20 }}>
                 <label style={s.label}>Quantité</label>
                 <div style={s.qtyRow}>
@@ -343,7 +350,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             )}
 
             {/* Bouton panier */}
-            {!(enchereActive && produit.stock === 0) && <button
+            {!(enchereActive && produit.stock === 0) && produit.vacances?.mode !== 'masque' && <button
               className="mvp-btn-panier"
               onClick={ajouterPanier}
               disabled={ajoutEnCours || produit.stock === 0}

@@ -11,6 +11,7 @@ const paiement = require('../services/studio_paiement');
 const promo = require('../services/studio_promo');
 const taxesMV = require('../services/studio_taxes');
 const expMV = require('../services/studio_expedition');
+const vacMV = require('../services/studio_vacances');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -135,6 +136,10 @@ router.post('/:gid/panier', authMV, async (req, res) => {
 
     const produit = prodRes.rows[0];
     const collaborateurId = produit.collaborateur_id;
+
+    // Vendeur en vacances avec annonces masquées : on n'ajoute rien au panier
+    const vacs = await vacMV.etat(pool, parseInt(gid, 10), collaborateurId);
+    if (vacs && vacs.mode === 'masque') return res.status(409).json({ error: vacMV.texteBlocage(vacs) });
 
     // Prix et stock viennent de la base (jamais du navigateur) ; la variante choisie les remplace si elle en a.
     const choix = prixEtStock(produit, nomVariante);
@@ -320,6 +325,8 @@ router.get('/:gid/checkout/infos', authMV, async (req, res) => {
       gratuiteGlobale = r.gratuite_globale;
     }
 
+    const vacancesCollab = await vacMV.etat(pool, parseInt(gid, 10), parseInt(collaborateur_id, 10));
+
     const peutEncaisser = await paiement.collaborateurPeutEncaisser(parseInt(gid, 10), parseInt(collaborateur_id, 10));
     res.json({
       articles,
@@ -341,6 +348,8 @@ router.get('/:gid/checkout/infos', authMV, async (req, res) => {
       adresses: [],
       methodes_expedition: methodesExpedition,
       expedition_indisponible: expeditionIndisponible,
+      vacances: vacancesCollab,
+      achat_bloque: !!(vacancesCollab && vacancesCollab.mode === 'masque' && panierRes.rows.some((l) => !l.enchere_id)),
       livraison_gratuite_globale: gratuiteGlobale,
     });
   } catch (err) {
