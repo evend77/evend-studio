@@ -1083,7 +1083,7 @@ router.get('/configuration', h(async (req, res) => {
        FROM collaborateur_config WHERE collaborateur_id=$1 AND gestionnaire_id=$2`, [req.cid, req.gid]);
   const [permises, actuel, avisReg] = await Promise.all([vacMV.permisParGestionnaire(pool, req.gid), vacMV.etat(pool, req.gid, req.cid), avisMV.reglagesCollab(req.gid, pool)]);
   res.json({ ...(r.rows[0] || DEFAUT_CONFIG), vacances_permises: permises, vacances_actif_maintenant: !!actuel, vacances_message_defaut: vacMV.MESSAGE_DEFAUT,
-             avis_auto_permis: avisReg.permis, avis_auto_global: avisReg.global });
+             avis_auto_permis: avisReg.permis, avis_auto_global: avisReg.global, avis_addon_actif: await avisMV.addonActif(req.gid, pool) });
 }));
 
 router.put('/configuration', h(async (req, res) => {

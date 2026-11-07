@@ -10,6 +10,7 @@ interface Avis {
   criteres?: { delai_respecte?: boolean | null; communication?: number | null; emballage?: number | null }; photos?: string[];
 }
 interface Reponse {
+  addon_actif?: boolean;
   avis: Avis[]; total: number; page: number; pages: number;
   stats: { moyenne: number; total: number; repartition: Record<string, number> };
 }
@@ -98,6 +99,13 @@ export default function CollaborateurAvis({ gestionnaireId, accent, isMobile }: 
 
   const champ: React.CSSProperties = { border: `1px solid ${T.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, outline: 'none' };
   if (chargement) return <div style={{ padding: 40, textAlign: 'center', color: T.light }}>Chargement…</div>;
+  if (data && data.addon_actif === false) return (
+    <div style={{ padding: 40, textAlign: 'center', color: T.light, maxWidth: 520, margin: '0 auto' }}>
+      <div style={{ fontSize: 40, marginBottom: 8 }}>🔒</div>
+      <div style={{ fontSize: 16, fontWeight: 700, color: T.text, marginBottom: 6 }}>Les avis clients ne sont pas activés</div>
+      <p style={{ fontSize: 13, lineHeight: 1.6, margin: 0 }}>Le gestionnaire de la marketplace n'a pas activé cette fonction. Vos avis existants sont conservés et réapparaîtront dès son activation.</p>
+    </div>
+  );
   const s = data?.stats;
 
   return (

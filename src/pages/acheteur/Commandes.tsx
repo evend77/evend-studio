@@ -69,6 +69,7 @@ function Pastille({ statut }: { statut: string }) {
 export default function Commandes({ gestionnaireId, isMobile = false, couleurAccent = '#fbbf24', onEcrire }: Props) {
   const [liste, setListe] = useState<Commande[]>([]);
   const [loading, setLoading] = useState(true);
+  const [avisActifs, setAvisActifs] = useState(true);   // false = add-on « Avis clients » non actif : pas de bouton d'avis
   const [erreur, setErreur] = useState('');
   const [filtre, setFiltre] = useState('toutes');
   const [recherche, setRecherche] = useState('');
@@ -101,6 +102,7 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
       if (!r.ok) throw new Error(j.error || 'Chargement impossible');
       setListe(j.commandes || []);
       setAvisDetailles(!!j.avis_detailles);
+      setAvisActifs(j.avis_actifs !== false);
       setErreur('');
     } catch (e: any) { setErreur(e.message || 'Erreur réseau'); }
     finally { setLoading(false); }
@@ -269,8 +271,8 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
                       {c.statut === 'expediee' && <button style={bouton(`linear-gradient(135deg,${C.green},#059669)`)} onClick={() => appeler(`/commandes/${c.id}/confirmer-reception`, 'PUT', undefined, '✅ Réception confirmée')} disabled={occupe}>📬 J'ai reçu ma commande</button>}
                       {peutAnnuler && <button style={bouton('linear-gradient(135deg,#ef4444,#dc2626)')} onClick={() => ouvrirModal('annuler', c)}>✖️ Annuler</button>}
                       {peutRetour && <button style={bouton('linear-gradient(135deg,#f59e0b,#d97706)')} onClick={() => ouvrirModal('retour', c)}>🔄 Retour / remboursement</button>}
-                      {c.statut === 'livree' && !c.a_avis && c.avis_expire && <span style={{ fontSize: 12, color: C.textLight, alignSelf: 'center' }}>⭐ Le délai pour donner un avis est dépassé.</span>}
-                      {c.statut === 'livree' && !c.a_avis && !c.avis_expire && <button style={bouton('linear-gradient(135deg,#8b5cf6,#6366f1)')} onClick={() => ouvrirModal('avis', c)}>⭐ Donner un avis</button>}
+                      {avisActifs && c.statut === 'livree' && !c.a_avis && c.avis_expire && <span style={{ fontSize: 12, color: C.textLight, alignSelf: 'center' }}>⭐ Le délai pour donner un avis est dépassé.</span>}
+                      {avisActifs && c.statut === 'livree' && !c.a_avis && !c.avis_expire && <button style={bouton('linear-gradient(135deg,#8b5cf6,#6366f1)')} onClick={() => ouvrirModal('avis', c)}>⭐ Donner un avis</button>}
                       {c.collaborateur_id && onEcrire && <button style={{ ...bouton('rgba(255,255,255,.1)'), border: `1px solid ${C.border}` }} onClick={() => onEcrire(c.collaborateur_id!)}>💬 Écrire au collaborateur</button>}
                     </div>
                   </div>

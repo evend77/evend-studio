@@ -10,7 +10,7 @@ interface Config {
 }
 interface Props { gestionnaireId: number; accent: string; isMobile: boolean; naviguer?: (page: string) => void; }
 interface VacInfo { permises: boolean; actif: boolean; messageDefaut: string; }
-interface AvisInfo { permis: boolean; global: boolean; }
+interface AvisInfo { permis: boolean; global: boolean; addon?: boolean; }
 const T = { border: '#e1e4e8', text: '#1a2332', light: '#6b7280', ok: '#1E8449' };
 
 export default function CollaborateurConfiguration({ gestionnaireId, accent, isMobile, naviguer }: Props) {
@@ -28,7 +28,7 @@ export default function CollaborateurConfiguration({ gestionnaireId, accent, isM
         if (res.ok) {
           const d = await res.json();
           setVac({ permises: d.vacances_permises !== false, actif: !!d.vacances_actif_maintenant, messageDefaut: d.vacances_message_defaut || '' });
-          setAvisInfo({ permis: !!d.avis_auto_permis, global: d.avis_auto_global !== false });
+          setAvisInfo({ permis: !!d.avis_auto_permis, global: d.avis_auto_global !== false, addon: d.avis_addon_actif !== false });
           setC({
             vacances: !!d.vacances, vacances_message: d.vacances_message || d.vacances_message_defaut || '', vacances_retour: d.vacances_retour ? String(d.vacances_retour).slice(0, 10) : '',
             vacances_debut: d.vacances_debut ? String(d.vacances_debut).slice(0, 10) : '', vacances_mode: d.vacances_mode === 'masque' ? 'masque' : 'visible',
@@ -129,7 +129,9 @@ export default function CollaborateurConfiguration({ gestionnaireId, accent, isM
 
       <div style={carte}>
         <h3 style={{ margin: '0 0 8px', fontSize: 15, color: T.text }}>⭐ Avis clients</h3>
-        {avisInfo.global ? (
+        {avisInfo.addon === false ? (
+          <p style={{ fontSize: 13, color: T.light, margin: 0 }}>🔒 Add-on non activé — le gestionnaire de la marketplace n'a pas activé les avis clients.</p>
+        ) : avisInfo.global ? (
           <p style={{ fontSize: 13, color: T.light, margin: 0 }}>Les avis de vos clients sont publiés dès qu'ils sont envoyés.</p>
         ) : avisInfo.permis ? (
           <div>
