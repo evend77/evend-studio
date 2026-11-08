@@ -20,6 +20,7 @@ const express = require('express');
 const pool = require('../db');
 const auth = require('../middleware/auth');
 const addons = require('../services/studio_addons');
+const parution = require('../services/studio_parution');
 
 const router = express.Router();
 const { authenticateToken } = auth;
@@ -80,10 +81,40 @@ router.get('/public/:gid/addons', h(async (req, res) => {
   const { addons: liste } = await addons.etatAddonsMV(gid);
   const actif = (code) => liste.some(a => a.code === code && a.actif_pour_gestionnaire);
   res.set('Cache-Control', 'public, max-age=60');
-  res.json({ badge_masque: actif('badge_evend_masquer'), verificateur_age: actif('verificateur_age'), popup_annonce: actif('popup_annonce') });
+  // Enchères : « encheres » = add-on actif (on peut en créer) ; « encheres_visibles » = add-on actif OU enchère encore en cours (lien et page restent visibles pour les terminer)
+  let enCours = false;
+  try { enCours = (await pool.query(`SELECT 1 FROM encheres WHERE gestionnaire_id = $1 AND statut IN ('active','attente_paiement') LIMIT 1`, [gid])).rowCount > 0; } catch (e) { enCours = false; }
+  res.json({ badge_masque: actif('badge_evend_masquer'), verificateur_age: actif('verificateur_age'), popup_annonce: actif('popup_annonce'),
+             encheres: actif('encheres'), encheres_visibles: actif('encheres') || enCours, parution_future: actif('parution_future') });
+}));
+
+// Apparence du compte à rebours « Parution future » pour cette marketplace (plateforme + réglages du gestionnaire)
+router.get('/public/:gid/parution-config', h(async (req, res) => {
+  const gid = parseInt(req.params.gid, 10);
+  if (!Number.isInteger(gid) || gid <= 0) return res.status(400).json({ error: 'Identifiant invalide.' });
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json({ success: true, config: await parution.configPour(gid) });
 }));
 
 // ════════════════════════ GESTIONNAIRE ════════════════════════════════════════
+
+// Parution future : apparence du compte à rebours de MA marketplace (add-on requis pour enregistrer)
+router.get('/mv/parution-config', authenticateToken, gestionnaire, h(async (req, res) => {
+  const [base, perso] = await Promise.all([parution.configGlobale(), parution.surchargeGestionnaire(req.gid)]);
+  res.json({ success: true, base, config: { ...base, ...parution.nettoyer(perso) }, personnalisee: Object.keys(parution.nettoyer(perso)).length > 0,
+             addon_actif: await addons.addonActifRapide(req.gid, 'parution_future', pool) });
+}));
+
+router.put('/mv/parution-config', authenticateToken, gestionnaire, h(async (req, res) => {
+  if (!(await addons.addonActifRapide(req.gid, 'parution_future', pool))) return res.status(403).json({ error: "L'option « Parution future » n'est pas activée." });
+  const c = await parution.sauverGestionnaire(req.gid, req.body);
+  res.json({ success: true, config: { ...(await parution.configGlobale()), ...c } });
+}));
+
+router.delete('/mv/parution-config', authenticateToken, gestionnaire, h(async (req, res) => {
+  await parution.reinitialiserGestionnaire(req.gid);
+  res.json({ success: true });
+}));
 
 router.get('/mv/plans', authenticateToken, gestionnaire, h(async (req, res) => {
   res.json({ plans: await addons.listerPlansMV({ actifSeulement: true }) });

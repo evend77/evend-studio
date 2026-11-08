@@ -61,6 +61,7 @@ import ConfigVerificateurAge        from './pages/gestionnaire/ConfigVerificateu
 import ConfigFormulaireContact      from './pages/gestionnaire/ConfigFormulaireContact';
 import MessagerieFormulaireContact  from './pages/gestionnaire/MessagerieFormulaireContact';
 import ConfigPopupAnnonce           from './pages/gestionnaire/ConfigPopupAnnonce';
+import StudioConfigParutionFutur   from './pages/gestionnaire/StudioConfigParutionFutur';
 import MVPremiumPlan               from './pages/gestionnaire/MVPremiumPlan';
 import ConfigMultiVendeurPremium   from './pages/gestionnaire/ConfigMultiVendeurPremium';
 
@@ -523,6 +524,18 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   };
   useEffect(() => { rechargerOptions(); }, [gestionnaire?.id]);
 
+  // Add-ons Multi-vendeur qui ajoutent une entrée de menu (Parution future) : actifs = activés ou inclus au forfait.
+  const [addonsMV, setAddonsMV] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!gestionnaire?.id) return;
+    let actif = true;
+    fetch(`${API_BASE}/studio-forfaits/public/${gestionnaire.id}/addons?t=${Date.now()}`)
+      .then(r => (r.ok ? r.json() : {}))
+      .then((d: any) => { if (actif && d) setAddonsMV(d); })
+      .catch(() => {});
+    return () => { actif = false; };
+  }, [gestionnaire?.id, pageActive]);
+
   useEffect(() => {
     if (gestionnaireUser) setGestionnaire(gestionnaireUser);
   }, [gestionnaireUser]);
@@ -638,6 +651,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const itemCookies: SousMenuItem    = { id: 'studio-cookies-site',    label: 'Gestion des cookies',   icon: '🍪' };
   const itemVerificateurAge = { id:'config-verificateur-age', label:'Vérificateur d\'âge 🔞', icon:'🔞' };
   const itemPopupAnnonce    = { id:'config-popup-annonce',    label:'Popup Annonce 📢',          icon:'📢' };
+  const itemParutionFutur   = { id:'config-parution-futur',   label:'Parution future 📅',        icon:'📅' };
   const itemPhotos: SousMenuItem     = { id: 'studio-photos-vendeur',   label: 'Mes photos de site',    icon: '🖼️' };
   const itemFormulaireContact = { id: 'config-formulaire-contact', label: 'Formulaire de contact', icon: '📋' };
   const itemConfigGenerale: SousMenuItem = { id: 'config-generale',     label: 'Config générale',    icon: '⚙️' };
@@ -842,7 +856,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuVosAnnoncesBeaute: MenuItem = { id:'annonces',label:'VOS PRODUITS',icon:'💄',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigBeaute: MenuItem = { id:'config-beaute',label:'CONFIG MES PAGES',icon:'💄',sousMenu:[{ id:'beaute-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'beaute-plan',label:'Mon plan & limites',icon:'📊' },{ id:'beaute-branding',label:'Branding & options',icon:'⚙️' }] };
   const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
-  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-avis',label:'Avis',icon:'⭐',badge: avisAttente > 0 ? avisAttente : undefined },{ id:'mv-encheres',label:'Enchères',icon:'🔨' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' }, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined }], badge: (contactNonLus + avisAttente) > 0 ? (contactNonLus + avisAttente) : undefined };
+  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-avis',label:'Avis',icon:'⭐',badge: avisAttente > 0 ? avisAttente : undefined },{ id:'mv-encheres',label:'Enchères',icon:'🔨' },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' }, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []), ...(addonsMV.parution_future ? [itemParutionFutur] : []),{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined }], badge: (contactNonLus + avisAttente) > 0 ? (contactNonLus + avisAttente) : undefined };
 
   // ── Construction du menu selon le template ────────────────────────────────
   let menuItems: MenuItem[];
@@ -1610,6 +1624,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'studio-cookies-site')   return <StudioCookiesSite   gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-verificateur-age') return <ConfigVerificateurAge gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-popup-annonce') return <ConfigPopupAnnonce gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'config-parution-futur') return <StudioConfigParutionFutur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-formulaire-contact') return <ConfigFormulaireContact gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-photos-vendeur') return <StudioGestionPhotosVendeur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-generale')       return <StudioConfigGenerale      gestionnaireId={gestionnaire.id} />;

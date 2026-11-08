@@ -125,7 +125,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   const [enchereActive, setEnchereActive] = useState(false); // vrai : produit en vente aux enchères (pas d'achat direct)
   const [rechargement, setRechargement] = useState(0);
   const [venteOuverte, setVenteOuverte] = useState(false);   // Parution future : le compte à rebours vient de finir
-  const cfgParution = useConfigParution();
+  const cfgParution = useConfigParution(gId);
   const [avisResume, setAvisResume] = useState<{ total: number; moyenne: number } | null>(null);   // avis publiés sur cette annonce
   // Options d'expédition choisies par le collaborateur pour cette annonce (affichées aussi pendant une enchère)
   const [methodesExp, setMethodesExp] = useState<any[]>([]);
@@ -324,7 +324,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
             {/* Parution future : compte à rebours (heure du serveur) */}
             {produit.date_parution && (
-              <MVParutionCountdown dateParution={produit.date_parution} heureServeur={produit.heure_serveur}
+              <MVParutionCountdown dateParution={produit.date_parution} gestionnaireId={gId} heureServeur={produit.heure_serveur}
                 onOuvert={() => { setVenteOuverte(true); setTimeout(() => setRechargement(n => n + 1), 1500); }} />
             )}
 

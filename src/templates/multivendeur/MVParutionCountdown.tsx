@@ -1,7 +1,7 @@
 // CHEMIN : src/templates/multivendeur/MVParutionCountdown.tsx
 // e-Vend Studio — Add-on « Parution future » : compte à rebours d'une annonce pas encore en vente.
 // Basé sur l'heure du SERVEUR (heureServeur) : changer l'horloge de l'ordinateur ne débloque rien.
-// Apparence/textes : Admin Studio → Configuration date futur (GET public /api/admin/configuration/parution-futur).
+// Apparence/textes : réglages du gestionnaire (Parution future dans son menu), sinon Admin Studio → Configuration date futur.
 
 import { useEffect, useState } from 'react';
 
@@ -12,7 +12,7 @@ export interface ConfigParution {
   masquer_timezone_mobile: boolean; texte_titre: string; texte_date_prefix: string; texte_timezone: string; texte_seo: string;
   texte_vente_ouverte: string; texte_atc_bloque: string; afficher_feux_artifice: boolean; duree_feux_artifice: number;
   afficher_timezone: boolean; afficher_seo: boolean; effet_vague: boolean; effet_bordure: boolean; afficher_message_atc: boolean;
-  duree_disparition_bloc: number;
+  duree_disparition_bloc: number; couleur_feux_1: string; couleur_feux_2: string; couleur_feux_3: string;
 }
 
 export const CONFIG_PARUTION_DEFAUT: ConfigParution = {
@@ -22,25 +22,27 @@ export const CONFIG_PARUTION_DEFAUT: ConfigParution = {
   masquer_timezone_mobile: false, texte_titre: '⏳ Disponible dans :', texte_date_prefix: '🗓️ Mise en vente le',
   texte_timezone: '(Heure de Montréal — EST/EDT)', texte_seo: 'Ce produit sera disponible à la vente dès la fin du compte à rebours.',
   texte_vente_ouverte: '🎉 La vente est ouverte !!!', texte_atc_bloque: '', afficher_feux_artifice: true, duree_feux_artifice: 5,
-  afficher_timezone: true, afficher_seo: true, effet_vague: true, effet_bordure: true, afficher_message_atc: false, duree_disparition_bloc: 5,
+  afficher_timezone: true, afficher_seo: true, effet_vague: true, effet_bordure: true, afficher_message_atc: false, duree_disparition_bloc: 5, couleur_feux_1: '#fbbf24', couleur_feux_2: '#f472b6', couleur_feux_3: '#60a5fa',
 };
 
-let cache: ConfigParution | null = null;
-let enCours: Promise<ConfigParution> | null = null;
-export function chargerConfigParution(): Promise<ConfigParution> {
-  if (cache) return Promise.resolve(cache);
-  if (!enCours) {
-    enCours = fetch('/api/admin/configuration/parution-futur')
+const caches: Record<string, ConfigParution> = {};
+const enCours: Record<string, Promise<ConfigParution>> = {};
+export function chargerConfigParution(gid?: number | string | null): Promise<ConfigParution> {
+  const cle = String(gid || '');
+  if (caches[cle]) return Promise.resolve(caches[cle]);
+  if (!enCours[cle]) {
+    const url = gid ? `/api/studio-forfaits/public/${gid}/parution-config` : '/api/admin/configuration/parution-futur';
+    enCours[cle] = fetch(url)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { const c: ConfigParution = { ...CONFIG_PARUTION_DEFAUT, ...((d && d.config) || {}) }; cache = c; return c; })
+      .then(d => { const c: ConfigParution = { ...CONFIG_PARUTION_DEFAUT, ...((d && d.config) || {}) }; caches[cle] = c; return c; })
       .catch(() => CONFIG_PARUTION_DEFAUT)
-      .finally(() => { enCours = null; });
+      .finally(() => { delete enCours[cle]; });
   }
-  return enCours as Promise<ConfigParution>;
+  return enCours[cle];
 }
-export function useConfigParution(): ConfigParution {
-  const [c, setC] = useState<ConfigParution>(cache || CONFIG_PARUTION_DEFAUT);
-  useEffect(() => { let a = true; chargerConfigParution().then(v => { if (a) setC(v); }); return () => { a = false; }; }, []);
+export function useConfigParution(gid?: number | string | null): ConfigParution {
+  const [c, setC] = useState<ConfigParution>(caches[String(gid || '')] || CONFIG_PARUTION_DEFAUT);
+  useEffect(() => { let a = true; chargerConfigParution(gid).then(v => { if (a) setC(v); }); return () => { a = false; }; }, [gid]);
   return c;
 }
 
@@ -82,11 +84,11 @@ const CSS = `
 }
 `;
 
-function Feux({ secondes }: { secondes: number }) {
+function Feux({ secondes, couleurs }: { secondes: number; couleurs: string[] }) {
   const [visible, setVisible] = useState(true);
   useEffect(() => { const t = setTimeout(() => setVisible(false), Math.max(1, secondes) * 1000); return () => clearTimeout(t); }, [secondes]);
   if (!visible) return null;
-  const cols = ['#fbbf24', '#f472b6', '#60a5fa', '#34d399', '#f87171', '#a78bfa'];
+  const cols = couleurs.length ? couleurs : ['#fbbf24', '#f472b6', '#60a5fa'];
   const parts = Array.from({ length: 36 }, (_, i) => {
     const a = (i / 36) * Math.PI * 2, d = 50 + (i % 4) * 22;
     return { i, dx: Math.cos(a) * d, dy: Math.sin(a) * d, c: cols[i % cols.length], delai: (i % 6) * 0.35, ox: 20 + (i % 3) * 30 };
@@ -103,13 +105,16 @@ function Feux({ secondes }: { secondes: number }) {
 
 interface Props {
   dateParution: string;              // ISO (UTC) renvoyé par le serveur
+  gestionnaireId?: number | string | null;   // pour lire l'apparence de CETTE marketplace
+  configOverride?: ConfigParution | null;    // aperçu dans la page de configuration
   heureServeur?: string | null;      // ISO — heure du serveur au moment de la réponse
   compact?: boolean;                 // petit format pour les cartes du catalogue / de la boutique
   onOuvert?: () => void;             // appelé une fois quand le compte à rebours atteint 0
 }
 
-export default function MVParutionCountdown({ dateParution, heureServeur, compact, onOuvert }: Props) {
-  const cfg = useConfigParution();
+export default function MVParutionCountdown({ dateParution, gestionnaireId, configOverride, heureServeur, compact, onOuvert }: Props) {
+  const cfgChargee = useConfigParution(gestionnaireId);
+  const cfg = configOverride || cfgChargee;
   const reste = useReste(dateParution, heureServeur);
   const [ouvert, setOuvert] = useState(reste <= 0);
   const [masque, setMasque] = useState(false);
@@ -145,7 +150,7 @@ export default function MVParutionCountdown({ dateParution, heureServeur, compac
       {ouvert ? (
         <>
           <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: cfg.couleur_chiffres, position: 'relative' }}>{cfg.texte_vente_ouverte}</p>
-          {cfg.afficher_feux_artifice && <Feux secondes={cfg.duree_feux_artifice} />}
+          {cfg.afficher_feux_artifice && <Feux secondes={cfg.duree_feux_artifice} couleurs={[cfg.couleur_feux_1, cfg.couleur_feux_2, cfg.couleur_feux_3]} />}
         </>
       ) : (
         <div style={{ position: 'relative' }}>

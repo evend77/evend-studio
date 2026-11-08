@@ -488,7 +488,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                           {p.image ? <img src={p.image} alt={p.nom} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: 32, opacity: 0.2 }}>📦</div>}
                           {p.date_parution && (
                             <div style={{ position: 'absolute', left: 6, right: 6, bottom: 6 }}>
-                              <MVParutionCountdown compact dateParution={p.date_parution} heureServeur={p.heure_serveur} />
+                              <MVParutionCountdown compact gestionnaireId={gId} dateParution={p.date_parution} heureServeur={p.heure_serveur} />
                             </div>
                           )}
                         </div>
