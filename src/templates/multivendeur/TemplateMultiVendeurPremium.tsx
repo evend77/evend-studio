@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import MVPremiumAccueil    from './MVPremiumAccueil';
 import { setDevise } from '../shared/devise';
 import VerificateurAge from '../../components/VerificateurAge';
+import PopupAnnonce from '../../components/PopupAnnonce';
 import MVPremiumCatalogue  from './MVPremiumCatalogue';
 import MVPremiumBoutiques  from './MVPremiumBoutiques';
 import MVPremiumBoutiquePage from './MVPremiumBoutiquePage';
@@ -141,12 +142,14 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
   // Add-on « Vérificateur d'âge » : la fenêtre s'affiche sur toutes les pages, seulement si l'add-on est actif
   // (activé, ou inclus au forfait) et si le gestionnaire l'a configurée (Config → Vérificateur d'âge).
   const [porteAge, setPorteAge] = useState(false);
+  // Add-on « Popup Annonce » : même principe (actif = activé ou inclus au forfait).
+  const [popupAnnonce, setPopupAnnonce] = useState(false);
   useEffect(() => {
     if (isDemo || !gestionnaireId) return;
     let actif = true;
     fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons`)
       .then(r => (r.ok ? r.json() : {}))
-      .then((d: any) => { if (actif) setPorteAge(d?.verificateur_age === true); })
+      .then((d: any) => { if (actif) { setPorteAge(d?.verificateur_age === true); setPopupAnnonce(d?.popup_annonce === true); } })
       .catch(() => {});
     return () => { actif = false; };
   }, [gestionnaireId, isDemo]);
@@ -213,6 +216,7 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     <>
       {contenu}
       {porteAge && gestionnaireId ? <VerificateurAge vendeurId={Number(gestionnaireId)} /> : null}
+      {popupAnnonce && gestionnaireId ? <PopupAnnonce vendeurId={Number(gestionnaireId)} /> : null}
     </>
   );
 }

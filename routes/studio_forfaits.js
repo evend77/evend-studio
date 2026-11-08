@@ -80,7 +80,7 @@ router.get('/public/:gid/addons', h(async (req, res) => {
   const { addons: liste } = await addons.etatAddonsMV(gid);
   const actif = (code) => liste.some(a => a.code === code && a.actif_pour_gestionnaire);
   res.set('Cache-Control', 'public, max-age=60');
-  res.json({ badge_masque: actif('badge_evend_masquer'), verificateur_age: actif('verificateur_age') });
+  res.json({ badge_masque: actif('badge_evend_masquer'), verificateur_age: actif('verificateur_age'), popup_annonce: actif('popup_annonce') });
 }));
 
 // ════════════════════════ GESTIONNAIRE ════════════════════════════════════════

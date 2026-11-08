@@ -65,6 +65,8 @@ export default function PopupAnnonce({ vendeurId, configOverride }: Props) {
 
         const res = await fetch(`${API_BASE}/gestionnaires/${vendeurId}/popup-annonce`);
         const data = res.ok ? await res.json() : {};
+        // Aucune annonce sauvegardée par le gestionnaire (et pas de démo) : on n'affiche pas le message par défaut.
+        if (!configOverride && (!data || Object.keys(data).length === 0)) return;
         const config: ConfigPopupAnnonce = { ...CFG_DEF, ...data, ...configOverride };
         setCfg(config);
         if (!config.actif) return;
