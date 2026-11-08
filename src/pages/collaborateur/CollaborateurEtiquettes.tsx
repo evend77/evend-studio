@@ -21,6 +21,7 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
   const [cle, setCle] = useState('');
   const [cleEP, setCleEP] = useState(''); const [secretEP, setSecretEP] = useState('');
   const [occupe, setOccupe] = useState(false);
+  const [choisi, setChoisi] = useState<string | null | undefined>(undefined);   // undefined = suit l'état du serveur
   const [erreur, setErreur] = useState(''); const [info, setInfo] = useState('');
   const [copie, setCopie] = useState(false); const [copieEP, setCopieEP] = useState(false);
 
@@ -53,7 +54,23 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
 
   const shippo = (liste || []).find(t => t.code === 'shippo');
   const easypost = (liste || []).find(t => t.code === 'easypost');
-  const actifAutre = (code: string) => (liste || []).some(t => t.code !== code && t.actif);
+  // Un seul interrupteur allumé à la fois : celui du fournisseur « choisi » (sinon celui qui est actif côté serveur)
+  const ouvert = (code: string) => (choisi !== undefined ? choisi === code : !!(liste || []).find(t => t.code === code && t.actif));
+  const basculer = async (t: Transporteur) => {
+    if (occupe) return;
+    if (ouvert(t.code)) {                                   // on l'éteint
+      if (t.actif) { await envoyer({ actif: false }, `${t.nom} est désactivé.`, t.code as 'shippo' | 'easypost'); setChoisi(undefined); } else setChoisi(null);
+    } else {                                                // on l'allume (éteint automatiquement l'autre)
+      setChoisi(t.code);
+      if (t.configure) { await envoyer({ actif: true }, `${t.nom} est activé : le bouton « Créer une étiquette » apparaît sur vos commandes payées.`, t.code as 'shippo' | 'easypost'); setChoisi(undefined); }
+    }
+  };
+  const Interrupteur = ({ on, onClick }: { on: boolean; onClick: () => void }) => (
+    <button type="button" role="switch" aria-checked={on} onClick={onClick} disabled={occupe}
+      style={{ width: 44, height: 24, borderRadius: 12, border: 'none', background: on ? accent : '#d1d5db', position: 'relative', cursor: occupe ? 'default' : 'pointer', flexShrink: 0, padding: 0, opacity: occupe ? 0.6 : 1 }}>
+      <span style={{ position: 'absolute', top: 3, left: on ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .15s', boxShadow: '0 1px 3px rgba(0,0,0,.25)' }} />
+    </button>
+  );
   const carte: React.CSSProperties = { background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: isMobile ? 14 : 20, marginBottom: 14 };
   const champ: React.CSSProperties = { border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 12px', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box', fontFamily: 'monospace' };
   const btn = (plein: boolean, danger = false): React.CSSProperties => ({
@@ -69,7 +86,7 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
       </div>
       <p style={{ margin: '0 0 16px', fontSize: 13, color: T.light, lineHeight: 1.6 }}>
         Achetez vos étiquettes directement depuis une commande, avec les tarifs réels des transporteurs, et suivez la livraison automatiquement.
-        Vous utilisez <strong>votre propre compte</strong> chez le fournisseur : les étiquettes sont facturées à votre compte, et l'expédition part de l'adresse de votre boutique. Un seul fournisseur peut être actif à la fois.
+        Vous utilisez <strong>votre propre compte</strong> chez le fournisseur : les étiquettes sont facturées à votre compte, et l'expédition part de l'adresse de votre boutique. Un seul fournisseur peut être actif à la fois : allumez l'interrupteur de celui que vous voulez utiliser.
       </p>
 
       {erreur && <div style={{ background: '#FDECEA', color: '#C0392B', padding: '9px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{erreur}</div>}
@@ -90,9 +107,12 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
               <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {shippo.configure && <span style={{ background: shippo.mode === 'production' ? '#E9F7EF' : '#FEF9E7', color: shippo.mode === 'production' ? T.ok : '#B7950B', padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>{shippo.mode === 'production' ? '🚀 Production' : '🧪 Test'}</span>}
                 <span style={{ background: shippo.actif ? '#E9F7EF' : '#f3f4f6', color: shippo.actif ? T.ok : T.light, padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>{shippo.actif ? '✅ Actif' : 'Inactif'}</span>
+                <Interrupteur on={ouvert('shippo')} onClick={() => basculer(shippo)} />
               </span>
             </div>
+            {!ouvert('shippo') && <p style={{ margin: 0, fontSize: 12, color: T.light }}>Allumez l'interrupteur pour utiliser Shippo. {shippo.configure ? 'Votre clé reste enregistrée.' : ''}</p>}
 
+            {ouvert('shippo') && (<>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.light, marginBottom: 6 }}>Clé API Shippo (token)</label>
             <input value={cle} onChange={e => setCle(e.target.value)} type="password" autoComplete="off" spellCheck={false} maxLength={200}
               placeholder={shippo.configure ? '•••••••• (clé déjà enregistrée — collez-en une nouvelle pour la remplacer)' : 'shippo_test_…'} style={champ} />
@@ -101,13 +121,14 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button disabled={occupe || (!cle.trim() && !shippo.configure)} style={btn(true)}
                 onClick={() => envoyer({ token: cle.trim() || undefined, actif: true }, 'Shippo est activé : le bouton « Créer une étiquette » apparaît sur vos commandes payées.')}>
-                {shippo.actif ? '💾 Enregistrer' : '✔ Enregistrer et activer'}
+                {shippo.actif && ouvert('shippo') ? '💾 Enregistrer' : '✔ Enregistrer et activer'}
               </button>
-              {shippo.actif && <button disabled={occupe} style={btn(false)} onClick={() => envoyer({ actif: false }, 'Shippo est désactivé.')}>Désactiver</button>}
-              {shippo.configure && <button disabled={occupe} style={btn(false, true)} onClick={() => envoyer({ effacer: true }, 'Votre clé Shippo a été supprimée.')}>🗑️ Supprimer ma clé</button>}
+              {shippo.configure && <button disabled={occupe} style={btn(false, true)} onClick={() => envoyer({ effacer: true }, 'Votre clé Shippo a été supprimée.').then(() => setChoisi(undefined))}>🗑️ Supprimer ma clé</button>}
             </div>
+            </>)}
           </div>
 
+          {ouvert('shippo') && (
           <div style={carte}>
             <strong style={{ fontSize: 14, color: T.text }}>📍 Suivi automatique des colis</strong>
             <p style={{ margin: '8px 0 10px', fontSize: 13, color: T.light, lineHeight: 1.6 }}>
@@ -119,6 +140,7 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
               <button style={btn(false)} onClick={copier}>{copie ? '✅ Copié' : '📋 Copier'}</button>
             </div>
           </div>
+          )}
 
         </>
       )}
@@ -132,10 +154,12 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
                 <a href={URL_GUIDE_EP} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: accent, textDecoration: 'none', border: `1px solid ${accent}`, borderRadius: 12, padding: '2px 10px' }}>📖 Guide</a>
                 {easypost.configure && <span style={{ background: easypost.mode === 'production' ? '#E9F7EF' : '#FEF9E7', color: easypost.mode === 'production' ? T.ok : '#B7950B', padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>{easypost.mode === 'production' ? '🚀 Production' : '🧪 Test'}</span>}
                 <span style={{ background: easypost.actif ? '#E9F7EF' : '#f3f4f6', color: easypost.actif ? T.ok : T.light, padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>{easypost.actif ? '✅ Actif' : 'Inactif'}</span>
+                <Interrupteur on={ouvert('easypost')} onClick={() => basculer(easypost)} />
               </span>
             </div>
+            {!ouvert('easypost') && <p style={{ margin: 0, fontSize: 12, color: T.light }}>Allumez l'interrupteur pour utiliser EasyPost. {easypost.configure ? 'Votre clé reste enregistrée.' : ''}</p>}
 
-            {actifAutre('easypost') && <p style={{ margin: '0 0 12px', fontSize: 12, color: '#B7950B', background: '#FEF9E7', borderRadius: 8, padding: '8px 12px' }}>ℹ️ Un autre fournisseur est actif. Activer EasyPost le désactivera.</p>}
+            {ouvert('easypost') && (<>
 
             <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.light, marginBottom: 6 }}>Clé API EasyPost</label>
             <input value={cleEP} onChange={e => setCleEP(e.target.value)} type="password" autoComplete="off" spellCheck={false} maxLength={200}
@@ -145,13 +169,14 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button disabled={occupe || (!cleEP.trim() && !easypost.configure)} style={btn(true)}
                 onClick={() => envoyer({ cle: cleEP.trim() || undefined, actif: true }, 'EasyPost est activé : le bouton « Créer une étiquette » apparaît sur vos commandes payées.', 'easypost')}>
-                {easypost.actif ? '💾 Enregistrer' : '✔ Enregistrer et activer'}
+                {easypost.actif && ouvert('easypost') ? '💾 Enregistrer' : '✔ Enregistrer et activer'}
               </button>
-              {easypost.actif && <button disabled={occupe} style={btn(false)} onClick={() => envoyer({ actif: false }, 'EasyPost est désactivé.', 'easypost')}>Désactiver</button>}
-              {easypost.configure && <button disabled={occupe} style={btn(false, true)} onClick={() => envoyer({ effacer: true }, 'Vos clés EasyPost et votre secret webhook ont été supprimés.', 'easypost')}>🗑️ Tout supprimer</button>}
+              {easypost.configure && <button disabled={occupe} style={btn(false, true)} onClick={() => envoyer({ effacer: true }, 'Vos clés EasyPost et votre secret webhook ont été supprimés.', 'easypost').then(() => setChoisi(undefined))}>🗑️ Tout supprimer</button>}
             </div>
+            </>)}
           </div>
 
+          {ouvert('easypost') && (
           <div style={carte}>
             <strong style={{ fontSize: 14, color: T.text }}>📍 Suivi automatique des colis</strong>
             <p style={{ margin: '8px 0 10px', fontSize: 13, color: T.light, lineHeight: 1.6 }}>
@@ -177,6 +202,7 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
               {!easypost.configure && ' Enregistrez d\'abord votre clé API.'}
             </p>
           </div>
+          )}
         </>
       )}
 
