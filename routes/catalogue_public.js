@@ -56,6 +56,20 @@ function formaterVariantes(r, stockProduit, sansStock) {
   }));
 }
 
+// Badges attribués aux collaborateurs (affichés à droite du nom de la boutique). Vide si l'add-on « Badges » est inactif.
+async function badgesDesBoutiques(gid, cids) {
+  const ids = [...new Set((cids || []).filter(Boolean))];
+  if (!ids.length || !(await addonsMV.addonActifRapide(gid, 'badges', pool))) return {};
+  const r = await pool.query(
+    `SELECT bc.collaborateur_id, b.id, b.nom, b.description, b.icone, b.couleur, b.niveau
+       FROM badges_collaborateur bc JOIN badges_gestionnaire b ON b.id = bc.badge_id
+      WHERE b.gestionnaire_id = $1 AND b.statut = 'actif' AND bc.collaborateur_id = ANY($2::int[])
+      ORDER BY b.niveau DESC, b.nom ASC`, [gid, ids]);
+  const out = {};
+  for (const x of r.rows) (out[x.collaborateur_id] = out[x.collaborateur_id] || []).push({ id: x.id, nom: x.nom, description: x.description || '', icone: x.icone, couleur: x.couleur, niveau: x.niveau });
+  return out;
+}
+
 function formater(r) {
   const prix = Number(r.prix) || 0;
   const promo = r.prix_promo !== null && r.prix_promo !== undefined ? Number(r.prix_promo) : 0;
@@ -120,7 +134,9 @@ router.get('/produit/:produitId', async (req, res, next) => {
       const t = ra.rows[0];
       if (t.total > 0) avis = { total: t.total, moyenne: Math.round(t.moyenne * 10) / 10 };
     }
-    res.json({ produit: formater(p), similaires: sim.rows.map(formater), avis });
+    let badges = [];
+    try { badges = (await badgesDesBoutiques(p.gestionnaire_id, [p.collaborateur_id]))[p.collaborateur_id] || []; } catch (e) { badges = []; }
+    res.json({ produit: { ...formater(p), vendeur_badges: badges }, similaires: sim.rows.map(formater), avis });
   } catch (e) {
     console.error('[catalogue_public] produit', e.message);
     res.status(500).json({ error: 'Erreur serveur' });
@@ -253,6 +269,7 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId', async (req, res) =>
       logo_url: b.logo_url, banniere_url: b.banniere_url, details,
       nb_produits: b.nb_produits, nb_vendus: b.nb_vendus, date_inscription: b.created_at,
       vacances: vac.publicDe(b),
+      badges: await badgesDesBoutiques(gid, [cid]).then((m) => m[cid] || []).catch(() => []),
     });
   } catch (e) {
     console.error('[catalogue_public] boutique', e.message);

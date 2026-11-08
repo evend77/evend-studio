@@ -9,11 +9,13 @@ import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche, nettoyerTexte } from './mvSecurite';
 import { formaterPrix } from '../shared/devise';
 import MVParutionCountdown from './MVParutionCountdown';
+import MVBadgesCollab, { BadgeCollab } from './MVBadgesCollab';
 
 const API_BASE = '/api';
 
 interface Boutique {
   id: number;
+  badges?: BadgeCollab[];
   vacances?: { mode: 'visible' | 'masque'; message: string; retour: string | null } | null;
   nom_boutique: string;
   description_courte?: string;
@@ -399,7 +401,10 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
               : <span style={{ fontSize: 32, fontWeight: 900, color: couleurAccent }}>{boutique.nom_boutique[0]}</span>}
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
-            <h1 style={s.nomBoutique}>{boutique.nom_boutique}</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <h1 style={s.nomBoutique}>{boutique.nom_boutique}</h1>
+              <MVBadgesCollab badges={boutique.badges} taille={32} />
+            </div>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 8 }}>
               {boutique.nb_produits != null && <span style={s.badgeMeta}>📦 {boutique.nb_produits} produit{boutique.nb_produits > 1 ? 's' : ''}</span>}
               {boutique.nb_vendus != null && <span style={s.badgeMeta}>🛒 {boutique.nb_vendus} produit{boutique.nb_vendus > 1 ? 's' : ''} vendu{boutique.nb_vendus > 1 ? 's' : ''}</span>}

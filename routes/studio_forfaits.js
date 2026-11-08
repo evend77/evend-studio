@@ -86,7 +86,7 @@ router.get('/public/:gid/addons', h(async (req, res) => {
   try { enCours = (await pool.query(`SELECT 1 FROM encheres WHERE gestionnaire_id = $1 AND statut IN ('active','attente_paiement') LIMIT 1`, [gid])).rowCount > 0; } catch (e) { enCours = false; }
   res.json({ badge_masque: actif('badge_evend_masquer'), verificateur_age: actif('verificateur_age'), popup_annonce: actif('popup_annonce'),
              encheres: actif('encheres'), encheres_visibles: actif('encheres') || enCours, parution_future: actif('parution_future'),
-             blog_collab: actif('blog_collab'), faq_collab: actif('faq_collab'), chat_collab: actif('chat_collab') });
+             blog_collab: actif('blog_collab'), faq_collab: actif('faq_collab'), chat_collab: actif('chat_collab'), badges: actif('badges') });
 }));
 
 // Apparence du compte à rebours « Parution future » pour cette marketplace (plateforme + réglages du gestionnaire)

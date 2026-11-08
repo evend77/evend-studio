@@ -24,7 +24,17 @@
 
 const express = require('express');
 const router  = express.Router({ mergeParams: true });
+
+// Add-on « Badges » : sans lui, la gestion et l'attribution sont fermées (les badges déjà créés restent en base).
+router.use(async (req, res, next) => {
+  try {
+    const gid = parseInt(req.params.gestionnaireId, 10);
+    if (Number.isInteger(gid) && await addonsMV.addonActifRapide(gid, 'badges', pool)) return next();
+    return res.status(403).json({ error: "L'option « Badges » n'est pas activée pour cette marketplace." });
+  } catch (err) { console.error('studio_badges (add-on) :', err.message); return res.status(500).json({ error: 'Erreur serveur.' }); }
+});
 const pool    = require('../db');
+const addonsMV = require('../services/studio_addons');
 const { authenticateToken } = require('../middleware/auth');
 
 const STATUTS_BADGE = ['actif', 'inactif'];

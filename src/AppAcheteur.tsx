@@ -122,9 +122,36 @@ function SessionIndicator({ gestionnaireId }: { gestionnaireId: number }) {
 }
 
 // ─── Vue Dashboard principal ──────────────────────────────────────────────────
+// Badges attribués à l'acheteur par le gestionnaire (add-on « Badges »). Rien d'affiché s'il n'en a pas.
+function MesBadges({ gestionnaireId, couleurAccent }: { gestionnaireId: number; couleurAccent: string }) {
+  const [badges, setBadges] = useState<{ id: string; nom: string; description?: string; icone: string; couleur: string; niveau: number }[]>([]);
+  useEffect(() => {
+    fetch(`${API_BASE}/acheteur/${gestionnaireId}/badges`, { credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => setBadges(Array.isArray(d && d.badges) ? d.badges : []))
+      .catch(() => setBadges([]));
+  }, [gestionnaireId]);
+  if (!badges.length) return null;
+  return (
+    <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 16, padding: '16px 18px', marginBottom: 20 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: couleurAccent, marginBottom: 12 }}>🏅 Mes badges</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+        {badges.map(b => (
+          <div key={b.id} title={b.description || b.nom} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px 6px 6px', borderRadius: 999, background: `${b.couleur}18`, border: `1px solid ${b.couleur}55` }}>
+            <span style={{ width: 30, height: 30, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, background: `radial-gradient(circle at 35% 35%, ${b.couleur}dd, ${b.couleur}88)`, border: `2px solid ${b.couleur}` }}>{b.icone}</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{b.nom}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, color: b.couleur }}>Niv. {b.niveau}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function VueDashboard({
-  compte, commandes, messages, notifications, stats, loading, isMobile, naviguer, couleurAccent,
+  compte, commandes, messages, notifications, stats, loading, isMobile, naviguer, couleurAccent, gestionnaireId,
 }: {
+  gestionnaireId: number;
   compte: CompteAcheteur;
   commandes: Commande[];
   messages: Message[];
@@ -163,6 +190,8 @@ function VueDashboard({
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, margin: '4px 0 0' }}>Bienvenue dans votre espace acheteur</p>
       </div>
+
+      <MesBadges gestionnaireId={gestionnaireId} couleurAccent={couleurAccent} />
 
       {nonLus > 0 && (
         <div
@@ -410,7 +439,7 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
         <VueDashboard
           compte={compte} commandes={commandes} messages={messages}
           notifications={notifications} stats={stats} loading={loading}
-          isMobile={isMobile} naviguer={naviguer} couleurAccent={couleurAccent}
+          isMobile={isMobile} naviguer={naviguer} couleurAccent={couleurAccent} gestionnaireId={gestionnaireId}
         />
       );
     const commun = { gestionnaireId, isMobile, couleurAccent };

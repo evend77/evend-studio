@@ -34,6 +34,7 @@ const cfgMV = require('../services/studio_config_mv');
 const regCmd = require('../services/studio_regles_commande');
 const rembMV = require('../services/studio_remboursement');
 const avisMV = require('../services/studio_avis');
+const addonsMV = require('../services/studio_addons');
 const paiementMV = require('../services/studio_paiement');
 const { authenticateToken } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
@@ -511,6 +512,17 @@ router.put('/notifications/:id/lire', h(async (req, res) => {
 // ════════════════════════════════════════════════════════════════════════════
 // PROFIL + ADRESSES
 // ════════════════════════════════════════════════════════════════════════════
+
+// Mes badges (attribués par le gestionnaire). Liste vide si l'add-on « Badges » est inactif.
+router.get('/badges', h(async (req, res) => {
+  if (!(await addonsMV.addonActifRapide(req.gid, 'badges', pool))) return res.json({ actif: false, badges: [] });
+  const r = await pool.query(
+    `SELECT b.id, b.nom, b.description, b.icone, b.couleur, b.niveau
+       FROM badges_acheteur ba JOIN badges_gestionnaire b ON b.id = ba.badge_id
+      WHERE ba.acheteur_id = $1 AND b.gestionnaire_id = $2 AND b.statut = 'actif'
+      ORDER BY b.niveau DESC, b.nom ASC`, [req.aid, req.gid]);
+  res.json({ actif: true, badges: r.rows });
+}));
 
 router.get('/profil', h(async (req, res) => {
   const r = await pool.query(

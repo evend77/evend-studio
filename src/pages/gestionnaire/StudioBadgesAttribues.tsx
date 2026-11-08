@@ -1,6 +1,6 @@
 /**
+ * CHEMIN : src/pages/gestionnaire/StudioBadgesAttribues.tsx
  * StudioBadgesAttribues.tsx — e-Vend Studio
- * Chemin : src/pages/gestionnaire/StudioBadgesAttribues.tsx
  *
  * 2 onglets : Collaborateurs / Acheteurs
  */
@@ -12,7 +12,7 @@ const API_BASE = (window as any).API_BASE || '/api';
 interface Badge { id: string; nom: string; icone: string; couleur: string; niveau: number; statut: string; type_badge: string; }
 
 interface CollaborateurAvecBadges {
-  sous_gestionnaire_id: number; collaborateur_nom: string;
+  collaborateur_id: number; collaborateur_nom: string;
   collaborateur_email: string; boutique_nom: string; badges: Badge[];
 }
 
@@ -202,23 +202,25 @@ export default function StudioBadgesAttribues({ gestionnaireId }: Props) {
   function showToast(msg: string, type: 'ok'|'err') { setToast({ msg, type }); }
 
   // ── Attribution collaborateur ──────────────────────────────────────────────
-  async function sauvegarderSV(sousGestionnaireId: number, badgeIds: string[]) {
+  async function sauvegarderSV(collaborateurId: number, badgeIds: string[]) {
     try {
-      await fetch(`${API_BASE}/studio/badges/${gestionnaireId}/attribuer`, {
+      const res = await fetch(`${API_BASE}/studio/badges/${gestionnaireId}/attribuer`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ sous_gestionnaire_id: sousGestionnaireId, badge_ids: badgeIds }),
+        body: JSON.stringify({ collaborateur_id: collaborateurId, badge_ids: badgeIds }),
       });
+      if (!res.ok) throw new Error();
       setModalSV(null); await charger(); showToast('Badges mis à jour !', 'ok');
     } catch { showToast('Erreur', 'err'); }
   }
 
   async function retirerSV(sv: CollaborateurAvecBadges, badgeId: string) {
     try {
-      await fetch(`${API_BASE}/studio/badges/${gestionnaireId}/attribuer/${sv.sous_gestionnaire_id}/${badgeId}`, {
+      const res = await fetch(`${API_BASE}/studio/badges/${gestionnaireId}/attribuer/${sv.collaborateur_id}/${badgeId}`, {
         method: 'DELETE', credentials: 'include', headers: { Authorization: `Bearer ${token}` },
       });
-      setCollaborateurs(prev => prev.map(s => s.sous_gestionnaire_id === sv.sous_gestionnaire_id ? { ...s, badges: s.badges.filter(b => b.id !== badgeId) } : s));
+      if (!res.ok) throw new Error();
+      setCollaborateurs(prev => prev.map(s => s.collaborateur_id === sv.collaborateur_id ? { ...s, badges: s.badges.filter(b => b.id !== badgeId) } : s));
       showToast('Badge retiré', 'ok');
     } catch { showToast('Erreur', 'err'); }
   }
@@ -226,20 +228,22 @@ export default function StudioBadgesAttribues({ gestionnaireId }: Props) {
   // ── Attribution acheteur ──────────────────────────────────────────────────
   async function sauvegarderAch(acheteurId: number, badgeIds: string[]) {
     try {
-      await fetch(`${API_BASE}/studio/badges/${gestionnaireId}/attribuer-acheteur`, {
+      const res = await fetch(`${API_BASE}/studio/badges/${gestionnaireId}/attribuer-acheteur`, {
         method: 'POST', credentials: 'include',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ acheteur_id: acheteurId, badge_ids: badgeIds }),
       });
+      if (!res.ok) throw new Error();
       setModalAch(null); await charger(); showToast('Badges mis à jour !', 'ok');
     } catch { showToast('Erreur', 'err'); }
   }
 
   async function retirerAch(ach: AcheteurAvecBadges, badgeId: string) {
     try {
-      await fetch(`${API_BASE}/studio/badges/${gestionnaireId}/attribuer-acheteur/${ach.acheteur_id}/${badgeId}`, {
+      const res = await fetch(`${API_BASE}/studio/badges/${gestionnaireId}/attribuer-acheteur/${ach.acheteur_id}/${badgeId}`, {
         method: 'DELETE', credentials: 'include', headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) throw new Error();
       setAcheteurs(prev => prev.map(a => a.acheteur_id === ach.acheteur_id ? { ...a, badges: a.badges.filter(b => b.id !== badgeId) } : a));
       showToast('Badge retiré', 'ok');
     } catch { showToast('Erreur', 'err'); }
@@ -262,7 +266,7 @@ export default function StudioBadgesAttribues({ gestionnaireId }: Props) {
           sousTitre={`${modalSV.collaborateur_nom || modalSV.collaborateur_email}${modalSV.boutique_nom ? ` · 🏪 ${modalSV.boutique_nom}` : ''}`}
           tousLesBadges={tousLesBadges.filter(b => b.type_badge === 'collaborateur' || b.type_badge === 'les-deux')}
           badgesActuels={modalSV.badges}
-          onSave={ids => sauvegarderSV(modalSV.sous_gestionnaire_id, ids)} onClose={() => setModalSV(null)}
+          onSave={ids => sauvegarderSV(modalSV.collaborateur_id, ids)} onClose={() => setModalSV(null)}
         />
       )}
       {modalAch && (
@@ -325,8 +329,8 @@ export default function StudioBadgesAttribues({ gestionnaireId }: Props) {
 
       {/* Contenu */}
       {onglet === 'collaborateurs' && (
-        <ListeAvecBadges
-          items={collaborateurs} getKey={i => i.sous_gestionnaire_id}
+        <ListeAvecBadges<CollaborateurAvecBadges>
+          items={collaborateurs} getKey={i => i.collaborateur_id}
           getNom={i => i.collaborateur_nom} getEmail={i => i.collaborateur_email}
           getSousTitre={i => i.boutique_nom ? `🏪 ${i.boutique_nom}` : ''}
           tousLesBadges={tousLesBadges} onGerer={sv => setModalSV(sv)}
@@ -335,7 +339,7 @@ export default function StudioBadgesAttribues({ gestionnaireId }: Props) {
         />
       )}
       {onglet === 'acheteurs' && (
-        <ListeAvecBadges
+        <ListeAvecBadges<AcheteurAvecBadges>
           items={acheteurs} getKey={i => i.acheteur_id}
           getNom={i => i.acheteur_nom} getEmail={i => i.acheteur_email}
           tousLesBadges={tousLesBadges} onGerer={ach => setModalAch(ach)}

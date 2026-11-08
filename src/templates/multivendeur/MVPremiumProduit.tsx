@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import BlocEnchere from './BlocEnchere';
+import MVBadgesCollab, { BadgeCollab } from './MVBadgesCollab';
 import Navbar from './MVPremiumNavbar';
 import { fondDe } from './mvTheme';
 import { formaterPrix } from '../shared/devise';
@@ -60,6 +61,7 @@ interface Produit {
   vendeur_id?: number;
   nom_boutique?: string;
   vendeur_nom?: string;
+  vendeur_badges?: BadgeCollab[];
   categorie_nom?: string;
   categorie?: string;
   type_vente?: string;
@@ -298,9 +300,12 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
           <div style={s.infos}>
             {/* Boutique */}
             {(produit.nom_boutique || produit.vendeur_nom) && (
-              <div onClick={() => ouvrirBoutique(produit.vendeur_id!)}
-                className="mvp-boutique" style={{ ...s.boutiqueNom, color: couleurAccent }}>
-                🏪 {produit.nom_boutique || produit.vendeur_nom}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div onClick={() => ouvrirBoutique(produit.vendeur_id!)}
+                  className="mvp-boutique" style={{ ...s.boutiqueNom, color: couleurAccent }}>
+                  🏪 {produit.nom_boutique || produit.vendeur_nom}
+                </div>
+                <MVBadgesCollab badges={produit.vendeur_badges} />
               </div>
             )}
 

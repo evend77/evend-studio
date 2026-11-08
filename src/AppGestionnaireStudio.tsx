@@ -1196,7 +1196,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
       menuSousVendeurs,
-      menuBadges,
+      ...(addonsMV.badges ? [menuBadges] : []),
       ...(addonsMV.chat_collab ? [menuChatSV] : []),
       menuStudioMV,
       menuConfigMV,
