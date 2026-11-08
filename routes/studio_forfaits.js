@@ -92,7 +92,7 @@ router.get('/public/:gid/addons', h(async (req, res) => {
 router.get('/public/:gid/parution-config', h(async (req, res) => {
   const gid = parseInt(req.params.gid, 10);
   if (!Number.isInteger(gid) || gid <= 0) return res.status(400).json({ error: 'Identifiant invalide.' });
-  res.set('Cache-Control', 'public, max-age=60');
+  res.set('Cache-Control', 'public, max-age=10');
   res.json({ success: true, config: await parution.configPour(gid) });
 }));
 

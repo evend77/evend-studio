@@ -13,6 +13,7 @@ export interface ConfigParution {
   texte_vente_ouverte: string; texte_atc_bloque: string; afficher_feux_artifice: boolean; duree_feux_artifice: number;
   afficher_timezone: boolean; afficher_seo: boolean; effet_vague: boolean; effet_bordure: boolean; afficher_message_atc: boolean;
   duree_disparition_bloc: number; couleur_feux_1: string; couleur_feux_2: string; couleur_feux_3: string;
+  vitesse_vague?: 'lente' | 'normale' | 'rapide';
 }
 
 export const CONFIG_PARUTION_DEFAUT: ConfigParution = {
@@ -26,15 +27,17 @@ export const CONFIG_PARUTION_DEFAUT: ConfigParution = {
 };
 
 const caches: Record<string, ConfigParution> = {};
+const cachesTs: Record<string, number> = {};
+const DUREE_CACHE_MS = 20000;   // 20 s : une modification de style se voit vite, sans recharger le site
 const enCours: Record<string, Promise<ConfigParution>> = {};
 export function chargerConfigParution(gid?: number | string | null): Promise<ConfigParution> {
   const cle = String(gid || '');
-  if (caches[cle]) return Promise.resolve(caches[cle]);
+  if (caches[cle] && Date.now() - (cachesTs[cle] || 0) < DUREE_CACHE_MS) return Promise.resolve(caches[cle]);
   if (!enCours[cle]) {
     const url = gid ? `/api/studio-forfaits/public/${gid}/parution-config` : '/api/admin/configuration/parution-futur';
     enCours[cle] = fetch(url)
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { const c: ConfigParution = { ...CONFIG_PARUTION_DEFAUT, ...((d && d.config) || {}) }; caches[cle] = c; return c; })
+      .then(d => { const c: ConfigParution = { ...CONFIG_PARUTION_DEFAUT, ...((d && d.config) || {}) }; caches[cle] = c; cachesTs[cle] = Date.now(); return c; })
       .catch(() => CONFIG_PARUTION_DEFAUT)
       .finally(() => { delete enCours[cle]; });
   }
@@ -146,7 +149,7 @@ export default function MVParutionCountdown({ dateParution, gestionnaireId, conf
         margin: '0 0 18px', padding: 18, background: fond, borderRadius: cfg.border_radius, color: cfg.couleur_texte, textAlign: 'center',
         border: `${cfg.border_width}px solid ${cfg.couleur_bordure}`, boxShadow: cfg.ombre_active ? `0 0 ${cfg.ombre_intensite}px rgba(0,0,0,0.45)` : 'none' }}>
       <style>{CSS}</style>
-      {cfg.effet_vague && !ouvert && <div className="mvpf-vague" />}
+      {cfg.effet_vague && !ouvert && <div className="mvpf-vague" style={{ animationDuration: cfg.vitesse_vague === 'rapide' ? '2.5s' : cfg.vitesse_vague === 'lente' ? '9s' : '5s' }} />}
       {ouvert ? (
         <>
           <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: cfg.couleur_chiffres, position: 'relative' }}>{cfg.texte_vente_ouverte}</p>
