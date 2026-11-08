@@ -27,8 +27,9 @@ const TRANSPORTEURS = {
   easypost: { addon: 'etiquette_easypost', nom: 'EasyPost', charger: () => require('./transporteurs/easypost') },
 };
 
-// Étapes de livraison qu'un suivi automatique ne doit jamais écraser
-const ETAPES_PROTEGEES = new Set(['annulee', 'refusee', 'livree']);
+// Étapes qu'un suivi automatique ne doit jamais écraser. « livree » n'en fait PAS partie : le collaborateur peut la poser à la main
+// et le vrai statut du transporteur doit alors reprendre le dessus à sa prochaine mise à jour.
+const ETAPES_PROTEGEES = new Set(['annulee', 'refusee']);
 
 // ── Configuration du collaborateur ─────────────────────────────────────────
 
@@ -299,23 +300,35 @@ const MESSAGES_ETAPE = {
 async function appliquerSuivi(cmd, ev, source) {
   if (ETAPES_PROTEGEES.has(cmd.etape_livraison) || cmd.statut === 'annulee') return;
   const etape = ev.etapeLivraison;
-  if (etape && etape !== cmd.etape_livraison) {
+  const anciens = lireHistorique(cmd.historique_suivi).filter((e) => e.source === source);
+  const recus = (ev.historique || []).map((e) => ({
+    date: e.dateEvenement, statut: e.description || e.statut || 'Mise à jour de suivi',
+    description: [e.ville, e.province].filter(Boolean).join(', ') || e.sousStatut || '', etape: null, source,
+  })).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  // Le transporteur a-t-il vraiment du NOUVEAU ? (dernier événement différent de celui déjà enregistré). Sans cela, un changement MANUEL du
+  // collaborateur serait écrasé par un simple renvoi du même statut ; avec un nouvel événement, le vrai statut du transporteur est rétabli.
+  const signe = (e) => (e ? `${e.date}|${e.statut}` : '');
+  if (recus.length > 0 && etape) recus[0].etape = etape;   // mémorise le statut du transporteur au moment de cet événement
+  const nouveau = recus.length === 0 || anciens.length === 0 || signe(recus[0]) !== signe(anciens[0]) || (!!etape && anciens[0].etape !== etape);
+  const applique = !!etape && etape !== cmd.etape_livraison && nouveau;
+  if (applique) {
     await pool.query('UPDATE marketplace_commandes SET etape_livraison = $1, updated_at = NOW() WHERE id = $2', [etape, cmd.id]);
   }
-  if (ev.historique && ev.historique.length > 0) {
+  if (recus.length > 0) {
     const autres = lireHistorique(cmd.historique_suivi).filter((e) => e.source !== source);
-    const recus = ev.historique.map((e) => ({
-      date: e.dateEvenement, statut: e.description || e.statut || 'Mise à jour de suivi',
-      description: [e.ville, e.province].filter(Boolean).join(', ') || e.sousStatut || '', etape: null, source,
-    }));
     const fusion = [...autres, ...recus].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     await pool.query('UPDATE marketplace_commandes SET historique_suivi = $1::jsonb WHERE id = $2', [JSON.stringify(fusion), cmd.id]);
   }
-  if (etape === 'livree' && cmd.statut !== 'livree') {
+  if (applique && etape === 'livree' && cmd.statut !== 'livree') {
     const r = await pool.query(`UPDATE marketplace_commandes SET statut = 'livree', updated_at = NOW() WHERE id = $1 AND statut IN ('confirmee','expediee')`, [cmd.id]);
     if (r.rowCount) await rembMV.noter(pool, cmd.id, 'statut_livree', 'Livraison confirmée par le transporteur', 'systeme');
   }
-  if (etape && etape !== cmd.etape_livraison && MESSAGES_ETAPE[etape]) {
+  // La commande avait été marquée « livrée » à la main, mais le transporteur dit autre chose : on remet « expédiée »
+  if (applique && etape !== 'livree' && cmd.statut === 'livree') {
+    const r = await pool.query(`UPDATE marketplace_commandes SET statut = 'expediee', updated_at = NOW() WHERE id = $1 AND statut = 'livree'`, [cmd.id]);
+    if (r.rowCount) await rembMV.noter(pool, cmd.id, 'statut_expediee', 'Statut rétabli selon le transporteur', 'systeme');
+  }
+  if (applique && MESSAGES_ETAPE[etape]) {
     const [titre, fin] = MESSAGES_ETAPE[etape];
     await notifierAcheteur(cmd.gestionnaire_id, cmd.acheteur_id, titre, `Votre commande ${cmd.numero_commande} ${fin}`);
   }

@@ -10,7 +10,7 @@ import React, { useState } from 'react';
 export interface CommandeSuivi {
   statut: string;                       // en_attente | confirmee | expediee | livree | annulee
   statut_paiement?: string;
-  etape_livraison?: string | null;      // etiquette_creer | transit | livraison | prete_ramassage | livree | livraison_echouee | retournee_expediteur
+  etape_livraison?: string | null;      // etiquette_creer | transit | tri | livraison | prete_ramassage | livree | livraison_echouee | retournee_expediteur
   etiquette_provider?: string | null;
   historique_suivi?: unknown;
   raison_annulation?: string | null;
@@ -30,6 +30,7 @@ const ETAPES: Etape[] = [
   { key: 'etiquette_creer', emoji: '🏷️', label: 'Étiquette créée', auto: true },
   { key: 'expediee',        emoji: '🚚', label: 'Expédiée' },
   { key: 'transit',         emoji: '🚛', label: 'En transit', auto: true },
+  { key: 'tri',             emoji: '🏢', label: 'Centre de tri', siActive: true },
   { key: 'livraison',       emoji: '🛣️', label: 'En cours de livraison', siActive: true },
   { key: 'prete_ramassage', emoji: '🏪', label: 'Prêt à récupérer', siActive: true },
   { key: 'livree',          emoji: '🏠', label: 'Livrée' },
@@ -46,7 +47,7 @@ export function etapeActive(c: CommandeSuivi): string {
   const e = c.etape_livraison || '';
   if (e === 'livraison_echouee' || e === 'retournee_expediteur') return e;
   if (c.statut === 'livree' || e === 'livree') return 'livree';
-  if (e === 'transit' || e === 'livraison' || e === 'prete_ramassage') return e;
+  if (e === 'transit' || e === 'tri' || e === 'livraison' || e === 'prete_ramassage') return e;
   if (c.statut === 'expediee') return 'expediee';
   if (e === 'etiquette_creer') return 'etiquette_creer';
   if (c.statut === 'confirmee') return 'acceptee';

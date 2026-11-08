@@ -44,8 +44,16 @@ const STATUT_REMB: Record<string, string> = { en_attente: '⏳ En attente d\'app
 const EVENEMENTS: Record<string, string> = {
   statut_confirmee: 'Commande confirmée', statut_expediee: 'Commande expédiée', statut_livree: 'Commande livrée', statut_annulee: 'Commande annulée',
   etiquette_creee: 'Étiquette créée', commande_refusee: 'Commande refusée', remboursement_demande: 'Remboursement demandé', remboursement_effectue: 'Remboursement effectué',
-  remboursement_refuse: 'Remboursement refusé', remboursement_echoue: 'Remboursement échoué', remboursement_retire: 'Demande retirée',
+  remboursement_refuse: 'Remboursement refusé', remboursement_echoue: 'Remboursement échoué', remboursement_retire: 'Demande retirée', etape_livraison: 'Statut de livraison modifié',
 };
+// Statuts de livraison modifiables à la main (mêmes choix que sur e-Vend) : libellé → clé d'étape
+const STATUTS_LIVRAISON: { cle: string; l: string }[] = [
+  { cle: 'payee', l: '⏳ En attente' }, { cle: 'etiquette_creer', l: '🏷️ Étiquette créée' }, { cle: 'expediee', l: '🚚 Expédiée' },
+  { cle: 'transit', l: '🚛 En transit' }, { cle: 'tri', l: '🏢 Centre de tri' }, { cle: 'livraison', l: '📍 En cours de livraison' },
+  { cle: 'prete_ramassage', l: '🏪 Prêt à récupérer sur place' }, { cle: 'livree', l: '✅ Livré' },
+  { cle: 'livraison_echouee', l: '⚠️ Échec de livraison' }, { cle: 'retournee_expediteur', l: "↩️ Retourné à l'expéditeur" },
+];
+const NOMS_TRANSPORTEUR: Record<string, string> = { shippo: 'Shippo', easypost: 'EasyPost', postescanada: 'Postes Canada' };
 const TAXES_LIB: Record<string, string> = { tps: 'TPS', tvq: 'TVQ', tvh: 'TVH', tvp: 'TVP' };
 const argent = (v: string | number | null | undefined) => (v === null || v === undefined || v === '' ? '—' : formaterPrix(v));
 const dateLongue = (d: string | null) => { if (!d) return ''; try { return new Date(d).toLocaleString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
@@ -79,6 +87,12 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
   const [exp, setExp] = useState({ transporteur: '', suivi: '', url: '', date: '' });
   const [raison, setRaison] = useState('');
   const [partiel, setPartiel] = useState(false); const [montant, setMontant] = useState('');
+
+  // ── Statut de livraison manuel ──
+  const [modalStatut, setModalStatut] = useState(false);
+  const [etapeChoisie, setEtapeChoisie] = useState('payee');
+  const [ramassage, setRamassage] = useState({ adresse: '', heures: '', date: '' });
+  const [statutErreur, setStatutErreur] = useState('');
 
   // ── Étiquette d'expédition (add-on Shippo…) ──
   interface Tarif { rateId: string; shipmentId?: string; transporteur: string; service: string; montant: number | string; devise: string; delaiEstimeJours: number | null }
@@ -160,6 +174,24 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
     if (partiel) corps.montant = Number(montant.replace(',', '.')); else corps.total = true;
     envoyer(`${base}/rembourser`, 'POST', corps, 'Remboursement effectué.');
   };
+  const ouvrirStatut = () => {
+    if (!d) return;
+    const e = d.etape_livraison || '';
+    setEtapeChoisie(STATUTS_LIVRAISON.some(x => x.cle === e) ? e : d.statut === 'livree' ? 'livree' : d.statut === 'expediee' ? 'expediee' : 'payee');
+    setRamassage({ adresse: '', heures: '', date: '' }); setStatutErreur(''); setModalStatut(true);
+  };
+  const sauvegarderStatut = async () => {
+    setOccupe(true); setStatutErreur('');
+    try {
+      const corps: Record<string, string | undefined> = { etape: etapeChoisie };
+      if (etapeChoisie === 'prete_ramassage') { corps.adresse_ramassage = ramassage.adresse; corps.heures_ramassage = ramassage.heures; corps.date_limite_ramassage = ramassage.date || undefined; }
+      const res = await fetch(`${base}/etape-livraison`, { method: 'PUT', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corps) });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) { setModalStatut(false); await charger(); setInfo('Statut de livraison mis à jour.'); setErreur(''); }
+      else setStatutErreur(j.error || 'Mise à jour impossible');
+    } catch { setStatutErreur('Erreur de connexion au serveur'); }
+    setOccupe(false);
+  };
   const retirer = () => envoyer(`${base}/remboursement-en-attente`, 'DELETE', undefined, 'Demande retirée.');
 
   const champ: React.CSSProperties = { border: `1px solid ${T.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, outline: 'none', width: '100%', boxSizing: 'border-box' };
@@ -192,6 +224,8 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
   // Étiquette : commande payée, acceptée (ou « accepter et expédier » permis) ou déjà expédiée à la main, sans étiquette déjà achetée
   const peutEtiquette = !!etiquettes && payee && !d.etiquette_provider && d.statut !== 'livree' && d.statut !== 'annulee' && (d.statut === 'expediee' || d.transitions.includes('expediee'));
   const lienEtiquette = urlEtiquetteSure(d.url_etiquette);
+  // Statut de livraison manuel : commande payée, non annulée, et (déjà acceptée ou acceptation non exigée avant l'expédition)
+  const peutStatutLivraison = payee && d.statut !== 'annulee' && (d.statut !== 'en_attente' || !d.regles?.accepter || !!d.regles?.accepter_expedier);
   const rgl = d.regles;
   const manqueSuivi = !!rgl?.suivi_obligatoire && (!exp.transporteur.trim() || !exp.suivi.trim());
   const manqueDate = !!rgl?.date_active && !!rgl?.date_obligatoire && !exp.date;
@@ -321,8 +355,9 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
             {peutLivrer && <button disabled={occupe} onClick={livrer} style={btn(true)}>✅ Marquer livrée</button>}
             {d.peut_refuser && <button disabled={occupe} onClick={() => setMode('refuser')} style={btn(false, true)}>✕ Refuser la commande</button>}
             {peutAnnulerSimple && <button disabled={occupe} onClick={() => setMode('annuler')} style={btn(false, true)}>✕ Annuler</button>}
+            {peutStatutLivraison && <button disabled={occupe} onClick={ouvrirStatut} style={btn(false)}>🚚 Statut de livraison</button>}
             {d.peut_rembourser && <button disabled={occupe} onClick={() => setMode('rembourser')} style={btn(false)}>↩️ Rembourser</button>}
-            {!peutAccepter && !peutExpedier && !peutLivrer && !d.peut_refuser && !d.peut_rembourser && !peutAnnulerSimple && !ouverte && (
+            {!peutAccepter && !peutExpedier && !peutLivrer && !d.peut_refuser && !d.peut_rembourser && !peutAnnulerSimple && !ouverte && !peutStatutLivraison && (
               <span style={{ fontSize: 12, color: T.light }}>Aucune action possible pour cette commande.</span>
             )}
           </div>
@@ -481,6 +516,38 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
       <div style={{ display: isMobile ? 'block' : 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 16, alignItems: 'start' }}>
         {isMobile ? <>{droite}{gauche}</> : <><div>{gauche}</div><div>{droite}</div></>}
       </div>
+
+      {modalStatut && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: isMobile ? 18 : 26, width: 440, maxWidth: '100%', maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}>
+            <h3 style={{ margin: '0 0 4px', fontSize: 16, fontWeight: 700, textTransform: 'uppercase', color: T.text }}>Changer le statut</h3>
+            <p style={{ margin: '0 0 16px', fontSize: 12, color: T.light }}>Sélectionnez le nouveau statut de livraison.</p>
+            {d.etiquette_provider && (
+              <div style={{ background: '#fff3cd', borderLeft: '4px solid #ffc107', padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: 12, color: '#856404' }}>
+                ⚠️ Suivi automatique actif ({NOMS_TRANSPORTEUR[d.etiquette_provider] || d.etiquette_provider}) : dès que le transporteur envoie une mise à jour, le vrai statut du colis est rétabli.
+              </div>
+            )}
+            {statutErreur && <div style={{ background: '#FDECEA', color: '#C0392B', padding: '9px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{statutErreur}</div>}
+            <select value={etapeChoisie} onChange={e => setEtapeChoisie(e.target.value)} style={{ ...champ, border: `2px solid ${accent}`, padding: '10px 14px', marginBottom: 16, background: '#fff', cursor: 'pointer' }}>
+              {STATUTS_LIVRAISON.map(x => <option key={x.cle} value={x.cle}>{x.l}</option>)}
+            </select>
+            {etapeChoisie === 'prete_ramassage' && (
+              <div style={{ display: 'grid', gap: 10, marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: T.text }}>📍 Adresse de cueillette <span style={{ color: T.light, fontWeight: 400 }}>(incluse dans l'avis envoyé au client)</span>
+                  <textarea rows={2} value={ramassage.adresse} onChange={e => setRamassage({ ...ramassage, adresse: e.target.value })} maxLength={200} style={{ ...champ, marginTop: 6, resize: 'vertical' }} /></label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: T.text }}>🕐 Heures d'ouverture<input value={ramassage.heures} onChange={e => setRamassage({ ...ramassage, heures: e.target.value })} maxLength={100} placeholder="ex : Lun-Ven 9h-17h" style={{ ...champ, marginTop: 6 }} /></label>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: T.text }}>📅 Date limite<input type="date" value={ramassage.date} onChange={e => setRamassage({ ...ramassage, date: e.target.value })} style={{ ...champ, marginTop: 6 }} /></label>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setModalStatut(false)} disabled={occupe} style={btn(false)}>Annuler</button>
+              <button onClick={sauvegarderStatut} disabled={occupe} style={btn(true)}>{occupe ? '…' : 'Sauvegarder'}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalEtiquette && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>

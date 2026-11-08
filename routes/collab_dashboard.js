@@ -695,6 +695,55 @@ router.get('/commandes/:id', h(async (req, res) => {
               accepter: rg.accepter, accepter_expedier: rg.accepter && rg.accepterExpedier } });
 }));
 
+// Statut de livraison changé À LA MAIN par le collaborateur (comme sur e-Vend).
+// Si une étiquette (Shippo / EasyPost / Postes Canada) suit le colis, la prochaine MISE À JOUR du transporteur remet le vrai statut (voir appliquerSuivi).
+const ETAPES_MANUELLES = {
+  payee: 'En attente', etiquette_creer: 'Étiquette créée', expediee: 'Expédiée', transit: 'En transit', tri: 'Centre de tri',
+  livraison: 'En cours de livraison', prete_ramassage: 'Prêt à récupérer', livree: 'Livré', livraison_echouee: 'Échec de livraison', retournee_expediteur: "Retourné à l'expéditeur",
+};
+const MSG_ETAPE = {
+  expediee: ['Commande expédiée', 'est expédiée.'], transit: ['Commande en transit', 'est en transit.'], livraison: ['Commande en cours de livraison', 'est en cours de livraison.'],
+  prete_ramassage: ['Commande prête à récupérer', 'est prête à être récupérée.'], livree: ['Commande livrée', 'a été livrée.'],
+  livraison_echouee: ['Problème de livraison', 'a rencontré un problème de livraison.'], retournee_expediteur: ['Colis retourné', "a été retourné à l'expéditeur."],
+};
+router.put('/commandes/:id/etape-livraison', h(async (req, res) => {
+  const id = entier(req.params.id);
+  const b = req.body || {};
+  const etape = typeof b.etape === 'string' ? b.etape : '';
+  if (!id || !Object.prototype.hasOwnProperty.call(ETAPES_MANUELLES, etape)) bad('Statut de livraison invalide');
+  const c = (await pool.query(
+    `SELECT statut, statut_paiement, etape_livraison, acheteur_id, numero_commande FROM marketplace_commandes WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3`,
+    [id, req.cid, req.gid])).rows[0];
+  if (!c) bad('Commande introuvable', 404);
+  if (c.statut === 'annulee') bad('Commande annulée : son statut de livraison ne peut plus changer.', 409);
+  if (c.statut_paiement !== 'paye') bad('Cette commande n\'est pas payée : elle ne peut pas être expédiée.', 409);
+  const rg = await regCmd.lire(req.gid, pool);
+  if (c.statut === 'en_attente' && rg.accepter && !rg.accepterExpedier) bad("Acceptez d'abord la commande.", 409);
+  // Le statut de la commande reste cohérent avec l'étape de livraison
+  let statut = c.statut;
+  if (etape === 'payee') { if (statut === 'expediee' || statut === 'livree') statut = 'confirmee'; }
+  else if (etape === 'livree') statut = 'livree';
+  else statut = 'expediee';
+  let detail = ETAPES_MANUELLES[etape];
+  let infoRamassage = '';
+  if (etape === 'prete_ramassage') {
+    const adr = texte(b.adresse_ramassage, 'Adresse de cueillette', 200), heures = texte(b.heures_ramassage, "Heures d'ouverture", 100);
+    const lim = b.date_limite_ramassage ? String(b.date_limite_ramassage).slice(0, 10) : '';
+    if (lim && !/^\d{4}-\d{2}-\d{2}$/.test(lim)) bad('Date limite invalide.');
+    infoRamassage = [adr && `Adresse : ${adr}`, heures && `Heures : ${heures}`, lim && `À récupérer avant le ${lim}`].filter(Boolean).join(' · ');
+    if (infoRamassage) detail += ' — ' + infoRamassage;
+  }
+  await pool.query(`UPDATE marketplace_commandes SET etape_livraison = $1, statut = $2, updated_at = NOW() WHERE id = $3 AND collaborateur_id = $4 AND gestionnaire_id = $5`,
+    [etape === 'payee' ? null : etape, statut, id, req.cid, req.gid]);
+  await rembMV.noter(pool, id, 'etape_livraison', detail, 'collaborateur');
+  if (statut === 'livree' && c.statut !== 'livree') await rembMV.noter(pool, id, 'statut_livree', null, 'collaborateur');
+  const m = MSG_ETAPE[etape];
+  if (m && c.acheteur_id && etape !== (c.etape_livraison || '')) {
+    await notifierAcheteur(req.gid, c.acheteur_id, m[0], `Votre commande ${c.numero_commande} ${m[1]}${infoRamassage ? ' ' + infoRamassage + '.' : ''}`, 'commande');
+  }
+  res.json({ success: true, statut, etape_livraison: etape === 'payee' ? null : etape });
+}));
+
 // Refuser une commande : non payée → annulation simple ; payée → remboursement TOTAL avec raison (approbation du gestionnaire si exigée)
 router.post('/commandes/:id/refuser', h(async (req, res) => {
   const id = entier(req.params.id);
