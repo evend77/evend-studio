@@ -35,7 +35,7 @@ export function chargerConfigParution(gid?: number | string | null): Promise<Con
   if (caches[cle] && Date.now() - (cachesTs[cle] || 0) < DUREE_CACHE_MS) return Promise.resolve(caches[cle]);
   if (!enCours[cle]) {
     const url = gid ? `/api/studio-forfaits/public/${gid}/parution-config` : '/api/admin/configuration/parution-futur';
-    enCours[cle] = fetch(url)
+    enCours[cle] = fetch(url, { cache: 'no-cache' })
       .then(r => (r.ok ? r.json() : null))
       .then(d => { const c: ConfigParution = { ...CONFIG_PARUTION_DEFAUT, ...((d && d.config) || {}) }; caches[cle] = c; cachesTs[cle] = Date.now(); return c; })
       .catch(() => CONFIG_PARUTION_DEFAUT)
