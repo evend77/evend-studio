@@ -1,4 +1,4 @@
-// src/AppAcheteur.tsx
+// CHEMIN : src/AppAcheteur.tsx
 // e-Vend Studio — Dashboard acheteur partagé entre tous les templates marketplace
 // Scoped par gestionnaireId : chaque marketplace a ses propres acheteurs
 // Token clé : mv_token_${gestionnaireId} / mv_compte_${gestionnaireId}

@@ -117,6 +117,58 @@ router.delete('/mv/parution-config', authenticateToken, gestionnaire, h(async (r
   res.json({ success: true });
 }));
 
+// Modération des blogs et FAQ des collaborateurs de MA marketplace (add-ons « Blog » / « FAQ » collaborateurs requis).
+const COLLAB_SQL = `COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.nom_responsable AS collaborateur_nom, mc.email AS collaborateur_email`;
+const exigerMV = (code, nom) => h(async (req, res, next) => {
+  if (!(await addons.addonActifRapide(req.gid, code, pool))) return res.status(403).json({ error: `L'option « ${nom} » n'est pas activée.` });
+  next();
+});
+const idPositif = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null; };
+
+router.get('/mv/blogs', authenticateToken, gestionnaire, exigerMV('blog_collab', 'Blog collaborateurs'), h(async (req, res) => {
+  const r = await pool.query(
+    `SELECT b.id, b.titre, b.statut, b.vues, b.tags, b.created_at AS date_creation, b.date_publication, b.collaborateur_id, ${COLLAB_SQL}
+       FROM collab_blogs b JOIN marketplace_collaborateurs mc ON mc.id = b.collaborateur_id
+      WHERE b.gestionnaire_id = $1 ORDER BY b.created_at DESC LIMIT 2000`, [req.gid]);
+  res.json(r.rows);
+}));
+router.put('/mv/blogs/:id/statut', authenticateToken, gestionnaire, exigerMV('blog_collab', 'Blog collaborateurs'), h(async (req, res) => {
+  const id = idPositif(req.params.id), statut = req.body && req.body.statut;
+  if (!id || !['publie', 'brouillon'].includes(statut)) return res.status(400).json({ error: 'Requête invalide.' });
+  const r = await pool.query(
+    `UPDATE collab_blogs SET statut = $1::varchar, date_publication = CASE WHEN $1::varchar = 'publie' THEN COALESCE(date_publication, NOW()) ELSE date_publication END, updated_at = NOW()
+      WHERE id = $2 AND gestionnaire_id = $3 RETURNING id, statut`, [statut, id, req.gid]);
+  if (!r.rowCount) return res.status(404).json({ error: 'Article introuvable.' });
+  res.json({ success: true, blog: r.rows[0] });
+}));
+router.delete('/mv/blogs/:id', authenticateToken, gestionnaire, exigerMV('blog_collab', 'Blog collaborateurs'), h(async (req, res) => {
+  const id = idPositif(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Requête invalide.' });
+  await pool.query('DELETE FROM collab_blogs WHERE id = $1 AND gestionnaire_id = $2', [id, req.gid]);
+  res.json({ success: true });
+}));
+
+router.get('/mv/faq', authenticateToken, gestionnaire, exigerMV('faq_collab', 'FAQ collaborateurs'), h(async (req, res) => {
+  const r = await pool.query(
+    `SELECT f.id, f.question, f.reponse, f.active, f.ordre, f.created_at, f.collaborateur_id, ${COLLAB_SQL}
+       FROM collab_faq f JOIN marketplace_collaborateurs mc ON mc.id = f.collaborateur_id
+      WHERE f.gestionnaire_id = $1 ORDER BY f.collaborateur_id, f.ordre, f.id LIMIT 5000`, [req.gid]);
+  res.json(r.rows);
+}));
+router.put('/mv/faq/:id/statut', authenticateToken, gestionnaire, exigerMV('faq_collab', 'FAQ collaborateurs'), h(async (req, res) => {
+  const id = idPositif(req.params.id);
+  if (!id || typeof (req.body && req.body.active) !== 'boolean') return res.status(400).json({ error: 'Requête invalide.' });
+  const r = await pool.query('UPDATE collab_faq SET active = $1, updated_at = NOW() WHERE id = $2 AND gestionnaire_id = $3 RETURNING id, active', [req.body.active, id, req.gid]);
+  if (!r.rowCount) return res.status(404).json({ error: 'Question introuvable.' });
+  res.json({ success: true, faq: r.rows[0] });
+}));
+router.delete('/mv/faq/:id', authenticateToken, gestionnaire, exigerMV('faq_collab', 'FAQ collaborateurs'), h(async (req, res) => {
+  const id = idPositif(req.params.id);
+  if (!id) return res.status(400).json({ error: 'Requête invalide.' });
+  await pool.query('DELETE FROM collab_faq WHERE id = $1 AND gestionnaire_id = $2', [id, req.gid]);
+  res.json({ success: true });
+}));
+
 router.get('/mv/plans', authenticateToken, gestionnaire, h(async (req, res) => {
   res.json({ plans: await addons.listerPlansMV({ actifSeulement: true }) });
 }));

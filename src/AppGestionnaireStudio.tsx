@@ -35,6 +35,8 @@ import StudioConfigMultivendeur  from './pages/gestionnaire/StudioConfigMultiven
 import StudioMonCompte          from './pages/gestionnaire/StudioMonCompte';
 import StudioBlogSousVendeur    from './pages/gestionnaire/StudioBlogCollaborateur';
 import StudioFaqSousVendeur     from './pages/gestionnaire/StudioFaqCollaborateur';
+import StudioBlogCollabMV       from './pages/gestionnaire/StudioBlogCollabMV';
+import StudioFaqCollabMV        from './pages/gestionnaire/StudioFaqCollabMV';
 import SurveillanceChats        from './pages/gestionnaire/SurveillanceChats';
 import ChatAvecCollaborateur    from './pages/gestionnaire/ChatAvecCollaborateur';
 import StudioSignalements       from './pages/gestionnaire/StudioSignalements';
@@ -1494,9 +1496,10 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-liste') return <StudioSousVendeurs    gestionnaireId={gestionnaire.id} />;
-    if (pageActive === 'collaborateurs-blogs')      return <StudioBlogSousVendeur gestionnaireId={gestionnaire.id} />;
-    if (pageActive === 'blogs-collaborateurs')      return <StudioBlogSousVendeur gestionnaireId={gestionnaire.id} />;
-    if (pageActive === 'faqs-collaborateurs')       return <StudioFaqSousVendeur  gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'collaborateurs-blogs' || pageActive === 'blogs-collaborateurs')
+      return estMultiVendeur ? <StudioBlogCollabMV gestionnaireId={gestionnaire.id} /> : <StudioBlogSousVendeur gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'faqs-collaborateurs')
+      return estMultiVendeur ? <StudioFaqCollabMV gestionnaireId={gestionnaire.id} /> : <StudioFaqSousVendeur  gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-messages')  return <ChatAvecCollaborateur gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-signalements') return <StudioSignalements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-produits') return <StudioMVProduits gestionnaireId={gestionnaire.id} />;

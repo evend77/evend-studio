@@ -1,4 +1,4 @@
-// src/templates/multivendeur/MVPremiumCatalogue.tsx
+// CHEMIN : src/templates/multivendeur/MVPremiumCatalogue.tsx
 // e-Vend Studio — Template Multi-Vendeur Premium — Catalogue
 
 import { useState, useEffect, useRef } from 'react';
