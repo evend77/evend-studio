@@ -12,6 +12,7 @@
 const pool = require('../db');
 const vacances = require('./studio_vacances');
 const { ajusterStock } = require('./studio_paiement');
+const studioAddons = require('./studio_addons');
 
 class ErreurEnchere extends Error { constructor(m, s) { super(m); this.status = s || 400; } }
 const refus = (m, s) => { throw new ErreurEnchere(m, s); };
@@ -52,12 +53,18 @@ const prochaineMise = (e) => (e.mise_actuelle === null || e.mise_actuelle === un
 
 // ── Création (par le collaborateur propriétaire du produit) ──────────────────
 async function creerEnchere({ gid, collaborateurId, produitId, prixDepart, prixReserve, dureeH }) {
+  // Add-on « Enchères » : sans lui, on ne peut plus CRÉER d'enchère (celles déjà en cours vont jusqu'au bout : mises, fin, paiement du gagnant)
+  if (!(await studioAddons.addonActifRapide(gid, 'encheres', pool))) refus("L'option « Enchères » n'est pas activée pour cette marketplace.", 403);
   const cfg = await reglages(gid);
   if (!cfg.actives) refus("Les enchères ne sont pas activées sur cette boutique.", 403);
   if (await vacances.estMasque(pool, gid, collaborateurId)) refus("Vous êtes en vacances (annonces masquées) : vous ne pouvez pas créer de nouvelle enchère. Celles en cours se terminent normalement.", 409);
 
   const depart = arrondi(nombre(prixDepart, NaN));
   if (!(depart > 0) || depart > MISE_MAX) refus('Prix de départ invalide.');
+  // Règles de « Config produits » : prix minimum, et inventaire non géré (alors aucun stock exigé ni réservé)
+  const rp = await require('./studio_regles_produits').lire(gid, pool);
+  const errPrix = require('./studio_regles_produits').erreurPrix(rp, depart, 'Prix de départ');
+  if (errPrix) refus(errPrix);
   let reserve = null;
   if (prixReserve !== undefined && prixReserve !== null && prixReserve !== '') {
     if (!cfg.reserve) refus("Le prix de réserve n'est pas permis sur cette boutique.");
@@ -86,7 +93,7 @@ async function creerEnchere({ gid, collaborateurId, produitId, prixDepart, prixR
     if (vivante.rows.length) refus('Ce produit a déjà une enchère en cours.', 409);
 
     // 1 unité réservée (stock vide = illimité : rien à réserver)
-    const suivi = p.stock !== null && p.stock !== undefined;
+    const suivi = rp.gererStock && p.stock !== null && p.stock !== undefined;
     if (suivi) {
       if (Number(p.stock) < 1) refus('Il faut au moins 1 unité en stock pour lancer une enchère.', 409);
       await ajusterStock(client, produitId, '', -1);

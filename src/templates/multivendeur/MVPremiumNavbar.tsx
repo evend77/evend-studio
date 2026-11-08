@@ -15,6 +15,8 @@ export default function MVPremiumNavbar({ naviguer, config }: { naviguer: (d: Na
     { label: 'Boutiques', dest: { page: 'boutiques' } },
     { label: 'Enchères', dest: { page: 'encheres' } },
   ];
+  const lienEncheres = config?.encheres_actif !== false;   // masqué si l'add-on Enchères n'est pas actif
+  const liensVisibles = liens.filter(l => l.dest.page !== 'encheres' || lienEncheres);
   const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
     <nav style={{ position: 'sticky', top: 0, zIndex: 100, backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)', background: fondNav(config) }}>
@@ -31,7 +33,7 @@ export default function MVPremiumNavbar({ naviguer, config }: { naviguer: (d: Na
           <span style={{ fontSize: 18, fontWeight: 800, color: '#fff', fontFamily: "'Syne',sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{nom}</span>
         </div>
         <div className="mvn-liens" style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
-          {liens.map(l => <span key={l.label} style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, cursor: 'pointer' }} onClick={() => aller(l.dest)}>{l.label}</span>)}
+          {liensVisibles.map(l => <span key={l.label} style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, cursor: 'pointer' }} onClick={() => aller(l.dest)}>{l.label}</span>)}
           <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
         <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
@@ -41,7 +43,7 @@ export default function MVPremiumNavbar({ naviguer, config }: { naviguer: (d: Na
       </div>
       {menuOuvert && (
         <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99, background: fondDe(config), borderTop: '1px solid rgba(255,255,255,0.08)', maxHeight: 'calc(100vh - 64px)', overflowY: 'auto' }}>
-          {liens.map(l => (
+          {liensVisibles.map(l => (
             <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
           ))}
           <div style={{ padding: '14px 20px' }}>

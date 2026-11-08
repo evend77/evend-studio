@@ -144,12 +144,14 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
   const [porteAge, setPorteAge] = useState(false);
   // Add-on « Popup Annonce » : même principe (actif = activé ou inclus au forfait).
   const [popupAnnonce, setPopupAnnonce] = useState(false);
+  // Add-on « Enchères » : lien, page et pied de page visibles seulement si l'add-on est actif (ou s'il reste des enchères en cours)
+  const [encheresVisibles, setEncheresVisibles] = useState(true);
   useEffect(() => {
     if (isDemo || !gestionnaireId) return;
     let actif = true;
     fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons`)
       .then(r => (r.ok ? r.json() : {}))
-      .then((d: any) => { if (actif) { setPorteAge(d?.verificateur_age === true); setPopupAnnonce(d?.popup_annonce === true); } })
+      .then((d: any) => { if (actif) { setPorteAge(d?.verificateur_age === true); setPopupAnnonce(d?.popup_annonce === true); if (typeof d?.encheres_visibles === 'boolean') setEncheresVisibles(d.encheres_visibles); } })
       .catch(() => {});
     return () => { actif = false; };
   }, [gestionnaireId, isDemo]);
@@ -177,7 +179,8 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const props = { vendeurId, isDemo, config, naviguer };
+  const configEff = encheresVisibles || isDemo ? config : { ...config, encheres_actif: false };
+  const props = { vendeurId, isDemo, config: configEff, naviguer };
 
   const contenu = (() => {
   switch (nav.page) {
@@ -190,7 +193,7 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     case 'produit':
       return <MVPremiumProduit {...props} produitId={nav.produitId} />;
     case 'encheres':
-      return <MVPremiumEncheres {...props} />;
+      return encheresVisibles || isDemo ? <MVPremiumEncheres {...props} /> : <MVPremiumCatalogue {...props} />;
     case 'documents':
       return <MVPremiumDocuments {...props} documentSlug={nav.documentSlug} />;
     case 'contact':

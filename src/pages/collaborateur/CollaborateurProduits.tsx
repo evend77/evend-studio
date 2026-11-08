@@ -41,6 +41,10 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
   // ── Enchères ──
   const [encheres, setEncheres] = useState<Record<number, EnchereCollab>>({});
   const [modalEnchere, setModalEnchere] = useState<Produit | null>(null);
+  const [addonEncheres, setAddonEncheres] = useState(false);
+  useEffect(() => {
+    fetch(`/api/studio-forfaits/public/${gestionnaireId}/addons`).then(r => r.json()).then(d => setAddonEncheres(!!d.encheres)).catch(() => setAddonEncheres(false));
+  }, [gestionnaireId]);
   const [fDepart, setFDepart] = useState('');
   const [fReserve, setFReserve] = useState('');
   const [fDuree, setFDuree] = useState('24');
@@ -250,7 +254,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
                         🔨 {encheres[p.id].statut === 'active' ? `${encheres[p.id].nb_mises} mise${encheres[p.id].nb_mises > 1 ? 's' : ''}` : 'À payer'}
                       </span>
                 ) : (
-                  p.statut === 'actif' && (p.stock === null || p.stock > 0) &&
+                  addonEncheres && p.statut === 'actif' && (p.stock === null || p.stock > 0) &&
                   <button disabled={occupe} onClick={() => ouvrirEnchere(p)} style={bouton('#b45309')} title="Mettre aux enchères">🔨 Enchères</button>
                 )}
                 <button disabled={occupe} onClick={() => action(`/produits/${p.id}/dupliquer`, 'POST')} style={bouton(T.light)} title="Dupliquer">⧉</button>

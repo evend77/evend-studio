@@ -123,7 +123,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: {
         <div className="mv-nav-links" style={s.navLinks}>
           <span className="mv-navlink" style={s.navLink} onClick={() => naviguer({ page: 'catalogue' })}>Catalogue</span>
           <span className="mv-navlink" style={s.navLink} onClick={() => naviguer({ page: 'boutiques' })}>Boutiques</span>
-          <span className="mv-navlink" style={s.navLink} onClick={() => naviguer({ page: 'encheres' })}>Encheres</span>
+          {config.encheres_actif !== false && <span className="mv-navlink" style={s.navLink} onClick={() => naviguer({ page: 'encheres' })}>Encheres</span>}
           <button onClick={() => naviguer({ page: 'login' })} style={{ ...s.btnCompte, background: accent }}>Mon compte</button>
         </div>
 
@@ -142,7 +142,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: {
                 <button onClick={() => { onRecherche(); fermer(); }} style={s.searchBtn}>🔍</button>
               </div>
             </div>
-            {([{ page: 'catalogue', label: 'Catalogue' }, { page: 'boutiques', label: 'Boutiques' }, { page: 'encheres', label: 'Encheres' }] as { page: any; label: string }[]).map(item => (
+            {([{ page: 'catalogue', label: 'Catalogue' }, { page: 'boutiques', label: 'Boutiques' }, ...(config.encheres_actif !== false ? [{ page: 'encheres', label: 'Encheres' }] : [])] as { page: any; label: string }[]).map(item => (
               <div key={item.page} onClick={() => { naviguer({ page: item.page }); fermer(); }} style={s.menuMobileItem}>{item.label}</div>
             ))}
             <div style={{ padding: '14px 20px' }}>

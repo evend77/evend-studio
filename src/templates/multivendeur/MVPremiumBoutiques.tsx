@@ -113,6 +113,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: { na
   const accent = config?.couleur_accent || '#fbbf24';
   const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Catalogue', dest: { page: 'catalogue' } }, { label: 'Enchères', dest: { page: 'encheres' } }];
   const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
+  const liensVisibles = liens.filter(l => l.dest.page !== 'encheres' || config?.encheres_actif !== false);   // masqué si l'add-on Enchères n'est pas actif
   return (
     <nav style={{ ...s.nav, background: fondNav(config) }}>
       <style>{`
@@ -136,7 +137,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: { na
           <button onClick={onRecherche} style={s.searchBtn}>🔍</button>
         </div>
         <div className="mvn-liens" style={s.navLinks}>
-          {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
+          {liensVisibles.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
           <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
         <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
@@ -152,7 +153,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: { na
                 placeholder="Rechercher..." style={{ ...s.searchInput, minWidth: 0 }} />
               <button onClick={() => { onRecherche(); setMenuOuvert(false); }} style={s.searchBtn}>🔍</button>
             </div>
-          {liens.map(l => (
+          {liensVisibles.map(l => (
             <div key={l.label} onClick={() => aller(l.dest)} style={{ padding: '14px 20px', color: 'rgba(255,255,255,0.85)', fontSize: 15, cursor: 'pointer', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>{l.label}</div>
           ))}
           <div style={{ padding: '14px 20px' }}>
