@@ -4,6 +4,7 @@
 import { useState } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import { fondDe, fondNav } from './mvTheme';
+import { MVSouhaitsAcces } from './MVFavoris';
 
 export default function MVPremiumNavbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Record<string, any> }) {
   const [menuOuvert, setMenuOuvert] = useState(false);
@@ -34,6 +35,7 @@ export default function MVPremiumNavbar({ naviguer, config }: { naviguer: (d: Na
         </div>
         <div className="mvn-liens" style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
           {liensVisibles.map(l => <span key={l.label} style={{ color: 'rgba(255,255,255,0.7)', fontSize: 14, cursor: 'pointer' }} onClick={() => aller(l.dest)}>{l.label}</span>)}
+          <MVSouhaitsAcces variante="entete" gestionnaireId={config?.gestionnaire_id} isDemo={!!config?.__demo} naviguer={naviguer} />
           <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
         <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}

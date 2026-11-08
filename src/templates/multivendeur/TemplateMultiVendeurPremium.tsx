@@ -20,6 +20,7 @@ import MarketplaceInscriptionAcheteur from '../shared/MarketplaceInscriptionAche
 import MarketplaceInscriptionCollaborateur  from '../shared/MarketplaceInscriptionCollaborateur';
 import AppAcheteur                    from '../../AppAcheteur';
 import AppCollaborateur               from '../../AppCollaborateur';
+import { MVFavorisToast, MVSouhaitsAcces } from './MVFavoris';
 
 const API_BASE = '/api';
 
@@ -179,7 +180,8 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const configEff = encheresVisibles || isDemo ? config : { ...config, encheres_actif: false };
+  const configBase = { ...config, gestionnaire_id: gestionnaireId, __demo: isDemo };   // les pages (barres de navigation) y lisent l'id de la marketplace
+  const configEff = encheresVisibles || isDemo ? configBase : { ...configBase, encheres_actif: false };
   const props = { vendeurId, isDemo, config: configEff, naviguer };
 
   const contenu = (() => {
@@ -218,6 +220,9 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
   return (
     <>
       {contenu}
+      {gestionnaireId ? <MVFavorisToast gestionnaireId={gestionnaireId} isDemo={isDemo} /> : null}
+      {gestionnaireId && nav.page !== 'login' && nav.page !== 'dashboard-acheteur' && nav.page !== 'dashboard-collaborateur'
+        ? <MVSouhaitsAcces variante="flottant" gestionnaireId={gestionnaireId} isDemo={isDemo} naviguer={naviguer} /> : null}
       {porteAge && gestionnaireId ? <VerificateurAge vendeurId={Number(gestionnaireId)} /> : null}
       {popupAnnonce && gestionnaireId ? <PopupAnnonce vendeurId={Number(gestionnaireId)} /> : null}
     </>

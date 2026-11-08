@@ -47,6 +47,8 @@ export default function Wishlist({ gestionnaireId, isMobile = false, couleurAcce
   const [tri, setTri] = useState<'recent' | 'prix_asc' | 'prix_desc'>('recent');
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [occupe, setOccupe] = useState<number | null>(null);
+  const [parPage, setParPage] = useState(20);        // réglage du gestionnaire (Config → Favoris → Général)
+  const [visibles, setVisibles] = useState(20);
 
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
 
@@ -62,6 +64,12 @@ export default function Wishlist({ gestionnaireId, isMobile = false, couleurAcce
   }, [gestionnaireId]);
 
   useEffect(() => { charger(); }, [charger]);
+  useEffect(() => {
+    fetch(`${API}/studio-forfaits/public/${gestionnaireId}/favoris-config?t=${Date.now()}`, { cache: 'no-cache' })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { const n = parseInt(d && d.config && d.config.elements_par_page, 10); if (Number.isInteger(n) && n >= 5) { setParPage(n); setVisibles(n); } })
+      .catch(() => {});
+  }, [gestionnaireId]);
 
   const retirer = async (it: Item) => {
     setOccupe(it.produit_id);
@@ -154,7 +162,7 @@ export default function Wishlist({ gestionnaireId, isMobile = false, couleurAcce
         <p style={{ textAlign: 'center', color: C.textLight, padding: 40 }}>Aucun produit ne correspond à votre recherche.</p>
       ) : (
         <div className="wl-grid">
-          {affiches.map(it => {
+          {affiches.slice(0, visibles).map(it => {
             const dispo = disponible(it);
             return (
               <div key={it.id} className="wl-card" style={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -184,6 +192,15 @@ export default function Wishlist({ gestionnaireId, isMobile = false, couleurAcce
               </div>
             );
           })}
+        </div>
+      )}
+
+      {affiches.length > visibles && (
+        <div style={{ textAlign: 'center', marginTop: 20 }}>
+          <button onClick={() => setVisibles(v => v + parPage)}
+            style={{ padding: '11px 24px', borderRadius: 10, border: `1px solid ${C.border}`, background: 'rgba(255,255,255,.06)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Afficher plus ({affiches.length - visibles} restants)
+          </button>
         </div>
       )}
     </div>

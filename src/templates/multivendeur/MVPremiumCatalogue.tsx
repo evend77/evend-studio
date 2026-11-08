@@ -8,6 +8,7 @@ import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche } from './mvSecurite';
 import { formaterPrix } from '../shared/devise';
 import MVParutionCountdown from './MVParutionCountdown';
+import { MVSouhaitsAcces, MVSouhaitCarte } from './MVFavoris';
 
 const API_BASE = '/api';
 
@@ -130,6 +131,7 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: any)
         </div>
         <div className="mvn-liens" style={s.navLinks}>
           {liensVisibles.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
+          <MVSouhaitsAcces variante="entete" gestionnaireId={config?.gestionnaire_id} isDemo={!!config?.__demo} naviguer={naviguer} />
           <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
         <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
@@ -464,6 +466,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
                         ? <img src={img} alt={p.nom} style={s.img} loading="lazy" />
                         : <div style={s.imgPlaceholder}>📦</div>}
                       {pct && <span style={s.badgeRabais}>-{pct}%</span>}
+                      <MVSouhaitCarte zone="superposition" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                       {p.stock === 0 && !p.date_parution && <span style={s.badgeEpuise}>Épuisé</span>}
                       {p.date_parution && (
                         <div style={{ position: 'absolute', left: 6, right: 6, bottom: 6 }}>
@@ -475,6 +478,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
                       )}
                     </div>
                     <div style={s.carteBody}>
+                      <MVSouhaitCarte zone="haut" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                       {(p.nom_boutique || p.vendeur_nom) && (
                         <div onClick={e => { e.stopPropagation(); if (p.vendeur_id) ouvrirBoutique(p.vendeur_id); }}
                           style={{ ...s.boutiqueNom, color: couleurAccent }}>
@@ -491,6 +495,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
                         )}
                       </div>
                       {avecCategories && p.categorie_nom && <div style={s.badgeCat}>{p.categorie_nom || p.categorie}</div>}
+                      <MVSouhaitCarte zone="bas" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                     </div>
                   </div>
                 );

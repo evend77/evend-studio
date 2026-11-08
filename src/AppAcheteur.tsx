@@ -9,6 +9,7 @@ import Checkout from './templates/shared/Checkout';
 import Commandes               from './pages/acheteur/Commandes';
 import Retours                 from './pages/acheteur/Retours';
 import Wishlist                from './pages/acheteur/Wishlist';
+import { synchroniserInvite } from './templates/multivendeur/MVFavoris';
 import CollaborateursFavoris   from './pages/acheteur/CollaborateursFavoris';
 import Notifications           from './pages/acheteur/Notifications';
 import Profil                  from './pages/acheteur/Profil';
@@ -288,8 +289,9 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
   const [nonLusChat,    setNonLusChat]    = useState(0);
   const [collabInitial, setCollabInitial] = useState<number | null>(null);
   const [chatActif, setChatActif] = useState(false);   // add-on « Chat collaborateurs »
+  const [favorisActif, setFavorisActif] = useState(false);   // add-on « Favoris » (souhaits + boutiques favorites)
   useEffect(() => {
-    fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons`).then(r => r.json()).then(d => setChatActif(!!d.chat_collab)).catch(() => setChatActif(false));
+    fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons?t=${Date.now()}`).then(r => r.json()).then(d => { setChatActif(!!d.chat_collab); setFavorisActif(!!d.favoris); }).catch(() => { setChatActif(false); setFavorisActif(false); });
   }, [gestionnaireId]);
   const [loading,       setLoading]       = useState(true);
 
@@ -299,6 +301,13 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     if (saved) {
       try { setCompte(JSON.parse(saved)); } catch {}
     }
+    // Add-on « Favoris » : produits ajoutés en tant qu'invité → enregistrés dans le compte à la connexion.
+    synchroniserInvite(gestionnaireId).catch(() => {});
+    // Arrivée depuis l'icône « liste de souhaits » du site : on ouvre la liste.
+    try {
+      const cleP = `mv_page_prefill_${gestionnaireId}`;
+      if (localStorage.getItem(cleP) === 'wishlist') { localStorage.removeItem(cleP); setPage('wishlist'); }
+    } catch { /* stockage indisponible */ }
     // Arrivée depuis le bouton « Chat » d'une page boutique : on ouvre le chat avec ce collaborateur.
     try {
       const cle = `mv_chat_prefill_${gestionnaireId}`;
@@ -421,8 +430,10 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
   const MENU: { id: PageDash; label: string; icon: string; badge?: number }[] = [
     { id: 'dashboard',     label: 'TABLEAU DE BORD', icon: '📊' },
     { id: 'commandes',     label: 'MES COMMANDES',   icon: '📦' },
-    { id: 'wishlist',      label: 'LISTE DE SOUHAITS', icon: '❤️' },
-    { id: 'favoris',       label: 'COLLABORATEURS FAVORIS', icon: '💜' },
+    ...(favorisActif ? [
+      { id: 'wishlist' as PageDash, label: 'LISTE DE SOUHAITS', icon: '❤️' },
+      { id: 'favoris' as PageDash,  label: 'COLLABORATEURS FAVORIS', icon: '💜' },
+    ] : []),
     { id: 'messagerie',    label: 'MESSAGERIE GESTIONNAIRE', icon: '🏢', badge: nonLusGest },
     ...(chatActif ? [{ id: 'chat' as PageDash, label: 'CHAT COLLABORATEURS', icon: '💬', badge: nonLusChat }] : []),
     { id: 'notifications', label: 'NOTIFICATIONS',    icon: '🔔', badge: nonLusNotifs },
@@ -449,8 +460,8 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     if (page === 'panier')        return <Panier naviguer={(p: string) => naviguer(p as PageDash)} gestionnaireId={gestionnaireId} config={config} />;
     if (page === 'checkout')      return <Checkout naviguer={(p: string) => naviguer(p as PageDash)} vendeurId={checkoutCollabId ?? undefined} gestionnaireId={gestionnaireId} config={config} />;
     if (page === 'encheres')      return <MesEncheres {...commun} naviguer={versBoutique} onVoirProduit={(id) => naviguerTemplate({ page: 'produit', produitId: id })} />;
-    if (page === 'wishlist')      return <Wishlist {...commun} naviguer={versBoutique} />;
-    if (page === 'favoris')       return <CollaborateursFavoris {...commun} onEcrire={chatActif ? ecrireACollab : undefined} />;
+    if (page === 'wishlist' && favorisActif) return <Wishlist {...commun} naviguer={versBoutique} />;
+    if (page === 'favoris' && favorisActif) return <CollaborateursFavoris {...commun} onEcrire={chatActif ? ecrireACollab : undefined} />;
     if (page === 'messagerie')    return <MessagerieGestionnaire {...commun} />;
     if (page === 'chat' && chatActif) return <ChatAvecCollaborateurs {...commun} collaborateurInitial={collabInitial} onInitialConsomme={() => setCollabInitial(null)} />;
     if (page === 'notifications') return <Notifications {...commun} />;

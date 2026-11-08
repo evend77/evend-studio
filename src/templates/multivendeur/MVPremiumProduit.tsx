@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
 import BlocEnchere from './BlocEnchere';
 import MVBadgesCollab, { BadgeCollab } from './MVBadgesCollab';
+import { MVSouhaitProduit } from './MVFavoris';
 import Navbar from './MVPremiumNavbar';
 import { fondDe } from './mvTheme';
 import { formaterPrix } from '../shared/devise';
@@ -385,6 +386,9 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               </div>
             )}
 
+            {/* Favoris : ♥ avant le bouton panier */}
+            <MVSouhaitProduit zone="avant_panier" gestionnaireId={gId} produitId={produit.id} isDemo={isDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
+
             {/* Bouton panier */}
             {parutionBloquee && (cfgParution.afficher_message_atc && cfgParution.texte_atc_bloque
               ? <div style={{ width: '100%', marginBottom: 12, padding: '14px 16px', borderRadius: 12, background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.4)', color: '#fcd34d', fontSize: 14, fontWeight: 700, textAlign: 'center' }}>{cfgParution.texte_atc_bloque}</div>
@@ -402,6 +406,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               }}>
               {ajoutEnCours ? '⏳ Ajout...' : produit.stock === 0 ? 'Épuisé' : '🛒 Ajouter au panier'}
             </button>}
+            <MVSouhaitProduit zone="apres_panier" gestionnaireId={gId} produitId={produit.id} isDemo={isDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
             </div>
 
             {msgAjout && (

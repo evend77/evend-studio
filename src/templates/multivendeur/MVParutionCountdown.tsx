@@ -12,6 +12,7 @@ export interface ConfigParution {
   masquer_timezone_mobile: boolean; texte_titre: string; texte_date_prefix: string; texte_timezone: string; texte_seo: string;
   texte_vente_ouverte: string; texte_atc_bloque: string; afficher_feux_artifice: boolean; duree_feux_artifice: number;
   afficher_timezone: boolean; afficher_seo: boolean; effet_vague: boolean; effet_bordure: boolean; afficher_message_atc: boolean;
+  bloquer_wishlist?: boolean;   // Parution future : pas de ♥ (liste de souhaits) tant que la vente n'est pas ouverte
   duree_disparition_bloc: number; couleur_feux_1: string; couleur_feux_2: string; couleur_feux_3: string;
   vitesse_vague?: 'lente' | 'normale' | 'rapide';
 }

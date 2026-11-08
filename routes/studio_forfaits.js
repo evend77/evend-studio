@@ -21,6 +21,7 @@ const pool = require('../db');
 const auth = require('../middleware/auth');
 const addons = require('../services/studio_addons');
 const parution = require('../services/studio_parution');
+const favorisCfg = require('../services/studio_favoris');
 
 const router = express.Router();
 const { authenticateToken } = auth;
@@ -86,7 +87,7 @@ router.get('/public/:gid/addons', h(async (req, res) => {
   try { enCours = (await pool.query(`SELECT 1 FROM encheres WHERE gestionnaire_id = $1 AND statut IN ('active','attente_paiement') LIMIT 1`, [gid])).rowCount > 0; } catch (e) { enCours = false; }
   res.json({ badge_masque: actif('badge_evend_masquer'), verificateur_age: actif('verificateur_age'), popup_annonce: actif('popup_annonce'),
              encheres: actif('encheres'), encheres_visibles: actif('encheres') || enCours, parution_future: actif('parution_future'),
-             blog_collab: actif('blog_collab'), faq_collab: actif('faq_collab'), chat_collab: actif('chat_collab'), badges: actif('badges') });
+             blog_collab: actif('blog_collab'), faq_collab: actif('faq_collab'), chat_collab: actif('chat_collab'), badges: actif('badges'), favoris: actif('favoris') });
 }));
 
 // Apparence du compte à rebours « Parution future » pour cette marketplace (plateforme + réglages du gestionnaire)
@@ -97,7 +98,33 @@ router.get('/public/:gid/parution-config', h(async (req, res) => {
   res.json({ success: true, config: await parution.configPour(gid) });
 }));
 
+// Réglages de l'add-on « Favoris » (icône, boutons, notifications, invités) pour cette marketplace
+router.get('/public/:gid/favoris-config', h(async (req, res) => {
+  const gid = parseInt(req.params.gid, 10);
+  if (!Number.isInteger(gid) || gid <= 0) return res.status(400).json({ error: 'Identifiant invalide.' });
+  res.set('Cache-Control', 'public, max-age=10');
+  res.json({ success: true, config: await favorisCfg.configPour(gid) });
+}));
+
 // ════════════════════════ GESTIONNAIRE ════════════════════════════════════════
+
+// Favoris : réglages de MA marketplace (add-on requis pour enregistrer)
+router.get('/mv/favoris-config', authenticateToken, gestionnaire, h(async (req, res) => {
+  const perso = favorisCfg.nettoyer(await favorisCfg.surchargeGestionnaire(req.gid));
+  res.json({ success: true, config: { ...favorisCfg.DEFAUT, ...perso }, personnalisee: Object.keys(perso).length > 0,
+             addon_actif: await addons.addonActifRapide(req.gid, 'favoris', pool) });
+}));
+
+router.put('/mv/favoris-config', authenticateToken, gestionnaire, h(async (req, res) => {
+  if (!(await addons.addonActifRapide(req.gid, 'favoris', pool))) return res.status(403).json({ error: "L'option « Favoris » n'est pas activée." });
+  const c = await favorisCfg.sauverGestionnaire(req.gid, req.body);
+  res.json({ success: true, config: { ...favorisCfg.DEFAUT, ...c } });
+}));
+
+router.delete('/mv/favoris-config', authenticateToken, gestionnaire, h(async (req, res) => {
+  await favorisCfg.reinitialiserGestionnaire(req.gid);
+  res.json({ success: true });
+}));
 
 // Parution future : apparence du compte à rebours de MA marketplace (add-on requis pour enregistrer)
 router.get('/mv/parution-config', authenticateToken, gestionnaire, h(async (req, res) => {

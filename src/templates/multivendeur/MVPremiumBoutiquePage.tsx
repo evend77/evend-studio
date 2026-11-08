@@ -10,6 +10,7 @@ import { nettoyerRecherche, nettoyerTexte } from './mvSecurite';
 import { formaterPrix } from '../shared/devise';
 import MVParutionCountdown from './MVParutionCountdown';
 import MVBadgesCollab, { BadgeCollab } from './MVBadgesCollab';
+import { MVSouhaitsAcces, MVSouhaitCarte } from './MVFavoris';
 
 const API_BASE = '/api';
 
@@ -121,6 +122,7 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
         </div>
         <div className="mvn-liens" style={s.navLinks}>
           {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
+          <MVSouhaitsAcces variante="entete" gestionnaireId={config?.gestionnaire_id} isDemo={!!config?.__demo} naviguer={naviguer} />
           <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
         <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
@@ -165,7 +167,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
   const [filtreCatMobileOuvert, setFiltreCatMobileOuvert] = useState(false);
 
   // Add-ons
-  const [addonsStatut, setAddonsStatut] = useState({ blog_actif: false, faq_actif: false, avis_actif: false, chat_actif: false });
+  const [addonsStatut, setAddonsStatut] = useState({ blog_actif: false, faq_actif: false, avis_actif: false, chat_actif: false, favoris_actif: false });
   const [blog, setBlog] = useState<BlogArticle[]>([]);
   const [faq, setFaq] = useState<FaqItem[]>([]);
   const [avis, setAvis] = useState<Avis[]>([]);
@@ -204,7 +206,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
     if (isDemo) {
       setBoutique(DEMO_BOUTIQUE);
       setProduits(DEMO_PRODUITS_BOUTIQUE);
-      setAddonsStatut({ blog_actif: true, faq_actif: true, avis_actif: true, chat_actif: true });
+      setAddonsStatut({ blog_actif: true, faq_actif: true, avis_actif: true, chat_actif: true, favoris_actif: true });
       setBlog(DEMO_BLOG);
       setFaq(DEMO_FAQ);
       setAvis(DEMO_AVIS);
@@ -230,7 +232,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
 
     fetch(`${apiBoutique}/addons-statut`)
       .then(r => r.ok ? r.json() : {} as any)
-      .then((d: any) => setAddonsStatut({ blog_actif: !!d.blog_actif, faq_actif: !!d.faq_actif, avis_actif: !!d.avis_actif, chat_actif: !!d.chat_actif }))
+      .then((d: any) => setAddonsStatut({ blog_actif: !!d.blog_actif, faq_actif: !!d.faq_actif, avis_actif: !!d.avis_actif, chat_actif: !!d.chat_actif, favoris_actif: !!d.favoris_actif }))
       .catch(() => {});
   }, [boutiqueId, gId, isDemo]);
 
@@ -416,10 +418,10 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
             </div>
           </div>
           <div className="mvp-actions" style={s.actions}>
-            <button onClick={basculerFavori} disabled={favoriOccupe}
+            {addonsStatut.favoris_actif && <button onClick={basculerFavori} disabled={favoriOccupe}
               style={{ ...s.btnAction, borderColor: estFavori ? '#ef4444' : 'rgba(255,255,255,0.18)', color: estFavori ? '#f87171' : '#fff', background: estFavori ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)' }}>
               {estFavori ? '❤️ Favori' : '🤍 Favori'}
-            </button>
+            </button>}
             {addonsStatut.chat_actif && <button onClick={ouvrirChat} style={{ ...s.btnAction, borderColor: `${couleurAccent}66`, color: couleurAccent, background: `${couleurAccent}14` }}>💬 Chat</button>}
             <button onClick={() => { setModalMsg(null); setModal('signaler'); }} style={{ ...s.btnAction, borderColor: 'rgba(239,68,68,0.35)', color: '#f87171', background: 'rgba(239,68,68,0.08)' }}>⚠️ Signaler</button>
           </div>
@@ -491,6 +493,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                       <div key={p.id} onClick={() => naviguer({ page: 'produit', produitId: p.id })} style={s.carteProduit}>
                         <div style={{ ...s.carteImg, position: 'relative' }}>
                           {p.image ? <img src={p.image} alt={p.nom} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: 32, opacity: 0.2 }}>📦</div>}
+                          <MVSouhaitCarte zone="superposition" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                           {p.date_parution && (
                             <div style={{ position: 'absolute', left: 6, right: 6, bottom: 6 }}>
                               <MVParutionCountdown compact gestionnaireId={gId} dateParution={p.date_parution} heureServeur={p.heure_serveur} />
@@ -498,8 +501,10 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                           )}
                         </div>
                         <div style={{ padding: 12 }}>
+                          <MVSouhaitCarte zone="haut" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                           <p style={{ fontSize: 13, color: '#fff', margin: '0 0 6px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{p.nom}</p>
                           <p style={{ fontSize: 15, fontWeight: 800, color: couleurAccent, margin: 0 }}>{formaterPrix(parseFloat(String(p.prix)))}</p>
+                          <MVSouhaitCarte zone="bas" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                         </div>
                       </div>
                     ))}
