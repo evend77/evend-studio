@@ -98,8 +98,9 @@ app.use('/api/webhooks/paiements-connect', require('./routes/webhooks_paiements_
 app.post('/api/webhooks/gestionnaire-stripe/:gestionnaireId/:type', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/gestionnaire-stripe', require('./routes/webhooks_gestionnaire_stripe'));
 
-// ✅ Webhook de suivi des étiquettes d'expédition des collaborateurs (Shippo) — body brut (avant express.json)
+// ✅ Webhook de suivi des étiquettes d'expédition des collaborateurs (Shippo, EasyPost) — body brut (avant express.json)
 app.post('/api/webhooks-etiquettes/shippo', express.raw({ type: 'application/json' }));
+app.post('/api/webhooks-etiquettes/easypost', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks-etiquettes', require('./routes/webhooks_etiquettes'));
 
 // ✅ Webhook Dynadot (NOUVEAU)

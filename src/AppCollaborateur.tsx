@@ -379,7 +379,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
         { id: 'config-generale', label: 'Configuration generale', icon: '⚙️' },
         { id: 'config-stripe',   label: 'Paiements Stripe',       icon: '💳' },
         { id: 'config-expedition', label: "Méthodes d'expédition", icon: '🚚' },
-        ...(addonsMV.etiquette_shippo ? [{ id: 'config-etiquettes', label: "Étiquettes d'expédition", icon: '🏷️' }] : []),
+        ...(addonsMV.etiquette_shippo || addonsMV.etiquette_easypost ? [{ id: 'config-etiquettes', label: "Étiquettes d'expédition", icon: '🏷️' }] : []),
       ]
     },
   ];
@@ -395,7 +395,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
       return <CollaborateurProduits {...commun} onCreer={() => naviguer('creer')} onModifier={(id: number) => { naviguer('creer'); setProduitEnEdition(id); }} />;
     if (pageActive === 'annonces-promos')   return <CollaborateurReductions {...commun} />;
     if (pageActive === 'commande-detail' && commandeOuverte)
-      return <CollaborateurCommandeDetail {...commun} commandeId={commandeOuverte} naviguer={naviguer} etiquettes={!!addonsMV.etiquette_shippo} onRetour={() => naviguer('commandes-liste')} />;
+      return <CollaborateurCommandeDetail {...commun} commandeId={commandeOuverte} naviguer={naviguer} etiquettes={!!(addonsMV.etiquette_shippo || addonsMV.etiquette_easypost)} onRetour={() => naviguer('commandes-liste')} />;
     if (pageActive === 'commandes-liste')   return <CollaborateurCommandes {...commun} naviguer={naviguer} onDetail={(id: number) => { setCommandeOuverte(id); naviguer('commande-detail'); }} />;
     if (pageActive === 'commandes-paiements') return <CollaborateurPaiements {...commun} naviguer={naviguer} />;
     if (pageActive === 'commandes-retours') return <CollaborateurRetours {...commun} />;

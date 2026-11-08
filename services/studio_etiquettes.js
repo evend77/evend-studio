@@ -11,6 +11,7 @@
 
 'use strict';
 
+const crypto = require('crypto');
 const pool = require('../db');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
 const addons = require('./studio_addons');
@@ -23,6 +24,7 @@ class ErreurEtiquette extends Error {
 // Transporteurs disponibles (un add-on chacun). EasyPost et Postes Canada s'ajoutent ici.
 const TRANSPORTEURS = {
   shippo: { addon: 'etiquette_shippo', nom: 'Shippo', charger: () => require('./transporteurs/shippo') },
+  easypost: { addon: 'etiquette_easypost', nom: 'EasyPost', charger: () => require('./transporteurs/easypost') },
 };
 
 // Étapes de livraison qu'un suivi automatique ne doit jamais écraser
@@ -38,6 +40,7 @@ async function lireConfig(cid, gid, db) {
 function estConfigure(code, row) {
   if (!row) return false;
   if (code === 'shippo') return !!row.shippo_token_chiffre;
+  if (code === 'easypost') return !!(row.easypost_cle_test_chiffre || row.easypost_cle_prod_chiffre);
   return false;
 }
 
@@ -50,7 +53,8 @@ async function etatConfig(cid, gid) {
       code, nom: t.nom,
       addon_actif: await addons.addonActifRapide(gid, t.addon, pool),
       configure: estConfigure(code, row),
-      mode: code === 'shippo' ? (row ? row.shippo_mode : 'test') : 'test',
+      mode: row ? ((code === 'shippo' ? row.shippo_mode : code === 'easypost' ? row.easypost_mode : 'test') || 'test') : 'test',
+      secret_configure: code === 'easypost' && !!(row && row.easypost_webhook_secret_chiffre),
       actif: !!row && row.provider_actif === code,
     });
   }
@@ -93,6 +97,49 @@ async function enregistrerShippo(cid, gid, { token, actif, effacer }) {
     [cid, gid, provider, tokenChiffre, mode]);
 }
 
+/** Enregistre / active / désactive / efface la clé EasyPost et le secret webhook du collaborateur. */
+async function enregistrerEasyPost(cid, gid, { cle, actif, effacer, secret, effacerSecret }) {
+  if (!(await addons.addonActifRapide(gid, TRANSPORTEURS.easypost.addon, pool))) {
+    throw new ErreurEtiquette("L'option « Étiquettes EasyPost » n'est pas activée pour cette marketplace.", 403);
+  }
+  const row = await lireConfig(cid, gid);
+  let cleTest = row ? row.easypost_cle_test_chiffre : null;
+  let cleProd = row ? row.easypost_cle_prod_chiffre : null;
+  let mode = (row && row.easypost_mode) || 'test';
+  let secretCh = row ? row.easypost_webhook_secret_chiffre : null;
+  let provider = row ? row.provider_actif : null;
+
+  if (effacer) {
+    cleTest = null; cleProd = null; secretCh = null; mode = 'test';
+    if (provider === 'easypost') provider = null;
+  } else {
+    if (typeof cle === 'string' && cle.trim()) {
+      const k = cle.trim();
+      if (!/^(EZTK|EZAK)[A-Za-z0-9]{16,200}$/.test(k)) {
+        throw new ErreurEtiquette('Clé EasyPost invalide : elle doit commencer par « EZTK » (test) ou « EZAK » (production) — copiez-la en entier.');
+      }
+      if (k.startsWith('EZAK')) { cleProd = chiffrer(k); mode = 'production'; } else { cleTest = chiffrer(k); mode = 'test'; }
+    }
+    if (typeof secret === 'string' && secret.trim()) {
+      const s = secret.trim();
+      if (s.length < 8 || s.length > 200 || /\s/.test(s)) throw new ErreurEtiquette('Secret webhook invalide : copiez-le tel quel depuis EasyPost (sans espaces).');
+      secretCh = chiffrer(s);
+    }
+    if (effacerSecret) secretCh = null;
+    if (actif === true) {
+      if (!(mode === 'production' ? cleProd : cleTest)) throw new ErreurEtiquette("Collez d'abord votre clé API EasyPost.");
+      provider = 'easypost';                      // activer EasyPost désactive automatiquement les autres transporteurs
+    } else if (actif === false && provider === 'easypost') {
+      provider = null;
+    }
+  }
+  await pool.query(
+    `INSERT INTO collab_expedition_config (collaborateur_id, gestionnaire_id, provider_actif, easypost_cle_test_chiffre, easypost_cle_prod_chiffre, easypost_mode, easypost_webhook_secret_chiffre, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+     ON CONFLICT (collaborateur_id) DO UPDATE SET provider_actif = $3, easypost_cle_test_chiffre = $4, easypost_cle_prod_chiffre = $5, easypost_mode = $6, easypost_webhook_secret_chiffre = $7, updated_at = NOW()`,
+    [cid, gid, provider, cleTest, cleProd, mode, secretCh]);
+}
+
 /** Config prête à l'emploi (clé déchiffrée) du transporteur ACTIF du collaborateur, ou null. */
 async function configActive(cid, gid) {
   const row = await lireConfig(cid, gid);
@@ -100,6 +147,11 @@ async function configActive(cid, gid) {
   if (row.provider_actif === 'shippo') {
     const token = dechiffrer(row.shippo_token_chiffre);
     return token ? { provider: 'shippo', token, mode: row.shippo_mode || 'test' } : null;
+  }
+  if (row.provider_actif === 'easypost') {
+    const mode = row.easypost_mode || 'test';
+    const token = dechiffrer(mode === 'production' ? row.easypost_cle_prod_chiffre : row.easypost_cle_test_chiffre);
+    return token ? { provider: 'easypost', token, mode } : null;
   }
   return null;
 }
@@ -299,7 +351,49 @@ async function traiterWebhookShippo(payload) {
   return { traitees };
 }
 
+// ── Webhook EasyPost (signature HMAC propre à chaque collaborateur) ───────────
+// Reproduit Utils.validateWebhook() du SDK officiel @easypost/api (voir e-Vend routes/webhooks-easypost.js) :
+// normalisation NFKD du secret + correctif de sérialisation des poids entiers ("weight": 5 → 5.0).
+// Retourne le JSON signé (issu des octets EXACTS qui ont servi à la signature) ou null.
+function verifierSignatureEasyPost(rawBuffer, enTete, secret) {
+  if (!enTete || !secret || !Buffer.isBuffer(rawBuffer)) return null;
+  const corps = rawBuffer.toString('utf8').replace(/("weight":\s*)(\d+)(\s*)(?=,|\})/g, '$1$2.0');
+  const attendue = `hmac-sha256-hex=${crypto.createHmac('sha256', Buffer.from(secret.normalize('NFKD'), 'utf8')).update(corps, 'utf8').digest('hex')}`;
+  const recu = Buffer.from(String(enTete), 'utf8'); const att = Buffer.from(attendue, 'utf8');
+  if (recu.length !== att.length || !crypto.timingSafeEqual(recu, att)) return null;
+  try { return JSON.parse(corps); } catch (e) { return null; }
+}
+
+/**
+ * Webhook EasyPost (tracker.updated / tracker.created). Le contenu n'est cru QU'APRÈS vérification de la signature
+ * avec le secret du collaborateur propriétaire de la commande. Sans secret configuré : rejeté (fail-closed).
+ */
+async function traiterWebhookEasyPost(rawBuffer, enTeteSignature) {
+  const mod = TRANSPORTEURS.easypost.charger();
+  let brut;
+  try { brut = mod.parserWebhook(JSON.parse(rawBuffer.toString('utf8'))); } catch (e) { return { ignore: 'JSON invalide' }; }
+  if (!brut || !brut.numeroSuivi) return { ignore: 'payload non reconnu' };   // lecture NON fiable : sert seulement à retrouver la commande
+  const lignes = await pool.query(
+    `SELECT id, statut, etape_livraison, historique_suivi, acheteur_id, gestionnaire_id, collaborateur_id, numero_suivi, numero_commande
+       FROM marketplace_commandes WHERE numero_suivi = $1 AND etiquette_provider = 'easypost'`, [String(brut.numeroSuivi).slice(0, 80)]);
+  let traitees = 0, rejetees = 0;
+  for (const cmd of lignes.rows) {
+    if (ETAPES_PROTEGEES.has(cmd.etape_livraison) || cmd.statut === 'annulee') continue;
+    const row = await lireConfig(cmd.collaborateur_id, cmd.gestionnaire_id);
+    let secret = null;
+    try { secret = row && row.easypost_webhook_secret_chiffre ? dechiffrer(row.easypost_webhook_secret_chiffre) : null; } catch (e) { secret = null; }
+    if (!secret) { rejetees++; console.log(`🔴 Webhook EasyPost REJETÉ — aucun secret webhook configuré (commande ${cmd.id})`); continue; }
+    const valide = verifierSignatureEasyPost(rawBuffer, enTeteSignature, secret);
+    if (!valide) { rejetees++; console.log(`🔴 Webhook EasyPost REJETÉ — signature invalide (commande ${cmd.id})`); continue; }
+    const ev = mod.parserWebhook(valide);
+    if (!ev || ev.numeroSuivi !== cmd.numero_suivi) continue;
+    await appliquerSuivi(cmd, ev, 'easypost');
+    traitees++;
+  }
+  return { traitees, rejetees };
+}
+
 module.exports = {
-  ErreurEtiquette, TRANSPORTEURS, etatConfig, enregistrerShippo, configActive,
-  chargerCommande, tarifs, acheter, appliquerSuivi, traiterWebhookShippo, lireHistorique,
+  ErreurEtiquette, TRANSPORTEURS, etatConfig, enregistrerShippo, enregistrerEasyPost, configActive,
+  chargerCommande, tarifs, acheter, appliquerSuivi, traiterWebhookShippo, traiterWebhookEasyPost, verifierSignatureEasyPost, lireHistorique,
 };
