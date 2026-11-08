@@ -6,8 +6,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { formaterPrix } from '../../templates/shared/devise';
 
 interface Variante { nom: string; prix: string; stock: string; }
-interface Regles { expedition_obligatoire: boolean; approbation_auto: boolean; gerer_stock: boolean; prix_zero: boolean; prix_min: number; qte_min_active: boolean; qte_min_mode: 'produit' | 'commande'; aide: string; prix_revient: boolean; categories: boolean; }
-const REGLES_DEFAUT: Regles = { expedition_obligatoire: false, approbation_auto: true, gerer_stock: true, prix_zero: false, prix_min: 0, qte_min_active: false, qte_min_mode: 'produit', aide: '', prix_revient: false, categories: true };
+interface Regles { expedition_obligatoire: boolean; approbation_auto: boolean; gerer_stock: boolean; prix_zero: boolean; prix_min: number; qte_min_active: boolean; qte_min_mode: 'produit' | 'commande'; aide: string; prix_revient: boolean; categories: boolean; parution_future_actif: boolean; }
+const REGLES_DEFAUT: Regles = { expedition_obligatoire: false, approbation_auto: true, gerer_stock: true, prix_zero: false, prix_min: 0, qte_min_active: false, qte_min_mode: 'produit', aide: '', prix_revient: false, categories: true, parution_future_actif: false };
 interface Props {
   gestionnaireId: number; accent: string; isMobile: boolean;
   produitId: number | null; onRetour: () => void;
@@ -26,6 +26,9 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
   const [sku, setSku] = useState('');
   const [quantiteMin, setQuantiteMin] = useState('');
   const [prixRevient, setPrixRevient] = useState('');
+  // Parution future (add-on) : 'AAAA-MM-JJTHH:mm' en heure de Montréal, '' = en vente tout de suite
+  const [dateParution, setDateParution] = useState('');
+  const [dateParutionInitiale, setDateParutionInitiale] = useState('');
   const [regles, setRegles] = useState<Regles>(REGLES_DEFAUT);
   const [categorieId, setCategorieId] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
@@ -66,6 +69,7 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
         setPrix(p.prix ?? ''); setPrixPromo(p.prix_promo ?? '');
         setStock(p.stock === null || p.stock === undefined ? '' : String(p.stock));
         setQuantiteMin(p.quantite_min ? String(p.quantite_min) : ''); setPrixRevient(p.prix_revient === null || p.prix_revient === undefined ? '' : String(p.prix_revient));
+        setDateParution(p.date_parution_local || ''); setDateParutionInitiale(p.date_parution_local || '');
         setSku(p.sku || ''); setCategorieId(p.categorie_id ? String(p.categorie_id) : '');
         setPoids(p.poids === null || p.poids === undefined ? '' : String(Number(p.poids)));
         setMethodesSel(Array.isArray(p.methodes_expedition_ids) ? p.methodes_expedition_ids : []);
@@ -128,6 +132,8 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
         body: JSON.stringify({
           titre, description, prix, prix_promo: prixPromo, stock, sku, quantite_min: regles.qte_min_active ? quantiteMin : '', ...(regles.prix_revient ? { prix_revient: prixRevient } : {}), categorie_id: categorieId || null, photos, statut,
           poids: poids === '' ? null : poids,
+          // Parution future : envoyée seulement si l'add-on est actif (ou pour retirer une date existante)
+          ...((regles.parution_future_actif || (dateParution === '' && dateParutionInitiale !== '')) ? { date_parution: dateParution === '' ? null : dateParution } : {}),
           methodes_expedition_ids: methodesVendeur.length > 0 ? methodesSel : [],
           variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock })),
         }),
@@ -273,6 +279,26 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
         </div>
         )}
       </div>
+
+      {(regles.parution_future_actif || dateParutionInitiale) && (
+        <div style={carte}>
+          <label style={lbl}>📅 Date de parution (optionnel)</label>
+          {regles.parution_future_actif ? (
+            <>
+              <input type="datetime-local" value={dateParution} onChange={e => setDateParution(e.target.value)} style={{ ...champ, maxWidth: 260 }} />
+              {dateParution && <button type="button" onClick={() => setDateParution('')} style={{ marginLeft: 10, border: `1px solid ${T.border}`, background: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>✕ Retirer la date</button>}
+              <p style={{ fontSize: 11, color: T.light, margin: '8px 0 0' }}>
+                Heure de Montréal. L'annonce est visible avec un compte à rebours, mais impossible à acheter avant cette date. La date doit être dans au moins 30 minutes. Laissez vide pour vendre tout de suite.
+              </p>
+            </>
+          ) : (
+            <div>
+              <p style={{ fontSize: 13, color: T.text, margin: '0 0 8px' }}>🔒 L'option « Parution future » n'est plus activée. Cette annonce reste bloquée jusqu'au <strong>{dateParutionInitiale.replace('T', ' à ')}</strong>.</p>
+              {dateParution && <button type="button" onClick={() => setDateParution('')} style={{ border: `1px solid ${T.border}`, background: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>✕ Retirer la date et vendre tout de suite</button>}
+            </div>
+          )}
+        </div>
+      )}
 
       <div style={carte}>
         <label style={lbl}>🚚 Expédition</label>

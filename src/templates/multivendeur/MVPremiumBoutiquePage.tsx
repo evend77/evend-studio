@@ -8,6 +8,7 @@ import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche, nettoyerTexte } from './mvSecurite';
 import { formaterPrix } from '../shared/devise';
+import MVParutionCountdown from './MVParutionCountdown';
 
 const API_BASE = '/api';
 
@@ -33,6 +34,7 @@ interface Boutique {
 
 interface Produit {
   id: number; nom: string; prix: number; image?: string; stock: number; categorie_nom?: string;
+  date_parution?: string | null; heure_serveur?: string;   // Parution future
 }
 
 interface BlogArticle {
@@ -482,8 +484,13 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                   <div className="mvp-grille" style={s.grilleProduits}>
                     {produitsFiltres.map(p => (
                       <div key={p.id} onClick={() => naviguer({ page: 'produit', produitId: p.id })} style={s.carteProduit}>
-                        <div style={s.carteImg}>
+                        <div style={{ ...s.carteImg, position: 'relative' }}>
                           {p.image ? <img src={p.image} alt={p.nom} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: 32, opacity: 0.2 }}>📦</div>}
+                          {p.date_parution && (
+                            <div style={{ position: 'absolute', left: 6, right: 6, bottom: 6 }}>
+                              <MVParutionCountdown compact dateParution={p.date_parution} heureServeur={p.heure_serveur} />
+                            </div>
+                          )}
                         </div>
                         <div style={{ padding: 12 }}>
                           <p style={{ fontSize: 13, color: '#fff', margin: '0 0 6px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{p.nom}</p>

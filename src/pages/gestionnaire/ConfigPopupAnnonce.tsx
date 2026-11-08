@@ -145,7 +145,7 @@ export default function ConfigPopupAnnonce({ gestionnaireId }: Props) {
           <p style={{ fontSize:13, color:'#888', margin:0 }}>Affichez une annonce, promo ou événement sur votre boutique</p>
         </div>
         <div style={{ marginLeft:'auto', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'6px 14px', fontSize:12, fontWeight:700, color:'#e63946' }}>
-          Add-On actif · 3,00 $/mois
+          Add-On actif · 5,00 $/mois
         </div>
       </div>
 

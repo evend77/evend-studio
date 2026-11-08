@@ -146,13 +146,15 @@ router.post('/:gid/panier', authMV, async (req, res) => {
 
   try {
     const prodRes = await pool.query(
-      'SELECT id, collaborateur_id, titre, photo_principale, prix, prix_promo, stock, variantes FROM produits WHERE id = $1 AND statut = $2 AND gestionnaire_id = $3 AND collaborateur_id IS NOT NULL',
+      'SELECT id, collaborateur_id, titre, photo_principale, prix, prix_promo, stock, variantes, date_parution FROM produits WHERE id = $1 AND statut = $2 AND gestionnaire_id = $3 AND collaborateur_id IS NOT NULL',
       [parseInt(produit_id), 'actif', gid]
     );
     if (!prodRes.rows[0]) return res.status(404).json({ error: 'Produit introuvable' });
 
     const produit = prodRes.rows[0];
     const collaborateurId = produit.collaborateur_id;
+    // Parution future : pas d'achat avant la date d'ouverture de la vente
+    if (produit.date_parution && new Date(produit.date_parution).getTime() > Date.now()) return res.status(409).json({ error: 'Cet article sera disponible à la vente le ' + new Date(produit.date_parution).toLocaleString('fr-CA', { timeZone: 'America/Toronto', dateStyle: 'long', timeStyle: 'short' }) + '.' });
 
     // Vendeur en vacances avec annonces masquées : on n'ajoute rien au panier
     const vacs = await vacMV.etat(pool, parseInt(gid, 10), collaborateurId);

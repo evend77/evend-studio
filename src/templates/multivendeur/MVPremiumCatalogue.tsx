@@ -7,6 +7,7 @@ import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche } from './mvSecurite';
 import { formaterPrix } from '../shared/devise';
+import MVParutionCountdown from './MVParutionCountdown';
 
 const API_BASE = '/api';
 
@@ -48,6 +49,8 @@ interface Produit {
   enchere_prix_base?: number;
   created_at?: string;
   statut?: string;
+  date_parution?: string | null;   // Parution future
+  heure_serveur?: string;
 }
 
 interface Categorie {
@@ -460,7 +463,12 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
                         ? <img src={img} alt={p.nom} style={s.img} loading="lazy" />
                         : <div style={s.imgPlaceholder}>📦</div>}
                       {pct && <span style={s.badgeRabais}>-{pct}%</span>}
-                      {p.stock === 0 && <span style={s.badgeEpuise}>Épuisé</span>}
+                      {p.stock === 0 && !p.date_parution && <span style={s.badgeEpuise}>Épuisé</span>}
+                      {p.date_parution && (
+                        <div style={{ position: 'absolute', left: 6, right: 6, bottom: 6 }}>
+                          <MVParutionCountdown compact dateParution={p.date_parution} heureServeur={p.heure_serveur} />
+                        </div>
+                      )}
                       {p.enchere_statut === 'en_cours' && (
                         <span style={{ ...s.badgeRabais, background: 'linear-gradient(135deg,#f59e0b,#ea580c)' }}>🔨 Enchère</span>
                       )}

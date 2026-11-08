@@ -30,7 +30,7 @@ function entier(v) {
 // Gérer l'inventaire désactivé (Config produits) : le stock n'est plus suivi, tout est « en stock »
 const SANS_STOCK = `COALESCE((SELECT st.config->'multivendeur'->>'gerer_inventaire_par_defaut' = 'false' FROM sites st WHERE st.gestionnaire_id = p.gestionnaire_id LIMIT 1), false)`;
 const COLS = `p.id, p.titre, p.description, p.prix, p.prix_promo, p.stock, p.categorie, p.photo_principale, p.photos,
-  p.created_at, p.collaborateur_id, p.variantes,
+  p.created_at, p.collaborateur_id, p.variantes, p.date_parution,
   COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.ville AS vendeur_ville, mc.politique_livraison, mc.politique_retour,
   p.categorie_id, COALESCE(sc.nom, cp.label) AS categorie_nom, sg.nom AS groupe_nom,
   (mc.inscrit_taxes IS TRUE AND COALESCE(sc.taxable, true)) AS facturation_taxes, ${SANS_STOCK} AS sans_stock, ${vac.VAC_COLS}`;
@@ -87,6 +87,9 @@ function formater(r) {
     created_at: r.created_at,
     variantes: formaterVariantes(r, r.sans_stock === true || r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0), r.sans_stock === true),
     vacances: vac.publicDe(r), // { mode, message, retour } si le vendeur est en vacances, sinon null
+    // Parution future : date d'ouverture de la vente (ISO) tant qu'elle n'est pas passée, + heure du serveur pour le compte à rebours
+    date_parution: r.date_parution && new Date(r.date_parution).getTime() > Date.now() ? new Date(r.date_parution).toISOString() : null,
+    heure_serveur: new Date().toISOString(),
   };
 }
 
