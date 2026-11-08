@@ -147,6 +147,18 @@ router.use('/gestionnaire', authenticateToken, verifierGestionnaire);
 // Tout le reste (sauf /gestionnaire) : acheteur connecté.
 router.use((req, res, next) => (req.path.startsWith('/gestionnaire') ? next() : authAcheteur(req, res, next)));
 
+// Add-on « Favoris » (produits préférés + boutiques favorites) : si inactif, listes vides en lecture, 403 en écriture.
+router.use(['/wishlist', '/favoris'], async (req, res, next) => {
+  try {
+    if (await addonsMV.addonActifRapide(req.gid, 'favoris', pool)) return next();
+    if (req.method === 'GET') return res.json({ items: [], collaborateurs: [] });
+    return res.status(403).json({ error: "L'option « Favoris » n'est pas activée pour cette marketplace." });
+  } catch (e) {
+    console.error('[acheteur_dashboard] favoris', e && e.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // ─── Notification vers l'acheteur (utilisable aussi par d'autres routes) ──────
 
 async function notifier(gid, acheteurId, titre, message, type, lien) {
@@ -171,7 +183,7 @@ const RAISONS = {
 const TYPES_DEMANDE = ['retour', 'echange', 'remboursement'];
 
 const COLS_CMD = `c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.articles, c.adresse_livraison, c.note,
-  c.date_commande, c.numero_suivi, c.transporteur, c.recu_le, c.annule_par, c.raison_annulation, c.collaborateur_id,
+  c.date_commande, c.numero_suivi, c.transporteur, c.url_suivi, c.etiquette_provider, c.etape_livraison, c.historique_suivi, c.recu_le, c.annule_par, c.raison_annulation, c.collaborateur_id,
   COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS boutique,
   (SELECT r.statut FROM demandes_retour r WHERE r.commande_id = c.id ORDER BY r.created_at DESC LIMIT 1) AS retour_statut,
   EXISTS (SELECT 1 FROM avis_collaborateur a WHERE a.commande_id = c.id AND a.acheteur_id = c.acheteur_id) AS a_avis,

@@ -626,7 +626,7 @@ router.get('/commandes/:id', h(async (req, res) => {
   const r = await pool.query(
     `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net, c.articles, c.adresse_livraison,
             c.note, c.date_commande, c.numero_suivi, c.transporteur, c.url_suivi, c.paye_le, c.frais_expedition, c.taxes, c.code_promo, c.rabais,
-            c.montant_rembourse, c.raison_annulation, c.date_livraison_prevue,
+            c.montant_rembourse, c.raison_annulation, c.date_livraison_prevue, c.etiquette_provider, c.url_etiquette, c.etape_livraison, c.historique_suivi,
             a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email, a.telephone AS acheteur_telephone
        ${JOIN_ACHETEUR} WHERE c.id = $1 AND c.collaborateur_id = $2 AND c.gestionnaire_id = $3`, [id, req.cid, req.gid]);
   if (!r.rows.length) bad('Commande introuvable', 404);
@@ -780,6 +780,9 @@ router.put('/commandes/:id/statut', h(async (req, res) => {
 // ════════════════════════════════════════════════════════════════════════════
 // PAIEMENTS
 // ════════════════════════════════════════════════════════════════════════════
+
+// Étiquettes d'expédition (add-ons Shippo / EasyPost / Postes Canada) : config du transporteur, tarifs, achat, historique de suivi
+router.use('/', require('./collab_etiquettes')({ h, bad, entier, transitionsPour, notifierAcheteur, courrielExpedition }));
 
 router.get('/paiements', h(async (req, res) => {
   const { W, params } = filtreCommandes(req, true);

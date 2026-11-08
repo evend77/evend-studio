@@ -6,6 +6,7 @@
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { formaterPrix } from '../../templates/shared/devise';
+import SuiviCommande from '../../templates/shared/SuiviCommande';
 
 const API = '/api';
 
@@ -22,6 +23,10 @@ interface Commande {
   date_commande: string;
   numero_suivi: string | null;
   transporteur: string | null;
+  url_suivi?: string | null;
+  etiquette_provider?: string | null;
+  etape_livraison?: string | null;
+  historique_suivi?: unknown;
   recu_le: string | null;
   annule_par: string | null;
   raison_annulation: string | null;
@@ -48,7 +53,6 @@ const STATUTS: Record<string, { label: string; couleur: string; icone: string }>
   livree:     { label: 'Livrée',     couleur: '#10b981', icone: '✅' },
   annulee:    { label: 'Annulée',    couleur: '#ef4444', icone: '✖️' },
 };
-const ETAPES = ['en_attente', 'confirmee', 'expediee', 'livree'];
 
 const RAISONS: { id: string; label: string }[] = [
   { id: 'non_recu', label: 'Article non reçu' }, { id: 'non_conforme', label: 'Non conforme à la description' },
@@ -202,7 +206,6 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtrees.map(c => {
             const open = ouverte === c.id;
-            const etape = ETAPES.indexOf(c.statut);
             const peutAnnuler = (c.statut === 'en_attente' || c.statut === 'confirmee') && c.statut_paiement !== 'paye';
             const peutRetour = (c.statut === 'expediee' || c.statut === 'livree') && !(c.retour_statut === 'en_attente' || c.retour_statut === 'approuve');
             const adr = c.adresse_livraison || {};
@@ -223,23 +226,9 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
 
                 {open && (
                   <div style={{ padding: isMobile ? '0 12px 14px' : '0 18px 18px', borderTop: `1px solid ${C.border}` }}>
-                    {c.statut !== 'annulee' ? (
-                      <div style={{ display: 'flex', alignItems: 'center', margin: '18px 4px 6px' }}>
-                        {ETAPES.map((e, i) => (
-                          <React.Fragment key={e}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }}>
-                              <div style={{ width: 24, height: 24, borderRadius: '50%', background: i <= etape ? couleurAccent : 'rgba(255,255,255,.1)', color: '#000', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{i <= etape ? '✓' : ''}</div>
-                              <span style={{ fontSize: 9, color: i <= etape ? '#fff' : C.textLight, textAlign: 'center' }}>{STATUTS[e].label}</span>
-                            </div>
-                            {i < ETAPES.length - 1 && <div style={{ flex: 1, height: 2, background: i < etape ? couleurAccent : 'rgba(255,255,255,.1)', margin: '0 4px 14px' }} />}
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    ) : (
-                      <p style={{ margin: '14px 0 6px', fontSize: 12, color: '#fca5a5' }}>
-                        Annulée{c.annule_par === 'acheteur' ? ' par vous' : ''}{c.raison_annulation ? ` — ${c.raison_annulation}` : ''}
-                      </p>
-                    )}
+                    <div style={{ marginTop: 14 }}>
+                      <SuiviCommande commande={c} theme="sombre" accent={couleurAccent} isMobile={isMobile} titre="Suivi de ma commande" />
+                    </div>
 
                     <div style={{ margin: '12px 0' }}>
                       {(c.articles || []).map((a, i) => (
@@ -262,7 +251,7 @@ export default function Commandes({ gestionnaireId, isMobile = false, couleurAcc
                       )}
                       <div style={{ background: 'rgba(255,255,255,.04)', borderRadius: 10, padding: 12 }}>
                         <b style={{ color: '#fff' }}>💳 Paiement</b><br />{c.statut_paiement === 'paye' ? 'Payé' : c.statut_paiement === 'rembourse' ? 'Remboursé' : 'En attente de paiement'}
-                        {c.numero_suivi && <><br /><b style={{ color: '#fff' }}>🚚 Suivi</b> {c.transporteur ? `${c.transporteur} · ` : ''}{c.numero_suivi}</>}
+                        {c.numero_suivi && <><br /><b style={{ color: '#fff' }}>🚚 Suivi</b> {c.transporteur ? `${c.transporteur} · ` : ''}{c.numero_suivi}{c.url_suivi && /^https?:\/\//i.test(c.url_suivi) && <> · <a href={c.url_suivi} target="_blank" rel="noopener noreferrer" style={{ color: couleurAccent, fontWeight: 700 }}>Suivre mon colis ↗</a></>}</>}
                         {c.recu_le && <><br />Reçue le {fmtDate(c.recu_le)}</>}
                       </div>
                     </div>

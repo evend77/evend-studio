@@ -5,14 +5,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { formaterPrix } from '../../templates/shared/devise';
+import SuiviCommande from '../../templates/shared/SuiviCommande';
 
-interface Article { titre?: string; prix?: number | string; quantite?: number; image_url?: string; variante?: string }
+interface Article { titre?: string; prix?: number | string; quantite?: number; image_url?: string; variante?: string; poids?: number | string }
 interface Remb { id: number; origine: string; montant: string; raison: string; statut: string; demande_par: string | null; motif_refus: string | null; erreur: string | null; created_at: string; traite_le: string | null }
 interface Histo { evenement: string; detail: string | null; auteur: string | null; created_at: string }
 interface Detail {
   id: number; numero_commande: string; statut: string; statut_paiement: string; total: string; commission: string | null; montant_net: string | null;
   articles: Article[] | null; adresse_livraison: Record<string, unknown> | null; note: string | null; date_commande: string;
   numero_suivi: string | null; transporteur: string | null; url_suivi: string | null; paye_le: string | null;
+  etiquette_provider: string | null; url_etiquette: string | null; etape_livraison: string | null; historique_suivi: unknown;
   frais_expedition: string | null; taxes: Record<string, unknown> | null; code_promo: string | null; rabais: string | null;
   montant_rembourse: string | null; raison_annulation: string | null; date_livraison_prevue: string | null;
   regles?: { suivi_obligatoire: boolean; date_active: boolean; date_obligatoire: boolean; accepter: boolean; accepter_expedier: boolean };
@@ -20,7 +22,7 @@ interface Detail {
   retours: { id: number; motif: string; statut: string }[]; remboursements: Remb[]; historique: Histo[]; transitions: string[];
   remboursement_autonome: boolean; montant_restant: number; peut_rembourser: boolean; peut_refuser: boolean;
 }
-interface Props { gestionnaireId: number; accent: string; isMobile: boolean; commandeId: number; onRetour: () => void; naviguer?: (page: string) => void }
+interface Props { gestionnaireId: number; accent: string; isMobile: boolean; commandeId: number; onRetour: () => void; naviguer?: (page: string) => void; etiquettes?: boolean }
 
 const T = { border: '#e1e4e8', text: '#1a2332', light: '#6b7280', danger: '#dc2626' };
 const STATUTS: Record<string, { l: string; bg: string; c: string }> = {
@@ -35,20 +37,22 @@ const PAIEMENTS: Record<string, { l: string; bg: string; c: string }> = {
 const STATUT_REMB: Record<string, string> = { en_attente: '⏳ En attente d\'approbation', en_cours: '⏳ En cours', effectue: '✅ Effectué', refuse: '✕ Refusé', echoue: '⚠️ Échoué' };
 const EVENEMENTS: Record<string, string> = {
   statut_confirmee: 'Commande confirmée', statut_expediee: 'Commande expédiée', statut_livree: 'Commande livrée', statut_annulee: 'Commande annulée',
-  commande_refusee: 'Commande refusée', remboursement_demande: 'Remboursement demandé', remboursement_effectue: 'Remboursement effectué',
+  etiquette_creee: 'Étiquette créée', commande_refusee: 'Commande refusée', remboursement_demande: 'Remboursement demandé', remboursement_effectue: 'Remboursement effectué',
   remboursement_refuse: 'Remboursement refusé', remboursement_echoue: 'Remboursement échoué', remboursement_retire: 'Demande retirée',
 };
 const TAXES_LIB: Record<string, string> = { tps: 'TPS', tvq: 'TVQ', tvh: 'TVH', tvp: 'TVP' };
 const argent = (v: string | number | null | undefined) => (v === null || v === undefined || v === '' ? '—' : formaterPrix(v));
 const dateLongue = (d: string | null) => { if (!d) return ''; try { return new Date(d).toLocaleString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
 const urlSure = (u: string | null) => (u && /^https?:\/\//i.test(u) ? u : null);
+// L'étiquette est un lien http(s) (ou, pour Postes Canada, un PDF intégré)
+const urlEtiquetteSure = (u: string | null | undefined) => (u && (/^https?:\/\//i.test(u) || /^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/.test(u)) ? u : null);
 
 function Pastille({ info }: { info?: { l: string; bg: string; c: string } }) {
   if (!info) return null;
   return <span style={{ background: info.bg, color: info.c, padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>{info.l}</span>;
 }
 
-export default function CollaborateurCommandeDetail({ gestionnaireId, accent, isMobile, commandeId, onRetour, naviguer }: Props) {
+export default function CollaborateurCommandeDetail({ gestionnaireId, accent, isMobile, commandeId, onRetour, naviguer, etiquettes }: Props) {
   const base = `/api/collab/${gestionnaireId}/commandes/${commandeId}`;
   const [d, setD] = useState<Detail | null>(null);
   const [erreurPage, setErreurPage] = useState('');
@@ -58,6 +62,54 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
   const [exp, setExp] = useState({ transporteur: '', suivi: '', url: '', date: '' });
   const [raison, setRaison] = useState('');
   const [partiel, setPartiel] = useState(false); const [montant, setMontant] = useState('');
+
+  // ── Étiquette d'expédition (add-on Shippo…) ──
+  interface Tarif { rateId: string; shipmentId?: string; transporteur: string; service: string; montant: number | string; devise: string; delaiEstimeJours: number | null }
+  const [modalEtiquette, setModalEtiquette] = useState(false);
+  const [dim, setDim] = useState({ l: '30', w: '20', h: '10' });
+  const [poids, setPoids] = useState('');
+  const [tarifs, setTarifs] = useState<Tarif[] | null>(null);
+  const [chargementTarifs, setChargementTarifs] = useState(false);
+  const [erreurEtiq, setErreurEtiq] = useState('');
+  const [diagnostic, setDiagnostic] = useState<unknown>(null);
+  const [diagOuvert, setDiagOuvert] = useState(false);
+  const [achatEnCours, setAchatEnCours] = useState<string | null>(null);
+
+  const ouvrirEtiquette = () => {
+    const kg = (d?.articles || []).reduce((s, a) => s + (parseFloat(String(a.poids ?? '')) || 0) * Number(a.quantite ?? 1), 0);
+    setPoids(kg > 0 ? String(Math.round(kg * 100) / 100) : '');
+    setTarifs(null); setErreurEtiq(''); setDiagnostic(null); setDiagOuvert(false);
+    setModalEtiquette(true);
+  };
+  const corpsColis = () => ({
+    longueur_cm: parseFloat(dim.l) || undefined, largeur_cm: parseFloat(dim.w) || undefined, hauteur_cm: parseFloat(dim.h) || undefined,
+    poids_kg: poids ? parseFloat(poids) : undefined,
+  });
+  const chercherTarifs = async () => {
+    setChargementTarifs(true); setErreurEtiq(''); setDiagnostic(null); setDiagOuvert(false); setTarifs(null);
+    try {
+      const res = await fetch(`${base}/tarifs-expedition`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpsColis()) });
+      const j = await res.json().catch(() => ({}));
+      if (j.diagnostic) setDiagnostic(j.diagnostic);
+      if (res.ok) setTarifs(j.tarifs || []); else setErreurEtiq(j.error || 'Erreur lors de la récupération des tarifs');
+    } catch { setErreurEtiq('Erreur de connexion au serveur'); }
+    setChargementTarifs(false);
+  };
+  // Le clic sur « Acheter » pour un tarif précis EST la confirmation (le prix et le service sont déjà affichés).
+  const acheterEtiquette = async (t: Tarif) => {
+    setAchatEnCours(t.rateId); setErreurEtiq('');
+    try {
+      const res = await fetch(`${base}/etiquette`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rate_id: t.rateId, shipment_id: t.shipmentId, transporteur: t.transporteur, service: t.service, ...corpsColis() }) });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setErreurEtiq(j.error || "Erreur lors de l'achat de l'étiquette"); setAchatEnCours(null); return; }
+      setModalEtiquette(false); setAchatEnCours(null);
+      await charger();
+      setInfo(`Étiquette créée${j.numero_suivi ? ` · suivi ${j.numero_suivi}` : ''} : la commande est expédiée et le client est avisé.`);
+      const lien = urlEtiquetteSure(j.url_etiquette);
+      if (lien) window.open(lien, '_blank');
+    } catch { setErreurEtiq('Erreur de connexion au serveur'); setAchatEnCours(null); }
+  };
 
   const charger = useCallback(async () => {
     try {
@@ -120,6 +172,9 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
   const peutExpedier = d.transitions.includes('expediee') && payee;
   const peutLivrer = d.transitions.includes('livree');
   const peutAnnulerSimple = d.transitions.includes('annulee') && !payee;
+  // Étiquette : commande payée, acceptée (ou « accepter et expédier » permis) ou déjà expédiée à la main, sans étiquette déjà achetée
+  const peutEtiquette = !!etiquettes && payee && !d.etiquette_provider && d.statut !== 'livree' && d.statut !== 'annulee' && (d.statut === 'expediee' || d.transitions.includes('expediee'));
+  const lienEtiquette = urlEtiquetteSure(d.url_etiquette);
   const rgl = d.regles;
   const manqueSuivi = !!rgl?.suivi_obligatoire && (!exp.transporteur.trim() || !exp.suivi.trim());
   const manqueDate = !!rgl?.date_active && !!rgl?.date_obligatoire && !exp.date;
@@ -214,6 +269,7 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {peutAccepter && payee && <button disabled={occupe} onClick={confirmer} style={btn(true)}>✔ Accepter la commande</button>}
             {peutExpedier && <button disabled={occupe} onClick={() => setMode('expedier')} style={btn(true)}>{accepterEtExpedier ? '📦 Accepter et expédier' : '📦 Marquer expédiée'}</button>}
+            {peutEtiquette && <button disabled={occupe} onClick={ouvrirEtiquette} style={btn(true)}>{d.numero_suivi ? '🏷️ Acheter une étiquette (remplace le suivi manuel)' : '🏷️ Créer une étiquette'}</button>}
             {peutLivrer && <button disabled={occupe} onClick={livrer} style={btn(true)}>✅ Marquer livrée</button>}
             {d.peut_refuser && <button disabled={occupe} onClick={() => setMode('refuser')} style={btn(false, true)}>✕ Refuser la commande</button>}
             {peutAnnulerSimple && <button disabled={occupe} onClick={() => setMode('annuler')} style={btn(false, true)}>✕ Annuler</button>}
@@ -282,13 +338,14 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
         )}
       </div>
 
-      {(d.numero_suivi || d.transporteur || lienSuivi || d.date_livraison_prevue) && (
+      {(d.numero_suivi || d.transporteur || lienSuivi || lienEtiquette || d.date_livraison_prevue) && (
         <div style={carte}>
           <p style={titre}>Expédition</p>
           <p style={{ margin: 0, fontSize: 13, lineHeight: 1.7 }}>
             🚚 {d.transporteur || 'Transporteur non précisé'}{d.numero_suivi ? <> · suivi <strong>{d.numero_suivi}</strong></> : null}
             {d.date_livraison_prevue && <><br />📅 Livraison prévue : <strong>{new Date(String(d.date_livraison_prevue).slice(0, 10) + 'T12:00:00').toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' })}</strong></>}
             {lienSuivi && <><br /><a href={lienSuivi} target="_blank" rel="noopener noreferrer" style={{ color: accent, fontWeight: 700 }}>Ouvrir le suivi ↗</a></>}
+            {lienEtiquette && <><br /><a href={lienEtiquette} target="_blank" rel="noopener noreferrer" style={{ color: accent, fontWeight: 700 }}>📄 Télécharger / imprimer l'étiquette ↗</a></>}
           </p>
         </div>
       )}
@@ -325,9 +382,84 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
         <Pastille info={d.statut === 'en_attente' && payee && d.regles?.accepter ? { l: '🔔 À accepter', bg: '#FEF5E7', c: '#B9770E' } : STATUTS[d.statut]} /><Pastille info={PAIEMENTS[d.statut_paiement]} />
         <span style={{ fontSize: 12, color: T.light }}>{dateLongue(d.date_commande)}</span>
       </div>
+      <SuiviCommande commande={d} theme="clair" accent={accent} isMobile={isMobile} titre="Suivi de la commande" />
       <div style={{ display: isMobile ? 'block' : 'grid', gridTemplateColumns: '1.3fr 1fr', gap: 16, alignItems: 'start' }}>
         {isMobile ? <>{droite}{gauche}</> : <><div>{gauche}</div><div>{droite}</div></>}
       </div>
+
+      {modalEtiquette && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: isMobile ? 18 : 26, width: 540, maxWidth: '100%', maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 8px 32px rgba(0,0,0,.2)' }}>
+            <div style={{ textAlign: 'center', fontSize: 44, marginBottom: 6 }}>🏷️</div>
+            <h3 style={{ margin: '0 0 4px', fontSize: 19, textAlign: 'center', color: T.text }}>Créer une étiquette d'expédition</h3>
+            <p style={{ margin: '0 0 18px', fontSize: 12, color: T.light, textAlign: 'center' }}>Commande {d.numero_commande}</p>
+
+            <label style={{ display: 'block', margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: T.text }}>Dimensions du colis (cm)</label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 16 }}>
+              {([['Longueur', dim.l, 'l'], ['Largeur', dim.w, 'w'], ['Hauteur', dim.h, 'h']] as const).map(([lib, val, k]) => (
+                <div key={k}>
+                  <p style={{ margin: '0 0 4px', fontSize: 11, color: T.light }}>{lib}</p>
+                  <input type="number" min="1" value={val} onChange={e => setDim({ ...dim, [k]: e.target.value })} style={champ} />
+                </div>
+              ))}
+            </div>
+
+            <label style={{ display: 'block', margin: '0 0 6px', fontSize: 13, fontWeight: 600, color: T.text }}>Poids total (kg)</label>
+            <input type="number" min="0.01" step="0.01" value={poids} onChange={e => setPoids(e.target.value)} placeholder="Ex : 1.20" style={champ} />
+            <p style={{ margin: '5px 0 16px', fontSize: 11, color: T.light }}>Préempli depuis le poids des articles s'il est connu — ajustez au besoin.</p>
+
+            {erreurEtiq && <div style={{ background: '#FDECEA', borderLeft: '4px solid #E74C3C', padding: '10px 14px', borderRadius: 8, marginBottom: 14, fontSize: 12, color: '#C0392B' }}>⚠️ {erreurEtiq}</div>}
+
+            {diagnostic != null && (
+              <div style={{ background: '#f5f5f5', border: '1px solid #ddd', borderRadius: 8, marginBottom: 14, overflow: 'hidden' }}>
+                <button type="button" onClick={() => setDiagOuvert(o => !o)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', padding: '10px 14px', cursor: 'pointer', textAlign: 'left' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#666' }}>🔍 Diagnostic (à copier-coller si besoin d'aide)</span>
+                  <span style={{ fontSize: 12, color: '#666', transform: diagOuvert ? 'rotate(90deg)' : 'none' }}>▶</span>
+                </button>
+                {diagOuvert && <pre style={{ fontSize: 10, color: '#333', margin: 0, padding: '0 14px 12px', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 200, overflowY: 'auto' }}>{JSON.stringify(diagnostic, null, 2)}</pre>}
+              </div>
+            )}
+
+            {!tarifs && (
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                <button onClick={() => setModalEtiquette(false)} style={btn(false)}>Annuler</button>
+                <button onClick={chercherTarifs} disabled={chargementTarifs || !poids || parseFloat(poids) <= 0} style={{ ...btn(true), opacity: chargementTarifs || !poids || parseFloat(poids) <= 0 ? 0.5 : 1 }}>
+                  {chargementTarifs ? '⏳ Recherche des tarifs…' : '🔍 Obtenir les tarifs'}
+                </button>
+              </div>
+            )}
+
+            {tarifs && (
+              <div>
+                {tarifs.length === 0 ? (
+                  <p style={{ fontSize: 13, color: T.light, textAlign: 'center', padding: '16px 0' }}>Aucun tarif disponible pour cette adresse et ces dimensions.</p>
+                ) : (
+                  <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+                    {tarifs.map(t => (
+                      <div key={t.rateId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 14px', border: `1px solid ${T.border}`, borderRadius: 8 }}>
+                        <div style={{ minWidth: 0 }}>
+                          <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: T.text }}>{t.transporteur} — {t.service}</p>
+                          <p style={{ margin: '2px 0 0', fontSize: 11, color: T.light }}>{t.delaiEstimeJours ? `Livraison estimée : ${t.delaiEstimeJours} jour${t.delaiEstimeJours > 1 ? 's' : ''}` : 'Délai non précisé'}</p>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ fontSize: 15, fontWeight: 700, color: accent }}>{Number(t.montant).toFixed(2)} {t.devise}</span>
+                          <button onClick={() => acheterEtiquette(t)} disabled={achatEnCours !== null} style={{ ...btn(true), background: '#27AE60', padding: '8px 14px', fontSize: 12, opacity: achatEnCours !== null ? 0.6 : 1 }}>
+                            {achatEnCours === t.rateId ? '⏳ Achat…' : '✓ Acheter'}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: 10, justifyContent: 'center' }}>
+                  <button onClick={() => setModalEtiquette(false)} disabled={achatEnCours !== null} style={btn(false)}>Annuler</button>
+                  <button onClick={() => setTarifs(null)} disabled={achatEnCours !== null} style={btn(false)}>← Modifier dimensions/poids</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
