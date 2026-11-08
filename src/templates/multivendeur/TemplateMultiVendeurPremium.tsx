@@ -21,6 +21,7 @@ import MarketplaceInscriptionCollaborateur  from '../shared/MarketplaceInscripti
 import AppAcheteur                    from '../../AppAcheteur';
 import AppCollaborateur               from '../../AppCollaborateur';
 import { MVFavorisToast, MVSouhaitsAcces } from './MVFavoris';
+import MVChatbot from './MVChatbot';
 
 const API_BASE = '/api';
 
@@ -145,6 +146,8 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
   const [porteAge, setPorteAge] = useState(false);
   // Add-on « Popup Annonce » : même principe (actif = activé ou inclus au forfait).
   const [popupAnnonce, setPopupAnnonce] = useState(false);
+  // Add-on « Chatbot » : l'assistant virtuel flottant n'est monté que si l'add-on est actif (activé, ou inclus au forfait).
+  const [chatbotActif, setChatbotActif] = useState(false);
   // Add-on « Enchères » : lien, page et pied de page visibles seulement si l'add-on est actif (ou s'il reste des enchères en cours)
   const [encheresVisibles, setEncheresVisibles] = useState(true);
   useEffect(() => {
@@ -152,7 +155,7 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     let actif = true;
     fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons`)
       .then(r => (r.ok ? r.json() : {}))
-      .then((d: any) => { if (actif) { setPorteAge(d?.verificateur_age === true); setPopupAnnonce(d?.popup_annonce === true); if (typeof d?.encheres_visibles === 'boolean') setEncheresVisibles(d.encheres_visibles); } })
+      .then((d: any) => { if (actif) { setPorteAge(d?.verificateur_age === true); setPopupAnnonce(d?.popup_annonce === true); setChatbotActif(d?.chatbot === true); if (typeof d?.encheres_visibles === 'boolean') setEncheresVisibles(d.encheres_visibles); } })
       .catch(() => {});
     return () => { actif = false; };
   }, [gestionnaireId, isDemo]);
@@ -225,6 +228,8 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
         ? <MVSouhaitsAcces variante="flottant" gestionnaireId={gestionnaireId} isDemo={isDemo} naviguer={naviguer} /> : null}
       {porteAge && gestionnaireId ? <VerificateurAge vendeurId={Number(gestionnaireId)} /> : null}
       {popupAnnonce && gestionnaireId ? <PopupAnnonce vendeurId={Number(gestionnaireId)} /> : null}
+      {chatbotActif && gestionnaireId && !isDemo && nav.page !== 'dashboard-acheteur' && nav.page !== 'dashboard-collaborateur'
+        ? <MVChatbot gestionnaireId={gestionnaireId} pageActuelle={nav.page} naviguer={naviguer} /> : null}
     </>
   );
 }

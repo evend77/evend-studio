@@ -28,6 +28,7 @@ const LEGACY_COLS = {
   badge_evend_masquer: 'cacher_propulse',
   verificateur_age: 'verificateur_age',
   popup_annonce: 'popup_annonce',
+  chatbot: 'chatbot',                 // Chatbot (sans IA) : options_gestionnaire.chatbot, comme dans les autres templates
 };
 
 async function etatLegacy(gid, db) {
@@ -182,7 +183,7 @@ async function addonActifRapide(gid, code, db) {
   return r.rowCount > 0;
 }
 
-// ── Add-ons MV dont l'activation vit dans options_gestionnaire (Cacher le branding, Vérificateur d'âge, Popup Annonce) ──
+// ── Add-ons MV dont l'activation vit dans options_gestionnaire (Cacher le branding, Vérificateur d'âge, Popup Annonce, Chatbot) ──
 
 /** Aligne options_gestionnaire sur le forfait : inclus → activé (0,00 $) ; plus inclus après une rétrogradation → désactivé. */
 async function syncInclusLegacy(gid, db) {

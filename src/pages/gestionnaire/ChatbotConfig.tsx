@@ -1,5 +1,6 @@
-// src/pages/gestionnaire/ChatbotConfig.tsx
+// CHEMIN : src/pages/gestionnaire/ChatbotConfig.tsx
 // Configuration du chatbot du gestionnaire — e-Vend Studio
+// modeMV : site Multi-vendeur Premium (add-on « Chatbot ») → sources adaptées à la marketplace + lien vers le guide.
 // 6 onglets : Messages, Apparence, Comportement, Sources, Réponses rapides, Blacklist
 // Toutes les routes sont scopées automatiquement sur le gestionnaire connecté
 // (le backend lit req.user.id — aucun id n'est jamais envoyé par ce fichier).
@@ -70,7 +71,7 @@ interface ChatbotConfig {
   max_caracteres_question: number;
   
   // Sources — quelles tables de contenu du gestionnaire le chatbot doit chercher
-  sources_contenu: { pages: boolean; produits: boolean; blog: boolean };
+  sources_contenu: { pages: boolean; produits: boolean; blog: boolean; boutiques?: boolean; faq?: boolean };   // boutiques / faq : site Multi-vendeur seulement (absent = activé)
   score_minimum: number;
   max_resultats: number;
 }
@@ -110,6 +111,16 @@ interface SourcePersonnalisee {
   ordre: number;
 }
 
+const URL_GUIDE_CHATBOT = 'https://e-vendstudio.ca/documents/mv-guide-chatbot-add-on';
+
+// Seules ces 4 positions sont comprises par le widget. L'ancienne valeur par défaut de la base (« bas-droite ») est convertie.
+function positionValide(p: string | undefined): ChatbotConfig['position_widget'] {
+  const v = String(p || '').toLowerCase();
+  const bas = !(v.includes('haut') || v.includes('top'));
+  const gauche = v.includes('gauche') || v.includes('left');
+  return `${bas ? 'bottom' : 'top'}-${gauche ? 'left' : 'right'}` as ChatbotConfig['position_widget'];
+}
+
 type OngletType = 'messages' | 'apparence' | 'comportement' | 'sources' | 'reponses' | 'blacklist';
 type SousOngletReponses = 'site' | 'divertissement';
 
@@ -125,7 +136,7 @@ const T = {
   warning: '#d97706',
 };
 
-export default function ChatbotConfig({ gestionnaireId }: { gestionnaireId: number }) {
+export default function ChatbotConfig({ gestionnaireId, modeMV = false }: { gestionnaireId: number; modeMV?: boolean }) {
   const [onglet, setOnglet] = useState<OngletType>('messages');
   const [sousOngletReponses, setSousOngletReponses] = useState<SousOngletReponses>('site');
   const [rechercheReponses, setRechercheReponses] = useState<string>('');
@@ -193,7 +204,7 @@ export default function ChatbotConfig({ gestionnaireId }: { gestionnaireId: numb
         credentials: 'include', headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-      setConfig(data.config);
+      setConfig(data.config ? { ...data.config, position_widget: positionValide(data.config.position_widget) } : data.config);
     } catch (error) {
       setMessage('❌ Erreur de chargement');
       setTimeout(() => setMessage(null), 3000);
@@ -594,10 +605,15 @@ export default function ChatbotConfig({ gestionnaireId }: { gestionnaireId: numb
         <div>
           <h1 style={s.titre}>🤖 Configuration du Chatbot</h1>
           <p style={s.sousTitre}>
-            Personnalisez l'assistant virtuel de e-Vend — Apparence, messages, comportement
+            {modeMV ? "Personnalisez l'assistant virtuel de votre marketplace — Apparence, messages, comportement" : "Personnalisez l'assistant virtuel de e-Vend — Apparence, messages, comportement"}
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {modeMV && (
+            <a href={URL_GUIDE_CHATBOT} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none', padding: '9px 16px', borderRadius: 8, background: 'linear-gradient(135deg, #1e0533, #0d0a2e)', color: 'white', fontSize: 13, fontWeight: 700 }}>
+              <span style={{ fontSize: 15 }}>📖</span><span>Guide</span>
+            </a>
+          )}
           {message && (
             <span style={{
               fontSize: '13px',
@@ -1351,7 +1367,7 @@ export default function ChatbotConfig({ gestionnaireId }: { gestionnaireId: numb
                     ) : (
                       <span>🤖</span>
                     )}
-                    <span style={{ fontWeight: 600 }}>Assistant e-Vend</span>
+                    <span style={{ fontWeight: 600 }}>{modeMV ? 'Assistant virtuel' : 'Assistant e-Vend'}</span>
                     <span style={{ cursor: 'pointer', marginLeft: 'auto' }}>✕</span>
                   </div>
                   <div style={s.previewBody}>
@@ -1401,7 +1417,7 @@ export default function ChatbotConfig({ gestionnaireId }: { gestionnaireId: numb
                     <option value="toutes">Toutes les pages</option>
                     <option value="accueil">Page d'accueil uniquement</option>
                     <option value="produit">Pages produit uniquement</option>
-                    <option value="aide">Pages d'aide uniquement</option>
+                    <option value="aide">{modeMV ? "Pages d'aide uniquement (documents, politiques, contact)" : "Pages d'aide uniquement"}</option>
                   </select>
                 </div>
 
@@ -1521,33 +1537,56 @@ export default function ChatbotConfig({ gestionnaireId }: { gestionnaireId: numb
                 <h3 style={s.sectionTitle}>📚 Contenu à interroger</h3>
                 <div style={s.fieldGroup}>
                   <label style={s.label}>Sources de connaissances</label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <input
-                      type="checkbox"
-                      checked={config.sources_contenu.pages}
-                      onChange={(e) => updateConfig('sources_contenu', { ...config.sources_contenu, pages: e.target.checked })}
-                    />
-                    Pages du site (À propos, Contact, Politiques...)
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-                    <input
-                      type="checkbox"
-                      checked={config.sources_contenu.produits}
-                      onChange={(e) => updateConfig('sources_contenu', { ...config.sources_contenu, produits: e.target.checked })}
-                    />
-                    Produits (nom, description, prix)
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="checkbox"
-                      checked={config.sources_contenu.blog}
-                      onChange={(e) => updateConfig('sources_contenu', { ...config.sources_contenu, blog: e.target.checked })}
-                    />
-                    Articles de blog
-                  </label>
+                  {modeMV ? (
+                    <>
+                      {([
+                        ['produits', 'Produits des boutiques (nom, description, prix)'],
+                        ['boutiques', 'Boutiques (nom, description, ville)'],
+                        ['faq', 'FAQ des collaborateurs (add-on FAQ requis)'],
+                        ['blog', 'Blogs des collaborateurs (add-on Blog requis)'],
+                        ['pages', 'Documents et politiques de la marketplace'],
+                      ] as const).map(([cle, libelle]) => (
+                        <label key={cle} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <input
+                            type="checkbox"
+                            checked={config.sources_contenu[cle] !== false}
+                            onChange={(e) => updateConfig('sources_contenu', { ...config.sources_contenu, [cle]: e.target.checked })}
+                          />
+                          {libelle}
+                        </label>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={config.sources_contenu.pages}
+                          onChange={(e) => updateConfig('sources_contenu', { ...config.sources_contenu, pages: e.target.checked })}
+                        />
+                        Pages du site (À propos, Contact, Politiques...)
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={config.sources_contenu.produits}
+                          onChange={(e) => updateConfig('sources_contenu', { ...config.sources_contenu, produits: e.target.checked })}
+                        />
+                        Produits (nom, description, prix)
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={config.sources_contenu.blog}
+                          onChange={(e) => updateConfig('sources_contenu', { ...config.sources_contenu, blog: e.target.checked })}
+                        />
+                        Articles de blog
+                      </label>
+                    </>
+                  )}
                 </div>
                 <p style={s.hint}>
-                  Le chatbot lira le contenu de ces sections de votre site pour répondre aux questions. Décochez ce qui ne s'applique pas à votre site (ex: Produits pour un site vitrine sans boutique).
+                  Le chatbot lira le contenu de ces sections de votre site pour répondre aux questions. {modeMV ? 'Les boutiques en vacances (mode « masqué ») et les boutiques inactives ne sont jamais proposées.' : "Décochez ce qui ne s'applique pas à votre site (ex: Produits pour un site vitrine sans boutique)."}
                 </p>
               </div>
 
@@ -1676,7 +1715,7 @@ export default function ChatbotConfig({ gestionnaireId }: { gestionnaireId: numb
                 1. Le chatbot vérifie d'abord la blacklist<br />
                 2. Ensuite il vérifie les réponses rapides<br />
                 3. Puis les sources personnalisées (si un mot-clé correspond, il donne le lien)<br />
-                4. Enfin, il cherche dans vos pages d'aide normalement.
+                4. Enfin, il cherche dans {modeMV ? 'les produits, boutiques, FAQ, blogs, documents et politiques de votre marketplace.' : "vos pages d'aide normalement."}
               </p>
             </div>
           </div>

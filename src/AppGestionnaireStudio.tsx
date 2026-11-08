@@ -1212,6 +1212,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       menuProfil,
       menuMessagerie,
+      ...(addonsMV.chatbot ? [menuMesChatbot] : []),   // add-on « Chatbot » (actif = activé ou inclus au forfait)
       menuMesEffetsVisuels, // 🔥 AJOUT
     ];
   } else if (estBeaute) {
@@ -1492,7 +1493,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'abonnements-clients') return <MesAbonnementsEcole gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mes-sponsors') return <MesSponsorsGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mes-analytique') return <AnalytiqueGestionnaire gestionnaireId={gestionnaire.id} />;
-    if (pageActive === 'mes-chatbot') return <ChatbotConfig gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mes-chatbot') return <ChatbotConfig gestionnaireId={gestionnaire.id} modeMV={estMultiVendeur} />;
     if (pageActive === 'mes-effets-visuels') return <ConfigStoreEffects gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;

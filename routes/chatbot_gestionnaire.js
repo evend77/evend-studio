@@ -1,4 +1,4 @@
-// routes/chatbot_gestionnaire.js
+// CHEMIN : routes/chatbot_gestionnaire.js
 // e-Vend Studio — Add-on Chatbot (sans IA)
 // Toutes les routes sont protégées (isGestionnaire) et scopées sur
 // req.user.id — jamais un gestionnaire_id fourni par le client, pour
@@ -9,8 +9,22 @@ const express = require('express');
 const router  = express.Router();
 const db      = require('../db');
 const { authenticateToken: verifierToken, isGestionnaire: estGestionnaire } = require('../middleware/auth');
+const chatbotMV = require('../services/studio_chatbot');
 
 router.use(verifierToken, estGestionnaire);
+
+// Site Multi-vendeur Premium : l'add-on « Chatbot » doit être actif (inclus au forfait ou activé dans Mes services).
+// Les autres templates ne sont pas touchés. Les données déjà saisies restent en base si l'add-on est retiré.
+router.use(async (req, res, next) => {
+  try {
+    const e = await chatbotMV.etat(req.user.id);
+    if (e.autorise) return next();
+    return res.status(403).json({ error: "L'option « Chatbot » n'est pas activée pour cette marketplace." });
+  } catch (err) {
+    console.error('chatbot_gestionnaire (add-on):', err.message);
+    return res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
 
 // ═══════════════════════════════════════════════════════════════════════
 //  CONFIGURATION PRINCIPALE
