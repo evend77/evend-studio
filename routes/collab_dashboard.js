@@ -25,6 +25,7 @@ const rembMV = require('../services/studio_remboursement');
 const regCmd = require('../services/studio_regles_commande');
 const avisMV = require('../services/studio_avis');
 const addonsMV = require('../services/studio_addons');
+const taxesMV = require('../services/studio_taxes');
 
 const router = express.Router({ mergeParams: true });
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -620,6 +621,43 @@ router.get('/commandes', h(async (req, res) => {
   res.json({ commandes: liste.rows, total: n, page, pages: Math.max(1, Math.ceil(n / PAR_PAGE)), par_statut: parStatut });
 }));
 
+// Détail des gains du collaborateur pour une commande (même logique que le rapport financier : montants figés au paiement)
+// Frais Stripe : les VRAIS (balance_transaction, colonne frais_stripe) ; estimation 2,9 % + 0,30 $ seulement si Stripe ne les a pas encore donnés.
+function calculerGains(cmd, mv) {
+  const nb = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+  const r2 = (x) => Math.round((x + Number.EPSILON) * 100) / 100;
+  const tx = (cmd.taxes && typeof cmd.taxes === 'object') ? cmd.taxes : {};
+  const total = nb(cmd.total);
+  const ht = nb(cmd.commission);
+  const taxesCom = nb(cmd.commission_taxes);
+  const tipPlat = nb(cmd.pourboire_plateforme);
+  const tipTotal = nb(tx.pourboire);
+  const arts = Array.isArray(cmd.articles) ? cmd.articles : [];
+  const sousTotal = r2(arts.reduce((s, a) => s + nb(a.prix) * Math.max(1, parseInt(a.quantite, 10) || 1), 0));
+  const ventil = { tps: 0, tvq: 0, tvh: 0, tvp: 0 };
+  if (taxesCom > 0) {
+    let tp = {};
+    try { const t = taxesMV.tableTaux(mv); tp = t[mv.commission_province] || t.QC || {}; } catch (e) { tp = {}; }
+    const poids = (tp.tps || 0) + (tp.tvq || 0) + (tp.tvh || 0) + (tp.tvp || 0);
+    if (poids > 0) {
+      for (const k of ['tps', 'tvq', 'tvh', 'tvp']) ventil[k] = r2(taxesCom * ((tp[k] || 0) / poids));
+      ventil.tps = r2(ventil.tps + (taxesCom - (ventil.tps + ventil.tvq + ventil.tvh + ventil.tvp)));
+    } else ventil.tps = taxesCom;
+  }
+  const retenu = r2(ht + taxesCom + tipPlat);
+  const ratio = total > 0 ? Math.min(1, Math.max(0, nb(cmd.montant_rembourse) / total)) : 0;
+  const rendu = r2(retenu * ratio);
+  const fraisReel = cmd.frais_stripe !== null && cmd.frais_stripe !== undefined && cmd.frais_stripe !== '';
+  const fraisStripe = fraisReel ? r2(nb(cmd.frais_stripe)) : (cmd.statut_paiement === 'paye' || cmd.statut_paiement === 'rembourse' ? r2(total * 0.029 + 0.30) : 0);
+  const net = r2(total - retenu - fraisStripe - nb(cmd.montant_rembourse) + rendu);
+  return {
+    sous_total: sousTotal, commission_ht: ht, commission_taxes: ventil, commission_taxes_total: taxesCom,
+    pourboire_total: tipTotal, pourboire_plateforme: tipPlat, pourboire_collab: r2(Math.max(0, tipTotal - tipPlat)),
+    total_retenu: retenu, frais_stripe_estime: fraisStripe, frais_stripe_reel: fraisReel, ratio_rembourse: ratio, retenu_rendu: rendu, net_final: net,
+    taxes_incluses: tx.incluses === true,
+  };
+}
+
 router.get('/commandes/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Commande invalide');
@@ -627,22 +665,30 @@ router.get('/commandes/:id', h(async (req, res) => {
     `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.commission, c.commission_taxes, c.montant_net, c.articles, c.adresse_livraison,
             c.note, c.date_commande, c.numero_suivi, c.transporteur, c.url_suivi, c.paye_le, c.frais_expedition, c.taxes, c.code_promo, c.rabais,
             c.montant_rembourse, c.raison_annulation, c.date_livraison_prevue, c.etiquette_provider, c.url_etiquette, c.etape_livraison, c.historique_suivi,
+            c.pourboire_plateforme, c.frais_stripe, c.stripe_payment_intent,
             a.prenom AS acheteur_prenom, a.nom AS acheteur_nom, a.email AS acheteur_email, a.telephone AS acheteur_telephone
        ${JOIN_ACHETEUR} WHERE c.id = $1 AND c.collaborateur_id = $2 AND c.gestionnaire_id = $3`, [id, req.cid, req.gid]);
   if (!r.rows.length) bad('Commande introuvable', 404);
-  const [retours, rembs, hist, autonome, rg] = await Promise.all([
+  const [retours, rembs, hist, autonome, rg, siteCfg] = await Promise.all([
     pool.query(`SELECT id, motif, statut, created_at FROM demandes_retour WHERE commande_id = $1 AND collaborateur_id = $2 ORDER BY created_at DESC`, [id, req.cid]),
     pool.query(`SELECT id, origine, montant, raison, statut, demande_par, motif_refus, erreur, created_at, traite_le FROM commande_remboursements WHERE commande_id = $1 ORDER BY created_at DESC, id DESC`, [id]),
     pool.query(`SELECT evenement, detail, auteur, created_at FROM commande_historique WHERE commande_id = $1 ORDER BY created_at DESC, id DESC LIMIT 100`, [id]),
     rembMV.collaborateurAutonome(req.gid),
     regCmd.lire(req.gid, pool),
+    pool.query('SELECT config FROM sites WHERE gestionnaire_id = $1', [req.gid]),
   ]);
   const cmd = r.rows[0];
   const payee = cmd.statut_paiement === 'paye';
+  // Vrais frais Stripe : rattrapage si le webhook ne les a pas encore enregistrés (non bloquant)
+  if (cmd.frais_stripe === null && cmd.stripe_payment_intent && (cmd.statut_paiement === 'paye' || cmd.statut_paiement === 'rembourse')) {
+    const f = await paiementMV.capturerFraisStripe(req.gid, cmd.id);
+    if (f !== null) cmd.frais_stripe = f;
+  }
+  const gains = calculerGains(cmd, (siteCfg.rows[0] && siteCfg.rows[0].config && siteCfg.rows[0].config.multivendeur) || {});
   const restant = rembMV.restantC(cmd) / 100;
   const ouverte = rembs.rows.some((x) => x.statut === 'en_attente' || x.statut === 'en_cours');
   res.json({ ...cmd, retours: retours.rows, remboursements: rembs.rows, historique: hist.rows, transitions: transitionsPour(cmd.statut, payee, rg),
-    remboursement_autonome: autonome, montant_restant: restant,
+    remboursement_autonome: autonome, montant_restant: restant, gains,
     peut_rembourser: payee && restant > 0 && !ouverte,
     peut_refuser: regCmd.peutRefuser(rg, cmd.statut, payee) && restant > 0 && !ouverte,
     regles: { suivi_obligatoire: rg.suiviObligatoire, date_active: rg.dateActive, date_obligatoire: rg.dateObligatoire,

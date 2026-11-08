@@ -1,4 +1,4 @@
-//  CHEMIN : routes/gestionnaire_stripe.js
+// CHEMIN : routes/gestionnaire_stripe.js
 // Config Stripe Connect du GESTIONNAIRE (template multivendeur).
 // Monté sur : /api/gestionnaire/stripe
 //   GET    /                      → config (clés secrètes JAMAIS en clair, seulement masquées)
@@ -37,7 +37,7 @@ const EVENEMENTS = {
   connect: [
     'account.updated', 'account.application.deauthorized',
     'payment_intent.succeeded', 'payment_intent.payment_failed', 'checkout.session.completed',
-    'charge.refunded', 'charge.dispute.created', 'charge.dispute.closed',
+    'charge.refunded', 'charge.updated', 'charge.dispute.created', 'charge.dispute.closed',
     'transfer.created', 'payout.paid', 'payout.failed',
   ],
 };

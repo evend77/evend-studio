@@ -69,6 +69,16 @@ async function traiter(event, gid, env, type) {
       return;
     }
 
+    // Capture tardive des vrais frais Stripe (la balance_transaction n'existait pas encore au paiement)
+    case 'charge.updated': {
+      if (!obj || !obj.payment_intent || obj.status !== 'succeeded') return;
+      const c = (await pool.query(
+        `SELECT id FROM marketplace_commandes WHERE gestionnaire_id = $1 AND stripe_payment_intent = $2 AND frais_stripe IS NULL LIMIT 1`,
+        [gid, obj.payment_intent])).rows[0];
+      if (c) await paiement.capturerFraisStripe(gid, c.id);
+      return;
+    }
+
     // Autres paiements, remboursements, litiges, versements : reçus et enregistrés (idempotence).
     default:
       console.log(`ℹ️ [gestionnaire-stripe] gestionnaire=${gid} env=${env} ${type} ← ${event.type} (${event.id})`);

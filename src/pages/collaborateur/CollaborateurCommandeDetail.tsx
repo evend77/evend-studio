@@ -21,6 +21,12 @@ interface Detail {
   acheteur_prenom: string | null; acheteur_nom: string | null; acheteur_email: string | null; acheteur_telephone: string | null;
   retours: { id: number; motif: string; statut: string }[]; remboursements: Remb[]; historique: Histo[]; transitions: string[];
   remboursement_autonome: boolean; montant_restant: number; peut_rembourser: boolean; peut_refuser: boolean;
+  gains?: Gains;
+}
+interface Gains {
+  sous_total: number; commission_ht: number; commission_taxes: { tps: number; tvq: number; tvh: number; tvp: number }; commission_taxes_total: number;
+  pourboire_total: number; pourboire_plateforme: number; pourboire_collab: number; total_retenu: number; frais_stripe_estime: number; frais_stripe_reel: boolean;
+  ratio_rembourse: number; retenu_rendu: number; net_final: number; taxes_incluses: boolean;
 }
 interface Props { gestionnaireId: number; accent: string; isMobile: boolean; commandeId: number; onRetour: () => void; naviguer?: (page: string) => void; etiquettes?: boolean }
 
@@ -46,6 +52,17 @@ const dateLongue = (d: string | null) => { if (!d) return ''; try { return new D
 const urlSure = (u: string | null) => (u && /^https?:\/\//i.test(u) ? u : null);
 // L'étiquette est un lien http(s) (ou, pour Postes Canada, un PDF intégré)
 const urlEtiquetteSure = (u: string | null | undefined) => (u && (/^https?:\/\//i.test(u) || /^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/.test(u)) ? u : null);
+
+function Rangee({ l, v, badge }: { l: string; v?: string; badge?: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: '7px 0', borderBottom: '1px solid #f0f0f0', fontSize: 13 }}>
+      <span style={{ color: T.light, fontSize: 12 }}>{l}</span>{badge ?? <span style={{ fontWeight: 600, textAlign: 'right' }}>{v || '—'}</span>}
+    </div>
+  );
+}
+function SousTitre({ t }: { t: string }) {
+  return <div style={{ fontSize: 10, fontWeight: 700, color: T.light, textTransform: 'uppercase', letterSpacing: 0.5, margin: '12px 0 2px' }}>{t}</div>;
+}
 
 function Pastille({ info }: { info?: { l: string; bg: string; c: string } }) {
   if (!info) return null;
@@ -183,6 +200,14 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
   const montantNum = Number(montant.replace(',', '.'));
   const montantOk = !partiel || (montantNum > 0 && montantNum <= d.montant_restant + 0.001);
 
+  const adr = (d.adresse_livraison || {}) as Record<string, unknown>;
+  const adrTxt = (k: string) => (adr[k] === undefined || adr[k] === null ? '' : String(adr[k]));
+  const nomLiv = [adrTxt('prenom'), adrTxt('nom')].filter(Boolean).join(' ') || nomClient;
+  const g = d.gains;
+  const retourLibelle = d.statut_paiement === 'rembourse' ? 'Remboursé' : Number(d.montant_rembourse) > 0 ? 'Remboursement partiel' : (PAIEMENTS[d.statut_paiement]?.l || d.statut_paiement);
+  const taxesCom: [string, number][] = g ? [['TPS', g.commission_taxes.tps], ['TVQ', g.commission_taxes.tvq], ['TVH', g.commission_taxes.tvh], ['TVP', g.commission_taxes.tvp]] : [];
+  const moins = (n: number) => '− ' + argent(n);
+
   const gauche = (
     <>
       <div style={carte}>
@@ -206,22 +231,45 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
       </div>
 
       <div style={carte}>
-        <p style={titre}>Client</p>
-        <p style={{ margin: 0, fontSize: 13, lineHeight: 1.6 }}>
-          <strong>{nomClient}</strong><br />
-          <span style={{ color: T.light }}>{[d.acheteur_email, d.acheteur_telephone].filter(Boolean).join(' · ')}</span>
-        </p>
-        {d.adresse_livraison && Object.keys(d.adresse_livraison).length > 0 && (
-          <p style={{ margin: '10px 0 0', fontSize: 13 }}>📍 {Object.values(d.adresse_livraison).filter(v => typeof v === 'string' || typeof v === 'number').join(', ')}</p>
-        )}
+        <p style={titre}>Facturation &amp; expédition</p>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 20 }}>
+          <div>
+            <p style={{ ...titre, fontSize: 11, color: accent, borderBottom: '2px solid #f0f5f5', paddingBottom: 5 }}>Détails de facturation</p>
+            <Rangee l="Mode de paiement" v="Carte (Stripe)" />
+            <Rangee l="Nom" v={nomLiv} />
+            <Rangee l="Adresse" v={adrTxt('adresse')} />
+            <Rangee l="Ville" v={adrTxt('ville')} />
+            <Rangee l="Province" v={adrTxt('province')} />
+            <Rangee l="Pays" v={adrTxt('pays') || 'Canada'} />
+            <Rangee l="Code postal" v={adrTxt('code_postal')} />
+          </div>
+          <div>
+            <p style={{ ...titre, fontSize: 11, color: accent, borderBottom: '2px solid #f0f5f5', paddingBottom: 5 }}>Détails d'expédition</p>
+            <Rangee l="Statut" badge={<Pastille info={STATUTS[d.statut]} />} />
+            <Rangee l="Nom" v={nomLiv} />
+            <Rangee l="Adresse de livraison" v={adrTxt('adresse')} />
+            <Rangee l="Ville" v={adrTxt('ville')} />
+            <Rangee l="Province" v={adrTxt('province')} />
+            <Rangee l="Pays" v={adrTxt('pays') || 'Canada'} />
+            <Rangee l="Code postal" v={adrTxt('code_postal')} />
+          </div>
+        </div>
+      </div>
+
+      <div style={carte}>
+        <p style={titre}>Détails du client</p>
+        <Rangee l="Nom" v={nomClient} />
+        <Rangee l="E-mail" v={d.acheteur_email || ''} />
+        {(d.acheteur_telephone || adrTxt('telephone')) && <Rangee l="Téléphone" v={d.acheteur_telephone || adrTxt('telephone')} />}
         {d.note && <p style={{ background: '#FEF9E7', borderRadius: 8, padding: '8px 12px', fontSize: 13, margin: '10px 0 0' }}>📝 {d.note}</p>}
       </div>
 
-      {d.retours.length > 0 && (
+      {(
         <div style={carte}>
-          <p style={titre}>Demandes de retour</p>
+          <p style={titre}>Liste des demandes de retour (RMA)</p>
+          {d.retours.length === 0 && <p style={{ margin: 0, fontSize: 12, color: T.light, fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>Aucune demande de retour pour cette commande.</p>}
           {d.retours.map(r => <p key={r.id} style={{ margin: '0 0 4px', fontSize: 13 }}>↩️ {r.motif} <span style={{ color: T.light }}>({r.statut})</span></p>)}
-          <a onClick={() => naviguer?.('commandes-retours')} style={{ color: accent, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>Gérer les retours →</a>
+          {d.retours.length > 0 && <a onClick={() => naviguer?.('commandes-retours')} style={{ color: accent, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>Gérer les retours →</a>}
         </div>
       )}
 
@@ -362,15 +410,62 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
         </div>
       )}
 
-      {payee && d.montant_net !== null && (
-        <div style={carte}>
-          <p style={titre}>Vos revenus</p>
-          <div style={{ fontSize: 13, display: 'grid', gap: 5 }}>
-            <Ligne l="Commission du marché" v={'− ' + argent(d.commission)} />
-            <Ligne l="Montant net (avant remboursements)" v={argent(d.montant_net)} fort />
-          </div>
+      <div style={carte}>
+        <p style={titre}>État actuel de la commande</p>
+        <Rangee l="Commandé le →" v={dateLongue(d.date_commande)} />
+        <Rangee l="Mode de livraison →" v={d.transporteur || (Number(d.frais_expedition) > 0 ? 'Expédition' : 'Expédition gratuite')} />
+        <Rangee l="Statut commande →" badge={<Pastille info={STATUTS[d.statut]} />} />
+        <Rangee l="Statut paiement →" badge={<Pastille info={Number(d.montant_rembourse) > 0 && d.statut_paiement === 'paye' ? { l: retourLibelle, bg: '#f3f4f6', c: '#6b7280' } : PAIEMENTS[d.statut_paiement]} />} />
+        <Rangee l="Sous-total →" v={argent(sousTotal)} />
+        {Number(d.rabais) > 0 && <Rangee l={`Rabais${d.code_promo ? ' (' + d.code_promo + ')' : ''} →`} v={'− ' + argent(d.rabais)} />}
+        <Rangee l="Expédition →" v={argent(d.frais_expedition ?? 0)} />
+        {taxes.filter(([k]) => TAXES_LIB[k.toLowerCase()]).map(([k, v]) => <Rangee key={k} l={`${TAXES_LIB[k.toLowerCase()]} →`} v={argent(v as string)} />)}
+        {g && g.pourboire_total > 0 && <Rangee l="💝 Pourboire →" v={argent(g.pourboire_total)} />}
+        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', marginTop: 4, borderTop: `2px solid ${accent}` }}>
+          <strong style={{ fontSize: 13, color: accent }}>Total payé par l'acheteur →</strong>
+          <strong style={{ fontSize: 16, color: accent }}>{argent(d.total)}</strong>
         </div>
-      )}
+      </div>
+
+      {payee || d.statut_paiement === 'rembourse' ? g && (
+        <div style={carte}>
+          <p style={titre}>💰 Gains du vendeur</p>
+          <SousTitre t="Payé par l'acheteur" />
+          <Rangee l="Produits" v={argent(g.sous_total)} />
+          {Number(d.rabais) > 0 && <Rangee l="Rabais" v={moins(Number(d.rabais))} />}
+          {Number(d.frais_expedition) > 0 && <Rangee l="Expédition" v={argent(d.frais_expedition)} />}
+          {g.pourboire_total > 0 && <Rangee l="Pourboire" v={argent(g.pourboire_total)} />}
+          {taxes.filter(([k]) => TAXES_LIB[k.toLowerCase()]).map(([k, v]) => <Rangee key={k} l={`${TAXES_LIB[k.toLowerCase()]} perçue`} v={argent(v as string)} />)}
+          <Rangee l="Total payé" badge={<strong style={{ color: '#1E8449' }}>{argent(d.total)}</strong>} />
+
+          <SousTitre t="Retenu par la plateforme" />
+          <Rangee l="Commission" badge={<span style={{ fontWeight: 600, color: '#C0392B' }}>{moins(g.commission_ht)}</span>} />
+          {taxesCom.filter(([, n]) => n > 0).map(([lib, n]) => <Rangee key={lib} l={`   ${lib} sur la commission`} badge={<span style={{ fontWeight: 600, color: '#C0392B' }}>{moins(n)}</span>} />)}
+          {g.pourboire_plateforme > 0 && <Rangee l="Part du pourboire gardée" badge={<span style={{ fontWeight: 600, color: '#C0392B' }}>{moins(g.pourboire_plateforme)}</span>} />}
+          <Rangee l="Total retenu" badge={<strong style={{ color: '#C0392B' }}>{moins(g.total_retenu)}</strong>} />
+
+          <SousTitre t="Frais de paiement" />
+          <Rangee l={g.frais_stripe_reel ? 'Frais Stripe' : 'Frais Stripe (estimé)'} badge={<span style={{ fontWeight: 600, color: '#C0392B' }}>{moins(g.frais_stripe_estime)}</span>} />
+
+          {Number(d.montant_rembourse) > 0 && (
+            <>
+              <SousTitre t={g.ratio_rembourse >= 0.999 ? 'Remboursement total' : 'Remboursement partiel'} />
+              <Rangee l="Remboursé à l'acheteur" badge={<span style={{ fontWeight: 600, color: '#C0392B' }}>{moins(Number(d.montant_rembourse))}</span>} />
+              <Rangee l="Retenue rendue par la plateforme" badge={<span style={{ fontWeight: 600, color: '#1E8449' }}>+ {argent(g.retenu_rendu)}</span>} />
+            </>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0 0', marginTop: 8, borderTop: `2px solid ${accent}` }}>
+            <strong style={{ fontSize: 13, color: accent }}>Net pour vous →</strong>
+            <strong style={{ fontSize: 15, color: g.net_final < 0 ? '#C0392B' : accent }}>{g.net_final < 0 ? '− ' + argent(Math.abs(g.net_final)) : argent(g.net_final)}</strong>
+          </div>
+          <p style={{ fontSize: 10, color: '#999', margin: '8px 0 0', lineHeight: 1.4 }}>
+            Les taxes perçues sont celles de la vente ; vous êtes responsable de les remettre au fisc si vous êtes inscrit aux taxes.
+            {g.frais_stripe_reel ? ' Frais Stripe réels, tels que facturés par Stripe.' : ' Frais Stripe estimés (2,9 % + 0,30 $) en attendant le montant réel de Stripe.'}
+            {Number(d.montant_rembourse) > 0 ? ' Lors d\'un remboursement, la plateforme vous rend sa commission au prorata ; Stripe conserve toutefois ses frais.' : ''}
+          </p>
+        </div>
+      ) : null}
     </>
   );
 

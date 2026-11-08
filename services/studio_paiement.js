@@ -417,6 +417,7 @@ async function confirmerPaiement(gid, session) {
     for (const a of Array.isArray(arts) ? arts : []) {
       if (a.enchere_id) await pool.query(`UPDATE encheres SET statut = 'payee', commande_id = $1, updated_at = NOW() WHERE id = $2 AND statut = 'attente_paiement'`, [commandeId, a.enchere_id]);
     }
+    capturerFraisStripe(gid, commandeId, { reessayerMs: 3000 }); // en arrière-plan : ne retarde jamais l'accusé de réception du webhook
     return { paye: true, commande: r.rows[0] };
   }
 
@@ -424,6 +425,49 @@ async function confirmerPaiement(gid, session) {
   if (c && c.statut_paiement === 'paye') return { deja: true };
   console.error(`[studio_paiement] ⚠️ paiement reçu mais commande ${commandeId} non confirmée (état: ${c ? c.statut + '/' + c.statut_paiement : 'introuvable'}, montant Stripe ${session.amount_total}). À vérifier/rembourser manuellement.`);
   return { anomalie: true };
+}
+
+// ── Vrais frais Stripe (comme e-Vend) ────────────────────────────────────────
+// En Direct Charges, balance_transaction.fee du compte connecté = frais Stripe + application_fee de la plateforme :
+// on exclut la ligne 'application_fee' de fee_details pour ne pas compter la commission deux fois.
+function fraisStripeDepuisBalanceTx(bt, applicationFeeCents) {
+  if (!bt || typeof bt !== 'object') return null;
+  if (Array.isArray(bt.fee_details) && bt.fee_details.length > 0) {
+    return bt.fee_details.filter((f) => f.type !== 'application_fee').reduce((t, f) => t + (f.amount || 0), 0) / 100;
+  }
+  return Math.max(0, (bt.fee || 0) - (applicationFeeCents || 0)) / 100;
+}
+
+// Lit chez Stripe les frais réels d'une commande payée et les enregistre (jamais d'écrasement). Non bloquant : renvoie null au moindre souci.
+// Stripe crée parfois la balance_transaction avec un léger retard : `reessayerMs` permet une 2e tentative.
+async function capturerFraisStripe(gid, commandeId, { reessayerMs = 0 } = {}) {
+  try {
+    const c = (await pool.query(
+      `SELECT stripe_payment_intent, collaborateur_id, frais_stripe FROM marketplace_commandes
+        WHERE id = $1 AND gestionnaire_id = $2 AND statut_paiement IN ('paye','rembourse')`, [commandeId, gid])).rows[0];
+    if (!c || !c.stripe_payment_intent) return null;
+    if (c.frais_stripe !== null) return parseFloat(c.frais_stripe);
+    const ctx = await contexteStripe(gid);
+    if (!ctx) return null;
+    const direct = String(ctx.p.processing_method || 'DIRECT CHARGES').toUpperCase().includes('DIRECT');
+    let opts;
+    if (direct) {
+      const cs = (await pool.query('SELECT stripe_account_id FROM collaborateurs_stripe WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND env = $3', [c.collaborateur_id, gid, ctx.env])).rows[0];
+      if (!cs) return null;
+      opts = { stripeAccount: cs.stripe_account_id };
+    }
+    const lire = async () => {
+      const pi = await ctx.stripe.paymentIntents.retrieve(c.stripe_payment_intent, { expand: ['latest_charge.balance_transaction'] }, opts);
+      const ch = pi && pi.latest_charge;
+      if (!ch || typeof ch !== 'object' || !ch.balance_transaction || typeof ch.balance_transaction !== 'object') return null;
+      return fraisStripeDepuisBalanceTx(ch.balance_transaction, ch.application_fee_amount);
+    };
+    let frais = await lire();
+    if (frais === null && reessayerMs > 0) { await new Promise((r) => setTimeout(r, reessayerMs)); frais = await lire(); }
+    if (frais === null) return null;
+    await pool.query('UPDATE marketplace_commandes SET frais_stripe = $1 WHERE id = $2 AND frais_stripe IS NULL', [frais, commandeId]);
+    return frais;
+  } catch (e) { console.error('[studio_paiement] capture frais Stripe :', e.message); return null; }
 }
 
 async function sessionExpiree(gid, session) {
@@ -451,4 +495,4 @@ function demarrerBalayage() {
   if (t.unref) t.unref();
 }
 
-module.exports = { collaborateurPeutEncaisser, ErreurPaiement, commissionDe, ajusterStock, libererCommande, annulerNonPayee, contexteStripe, creerCommandePayable, confirmerPaiement, sessionExpiree, balayerCommandesExpirees, demarrerBalayage };
+module.exports = { collaborateurPeutEncaisser, ErreurPaiement, commissionDe, ajusterStock, libererCommande, annulerNonPayee, contexteStripe, creerCommandePayable, confirmerPaiement, capturerFraisStripe, fraisStripeDepuisBalanceTx, sessionExpiree, balayerCommandesExpirees, demarrerBalayage };
