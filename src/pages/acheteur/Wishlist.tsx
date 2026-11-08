@@ -71,6 +71,11 @@ export default function Wishlist({ gestionnaireId, isMobile = false, couleurAcce
       .catch(() => {});
   }, [gestionnaireId]);
 
+  // Ouvre la fiche du produit dans un nouvel onglet
+  const ouvrirProduit = (it: Item) => {
+    window.open(`/site-preview?vendeurId=${gestionnaireId}&page=produit&produitId=${it.produit_id}`, '_blank', 'noopener,noreferrer');
+  };
+
   const retirer = async (it: Item) => {
     setOccupe(it.produit_id);
     try {
@@ -166,7 +171,7 @@ export default function Wishlist({ gestionnaireId, isMobile = false, couleurAcce
             const dispo = disponible(it);
             return (
               <div key={it.id} className="wl-card" style={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 16, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <div style={{ position: 'relative', aspectRatio: '1 / 1', background: 'linear-gradient(135deg,#1e293b,#0f172a)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div onClick={() => ouvrirProduit(it)} title="Ouvrir la page du produit" style={{ position: 'relative', aspectRatio: '1 / 1', background: 'linear-gradient(135deg,#1e293b,#0f172a)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   {it.photo_principale
                     ? <img src={it.photo_principale} alt={it.titre} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     : <span style={{ fontSize: 44, opacity: .4 }}>🛍️</span>}
@@ -174,7 +179,7 @@ export default function Wishlist({ gestionnaireId, isMobile = false, couleurAcce
                   {!dispo && <span style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,.7)', color: '#fca5a5', fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 20 }}>Indisponible</span>}
                 </div>
                 <div style={{ padding: isMobile ? '10px 10px 12px' : '14px 16px 16px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                  <h3 style={{ margin: 0, fontSize: isMobile ? 13 : 15, fontWeight: 700, color: '#fff', fontFamily: "'Sora',sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{it.titre}</h3>
+                  <h3 onClick={() => ouvrirProduit(it)} title="Ouvrir la page du produit" style={{ cursor: 'pointer', margin: 0, fontSize: isMobile ? 13 : 15, fontWeight: 700, color: '#fff', fontFamily: "'Sora',sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{it.titre}</h3>
                   {it.boutique && <p style={{ margin: '3px 0 0', fontSize: 11, color: C.textLight, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>🏪 {it.boutique}</p>}
                   <div style={{ margin: '10px 0 12px', display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: isMobile ? 16 : 19, fontWeight: 800, color: '#fff' }}>{formaterPrix(prixFinal(it))}</span>
