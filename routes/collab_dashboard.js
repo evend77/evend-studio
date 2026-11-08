@@ -1270,6 +1270,14 @@ router.patch('/expedition-config', h(async (req, res) => {
 const MAX_FAQ = 100;
 const MAX_BLOGS = 200;
 
+// Add-ons payants : sans eux, ces sections sont fermées (le contenu déjà écrit est conservé).
+const exigerAddon = (code, nom) => h(async (req, res, next) => {
+  if (!(await addonsMV.addonActifRapide(req.gid, code, pool))) bad(`L'option « ${nom} » n'est pas activée pour cette marketplace.`, 403);
+  next();
+});
+router.use('/faq', exigerAddon('faq_collab', 'FAQ collaborateurs'));
+router.use('/blogs', exigerAddon('blog_collab', 'Blog collaborateurs'));
+
 router.get('/faq', h(async (req, res) => {
   const r = await pool.query(
     `SELECT id, question, reponse, ordre, active FROM collab_faq

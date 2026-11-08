@@ -220,6 +220,11 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const [heure,      setHeure]        = useState(new Date());
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
   const [avisAttente, setAvisAttente] = useState(0);   // avis qui attendent mon approbation
+  const [addonsMV, setAddonsMV] = useState<Record<string, boolean>>({});   // add-ons du gestionnaire (blog, FAQ, chat)
+  useEffect(() => {
+    if (!gestionnaireId) return;
+    fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons?t=${Date.now()}`).then(r => r.json()).then(d => setAddonsMV(d || {})).catch(() => setAddonsMV({}));
+  }, [gestionnaireId, pageActive]);
   const [produitEnEdition, setProduitEnEdition] = useState<number | null>(null);
   const [commandeOuverte, setCommandeOuverte] = useState<number | null>(null);
 
@@ -349,21 +354,21 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
         { id: 'commandes-retours',   label: 'Retours',             icon: '🔄' },
       ]
     },
-    {
+    ...(addonsMV.chat_collab ? [{
       id: 'messagerie', label: 'MESSAGERIE', icon: '💬', badge: nonLus.total > 0 ? nonLus.total : undefined,
       sousMenu: [
         { id: 'messagerie-acheteurs',    label: 'Messages acheteurs',  icon: '🛒', badge: nonLus.acheteurs > 0 ? nonLus.acheteurs : undefined },
         { id: 'messagerie-gestionnaire', label: 'Message gestionnaire', icon: '🏢', badge: nonLus.gestionnaire > 0 ? nonLus.gestionnaire : undefined },
       ]
-    },
+    }] : []),
     {
       id: 'profil', label: 'MON PROFIL', icon: '👤', badge: avisAttente > 0 ? avisAttente : undefined,
       sousMenu: [
         { id: 'profil-compte',  label: 'Mon compte',        icon: '👤' },
         { id: 'profil-boutique',label: 'Ma boutique',       icon: '🏪' },
         { id: 'profil-avis',    label: 'Mes avis clients',  icon: '⭐', badge: avisAttente > 0 ? avisAttente : undefined },
-        { id: 'profil-blogs',   label: 'Mes blogs',         icon: '📝' },
-        { id: 'profil-faq',     label: 'Ma FAQ',            icon: '❓' },
+        ...(addonsMV.blog_collab ? [{ id: 'profil-blogs',   label: 'Mes blogs',         icon: '📝' }] : []),
+        ...(addonsMV.faq_collab ? [{ id: 'profil-faq',     label: 'Ma FAQ',            icon: '❓' }] : []),
         { id: 'profil-rapport', label: 'Rapport financier', icon: '📈' },
       ]
     },
@@ -538,14 +543,14 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
               {!isMobile && <span style={{ color: '#aaa', fontSize: 12 }}>{heure.toLocaleDateString('fr-CA', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>}
               <span style={{ color: '#ccc', fontSize: 12, fontWeight: 600 }}>{heure.toLocaleTimeString('fr-CA', { hour: '2-digit', minute: '2-digit' })}</span>
               <SessionIndicator gestionnaireId={gestionnaireId} />
-              <div onClick={() => naviguer('messagerie-acheteurs')} style={{ position: 'relative', cursor: 'pointer', fontSize: 20, color: '#fff' }}>
+              {addonsMV.chat_collab && <div onClick={() => naviguer('messagerie-acheteurs')} style={{ position: 'relative', cursor: 'pointer', fontSize: 20, color: '#fff' }}>
                 💬
                 {nonLus.total > 0 && (
                   <span style={{ position: 'absolute', top: -6, left: 12, background: '#ef4444', borderRadius: '50%', minWidth: 15, height: 15, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 800, color: '#fff', padding: '0 2px' }}>
                     {nonLus.total > 99 ? '99+' : nonLus.total}
                   </span>
                 )}
-              </div>
+              </div>}
               <button
                 onClick={() => naviguerTemplate({ page: 'accueil' })}
                 style={{ background: `${accent}22`, border: `1px solid ${accent}55`, borderRadius: 8, color: accent, fontSize: 11, fontWeight: 700, cursor: 'pointer', padding: '5px 11px', fontFamily: 'inherit', whiteSpace: 'nowrap' }}

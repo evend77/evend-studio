@@ -163,7 +163,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
   const [filtreCatMobileOuvert, setFiltreCatMobileOuvert] = useState(false);
 
   // Add-ons
-  const [addonsStatut, setAddonsStatut] = useState({ blog_actif: false, faq_actif: false, avis_actif: false });
+  const [addonsStatut, setAddonsStatut] = useState({ blog_actif: false, faq_actif: false, avis_actif: false, chat_actif: false });
   const [blog, setBlog] = useState<BlogArticle[]>([]);
   const [faq, setFaq] = useState<FaqItem[]>([]);
   const [avis, setAvis] = useState<Avis[]>([]);
@@ -202,7 +202,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
     if (isDemo) {
       setBoutique(DEMO_BOUTIQUE);
       setProduits(DEMO_PRODUITS_BOUTIQUE);
-      setAddonsStatut({ blog_actif: true, faq_actif: true, avis_actif: true });
+      setAddonsStatut({ blog_actif: true, faq_actif: true, avis_actif: true, chat_actif: true });
       setBlog(DEMO_BLOG);
       setFaq(DEMO_FAQ);
       setAvis(DEMO_AVIS);
@@ -228,7 +228,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
 
     fetch(`${apiBoutique}/addons-statut`)
       .then(r => r.ok ? r.json() : {} as any)
-      .then((d: any) => setAddonsStatut(d))
+      .then((d: any) => setAddonsStatut({ blog_actif: !!d.blog_actif, faq_actif: !!d.faq_actif, avis_actif: !!d.avis_actif, chat_actif: !!d.chat_actif }))
       .catch(() => {});
   }, [boutiqueId, gId, isDemo]);
 
@@ -415,7 +415,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
               style={{ ...s.btnAction, borderColor: estFavori ? '#ef4444' : 'rgba(255,255,255,0.18)', color: estFavori ? '#f87171' : '#fff', background: estFavori ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)' }}>
               {estFavori ? '❤️ Favori' : '🤍 Favori'}
             </button>
-            <button onClick={ouvrirChat} style={{ ...s.btnAction, borderColor: `${couleurAccent}66`, color: couleurAccent, background: `${couleurAccent}14` }}>💬 Chat</button>
+            {addonsStatut.chat_actif && <button onClick={ouvrirChat} style={{ ...s.btnAction, borderColor: `${couleurAccent}66`, color: couleurAccent, background: `${couleurAccent}14` }}>💬 Chat</button>}
             <button onClick={() => { setModalMsg(null); setModal('signaler'); }} style={{ ...s.btnAction, borderColor: 'rgba(239,68,68,0.35)', color: '#f87171', background: 'rgba(239,68,68,0.08)' }}>⚠️ Signaler</button>
           </div>
         </div>

@@ -25,10 +25,21 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
+const addonsMV = require('../services/studio_addons');
 const { authenticateToken } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
 
 const router = express.Router({ mergeParams: true });
+
+// Add-on « Chat collaborateurs » : sans lui la messagerie est fermée (les compteurs de non-lus répondent 0, l'historique est conservé).
+router.use(async (req, res, next) => {
+  try {
+    const gid = entier(req.params.gestionnaireId);
+    if (gid && await addonsMV.addonActifRapide(gid, 'chat_collab', pool)) return next();
+    if (req.method === 'GET' && /\/non-lus$/.test(req.path)) return res.json({ total: 0 });
+    return res.status(403).json({ error: "L'option « Chat collaborateurs » n'est pas activée pour cette marketplace." });
+  } catch (err) { erreur(res, err); }
+});
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const MAX_MESSAGE = 2000;

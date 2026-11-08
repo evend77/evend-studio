@@ -20,6 +20,7 @@ const pool = require('../db');
 const vac = require('../services/studio_vacances');
 const cfgMV = require('../services/studio_config_mv');
 const avisMV = require('../services/studio_avis');
+const addonsMV = require('../services/studio_addons');
 const router = express.Router();
 
 function entier(v) {
@@ -308,8 +309,10 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/addons-statut', async
     const r = await pool.query(
       `SELECT EXISTS (SELECT 1 FROM collab_blogs WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND statut = 'publie') AS blog,
               EXISTS (SELECT 1 FROM collab_faq   WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND active) AS faq`, [cid, gid]);
+    const [blogOk, faqOk] = await Promise.all([addonsMV.addonActifRapide(gid, 'blog_collab', pool), addonsMV.addonActifRapide(gid, 'faq_collab', pool)]);   // add-ons « Blog » et « FAQ » collaborateurs
     const avisOk = await avisMV.actifs(gid, pool);   // add-on « Avis clients » actif + Config marketplace → Fonctionnalités → Avis clients
-    res.json({ blog_actif: r.rows[0].blog, faq_actif: r.rows[0].faq, avis_actif: avisOk });
+    const chatOk = await addonsMV.addonActifRapide(gid, 'chat_collab', pool);
+    res.json({ blog_actif: blogOk && r.rows[0].blog, faq_actif: faqOk && r.rows[0].faq, avis_actif: avisOk, chat_actif: chatOk });
   } catch (e) {
     console.error('[catalogue_public] addons', e.message);
     res.json({ blog_actif: false, faq_actif: false, avis_actif: false });
@@ -320,6 +323,7 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/blog', async (req, re
   try {
     const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
     if (!gid || !cid) return res.json({ articles: [] });
+    if (!(await addonsMV.addonActifRapide(gid, 'blog_collab', pool))) return res.json({ articles: [] });
     const r = await pool.query(
       `SELECT b.id, b.titre, b.contenu, array_to_string(b.tags, ', ') AS tags, b.vues, b.date_publication
          FROM collab_blogs b JOIN marketplace_collaborateurs mc ON mc.id = b.collaborateur_id AND mc.statut = 'actif'
@@ -352,6 +356,7 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/faq', async (req, res
   try {
     const gid = entier(req.params.gestionnaireId), cid = entier(req.params.collaborateurId);
     if (!gid || !cid) return res.json({ items: [] });
+    if (!(await addonsMV.addonActifRapide(gid, 'faq_collab', pool))) return res.json({ items: [] });
     const r = await pool.query(
       `SELECT f.id, f.question, f.reponse FROM collab_faq f JOIN marketplace_collaborateurs mc ON mc.id = f.collaborateur_id AND mc.statut = 'actif'
         WHERE f.collaborateur_id = $1 AND f.gestionnaire_id = $2 AND f.active ORDER BY f.ordre ASC, f.id ASC LIMIT 100`, [cid, gid]);

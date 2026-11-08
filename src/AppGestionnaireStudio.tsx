@@ -775,9 +775,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     id: 'collaborateurs', label: 'MES COLLABORATEURS', icon: '🏪',
     sousMenu: [
       { id: 'collaborateurs-liste',  label: 'Liste des collaborateurs', icon: '👥' },
-      { id: 'collaborateurs-blogs',  label: 'Blog collaborateurs',      icon: '📝' },
-      ...(estMultiVendeur ? [{ id: 'faqs-collaborateurs', label: 'FAQ collaborateurs', icon: '❓' }] : []),
-      { id: 'collaborateurs-messages', label: 'Messages collaborateurs', icon: '💬' },
+      ...(!estMultiVendeur || addonsMV.blog_collab ? [{ id: 'collaborateurs-blogs',  label: 'Blog collaborateurs',      icon: '📝' }] : []),
+      ...(estMultiVendeur && addonsMV.faq_collab ? [{ id: 'faqs-collaborateurs', label: 'FAQ collaborateurs', icon: '❓' }] : []),
+      ...(!estMultiVendeur || addonsMV.chat_collab ? [{ id: 'collaborateurs-messages', label: 'Messages collaborateurs', icon: '💬' }] : []),
       { id: 'collaborateurs-signalements', label: 'Signalements', icon: '🚩', badge: signalementsNouveaux > 0 ? signalementsNouveaux : undefined },
     ],
     badge: signalementsNouveaux > 0 ? signalementsNouveaux : undefined,
@@ -1195,7 +1195,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
       menuSousVendeurs,
       menuBadges,
-      menuChatSV,
+      ...(addonsMV.chat_collab ? [menuChatSV] : []),
       menuStudioMV,
       menuConfigMV,
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[

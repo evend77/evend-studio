@@ -258,6 +258,10 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
   const [nonLusGest,    setNonLusGest]    = useState(0);
   const [nonLusChat,    setNonLusChat]    = useState(0);
   const [collabInitial, setCollabInitial] = useState<number | null>(null);
+  const [chatActif, setChatActif] = useState(false);   // add-on « Chat collaborateurs »
+  useEffect(() => {
+    fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons`).then(r => r.json()).then(d => setChatActif(!!d.chat_collab)).catch(() => setChatActif(false));
+  }, [gestionnaireId]);
   const [loading,       setLoading]       = useState(true);
 
   // Lire compte depuis localStorage au montage
@@ -391,7 +395,7 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     { id: 'wishlist',      label: 'LISTE DE SOUHAITS', icon: '❤️' },
     { id: 'favoris',       label: 'COLLABORATEURS FAVORIS', icon: '💜' },
     { id: 'messagerie',    label: 'MESSAGERIE GESTIONNAIRE', icon: '🏢', badge: nonLusGest },
-    { id: 'chat',          label: 'CHAT COLLABORATEURS', icon: '💬', badge: nonLusChat },
+    ...(chatActif ? [{ id: 'chat' as PageDash, label: 'CHAT COLLABORATEURS', icon: '💬', badge: nonLusChat }] : []),
     { id: 'notifications', label: 'NOTIFICATIONS',    icon: '🔔', badge: nonLusNotifs },
     { id: 'encheres',      label: 'MES ENCHÈRES',     icon: '🔨' },
     { id: 'panier',        label: 'MON PANIER',       icon: '🛒' },
@@ -412,14 +416,14 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     const commun = { gestionnaireId, isMobile, couleurAccent };
     const versBoutique = (p: string) => (p === 'boutique' ? naviguerTemplate({ page: 'catalogue' }) : naviguer(p as PageDash));
     const ecrireACollab = (id: number) => { setCollabInitial(id); naviguer('chat'); };
-    if (page === 'commandes')     return <Commandes {...commun} onEcrire={ecrireACollab} />;
+    if (page === 'commandes')     return <Commandes {...commun} onEcrire={chatActif ? ecrireACollab : undefined} />;
     if (page === 'panier')        return <Panier naviguer={(p: string) => naviguer(p as PageDash)} gestionnaireId={gestionnaireId} config={config} />;
     if (page === 'checkout')      return <Checkout naviguer={(p: string) => naviguer(p as PageDash)} vendeurId={checkoutCollabId ?? undefined} gestionnaireId={gestionnaireId} config={config} />;
     if (page === 'encheres')      return <MesEncheres {...commun} naviguer={versBoutique} onVoirProduit={(id) => naviguerTemplate({ page: 'produit', produitId: id })} />;
     if (page === 'wishlist')      return <Wishlist {...commun} naviguer={versBoutique} />;
-    if (page === 'favoris')       return <CollaborateursFavoris {...commun} onEcrire={ecrireACollab} />;
+    if (page === 'favoris')       return <CollaborateursFavoris {...commun} onEcrire={chatActif ? ecrireACollab : undefined} />;
     if (page === 'messagerie')    return <MessagerieGestionnaire {...commun} />;
-    if (page === 'chat')          return <ChatAvecCollaborateurs {...commun} collaborateurInitial={collabInitial} onInitialConsomme={() => setCollabInitial(null)} />;
+    if (page === 'chat' && chatActif) return <ChatAvecCollaborateurs {...commun} collaborateurInitial={collabInitial} onInitialConsomme={() => setCollabInitial(null)} />;
     if (page === 'notifications') return <Notifications {...commun} />;
     if (page === 'retours')       return <Retours {...commun} naviguer={(p: string) => naviguer(p as PageDash)} />;
     if (page === 'documents')     return <Documents {...commun} nomSite={nomSite} />;
