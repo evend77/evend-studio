@@ -90,7 +90,6 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
     <div style={{ maxWidth: 760, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
         <h2 style={{ margin: 0, fontSize: 20, color: T.text }}>🏷️ Étiquettes d'expédition</h2>
-        {shippo?.addon_actif && <a href={URL_GUIDE} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 700, color: accent, textDecoration: 'none', border: `1px solid ${accent}`, borderRadius: 8, padding: '7px 12px' }}>📖 Guide Shippo</a>}
       </div>
       <p style={{ margin: '0 0 16px', fontSize: 13, color: T.light, lineHeight: 1.6 }}>
         Achetez vos étiquettes directement depuis une commande, avec les tarifs réels des transporteurs, et suivez la livraison automatiquement.
@@ -113,6 +112,7 @@ export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobi
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
               <strong style={{ fontSize: 15, color: T.text }}>🚚 Shippo</strong>
               <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <a href={URL_GUIDE} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: accent, textDecoration: 'none', border: `1px solid ${accent}`, borderRadius: 12, padding: '2px 10px' }}>📖 Guide</a>
                 {shippo.configure && <span style={{ background: shippo.mode === 'production' ? '#E9F7EF' : '#FEF9E7', color: shippo.mode === 'production' ? T.ok : '#B7950B', padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>{shippo.mode === 'production' ? '🚀 Production' : '🧪 Test'}</span>}
                 <span style={{ background: shippo.actif ? '#E9F7EF' : '#f3f4f6', color: shippo.actif ? T.ok : T.light, padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700 }}>{shippo.actif ? '✅ Actif' : 'Inactif'}</span>
                 <Interrupteur on={ouvert('shippo')} onClick={() => basculer(shippo)} />
