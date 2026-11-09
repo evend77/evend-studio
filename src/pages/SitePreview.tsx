@@ -314,8 +314,10 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       {/* Chatbot — actif seulement si l'add-on est activé, jamais en mode démo */}
       {!isDemo && vendeurId && !!options?.chatbot && <ChatbotWidget gestionnaireId={Number(vendeurId)} />}
 
-      {/* Vérificateur d'âge — actif seulement si l'add-on est activé, jamais en mode démo */}
-      {!isDemo && vendeurId && <VerificateurAge vendeurId={Number(vendeurId)} />}
+      {/* Vérificateur d'âge — actif seulement si l'add-on est activé, jamais en mode démo.
+          Le template Multi-vendeur Premium monte le sien (règle forfait/add-on) : on ne le double pas ici,
+          sinon deux fenêtres s'empilent et il faut cliquer deux fois pour la fermer. */}
+      {!isDemo && vendeurId && !templateId.startsWith('multi-vendeur-premium') && <VerificateurAge vendeurId={Number(vendeurId)} />}
 
       {/* Contenu */}
       <div style={{ paddingBottom: 44 }}>
