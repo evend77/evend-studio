@@ -13,6 +13,7 @@ interface Etat {
   connexion: { statut: 'connecte' | 'reconnexion'; username: string | null; env: string; message: string | null; connecte_le: string } | null;
 }
 
+const URL_GUIDE = 'https://e-vendstudio.ca/documents/mv-connecteur-ebay-add-on';
 const T = { border: '#e1e4e8', text: '#1a2332', light: '#6b7280', danger: '#dc2626', ok: '#1E8449' };
 
 export default function CollaborateurEbay({ gestionnaireId, accent, isMobile }: Props) {
@@ -124,7 +125,7 @@ export default function CollaborateurEbay({ gestionnaireId, accent, isMobile }: 
   const c = etat?.connexion;
   return (
     <div style={{ maxWidth: 720, color: T.text }}>
-      <h2 style={{ margin: '0 0 6px', fontSize: isMobile ? 20 : 24 }}>🏷️ Connecteur eBay</h2>
+      <h2 style={{ margin: '0 0 6px', fontSize: isMobile ? 20 : 24 }}>🏷️ Connecteur eBay <a href={URL_GUIDE} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: accent, textDecoration: 'none', border: `1px solid ${accent}`, borderRadius: 12, padding: '2px 10px', marginLeft: 10, verticalAlign: 'middle' }}>📖 Guide</a></h2>
       <p style={{ margin: '0 0 20px', color: T.light, fontSize: 14 }}>Reliez votre compte vendeur eBay à votre boutique. Vous autorisez l'accès directement sur eBay : nous ne voyons jamais votre mot de passe.</p>
 
       {erreur && <div style={{ ...carte, borderColor: T.danger, color: T.danger, padding: 14 }}>{erreur}</div>}

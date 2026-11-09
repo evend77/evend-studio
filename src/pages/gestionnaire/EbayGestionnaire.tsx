@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 
+const URL_GUIDE = 'https://e-vendstudio.ca/documents/mv-connecteur-ebay-add-on';
 const T = { accent: '#2d6a9f', border: '#e1e4e8', text: '#1a2332', light: '#6b7280', danger: '#dc2626', success: '#16a34a' };
 
 interface Config {
@@ -101,7 +102,7 @@ export default function EbayGestionnaire(_props: { gestionnaireId?: number }) {
 
   return (
     <div style={{ maxWidth: 820, margin: '0 auto' }}>
-      <h2 style={{ margin: '0 0 6px', fontSize: 22, color: T.text }}>🏷️ Connecteur eBay</h2>
+      <h2 style={{ margin: '0 0 6px', fontSize: 22, color: T.text }}>🏷️ Connecteur eBay <a href={URL_GUIDE} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'none', border: `1px solid ${T.accent}`, borderRadius: 12, padding: '2px 10px', marginLeft: 10, verticalAlign: 'middle' }}>📖 Guide</a></h2>
       <p style={{ margin: '0 0 18px', fontSize: 14, color: T.light, lineHeight: 1.6 }}>
         Vous utilisez vos <strong>propres clés eBay</strong> : la limite d'appels eBay est donc à vous, elle n'est partagée avec aucune autre marketplace. Vous les configurez une seule fois ; vos collaborateurs n'auront ensuite qu'à connecter leur compte eBay.
       </p>
