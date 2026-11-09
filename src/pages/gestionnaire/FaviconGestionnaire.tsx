@@ -11,7 +11,17 @@ interface Anim { actif: boolean; declencheur: 'inactif' | 'panier' | 'toujours';
 interface Retours { jour: number; semaine: number; mois: number; total: number; total_avec_panier: number }
 const champ: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 14 };
 const etiquette: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 6 };
-const EMOJIS = ['✨', '🛒', '🔥', '🎁', '⏰', '💛', '👋', '🛍️'];
+const GROUPES_EMOJIS: { titre: string; liste: string[] }[] = [
+  { titre: 'Magasinage', liste: ['🛒', '🛍️', '🎁', '🏷️', '💳', '💰', '🧾', '📦', '🚚', '🏪'] },
+  { titre: 'Attirer l\'attention', liste: ['✨', '🔥', '💡', '⚡', '⭐', '🌟', '💥', '🎉', '🎊', '❗', '❓', '🔔', '📣', '👀'] },
+  { titre: 'Urgence et offres', liste: ['⏰', '⏳', '🕐', '🚨', '💯', '🆕', '🆓', '🎯', '🏆', '🤑'] },
+  { titre: 'Sympathique', liste: ['👋', '😊', '😍', '🥰', '🤩', '😉', '🙏', '👍', '💛', '❤️', '💙', '💚', '💜', '🧡'] },
+  { titre: 'Noël et hiver', liste: ['🎅', '🤶', '🎄', '🦌', '⛄', '☃️', '❄️', '🎁', '🧦', '🔔', '🕯️', '🎿'] },
+  { titre: 'Pâques et printemps', liste: ['🐰', '🐇', '🥚', '🐣', '🐥', '🌷', '🌸', '🌼', '🌱', '🍫'] },
+  { titre: 'Halloween et automne', liste: ['🎃', '👻', '🦇', '🕷️', '💀', '🍂', '🍁', '🦃', '🌰', '🍎'] },
+  { titre: 'Été et vacances', liste: ['☀️', '😎', '🏖️', '🌴', '🍦', '🍉', '⛱️', '🚗', '✈️', '🎒'] },
+  { titre: 'Autres fêtes', liste: ['💘', '💝', '🌹', '💐', '🎂', '🥳', '🎈', '🎆', '🎇', '🇨🇦', '⚜️', '🍻'] },
+];
 const carte: React.CSSProperties = { background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: 20, marginBottom: 16 };
 
 export default function FaviconGestionnaire(_props: { gestionnaireId?: number }) {
@@ -25,6 +35,8 @@ export default function FaviconGestionnaire(_props: { gestionnaireId?: number })
   const [anim, setAnim] = useState<Anim>({ actif: false, declencheur: 'inactif', style: 'clignotant', emoji: '✨', messages: ['Revenez, on vous attend ! 🛍️'] });
   const [retours, setRetours] = useState<Retours | null>(null);
   const [saveAnim, setSaveAnim] = useState(false);
+  // Case « animer aussi le favicon » : décochée = seul le texte de l'onglet clignote, le favicon reste celui de la boutique
+  const [animFavicon, setAnimFavicon] = useState(true);
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; texte: string } | null>(null);
   const fichier = useRef<HTMLInputElement>(null);
 
@@ -35,7 +47,10 @@ export default function FaviconGestionnaire(_props: { gestionnaireId?: number })
       if (!r.ok) { setMsg({ type: 'err', texte: d.error || 'Chargement impossible' }); }
       else {
         setUrl(d.favicon_url || null); if (d.min) setMin(d.min); if (d.max) setMax(d.max);
-        if (d.animation) setAnim({ ...d.animation, emoji: d.animation.emoji || '✨', messages: d.animation.messages?.length ? d.animation.messages : [''] });
+        if (d.animation) {
+          setAnim({ ...d.animation, emoji: d.animation.emoji || '✨', messages: d.animation.messages?.length ? d.animation.messages : [''] });
+          setAnimFavicon(!!d.animation.emoji || !d.animation.actif);
+        }
         if (d.retours) setRetours(d.retours);
       }
     } catch { setMsg({ type: 'err', texte: 'Erreur réseau' }); }
@@ -64,7 +79,7 @@ export default function FaviconGestionnaire(_props: { gestionnaireId?: number })
     try {
       const r = await fetch('/api/favicon-boutique/gestionnaire/animation', {
         method: 'POST', credentials: 'include', headers: { ...auth, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ actif: anim.actif, declencheur: anim.declencheur, style: anim.style, emoji: anim.emoji, messages: anim.messages.filter(m => m.trim()) }),
+        body: JSON.stringify({ actif: anim.actif, declencheur: anim.declencheur, style: anim.style, emoji: animFavicon ? anim.emoji : '', messages: anim.messages.filter(m => m.trim()) }),
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) setMsg({ type: 'err', texte: d.error || 'Enregistrement impossible' });
@@ -154,14 +169,34 @@ export default function FaviconGestionnaire(_props: { gestionnaireId?: number })
           </div>
         </div>
 
-        <label style={etiquette}>Émoji du favicon (alterne avec votre favicon)</label>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14 }}>
-          <input style={{ ...champ, width: 90, textAlign: 'center', fontSize: 20 }} value={anim.emoji} maxLength={8} onChange={e => setAnim(a => ({ ...a, emoji: e.target.value }))} />
-          {EMOJIS.map(em => (
-            <button key={em} type="button" onClick={() => setAnim(a => ({ ...a, emoji: em }))}
-              style={{ border: `1px solid ${anim.emoji === em ? T.accent : T.border}`, background: '#fff', borderRadius: 8, padding: '6px 10px', fontSize: 18, cursor: 'pointer' }}>{em}</button>
-          ))}
-        </div>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 10 }}>
+          <input type="checkbox" checked={animFavicon} onChange={e => setAnimFavicon(e.target.checked)} style={{ width: 18, height: 18 }} />
+          Faire aussi clignoter le favicon avec un émoji
+        </label>
+        {animFavicon ? (
+          <>
+            <label style={etiquette}>Émoji (alterne avec votre favicon)</label>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+              <input style={{ ...champ, width: 90, textAlign: 'center', fontSize: 20 }} value={anim.emoji} maxLength={8} onChange={e => setAnim(a => ({ ...a, emoji: e.target.value }))} />
+              <span style={{ fontSize: 12, color: T.light }}>Choisissez dans la liste ou tapez le vôtre.</span>
+            </div>
+            <div style={{ maxHeight: 210, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 10, padding: '8px 12px', marginBottom: 14 }}>
+              {GROUPES_EMOJIS.map(g => (
+                <div key={g.titre} style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.light, margin: '4px 0' }}>{g.titre}</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {g.liste.map(em => (
+                      <button key={em} type="button" onClick={() => setAnim(a => ({ ...a, emoji: em }))}
+                        style={{ border: `1px solid ${anim.emoji === em ? T.accent : T.border}`, background: anim.emoji === em ? '#eef5fb' : '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 20, cursor: 'pointer' }}>{em}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p style={{ margin: '0 0 14px', fontSize: 12, color: T.light }}>Seul le texte de l'onglet va clignoter. Votre favicon ne change pas.</p>
+        )}
 
         <label style={etiquette}>Messages affichés dans l'onglet (jusqu'à 5, 60 lettres max)</label>
         {anim.messages.map((m, i) => (
@@ -185,7 +220,7 @@ export default function FaviconGestionnaire(_props: { gestionnaireId?: number })
           <div style={{ marginTop: 14 }}>
             <div style={{ fontSize: 11, color: T.light, marginBottom: 4 }}>Aperçu (onglet en animation)</div>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#e5e7eb', borderRadius: '10px 10px 0 0', padding: '8px 14px', fontSize: 12, color: T.text, maxWidth: '100%' }}>
-              <span style={{ fontSize: 14 }}>{anim.emoji || '✨'}</span>
+              <span style={{ fontSize: 14 }}>{animFavicon ? (anim.emoji || '✨') : (url ? <img src={url} alt="" style={{ width: 14, height: 14, verticalAlign: 'middle' }} /> : '🌐')}</span>
               <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(anim.messages.find(m => m.trim()) || '').replace(/\{n\}/g, '2')}</span>
             </div>
           </div>
