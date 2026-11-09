@@ -72,7 +72,8 @@ app.use('/api', (req, res, next) => {
 // (trust proxy : nécessaire derrière nginx pour que req.hostname soit le vrai domaine)
 app.set('trust proxy', 1);
 app.use((req, res, next) => {
-  if (req.method === 'GET' && req.hostname.startsWith('www.')) {
+  // Seulement www.e-vendstudio.ca : un domaine perso de gestionnaire (ex. www.idee-cadeau.ca) doit garder son adresse.
+  if (req.method === 'GET' && req.hostname === 'www.e-vendstudio.ca') {
     return res.redirect(301, 'https://e-vendstudio.ca' + req.originalUrl);
   }
   next();
