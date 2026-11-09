@@ -94,8 +94,23 @@ async function forfaitMV(gid, db) {
 
 // ── Catalogue d'add-ons ──────────────────────────────────────────────────────
 
+// Catégories d'affichage des add-ons (page « Mon plan & limites »). L'ordre ici = l'ordre des sections.
+const CATEGORIES = [
+  { id: 'expedition',     nom: 'Expédition',        emoji: '📦' },
+  { id: 'connecteurs',    nom: 'Connecteurs',       emoji: '🔌' },
+  { id: 'produits',       nom: 'Produits & ventes', emoji: '🛍️' },
+  { id: 'marketing',      nom: 'Marketing',         emoji: '📣' },
+  { id: 'image',          nom: 'Image de marque',   emoji: '🎨' },
+  { id: 'collaboration',  nom: 'Collaborateurs',    emoji: '👥' },
+  { id: 'service_client', nom: 'Service client',    emoji: '💬' },
+  { id: 'conformite',     nom: 'Conformité',        emoji: '🔒' },
+  { id: 'autres',         nom: 'Autres',            emoji: '🧩' },
+];
+const CATEGORIE_IDS = new Set(CATEGORIES.map(c => c.id));
+
 function formaterAddon(r) {
   return {
+    categorie: CATEGORIE_IDS.has(r.categorie) ? r.categorie : 'autres',
     code: r.code,
     nom: r.nom,
     description: r.description || '',
@@ -304,7 +319,7 @@ async function resumeFacturationMV(gid) {
 module.exports = {
   ErreurAddon, TEMPLATE_MV, SITE_TEMPLATES_MV,
   listerPlansMV, forfaitMV, forfaitInclut, listerCatalogue,
-  etatAddonsMV, addonActif, addonActifRapide,
+  etatAddonsMV, addonActif, addonActifRapide, CATEGORIES, CATEGORIE_IDS,
   activerAddon, desactiverAddon, changerForfaitMV, resumeFacturationMV,
   LEGACY_COLS, etatLegacy, syncInclusLegacy, syncInclus, syncGestionnairesDuPlan,
 };

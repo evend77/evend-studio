@@ -1,4 +1,4 @@
-// src/pages/gestionnaire/MVPremiumPlan.tsx
+// CHEMIN : src/pages/gestionnaire/MVPremiumPlan.tsx
 // e-Vend Studio — Forfait & Plan Multi-Vendeur Premium
 //
 // Les forfaits, leurs prix, limites et add-ons inclus viennent du SERVEUR (admin : ⭐ Forfaits & Plans MV).
@@ -21,11 +21,12 @@ interface Plan {
   actif: boolean; ordre: number; addons_inclus: string[]; tous_addons: boolean;
 }
 interface Addon {
-  code: string; nom: string; description: string; emoji: string; prix_ht: number; guide_url?: string;
+  code: string; nom: string; description: string; emoji: string; prix_ht: number; guide_url?: string; categorie?: string;
   inclus: boolean; achete: boolean; actif_pour_gestionnaire: boolean; prix_facture: number;
 }
 interface LigneResume { code: string; nom: string; emoji: string; inclus: boolean; prix_ht: number; }
-interface Etat { forfait: (Plan & { par_defaut?: boolean }) | null; addons: Addon[]; lignes: LigneResume[]; plans: Plan[]; total_ht: number; }
+interface Categorie { id: string; nom: string; emoji: string; }
+interface Etat { categories?: Categorie[]; forfait: (Plan & { par_defaut?: boolean }) | null; addons: Addon[]; lignes: LigneResume[]; plans: Plan[]; total_ht: number; }
 
 const mensuel = (it: ItemAddon) => (it.periode === 'an' ? it.prix / 12 : it.periode === 'mois' ? it.prix : 0);
 
@@ -144,10 +145,14 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
   const stockagePct = stockageMax ? Math.min((stockageUtilise / stockageMax) * 100, 100) : 0;
   const stockageAffiche = stockageUtilise < 1024 ? `${stockageUtilise.toFixed(0)} Mo` : `${(stockageUtilise / 1024).toFixed(1)} Go`;
   // Add-ons du multi-vendeur (leur propre catalogue, géré dans ⭐ Forfaits & Plans MV)
+  // Sections dans l'ordre défini par l'admin (liste du serveur) ; un code de catégorie inconnu tombe dans « Autres ».
+  const cats = etat.categories && etat.categories.length ? etat.categories : [{ id: 'autres', nom: 'Autres', emoji: '🧩' }];
+  const rang = (id?: string) => { const i = cats.findIndex(c => c.id === id); return i < 0 ? cats.length : i; };
+  const catDe = (id?: string) => cats.find(c => c.id === id) || cats.find(c => c.id === 'autres') || cats[cats.length - 1];
   const items: ItemAddon[] = [
-    ...etat.addons.map((a): ItemAddon => ({
+    ...[...etat.addons].sort((a, b) => rang(a.categorie) - rang(b.categorie)).map((a): ItemAddon => ({
       cle: 'studio:' + a.code, source: 'studio', code: a.code, nom: a.nom, description: a.description, emoji: a.emoji, prix: a.prix_ht, periode: 'mois',
-      categorie_id: 'marketplace', categorie_nom: 'Marketplace', badges: [], inclus: a.inclus, achete: a.achete, prix_facture: a.prix_facture, lien_documentation: a.guide_url || null,
+      categorie_id: catDe(a.categorie).id, categorie_nom: catDe(a.categorie).nom, categorie_emoji: catDe(a.categorie).emoji, badges: [], inclus: a.inclus, achete: a.achete, prix_facture: a.prix_facture, lien_documentation: a.guide_url || null,
     })),
   ];
   const nomAddon = (code: string) => items.find(a => a.code === code)?.nom || code;

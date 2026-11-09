@@ -1,4 +1,4 @@
-// src/pages/gestionnaire/MVAddonsCatalogue.tsx
+// CHEMIN : src/pages/gestionnaire/MVAddonsCatalogue.tsx
 // e-Vend Studio — Catalogue d'add-ons du gestionnaire Multi-Vendeur (intégré à « Mon plan & limites »).
 // Remplace l'ancienne page « Branding & options » du menu multi-vendeur : une seule liste d'add-ons,
 // avec recherche, catégories, « Voir détail » (modal + guide) et la règle « inclus au forfait = jamais facturé ».
@@ -16,6 +16,7 @@ export interface ItemAddon {
   periode: string;              // 'mois' | 'an' | 'gratuit' | 'variable'
   categorie_id: string;
   categorie_nom: string;
+  categorie_emoji?: string;
   badges: string[];
   companie?: string | null;
   lien_documentation?: string | null;
@@ -83,10 +84,11 @@ export default function MVAddonsCatalogue({ items, busy, couleur, onBasculer }: 
   const [aDesactiver, setADesactiver] = useState<ItemAddon | null>(null);
 
   const categories = useMemo(() => {
-    const m = new Map<string, string>();
-    items.forEach(i => { if (!m.has(i.categorie_id)) m.set(i.categorie_id, i.categorie_nom); });
-    return Array.from(m.entries()).map(([id, nom]) => ({ id, nom }));
+    const m = new Map<string, { nom: string; emoji?: string }>();
+    items.forEach(i => { if (!m.has(i.categorie_id)) m.set(i.categorie_id, { nom: i.categorie_nom, emoji: i.categorie_emoji }); });
+    return Array.from(m.entries()).map(([id, c]) => ({ id, nom: c.nom, emoji: c.emoji }));
   }, [items]);
+  const emojiCat = (id: string) => categories.find(c => c.id === id)?.emoji || CATEGORIES_EMOJI[id] || '📦';
 
   const filtres = useMemo(() => {
     const q = recherche.trim().toLowerCase();
@@ -123,7 +125,7 @@ export default function MVAddonsCatalogue({ items, busy, couleur, onBasculer }: 
         <select value={filtre} onChange={e => setFiltre(e.target.value)}
           style={{ padding: '11px 14px', border: `1px solid ${T.border}`, borderRadius: 10, fontSize: 14, background: '#fff', minWidth: 180, fontFamily: 'inherit' }}>
           <option value="toutes">Toutes les catégories</option>
-          {categories.map(c => <option key={c.id} value={c.id}>{CATEGORIES_EMOJI[c.id] || '📦'} {c.nom}</option>)}
+          {categories.map(c => <option key={c.id} value={c.id}>{c.emoji || CATEGORIES_EMOJI[c.id] || '📦'} {c.nom}</option>)}
         </select>
       </div>
       <div style={{ display: 'flex', gap: 16, fontSize: 12, color: T.textLight, flexWrap: 'wrap', marginBottom: 20 }}>
@@ -139,7 +141,7 @@ export default function MVAddonsCatalogue({ items, busy, couleur, onBasculer }: 
       ) : parCategorie.map(([cid, liste]) => (
         <div key={cid} style={{ marginBottom: 32 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 14, background: T.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{CATEGORIES_EMOJI[cid] || '📦'}</div>
+            <div style={{ width: 44, height: 44, borderRadius: 14, background: T.accentLight, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>{emojiCat(cid)}</div>
             <div>
               <h3 style={{ fontSize: 18, fontWeight: 800, color: T.text, margin: 0 }}>{liste[0].categorie_nom}</h3>
               <p style={{ fontSize: 12, color: T.textLight, margin: 0 }}>{liste.length} add-on{liste.length > 1 ? 's' : ''} disponible{liste.length > 1 ? 's' : ''}</p>

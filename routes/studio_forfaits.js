@@ -210,7 +210,7 @@ router.get('/mv/mon-forfait', authenticateToken, gestionnaire, h(async (req, res
     pool.query('SELECT 1 FROM sites WHERE gestionnaire_id = $1 AND template_id = ANY($2::text[]) LIMIT 1', [req.gid, addons.SITE_TEMPLATES_MV]),
   ]);
   // est_mv : seuls les gestionnaires dont le site utilise le template multi-vendeur ont un forfait MV à afficher dans « Mes services »
-  res.json({ est_mv: site.rowCount > 0, forfait: etat.forfait, addons: etat.addons, lignes: resume.addons, plans, total_ht: resume.total_ht });
+  res.json({ est_mv: site.rowCount > 0, forfait: etat.forfait, addons: etat.addons, lignes: resume.addons, plans, categories: addons.CATEGORIES, total_ht: resume.total_ht });
 }));
 
 router.put('/mv/mon-forfait', authenticateToken, gestionnaire, h(async (req, res) => {
@@ -319,7 +319,7 @@ router.get('/admin/addons', ...admin, h(async (req, res) => {
   }
   const parForfait = new Map(inclus.rows.map(r => [r.code, r.forfaits]));
   const out = liste.map(a => ({ ...a, nb_achats: nAchats.get(a.code) || 0, forfaits_inclus: parForfait.get(a.code) || [] }));
-  res.json({ addons: out });
+  res.json({ addons: out, categories: addons.CATEGORIES });
 }));
 
 function lireAddonBody(b) {
@@ -334,6 +334,7 @@ function lireAddonBody(b) {
     guide_url: /^https?:\/\/\S{3,500}$/i.test(txt(b.guide_url, 500)) ? txt(b.guide_url, 500) : '',
     actif: b.actif !== false, ordre: Number.isInteger(parseInt(b.ordre, 10)) ? parseInt(b.ordre, 10) : 0,
     templates: [...new Set(templates)],
+    categorie: addons.CATEGORIE_IDS.has(b.categorie) ? b.categorie : null,   // null = ne pas changer (modif) / « autres » (création)
   };
 }
 
@@ -345,9 +346,9 @@ router.post('/admin/addons', ...admin, h(async (req, res) => {
   const dup = await pool.query('SELECT 1 FROM options_studio WHERE code = $1', [code]);
   if (dup.rowCount) return res.status(409).json({ error: 'Ce code existe déjà.' });
   const r = await pool.query(
-    `INSERT INTO options_studio (code, nom, description, prix_ht, actif, ordre, templates, emoji, guide_url)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [code, d.nom, d.description, d.prix_ht, d.actif, d.ordre, d.templates, d.emoji, d.guide_url]
+    `INSERT INTO options_studio (code, nom, description, prix_ht, actif, ordre, templates, emoji, guide_url, categorie)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [code, d.nom, d.description, d.prix_ht, d.actif, d.ordre, d.templates, d.emoji, d.guide_url, d.categorie || 'autres']
   );
   res.status(201).json({ addon: r.rows[0] });
 }));
@@ -358,9 +359,9 @@ router.put('/admin/addons/:code', ...admin, h(async (req, res) => {
   const d = lireAddonBody(req.body || {});
   if (d.erreur) return res.status(400).json({ error: d.erreur });
   const r = await pool.query(
-    `UPDATE options_studio SET nom=$1, description=$2, prix_ht=$3, actif=$4, ordre=$5, templates=$6, emoji=$7, guide_url=$8
+    `UPDATE options_studio SET nom=$1, description=$2, prix_ht=$3, actif=$4, ordre=$5, templates=$6, emoji=$7, guide_url=$8, categorie=COALESCE($10, categorie)
       WHERE code=$9 RETURNING *`,
-    [d.nom, d.description, d.prix_ht, d.actif, d.ordre, d.templates, d.emoji, d.guide_url, code]
+    [d.nom, d.description, d.prix_ht, d.actif, d.ordre, d.templates, d.emoji, d.guide_url, code, d.categorie]
   );
   if (!r.rowCount) return res.status(404).json({ error: 'Add-on introuvable.' });
   res.json({ addon: r.rows[0] });
