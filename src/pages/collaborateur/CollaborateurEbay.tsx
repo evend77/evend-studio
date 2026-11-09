@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 interface Props { gestionnaireId: number; accent: string; isMobile: boolean }
+interface Travail { id: number; statut: 'en_attente' | 'en_cours' | 'pause' | 'termine' | 'erreur' | 'annule'; total: number; traites: number; importes: number; ignores: number; erreurs: number; message: string | null; reprise_a: string | null }
 interface Etat {
   gestionnaire_configure: boolean;
   connexion: { statut: 'connecte' | 'reconnexion'; username: string | null; env: string; message: string | null; connecte_le: string } | null;
@@ -19,6 +20,7 @@ export default function CollaborateurEbay({ gestionnaireId, accent, isMobile }: 
   const [occupe, setOccupe] = useState(false);
   const [erreur, setErreur] = useState('');
   const [info, setInfo] = useState('');
+  const [travail, setTravail] = useState<Travail | null>(null);
 
   const charger = useCallback(async () => {
     try {
@@ -27,6 +29,36 @@ export default function CollaborateurEbay({ gestionnaireId, accent, isMobile }: 
       if (res.ok) { setEtat(j); setErreur(''); } else setErreur(j.error || 'Chargement impossible');
     } catch { setErreur('Erreur réseau'); }
   }, [base]);
+
+  const chargerImport = useCallback(async () => {
+    try {
+      const res = await fetch(`${base}/import`, { credentials: 'include' });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) setTravail(j.import || null);
+    } catch { /* on réessaie au prochain tour */ }
+  }, [base]);
+
+  // Suivi de l'import : on relit toutes les 4 secondes tant qu'il n'est pas fini
+  const enCours = !!travail && ['en_attente', 'en_cours', 'pause'].includes(travail.statut);
+  useEffect(() => {
+    if (!etat?.connexion) return;
+    chargerImport();
+  }, [etat?.connexion?.statut, chargerImport]);
+  useEffect(() => {
+    if (!enCours) return;
+    const t = setInterval(chargerImport, 4000);
+    return () => clearInterval(t);
+  }, [enCours, chargerImport]);
+
+  const importer = async () => {
+    setOccupe(true); setErreur(''); setInfo('');
+    try {
+      const res = await fetch(`${base}/importer`, { method: 'POST', credentials: 'include' });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) await chargerImport(); else setErreur(j.error || 'Import impossible');
+    } catch { setErreur('Erreur réseau'); }
+    setOccupe(false);
+  };
 
   useEffect(() => {
     charger();
@@ -105,6 +137,35 @@ export default function CollaborateurEbay({ gestionnaireId, accent, isMobile }: 
         <div style={carte}>
           <p style={{ fontSize: 14, color: T.light, margin: '0 0 16px' }}>Vous serez redirigé vers eBay pour autoriser l'accès, puis ramené ici automatiquement.</p>
           <button style={bouton(accent)} disabled={occupe} onClick={connecter}>Connecter mon eBay</button>
+        </div>
+      )}
+
+      {etat?.connexion?.statut === 'connecte' && (
+        <div style={carte}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>📥 Importer mes annonces eBay</div>
+          <p style={{ fontSize: 14, color: T.light, margin: '0 0 14px' }}>Vos annonces actives sont copiées dans votre boutique (titre, description, prix, stock, photos, catégorie). Rien n'est modifié sur eBay. Les annonces déjà importées sont sautées.</p>
+          {enCours && travail && (
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ height: 10, background: '#eef0f3', borderRadius: 6, overflow: 'hidden' }}>
+                <div style={{ width: `${travail.total ? Math.min(100, Math.round((travail.traites / travail.total) * 100)) : 4}%`, height: '100%', background: accent, transition: 'width .4s' }} />
+              </div>
+              <div style={{ fontSize: 13, color: T.light, marginTop: 6 }}>
+                {travail.statut === 'pause' ? (travail.message || 'En pause') : `${travail.traites} / ${travail.total || '…'} annonces traitées`}
+                {travail.statut === 'pause' && travail.reprise_a ? ` — reprise vers ${new Date(travail.reprise_a).toLocaleString('fr-CA')}` : ''}
+              </div>
+              <div style={{ fontSize: 12, color: T.light, marginTop: 4 }}>Vous pouvez quitter cette page : l'import continue seul.</div>
+            </div>
+          )}
+          {!enCours && travail && travail.statut === 'termine' && (
+            <div style={{ fontSize: 14, color: T.ok, marginBottom: 14 }}>
+              ✅ Terminé : {travail.importes} annonce(s) importée(s){travail.ignores ? `, ${travail.ignores} déjà présente(s)` : ''}{travail.erreurs ? `, ${travail.erreurs} en erreur` : ''}.
+              {travail.message && <div style={{ color: T.light, marginTop: 4 }}>{travail.message}</div>}
+            </div>
+          )}
+          {!enCours && travail && travail.statut === 'erreur' && (
+            <div style={{ fontSize: 14, color: T.danger, marginBottom: 14 }}>{travail.message || "L'import a échoué."}</div>
+          )}
+          <button style={bouton(accent)} disabled={occupe || enCours} onClick={importer}>{enCours ? 'Import en cours…' : travail ? 'Importer de nouveau' : 'Importer mes annonces'}</button>
         </div>
       )}
     </div>

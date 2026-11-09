@@ -59,7 +59,9 @@ export default function EbayGestionnaire(_props: { gestionnaireId?: number }) {
   };
 
   const enregistrer = async () => {
-    setMsg(null); setEnCours('save');
+    setMsg(null);
+    if (!clientId.trim() && !devId.trim() && !secret.trim() && env === (cfg?.env ?? 'production') && runame.trim() === (cfg?.runame || '')) { setMsg({ type: 'err', texte: 'Rien à enregistrer : collez au moins une clé dans les champs.' }); return; }
+    setEnCours('save');
     try {
       const { ok, d } = await appel('POST', '', { env, client_id: clientId, dev_id: devId, client_secret: secret, runame });
       if (!ok) { setMsg({ type: 'err', texte: d.error || 'Enregistrement impossible' }); }

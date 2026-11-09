@@ -1104,6 +1104,8 @@ cronPaiementsModule.demarrer();
 // =====================================================================
 
 app.listen(port, () => {
+  // Import des annonces eBay (file de travaux dans la base) — traité ici, en arrière-plan
+  try { require('./services/studio_ebay_import').demarrer(); } catch (e) { console.error('eBay import worker :', e.message); }
   console.log('\n🚀 ' + '='.repeat(50));
   console.log('🚀   e-Vend Studio API — Port ' + port + ' (proxy depuis React)');
   console.log('🚀 ' + '='.repeat(50));

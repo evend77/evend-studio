@@ -4,9 +4,12 @@
 //   GET    /ebay            état (gestionnaire configuré ? compte connecté ?)
 //   POST   /ebay/connecter  { retour } → { url } : adresse eBay où le collaborateur autorise l'accès
 //   DELETE /ebay            déconnecter son compte eBay
+//   POST   /ebay/importer   lancer l'import de toutes ses annonces eBay (en arrière-plan)
+//   GET    /ebay/import     progression du dernier import
 
 const express = require('express');
 const svc = require('../services/studio_ebay');
+const imp = require('../services/studio_ebay_import');
 
 module.exports = function creerRouteur({ h, bad }) {
   const router = express.Router();
@@ -39,6 +42,18 @@ module.exports = function creerRouteur({ h, bad }) {
     if (!cfg) bad("Votre gestionnaire n'a pas encore terminé la configuration eBay. Contactez-le.", 409);
     const etat = await svc.creerEtat(req.gid, req.cid, retourSur(req, (req.body || {}).retour));
     res.json({ url: svc.urlAutorisation(cfg, etat) });
+  }));
+
+  router.post('/ebay/importer', metier(async (req, res) => {
+    const e = await svc.etat(req.gid, req.cid);
+    if (!e.connexion) bad('Connectez d\'abord votre compte eBay.', 409);
+    if (e.connexion.statut !== 'connecte') bad('Reconnectez votre compte eBay avant d\'importer.', 409);
+    const r = await imp.creerImport(req.gid, req.cid);
+    res.status(r.dejaEnCours ? 200 : 202).json({ ok: true, deja_en_cours: r.dejaEnCours });
+  }));
+
+  router.get('/ebay/import', metier(async (req, res) => {
+    res.json({ import: await imp.etatImport(req.cid, req.gid) });
   }));
 
   router.delete('/ebay', metier(async (req, res) => {
