@@ -6,7 +6,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const { authenticateToken } = require('../middleware/auth');
-const renderService = require('../services/renderService');
+const domainePerso = require('../services/studio_domaine_perso');   // VPS + Caddy (ancien hébergement Render retiré)
 
 // =====================================================================
 // 🌐 GESTION DE DOMAINE — constantes & utilitaires
@@ -245,7 +245,7 @@ router.get('/:gestionnaireId', async (req, res) => {
 // =====================================================================
 // PUT /api/studio/sites/:gestionnaireId/domaine
 // Sauvegarde le sous-domaine gratuit ET/OU le domaine personnalisé.
-// Si domaine_perso est fourni et nouveau, crée un Custom Hostname Cloudflare.
+// Domaine perso : hébergé sur le VPS (Caddy). Voir services/studio_domaine_perso.js.
 // =====================================================================
 router.put('/:gestionnaireId/domaine', authenticateToken, async (req, res) => {
   const { gestionnaireId } = req.params;
@@ -299,40 +299,24 @@ router.put('/:gestionnaireId/domaine', authenticateToken, async (req, res) => {
     }
 
     const ancienDomainePerso = actuel.rows[0].domaine_perso;
-    const ancienCfId = actuel.rows[0].cf_hostname_id; // réutilisé : stocke maintenant l'ID du domaine Render
-    let cfHostnameId = ancienCfId;
+    // Hébergement sur le VPS : rien à créer chez un fournisseur. Caddy émet le certificat à la première visite
+    // (autorisé par /caddy/ask tant que le domaine est enregistré ici). On remet le statut à « en attente » si le domaine change.
+    const cfHostnameId = null;
     let domaineStatut = null;
     let avertissementRender = null;
 
-    // ── Si le domaine perso a changé, gérer Render ──
-    if (domaine_perso && domaine_perso !== ancienDomainePerso) {
-      // Retirer l'ancien domaine Render s'il y en avait un
-      if (ancienDomainePerso) {
-        try {
-          await renderService.supprimerDomainePerso(ancienDomainePerso);
-        } catch (e) {
-          console.warn('Impossible de supprimer l\'ancien domaine Render:', e.message);
+    if (domaine_perso) {
+      if (domaine_perso !== ancienDomainePerso) {
+        const conflit = await pool.query(
+          `SELECT 1 FROM sites WHERE domaine_perso = $1 AND gestionnaire_id <> $2 LIMIT 1`, [domaine_perso, gestionnaireId]);
+        if (conflit.rows.length) {
+          return res.status(409).json({ success: false, message: 'Ce domaine est déjà connecté à une autre boutique.', champ: 'domaine_perso' });
         }
-      }
-
-      const resultat = await renderService.ajouterDomainePerso(domaine_perso);
-      if (resultat.success) {
-        cfHostnameId = resultat.domaine?.id || null;
         domaineStatut = 'en_attente';
       } else {
-        cfHostnameId = null;
-        domaineStatut = 'erreur';
-        avertissementRender = `Le domaine a été enregistré, mais la configuration Render a échoué : ${resultat.erreur}`;
+        const st = await pool.query(`SELECT domaine_statut FROM sites WHERE gestionnaire_id = $1`, [gestionnaireId]);
+        domaineStatut = st.rows[0]?.domaine_statut || 'en_attente';
       }
-    } else if (!domaine_perso && ancienDomainePerso) {
-      // Le gestionnaire a retiré son domaine perso
-      try {
-        await renderService.supprimerDomainePerso(ancienDomainePerso);
-      } catch (e) {
-        console.warn('Impossible de supprimer le domaine Render retiré:', e.message);
-      }
-      cfHostnameId = null;
-      domaineStatut = null;
     }
 
     await pool.query(
@@ -354,10 +338,10 @@ router.put('/:gestionnaireId/domaine', authenticateToken, async (req, res) => {
       avertissement: avertissementRender,
       instructions: domaine_perso
         ? {
-            type: 'CNAME',
+            type: 'A',
             hote: domaine_perso.startsWith('www.') ? 'www' : '@',
-            valeur: '144.217.85.111',
-            message: `Configurez un enregistrement CNAME pour ${domaine_perso} pointant vers 144.217.85.111 (A record)`,
+            valeur: domainePerso.IP_VPS,
+            message: `Chez votre fournisseur de domaine, ajoutez un enregistrement A pour ${domaine_perso} qui pointe vers ${domainePerso.IP_VPS}.`,
           }
         : null,
     });
@@ -369,7 +353,7 @@ router.put('/:gestionnaireId/domaine', authenticateToken, async (req, res) => {
 
 // =====================================================================
 // GET /api/studio/sites/:gestionnaireId/domaine/statut
-// Vérifie en direct le statut de vérification Render (pour polling UI)
+// Vérifie en direct le DNS + le certificat SSL du domaine (pour polling UI)
 // =====================================================================
 router.get('/:gestionnaireId/domaine/statut', authenticateToken, async (req, res) => {
   const { gestionnaireId } = req.params;
@@ -390,36 +374,13 @@ router.get('/:gestionnaireId/domaine/statut', authenticateToken, async (req, res
     }
 
     const { domaine_perso } = result.rows[0];
-    const resultat = await renderService.obtenirStatutDomaine(domaine_perso);
+    const { statut, message } = await domainePerso.verifierDomaine(domaine_perso);
 
-    if (!resultat.success || !resultat.trouve) {
-      return res.json({
-        success: true,
-        statut: 'erreur',
-        message: resultat.erreur || 'Impossible de vérifier le statut sur Render.',
-      });
-    }
-
-    // Traduction des statuts Render en statuts internes
-    const d = resultat.domaine || {};
-    const verifie = d.verificationStatus === 'verified';
-    const certificatEmis = d.domainType || d.certificate; // selon la forme exacte retournée par l'API
-
-    let statut = 'en_attente';
-    let message = 'En attente de vérification DNS. Assurez-vous que le A record pointe bien vers 144.217.85.111.';
-
-    if (verifie) {
-      statut = 'actif';
-      message = 'Domaine actif et sécurisé (SSL valide).';
-    }
-
-    // Mettre à jour le statut en BD si actif
-    if (statut === 'actif') {
-      await pool.query(
-        `UPDATE sites SET domaine_statut = $1 WHERE gestionnaire_id = $2`,
-        [statut, gestionnaireId]
-      );
-    }
+    // Mémoriser le statut en BD (sauf si l'admin a suspendu le domaine)
+    await pool.query(
+      `UPDATE sites SET domaine_statut = $1 WHERE gestionnaire_id = $2 AND domaine_statut IS DISTINCT FROM 'suspendu'`,
+      [statut, gestionnaireId]
+    );
 
     return res.json({ success: true, statut, message });
   } catch (err) {

@@ -774,7 +774,7 @@ app.get('/api/test', async (req, res) => {
 // 🔒 CADDY — Point de vérification pour le certificat SSL "on-demand"
 // Caddy appelle cette route avant d'émettre un certificat pour un domaine.
 // On autorise seulement : e-vendstudio.ca, ses sous-domaines de vendeurs,
-// et les domaines personnalisés déjà enregistrés dans la table `domaines`.
+// et les domaines personnalisés enregistrés dans `sites.domaine_perso` (ou la table `domaines`).
 // Sans ça, n'importe qui pourrait pointer un domaine random vers le VPS
 // et forcer l'émission de certificats à répétition (abus / rate limit).
 // =====================================================================
@@ -789,13 +789,27 @@ app.get('/caddy/ask', async (req, res) => {
   }
 
   try {
+    // 1) Domaine perso d'un gestionnaire (Mon domaine) — sauf s'il est suspendu par l'admin
+    const sans = domain.replace(/^www\./, '');
+    const site = await pool.query(
+      `SELECT 1 FROM sites
+        WHERE domaine_perso = ANY($1::text[]) AND COALESCE(domaine_statut, '') <> 'suspendu' LIMIT 1`,
+      [[domain, sans, 'www.' + sans]]
+    );
+    if (site.rows.length > 0) return res.sendStatus(200);
+  } catch (err) {
+    console.error('Erreur vérification caddy/ask (sites):', err.message);
+  }
+
+  try {
+    // 2) Ancienne table `domaines` (domaines achetés via Dynadot), si elle existe
     const result = await pool.query(
       `SELECT 1 FROM domaines WHERE domaine = $1 OR domaine = $2 LIMIT 1`,
       [domain, domain.replace(/^www\./, '')]
     );
     if (result.rows.length > 0) return res.sendStatus(200);
   } catch (err) {
-    console.error('Erreur vérification caddy/ask:', err.message);
+    if (err.code !== '42P01') console.error('Erreur vérification caddy/ask:', err.message);   // 42P01 = table absente : normal
   }
 
   res.sendStatus(403);
