@@ -5,6 +5,7 @@
 //   GET  /etiquettes/config                     état des transporteurs (jamais de clé en clair)
 //   PUT  /etiquettes/shippo                     { token?, actif?, effacer? }
 //   PUT  /etiquettes/easypost                   { cle?, secret?, effacer_secret?, actif?, effacer? }
+//   PUT  /etiquettes/postescanada               { cle?, secret?, numero_client?, mode?, actif?, effacer? }
 //   POST /commandes/:id/tarifs-expedition       { longueur_cm, largeur_cm, hauteur_cm, poids_kg }
 //   POST /commandes/:id/etiquette               { rate_id, shipment_id, transporteur, longueur_cm… }  → achète + passe la commande à « expédiée »
 //   GET  /commandes/:id/historique-suivi        événements détaillés du transporteur
@@ -51,6 +52,19 @@ module.exports = function creerRouteur({ h, bad, entier, transitionsPour, notifi
       cle: typeof b.cle === 'string' ? b.cle : undefined,
       secret: typeof b.secret === 'string' ? b.secret : undefined,
       effacerSecret: b.effacer_secret === true,
+      actif: typeof b.actif === 'boolean' ? b.actif : undefined,
+      effacer: b.effacer === true,
+    });
+    res.json({ success: true, ...(await svc.etatConfig(req.cid, req.gid)) });
+  }));
+
+  router.put('/etiquettes/postescanada', metier(async (req, res) => {
+    const b = req.body || {};
+    await svc.enregistrerPostesCanada(req.cid, req.gid, {
+      cle: typeof b.cle === 'string' ? b.cle : undefined,
+      secret: typeof b.secret === 'string' ? b.secret : undefined,
+      numeroClient: typeof b.numero_client === 'string' ? b.numero_client : undefined,
+      mode: typeof b.mode === 'string' ? b.mode : undefined,
       actif: typeof b.actif === 'boolean' ? b.actif : undefined,
       effacer: b.effacer === true,
     });

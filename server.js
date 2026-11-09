@@ -102,6 +102,8 @@ app.use('/api/webhooks/gestionnaire-stripe', require('./routes/webhooks_gestionn
 app.post('/api/webhooks-etiquettes/shippo', express.raw({ type: 'application/json' }));
 app.post('/api/webhooks-etiquettes/easypost', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks-etiquettes', require('./routes/webhooks_etiquettes'));
+// Suivi des colis Postes Canada (pas de webhook chez eux : un cron du VPS appelle cette route, protégée par CRON_SECRET)
+app.use('/api/cron-suivi-postescanada', require('./routes/cron_suivi_postescanada'));
 
 // ✅ Webhook Dynadot (NOUVEAU)
 app.post('/api/webhooks/dynadot', express.raw({ type: 'application/json' }));

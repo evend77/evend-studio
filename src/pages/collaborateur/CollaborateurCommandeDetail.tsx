@@ -72,6 +72,20 @@ function SousTitre({ t }: { t: string }) {
   return <div style={{ fontSize: 10, fontWeight: 700, color: T.light, textTransform: 'uppercase', letterSpacing: 0.5, margin: '12px 0 2px' }}>{t}</div>;
 }
 
+// Les navigateurs bloquent l'ouverture directe d'un PDF « data: » (Postes Canada) : on le convertit en Blob avant de l'ouvrir
+function ouvrirPdf(u: string) {
+  try {
+    if (u.startsWith('data:')) {
+      const bin = atob(u.slice(u.indexOf(',') + 1));
+      const octets = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) octets[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([octets], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+    } else window.open(u, '_blank');
+  } catch { /* PDF illisible : rien à ouvrir */ }
+}
+
 function Pastille({ info }: { info?: { l: string; bg: string; c: string } }) {
   if (!info) return null;
   return <span style={{ background: info.bg, color: info.c, padding: '3px 10px', borderRadius: 12, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>{info.l}</span>;
@@ -138,7 +152,7 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
       await charger();
       setInfo(`Étiquette créée${j.numero_suivi ? ` · suivi ${j.numero_suivi}` : ''} : la commande est expédiée et le client est avisé.`);
       const lien = urlEtiquetteSure(j.url_etiquette);
-      if (lien) window.open(lien, '_blank');
+      if (lien) ouvrirPdf(lien);
     } catch { setErreurEtiq('Erreur de connexion au serveur'); setAchatEnCours(null); }
   };
 
@@ -428,7 +442,7 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
             🚚 {d.transporteur || 'Transporteur non précisé'}{d.numero_suivi ? <> · suivi <strong>{d.numero_suivi}</strong></> : null}
             {d.date_livraison_prevue && <><br />📅 Livraison prévue : <strong>{new Date(String(d.date_livraison_prevue).slice(0, 10) + 'T12:00:00').toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' })}</strong></>}
             {lienSuivi && <><br /><a href={lienSuivi} target="_blank" rel="noopener noreferrer" style={{ color: accent, fontWeight: 700 }}>Ouvrir le suivi ↗</a></>}
-            {lienEtiquette && <><br /><a href={lienEtiquette} target="_blank" rel="noopener noreferrer" style={{ color: accent, fontWeight: 700 }}>📄 Télécharger / imprimer l'étiquette ↗</a></>}
+            {lienEtiquette && <><br /><a href={lienEtiquette.startsWith('data:') ? '#' : lienEtiquette} onClick={lienEtiquette.startsWith('data:') ? (e) => { e.preventDefault(); ouvrirPdf(lienEtiquette); } : undefined} target="_blank" rel="noopener noreferrer" style={{ color: accent, fontWeight: 700, cursor: 'pointer' }}>📄 Télécharger / imprimer l'étiquette ↗</a></>}
           </p>
         </div>
       )}

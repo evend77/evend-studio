@@ -25,6 +25,7 @@ class ErreurEtiquette extends Error {
 const TRANSPORTEURS = {
   shippo: { addon: 'etiquette_shippo', nom: 'Shippo', charger: () => require('./transporteurs/shippo') },
   easypost: { addon: 'etiquette_easypost', nom: 'EasyPost', charger: () => require('./transporteurs/easypost') },
+  postescanada: { addon: 'etiquette_postescanada', nom: 'Postes Canada', charger: () => require('./transporteurs/postescanada') },
 };
 
 // Étapes qu'un suivi automatique ne doit jamais écraser. « livree » n'en fait PAS partie : le collaborateur peut la poser à la main
@@ -42,6 +43,7 @@ function estConfigure(code, row) {
   if (!row) return false;
   if (code === 'shippo') return !!row.shippo_token_chiffre;
   if (code === 'easypost') return !!(row.easypost_cle_test_chiffre || row.easypost_cle_prod_chiffre);
+  if (code === 'postescanada') return !!(row.postes_cle_api_chiffre && row.postes_code_secret_chiffre && row.postes_numero_client);
   return false;
 }
 
@@ -54,7 +56,8 @@ async function etatConfig(cid, gid) {
       code, nom: t.nom,
       addon_actif: await addons.addonActifRapide(gid, t.addon, pool),
       configure: estConfigure(code, row),
-      mode: row ? ((code === 'shippo' ? row.shippo_mode : code === 'easypost' ? row.easypost_mode : 'test') || 'test') : 'test',
+      mode: row ? ((code === 'shippo' ? row.shippo_mode : code === 'easypost' ? row.easypost_mode : row.postes_mode) || 'test') : 'test',
+      numero_client: code === 'postescanada' && row ? (row.postes_numero_client || '') : undefined,   // identifiant public, pas un secret
       secret_configure: code === 'easypost' && !!(row && row.easypost_webhook_secret_chiffre),
       actif: !!row && row.provider_actif === code,
     });
@@ -141,6 +144,52 @@ async function enregistrerEasyPost(cid, gid, { cle, actif, effacer, secret, effa
     [cid, gid, provider, cleTest, cleProd, mode, secretCh]);
 }
 
+/** Enregistre / active / désactive / efface les identifiants Postes Canada (clé API + code secret + numéro de client) du collaborateur. */
+async function enregistrerPostesCanada(cid, gid, { cle, secret, numeroClient, mode: modeDemande, actif, effacer }) {
+  if (!(await addons.addonActifRapide(gid, TRANSPORTEURS.postescanada.addon, pool))) {
+    throw new ErreurEtiquette("L'option « Étiquettes Postes Canada » n'est pas activée pour cette marketplace.", 403);
+  }
+  const row = await lireConfig(cid, gid);
+  let cleCh = row ? row.postes_cle_api_chiffre : null;
+  let secretCh = row ? row.postes_code_secret_chiffre : null;
+  let numero = row ? row.postes_numero_client : null;
+  let mode = (row && row.postes_mode) || 'test';
+  let provider = row ? row.provider_actif : null;
+
+  if (effacer) {
+    cleCh = null; secretCh = null; numero = null; mode = 'test';
+    if (provider === 'postescanada') provider = null;
+  } else {
+    if (typeof cle === 'string' && cle.trim()) {
+      const k = cle.trim();
+      if (k.length < 8 || k.length > 200 || /\s/.test(k)) throw new ErreurEtiquette('Clé API Postes Canada invalide : copiez-la en entier depuis le Portail des développeurs (sans espaces).');
+      cleCh = chiffrer(k);
+    }
+    if (typeof secret === 'string' && secret.trim()) {
+      const k = secret.trim();
+      if (k.length < 8 || k.length > 200 || /\s/.test(k)) throw new ErreurEtiquette('Code secret API invalide : copiez-le en entier depuis le Portail des développeurs (sans espaces).');
+      secretCh = chiffrer(k);
+    }
+    if (typeof numeroClient === 'string' && numeroClient.trim()) {
+      const n = numeroClient.trim();
+      if (!/^\d{6,12}$/.test(n)) throw new ErreurEtiquette('Numéro de client invalide : chiffres seulement (ex. 0009999999), tel qu\'affiché en haut de votre tableau de bord Postes Canada.');
+      numero = n;
+    }
+    if (modeDemande === 'test' || modeDemande === 'production') mode = modeDemande;
+    if (actif === true) {
+      if (!cleCh || !secretCh || !numero) throw new ErreurEtiquette('Remplissez les 3 champs : clé API, code secret API et numéro de client.');
+      provider = 'postescanada';                  // activer Postes Canada désactive automatiquement les autres transporteurs
+    } else if (actif === false && provider === 'postescanada') {
+      provider = null;
+    }
+  }
+  await pool.query(
+    `INSERT INTO collab_expedition_config (collaborateur_id, gestionnaire_id, provider_actif, postes_cle_api_chiffre, postes_code_secret_chiffre, postes_numero_client, postes_mode, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
+     ON CONFLICT (collaborateur_id) DO UPDATE SET provider_actif = $3, postes_cle_api_chiffre = $4, postes_code_secret_chiffre = $5, postes_numero_client = $6, postes_mode = $7, updated_at = NOW()`,
+    [cid, gid, provider, cleCh, secretCh, numero, mode]);
+}
+
 /** Config prête à l'emploi (clé déchiffrée) du transporteur ACTIF du collaborateur, ou null. */
 async function configActive(cid, gid) {
   const row = await lireConfig(cid, gid);
@@ -154,7 +203,17 @@ async function configActive(cid, gid) {
     const token = dechiffrer(mode === 'production' ? row.easypost_cle_prod_chiffre : row.easypost_cle_test_chiffre);
     return token ? { provider: 'easypost', token, mode } : null;
   }
+  if (row.provider_actif === 'postescanada') return configPostesCanada(row);
   return null;
+}
+
+/** Identifiants Postes Canada déchiffrés (même forme que celle attendue par le provider), ou null si incomplets. */
+function configPostesCanada(row) {
+  if (!row) return null;
+  let cleApi = null, codeSecret = null;
+  try { cleApi = dechiffrer(row.postes_cle_api_chiffre); codeSecret = dechiffrer(row.postes_code_secret_chiffre); } catch (e) { return null; }
+  if (!cleApi || !codeSecret || !row.postes_numero_client) return null;
+  return { provider: 'postescanada', cleApi, codeSecret, numeroClient: row.postes_numero_client, mode: row.postes_mode || 'test' };
 }
 
 // ── Adresses et colis ──────────────────────────────────────────────────────
@@ -271,12 +330,21 @@ async function acheter(cid, gid, cmd, body) {
   if (!rateId || rateId.length > 200) throw new ErreurEtiquette('rate_id manquant');
   const { cfg, mod } = await preparer(cid, gid);
   try {
-    const achat = await mod.acheterEtiquette(cfg, { rateId, shipmentId: body.shipment_id });
+    const params = { rateId, shipmentId: body.shipment_id };
+    if (cfg.provider === 'postescanada') {
+      // Postes Canada n'a pas de « rate id » à retenir : il refait l'envoi complet à l'achat (service + adresses + colis)
+      params.colis = colisDe(cmd, body);
+      const { exp, liv } = await adressesOuErreur(cid, gid, cmd);
+      params.adresseExpedition = exp; params.adresseLivraison = liv;
+    }
+    const achat = await mod.acheterEtiquette(cfg, params);
     return { provider: cfg.provider, achat };
   } catch (e) { throw erreurFournisseur(e); }
 }
 
 // ── Suivi de livraison ─────────────────────────────────────────────────────
+
+const SOURCES_DERNIER_EVENEMENT = new Set(['postescanada']);
 
 function lireHistorique(brut) {
   try { const h = typeof brut === 'string' ? JSON.parse(brut) : brut; return Array.isArray(h) ? h : []; } catch (e) { return []; }
@@ -315,8 +383,12 @@ async function appliquerSuivi(cmd, ev, source) {
     await pool.query('UPDATE marketplace_commandes SET etape_livraison = $1, updated_at = NOW() WHERE id = $2', [etape, cmd.id]);
   }
   if (recus.length > 0) {
-    const autres = lireHistorique(cmd.historique_suivi).filter((e) => e.source !== source);
-    const fusion = [...autres, ...recus].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const existants = lireHistorique(cmd.historique_suivi);
+    // Shippo / EasyPost donnent TOUT l'historique à chaque fois (on remplace leur part) ; Postes Canada ne donne que le DERNIER événement (on AJOUTE sans doublon)
+    const fusion = (SOURCES_DERNIER_EVENEMENT.has(source)
+      ? [...existants, ...recus.filter((e) => !existants.some((x) => x.source === source && x.date === e.date && x.statut === e.statut))]
+      : [...existants.filter((e) => e.source !== source), ...recus]
+    ).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     await pool.query('UPDATE marketplace_commandes SET historique_suivi = $1::jsonb WHERE id = $2', [JSON.stringify(fusion), cmd.id]);
   }
   if (applique && etape === 'livree' && cmd.statut !== 'livree') {
@@ -332,6 +404,57 @@ async function appliquerSuivi(cmd, ev, source) {
     const [titre, fin] = MESSAGES_ETAPE[etape];
     await notifierAcheteur(cmd.gestionnaire_id, cmd.acheteur_id, titre, `Votre commande ${cmd.numero_commande} ${fin}`);
   }
+}
+
+// ── Suivi Postes Canada (pas de webhook : un cron interroge l'API de repérage) ──────────────────────────────
+const ETAPES_TERMINALES = new Set(['livree', 'livraison_echouee', 'retournee_expediteur']);
+let suiviPostesEnCours = false;
+
+/**
+ * Interroge Postes Canada pour chaque commande suivie (étiquette Postes Canada, numéro de suivi, pas encore terminée) avec les identifiants
+ * de SON collaborateur. Appelée par routes/cron_suivi_postescanada.js. Une commande déjà terminée CONFIRMÉE par le transporteur n'est plus
+ * interrogée ; une commande marquée « livrée » à la main continue d'être vérifiée 14 jours (pour que le vrai statut reprenne le dessus).
+ */
+async function suivrePostesCanada() {
+  if (suiviPostesEnCours) return { ignore: 'déjà en cours' };
+  suiviPostesEnCours = true;
+  const bilan = { verifiees: 0, misesAJour: 0, erreurs: 0 };
+  try {
+    const mod = TRANSPORTEURS.postescanada.charger();
+    const r = await pool.query(
+      `SELECT id, statut, etape_livraison, historique_suivi, acheteur_id, gestionnaire_id, collaborateur_id, numero_suivi, numero_commande
+         FROM marketplace_commandes
+        WHERE etiquette_provider = 'postescanada' AND numero_suivi IS NOT NULL AND statut IN ('confirmee','expediee','livree')
+          AND (statut <> 'livree' OR updated_at > NOW() - INTERVAL '14 days')
+        ORDER BY collaborateur_id, id LIMIT 1000`);
+    const configs = new Map();
+    for (const cmd of r.rows) {
+      const cle = `${cmd.gestionnaire_id}:${cmd.collaborateur_id}`;
+      if (!configs.has(cle)) {
+        const row = await lireConfig(cmd.collaborateur_id, cmd.gestionnaire_id);
+        configs.set(cle, row && row.provider_actif === 'postescanada' ? configPostesCanada(row) : null);   // transporteur changé depuis : on saute
+      }
+      const cfg = configs.get(cle);
+      if (!cfg) continue;
+      const dernierPC = lireHistorique(cmd.historique_suivi).find((e) => e.source === 'postescanada');
+      if (ETAPES_TERMINALES.has(cmd.etape_livraison) && dernierPC && dernierPC.etape === cmd.etape_livraison) continue;   // terminé et confirmé par le transporteur
+      try {
+        const ev = await mod.obtenirStatutSuivi(cfg, cmd.numero_suivi);
+        bilan.verifiees++;
+        if (!ev) continue;
+        const avant = cmd.etape_livraison;
+        await appliquerSuivi(cmd, {
+          etapeLivraison: ev.etapeLivraison,
+          historique: (ev.description || ev.statutBrut) ? [{ dateEvenement: ev.dateEvenement, description: ev.description || ev.statutBrut, ville: ev.ville }] : [],
+        }, 'postescanada');
+        if (ev.etapeLivraison && ev.etapeLivraison !== avant) bilan.misesAJour++;
+      } catch (e) {
+        bilan.erreurs++;
+        console.error(`⚠️ Cron suivi Postes Canada — commande ${cmd.id} :`, e.message);
+      }
+    }
+  } finally { suiviPostesEnCours = false; }
+  return bilan;
 }
 
 function jetonTransporteur(v) { return String(v || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); }
@@ -407,6 +530,6 @@ async function traiterWebhookEasyPost(rawBuffer, enTeteSignature) {
 }
 
 module.exports = {
-  ErreurEtiquette, TRANSPORTEURS, etatConfig, enregistrerShippo, enregistrerEasyPost, configActive,
+  ErreurEtiquette, TRANSPORTEURS, etatConfig, enregistrerShippo, enregistrerEasyPost, enregistrerPostesCanada, configActive, suivrePostesCanada,
   chargerCommande, tarifs, acheter, appliquerSuivi, traiterWebhookShippo, traiterWebhookEasyPost, verifierSignatureEasyPost, lireHistorique,
 };
