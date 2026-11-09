@@ -10,6 +10,7 @@
 
 import { useState, useEffect } from 'react';
 import { NavMVPremium as NavMV } from './TemplateMultiVendeurPremium';
+import MVBoutonInstallerApp from './MVBoutonInstallerApp';
 
 const API_BASE = '/api';
 
@@ -191,6 +192,9 @@ export default function MVPremiumFooter({ vendeurId, isDemo, config = {}, navigu
         </div>
 
       </div>
+
+      {/* Add-on « App installable » : bouton visible sur mobile seulement, et seulement si la PWA est active */}
+      <MVBoutonInstallerApp />
 
       {/* Bande du bas : texte du footer à gauche, réseaux sociaux au centre */}
       {(texteFooter || reseauxActifs.length > 0 || afficherBadge) && (

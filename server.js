@@ -106,6 +106,7 @@ app.use('/api/webhooks-etiquettes', require('./routes/webhooks_etiquettes'));
 app.use('/api/cron-suivi-postescanada', require('./routes/cron_suivi_postescanada'));
 // Retour d'eBay après la connexion d'un compte de collaborateur (adresse fixe, sans session)
 app.use('/api/ebay-connexion', require('./routes/ebay_connexion'));
+app.use('/api/pwa-boutique', require('./routes/pwa_boutique'));
 
 // ✅ Webhook Dynadot (NOUVEAU)
 app.post('/api/webhooks/dynadot', express.raw({ type: 'application/json' }));
@@ -1080,6 +1081,8 @@ if (process.env.NODE_ENV === 'production') {
       }
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      // 📲 Add-on « App installable » : si ce domaine est une boutique avec la PWA active, on ajoute manifest + icône + script
+      try { html = await require('./services/studio_pwa_boutique').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ PWA boutique :', e.message); }
       res.status(statutHttp).send(html);
     } catch (err) {
       console.error('⚠️ SSR error :', err.message);
