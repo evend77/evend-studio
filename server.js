@@ -214,6 +214,8 @@ app.use('/api/gestionnaire/stripe', require('./routes/gestionnaire_stripe'));
 app.use('/api/gestionnaire/ebay', require('./routes/gestionnaire_ebay'));
 // 📲 Add-on « App installable » (après cors + cookieParser : la partie gestionnaire lit le cookie de connexion)
 app.use('/api/pwa-boutique', require('./routes/pwa_boutique'));
+// 🖼️ Add-on « Favicon personnalisé » (gestionnaire seulement → après cookieParser)
+app.use('/api/favicon-boutique', require('./routes/favicon_boutique'));
 app.use('/api', modelesModule);
 app.use('/api/admin/config/page-404', configPage404Module);
 app.use('/api/admin/gestionnaires', adminGestionnairesStatutModule);
@@ -1082,8 +1084,12 @@ if (process.env.NODE_ENV === 'production') {
       }
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      // 🖼️ Add-on « Favicon personnalisé » : seulement sur l'adresse d'une boutique (jamais e-vendstudio.ca). Avant la PWA.
+      try { html = await require('./services/studio_favicon_boutique').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ Favicon boutique :', e.message); }
       // 📲 Add-on « App installable » : si ce domaine est une boutique avec la PWA active, on ajoute manifest + icône + script
       try { html = await require('./services/studio_pwa_boutique').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ PWA boutique :', e.message); }
+      // 🛡️ Dissuade la copie des guides et politiques (e-vendstudio.ca seulement)
+      try { html = require('./services/studio_protection_contenu').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ Protection contenu :', e.message); }
       res.status(statutHttp).send(html);
     } catch (err) {
       console.error('⚠️ SSR error :', err.message);
