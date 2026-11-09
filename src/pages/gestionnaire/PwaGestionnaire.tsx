@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 
+const URL_GUIDE = 'https://e-vendstudio.ca/documents/mv-app-installable-pwa-add-on';
 const T = { accent: '#2d6a9f', border: '#e1e4e8', text: '#1a2332', light: '#6b7280', danger: '#dc2626', success: '#16a34a' };
 const COULEUR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -96,7 +97,7 @@ export default function PwaGestionnaire(_props: { gestionnaireId?: number }) {
 
   return (
     <div style={{ maxWidth: 760, margin: '0 auto', padding: 20, color: T.text }}>
-      <h2 style={{ margin: '0 0 6px' }}>📲 App installable (PWA)</h2>
+      <h2 style={{ margin: '0 0 6px' }}>📲 App installable (PWA) <a href={URL_GUIDE} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'none', border: `1px solid ${T.accent}`, borderRadius: 12, padding: '2px 10px', marginLeft: 10, verticalAlign: 'middle' }}>📖 Guide</a></h2>
       <p style={{ margin: '0 0 18px', color: T.light, fontSize: 14, lineHeight: 1.5 }}>
         Vos clients peuvent installer votre boutique sur leur téléphone, comme une vraie app. Choisissez le nom, les couleurs et l'icône.
         Le bouton « Installer l'app » apparaît automatiquement en bas de votre boutique, sur mobile.
