@@ -216,6 +216,7 @@ app.use('/api/gestionnaire/ebay', require('./routes/gestionnaire_ebay'));
 app.use('/api/pwa-boutique', require('./routes/pwa_boutique'));
 // 🖼️ Add-on « Favicon personnalisé » (gestionnaire seulement → après cookieParser)
 app.use('/api/favicon-boutique', require('./routes/favicon_boutique'));
+app.use('/api/effets-boutique', require('./routes/effets_boutique'));
 app.use('/api', modelesModule);
 app.use('/api/admin/config/page-404', configPage404Module);
 app.use('/api/admin/gestionnaires', adminGestionnairesStatutModule);

@@ -35,6 +35,7 @@ import StudioConfigMultivendeur  from './pages/gestionnaire/StudioConfigMultiven
 import EbayGestionnaire         from './pages/gestionnaire/EbayGestionnaire';
 import PwaGestionnaire         from './pages/gestionnaire/PwaGestionnaire';
 import FaviconGestionnaire     from './pages/gestionnaire/FaviconGestionnaire';
+import EffetsBoutiqueGestionnaire from './pages/gestionnaire/EffetsBoutiqueGestionnaire';
 import StudioMonCompte          from './pages/gestionnaire/StudioMonCompte';
 import StudioBlogSousVendeur    from './pages/gestionnaire/StudioBlogCollaborateur';
 import StudioFaqSousVendeur     from './pages/gestionnaire/StudioFaqCollaborateur';
@@ -863,7 +864,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuVosAnnoncesBeaute: MenuItem = { id:'annonces',label:'VOS PRODUITS',icon:'💄',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigBeaute: MenuItem = { id:'config-beaute',label:'CONFIG MES PAGES',icon:'💄',sousMenu:[{ id:'beaute-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'beaute-plan',label:'Mon plan & limites',icon:'📊' },{ id:'beaute-branding',label:'Branding & options',icon:'⚙️' }] };
   const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
-  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-avis',label:'Avis',icon:'⭐',badge: avisAttente > 0 ? avisAttente : undefined },...(addonsMV.encheres_visibles ? [{ id:'mv-encheres',label:'Enchères',icon:'🔨' }] : []),{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' }, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []), ...(addonsMV.parution_future ? [itemParutionFutur] : []), ...(addonsMV.favoris ? [itemFavoris] : []), ...(addonsMV.chatbot ? [{ id:'mes-chatbot', label:'Chatbot 💬', icon:'💬' }] : []),...(addonsMV.connecteur_ebay ? [{ id:'mv-ebay', label:'Connecteur eBay', icon:'🏷️' }] : []),...(addonsMV.pwa_boutique ? [{ id:'mv-pwa', label:'App installable', icon:'📲' }] : []),...(addonsMV.favicon_boutique ? [{ id:'mv-favicon', label:'Favicon', icon:'🖼️' }] : []),{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined }], badge: (contactNonLus + avisAttente) > 0 ? (contactNonLus + avisAttente) : undefined };
+  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-avis',label:'Avis',icon:'⭐',badge: avisAttente > 0 ? avisAttente : undefined },...(addonsMV.encheres_visibles ? [{ id:'mv-encheres',label:'Enchères',icon:'🔨' }] : []),{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' }, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []), ...(addonsMV.parution_future ? [itemParutionFutur] : []), ...(addonsMV.favoris ? [itemFavoris] : []), ...(addonsMV.chatbot ? [{ id:'mes-chatbot', label:'Chatbot 💬', icon:'💬' }] : []),...(addonsMV.connecteur_ebay ? [{ id:'mv-ebay', label:'Connecteur eBay', icon:'🏷️' }] : []),...(addonsMV.pwa_boutique ? [{ id:'mv-pwa', label:'App installable', icon:'📲' }] : []),...(addonsMV.favicon_boutique ? [{ id:'mv-favicon', label:'Favicon', icon:'🖼️' }] : []),...(addonsMV.effets_boutique ? [{ id:'mv-effets', label:'Effets de boutique', icon:'🎃' }] : []),{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined }], badge: (contactNonLus + avisAttente) > 0 ? (contactNonLus + avisAttente) : undefined };
 
   // ── Construction du menu selon le template ────────────────────────────────
   let menuItems: MenuItem[];
@@ -1215,7 +1216,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       menuProfil,
       menuMessagerie,
-      menuMesEffetsVisuels, // 🔥 AJOUT
+      // (« Effets visuels » retiré du menu MV : remplacé par l'add-on « Effets de boutique » dans MULTI-VENDEUR)
     ];
   } else if (estBeaute) {
     menuItems = [
@@ -1641,6 +1642,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mv-ebay')               return <EbayGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-pwa')                return <PwaGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-favicon')            return <FaviconGestionnaire gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-effets')             return <EffetsBoutiqueGestionnaire gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'profil-compte')         return <StudioMonCompte           gestionnaireId={gestionnaire.id} />;
 
     // ── Premier login : aucun template choisi → forcer le choix ────────────
