@@ -88,27 +88,47 @@ export default function EffetsBoutiqueGestionnaire(_props: { gestionnaireId?: nu
   }, []);
 
   // ── Enregistrement automatique (0,7 s après le dernier changement) ──
-  const enregistrer = useCallback(() => {
-    setStatut('envoi');
-    fetch('/api/effets-boutique/gestionnaire', {
-      method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', ...auth },
-      body: JSON.stringify({ saison, effets, effetsConfig, venteEffets, venteEffetsConfig: venteConfig, musique, musiqueConfig: { volume, boucle } }),
-    })
-      .then(async (r) => { if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'Erreur'); } setStatut('ok'); setTimeout(() => setStatut(''), 1800); })
-      .catch((e) => { setStatut('err'); setErreur(e.message); });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [saison, effets, effetsConfig, venteEffets, venteConfig, musique, volume, boucle]);
+  // Les réglages courants sont toujours lus dans `etat` (jamais un ancien état), les envois sont mis en file
+  // (un seul à la fois : un envoi lent ne peut plus écraser un plus récent), et un changement en attente
+  // est envoyé tout de suite si on quitte la page.
+  const etat = useRef<any>(null);
+  etat.current = { saison, effets, effetsConfig, venteEffets, venteEffetsConfig: venteConfig, musique, musiqueConfig: { volume, boucle } };
+  const enVol = useRef(false);
+  const refaire = useRef(false);
 
+  const envoyer = useCallback((keepalive = false) => {
+    if (enVol.current) { refaire.current = true; return; }
+    enVol.current = true;
+    setStatut('envoi');
+    const tk = localStorage.getItem('token');
+    fetch('/api/effets-boutique/gestionnaire', {
+      method: 'POST', credentials: 'include', keepalive,
+      headers: { 'Content-Type': 'application/json', ...(tk ? { Authorization: `Bearer ${tk}` } : {}) },
+      body: JSON.stringify(etat.current),
+    })
+      .then(async (r) => {
+        if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || `Erreur ${r.status}`); }
+        setErreur(null); setStatut('ok'); setTimeout(() => setStatut((x) => (x === 'ok' ? '' : x)), 1800);
+      })
+      .catch((e) => { setStatut('err'); setErreur(`Non enregistré : ${e.message}`); })
+      .finally(() => {
+        enVol.current = false;
+        if (refaire.current) { refaire.current = false; envoyer(); }
+      });
+  }, []);
+
+  const cle = JSON.stringify(etat.current);
   useEffect(() => {
     if (!pret.current) return;
-    setErreur(null);
     if (minuterie.current) clearTimeout(minuterie.current);
-    minuterie.current = setTimeout(enregistrer, 700);
-    return () => { if (minuterie.current) clearTimeout(minuterie.current); };
-  }, [enregistrer]);
+    minuterie.current = setTimeout(() => { minuterie.current = null; envoyer(); }, 700);
+  }, [cle, envoyer]);
 
   // Les changements ne sont enregistrés qu'APRÈS le chargement initial (déclaré après l'effet ci-dessus : il passe en premier).
   useEffect(() => { if (!chargement) pret.current = true; }, [chargement]);
+
+  // On quitte la page avec un changement encore en attente : on l'envoie tout de suite.
+  useEffect(() => () => { if (minuterie.current) { clearTimeout(minuterie.current); minuterie.current = null; envoyer(true); } }, [envoyer]);
 
   // ── Actions ──
   const choisirSaison = (id: string | null) => { if (id === saison) return; setSaison(id); setEffets([]); };
@@ -223,7 +243,8 @@ export default function EffetsBoutiqueGestionnaire(_props: { gestionnaireId?: nu
           Voir l'aperçu sur cette page
         </label>
         <span style={{ fontSize: 12, fontWeight: 700, color: statut === 'err' ? T.danger : T.vert }}>
-          {statut === 'envoi' ? 'Enregistrement…' : statut === 'ok' ? '✓ Enregistré' : ''}
+          {statut === 'envoi' ? 'Enregistrement…' : statut === 'ok' ? '✓ Enregistré' : statut === 'err' ? '⚠️ Non enregistré' : ''}
+          {statut === 'err' && <button type="button" onClick={() => envoyer()} style={{ marginLeft: 8, padding: '2px 10px', borderRadius: 12, border: `1px solid ${T.danger}`, background: '#fff', color: T.danger, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>Réessayer</button>}
         </span>
       </div>
       {erreur && <div style={{ background: '#fdecea', border: '1px solid #f5c6cb', borderRadius: 8, padding: '8px 12px', marginBottom: 14, fontSize: 13, color: '#c0392b' }}>⚠️ {erreur}</div>}

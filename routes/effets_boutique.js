@@ -18,16 +18,29 @@ const svc = require('../services/studio_effets_boutique');
 const router = express.Router();
 
 // ─── PUBLIC ──────────────────────────────────────────────────────────────────
+// Petit cache en mémoire (20 s) pour ne pas interroger la base à chaque page vue ; vidé à chaque enregistrement.
+// Côté navigateur / Cloudflare : AUCUN cache, pour que vos changements apparaissent tout de suite.
+const cachePub = new Map();
+const viderCachePub = (gid) => { if (gid) cachePub.delete(gid); else cachePub.clear(); };
+setInterval(() => cachePub.clear(), 10 * 60 * 1000).unref();
+
 router.get('/public/:gid', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
   try {
     const gid = parseInt(req.params.gid, 10);
     if (!Number.isInteger(gid) || gid <= 0) return res.json({ actif: false });
-    if (!(await svc.actif(gid))) return res.json({ actif: false });
-    const c = await svc.lire(gid);
-    const rien = !c.saison && !c.venteEffets.length && !c.musiqueUrl;
-    res.set('Cache-Control', 'public, max-age=60');
-    res.json({ actif: !rien, saison: c.saison, effets: c.effets, effetsConfig: c.effetsConfig,
-      venteEffets: c.venteEffets, venteEffetsConfig: c.venteEffetsConfig, musiqueUrl: c.musiqueUrl, musiqueConfig: c.musiqueConfig });
+    const memo = cachePub.get(gid);
+    if (memo && Date.now() - memo.t < 20000) return res.json(memo.d);
+    let d = { actif: false };
+    if (await svc.actif(gid)) {
+      const c = await svc.lire(gid);
+      const rien = !c.saison && !c.venteEffets.length && !c.musiqueUrl;
+      d = { actif: !rien, saison: c.saison, effets: c.effets, effetsConfig: c.effetsConfig,
+        venteEffets: c.venteEffets, venteEffetsConfig: c.venteEffetsConfig, musiqueUrl: c.musiqueUrl, musiqueConfig: c.musiqueConfig };
+    }
+    if (cachePub.size > 500) cachePub.clear();
+    cachePub.set(gid, { t: Date.now(), d });
+    res.json(d);
   } catch (e) {
     console.error('[effets_boutique] public', e.message);
     res.json({ actif: false });
@@ -88,6 +101,7 @@ router.post('/admin/musiques', authenticateToken, isAdmin, async (req, res) => {
       `INSERT INTO effets_musiques (slug, nom, categorie, emoji, url) VALUES ($1,$2,$3,$4,$5)
        RETURNING id, slug, nom, categorie, emoji, url, actif, cree_le`,
       [await slugUnique(nomP), nomP, String(categorie || '').trim().slice(0, 60) || 'Général', String(emoji || '').trim().slice(0, 10) || '🎵', url]);
+    viderCachePub();
     res.status(201).json({ musique: r.rows[0] });
   } catch (e) { erreur(res, e, 'mus add'); }
 });
@@ -107,6 +121,7 @@ router.put('/admin/musiques/:id', authenticateToken, isAdmin, async (req, res) =
     vals.push(parseInt(req.params.id, 10) || 0);
     const r = await pool.query(`UPDATE effets_musiques SET ${champs.join(', ')} WHERE id = $${i} RETURNING id, slug, nom, categorie, emoji, url, actif, cree_le`, vals);
     if (!r.rows.length) return res.status(404).json({ error: 'Piste introuvable.' });
+    viderCachePub();
     res.json({ musique: r.rows[0] });
   } catch (e) { erreur(res, e, 'mus put'); }
 });
@@ -117,6 +132,7 @@ router.delete('/admin/musiques/:id', authenticateToken, isAdmin, async (req, res
     if (!ex.rows.length) return res.status(404).json({ error: 'Piste introuvable.' });
     await pool.query('DELETE FROM effets_musiques WHERE id = $1', [id]);
     await pool.query('UPDATE gestionnaire_effets SET musique_slug = NULL WHERE musique_slug = $1', [ex.rows[0].slug]);
+    viderCachePub();
     res.json({ message: 'Piste supprimée.' });
   } catch (e) { erreur(res, e, 'mus del'); }
 });
@@ -158,6 +174,7 @@ router.post('/gestionnaire', express.json({ limit: '50kb' }), async (req, res) =
          musique_slug = EXCLUDED.musique_slug, musique_config = EXCLUDED.musique_config, updated_at = NOW()`,
       [req.user.id, v.saison, JSON.stringify(v.effets), JSON.stringify(v.effetsConfig), JSON.stringify(v.venteEffets),
        JSON.stringify(v.venteEffetsConfig), v.musique, JSON.stringify(v.musiqueConfig)]);
+    viderCachePub(req.user.id);
     res.json({ ok: true, config: await svc.lire(req.user.id) });
   } catch (e) { erreur(res, e, 'post'); }
 });
