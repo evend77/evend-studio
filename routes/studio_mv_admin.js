@@ -20,6 +20,7 @@
 //   POST  /avis/:id/approuver       → publie un avis en attente (et prévient le collaborateur)
 //   POST  /avis/:id/masquer         → { raison (min. 5 caractères) } : refuse un avis en attente ou masque un avis publié
 //   POST  /avis/:id/retablir        → remet en ligne un avis masqué
+//   GET   /dashboard                → ?periode=7|30|90|365  statistiques du tableau de bord (selon le template du site)
 
 'use strict';
 
@@ -362,6 +363,91 @@ router.post('/avis/:id/retablir', h(async (req, res) => {
       WHERE id = $1 AND gestionnaire_id = $2 AND approuve = false AND masque_le IS NOT NULL`, [id, req.gid]);
   if (!r.rowCount) bad('Avis introuvable ou pas masqué.', 404);
   res.json({ success: true });
+}));
+
+// ── Tableau de bord ──────────────────────────────────────────────────────────
+// Adapté au template : le bloc « site » existe toujours ; les blocs boutique (ventes, produits, collaborateurs, avis…)
+// seulement si le site est un Multi-vendeur. Les ventes comptent les commandes PAYÉES (hors annulées).
+router.get('/dashboard', h(async (req, res) => {
+  const jours = [7, 30, 90, 365].includes(parseInt(req.query.periode, 10)) ? parseInt(req.query.periode, 10) : 30;
+  const nb = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+  const gid = req.gid;
+
+  const site = (await pool.query(
+    `SELECT template_id, publie, sous_domaine, domaine_perso, domaine_statut FROM sites WHERE gestionnaire_id = $1 LIMIT 1`, [gid])).rows[0] || {};
+  const estMV = String(site.template_id || '').startsWith('multi-vendeur-premium');
+  const base = { periode: jours, est_mv: estMV, site: {
+    template_id: site.template_id || null, publie: site.publie === true,
+    adresse: site.domaine_perso || (site.sous_domaine ? site.sous_domaine + '.e-vendstudio.ca' : null),
+    domaine_perso: site.domaine_perso || null, domaine_statut: site.domaine_statut || null,
+  } };
+  if (!estMV) return res.json(base);
+
+  const PAYE = `statut_paiement = 'paye' AND statut IS DISTINCT FROM 'annulee'`;
+  // Pas du graphique : jour (≤ 90 j) ou semaine (1 an)
+  const pas = jours > 90 ? 'week' : 'day';
+  const [kpi, graph, parStatut, topProd, topCollab, prod, collab, acheteurs, avisR, distAvis, attAvis, attRemb] = await Promise.all([
+    pool.query(`SELECT
+        COALESCE(SUM(total) FILTER (WHERE ${PAYE} AND date_commande >= NOW() - make_interval(days => $2::int)), 0) AS ventes,
+        COALESCE(SUM(total) FILTER (WHERE ${PAYE} AND date_commande >= NOW() - make_interval(days => $2::int * 2) AND date_commande < NOW() - make_interval(days => $2::int)), 0) AS ventes_prec,
+        COALESCE(SUM(commission) FILTER (WHERE ${PAYE} AND date_commande >= NOW() - make_interval(days => $2::int)), 0) AS commissions,
+        COALESCE(SUM(total) FILTER (WHERE ${PAYE} AND date_commande >= date_trunc('day', NOW())), 0) AS ventes_aujourdhui,
+        COALESCE(SUM(total) FILTER (WHERE ${PAYE}), 0) AS ventes_total,
+        COUNT(*) FILTER (WHERE ${PAYE} AND date_commande >= NOW() - make_interval(days => $2::int)) AS commandes,
+        COUNT(*) FILTER (WHERE ${PAYE} AND date_commande >= NOW() - make_interval(days => $2::int * 2) AND date_commande < NOW() - make_interval(days => $2::int)) AS commandes_prec,
+        COUNT(*) FILTER (WHERE ${PAYE}) AS commandes_total
+      FROM marketplace_commandes WHERE gestionnaire_id = $1`, [gid, jours]),
+    pool.query(`SELECT to_char(g.d, 'YYYY-MM-DD') AS date,
+        COALESCE(SUM(c.total), 0) AS ventes, COUNT(c.id) AS commandes
+      FROM generate_series(date_trunc('${pas}', NOW() - make_interval(days => $2::int)), date_trunc('${pas}', NOW()), '1 ${pas}'::interval) AS g(d)
+      LEFT JOIN marketplace_commandes c ON c.gestionnaire_id = $1 AND c.statut_paiement = 'paye' AND c.statut IS DISTINCT FROM 'annulee'
+           AND date_trunc('${pas}', c.date_commande) = g.d
+      GROUP BY g.d ORDER BY g.d`, [gid, jours]),
+    pool.query(`SELECT statut, COUNT(*) AS n FROM marketplace_commandes
+                 WHERE gestionnaire_id = $1 AND statut_paiement = 'paye' AND date_commande >= NOW() - make_interval(days => $2::int) GROUP BY statut`, [gid, jours]),
+    pool.query(`SELECT COALESCE(a->>'titre', 'Produit') AS nom,
+                       SUM(COALESCE(NULLIF(a->>'quantite','')::int, 1)) AS ventes,
+                       SUM(COALESCE(NULLIF(a->>'prix','')::numeric, 0) * COALESCE(NULLIF(a->>'quantite','')::int, 1)) AS revenu
+                  FROM marketplace_commandes c, jsonb_array_elements(COALESCE(c.articles, '[]'::jsonb)) a
+                 WHERE c.gestionnaire_id = $1 AND c.statut_paiement = 'paye' AND c.statut IS DISTINCT FROM 'annulee'
+                   AND c.date_commande >= NOW() - make_interval(days => $2::int)
+                 GROUP BY 1 ORDER BY revenu DESC LIMIT 5`, [gid, jours]),
+    pool.query(`SELECT COALESCE(col.nom_boutique, 'Boutique') AS nom, COUNT(*) AS commandes, COALESCE(SUM(c.total), 0) AS revenu
+                  FROM marketplace_commandes c LEFT JOIN marketplace_collaborateurs col ON col.id = c.collaborateur_id
+                 WHERE c.gestionnaire_id = $1 AND c.statut_paiement = 'paye' AND c.statut IS DISTINCT FROM 'annulee'
+                   AND c.date_commande >= NOW() - make_interval(days => $2::int)
+                 GROUP BY col.id, col.nom_boutique ORDER BY revenu DESC LIMIT 5`, [gid, jours]),
+    pool.query(`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE statut = 'actif') AS actifs, COUNT(*) FILTER (WHERE statut = 'brouillon') AS brouillons,
+                       COUNT(*) FILTER (WHERE statut = 'en_attente') AS en_attente, COUNT(*) FILTER (WHERE stock = 0) AS ruptures
+                  FROM produits WHERE gestionnaire_id = $1`, [gid]),
+    pool.query(`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE statut = 'actif') AS actifs FROM marketplace_collaborateurs WHERE gestionnaire_id = $1`, [gid]),
+    pool.query(`SELECT COUNT(*) AS total FROM marketplace_acheteurs WHERE gestionnaire_id = $1`, [gid]),
+    pool.query(`SELECT COALESCE(AVG(note), 0) AS moyenne, COUNT(*) AS total FROM avis_collaborateur WHERE gestionnaire_id = $1 AND approuve = true`, [gid]),
+    pool.query(`SELECT note, COUNT(*) AS n FROM avis_collaborateur WHERE gestionnaire_id = $1 AND approuve = true GROUP BY note`, [gid]),
+    pool.query(`SELECT COUNT(*) AS n FROM avis_collaborateur WHERE gestionnaire_id = $1 AND approuve = false AND masque_le IS NULL AND approbateur IS DISTINCT FROM 'collaborateur'`, [gid]),
+    pool.query(`SELECT COUNT(*) AS n FROM commande_remboursements WHERE gestionnaire_id = $1 AND statut = 'en_attente'`, [gid]),
+  ]);
+
+  const k = kpi.rows[0], p = prod.rows[0], c = collab.rows[0];
+  const croiss = (a, b) => (b > 0 ? Math.round(((a - b) / b) * 1000) / 10 : null);
+  const statuts = {}; parStatut.rows.forEach((r) => { statuts[r.statut] = parseInt(r.n, 10); });
+  const dist = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }; distAvis.rows.forEach((r) => { const n = Math.round(nb(r.note)); if (dist[n] !== undefined) dist[n] = parseInt(r.n, 10); });
+
+  res.json({
+    ...base,
+    ventes: { periode: nb(k.ventes), croissance: croiss(nb(k.ventes), nb(k.ventes_prec)), aujourdhui: nb(k.ventes_aujourdhui), total: nb(k.ventes_total), commissions: nb(k.commissions) },
+    commandes: { periode: parseInt(k.commandes, 10), croissance: croiss(+k.commandes, +k.commandes_prec), total: parseInt(k.commandes_total, 10), par_statut: statuts },
+    graphique: graph.rows.map((r) => ({ date: r.date, ventes: nb(r.ventes), commandes: parseInt(r.commandes, 10) })),
+    pas,
+    top_produits: topProd.rows.map((r) => ({ nom: r.nom, ventes: parseInt(r.ventes, 10), revenu: nb(r.revenu) })),
+    top_collaborateurs: topCollab.rows.map((r) => ({ nom: r.nom, commandes: parseInt(r.commandes, 10), revenu: nb(r.revenu) })),
+    produits: { total: +p.total, actifs: +p.actifs, brouillons: +p.brouillons, en_attente: +p.en_attente, ruptures: +p.ruptures },
+    collaborateurs: { total: +c.total, actifs: +c.actifs },
+    acheteurs: { total: parseInt(acheteurs.rows[0].total, 10) },
+    avis: { moyenne: nb(avisR.rows[0].moyenne), total: parseInt(avisR.rows[0].total, 10), distribution: dist },
+    a_faire: { avis_en_attente: parseInt(attAvis.rows[0].n, 10), remboursements_en_attente: parseInt(attRemb.rows[0].n, 10), produits_en_attente: +p.en_attente,
+               commandes_a_traiter: (statuts.en_attente || 0) + (statuts.confirmee || 0) },
+  });
 }));
 
 module.exports = router;

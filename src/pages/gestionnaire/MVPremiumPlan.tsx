@@ -131,12 +131,12 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
   };
 
   if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, fontFamily: "'Inter',sans-serif", color: '#888' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, fontFamily: "'Inter',sans-serif", color: 'rgba(255,255,255,0.55)' }}>
       Chargement...
     </div>
   );
   if (erreurChargement || !etat || !etat.forfait) return (
-    <div style={{ maxWidth: 520, margin: '60px auto', textAlign: 'center', fontFamily: "'Inter',sans-serif", color: '#555' }}>
+    <div style={{ maxWidth: 520, margin: '60px auto', textAlign: 'center', fontFamily: "'Inter',sans-serif", color: 'rgba(255,255,255,0.75)' }}>
       <div style={{ fontSize: 40, marginBottom: 10 }}>⚠️</div>
       <p style={{ fontSize: 14 }}>Impossible de charger vos forfaits pour le moment.</p>
       <button onClick={() => { setLoading(true); charger(); }}
@@ -191,7 +191,8 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
   const estDowngrade = !!planCible && idxCible < idxCourant;
 
   return (
-    <div style={{ maxWidth: 1140, margin: '24px auto', padding: '28px 24px', fontFamily: "'Inter',sans-serif", background: D.panneau, borderRadius: 24, color: D.texte, boxShadow: '0 12px 40px rgba(0,0,0,0.25)' }}>
+    <div style={{ minHeight: 'calc(100vh - 96px)', padding: '28px 28px 40px', fontFamily: "'Inter',sans-serif", color: D.texte }}>
+     <div style={{ maxWidth: 1180, margin: '0 auto' }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@600;700;800&display=swap');
         .mvp-plan { transition: transform .2s, box-shadow .2s; } .mvp-plan:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0,0,0,.35); }`}</style>
 
@@ -400,6 +401,7 @@ export default function MVPremiumPlan({ gestionnaireId }: Props) {
           </div>
         );
       })()}
+     </div>
     </div>
   );
 }
