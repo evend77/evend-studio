@@ -7,6 +7,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { THEMES_SAISONNIERS, EFFETS_VENTE, EffetsConfigMap, EffetSaisonnier } from '../../templates/multivendeur/effetsCatalogue';
 import { DecorationOverlayPublique } from '../../templates/multivendeur/EffetsBoutique';
 
+const URL_GUIDE = 'https://e-vendstudio.ca/documents/mv-effets-de-boutique-add-on';
 const T = { accent: '#2d6a9f', vert: '#537373', orange: '#e77817', border: '#e1e4e8', text: '#1a2332', light: '#6b7280', danger: '#dc2626' };
 const carte: React.CSSProperties = { background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: 20, marginBottom: 16 };
 const titreCarte: React.CSSProperties = { fontSize: 15, fontWeight: 800, color: T.text, margin: '0 0 4px' };
@@ -212,7 +213,7 @@ export default function EffetsBoutiqueGestionnaire(_props: { gestionnaireId?: nu
           venteEffets={venteEffets} venteEffetsConfig={venteConfig} topOffset={60} />
       )}
 
-      <h2 style={{ margin: '0 0 6px' }}>🎃 Effets de boutique</h2>
+      <h2 style={{ margin: '0 0 6px' }}>🎃 Effets de boutique <a href={URL_GUIDE} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'none', border: `1px solid ${T.accent}`, borderRadius: 12, padding: '2px 10px', marginLeft: 10, verticalAlign: 'middle' }}>📖 Guide</a></h2>
       <p style={{ ...aide, marginBottom: 12 }}>
         Faites vivre toute votre boutique selon la saison ou une vente. Vos changements s'enregistrent tout seuls et s'appliquent à l'ensemble de la boutique (collaborateurs inclus).
       </p>
