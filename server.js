@@ -208,6 +208,8 @@ app.use('/api/cron-abonnements',   cronAbonnementsModule);
 app.use('/api/cron-verification-email', cronVerificationEmailModule);
 // ✅ Config Stripe Connect du gestionnaire (template multivendeur)
 app.use('/api/gestionnaire/stripe', require('./routes/gestionnaire_stripe'));
+// ✅ Clés eBay « développeur » du gestionnaire (add-on Connecteur eBay)
+app.use('/api/gestionnaire/ebay', require('./routes/gestionnaire_ebay'));
 app.use('/api', modelesModule);
 app.use('/api/admin/config/page-404', configPage404Module);
 app.use('/api/admin/gestionnaires', adminGestionnairesStatutModule);
