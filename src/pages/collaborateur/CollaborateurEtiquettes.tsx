@@ -14,7 +14,7 @@ const URL_WEBHOOK = 'https://e-vendstudio.ca/api/webhooks-etiquettes/shippo';
 const URL_WEBHOOK_EP = 'https://e-vendstudio.ca/api/webhooks-etiquettes/easypost';
 const URL_GUIDE = 'https://e-vendstudio.ca/documents/mv-guide-des-etiquettes-shippo-add-on';
 const URL_GUIDE_EP = 'https://e-vendstudio.ca/documents/mv-guide-etiquettes-easypost-add-on';
-const URL_GUIDE_PC = 'https://e-vendstudio.ca/documents/mv-guide-etiquettes-postes-canada-add-on';
+const URL_GUIDE_PC = 'https://e-vendstudio.ca/documents/mv-etiquettes-postes-canada-add-on';
 type Code = 'shippo' | 'easypost' | 'postescanada';
 
 export default function CollaborateurEtiquettes({ gestionnaireId, accent, isMobile, naviguer }: Props) {
