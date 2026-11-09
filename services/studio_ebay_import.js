@@ -227,6 +227,7 @@ async function importerUne(job, env, jeton, id, ctx) {
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'[]',$12,$13,$14,NOW())
      ON CONFLICT (collaborateur_id, ebay_item_id) WHERE ebay_item_id IS NOT NULL DO NOTHING`,
     [gid, cid, titre, d.description, d.prix, stock, d.sku, categorie.nom, categorie.id, photos[0] || null, JSON.stringify(photos), statut, d.poids, id]);
+  try { await pool.query('DELETE FROM ebay_nouvelles WHERE collaborateur_id = $1 AND ebay_item_id = $2', [cid, id]); } catch (e) { /* table du suivi pas encore installée */ }
   if (d.variations) ctx.avertissements.add('Certaines annonces ont des variations eBay : elles sont importées comme une seule annonce (variations non reprises).');
   if (note) ctx.avertissements.add(note);
   return statut === 'brouillon' ? 'brouillon' : 'importe';
@@ -320,6 +321,7 @@ async function traiterTranche(job) {
     }
     const av = [...ctx.avertissements].join(' ');
     await pool.query(`UPDATE ebay_jobs SET traites=$2, importes=$3, ignores=$4, erreurs=$5 WHERE id=$1`, [job.id, traites, importes, ignores, erreurs]);
+    try { await pool.query(`UPDATE ebay_connexions SET dernier_suivi = COALESCE(dernier_suivi, $2), prochain_suivi = NOW() + interval '60 minutes', calmes = 0 WHERE collaborateur_id = $1`, [cid, job.cree_le]); } catch (e) { /* suivi pas encore installé */ }
     return terminer(job.id, 'termine', av || null);
   } catch (e) {
     if (e.quota) {
@@ -359,10 +361,14 @@ function demarrer() {
   if (timer || process.env.EBAY_WORKER_DESACTIVE === '1') return;
   timer = setInterval(async () => {
     if (occupe) return; occupe = true;
-    try { while (await prochainTravail()) { /* enchaîne tant qu'il y a du travail */ } }
+    try {
+      while (await prochainTravail()) { /* enchaîne tant qu'il y a du travail */ }
+      let suivi = null; try { suivi = require('./studio_ebay_suivi'); } catch (e) { /* absent */ }
+      for (let i = 0; suivi && i < 5 && await suivi.prochainSuivi().catch((e) => { console.warn('[ebay-suivi]', e.message); return false; }); i++) { /* quelques suivis par minute */ }
+    }
     catch (e) { console.error('[ebay-import] worker', e.message); }
     finally { occupe = false; }
-  }, 10000);
+  }, 20000);
   if (timer.unref) timer.unref();
 }
 
@@ -371,4 +377,4 @@ async function etatImport(cid, gid) {
   return r.rows[0] || null;
 }
 
-module.exports = { creerImport, etatImport, demarrer, prochainTravail, pageAnnonces, detailsAnnonce, categorieStudio, texteDescription, brut, valeur, blocs, QuotaEbay };
+module.exports = { trading, reserver, creerImport, etatImport, demarrer, prochainTravail, pageAnnonces, detailsAnnonce, categorieStudio, texteDescription, brut, valeur, blocs, QuotaEbay };

@@ -6,10 +6,13 @@
 //   DELETE /ebay            déconnecter son compte eBay
 //   POST   /ebay/importer   lancer l'import de toutes ses annonces eBay (en arrière-plan)
 //   GET    /ebay/import     progression du dernier import
+//   GET    /ebay/suivi      dernier suivi des changements (stock, annonces terminées, nouvelles annonces)
+//   POST   /ebay/verifier   demander une vérification des changements maintenant
 
 const express = require('express');
 const svc = require('../services/studio_ebay');
 const imp = require('../services/studio_ebay_import');
+const suivi = require('../services/studio_ebay_suivi');
 
 module.exports = function creerRouteur({ h, bad }) {
   const router = express.Router();
@@ -54,6 +57,21 @@ module.exports = function creerRouteur({ h, bad }) {
 
   router.get('/ebay/import', metier(async (req, res) => {
     res.json({ import: await imp.etatImport(req.cid, req.gid) });
+  }));
+
+  router.get('/ebay/suivi', metier(async (req, res) => {
+    res.json({ suivi: await suivi.etatSuivi(req.cid, req.gid) });
+  }));
+
+  // Une demande toutes les 10 minutes au plus (protège la limite d'appels eBay du gestionnaire)
+  const derniere = new Map();
+  router.post('/ebay/verifier', metier(async (req, res) => {
+    const avant = derniere.get(req.cid) || 0;
+    if (Date.now() - avant < 10 * 60 * 1000) bad('Une vérification a déjà été demandée récemment. Réessayez dans quelques minutes.', 429);
+    derniere.set(req.cid, Date.now());
+    const ok = await suivi.demanderVerification(req.cid, req.gid);
+    if (!ok) bad('Connectez d\'abord votre compte eBay.', 409);
+    res.status(202).json({ ok: true });
   }));
 
   router.delete('/ebay', metier(async (req, res) => {

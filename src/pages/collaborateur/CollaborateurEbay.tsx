@@ -7,6 +7,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 
 interface Props { gestionnaireId: number; accent: string; isMobile: boolean }
 interface Travail { id: number; statut: 'en_attente' | 'en_cours' | 'pause' | 'termine' | 'erreur' | 'annule'; total: number; traites: number; importes: number; ignores: number; erreurs: number; message: string | null; reprise_a: string | null }
+interface Suivi { dernier_suivi: string | null; prochain_suivi: string | null; dernier_resume: string | null; dernier_changement_le: string | null; suivi_erreur: string | null; nouvelles: number }
 interface Etat {
   gestionnaire_configure: boolean;
   connexion: { statut: 'connecte' | 'reconnexion'; username: string | null; env: string; message: string | null; connecte_le: string } | null;
@@ -21,6 +22,7 @@ export default function CollaborateurEbay({ gestionnaireId, accent, isMobile }: 
   const [erreur, setErreur] = useState('');
   const [info, setInfo] = useState('');
   const [travail, setTravail] = useState<Travail | null>(null);
+  const [suivi, setSuivi] = useState<Suivi | null>(null);
 
   const charger = useCallback(async () => {
     try {
@@ -38,12 +40,30 @@ export default function CollaborateurEbay({ gestionnaireId, accent, isMobile }: 
     } catch { /* on réessaie au prochain tour */ }
   }, [base]);
 
+  const chargerSuivi = useCallback(async () => {
+    try {
+      const res = await fetch(`${base}/suivi`, { credentials: 'include' });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) setSuivi(j.suivi || null);
+    } catch { /* sans importance */ }
+  }, [base]);
+
+  const verifier = async () => {
+    setOccupe(true); setErreur(''); setInfo('');
+    try {
+      const res = await fetch(`${base}/verifier`, { method: 'POST', credentials: 'include' });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) { setInfo('Vérification demandée : le résultat apparaît dans quelques minutes.'); setTimeout(chargerSuivi, 30000); } else setErreur(j.error || 'Action impossible');
+    } catch { setErreur('Erreur réseau'); }
+    setOccupe(false);
+  };
+
   // Suivi de l'import : on relit toutes les 4 secondes tant qu'il n'est pas fini
   const enCours = !!travail && ['en_attente', 'en_cours', 'pause'].includes(travail.statut);
   useEffect(() => {
     if (!etat?.connexion) return;
-    chargerImport();
-  }, [etat?.connexion?.statut, chargerImport]);
+    chargerImport(); chargerSuivi();
+  }, [etat?.connexion?.statut, chargerImport, chargerSuivi]);
   useEffect(() => {
     if (!enCours) return;
     const t = setInterval(chargerImport, 4000);
@@ -166,6 +186,22 @@ export default function CollaborateurEbay({ gestionnaireId, accent, isMobile }: 
             <div style={{ fontSize: 14, color: T.danger, marginBottom: 14 }}>{travail.message || "L'import a échoué."}</div>
           )}
           <button style={bouton(accent)} disabled={occupe || enCours} onClick={importer}>{enCours ? 'Import en cours…' : travail ? 'Importer de nouveau' : 'Importer mes annonces'}</button>
+        </div>
+      )}
+
+      {etat?.connexion?.statut === 'connecte' && suivi && suivi.dernier_suivi && (
+        <div style={carte}>
+          <div style={{ fontWeight: 700, marginBottom: 6 }}>🔄 Synchronisation avec eBay</div>
+          <p style={{ fontSize: 14, color: T.light, margin: '0 0 10px' }}>Le stock de vos annonces importées est mis à jour automatiquement (environ toutes les heures). Les prix et les descriptions ne sont jamais modifiés.</p>
+          <div style={{ fontSize: 13, color: T.light, marginBottom: 12 }}>
+            Dernière vérification : {new Date(suivi.dernier_suivi).toLocaleString('fr-CA')}
+            {suivi.dernier_resume && suivi.dernier_changement_le ? <><br />Dernier changement ({new Date(suivi.dernier_changement_le).toLocaleString('fr-CA')}) : {suivi.dernier_resume}</> : null}
+            {suivi.suivi_erreur ? <><br /><span style={{ color: T.danger }}>Problème : {suivi.suivi_erreur}</span></> : null}
+          </div>
+          {suivi.nouvelles > 0 && (
+            <div style={{ fontSize: 14, marginBottom: 12 }}>🆕 <strong>{suivi.nouvelles}</strong> nouvelle{suivi.nouvelles > 1 ? 's' : ''} annonce{suivi.nouvelles > 1 ? 's' : ''} sur eBay pas encore dans votre boutique. Cliquez sur « Importer de nouveau » ci-dessus pour les ajouter.</div>
+          )}
+          <button style={bouton('#6b7280')} disabled={occupe || enCours} onClick={verifier}>Vérifier maintenant</button>
         </div>
       )}
     </div>
