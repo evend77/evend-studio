@@ -26,6 +26,7 @@ import CollaborateurFaq from './pages/collaborateur/CollaborateurFaq';
 import CollaborateurRapportFinancier from './pages/collaborateur/CollaborateurRapportFinancier';
 import CollaborateurCommandeDetail from './pages/collaborateur/CollaborateurCommandeDetail';
 import CollaborateurEtiquettes from './pages/collaborateur/CollaborateurEtiquettes';
+import CollaborateurEbay from './pages/collaborateur/CollaborateurEbay';
 import BanniereDashboard from './templates/shared/BanniereDashboard';
 import { formaterPrix } from './templates/shared/devise';
 
@@ -213,11 +214,13 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
 
   // Retour de Stripe (?stripe=success|refresh) : on ouvre directement la page Paiements Stripe.
   const retourStripe = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('stripe');
+  // Retour d'eBay (?ebay=ok|refuse|erreur) : on ouvre la page Connecteur eBay.
+  const retourEbay = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('ebay');
 
-  const [pageActive, setPageActive]   = useState(retourStripe ? 'config-stripe' : 'dashboard');
+  const [pageActive, setPageActive]   = useState(retourStripe ? 'config-stripe' : retourEbay ? 'config-ebay' : 'dashboard');
   const [isMobile,   setIsMobile]     = useState(false);
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
-  const [menuOuvert, setMenuOuvert]   = useState<string | null>(retourStripe ? 'configuration' : null);
+  const [menuOuvert, setMenuOuvert]   = useState<string | null>(retourStripe || retourEbay ? 'configuration' : null);
   const [heure,      setHeure]        = useState(new Date());
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
   const [avisAttente, setAvisAttente] = useState(0);   // avis qui attendent mon approbation
@@ -380,6 +383,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
         { id: 'config-stripe',   label: 'Paiements Stripe',       icon: '💳' },
         { id: 'config-expedition', label: "Méthodes d'expédition", icon: '🚚' },
         ...(addonsMV.etiquette_shippo || addonsMV.etiquette_easypost || addonsMV.etiquette_postescanada ? [{ id: 'config-etiquettes', label: "Étiquettes d'expédition", icon: '🏷️' }] : []),
+        ...(addonsMV.connecteur_ebay ? [{ id: 'config-ebay', label: 'Connecteur eBay', icon: '🔗' }] : []),
       ]
     },
   ];
@@ -414,6 +418,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'config-generale')   return <CollaborateurConfiguration {...commun} naviguer={naviguer} />;
     if (pageActive === 'config-expedition') return <CollaborateurMethodesExpedition {...commun} />;
     if (pageActive === 'config-etiquettes') return <CollaborateurEtiquettes {...commun} naviguer={naviguer} />;
+    if (pageActive === 'config-ebay')       return <CollaborateurEbay {...commun} />;
     return null;
   };
 

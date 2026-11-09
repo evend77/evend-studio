@@ -11,6 +11,7 @@ const pool = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
 const addons = require('../services/studio_addons');
+const ebaySvc = require('../services/studio_ebay');
 
 const router = express.Router();
 const CODE_ADDON = 'connecteur_ebay';
@@ -135,6 +136,8 @@ router.post('/', async (req, res) => {
       ajouter('verifie_le', null);
       vals.push(gid);
       await pool.query(`UPDATE gestionnaire_ebay_config SET ${sets.join(', ')}, updated_at = NOW() WHERE gestionnaire_id = $${vals.length}`, vals);
+      // Les jetons des collaborateurs ne valent que pour les anciennes clés : ils devront se reconnecter
+      await ebaySvc.marquerReconnexionGestionnaire(gid);
     }
     res.json({ ok: true });
   } catch (e) {
@@ -192,6 +195,7 @@ router.delete('/', async (req, res) => {
     await pool.query(
       `UPDATE gestionnaire_ebay_config SET client_id_chiffre = NULL, dev_id_chiffre = NULL, client_secret_chiffre = NULL, runame = NULL, verifie_le = NULL, updated_at = NOW() WHERE gestionnaire_id = $1`,
       [req.user.id]);
+    await ebaySvc.marquerReconnexionGestionnaire(req.user.id);
     res.json({ ok: true });
   } catch (e) {
     console.error('❌ DELETE /api/gestionnaire/ebay :', e.message);

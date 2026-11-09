@@ -1375,6 +1375,8 @@ const exigerAddon = (code, nom) => h(async (req, res, next) => {
 });
 router.use('/faq', exigerAddon('faq_collab', 'FAQ collaborateurs'));
 router.use('/blogs', exigerAddon('blog_collab', 'Blog collaborateurs'));
+router.use('/ebay', exigerAddon('connecteur_ebay', 'Connecteur eBay'));
+router.use('/', require('./collab_ebay')({ h, bad }));
 
 router.get('/faq', h(async (req, res) => {
   const r = await pool.query(
