@@ -106,7 +106,6 @@ app.use('/api/webhooks-etiquettes', require('./routes/webhooks_etiquettes'));
 app.use('/api/cron-suivi-postescanada', require('./routes/cron_suivi_postescanada'));
 // Retour d'eBay après la connexion d'un compte de collaborateur (adresse fixe, sans session)
 app.use('/api/ebay-connexion', require('./routes/ebay_connexion'));
-app.use('/api/pwa-boutique', require('./routes/pwa_boutique'));
 
 // ✅ Webhook Dynadot (NOUVEAU)
 app.post('/api/webhooks/dynadot', express.raw({ type: 'application/json' }));
@@ -213,6 +212,8 @@ app.use('/api/cron-verification-email', cronVerificationEmailModule);
 app.use('/api/gestionnaire/stripe', require('./routes/gestionnaire_stripe'));
 // ✅ Clés eBay « développeur » du gestionnaire (add-on Connecteur eBay)
 app.use('/api/gestionnaire/ebay', require('./routes/gestionnaire_ebay'));
+// 📲 Add-on « App installable » (après cors + cookieParser : la partie gestionnaire lit le cookie de connexion)
+app.use('/api/pwa-boutique', require('./routes/pwa_boutique'));
 app.use('/api', modelesModule);
 app.use('/api/admin/config/page-404', configPage404Module);
 app.use('/api/admin/gestionnaires', adminGestionnairesStatutModule);
