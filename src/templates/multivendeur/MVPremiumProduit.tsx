@@ -10,6 +10,7 @@ import Navbar from './MVPremiumNavbar';
 import { fondDe } from './mvTheme';
 import { formaterPrix } from '../shared/devise';
 import MVParutionCountdown, { formaterDateParution, useConfigParution } from './MVParutionCountdown';
+import MVOffreCompteur from './MVOffre';
 import MVQuestionsProduit from './MVQuestionsProduit';
 
 const API_BASE = '/api';
@@ -76,6 +77,7 @@ interface Produit {
   lien_youtube?: string;
   vacances?: { mode: 'visible' | 'masque'; message: string; retour: string | null } | null;
   date_parution?: string | null;   // Parution future : date d'ouverture de la vente (ISO), absente si déjà en vente
+  offre_fin?: string | null;       // Offres du jour : fin de l'offre en cours (compte à rebours)
   heure_serveur?: string;
 }
 
@@ -345,6 +347,11 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             {produit.date_parution && (
               <MVParutionCountdown dateParution={produit.date_parution} gestionnaireId={gId} heureServeur={produit.heure_serveur}
                 onOuvert={() => { setVenteOuverte(true); setTimeout(() => setRechargement(n => n + 1), 1500); }} />
+            )}
+
+            {/* Offre du jour : compte à rebours (heure du serveur) ; à la fin, la page recharge le vrai prix */}
+            {produit.offre_fin && !prixVariante && !enchereActive && (
+              <MVOffreCompteur fin={produit.offre_fin} heureServeur={produit.heure_serveur} onFini={() => setTimeout(() => setRechargement(n => n + 1), 1200)} />
             )}
 
             {/* Prix (avec enchère : affiché sous « Vente directe ») */}

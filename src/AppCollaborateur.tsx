@@ -24,6 +24,7 @@ import CollaborateurMethodesExpedition from './pages/collaborateur/Collaborateur
 import CollaborateurBlogs from './pages/collaborateur/CollaborateurBlogs';
 import CollaborateurFaq from './pages/collaborateur/CollaborateurFaq';
 import CollaborateurQuestions from './pages/collaborateur/CollaborateurQuestions';
+import CollaborateurOffres from './pages/collaborateur/CollaborateurOffres';
 import CollaborateurRapportFinancier from './pages/collaborateur/CollaborateurRapportFinancier';
 import CollaborateurCommandeDetail from './pages/collaborateur/CollaborateurCommandeDetail';
 import CollaborateurEtiquettes from './pages/collaborateur/CollaborateurEtiquettes';
@@ -365,6 +366,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
         { id: 'annonces-liste',   label: 'Liste des produits', icon: '📋' },
         { id: 'creer',            label: 'Creer une annonce',  icon: '➕' },
         { id: 'annonces-promos',  label: 'Reductions & codes', icon: '🏷️' },
+        ...(addonsMV.offres_du_jour ? [{ id: 'annonces-offres', label: 'Offres du jour', icon: '🔥' }] : []),
       ]
     },
     {
@@ -375,22 +377,24 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
         { id: 'commandes-retours',   label: 'Retours',             icon: '🔄' },
       ]
     },
-    ...(addonsMV.chat_collab ? [{
-      id: 'messagerie', label: 'MESSAGERIE', icon: '💬', badge: nonLus.total > 0 ? nonLus.total : undefined,
+    ...((addonsMV.chat_collab || addonsMV.questions_produit) ? [{
+      id: 'messagerie', label: 'MESSAGERIE', icon: '💬', badge: ((addonsMV.chat_collab ? nonLus.total : 0) + (addonsMV.questions_produit ? questionsAttente : 0)) > 0 ? ((addonsMV.chat_collab ? nonLus.total : 0) + (addonsMV.questions_produit ? questionsAttente : 0)) : undefined,
       sousMenu: [
-        { id: 'messagerie-acheteurs',    label: 'Messages acheteurs',  icon: '🛒', badge: nonLus.acheteurs > 0 ? nonLus.acheteurs : undefined },
-        { id: 'messagerie-gestionnaire', label: 'Message gestionnaire', icon: '🏢', badge: nonLus.gestionnaire > 0 ? nonLus.gestionnaire : undefined },
+        ...(addonsMV.chat_collab ? [
+          { id: 'messagerie-acheteurs',    label: 'Messages acheteurs',  icon: '🛒', badge: nonLus.acheteurs > 0 ? nonLus.acheteurs : undefined },
+          { id: 'messagerie-gestionnaire', label: 'Message gestionnaire', icon: '🏢', badge: nonLus.gestionnaire > 0 ? nonLus.gestionnaire : undefined },
+        ] : []),
+        ...(addonsMV.questions_produit ? [{ id: 'messagerie-questions', label: 'Questions des acheteurs', icon: '❓', badge: questionsAttente > 0 ? questionsAttente : undefined }] : []),
       ]
     }] : []),
     {
-      id: 'profil', label: 'MON PROFIL', icon: '👤', badge: (avisAttente + questionsAttente) > 0 ? (avisAttente + questionsAttente) : undefined,
+      id: 'profil', label: 'MON PROFIL', icon: '👤', badge: avisAttente > 0 ? avisAttente : undefined,
       sousMenu: [
         { id: 'profil-compte',  label: 'Mon compte',        icon: '👤' },
         { id: 'profil-boutique',label: 'Ma boutique',       icon: '🏪' },
         { id: 'profil-avis',    label: 'Mes avis clients',  icon: '⭐', badge: avisAttente > 0 ? avisAttente : undefined },
         ...(addonsMV.blog_collab ? [{ id: 'profil-blogs',   label: 'Mes blogs',         icon: '📝' }] : []),
         ...(addonsMV.faq_collab ? [{ id: 'profil-faq',     label: 'Ma FAQ',            icon: '❓' }] : []),
-        ...(addonsMV.questions_produit ? [{ id: 'profil-questions', label: 'Questions des acheteurs', icon: '💬', badge: questionsAttente > 0 ? questionsAttente : undefined }] : []),
         { id: 'profil-rapport', label: 'Rapport financier', icon: '📈' },
       ]
     },
@@ -430,7 +434,8 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'profil-avis')       return <CollaborateurAvis {...commun} />;
     if (pageActive === 'profil-blogs')      return <CollaborateurBlogs {...commun} />;
     if (pageActive === 'profil-faq')        return <CollaborateurFaq {...commun} />;
-    if (pageActive === 'profil-questions' && addonsMV.questions_produit) return <CollaborateurQuestions {...commun} />;
+    if (pageActive === 'messagerie-questions' && addonsMV.questions_produit) return <CollaborateurQuestions {...commun} />;
+    if (pageActive === 'annonces-offres' && addonsMV.offres_du_jour) return <CollaborateurOffres {...commun} />;
     if (pageActive === 'profil-rapport')    return <CollaborateurRapportFinancier {...commun} nomVendeur={compte.nom_boutique} />;
     if (pageActive === 'config-stripe')
       return <CollaborateurStripe gestionnaireId={gestionnaireId} collaborateurId={compte.id} accent={accent} isMobile={isMobile} />;

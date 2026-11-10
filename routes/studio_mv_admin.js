@@ -23,6 +23,7 @@
 //   GET   /questions                → ?q= ?statut=attente|publiee|masquee|signalees ?collaborateur_id= ?page=  (+ stats) — add-on « Questions sur le produit »
 //   GET   /questions/compte         → { signalees } pastille du menu
 //   POST  /questions/:id/masquer | /retablir | /ignorer-signalements ; DELETE /questions/:id
+//   GET   /offres ?etat= ?q= ?page= · PUT /offres/config { duree_max_jours } · POST /offres/:produitId/retirer  — add-on « Offres du jour »
 //   GET   /dashboard                → ?periode=7|30|90|365  statistiques du tableau de bord (selon le template du site)
 
 'use strict';
@@ -527,6 +528,51 @@ router.get('/dashboard', h(async (req, res) => {
     a_faire: { avis_en_attente: parseInt(attAvis.rows[0].n, 10), remboursements_en_attente: parseInt(attRemb.rows[0].n, 10), produits_en_attente: +p.en_attente,
                commandes_a_traiter: (statuts.en_attente || 0) + (statuts.confirmee || 0) },
   });
+}));
+
+// ── Offres du jour (add-on « Offres du jour ») ──
+// Le gestionnaire voit les offres de tous ses collaborateurs, règle la durée maximale et peut retirer une offre.
+router.get('/offres', h(async (req, res) => {
+  const OFR = require('../services/studio_offres');
+  const etat = ['cours', 'venir', 'terminee'].includes(req.query.etat) ? req.query.etat : null;
+  const params = [req.gid]; let filtre = '';
+  if (etat) { params.push(etat); filtre += ` AND ${OFR.sqlEtat('p')} = $${params.length}`; }
+  const m = motif(req.query.q);
+  if (m) { params.push(m); filtre += ` AND (p.titre ILIKE $${params.length} OR p.sku ILIKE $${params.length})`; }
+  const pg = page(req);
+  params.push(PAR_PAGE, (pg - 1) * PAR_PAGE);
+  const r = await pool.query(
+    `SELECT p.id, p.titre, p.sku, p.prix, p.photo_principale, p.offre_prix, p.offre_debut, p.offre_fin, ${OFR.sqlEtat('p')} AS etat,
+            c.nom_boutique AS boutique, COUNT(*) OVER()::int AS total_lignes
+       FROM produits p LEFT JOIN marketplace_collaborateurs c ON c.id = p.collaborateur_id
+      WHERE p.gestionnaire_id = $1 AND p.offre_prix IS NOT NULL${filtre}
+      ORDER BY CASE ${OFR.sqlEtat('p')} WHEN 'cours' THEN 0 WHEN 'venir' THEN 1 ELSE 2 END, p.offre_fin ASC LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+  const stats = (await pool.query(
+    `SELECT COUNT(*) FILTER (WHERE ${OFR.sqlEtat('p')} = 'cours')::int AS cours, COUNT(*) FILTER (WHERE ${OFR.sqlEtat('p')} = 'venir')::int AS venir,
+            COUNT(*) FILTER (WHERE ${OFR.sqlEtat('p')} = 'terminee')::int AS terminee FROM produits p WHERE p.gestionnaire_id = $1 AND p.offre_prix IS NOT NULL`, [req.gid])).rows[0];
+  const total = r.rows.length ? r.rows[0].total_lignes : 0;
+  res.json({
+    addon_actif: await OFR.actifPourBoutique(req.gid), duree_max_jours: (await OFR.reglages(req.gid)).dureeMaxJours, total, page: pg, pages: Math.max(1, Math.ceil(total / PAR_PAGE)), stats,
+    offres: r.rows.map((x) => ({ produit_id: x.id, titre: x.titre, sku: x.sku || null, photo: x.photo_principale || null, prix: Number(x.prix) || 0, boutique: x.boutique,
+      etat: x.etat, offre_prix: Number(x.offre_prix), debut: x.offre_debut, fin: x.offre_fin })),
+  });
+}));
+
+router.put('/offres/config', h(async (req, res) => {
+  const OFR = require('../services/studio_offres');
+  const jours = Math.round(Number(req.body && req.body.duree_max_jours));
+  if (!Number.isFinite(jours) || jours < 1 || jours > 60) bad('La durée maximale doit être entre 1 et 60 jours.');
+  const r = await pool.query(
+    `UPDATE sites SET config = jsonb_set(COALESCE(config, '{}'::jsonb), '{multivendeur}', COALESCE(config->'multivendeur', '{}'::jsonb) || jsonb_build_object('offre_duree_max_jours', $2::int)) WHERE gestionnaire_id = $1`, [req.gid, jours]);
+  if (!r.rowCount) bad('Site introuvable.', 404);
+  res.json({ success: true, duree_max_jours: (await OFR.reglages(req.gid)).dureeMaxJours });
+}));
+
+router.post('/offres/:produitId/retirer', h(async (req, res) => {
+  const OFR = require('../services/studio_offres');
+  const pid = entier(req.params.produitId); if (!pid) bad('Produit invalide.');
+  try { await OFR.retirerOffre({ gid: req.gid, produitId: pid }); } catch (e) { if (e instanceof OFR.ErreurOffre) bad(e.message, e.status); throw e; }
+  res.json({ success: true });
 }));
 
 module.exports = router;

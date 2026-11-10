@@ -15,6 +15,7 @@ const vacMV = require('../services/studio_vacances');
 const cfgMV = require('../services/studio_config_mv');
 const regles = require('../services/studio_regles_produits');
 const regCmd = require('../services/studio_regles_commande');
+const OFFRES = require('../services/studio_offres');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -130,6 +131,23 @@ router.get('/:gid/panier', authMV, async (req, res) => {
       for (const l of r.rows) { if (!parVendeur.has(l.vendeur_id)) parVendeur.set(l.vendeur_id, []); parVendeur.get(l.vendeur_id).push({ produit_id: l.produit_id, titre: l.titre, quantite: l.quantite, quantite_min: l.quantite_min, enchere_id: l.enchere_id }); }
       for (const [vendeurId, lignes] of parVendeur) for (const a of regles.verifierQuantitesMin(regP, lignes)) avertissements.push({ vendeur_id: vendeurId, produit_id: a.produit_id, message: a.message });
     }
+    // Prix à jour (offres du jour qui commencent ou se terminent) : le panier affiche le prix que le paiement facturera, jamais un prix périmé
+    try {
+      const ids = [...new Set(r.rows.filter((l) => !l.enchere_id).map((l) => parseInt(l.produit_id, 10)).filter((n) => Number.isInteger(n) && n > 0))];
+      if (ids.length) {
+        const pr = await pool.query(`SELECT id, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes FROM produits WHERE gestionnaire_id = $1 AND id = ANY($2::int[])`, [parseInt(gid, 10), ids]);
+        const parId = new Map(pr.rows.map((x) => [x.id, x]));
+        for (const l of r.rows) {
+          const prod = l.enchere_id ? null : parId.get(parseInt(l.produit_id, 10));
+          if (!prod) continue;
+          const c = prixEtStock(prod, l.variante || '', regP.gererStock);
+          if (!c.erreur && Number.isFinite(c.prix) && Math.abs(c.prix - Number(l.prix)) > 0.004) {
+            await pool.query('UPDATE marketplace_panier SET prix = $1 WHERE id = $2', [c.prix, l.id]);
+            l.prix = c.prix;
+          }
+        }
+      }
+    } catch (e) { console.error('[panier] prix à jour :', e.message); }
     res.json({ articles: await taxesMV.marquerLignes(pool, parseInt(gid, 10), r.rows), avertissements });
   } catch (err) { res.status(500).json({ error: 'Erreur serveur' }); }
 });
@@ -146,7 +164,7 @@ router.post('/:gid/panier', authMV, async (req, res) => {
 
   try {
     const prodRes = await pool.query(
-      'SELECT id, collaborateur_id, titre, photo_principale, prix, prix_promo, stock, variantes, date_parution FROM produits WHERE id = $1 AND statut = $2 AND gestionnaire_id = $3 AND collaborateur_id IS NOT NULL',
+      `SELECT id, collaborateur_id, titre, photo_principale, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes, date_parution FROM produits WHERE id = $1 AND statut = $2 AND gestionnaire_id = $3 AND collaborateur_id IS NOT NULL`,
       [parseInt(produit_id), 'actif', gid]
     );
     if (!prodRes.rows[0]) return res.status(404).json({ error: 'Produit introuvable' });
@@ -200,7 +218,7 @@ router.patch('/:gid/panier/:id', authMV, async (req, res) => {
   if (!Number.isInteger(qte) || qte < 1 || qte > 999) return res.status(400).json({ error: 'Quantite invalide' });
   try {
     const l = await pool.query(
-      `SELECT mp.variante, mp.enchere_id, p.prix, p.prix_promo, p.stock, p.variantes
+      `SELECT mp.variante, mp.enchere_id, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, p.stock, p.variantes
          FROM marketplace_panier mp LEFT JOIN produits p ON p.id = NULLIF(regexp_replace(mp.produit_id, '[^0-9].*$', ''), '')::int
         WHERE mp.id=$1 AND mp.acheteur_id=$2 AND mp.gestionnaire_id=$3`, [id, acheteurId, gid]);
     if (!l.rows[0]) return res.status(404).json({ error: 'Article introuvable' });

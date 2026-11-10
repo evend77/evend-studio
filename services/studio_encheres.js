@@ -78,10 +78,11 @@ async function creerEnchere({ gid, collaborateurId, produitId, prixDepart, prixR
   try {
     await client.query('BEGIN');
     const p = (await client.query(
-      `SELECT id, titre, photo_principale, stock, variantes, statut FROM produits
+      `SELECT id, titre, photo_principale, stock, variantes, statut, offre_prix, offre_fin FROM produits
         WHERE id = $1 AND gestionnaire_id = $2 AND collaborateur_id = $3 FOR UPDATE`, [produitId, gid, collaborateurId])).rows[0];
     if (!p) refus('Produit introuvable.', 404);
     if (p.statut !== 'actif') refus("Seule une annonce active peut être mise aux enchères.");
+    if (p.offre_prix !== null && p.offre_prix !== undefined && p.offre_fin && new Date(p.offre_fin).getTime() > Date.now()) refus("Ce produit a une offre du jour (en cours ou programmée) : retirez l'offre avant de le mettre aux enchères.", 409);
     let vars = p.variantes; if (typeof vars === 'string') { try { vars = JSON.parse(vars); } catch (e) { vars = []; } }
     if (Array.isArray(vars) && vars.some((v) => v && v.nom)) refus("Les enchères ne sont pas offertes sur les produits à variantes.");
 

@@ -29,6 +29,7 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const sanitizeHtml = require('sanitize-html');
+const OFFRES = require('../services/studio_offres');
 const pool = require('../db');
 const cfgMV = require('../services/studio_config_mv');
 const regCmd = require('../services/studio_regles_commande');
@@ -406,7 +407,7 @@ router.get('/retours', h(async (req, res) => {
 
 router.get('/wishlist', h(async (req, res) => {
   const r = await pool.query(
-    `SELECT w.id, w.created_at, p.id AS produit_id, p.titre, p.prix, p.prix_promo, p.stock, p.photo_principale, p.categorie, p.statut,
+    `SELECT w.id, w.created_at, p.id AS produit_id, p.titre, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, p.stock, p.photo_principale, p.categorie, p.statut,
             p.collaborateur_id, COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable, g.nom) AS boutique
        FROM marketplace_wishlist w
        JOIN produits p ON p.id = w.produit_id

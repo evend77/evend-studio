@@ -10,6 +10,7 @@ const db      = require('../db');
 const chatbotMV = require('../services/studio_chatbot');
 const addonsMV  = require('../services/studio_addons');
 const vac       = require('../services/studio_vacances');
+const OFFRES    = require('../services/studio_offres');
 
 // ═══════════════════════════════════════════════════════════════════════
 //  FONCTIONS DE VÉRIFICATION — toutes scopées par gestionnaire_id
@@ -227,7 +228,7 @@ async function rechercherMV(gid, mots, sources, maxResultats) {
 
   if (sources.produits !== false) taches.push((async () => {
     const { rows } = await db.query(
-      `SELECT p.id, p.titre, p.description, p.prix, p.prix_promo, ${nomBoutique} AS nom_boutique, COALESCE(sc.nom, cp.label) AS categorie_nom
+      `SELECT p.id, p.titre, p.description, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, ${nomBoutique} AS nom_boutique, COALESCE(sc.nom, cp.label) AS categorie_nom
          FROM produits p
          JOIN marketplace_collaborateurs mc ON mc.id = p.collaborateur_id AND mc.statut = 'actif'
          ${vac.VAC_JOIN}
@@ -508,7 +509,7 @@ router.post('/ask', async (req, res) => {
       if (sourcesContenu.produits !== false) {
         const condProduits = motsRecherche.map((_, i) => `(titre ILIKE $${i + 2} OR description ILIKE $${i + 2})`).join(' OR ');
         const { rows: produits } = await db.query(
-          `SELECT id, titre, description, prix, prix_promo
+          `SELECT id, titre, description, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo
            FROM produits
            WHERE gestionnaire_id = $1 AND statut = 'actif' AND (${condProduits})
            LIMIT ${maxResultats}`,

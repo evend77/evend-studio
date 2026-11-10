@@ -112,9 +112,9 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: { na
   const [menuOuvert, setMenuOuvert] = useState(false);
   const nom = config?.nom_boutique || 'Ma Marketplace';
   const accent = config?.couleur_accent || '#fbbf24';
-  const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Catalogue', dest: { page: 'catalogue' } }, { label: 'Enchères', dest: { page: 'encheres' } }];
+  const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Catalogue', dest: { page: 'catalogue' } }, { label: 'Enchères', dest: { page: 'encheres' } }, { label: '🔥 Offres du jour', dest: { page: 'offres' } }];
   const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
-  const liensVisibles = liens.filter(l => l.dest.page !== 'encheres' || config?.encheres_actif !== false);   // masqué si l'add-on Enchères n'est pas actif
+  const liensVisibles = liens.filter(l => (l.dest.page !== 'encheres' || config?.encheres_actif !== false) && (l.dest.page !== 'offres' || config?.offres_actif === true));   // masqué si l'add-on Enchères n'est pas actif
   return (
     <nav style={{ ...s.nav, background: fondNav(config) }}>
       <style>{`

@@ -21,6 +21,7 @@ const vac = require('../services/studio_vacances');
 const cfgMV = require('../services/studio_config_mv');
 const avisMV = require('../services/studio_avis');
 const addonsMV = require('../services/studio_addons');
+const OFFRES = require('../services/studio_offres');
 const router = express.Router();
 
 function entier(v) {
@@ -30,7 +31,7 @@ function entier(v) {
 
 // Gérer l'inventaire désactivé (Config produits) : le stock n'est plus suivi, tout est « en stock »
 const SANS_STOCK = `COALESCE((SELECT st.config->'multivendeur'->>'gerer_inventaire_par_defaut' = 'false' FROM sites st WHERE st.gestionnaire_id = p.gestionnaire_id LIMIT 1), false)`;
-const COLS = `p.id, p.titre, p.description, p.prix, p.prix_promo, p.stock, p.categorie, p.photo_principale, p.photos,
+const COLS = `p.id, p.titre, p.description, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, ${OFFRES.sqlFin('p')} AS offre_fin, p.stock, p.categorie, p.photo_principale, p.photos,
   p.created_at, p.collaborateur_id, p.variantes, p.date_parution,
   COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.ville AS vendeur_ville, mc.politique_livraison, mc.politique_retour,
   p.categorie_id, COALESCE(sc.nom, cp.label) AS categorie_nom, sg.nom AS groupe_nom,
@@ -84,6 +85,7 @@ function formater(r) {
     description: r.description,
     prix: enPromo ? promo : prix,
     prix_original: enPromo ? prix : undefined,
+    offre_fin: enPromo && r.offre_fin ? new Date(r.offre_fin).toISOString() : null,   // offre du jour en cours : fin (compte à rebours)
     stock: r.sans_stock === true || r.stock === null || r.stock === undefined ? 9999 : (Number(r.stock) || 0), // stock vide = illimité
     image: r.photo_principale || photos[0] || null,
     images: JSON.stringify(photos),
@@ -160,14 +162,18 @@ router.get('/:gestionnaireId', async (req, res, next) => {
     const collab = entier(req.query.collaborateur_id);
     if (collab) { params.push(collab); where += ` AND p.collaborateur_id = $${params.length}`; }
     // Mode paginé (?page=N) : filtres, tri et pagination faits par le serveur → { produits, pagination }
+    // ?offres=1 : seulement les offres du jour EN COURS (page « Offres du jour »), celles qui finissent bientôt d'abord
+    const seulementOffres = req.query.offres === '1';
+    if (seulementOffres) where += ` AND ${OFFRES.actif('p')}`;
     if (req.query.page !== undefined) {
-      const prixEff = 'CASE WHEN p.prix_promo > 0 AND p.prix_promo < p.prix THEN p.prix_promo ELSE p.prix END';
+      const promoEff = OFFRES.sqlPromo('p');
+      const prixEff = `CASE WHEN ${promoEff} > 0 AND ${promoEff} < p.prix THEN ${promoEff} ELSE p.prix END`;
       const pmin = Number(req.query.prix_min), pmax = Number(req.query.prix_max);
       if (req.query.prix_min !== undefined && req.query.prix_min !== '' && Number.isFinite(pmin)) { params.push(pmin); where += ` AND (${prixEff}) >= $${params.length}`; }
       if (req.query.prix_max !== undefined && req.query.prix_max !== '' && Number.isFinite(pmax)) { params.push(pmax); where += ` AND (${prixEff}) <= $${params.length}`; }
       if (req.query.en_stock === '1') where += ` AND (p.stock IS NULL OR p.stock > 0 OR ${SANS_STOCK})`;
-      const TRIS_PROD = { recent: 'p.created_at DESC', prix_asc: `(${prixEff}) ASC`, prix_desc: `(${prixEff}) DESC`, alpha_az: 'LOWER(p.titre) ASC', alpha_za: 'LOWER(p.titre) DESC' };
-      const tri = TRIS_PROD[req.query.tri] || TRIS_PROD.recent;
+      const TRIS_PROD = { recent: 'p.created_at DESC', prix_asc: `(${prixEff}) ASC`, prix_desc: `(${prixEff}) DESC`, alpha_az: 'LOWER(p.titre) ASC', alpha_za: 'LOWER(p.titre) DESC', fin_proche: 'p.offre_fin ASC' };
+      const tri = TRIS_PROD[req.query.tri] || (seulementOffres ? TRIS_PROD.fin_proche : TRIS_PROD.recent);
       const lim = Math.min(Math.max(parseInt(req.query.limit, 10) || 50, 1), 100);
       const pg = Math.min(Math.max(parseInt(req.query.page, 10) || 1, 1), 10000);
       const rp = await pool.query(
@@ -177,7 +183,7 @@ router.get('/:gestionnaireId', async (req, res, next) => {
       return res.json({ produits: rp.rows.map(formater), pagination: { total, page: pg, limit: lim, pages: Math.max(1, Math.ceil(total / lim)) } });
     }
     const limite = Math.min(Math.max(parseInt(req.query.limit, 10) || 100, 1), 200);
-    const r = await pool.query(`SELECT ${COLS} ${FROM} WHERE ${where} ORDER BY p.created_at DESC LIMIT ${limite}`, params);
+    const r = await pool.query(`SELECT ${COLS} ${FROM} WHERE ${where} ORDER BY ${seulementOffres ? 'p.offre_fin ASC' : 'p.created_at DESC'} LIMIT ${limite}`, params);
     res.json(r.rows.map(formater));
   } catch (e) {
     console.error('[catalogue_public] liste', e.message);
@@ -329,7 +335,8 @@ boutiques.get('/:gestionnaireId/boutiques/:collaborateurId/addons-statut', async
     const [blogOk, faqOk] = await Promise.all([addonsMV.addonActifRapide(gid, 'blog_collab', pool), addonsMV.addonActifRapide(gid, 'faq_collab', pool)]);   // add-ons « Blog » et « FAQ » collaborateurs
     const avisOk = await avisMV.actifs(gid, pool);   // add-on « Avis clients » actif + Config marketplace → Fonctionnalités → Avis clients
     const chatOk = await addonsMV.addonActifRapide(gid, 'chat_collab', pool);
-    res.json({ blog_actif: blogOk && r.rows[0].blog, faq_actif: faqOk && r.rows[0].faq, avis_actif: avisOk, chat_actif: chatOk });
+    const favorisOk = await addonsMV.addonActifRapide(gid, 'favoris', pool);   // add-on « Favoris »
+    res.json({ blog_actif: blogOk && r.rows[0].blog, faq_actif: faqOk && r.rows[0].faq, avis_actif: avisOk, chat_actif: chatOk, favoris_actif: favorisOk });
   } catch (e) {
     console.error('[catalogue_public] addons', e.message);
     res.json({ blog_actif: false, faq_actif: false, avis_actif: false });

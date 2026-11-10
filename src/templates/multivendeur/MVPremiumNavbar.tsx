@@ -15,9 +15,10 @@ export default function MVPremiumNavbar({ naviguer, config }: { naviguer: (d: Na
     { label: 'Catalogue', dest: { page: 'catalogue' } },
     { label: 'Boutiques', dest: { page: 'boutiques' } },
     { label: 'Enchères', dest: { page: 'encheres' } },
+    { label: '🔥 Offres du jour', dest: { page: 'offres' } },
   ];
   const lienEncheres = config?.encheres_actif !== false;   // masqué si l'add-on Enchères n'est pas actif
-  const liensVisibles = liens.filter(l => l.dest.page !== 'encheres' || lienEncheres);
+  const liensVisibles = liens.filter(l => (l.dest.page !== 'encheres' || lienEncheres) && (l.dest.page !== 'offres' || config?.offres_actif === true));
   const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
   return (
     <nav style={{ position: 'sticky', top: 0, zIndex: 100, backdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(255,255,255,0.06)', background: fondNav(config) }}>

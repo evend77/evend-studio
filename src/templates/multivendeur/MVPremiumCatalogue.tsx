@@ -8,6 +8,7 @@ import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche } from './mvSecurite';
 import { formaterPrix } from '../shared/devise';
 import MVParutionCountdown from './MVParutionCountdown';
+import MVOffreCompteur from './MVOffre';
 import { MVSouhaitsAcces, MVSouhaitCarte } from './MVFavoris';
 
 const API_BASE = '/api';
@@ -51,6 +52,7 @@ interface Produit {
   created_at?: string;
   statut?: string;
   date_parution?: string | null;   // Parution future
+  offre_fin?: string | null;       // Offres du jour : fin de l'offre en cours (compte à rebours)
   heure_serveur?: string;
 }
 
@@ -104,9 +106,9 @@ function Navbar({ naviguer, config, recherche, setRecherche, onRecherche }: any)
   const [menuOuvert, setMenuOuvert] = useState(false);
   const nom = config?.nom_boutique || 'Ma Marketplace';
   const accent = config?.couleur_accent || '#fbbf24';
-  const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }, { label: 'Enchères', dest: { page: 'encheres' } }];
+  const liens: { label: string; dest: NavMV }[] = [{ label: 'Accueil', dest: { page: 'accueil' } }, { label: 'Boutiques', dest: { page: 'boutiques' } }, { label: 'Enchères', dest: { page: 'encheres' } }, { label: '🔥 Offres du jour', dest: { page: 'offres' } }];
   const aller = (d: NavMV) => { setMenuOuvert(false); naviguer(d); };
-  const liensVisibles = liens.filter(l => l.dest.page !== 'encheres' || config?.encheres_actif !== false);   // masqué si l'add-on Enchères n'est pas actif
+  const liensVisibles = liens.filter(l => (l.dest.page !== 'encheres' || config?.encheres_actif !== false) && (l.dest.page !== 'offres' || config?.offres_actif === true));   // masqué si l'add-on Enchères n'est pas actif
   return (
     <nav style={{ ...s.nav, background: fondNav(config) }}>
       <style>{`
@@ -494,6 +496,7 @@ export default function MVPremiumCatalogue({ vendeurId, isDemo, config = {}, nav
                           <span style={s.prixOriginal}>{formaterPrix(parseFloat(String(p.prix_original)))}</span>
                         )}
                       </div>
+                      {p.offre_fin && <MVOffreCompteur compact fin={p.offre_fin} heureServeur={p.heure_serveur} />}
                       {avecCategories && p.categorie_nom && <div style={s.badgeCat}>{p.categorie_nom || p.categorie}</div>}
                       <MVSouhaitCarte zone="bas" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                     </div>

@@ -9,6 +9,7 @@ import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche, nettoyerTexte } from './mvSecurite';
 import { formaterPrix } from '../shared/devise';
 import MVParutionCountdown from './MVParutionCountdown';
+import MVOffreCompteur from './MVOffre';
 import MVBadgesCollab, { BadgeCollab } from './MVBadgesCollab';
 import { MVSouhaitsAcces, MVSouhaitCarte } from './MVFavoris';
 
@@ -38,6 +39,7 @@ interface Boutique {
 interface Produit {
   id: number; nom: string; prix: number; image?: string; stock: number; categorie_nom?: string;
   date_parution?: string | null; heure_serveur?: string;   // Parution future
+  offre_fin?: string | null;   // Offres du jour : fin de l'offre en cours
 }
 
 interface BlogArticle {
@@ -504,6 +506,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
                           <MVSouhaitCarte zone="haut" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                           <p style={{ fontSize: 13, color: '#fff', margin: '0 0 6px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{p.nom}</p>
                           <p style={{ fontSize: 15, fontWeight: 800, color: couleurAccent, margin: 0 }}>{formaterPrix(parseFloat(String(p.prix)))}</p>
+                          {p.offre_fin && <MVOffreCompteur compact fin={p.offre_fin} heureServeur={p.heure_serveur} />}
                           <MVSouhaitCarte zone="bas" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                         </div>
                       </div>

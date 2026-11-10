@@ -12,6 +12,7 @@ import MVPremiumBoutiques  from './MVPremiumBoutiques';
 import MVPremiumBoutiquePage from './MVPremiumBoutiquePage';
 import MVPremiumProduit    from './MVPremiumProduit';
 import MVPremiumEncheres   from './MVPremiumEncheres';
+import MVPremiumOffres     from './MVPremiumOffres';
 import MVPremiumDocuments  from './MVPremiumDocuments';
 import MVPremiumPolitique  from './MVPremiumPolitique';
 import MVPremiumContact    from './MVPremiumContact';
@@ -33,6 +34,7 @@ export type PageMVPremium =
   | 'boutique-page'
   | 'produit'
   | 'encheres'
+  | 'offres'
   | 'documents'
   | 'politique'
   | 'contact'
@@ -90,7 +92,7 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
     if (page === 'produit' && produitId) return { page: 'produit', produitId: Number(produitId) };
     if (page === 'politique') return politiqueSlug ? { page: 'politique', politiqueSlug } : { page: 'politique' };
     if (page === 'documents' && documentSlug) return { page: 'documents', documentSlug };
-    if (page === 'catalogue' || page === 'boutiques' || page === 'encheres' || page === 'documents' || page === 'contact' || page === 'login' || page === 'inscription-acheteur' || page === 'inscription-collaborateur') return { page };
+    if (page === 'catalogue' || page === 'boutiques' || page === 'encheres' || page === 'offres' || page === 'documents' || page === 'contact' || page === 'login' || page === 'inscription-acheteur' || page === 'inscription-collaborateur') return { page };
     // Les tableaux de bord ne sont ouverts que si une session existe ; sinon connexion.
     if (page === 'dashboard-acheteur' || page === 'dashboard-collaborateur') {
       const t = lireTypeCompte();
@@ -153,12 +155,14 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
   const [effetsActifs, setEffetsActifs] = useState(false);
   // Add-on « Enchères » : lien, page et pied de page visibles seulement si l'add-on est actif (ou s'il reste des enchères en cours)
   const [encheresVisibles, setEncheresVisibles] = useState(true);
+  // Add-on « Offres du jour » : lien et page visibles seulement si l'add-on est actif
+  const [offresActives, setOffresActives] = useState(false);
   useEffect(() => {
     if (isDemo || !gestionnaireId) return;
     let actif = true;
     fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons`)
       .then(r => (r.ok ? r.json() : {}))
-      .then((d: any) => { if (actif) { setPorteAge(d?.verificateur_age === true); setPopupAnnonce(d?.popup_annonce === true); setChatbotActif(d?.chatbot === true); setEffetsActifs(d?.effets_boutique === true); if (typeof d?.encheres_visibles === 'boolean') setEncheresVisibles(d.encheres_visibles); } })
+      .then((d: any) => { if (actif) { setPorteAge(d?.verificateur_age === true); setPopupAnnonce(d?.popup_annonce === true); setChatbotActif(d?.chatbot === true); setEffetsActifs(d?.effets_boutique === true); if (typeof d?.encheres_visibles === 'boolean') setEncheresVisibles(d.encheres_visibles); setOffresActives(d?.offres_du_jour === true); } })
       .catch(() => {});
     return () => { actif = false; };
   }, [gestionnaireId, isDemo]);
@@ -187,7 +191,8 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
   };
 
   const configBase = { ...config, gestionnaire_id: gestionnaireId, __demo: isDemo };   // les pages (barres de navigation) y lisent l'id de la marketplace
-  const configEff = encheresVisibles || isDemo ? configBase : { ...configBase, encheres_actif: false };
+  const configEncheres = encheresVisibles || isDemo ? configBase : { ...configBase, encheres_actif: false };
+  const configEff = { ...configEncheres, offres_actif: offresActives };   // lien « Offres du jour » (add-on)
   const props = { vendeurId, isDemo, config: configEff, naviguer };
 
   const contenu = (() => {
@@ -202,6 +207,8 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
       return <MVPremiumProduit {...props} produitId={nav.produitId} />;
     case 'encheres':
       return encheresVisibles || isDemo ? <MVPremiumEncheres {...props} /> : <MVPremiumCatalogue {...props} />;
+    case 'offres':
+      return offresActives || isDemo ? <MVPremiumOffres {...props} /> : <MVPremiumCatalogue {...props} />;
     case 'documents':
       return <MVPremiumDocuments {...props} documentSlug={nav.documentSlug} />;
     case 'contact':
