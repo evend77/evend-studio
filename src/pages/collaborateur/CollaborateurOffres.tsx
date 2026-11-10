@@ -11,7 +11,7 @@ interface Produit {
   etat: Etat; enchere: boolean; offre: { prix: number; debut: string; fin: string } | null;
 }
 interface Reponse { addon_actif: boolean; duree_max_jours: number; total: number; page: number; pages: number; stats: { cours: number; venir: number; terminee: number }; produits: Produit[] }
-interface Props { gestionnaireId: number; accent: string; isMobile: boolean; }
+interface Props { gestionnaireId: number; accent: string; isMobile: boolean; produitInitial?: number | null; onProduitOuvert?: () => void; }
 
 const T = { border: '#e1e4e8', text: '#1a2332', light: '#6b7280', green: '#10b981', red: '#ef4444', orange: '#f59e0b' };
 const $$ = (n: number) => `${Number(n).toFixed(2)} $`;
@@ -30,7 +30,7 @@ const ETATS: Record<Etat, { label: string; couleur: string; fond: string }> = {
   aucune: { label: 'Aucune offre', couleur: '#6b7280', fond: '#f3f4f6' },
 };
 
-export default function CollaborateurOffres({ gestionnaireId, accent, isMobile }: Props) {
+export default function CollaborateurOffres({ gestionnaireId, accent, isMobile, produitInitial, onProduitOuvert }: Props) {
   const base = `/api/marketplace/${gestionnaireId}/offres/collaborateur`;
   const [data, setData] = useState<Reponse | null>(null);
   const [etat, setEtat] = useState<Etat | ''>('');
@@ -64,6 +64,20 @@ export default function CollaborateurOffres({ gestionnaireId, accent, isMobile }
     finally { setChargement(false); }
   }, [base, page, etat, q]);
   useEffect(() => { charger(); }, [charger]);
+
+  // Arrivée depuis le menu ⋮ d'un produit : on ouvre directement la fenêtre d'offre de CE produit
+  useEffect(() => {
+    if (!produitInitial) return;
+    let annule = false;
+    fetch(`${base}/mes?produit_id=${produitInitial}`, { credentials: 'include' }).then(r => r.json()).then(j => {
+      if (annule) return;
+      const p = (j.produits || [])[0];
+      if (p && !p.enchere) ouvrir(p);
+      onProduitOuvert && onProduitOuvert();
+    }).catch(() => { onProduitOuvert && onProduitOuvert(); });
+    return () => { annule = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [produitInitial, base]);
 
   const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(''), 4000); };
 

@@ -20,12 +20,13 @@ interface EnchereCollab {
 interface Props {
   gestionnaireId: number; accent: string; isMobile: boolean;
   onCreer: () => void; onModifier: (id: number) => void;
+  onOffre?: (id: number) => void;   // « 🔥 Offre du jour » : ouvre la page des offres sur ce produit
 }
 
 const T = { border: '#e1e4e8', text: '#1a2332', light: '#6b7280', danger: '#dc2626', success: '#16a34a', bg: '#f4f6f8' };
 const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : formaterPrix(v));
 
-export default function CollaborateurProduits({ gestionnaireId, accent, isMobile, onCreer, onModifier }: Props) {
+export default function CollaborateurProduits({ gestionnaireId, accent, isMobile, onCreer, onModifier, onOffre }: Props) {
   const base = `/api/collab/${gestionnaireId}`;
   const [data, setData] = useState<Reponse | null>(null);
   const [page, setPage] = useState(1);
@@ -42,9 +43,18 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
   const [encheres, setEncheres] = useState<Record<number, EnchereCollab>>({});
   const [modalEnchere, setModalEnchere] = useState<Produit | null>(null);
   const [addonEncheres, setAddonEncheres] = useState(false);
+  const [addonOffres, setAddonOffres] = useState(false);   // add-on « Offres du jour »
+  const [menu, setMenu] = useState<{ p: Produit; x: number; y: number; haut: number } | null>(null);   // menu ⋮ d'une ligne
   useEffect(() => {
-    fetch(`/api/studio-forfaits/public/${gestionnaireId}/addons`).then(r => r.json()).then(d => setAddonEncheres(!!d.encheres)).catch(() => setAddonEncheres(false));
+    fetch(`/api/studio-forfaits/public/${gestionnaireId}/addons`).then(r => r.json()).then(d => { setAddonEncheres(!!d.encheres); setAddonOffres(!!d.offres_du_jour); }).catch(() => { setAddonEncheres(false); setAddonOffres(false); });
   }, [gestionnaireId]);
+  useEffect(() => {
+    if (!menu) return;
+    const fermer = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    const defiler = () => setMenu(null);
+    window.addEventListener('keydown', fermer); window.addEventListener('scroll', defiler, true); window.addEventListener('resize', defiler);
+    return () => { window.removeEventListener('keydown', fermer); window.removeEventListener('scroll', defiler, true); window.removeEventListener('resize', defiler); };
+  }, [menu]);
   const [fDepart, setFDepart] = useState('');
   const [fReserve, setFReserve] = useState('');
   const [fDuree, setFDuree] = useState('24');
@@ -242,28 +252,52 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
                 {p.stock === null ? '∞' : p.stock === 0 ? 'Rupture' : p.stock}
               </div>
               <div><span style={p.statut === 'en_attente' ? { ...badge('x'), background: '#FFF3E0', color: '#C2570C' } : badge(p.statut)} title={p.statut === 'en_attente' ? 'Le gestionnaire doit approuver cette annonce avant sa publication' : undefined}>{p.statut === 'actif' ? 'Active' : p.statut === 'en_attente' ? '⏳ En attente' : 'Brouillon'}</span></div>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button disabled={occupe} onClick={() => onModifier(p.id)} style={bouton(accent)}>✏️ Modifier</button>
-                <button disabled={occupe} onClick={() => action(`/produits/${p.id}/statut`, 'PATCH', { statut: p.statut === 'brouillon' ? 'actif' : 'brouillon' })} style={bouton(T.light)}>
-                  {p.statut === 'actif' ? '⏸ Retirer' : p.statut === 'en_attente' ? '↩ Annuler la demande' : '▶ Publier'}
-                </button>
-                {encheres[p.id] ? (
-                  encheres[p.id].statut === 'active' && encheres[p.id].nb_mises === 0
-                    ? <button disabled={occupe} onClick={() => annulerEnchere(encheres[p.id])} style={bouton('#b45309')} title="Annuler l'enchère (aucune mise)">🔨 Annuler l'enchère</button>
-                    : <span style={{ ...badge('actif'), background: '#FEF3C7', color: '#92400E' }}>
-                        🔨 {encheres[p.id].statut === 'active' ? `${encheres[p.id].nb_mises} mise${encheres[p.id].nb_mises > 1 ? 's' : ''}` : 'À payer'}
-                      </span>
-                ) : (
-                  addonEncheres && p.statut === 'actif' && (p.stock === null || p.stock > 0) &&
-                  <button disabled={occupe} onClick={() => ouvrirEnchere(p)} style={bouton('#b45309')} title="Mettre aux enchères">🔨 Enchères</button>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                {encheres[p.id] && !(encheres[p.id].statut === 'active' && encheres[p.id].nb_mises === 0) && (
+                  <span style={{ ...badge('actif'), background: '#FEF3C7', color: '#92400E' }}>
+                    🔨 {encheres[p.id].statut === 'active' ? `${encheres[p.id].nb_mises} mise${encheres[p.id].nb_mises > 1 ? 's' : ''}` : 'À payer'}
+                  </span>
                 )}
-                <button disabled={occupe} onClick={() => action(`/produits/${p.id}/dupliquer`, 'POST')} style={bouton(T.light)} title="Dupliquer">⧉</button>
-                <button disabled={occupe} onClick={() => setASupprimer([p.id])} style={bouton(T.danger)} title="Supprimer">🗑️</button>
+                <button disabled={occupe} aria-label="Actions" title="Actions"
+                  onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu({ p, x: r.right, y: r.bottom, haut: r.top }); }}
+                  style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 8, width: 36, height: 32, fontSize: 18, fontWeight: 800, lineHeight: 1, color: T.text, cursor: 'pointer' }}>⋮</button>
               </div>
             </div>
           ))}
         </div>
       )}
+
+      {/* Menu ⋮ d'une ligne : toutes les actions du produit */}
+      {menu && (() => {
+        const p = menu.p, e = encheres[p.id];
+        const item = (label: string, onClick: () => void, couleur?: string) => (
+          <button key={label} className="cp-mi" disabled={occupe} onClick={() => { setMenu(null); onClick(); }}
+            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', background: 'none', border: 'none', fontSize: 13, fontWeight: 600, color: couleur || T.text, cursor: 'pointer', fontFamily: 'inherit' }}>{label}</button>
+        );
+        const sep = (k: string) => <div key={k} style={{ height: 1, background: T.border, margin: '4px 0' }} />;
+        const entrees: React.ReactNode[] = [
+          item('✏️ Modifier', () => onModifier(p.id)),
+          item(p.statut === 'actif' ? '⏸ Retirer de la vente' : p.statut === 'en_attente' ? '↩ Annuler la demande' : '▶ Publier', () => action(`/produits/${p.id}/statut`, 'PATCH', { statut: p.statut === 'brouillon' ? 'actif' : 'brouillon' })),
+        ];
+        const extras: React.ReactNode[] = [];
+        if (e) { if (e.statut === 'active' && e.nb_mises === 0) extras.push(item("🔨 Annuler l'enchère", () => annulerEnchere(e), '#b45309')); }
+        else if (addonEncheres && p.statut === 'actif' && (p.stock === null || p.stock > 0)) extras.push(item('🔨 Mettre aux enchères', () => ouvrirEnchere(p), '#b45309'));
+        if (addonOffres && onOffre && p.statut === 'actif' && !e) extras.push(item('🔥 Offre du jour', () => onOffre(p.id), '#c2410c'));
+        const hauteur = 44 * (entrees.length + extras.length + 2) + 20;
+        const enHaut = menu.y + hauteur > window.innerHeight && menu.haut > hauteur;   // pas la place en bas : on ouvre vers le haut
+        return (
+          <>
+            <style>{`.cp-mi:hover:not(:disabled){background:#f3f4f6}`}</style>
+            <div onClick={() => setMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
+            <div role="menu" style={{ position: 'fixed', zIndex: 3000, right: Math.max(8, window.innerWidth - menu.x), top: enHaut ? undefined : menu.y + 4, bottom: enHaut ? window.innerHeight - menu.haut + 4 : undefined,
+              minWidth: 220, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.16)', padding: '6px 0' }}>
+              {entrees}{extras}{sep('s1')}
+              {item('⧉ Dupliquer', () => action(`/produits/${p.id}/dupliquer`, 'POST'))}
+              {item('🗑️ Supprimer', () => setASupprimer([p.id]), T.danger)}
+            </div>
+          </>
+        );
+      })()}
 
       {/* Pagination */}
       {data && data.total > 0 && (

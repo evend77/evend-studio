@@ -226,6 +226,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const [heure,      setHeure]        = useState(new Date());
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
   const [avisAttente, setAvisAttente] = useState(0);
+  const [offreProduitId, setOffreProduitId] = useState<number | null>(null);   // « 🔥 Offre du jour » depuis le menu ⋮ d'un produit
   const [questionsAttente, setQuestionsAttente] = useState(0);   // questions d'acheteurs sans réponse (add-on « Questions sur le produit »)   // avis qui attendent mon approbation
   const [addonsMV, setAddonsMV] = useState<Record<string, boolean>>({});   // add-ons du gestionnaire (blog, FAQ, chat)
   useEffect(() => {
@@ -418,7 +419,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'creer')
       return <CollaborateurCreerAnnonce {...commun} produitId={produitEnEdition} onRetour={() => { setProduitEnEdition(null); naviguer('annonces-liste'); }} />;
     if (pageActive === 'annonces-liste')
-      return <CollaborateurProduits {...commun} onCreer={() => naviguer('creer')} onModifier={(id: number) => { naviguer('creer'); setProduitEnEdition(id); }} />;
+      return <CollaborateurProduits {...commun} onCreer={() => naviguer('creer')} onModifier={(id: number) => { naviguer('creer'); setProduitEnEdition(id); }} onOffre={(id: number) => { setOffreProduitId(id); naviguer('annonces-offres'); }} />;
     if (pageActive === 'annonces-promos')   return <CollaborateurReductions {...commun} />;
     if (pageActive === 'commande-detail' && commandeOuverte)
       return <CollaborateurCommandeDetail {...commun} commandeId={commandeOuverte} naviguer={naviguer} etiquettes={!!(addonsMV.etiquette_shippo || addonsMV.etiquette_easypost || addonsMV.etiquette_postescanada)} onRetour={() => naviguer('commandes-liste')} />;
@@ -435,7 +436,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'profil-blogs')      return <CollaborateurBlogs {...commun} />;
     if (pageActive === 'profil-faq')        return <CollaborateurFaq {...commun} />;
     if (pageActive === 'messagerie-questions' && addonsMV.questions_produit) return <CollaborateurQuestions {...commun} />;
-    if (pageActive === 'annonces-offres' && addonsMV.offres_du_jour) return <CollaborateurOffres {...commun} />;
+    if (pageActive === 'annonces-offres' && addonsMV.offres_du_jour) return <CollaborateurOffres {...commun} produitInitial={offreProduitId} onProduitOuvert={() => setOffreProduitId(null)} />;
     if (pageActive === 'profil-rapport')    return <CollaborateurRapportFinancier {...commun} nomVendeur={compte.nom_boutique} />;
     if (pageActive === 'config-stripe')
       return <CollaborateurStripe gestionnaireId={gestionnaireId} collaborateurId={compte.id} accent={accent} isMobile={isMobile} />;

@@ -59,6 +59,8 @@ router.get('/collaborateur/mes', exigerCollab, h(async (req, res) => {
   const params = [gid, cid]; let filtre = '';
   const q = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, 100) : '';
   if (q) { params.push('%' + q.replace(/[\\%_]/g, '\\$&') + '%'); filtre += ` AND (p.titre ILIKE $${params.length} OR p.sku ILIKE $${params.length})`; }
+  const un = entier(req.query.produit_id);   // ouvrir l'offre d'un produit précis (depuis le menu ⋮ de la liste des produits)
+  if (un) { params.push(un); filtre += ` AND p.id = $${params.length}`; }
   const etat = ['cours', 'venir', 'terminee', 'aucune'].includes(req.query.etat) ? req.query.etat : '';
   if (etat) { params.push(etat); filtre += ` AND ${O.sqlEtat('p')} = $${params.length}`; }
   params.push(PAR_PAGE, (pg - 1) * PAR_PAGE);
