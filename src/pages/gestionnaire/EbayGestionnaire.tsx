@@ -167,8 +167,8 @@ export default function EbayGestionnaire(_props: { gestionnaireId?: number }) {
         <ol style={{ margin: '10px 0 0', paddingLeft: 20, fontSize: 13, color: T.text, lineHeight: 1.8 }}>
           <li>Connectez-vous à <a href="https://developer.ebay.com" target="_blank" rel="noopener noreferrer" style={{ color: T.accent }}>developer.ebay.com</a> avec votre compte eBay (créez un compte développeur si nécessaire).</li>
           <li>Dans « Application Keys », créez un jeu de clés pour l'environnement voulu : vous obtenez l'<strong>App ID</strong>, le <strong>Dev ID</strong> et le <strong>Cert ID</strong>.</li>
-          <li>Pour la production, eBay demande de configurer la « suppression de compte Marketplace » : choisissez l'option <strong>Exempté</strong>.</li>
-          <li>Dans « User Tokens » de ce jeu de clés, ajoutez une URL de redirection (RuName) avec les deux adresses ci-dessous.</li>
+          <li>Pour la production, eBay demande de configurer la « suppression de compte Marketplace » (onglet « Alerts &amp; Notifications », choix « Marketplace Account Deletion »). N'activez <strong>pas</strong> « Exempted » : entrez votre courriel, l'adresse <strong>https://e-vendstudio.ca/api/ebay-connexion/suppression-compte</strong> et le jeton de vérification <strong>evend-studio-ebay-verification-2026-jeton-v1</strong>, puis cliquez « Save ».</li>
+          <li>Dans « User Tokens », activez OAuth sur votre jeu de clés (« enable OAuth »), puis créez le RuName avec les deux adresses ci-dessous.</li>
           <li>Copiez ici l'App ID, le Dev ID, le Cert ID et le RuName, puis cliquez sur « Enregistrer » et « Tester ».</li>
         </ol>
         <div style={{ display: 'grid', gap: 12, marginTop: 16 }}>
