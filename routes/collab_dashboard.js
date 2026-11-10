@@ -26,6 +26,7 @@ const regCmd = require('../services/studio_regles_commande');
 const avisMV = require('../services/studio_avis');
 const addonsMV = require('../services/studio_addons');
 const PALIERS = require('../services/studio_paliers');
+const PLANS = require('../services/studio_plans_collab');
 const taxesMV = require('../services/studio_taxes');
 
 const router = express.Router({ mergeParams: true });
@@ -49,6 +50,16 @@ const h = (fn) => async (req, res, next) => {
     res.status(500).json({ error: 'Erreur serveur' });
   }
 };
+
+// ─── Add-on « Plans collaborateurs » : droits et limites du plan (inactif = rien ne change) ───
+async function avecPlan(fn) {
+  try { return await fn(); }
+  catch (e) { if (e instanceof PLANS.ErreurPlan) bad(e.message, e.status); throw e; }
+}
+// Add-on actif pour la boutique ET permis par le plan de ce collaborateur
+async function addonPourCollab(req, code) {
+  return (await addonsMV.addonActifRapide(req.gid, code, pool)) && (await PLANS.collabAutorise(req.gid, req.cid, code, pool).catch(() => true));
+}
 
 function entier(v) {
   const n = Number(v);
@@ -252,8 +263,8 @@ router.get('/produits-regles', h(async (req, res) => {
              qte_min_mode: r.qteMinMode, aide: r.aide, prix_revient: r.prixRevient, devise: r.devise,
              categories: cfgMV.actif(await cfgMV.lire(req.gid, pool), 'permettre_categories', true),
              expedition_obligatoire: (await regCmd.lire(req.gid, pool)).modeExpedition,
-             parution_future_actif: await addonsMV.addonActifRapide(req.gid, 'parution_future', pool),
-             paliers_actif: await PALIERS.actifPourBoutique(req.gid) });
+             parution_future_actif: await addonPourCollab(req, 'parution_future'),
+             paliers_actif: await addonPourCollab(req, PALIERS.CODE_ADDON) });
 }));
 
 router.get('/produits/:id', h(async (req, res) => {
@@ -348,7 +359,7 @@ function lireProduit(req) {
 async function resoudrePaliers(req, p) {
   if (p.paliersBrut === undefined) return { change: false, valeur: null };
   if (p.paliersBrut === null || (Array.isArray(p.paliersBrut) && !p.paliersBrut.length)) return { change: true, valeur: null };
-  if (!(await PALIERS.actifPourBoutique(req.gid))) bad("L'option « Prix par palier de quantité » n'est pas activée pour cette marketplace.", 403);
+  if (!(await addonPourCollab(req, PALIERS.CODE_ADDON))) bad("L'option « Prix par palier de quantité » n'est pas activée pour cette marketplace.", 403);
   try { const v = PALIERS.valider(p.paliersBrut, p.prix, p.variantes); return { change: true, valeur: v ? JSON.stringify(v) : null }; }
   catch (e) { if (e instanceof PALIERS.ErreurPalier) bad(e.message, e.status); throw e; }
 }
@@ -362,7 +373,7 @@ async function resoudreDateParution(req, p, produitId) {
     const a = await pool.query(`SELECT to_char(date_parution AT TIME ZONE 'America/Toronto', 'YYYY-MM-DD"T"HH24:MI') AS d FROM produits WHERE id=$1`, [produitId]);
     if (a.rows[0] && a.rows[0].d === p.dateParution) return { change: false, valeur: null };
   }
-  if (!(await addonsMV.addonActifRapide(req.gid, 'parution_future', pool))) bad("L'option « Parution future » n'est pas activée pour cette marketplace.", 403);
+  if (!(await addonPourCollab(req, 'parution_future'))) bad("L'option « Parution future » n'est pas activée pour cette marketplace.", 403);
   const ok = await pool.query(`SELECT (($1::timestamp AT TIME ZONE 'America/Toronto') > NOW() + INTERVAL '30 minutes') AS ok`, [p.dateParution]);
   if (!ok.rows[0].ok) bad('La date de parution doit être dans au moins 30 minutes.');
   return { change: true, valeur: p.dateParution };
@@ -419,6 +430,7 @@ async function sauverMethodesProduit(req, produitId, ids) {
 }
 
 router.post('/produits', h(async (req, res) => {
+  const etatPlan = await avecPlan(() => PLANS.exigerDroitEcriture(req.gid, req.cid, pool));
   const p = lireProduit(req);
   p.categorie = await nomCategorie(req, p.categorieId);
   await appliquerRegles(req, p, null);
@@ -429,7 +441,8 @@ router.post('/produits', h(async (req, res) => {
   if (+n.rows[0].n >= 1000) bad('Limite de 1000 produits atteinte', 409);
   // Limite fixée par le gestionnaire (Config marketplace → Max produits par vendeur), tant que les plans vendeur ne sont pas utilisés
   const mvCfg = await cfgMV.lire(req.gid, pool);
-  if (!cfgMV.actif(mvCfg, 'utiliser_plans_vendeur', false)) {
+  if (etatPlan.systeme) await avecPlan(async () => PLANS.verifierLimite(etatPlan, +n.rows[0].n));   // plans actifs : la limite du plan remplace « Max produits »
+  else if (!cfgMV.actif(mvCfg, 'utiliser_plans_vendeur', false)) {
     const max = parseInt(mvCfg.max_produits, 10);
     if (Number.isFinite(max) && max > 0 && +n.rows[0].n >= max) bad(`Limite atteinte : cette marketplace permet ${max} annonce${max > 1 ? 's' : ''} par vendeur. Supprimez une annonce ou contactez le gestionnaire.`, 409);
   }
@@ -447,6 +460,7 @@ router.post('/produits', h(async (req, res) => {
 router.put('/produits/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
+  await avecPlan(() => PLANS.exigerDroitEcriture(req.gid, req.cid, pool));
   const p = lireProduit(req);
   p.categorie = await nomCategorie(req, p.categorieId);
   const ancien = await pool.query('SELECT statut FROM produits WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3', [id, req.cid, req.gid]);
@@ -480,6 +494,7 @@ router.patch('/produits/:id/statut', h(async (req, res) => {
   const id = entier(req.params.id);
   const statut = req.body && req.body.statut;
   if (!id || !STATUTS_PRODUIT.includes(statut)) bad('Statut invalide');
+  await avecPlan(() => PLANS.exigerDroitEcriture(req.gid, req.cid, pool));
   const ancien = await pool.query('SELECT statut FROM produits WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3', [id, req.cid, req.gid]);
   if (!ancien.rows.length) bad('Produit introuvable', 404);
   // Publier passe par l'approbation du gestionnaire si l'option n'est pas automatique
@@ -491,6 +506,11 @@ router.patch('/produits/:id/statut', h(async (req, res) => {
 router.post('/produits/:id/dupliquer', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
+  const etatPlan = await avecPlan(() => PLANS.exigerDroitEcriture(req.gid, req.cid, pool));
+  if (etatPlan.systeme) {
+    const nbDup = +(await pool.query('SELECT COUNT(*) AS n FROM produits WHERE collaborateur_id = $1', [req.cid])).rows[0].n;
+    await avecPlan(async () => PLANS.verifierLimite(etatPlan, nbDup));
+  }
   const r = await pool.query(
     `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
                            photo_principale, photos, variantes, statut, quantite_min, prix_revient)
@@ -1413,6 +1433,7 @@ const MAX_BLOGS = 200;
 // Add-ons payants : sans eux, ces sections sont fermées (le contenu déjà écrit est conservé).
 const exigerAddon = (code, nom) => h(async (req, res, next) => {
   if (!(await addonsMV.addonActifRapide(req.gid, code, pool))) bad(`L'option « ${nom} » n'est pas activée pour cette marketplace.`, 403);
+  if (!(await PLANS.collabAutorise(req.gid, req.cid, code, pool).catch(() => true))) bad(`L'option « ${nom} » n'est pas incluse dans votre plan.`, 403);
   next();
 });
 router.use('/faq', exigerAddon('faq_collab', 'FAQ collaborateurs'));
@@ -1557,6 +1578,7 @@ router.delete('/blogs/:id', h(async (req, res) => {
 }));
 
 // Rapport financier (ventes, taxes, commissions) — voir routes/rapport_collab.js
+router.use('/plans', require('./studio_plans_collab').collab);   // add-on « Plans collaborateurs » : Mon plan / choisir
 router.use('/', require('./rapport_collab'));
 
 module.exports = router;

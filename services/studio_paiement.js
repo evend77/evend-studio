@@ -306,7 +306,9 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       baseSousC = sousNetC - taxArtC; baseTaxesC = taxArtC;
     }
     const nbArticles = lignes.reduce((s2, l) => s2 + (parseInt(l.quantite, 10) || 0), 0);
-    const commission = commissionDe(mv, { sousTotal: baseSousC / 100, taxes: baseTaxesC / 100, expedition: fraisC / 100, nbArticles, total: (totalC - tipC) / 100 });
+    // Add-on « Plans collaborateurs » : si le système est actif, la commission du plan du collaborateur remplace celle de Config générale
+    const planCommission = await require('./studio_plans_collab').commissionDuPlan(gid, collaborateurId, pool).catch(() => null);
+    const commission = commissionDe(planCommission ? { ...mv, ...planCommission } : mv, { sousTotal: baseSousC / 100, taxes: baseTaxesC / 100, expedition: fraisC / 100, nbArticles, total: (totalC - tipC) / 100 });
     const commissionC = Math.min(cents(commission), totalC);
     // Taxes sur la commission : seulement si le gestionnaire l'a choisi (Config multi → Commission). Facturées au collaborateur
     // (prélevées avec la commission), jamais ajoutées au total de l'acheteur. Taux de la province du gestionnaire.

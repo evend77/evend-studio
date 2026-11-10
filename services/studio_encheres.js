@@ -55,6 +55,7 @@ const prochaineMise = (e) => (e.mise_actuelle === null || e.mise_actuelle === un
 async function creerEnchere({ gid, collaborateurId, produitId, prixDepart, prixReserve, dureeH }) {
   // Add-on « Enchères » : sans lui, on ne peut plus CRÉER d'enchère (celles déjà en cours vont jusqu'au bout : mises, fin, paiement du gagnant)
   if (!(await studioAddons.addonActifRapide(gid, 'encheres', pool))) refus("L'option « Enchères » n'est pas activée pour cette marketplace.", 403);
+  if (!(await require('./studio_plans_collab').collabAutorise(gid, collaborateurId, 'encheres', pool).catch(() => true))) refus("L'option « Enchères » n'est pas incluse dans votre plan.", 403);
   const cfg = await reglages(gid);
   if (!cfg.actives) refus("Les enchères ne sont pas activées sur cette boutique.", 403);
   if (await vacances.estMasque(pool, gid, collaborateurId)) refus("Vous êtes en vacances (annonces masquées) : vous ne pouvez pas créer de nouvelle enchère. Celles en cours se terminent normalement.", 409);

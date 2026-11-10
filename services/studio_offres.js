@@ -40,6 +40,7 @@ const actifPourBoutique = (gid) => addons.addonActifRapide(gid, CODE_ADDON, pool
 // Crée ou remplace l'offre d'un produit du collaborateur.
 async function enregistrerOffre({ gid, collaborateurId, produitId, prixOffre, debut, fin }) {
   if (!(await actifPourBoutique(gid))) refus("L'option « Offres du jour » n'est pas activée pour cette marketplace.", 403);
+  if (!(await require('./studio_plans_collab').collabAutorise(gid, collaborateurId, 'offres_du_jour', pool).catch(() => true))) refus("L'option « Offres du jour » n'est pas incluse dans votre plan.", 403);
   const cfg = await reglages(gid);
   const prix = arrondi(Number(prixOffre));
   if (!Number.isFinite(prix) || prix <= 0) refus("Le prix de l'offre est invalide.");

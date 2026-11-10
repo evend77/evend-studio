@@ -30,6 +30,7 @@ import CollaborateurRapportFinancier from './pages/collaborateur/CollaborateurRa
 import CollaborateurCommandeDetail from './pages/collaborateur/CollaborateurCommandeDetail';
 import CollaborateurEtiquettes from './pages/collaborateur/CollaborateurEtiquettes';
 import CollaborateurEbay from './pages/collaborateur/CollaborateurEbay';
+import CollaborateurMonPlan, { EtatPlan } from './pages/collaborateur/CollaborateurMonPlan';
 import BanniereDashboard from './templates/shared/BanniereDashboard';
 import { formaterPrix } from './templates/shared/devise';
 
@@ -230,11 +231,30 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const [offreProduitId, setOffreProduitId] = useState<number | null>(null);   // « 🔥 Offre du jour » depuis le menu ⋮ d'un produit
   const [offresAttente, setOffresAttente] = useState(0);   // offres de prix à répondre (add-on « Faire une offre »)
   const [questionsAttente, setQuestionsAttente] = useState(0);   // questions d'acheteurs sans réponse (add-on « Questions sur le produit »)   // avis qui attendent mon approbation
-  const [addonsMV, setAddonsMV] = useState<Record<string, boolean>>({});   // add-ons du gestionnaire (blog, FAQ, chat)
+  const [addonsBrut, setAddonsMV] = useState<Record<string, boolean>>({});   // add-ons de la boutique (blog, FAQ, chat…)
   useEffect(() => {
     if (!gestionnaireId) return;
     fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons?t=${Date.now()}`).then(r => r.json()).then(d => setAddonsMV(d || {})).catch(() => setAddonsMV({}));
   }, [gestionnaireId, pageActive]);
+  // Add-on « Plans collaborateurs » : le plan du collaborateur décide quelles fonctionnalités il voit (même si l'add-on est actif dans la boutique)
+  const [etatPlan, setEtatPlan] = useState<EtatPlan>({ systeme: false });
+  const [planCharge, setPlanCharge] = useState(false);
+  const chargerPlan = useCallback(async () => {
+    if (!gestionnaireId) return;
+    try {
+      const r = await fetch(`${API_BASE}/collab/${gestionnaireId}/plans/mon-plan`, { credentials: 'include' });
+      if (r.ok) setEtatPlan(await r.json());
+    } catch {}
+    setPlanCharge(true);
+  }, [gestionnaireId]);
+  useEffect(() => { chargerPlan(); }, [chargerPlan, pageActive]);
+  const CODES_PAR_PLAN = ['blog_collab', 'faq_collab', 'chat_collab', 'encheres', 'encheres_visibles', 'offres_du_jour', 'faire_une_offre', 'questions_produit', 'prix_paliers', 'parution_future', 'etiquette_shippo', 'etiquette_easypost', 'etiquette_postescanada', 'connecteur_ebay'];
+  const addonsMV: Record<string, boolean> = { ...addonsBrut };
+  if (etatPlan.systeme) {
+    const permis = new Set(etatPlan.addons || []);
+    for (const c of CODES_PAR_PLAN) { const base = c === 'encheres_visibles' ? 'encheres' : c; addonsMV[c] = !!addonsBrut[c] && permis.has(base); }
+  }
+  const planObligatoire = etatPlan.systeme && etatPlan.a_choisi === false;
   const [produitEnEdition, setProduitEnEdition] = useState<number | null>(null);
   const [commandeOuverte, setCommandeOuverte] = useState<number | null>(null);
 
@@ -409,6 +429,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
       sousMenu: [
         { id: 'profil-compte',  label: 'Mon compte',        icon: '👤' },
         { id: 'profil-boutique',label: 'Ma boutique',       icon: '🏪' },
+        ...(etatPlan.systeme ? [{ id: 'profil-plan', label: 'Mon plan', icon: '🧾' }] : []),
         { id: 'profil-avis',    label: 'Mes avis clients',  icon: '⭐', badge: avisAttente > 0 ? avisAttente : undefined },
         ...(addonsMV.blog_collab ? [{ id: 'profil-blogs',   label: 'Mes blogs',         icon: '📝' }] : []),
         ...(addonsMV.faq_collab ? [{ id: 'profil-faq',     label: 'Ma FAQ',            icon: '❓' }] : []),
@@ -428,6 +449,9 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   ];
 
   const renderPage = () => {
+    if (compte && etatPlan.systeme && (planObligatoire || pageActive === 'profil-plan'))
+      return <CollaborateurMonPlan gestionnaireId={gestionnaireId} accent={accent} isMobile={isMobile} etat={etatPlan} obligatoire={planObligatoire} onChange={chargerPlan} />;
+    if (pageActive === 'profil-plan') return null;
     if (pageActive === 'dashboard' && compte)
       return <VueDashboard compte={compte} stats={stats} loading={loading} isMobile={isMobile} naviguer={naviguer} accent={accent} />;
     if (!compte) return null;

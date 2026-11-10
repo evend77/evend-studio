@@ -255,7 +255,11 @@ async function placeRestante(gid, cid) {
   const n = +(await pool.query('SELECT COUNT(*)::int AS n FROM produits WHERE collaborateur_id = $1', [cid])).rows[0].n;
   let max = MAX_PRODUITS_COLLAB;
   const mv = await cfgMV.lire(gid, pool);
-  if (!cfgMV.actif(mv, 'utiliser_plans_vendeur', false)) {
+  const etatPlan = await require('./studio_plans_collab').etat(gid, cid, pool).catch(() => ({ systeme: false }));
+  if (etatPlan.systeme) {
+    if (etatPlan.bloque) return { max, restant: 0 };
+    if (etatPlan.plan && etatPlan.plan.limite_annonces != null) max = Math.min(max, etatPlan.plan.limite_annonces);
+  } else if (!cfgMV.actif(mv, 'utiliser_plans_vendeur', false)) {
     const m = parseInt(mv.max_produits, 10);
     if (Number.isFinite(m) && m > 0) max = Math.min(max, m);
   }

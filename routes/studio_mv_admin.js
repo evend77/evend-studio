@@ -58,6 +58,7 @@ function proprietaire(req, res, next) {
   next();
 }
 router.use(authenticateToken, proprietaire);
+router.use('/plans', require('./studio_plans_collab').gestionnaire);   // add-on « Plans collaborateurs »
 
 const entier = (v) => { const n = Number(v); return Number.isInteger(n) && n > 0 && n < 2147483647 ? n : null; };
 const page = (req) => { const p = parseInt(req.query.page, 10); return Number.isInteger(p) && p > 0 && p < 100000 ? p : 1; };
