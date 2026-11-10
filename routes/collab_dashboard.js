@@ -1134,8 +1134,7 @@ router.get('/profil', h(async (req, res) => {
     `SELECT id, nom_responsable, email, telephone, type_entreprise, nom_boutique, created_at,
             inscrit_taxes, numero_tps, numero_tvq
        FROM marketplace_collaborateurs WHERE id=$1 AND gestionnaire_id=$2`, [req.cid, req.gid]);
-  const compte = await pool.query('SELECT email, telephone FROM marketplace_collaborateurs WHERE id=$1 AND gestionnaire_id=$2', [req.cid, req.gid]);
-  res.json({ ...r.rows[0], acces, email_compte: compte.rows[0]?.email || '', telephone_compte: compte.rows[0]?.telephone || '' });
+  res.json(r.rows[0] || {});
 }));
 
 router.put('/profil', h(async (req, res) => {
