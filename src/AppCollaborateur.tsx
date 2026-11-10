@@ -221,10 +221,11 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   // Retour d'eBay (?ebay=ok|refuse|erreur) : on ouvre la page Connecteur eBay.
   const retourEbay = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('ebay');
 
-  const [pageActive, setPageActive]   = useState(retourStripe ? 'config-stripe' : retourEbay ? 'config-ebay' : 'dashboard');
+  const retourPlan = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('plan');   // retour du paiement d'un plan
+  const [pageActive, setPageActive]   = useState(retourStripe ? 'config-stripe' : retourEbay ? 'config-ebay' : retourPlan ? 'profil-plan' : 'dashboard');
   const [isMobile,   setIsMobile]     = useState(false);
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
-  const [menuOuvert, setMenuOuvert]   = useState<string | null>(retourStripe || retourEbay ? 'configuration' : null);
+  const [menuOuvert, setMenuOuvert]   = useState<string | null>(retourStripe || retourEbay ? 'configuration' : retourPlan ? 'profil' : null);
   const [heure,      setHeure]        = useState(new Date());
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
   const [avisAttente, setAvisAttente] = useState(0);
@@ -247,6 +248,15 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     } catch {}
     setPlanCharge(true);
   }, [gestionnaireId]);
+  // Retour du paiement de l'abonnement (?plan=succes&session_id=…) : on le confirme auprès du serveur, puis on nettoie l'URL
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const sid = q.get('session_id');
+    if (q.get('plan') !== 'succes' || !sid || !gestionnaireId) return;
+    fetch(`${API_BASE}/collab/${gestionnaireId}/plans/confirmer`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sid }) })
+      .then(() => chargerPlan()).catch(() => {});
+    try { ['plan', 'session_id'].forEach(k => q.delete(k)); window.history.replaceState({}, '', `${window.location.pathname}?${q.toString()}`); } catch {}
+  }, [gestionnaireId, chargerPlan]);
   useEffect(() => { chargerPlan(); }, [chargerPlan, pageActive]);
   const CODES_PAR_PLAN = ['blog_collab', 'faq_collab', 'chat_collab', 'encheres', 'encheres_visibles', 'offres_du_jour', 'faire_une_offre', 'questions_produit', 'prix_paliers', 'parution_future', 'etiquette_shippo', 'etiquette_easypost', 'etiquette_postescanada', 'connecteur_ebay'];
   const addonsMV: Record<string, boolean> = { ...addonsBrut };

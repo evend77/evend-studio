@@ -15,6 +15,7 @@ export interface EtatPlan {
   systeme: boolean; a_choisi?: boolean; bloque?: boolean; raison?: string | null; grace_restante?: number | null;
   plan?: PlanCollab | null; utilise?: number; limite?: number | null; addons?: string[];
   plans?: PlanCollab[]; addons_noms?: { code: string; nom: string; emoji: string }[]; paiement_en_ligne?: boolean;
+  taxes_ajoutees?: boolean; prix_factures?: Record<string, number>; abonne?: boolean; annule?: boolean; fin_periode?: string | null; plan_suivant?: { id: number; nom: string; emoji: string } | null;
 }
 
 const $$ = (n: number) => `${Number(n).toFixed(2)} $`;
@@ -32,14 +33,25 @@ const CollaborateurMonPlan: React.FC<Props> = ({ gestionnaireId, accent, isMobil
     if (!window.confirm(`Choisir le plan « ${p.nom} » ?`)) return;
     setOccupe(p.id); setErreur(''); setMessage('');
     try {
-      const r = await fetch(`${API_BASE}/collab/${gestionnaireId}/plans/choisir`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan_id: p.id }) });
+      const r = await fetch(`${API_BASE}/collab/${gestionnaireId}/plans/choisir`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan_id: p.id, retour: window.location.href }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'Erreur');
-      setMessage('Plan enregistré.'); onChange();
+      if (j.url) { window.location.href = j.url; return; }   // paiement chez Stripe
+      setMessage(j.message || 'Plan enregistré.'); onChange();
     } catch (e: any) { setErreur(e.message || 'Erreur'); }
     finally { setOccupe(null); }
   };
 
+  const portail = async () => {
+    setOccupe(-1); setErreur('');
+    try {
+      const r = await fetch(`${API_BASE}/collab/${gestionnaireId}/plans/portail`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ retour: window.location.href }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Erreur');
+      window.location.href = j.url;
+    } catch (e: any) { setErreur(e.message || 'Erreur'); setOccupe(null); }
+  };
+  const prixDe = (p: PlanCollab) => { const v = etat.prix_factures && etat.prix_factures[String(p.id)]; return v ? v : p.prix_mensuel; };
   const plans = etat.plans || [];
   const nomAddon = (c: string) => { const a = (etat.addons_noms || []).find((x) => x.code === c); return a ? `${a.emoji} ${a.nom}` : c; };
   const cible = etat.plan;
@@ -70,6 +82,12 @@ const CollaborateurMonPlan: React.FC<Props> = ({ gestionnaireId, accent, isMobil
               <div style={{ width: `${Math.min(100, ((etat.utilise ?? 0) / cible.limite_annonces) * 100)}%`, height: '100%', background: (etat.utilise ?? 0) >= cible.limite_annonces ? '#ef4444' : accent }} />
             </div>
           )}
+          {etat.abonne && (
+            <div style={{ fontSize: 13, color: '#555', marginTop: 10, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span>{etat.annule ? '⏳ Abonnement annulé' : '🔄 Abonnement mensuel actif'}{etat.fin_periode ? ` — ${etat.annule ? 'se termine' : 'prochain renouvellement'} le ${new Date(etat.fin_periode).toLocaleDateString('fr-CA')}` : ''}{etat.plan_suivant ? `, puis plan ${etat.plan_suivant.emoji} ${etat.plan_suivant.nom}` : ''}</span>
+              <button onClick={portail} disabled={occupe !== null} style={{ padding: '6px 12px', border: `1px solid ${accent}`, background: '#fff', color: accent, borderRadius: 8, fontWeight: 700, fontSize: 12, cursor: 'pointer' }}>💳 Carte et factures</button>
+            </div>
+          )}
           <div style={{ fontSize: 13, color: '#666', marginTop: 10 }}>{cible.addons.length ? cible.addons.map(nomAddon).join(' · ') : 'Aucune fonctionnalité supplémentaire'}</div>
         </div>
       )}
@@ -81,7 +99,7 @@ const CollaborateurMonPlan: React.FC<Props> = ({ gestionnaireId, accent, isMobil
           <div key={p.id} style={{ background: '#fff', border: '1px solid #e1e4e8', borderRadius: 12, padding: 16, display: 'flex', flexDirection: 'column' }}>
             <div style={{ fontSize: 28 }}>{p.emoji}</div>
             <div style={{ fontWeight: 800, fontSize: 17 }}>{p.nom}</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: accent, margin: '4px 0' }}>{p.prix_mensuel > 0 ? `${$$(p.prix_mensuel)}/mois` : 'Gratuit'}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: accent, margin: '4px 0' }}>{p.prix_mensuel > 0 ? `${$$(prixDe(p))}/mois` : 'Gratuit'}{p.prix_mensuel > 0 && etat.taxes_ajoutees ? <span style={{ fontSize: 11, color: '#888', fontWeight: 600 }}> taxes incluses</span> : null}</div>
             {p.description && <div style={{ fontSize: 13, color: '#666', marginBottom: 8 }}>{p.description}</div>}
             <ul style={{ margin: '0 0 12px', paddingLeft: 18, fontSize: 13, color: '#444', flex: 1 }}>
               <li>{p.limite_annonces == null ? 'Annonces illimitées' : `${p.limite_annonces} annonces`}</li>
@@ -89,9 +107,9 @@ const CollaborateurMonPlan: React.FC<Props> = ({ gestionnaireId, accent, isMobil
               {p.addons.map((c) => <li key={c}>{nomAddon(c)}</li>)}
             </ul>
             {p.prix_mensuel > 0 && !etat.paiement_en_ligne
-              ? <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', borderRadius: 8, padding: 8 }}>Plan payant : l'abonnement en ligne arrive bientôt. Contactez le gestionnaire pour l'obtenir.</div>
+              ? <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', borderRadius: 8, padding: 8 }}>Plan payant : les paiements de cette marketplace ne sont pas encore configurés. Contactez le gestionnaire.</div>
               : <button disabled={occupe !== null} onClick={() => choisir(p)} style={{ padding: '10px', border: 'none', borderRadius: 8, background: accent, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, opacity: occupe !== null ? 0.6 : 1 }}>
-                  {occupe === p.id ? '…' : 'Choisir ce plan'}
+                  {occupe === p.id ? '…' : p.prix_mensuel > 0 ? 'S\'abonner' : 'Choisir ce plan'}
                 </button>}
           </div>
         ))}

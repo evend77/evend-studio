@@ -18,6 +18,8 @@ const express = require('express');
 const pool = require('../db');
 const P = require('../services/studio_plans_collab');
 const addons = require('../services/studio_addons');
+const S = require('../services/studio_plans_stripe');
+const paiement = require('../services/studio_paiement');
 
 class Invalide extends Error { constructor(m, s) { super(m); this.status = s || 400; } }
 const bad = (m, s) => { throw new Invalide(m, s); };
@@ -47,7 +49,7 @@ gestionnaire.get('/', h(async (req, res) => {
   const dispo = [];
   for (const a of P.ADDONS_PAR_PLAN) dispo.push({ ...a, actif: await addons.addonActifRapide(gid, a.code, pool) });
   const col = await pool.query(
-    `SELECT c.id, c.nom_boutique, c.nom_responsable, c.email, c.statut, c.plan_id, c.plan_depuis, c.plan_statut,
+    `SELECT c.id, c.nom_boutique, c.nom_responsable, c.email, c.statut, c.plan_id, c.plan_depuis, c.plan_statut, (c.stripe_subscription_id IS NOT NULL) AS abonne, c.plan_annule,
             (SELECT COUNT(*)::int FROM produits p WHERE p.collaborateur_id = c.id AND p.gestionnaire_id = c.gestionnaire_id) AS nb_annonces
        FROM marketplace_collaborateurs c WHERE c.gestionnaire_id = $1 ORDER BY c.nom_boutique`, [gid]);
   const parPlan = {};
@@ -56,7 +58,7 @@ gestionnaire.get('/', h(async (req, res) => {
     const valide = c.plan_id && ids.has(c.plan_id);
     if (valide) parPlan[c.plan_id] = (parPlan[c.plan_id] || 0) + 1;
     return { id: c.id, nom_boutique: c.nom_boutique, nom_responsable: c.nom_responsable, email: c.email, statut: c.statut,
-             plan_id: valide ? c.plan_id : null, plan_statut: c.plan_statut, nb_annonces: c.nb_annonces };
+             plan_id: valide ? c.plan_id : null, plan_statut: c.plan_statut, abonne: c.abonne === true, plan_annule: c.plan_annule === true, nb_annonces: c.nb_annonces };
   });
   res.json({
     addon_actif: true, config,
@@ -155,8 +157,9 @@ gestionnaire.put('/collaborateurs/:id', h(async (req, res) => {
     plan = pid ? await P.lirePlan(req.gid, pid, pool) : null;
     if (!plan) bad('Plan introuvable', 404);
   }
-  const ex = await pool.query('SELECT id FROM marketplace_collaborateurs WHERE id = $1 AND gestionnaire_id = $2', [cid, req.gid]);
+  const ex = await pool.query('SELECT id, stripe_subscription_id FROM marketplace_collaborateurs WHERE id = $1 AND gestionnaire_id = $2', [cid, req.gid]);
   if (!ex.rows.length) bad('Collaborateur introuvable', 404);
+  if (ex.rows[0].stripe_subscription_id) bad("Ce collaborateur a un abonnement actif : il doit changer de plan lui-même (Mon profil → Mon plan), ou annuler son abonnement avant que vous lui en attribuiez un autre.", 409);
   const r = await poserPlan(req.gid, cid, plan, b.forcer === true);
   if (!r.ok) bad(`Ce collaborateur a ${r.nb} annonces, plus que la limite du plan « ${plan.nom} » (${plan.limite_annonces}). Ses annonces resteraient en ligne, mais il ne pourrait plus en créer. Confirmez pour forcer.`, 409);
   res.json({ success: true });
@@ -181,16 +184,39 @@ gestionnaire.post('/assigner-tous', h(async (req, res) => {
 // ═════════════════════════ COLLABORATEUR ═════════════════════════════════════
 const collab = express.Router({ mergeParams: true });
 
+const urlRetour = (req) => {
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol).split(',')[0].trim();
+  const hote = String(req.headers['x-forwarded-host'] || req.get('host')).split(',')[0].trim();
+  let u = null;
+  try { u = new URL(String((req.body && req.body.retour) || '')); } catch (e) { u = null; }
+  if (!u || u.host !== hote) u = new URL(`${proto}://${hote}/`);
+  u.search = '';
+  return u.toString();
+};
+
 collab.get('/mon-plan', h(async (req, res) => {
+  if (!(await P.systemeActif(req.gid, pool))) return res.json({ systeme: false });
+  // Relit Stripe (abonnement) : paiement jamais revenu, ou état à jour
+  const pend = (await pool.query('SELECT plan_session_id FROM marketplace_collaborateurs WHERE id = $1', [req.cid])).rows[0];
+  if (pend && pend.plan_session_id) { try { await S.confirmer(req.gid, req.cid, null); } catch (e) { /* pas encore payé */ } }
+  await S.synchroniser(req.gid, req.cid, { force: req.query.maj === '1' });
   const e = await P.etat(req.gid, req.cid, pool);
-  if (!e.systeme) return res.json({ systeme: false });
   const tous = await P.listerPlans(req.gid, { actifsSeulement: true, db: pool });
   const proposes = tous.filter((p) => p.visible || (e.plan && p.id === e.plan.id));
+  const ab = (await pool.query('SELECT stripe_subscription_id, plan_annule, plan_fin_periode, plan_suivant_id FROM marketplace_collaborateurs WHERE id = $1', [req.cid])).rows[0] || {};
+  const cfg = await P.reglages(req.gid, pool);
+  let enLigne = false;
+  try { enLigne = !!(await paiement.contexteStripe(req.gid)); } catch (x) { enLigne = false; }
+  const suivant = ab.plan_suivant_id ? await P.lirePlan(req.gid, ab.plan_suivant_id, pool) : null;
+  const prix = {};
+  for (const p of proposes) { if (p.prix_mensuel > 0) prix[p.id] = (await S.montantMensuel(req.gid, p)).cents / 100; }
   res.json({
     systeme: true, a_choisi: e.a_choisi, bloque: e.bloque, raison: e.raison, grace_restante: e.grace_restante == null ? null : e.grace_restante,
     plan: e.plan, utilise: e.utilise, limite: e.limite, addons: [...e.addons],
     plans: proposes, addons_noms: P.ADDONS_PAR_PLAN,
-    paiement_en_ligne: false,   // Phase 2 : abonnement Stripe. D'ici là, seuls les plans gratuits se choisissent seuls.
+    paiement_en_ligne: enLigne, taxes_ajoutees: cfg.taxes_ajoutees, prix_factures: prix,
+    abonne: !!ab.stripe_subscription_id, annule: ab.plan_annule === true, fin_periode: ab.plan_fin_periode || null,
+    plan_suivant: suivant ? { id: suivant.id, nom: suivant.nom, emoji: suivant.emoji } : null,
   });
 }));
 
@@ -198,16 +224,33 @@ collab.post('/choisir', h(async (req, res) => {
   if (!(await P.systemeActif(req.gid, pool))) bad("Les plans ne sont pas utilisés sur cette marketplace.", 409);
   const pid = entier(req.body && req.body.plan_id);
   const plan = pid ? await P.lirePlan(req.gid, pid, pool) : null;
-  const actuel = (await pool.query('SELECT plan_id FROM marketplace_collaborateurs WHERE id = $1 AND gestionnaire_id = $2', [req.cid, req.gid])).rows[0];
+  const actuel = (await pool.query('SELECT plan_id, stripe_subscription_id FROM marketplace_collaborateurs WHERE id = $1 AND gestionnaire_id = $2', [req.cid, req.gid])).rows[0];
   if (!plan || !plan.actif || (!plan.visible && actuel.plan_id !== plan.id)) bad('Plan introuvable', 404);
   if (actuel.plan_id === plan.id) return res.json({ success: true });
-  if (plan.prix_mensuel > 0) bad("Ce plan est payant : l'abonnement en ligne n'est pas encore disponible. Contactez le gestionnaire pour qu'il vous l'attribue.", 402);
   const n = +(await pool.query('SELECT COUNT(*) AS n FROM produits WHERE collaborateur_id = $1 AND gestionnaire_id = $2', [req.cid, req.gid])).rows[0].n;
   if (plan.limite_annonces != null && n > plan.limite_annonces) {
     bad(`Vous avez ${n} annonces, plus que la limite de ce plan (${plan.limite_annonces}). Supprimez ${n - plan.limite_annonces} annonce${n - plan.limite_annonces > 1 ? 's' : ''} pour le choisir.`, 409);
   }
+  if (plan.prix_mensuel > 0) {          // plan payant : Stripe Checkout (ou changement de prix d'un abonnement existant)
+    if (!plan.visible) bad("Ce plan vous est offert par le gestionnaire : contactez-le pour l'activer.", 402);
+    const r = await S.abonner(req.gid, req.cid, plan, urlRetour(req));
+    return res.json({ success: true, ...r });
+  }
+  if (actuel.stripe_subscription_id) {  // abonné à un plan payant → gratuit : à la fin de la période déjà payée
+    const r = await S.versGratuit(req.gid, req.cid, plan);
+    if (!r.immediat) return res.json({ success: true, differe: true, message: `Votre plan actuel reste actif jusqu'à la fin de la période payée, puis vous passerez au plan « ${plan.nom} ».` });
+  }
   await poserPlan(req.gid, req.cid, plan, true);
   res.json({ success: true });
+}));
+
+collab.post('/confirmer', h(async (req, res) => {
+  const ok = await S.confirmer(req.gid, req.cid, String((req.body && req.body.session_id) || '') || null);
+  res.json({ success: ok });
+}));
+
+collab.post('/portail', h(async (req, res) => {
+  res.json(await S.portail(req.gid, req.cid, urlRetour(req)));
 }));
 
 module.exports = { gestionnaire, collab };

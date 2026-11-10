@@ -154,6 +154,8 @@ async function etat(gid, cid, db) {
 
 /** Bloque (403) la création/modification d'annonces si le collaborateur doit choisir un plan ou est impayé. */
 async function exigerDroitEcriture(gid, cid, db) {
+  // Abonnement Stripe : relu au plus une fois par heure (jamais d'erreur ici)
+  try { if (await systemeActif(gid, db)) await require('./studio_plans_stripe').synchroniser(gid, cid); } catch (e) { /* ignoré */ }
   const e = await etat(gid, cid, db);
   if (!e.systeme || !e.bloque) return e;
   if (e.raison === 'choisir_plan') throw new ErreurPlan('Choisissez d\'abord un plan (menu Mon profil → Mon plan) pour créer ou modifier des annonces.', 403);

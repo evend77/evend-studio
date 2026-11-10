@@ -14,7 +14,7 @@ interface Plan {
   visible: boolean; actif: boolean; nb_collaborateurs?: number;
 }
 interface AddonDispo { code: string; nom: string; emoji: string; actif: boolean }
-interface Collab { id: number; nom_boutique: string; nom_responsable: string; email: string; statut: string; plan_id: number | null; plan_statut: string; nb_annonces: number }
+interface Collab { id: number; nom_boutique: string; nom_responsable: string; email: string; statut: string; plan_id: number | null; plan_statut: string; abonne?: boolean; plan_annule?: boolean; nb_annonces: number }
 interface Config { actif: boolean; jours_grace: number; action_impaye: 'bloquer' | 'bloquer_masquer'; taxes_ajoutees: boolean }
 interface Reponse { addon_actif: boolean; config?: Config; plans?: Plan[]; addons_disponibles?: AddonDispo[]; collaborateurs?: Collab[]; sans_plan?: number }
 
@@ -183,8 +183,9 @@ const StudioMVPlansCollab: React.FC<{ gestionnaireId: number }> = ({ gestionnair
                 <div style={{ fontSize: 12, color: C.textLight }}>{c.email} · 📦 {c.nb_annonces} annonce{c.nb_annonces > 1 ? 's' : ''}{c.statut !== 'actif' ? ` · ${c.statut}` : ''}</div>
               </div>
               {!c.plan_id && <span style={{ fontSize: 11, background: '#fffbeb', color: '#92400e', padding: '2px 8px', borderRadius: 10 }}>Sans plan</span>}
+              {c.abonne && <span style={{ fontSize: 11, background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: 10 }}>{c.plan_annule ? '🔄 Abonnement annulé' : '🔄 Abonné'}</span>}
               {c.plan_statut === 'impaye' && <span style={{ fontSize: 11, background: '#fef2f2', color: '#991b1b', padding: '2px 8px', borderRadius: 10 }}>Impayé</span>}
-              <select style={{ ...champ, width: 220 }} disabled={occupe} value={c.plan_id || ''} onChange={(e) => assigner(c, e.target.value)}>
+              <select style={{ ...champ, width: 220 }} disabled={occupe || !!c.abonne} title={c.abonne ? 'Abonnement actif : le collaborateur change de plan lui-même' : ''} value={c.plan_id || ''} onChange={(e) => assigner(c, e.target.value)}>
                 <option value="">— Aucun plan —</option>
                 {plans.filter((p) => p.actif || p.id === c.plan_id).map((p) => <option key={p.id} value={p.id}>{p.emoji} {p.nom}{!p.visible ? ' (caché)' : ''}</option>)}
               </select>
@@ -197,7 +198,7 @@ const StudioMVPlansCollab: React.FC<{ gestionnaireId: number }> = ({ gestionnair
       {onglet === 'config' && (
         <div style={carte}>
           <h3 style={{ marginTop: 0 }}>⚙️ Config plans</h3>
-          <p style={{ fontSize: 13, color: C.textLight, marginTop: 0 }}>Ce que vous décidez quand un collaborateur ne paie pas son plan (abonnement en ligne : prochaine étape).</p>
+          <p style={{ fontSize: 13, color: C.textLight, marginTop: 0 }}>Les plans payants sont facturés chaque mois par Stripe, sur votre compte Stripe. Ce que vous décidez quand un collaborateur ne paie pas son plan (abonnement mensuel Stripe).</p>
           <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '10px 0 4px' }}>Jours de grâce après un paiement échoué</label>
           <input type="number" min={0} max={90} style={{ ...champ, width: 120 }} value={cfg.jours_grace} onChange={(e) => setCfg({ ...cfg, jours_grace: Number(e.target.value) })} />
           <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '14px 0 4px' }}>Après les jours de grâce</label>
@@ -207,7 +208,7 @@ const StudioMVPlansCollab: React.FC<{ gestionnaireId: number }> = ({ gestionnair
           </select>
           <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, margin: '14px 0' }}>
             <input type="checkbox" checked={cfg.taxes_ajoutees} onChange={(e) => setCfg({ ...cfg, taxes_ajoutees: e.target.checked })} />
-            Ajouter les taxes au prix des plans (utilisé avec l'abonnement en ligne)
+            Ajouter les taxes au prix des plans (TPS/TVQ… selon la province réglée dans Config multi → Commission)
           </label>
           <button style={bouton(C.green)} disabled={occupe} onClick={() => agir('/config', 'PUT', { jours_grace: cfg.jours_grace, action_impaye: cfg.action_impaye, taxes_ajoutees: cfg.taxes_ajoutees }, 'Réglages enregistrés.')}>💾 Enregistrer</button>
         </div>

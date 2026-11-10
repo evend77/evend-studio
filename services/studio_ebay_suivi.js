@@ -181,6 +181,9 @@ async function prochainSuivi() {
   await pool.query(`UPDATE ebay_connexions SET prochain_suivi = NOW() + interval '15 minutes' WHERE collaborateur_id = $1`, [c.collaborateur_id]);
   try { if (!(await addons.addonActifRapide(c.gestionnaire_id, 'connecteur_ebay', pool))) return true; }
   catch (e) { return true; }
+  // Add-on « Plans collaborateurs » : eBay absent du plan du collaborateur → le suivi est suspendu (la connexion est gardée, il repart si le plan l'inclut)
+  try { if (!(await require('./studio_plans_collab').collabAutorise(c.gestionnaire_id, c.collaborateur_id, 'connecteur_ebay', pool))) return true; }
+  catch (e) { /* plans indisponibles : comportement d'avant */ }
   await suivreUne(c);
   return true;
 }

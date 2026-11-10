@@ -20,7 +20,11 @@ const VAC_ACTIF = `(cvac.vacances IS TRUE
   AND COALESCE((SELECT st.config->'multivendeur'->>'vacances_vendeur' FROM sites st WHERE st.gestionnaire_id = mc.gestionnaire_id LIMIT 1), '') = 'true'
   AND (cvac.vacances_debut IS NULL OR cvac.vacances_debut <= ${AUJOURDHUI})
   AND (cvac.vacances_retour IS NULL OR cvac.vacances_retour > ${AUJOURDHUI}))`;
-const VAC_MASQUE = `(${VAC_ACTIF} AND COALESCE(cvac.vacances_mode, 'visible') = 'masque')`;
+// Add-on « Plans collaborateurs » : plan impayé depuis plus longtemps que les jours de grâce ET le gestionnaire a choisi « bloquer et masquer »
+const PLAN_MASQUE = `EXISTS (SELECT 1 FROM mv_plans_config pcf WHERE pcf.gestionnaire_id = mc.gestionnaire_id AND pcf.actif IS TRUE
+  AND pcf.action_impaye = 'bloquer_masquer' AND mc.plan_statut = 'impaye' AND mc.plan_impaye_depuis IS NOT NULL
+  AND mc.plan_impaye_depuis + (pcf.jours_grace * INTERVAL '1 day') <= NOW())`;
+const VAC_MASQUE = `((${VAC_ACTIF} AND COALESCE(cvac.vacances_mode, 'visible') = 'masque') OR ${PLAN_MASQUE})`;
 const VAC_COLS = `${VAC_ACTIF} AS vac_actif, COALESCE(cvac.vacances_mode, 'visible') AS vac_mode, cvac.vacances_message AS vac_message, cvac.vacances_retour::text AS vac_retour`;
 
 // Ligne SQL (colonnes VAC_COLS) → objet public, ou null
