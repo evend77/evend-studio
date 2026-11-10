@@ -232,11 +232,29 @@ async function colsSource() {
   return _colsSource;
 }
 
-router.get('/produits', h(async (req, res) => {
-  const cs = await colsSource();
-  const exprSource = cs.ebay || cs.etsy
+function exprSourceDe(cs) {
+  return cs.ebay || cs.etsy
     ? `CASE ${cs.ebay ? `WHEN ${cs.ebay} IS NOT NULL THEN 'ebay' ` : ''}${cs.etsy ? `WHEN ${cs.etsy} IS NOT NULL THEN 'etsy' ` : ''}ELSE 'studio' END`
     : `'studio'`;
+}
+
+// Identifiants de TOUTES les annonces qui correspondent aux filtres (pour « Sélectionner toutes les annonces »)
+router.get('/produits-ids', h(async (req, res) => {
+  const exprSource = exprSourceDe(await colsSource());
+  const where = ['collaborateur_id = $1', 'gestionnaire_id = $2'];
+  const params = [req.cid, req.gid];
+  const m = motif(req.query.q);
+  if (m) { params.push(m); where.push(`(titre ILIKE $${params.length} OR sku ILIKE $${params.length})`); }
+  if (STATUTS_FILTRE.includes(req.query.statut)) { params.push(req.query.statut); where.push(`statut = $${params.length}`); }
+  if (req.query.stock === 'rupture') where.push('stock = 0');
+  if (['studio', 'ebay', 'etsy'].includes(req.query.source)) { params.push(req.query.source); where.push(`(${exprSource}) = $${params.length}`); }
+  const r = await pool.query(`SELECT id FROM produits WHERE ${where.join(' AND ')} ORDER BY created_at DESC, id DESC LIMIT 1000`, params);
+  res.json({ ids: r.rows.map(x => x.id) });
+}));
+
+router.get('/produits', h(async (req, res) => {
+  const cs = await colsSource();
+  const exprSource = exprSourceDe(cs);
   const where = ['collaborateur_id = $1', 'gestionnaire_id = $2'];
   const params = [req.cid, req.gid];
   const m = motif(req.query.q);
@@ -260,7 +278,34 @@ router.get('/produits', h(async (req, res) => {
   ]);
   const n = parseInt(total.rows[0].n, 10);
   const s = stats.rows[0];
+  // Add-on « Outils avancés d'annonces » : vues (compteur anonyme), paniers (acheteurs qui l'ont dans leur panier), ventes (unités payées)
+  let statsAnnonces = false;
+  try { statsAnnonces = await addonPourCollab(req, 'outils_annonces'); } catch (e) { statsAnnonces = false; }
+  if (statsAnnonces && liste.rows.length) {
+    const ids = liste.rows.map(r => r.id);
+    const pan = {}, ven = {};
+    try {
+      const r = await pool.query(`SELECT produit_id, COUNT(DISTINCT acheteur_id) AS n FROM marketplace_panier WHERE gestionnaire_id = $1 AND produit_id = ANY($2::int[]) GROUP BY produit_id`, [req.gid, ids]);
+      r.rows.forEach(x => { pan[x.produit_id] = +x.n; });
+    } catch (e) { /* paniers indisponibles : on affiche 0 */ }
+    try {
+      const r = await pool.query(
+        `SELECT (a->>'produit_id')::int AS pid, SUM(GREATEST(1, COALESCE(NULLIF(a->>'quantite','')::numeric, 1)))::int AS n
+           FROM marketplace_commandes c, jsonb_array_elements(c.articles::text::jsonb) a
+          WHERE c.collaborateur_id = $1 AND c.gestionnaire_id = $2 AND c.statut_paiement = 'paye' AND c.statut <> 'annulee'
+            AND jsonb_typeof(c.articles::text::jsonb) = 'array' AND (a->>'produit_id') ~ '^[0-9]+$' AND (a->>'produit_id')::int = ANY($3::int[])
+          GROUP BY 1`, [req.cid, req.gid, ids]);
+      r.rows.forEach(x => { ven[x.pid] = +x.n; });
+    } catch (e) { /* ventes indisponibles : on affiche 0 */ }
+    let vues = {};
+    try {
+      const r = await pool.query('SELECT id, vues FROM produits WHERE id = ANY($1::int[])', [ids]);
+      r.rows.forEach(x => { vues[x.id] = +x.vues || 0; });
+    } catch (e) { vues = {}; }
+    liste.rows.forEach(r => { r.vues = vues[r.id] || 0; r.paniers = pan[r.id] || 0; r.ventes = ven[r.id] || 0; });
+  }
   res.json({
+    outils_annonces: statsAnnonces,
     produits: liste.rows, total: n, page, pages: Math.max(1, Math.ceil(n / PAR_PAGE)),
     stats: { total: +s.total, actifs: +s.actifs, brouillons: +s.brouillons, en_attente: +s.en_attente, ruptures: +s.ruptures },
   });
@@ -545,6 +590,119 @@ router.delete('/produits/:id', h(async (req, res) => {
   const r = await pool.query(`DELETE FROM produits WHERE id=$1 AND collaborateur_id=$2 AND gestionnaire_id=$3`, [id, req.cid, req.gid]);
   if (!r.rowCount) bad('Produit introuvable', 404);
   res.json({ success: true });
+}));
+
+// Modification groupée (add-on « Outils avancés d'annonces ») : mêmes valeurs appliquées à plusieurs annonces du collaborateur.
+router.patch('/produits/bulk/champs', h(async (req, res) => {
+  await avecPlan(() => PLANS.exigerDroitEcriture(req.gid, req.cid, pool));
+  if (!(await addonPourCollab(req, 'outils_annonces'))) bad("L'option « Outils avancés d'annonces » n'est pas activée pour votre compte.", 403);
+  const b = req.body || {};
+  const demandes = Array.isArray(b.ids) ? [...new Set(b.ids.map(entier).filter(Boolean))].slice(0, 500) : [];
+  if (!demandes.length) bad('Aucune annonce sélectionnée');
+  const c = b.champs && typeof b.champs === 'object' ? b.champs : {};
+  const a = (k) => Object.prototype.hasOwnProperty.call(c, k);
+  const rg = await regles.lire(req.gid, pool);
+  const mes = await pool.query('SELECT id, statut, prix, prix_promo, date_parution FROM produits WHERE id = ANY($1::int[]) AND collaborateur_id = $2 AND gestionnaire_id = $3', [demandes, req.cid, req.gid]);
+  if (!mes.rowCount) bad('Annonces introuvables', 404);
+  const ids = mes.rows.map(x => x.id);
+  const ignores = [];
+  const sets = []; const vals = [];
+  const poser = (col, v, cast) => { vals.push(v); sets.push(`${col} = $${vals.length}${cast || ''}`); };
+
+  // Prix
+  let prix = null, prixPromo;
+  if (a('prix')) {
+    prix = nombre(c.prix, 'Prix', 0, 1000000);
+    const msg = regles.erreurPrix(rg, prix, 'Prix'); if (msg) bad(msg);
+    poser('prix', prix);
+  }
+  if (a('prix_promo')) {
+    prixPromo = nombre(c.prix_promo, 'Prix promo', 0, 1000000, null);
+    if (prixPromo !== null && prixPromo > 0) { const msg = regles.erreurPrix(rg, prixPromo, 'Prix promo'); if (msg) bad(msg); }
+    poser('prix_promo', prixPromo);
+  }
+  // Cohérence prix / prix promo sur chaque annonce choisie
+  if (a('prix') || a('prix_promo')) {
+    const incoh = mes.rows.filter(x => {
+      const nouveauPrix = a('prix') ? prix : Number(x.prix);
+      const nouvPromo = a('prix_promo') ? prixPromo : (x.prix_promo === null ? null : Number(x.prix_promo));
+      return nouvPromo !== null && nouvPromo >= nouveauPrix;
+    });
+    if (incoh.length) bad(`Le prix promo doit être inférieur au prix (${incoh.length} annonce${incoh.length > 1 ? 's ne le respectent' : ' ne le respecte'} pas). Modifiez aussi le prix promo, ou retirez-le.`);
+  }
+  if (a('prix_revient')) {
+    if (rg.prixRevient) poser('prix_revient', nombre(c.prix_revient, 'Prix de revient', 0, 1000000, null));
+    else ignores.push('prix_revient');
+  }
+  // Stock (1 unité reste réservée aux enchères en cours)
+  let stockVal; 
+  if (a('stock')) {
+    stockVal = c.stock === '' || c.stock === null ? null : Math.trunc(nombre(c.stock, 'Stock', 0, 1000000));
+  }
+  if (a('quantite_min')) {
+    if (rg.qteMinActive) {
+      let q = c.quantite_min === '' || c.quantite_min === null ? null : Math.trunc(Number(c.quantite_min));
+      if (q !== null && (!Number.isFinite(q) || q < 1 || q > 9999)) bad('Quantité minimum invalide (entre 1 et 9 999)');
+      if (q === 1) q = null;
+      poser('quantite_min', q);
+    } else ignores.push('quantite_min');
+  }
+  if (a('poids')) {
+    let p = null;
+    if (c.poids !== '' && c.poids !== null) { p = Number(c.poids); if (!Number.isFinite(p) || p < 0 || p > 10000) bad('Poids invalide (entre 0 et 10 000 kg)'); p = Math.round(p * 1000) / 1000; }
+    poser('poids', p);
+  }
+  if (a('categorie_id')) {
+    if (c.categorie_id === null || c.categorie_id === '') { poser('categorie_id', null); poser('categorie', null); }
+    else { const cid = entier(c.categorie_id); if (!cid) bad('Catégorie invalide'); const nom = await nomCategorie(req, cid); poser('categorie_id', cid); poser('categorie', nom); }
+  }
+  if (a('date_expiration')) {
+    if (c.date_expiration === null || c.date_expiration === '') poser('date_expiration', null);
+    else {
+      const d = String(c.date_expiration).trim();
+      if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(d)) bad("Date d'expiration invalide");
+      const ok = await pool.query(`SELECT (($1::timestamp AT TIME ZONE 'America/Toronto') > NOW() + INTERVAL '30 minutes') AS ok`, [d]);
+      if (!ok.rows[0].ok) bad("La date d'expiration doit être dans au moins 30 minutes.");
+      poser('date_expiration', d, " ::timestamp AT TIME ZONE 'America/Toronto'");
+    }
+  }
+  if (a('statut') && !STATUTS_PRODUIT.includes(c.statut)) bad('Statut invalide');
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    if (sets.length) {
+      sets.push('updated_at = NOW()');
+      vals.push(ids, req.cid, req.gid);
+      await client.query(`UPDATE produits SET ${sets.join(', ')} WHERE id = ANY($${vals.length - 2}::int[]) AND collaborateur_id = $${vals.length - 1} AND gestionnaire_id = $${vals.length}`, vals);
+    }
+    if (a('stock')) {
+      const reservees = new Set();
+      try { (await client.query(`SELECT DISTINCT produit_id FROM encheres WHERE produit_id = ANY($1::int[]) AND statut IN ('active','attente_paiement') AND stock_reserve = true`, [ids])).rows.forEach(x => reservees.add(x.produit_id)); } catch (e) { /* table des enchères absente */ }
+      if (stockVal !== null && stockVal < 1 && reservees.size) throw new Invalide("Une enchère est en cours sur certaines annonces : il faut au moins 1 unité en stock (celle de l'enchère).");
+      const libres = ids.filter(i => !reservees.has(i)), prises = ids.filter(i => reservees.has(i));
+      if (libres.length) await client.query('UPDATE produits SET stock = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [stockVal, libres]);
+      if (prises.length) await client.query('UPDATE produits SET stock = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [stockVal === null ? null : stockVal - 1, prises]);
+    }
+    if (a('statut')) {
+      // Publier passe par l'approbation du gestionnaire si l'option n'est pas automatique (comme pour une annonce seule)
+      const groupes = {};
+      mes.rows.forEach(x => { const reel = regles.statutPublication(rg, x.statut, c.statut); (groupes[reel] = groupes[reel] || []).push(x.id); });
+      for (const [st, liste] of Object.entries(groupes)) await client.query('UPDATE produits SET statut = $1, updated_at = NOW() WHERE id = ANY($2::int[])', [st, liste]);
+    }
+    await client.query('COMMIT');
+  } catch (e) {
+    try { await client.query('ROLLBACK'); } catch (e2) { /* déjà annulé */ }
+    throw e;
+  } finally { client.release(); }
+
+  // Méthodes d'expédition : remplace celles de chaque annonce
+  if (b.methodes_expedition_ids !== undefined) {
+    if (!Array.isArray(b.methodes_expedition_ids) || b.methodes_expedition_ids.length > 50) bad("Méthodes d'expédition invalides");
+    const mids = [...new Set(b.methodes_expedition_ids.map(Number).filter(n => Number.isInteger(n) && n > 0))];
+    for (const id of ids) await sauverMethodesProduit(req, id, mids);
+  }
+  res.json({ success: true, modifies: ids.length, ignores });
 }));
 
 router.post('/produits/bulk/supprimer', h(async (req, res) => {

@@ -88,7 +88,23 @@ router.get('/public/:gid/addons', h(async (req, res) => {
   res.json({ badge_masque: actif('badge_evend_masquer'), verificateur_age: actif('verificateur_age'), popup_annonce: actif('popup_annonce'),
              encheres: actif('encheres'), encheres_visibles: actif('encheres') || enCours, parution_future: actif('parution_future'),
              blog_collab: actif('blog_collab'), faq_collab: actif('faq_collab'), chat_collab: actif('chat_collab'), badges: actif('badges'), favoris: actif('favoris'), chatbot: actif('chatbot'),
-             plans_collab: actif('plans_collab'), etiquette_shippo: actif('etiquette_shippo'), etiquette_easypost: actif('etiquette_easypost'), etiquette_postescanada: actif('etiquette_postescanada'), connecteur_ebay: actif('connecteur_ebay'), pwa_boutique: actif('pwa_boutique'), favicon_boutique: actif('favicon_boutique'), effets_boutique: actif('effets_boutique'), questions_produit: actif('questions_produit'), offres_du_jour: actif('offres_du_jour'), faire_une_offre: actif('faire_une_offre'), prix_paliers: actif('prix_paliers'), analytique: actif('analytique') });
+             plans_collab: actif('plans_collab'), etiquette_shippo: actif('etiquette_shippo'), etiquette_easypost: actif('etiquette_easypost'), etiquette_postescanada: actif('etiquette_postescanada'), connecteur_ebay: actif('connecteur_ebay'), pwa_boutique: actif('pwa_boutique'), favicon_boutique: actif('favicon_boutique'), effets_boutique: actif('effets_boutique'), questions_produit: actif('questions_produit'), offres_du_jour: actif('offres_du_jour'), faire_une_offre: actif('faire_une_offre'), prix_paliers: actif('prix_paliers'), analytique: actif('analytique'), outils_annonces: actif('outils_annonces') });
+}));
+
+// Compteur de vues anonyme (add-on « Outils avancés d'annonces ») : +1 à l'ouverture d'une fiche annonce. Aucun témoin, aucune donnée personnelle.
+const _vuesRecentes = new Map();   // anti-abus : une vue par IP et par annonce toutes les 30 minutes
+router.post('/public/:gid/vue/:produitId', h(async (req, res) => {
+  const gid = parseInt(req.params.gid, 10), pid = parseInt(req.params.produitId, 10);
+  if (!Number.isInteger(gid) || gid <= 0 || !Number.isInteger(pid) || pid <= 0) return res.status(400).json({ error: 'Identifiant invalide.' });
+  res.set('Cache-Control', 'no-store');
+  if (!(await addons.addonActifRapide(gid, 'outils_annonces', pool))) return res.json({ compte: false });
+  const cle = `${req.ip}|${gid}|${pid}`, maintenant = Date.now();
+  const dernier = _vuesRecentes.get(cle);
+  if (dernier && maintenant - dernier < 30 * 60 * 1000) return res.json({ compte: false });
+  _vuesRecentes.set(cle, maintenant);
+  if (_vuesRecentes.size > 20000) { for (const [k, t] of _vuesRecentes) if (maintenant - t > 30 * 60 * 1000) _vuesRecentes.delete(k); }
+  await pool.query(`UPDATE produits SET vues = vues + 1 WHERE id = $1 AND gestionnaire_id = $2 AND statut = 'actif'`, [pid, gid]);
+  res.json({ compte: true });
 }));
 
 // Apparence du compte à rebours « Parution future » pour cette marketplace (plateforme + réglages du gestionnaire)

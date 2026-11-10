@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { formaterPrix } from '../../templates/shared/devise';
+import CollaborateurModifGroupee from './CollaborateurModifGroupee';
 
 interface Produit {
   id: number; titre: string; prix: string; prix_promo: string | null; stock: number | null;
@@ -11,10 +12,12 @@ interface Produit {
   statut: 'actif' | 'brouillon' | 'en_attente'; created_at: string;
   source?: 'studio' | 'ebay' | 'etsy';
   expire?: boolean; date_expiration?: string | null;   // date d'expiration (arrêt de publication)
+  vues?: number; paniers?: number; ventes?: number;     // add-on « Outils avancés d'annonces »
 }
 interface Reponse {
   produits: Produit[]; total: number; page: number; pages: number;
   stats: { total: number; actifs: number; brouillons: number; en_attente?: number; ruptures: number };
+  outils_annonces?: boolean;
 }
 interface EnchereCollab {
   id: number; produit_id: number; statut: string; prix_depart: number; mise_actuelle: number | null; nb_mises: number; date_fin: string;
@@ -35,6 +38,48 @@ const pastilleSource = (src?: string) => {
   const c = SOURCES[src || 'studio'] || SOURCES.studio;
   return <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700, color: c.color, background: c.bg, whiteSpace: 'nowrap' }}>{c.nom}</span>;
 };
+function useLarge(max: number) {
+  const [petit, setPetit] = useState(typeof window !== 'undefined' && window.innerWidth <= max);
+  useEffect(() => { const f = () => setPetit(window.innerWidth <= max); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f); }, [max]);
+  return petit;
+}
+// Pagination numérotée — même composant que la liste e-Vend (version compacte ≤ 480 px)
+function Pagination({ page, totalPages, onPageChange, accent, marginTop = 16 }: { page: number; totalPages: number; onPageChange: (p: number) => void; accent: string; marginTop?: number }) {
+  const compact = useLarge(480);
+  if (totalPages <= 1) return null;
+  const pages: (number | '...')[] = [];
+  if (compact) {
+    if (totalPages <= 5) { for (let i = 1; i <= totalPages; i++) pages.push(i); }
+    else {
+      pages.push(1);
+      if (page > 2) pages.push('...');
+      if (page > 1 && page < totalPages) pages.push(page);
+      if (page < totalPages - 1) pages.push('...');
+      pages.push(totalPages);
+    }
+  } else if (totalPages <= 7) { for (let i = 1; i <= totalPages; i++) pages.push(i); }
+  else {
+    pages.push(1);
+    if (page > 3) pages.push('...');
+    for (let i = Math.max(2, page - 1); i <= Math.min(totalPages - 1, page + 1); i++) pages.push(i);
+    if (page < totalPages - 2) pages.push('...');
+    pages.push(totalPages);
+  }
+  const btn = (active: boolean, disabled = false): React.CSSProperties => ({
+    padding: compact ? '6px 8px' : '6px 12px', borderRadius: 6, border: `1px solid ${active ? accent : T.border}`,
+    background: active ? accent : '#fff', color: active ? '#fff' : disabled ? T.light : T.text, fontWeight: active ? 700 : 500, fontSize: 13,
+    cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.5 : 1, minWidth: compact ? 34 : 36, textAlign: 'center',
+  });
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: compact ? 4 : 6, marginTop, flexWrap: 'wrap' }}>
+      <button style={btn(false, page === 1)} onClick={() => page > 1 && onPageChange(page - 1)} disabled={page === 1} aria-label="Page précédente">{compact ? '←' : '← Préc.'}</button>
+      {pages.map((n, i) => n === '...'
+        ? <span key={`e${i}`} style={{ padding: '0 4px', color: T.light }}>…</span>
+        : <button key={n} style={btn(n === page)} onClick={() => onPageChange(n)}>{n}</button>)}
+      <button style={btn(false, page === totalPages)} onClick={() => page < totalPages && onPageChange(page + 1)} disabled={page === totalPages} aria-label="Page suivante">{compact ? '→' : 'Suiv. →'}</button>
+    </div>
+  );
+}
 const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : formaterPrix(v));
 
 export default function CollaborateurProduits({ gestionnaireId, accent, isMobile, onCreer, onModifier, onOffre }: Props) {
@@ -48,6 +93,9 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
   const [source, setSource] = useState('');
   const [choisis, setChoisis] = useState<number[]>([]);
   const [aSupprimer, setASupprimer] = useState<number[] | null>(null);
+  const [groupee, setGroupee] = useState<number[] | null>(null);   // modification groupée (add-on)
+  const [toutesIds, setToutesIds] = useState<number[] | null>(null);   // « Sélectionner toutes les annonces » (tous filtres)
+  const [chargeIds, setChargeIds] = useState(false);
   const [erreur, setErreur] = useState('');
   const [occupe, setOccupe] = useState(false);
   const [chargement, setChargement] = useState(true);
@@ -168,12 +216,31 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
   const confirmerSuppression = async () => {
     if (!aSupprimer) return;
     if (aSupprimer.length === 1) await action(`/produits/${aSupprimer[0]}`, 'DELETE');
-    else await action('/produits/bulk/supprimer', 'POST', { ids: aSupprimer });
-    setChoisis(c => c.filter(id => !aSupprimer.includes(id)));
+    else for (let i = 0; i < aSupprimer.length; i += 100) await action('/produits/bulk/supprimer', 'POST', { ids: aSupprimer.slice(i, i + 100) });
+    setChoisis(c => c.filter(id => !aSupprimer.includes(id))); setToutesIds(null);
     setASupprimer(null);
   };
 
-  const basculer = (id: number) => setChoisis(c => (c.includes(id) ? c.filter(x => x !== id) : [...c, id]));
+  const basculer = (id: number) => { setToutesIds(null); setChoisis(c => (c.includes(id) ? c.filter(x => x !== id) : [...c, id])); };
+  const outils = !!data?.outils_annonces;
+  const toutesLesIds = async () => {
+    setChargeIds(true);
+    try {
+      const p = new URLSearchParams();
+      if (qEff) p.set('q', qEff);
+      if (statut) p.set('statut', statut);
+      if (rupture) p.set('stock', 'rupture');
+      if (source) p.set('source', source);
+      const res = await fetch(`${base}/produits-ids?${p}`, { credentials: 'include' });
+      if (res.ok) { const d = await res.json(); const l: number[] = d.ids || []; setToutesIds(l); setChoisis(l); }
+      else setErreur('Sélection impossible');
+    } catch { setErreur('Erreur réseau'); }
+    setChargeIds(false);
+  };
+  const colonnes = outils
+    ? '36px 56px 1fr 80px 100px 70px 56px 56px 56px 90px 250px'
+    : '36px 56px 1fr 90px 110px 80px 100px 250px';
+  const apercuChoix = (ids: number[]) => (data?.produits || []).filter(p => ids.includes(p.id)).map(p => ({ id: p.id, titre: p.titre }));
   const lignes0 = data?.produits.length || 0;
   const tous = !!data && data.produits.length > 0 && data.produits.every(p => choisis.includes(p.id));
   const bouton = (couleur: string): React.CSSProperties => ({ background: 'none', border: `1px solid ${couleur}`, color: couleur, borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer' });
@@ -226,7 +293,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
         </div>
         {isMobile && lignes0 > 0 && (
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.light, fontWeight: 600 }}>
-            <input type="checkbox" checked={tous} onChange={() => setChoisis(tous ? [] : (data?.produits || []).map(p => p.id))} style={{ width: 18, height: 18 }} /> Tout
+            <input type="checkbox" checked={tous} onChange={() => { setToutesIds(null); setChoisis(tous ? [] : (data?.produits || []).map(p => p.id)); }} style={{ width: 18, height: 18 }} /> Tout
           </label>
         )}
         <select value={statut} onChange={e => { setStatut(e.target.value); setPage(1); }}
@@ -244,12 +311,35 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
           <option value="etsy">Etsy</option>
         </select>
         {rupture && <button onClick={() => { setRupture(false); setPage(1); }} style={bouton(accent)}>En rupture ✕</button>}
+        {outils && choisis.length > 0 && (
+          <button onClick={() => setGroupee(choisis)} style={{ ...bouton(accent), padding: '9px 14px', fontSize: 12 }}>✏️ Modification groupée ({choisis.length})</button>
+        )}
         {choisis.length > 0 && (
           <button onClick={() => setASupprimer(choisis)} style={{ ...bouton(T.danger), padding: '9px 14px', fontSize: 12 }}>🗑️ Supprimer ({choisis.length})</button>
         )}
       </div>
 
       {erreur && <div style={{ background: '#FDECEA', color: '#C0392B', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{erreur}</div>}
+
+      {data && data.total > 0 && (
+        <>
+          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center', minHeight: 34, marginBottom: 10, flexWrap: 'wrap', gap: 8 }}>
+            {choisis.length > 0 && (
+              <div style={{ ...(isMobile ? { position: 'static', alignSelf: 'flex-start' } : { position: 'absolute', left: 0, top: '50%', transform: 'translateY(-50%)' }), display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 6, background: '#eef6f6', border: `1px solid ${accent}`, color: accent, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                ✓ {choisis.length} {choisis.length > 1 ? 'items sélectionnés' : 'item sélectionné'}
+              </div>
+            )}
+            <Pagination page={page} totalPages={data.pages} onPageChange={setPage} accent={accent} marginTop={0} />
+          </div>
+          {tous && data.total > lignes.length && (
+            <div style={{ background: '#eef6f6', border: `1px solid ${accent}`, borderRadius: 8, padding: '8px 14px', marginBottom: 10, fontSize: 13, color: T.text, textAlign: 'center' }}>
+              {toutesIds && toutesIds.length >= data.total
+                ? <>Les <strong>{toutesIds.length}</strong> annonces sont sélectionnées. <button onClick={() => { setToutesIds(null); setChoisis([]); }} style={{ background: 'none', border: 'none', color: accent, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>Tout désélectionner</button></>
+                : <>Les {lignes.length} annonces de cette page sont sélectionnées. <button disabled={chargeIds} onClick={toutesLesIds} style={{ background: 'none', border: 'none', color: accent, fontWeight: 700, cursor: 'pointer', textDecoration: 'underline' }}>{chargeIds ? 'Chargement…' : `Sélectionner les ${data.total} annonces`}</button></>}
+            </div>
+          )}
+        </>
+      )}
 
       {lignes.length === 0 ? (
         <div style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: 50, textAlign: 'center', color: T.light }}>
@@ -260,9 +350,9 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
       ) : (
         <div style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
           {!isMobile && (
-            <div style={{ display: 'grid', gridTemplateColumns: '36px 56px 1fr 90px 110px 80px 100px 250px', gap: 10, padding: '10px 14px', background: '#f8fafc', borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.light, textTransform: 'uppercase', alignItems: 'center' }}>
-              <input type="checkbox" checked={tous} onChange={() => setChoisis(tous ? [] : lignes.map(p => p.id))} />
-              <span></span><span>Annonce</span><span>Source</span><span>Prix</span><span>Stock</span><span>Statut</span><span>Actions</span>
+            <div style={{ display: 'grid', gridTemplateColumns: colonnes, gap: 10, padding: '10px 14px', background: '#f8fafc', borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.light, textTransform: 'uppercase', alignItems: 'center' }}>
+              <input type="checkbox" checked={tous} onChange={() => { setToutesIds(null); setChoisis(tous ? [] : lignes.map(p => p.id)); }} />
+              <span></span><span>Annonce</span><span>Source</span><span>Prix</span><span>Stock</span>{outils && <><span title="Vues">👁 Vues</span><span title="Paniers">🛒 Pan.</span><span title="Ventes">💰 Vend.</span></>}<span>Statut</span><span>Actions</span>
             </div>
           )}
           {isMobile && lignes.map(p => {
@@ -291,6 +381,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
                     · {p.stock === null ? 'Stock ∞' : p.stock === 0 ? 'Rupture' : `Stock ${p.stock}`}
                   </span>
                   {pastilleSource(p.source)}
+                  {outils && <span style={{ fontSize: 11, color: T.light }}>👁 {p.vues ?? 0} · 🛒 {p.paniers ?? 0} · 💰 {p.ventes ?? 0}</span>}
                   <span style={{ ...bs, marginLeft: 'auto' }}>{p.statut === 'actif' ? (p.expire ? '⏹️ Expirée' : 'Active') : p.statut === 'en_attente' ? '⏳ En attente' : 'Brouillon'}</span>
                 </div>
                 {(enc && !(enc.statut === 'active' && enc.nb_mises === 0)) && (
@@ -303,7 +394,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
           {!isMobile && lignes.map(p => (
             <div key={p.id} style={isMobile
               ? { padding: 14, borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 8 }
-              : { display: 'grid', gridTemplateColumns: '36px 56px 1fr 90px 110px 80px 100px 250px', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${T.border}`, alignItems: 'center' }}>
+              : { display: 'grid', gridTemplateColumns: colonnes, gap: 10, padding: '10px 14px', borderBottom: `1px solid ${T.border}`, alignItems: 'center' }}>
               {!isMobile && <input type="checkbox" checked={choisis.includes(p.id)} onChange={() => basculer(p.id)} />}
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
                 <div onClick={() => onModifier(p.id)} title="Modifier cette annonce" style={{ cursor: 'pointer', width: 48, height: 48, borderRadius: 8, background: T.bg, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -324,6 +415,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
               <div style={{ fontSize: 13, color: p.stock === 0 ? T.danger : T.text, fontWeight: p.stock === 0 ? 700 : 400 }}>
                 {p.stock === null ? '∞' : p.stock === 0 ? 'Rupture' : p.stock}
               </div>
+              {outils && <><div style={{ fontSize: 13 }}>{p.vues ?? 0}</div><div style={{ fontSize: 13 }}>{p.paniers ?? 0}</div><div style={{ fontSize: 13, fontWeight: (p.ventes ?? 0) > 0 ? 700 : 400, color: (p.ventes ?? 0) > 0 ? T.success : T.text }}>{p.ventes ?? 0}</div></>}
               <div><span style={p.statut === 'en_attente' ? { ...badge('x'), background: '#FFF3E0', color: '#C2570C' } : p.statut === 'actif' && p.expire ? { ...badge('x'), background: '#FEE2E2', color: '#B91C1C' } : badge(p.statut)} title={p.statut === 'en_attente' ? 'Le gestionnaire doit approuver cette annonce avant sa publication' : undefined}>{p.statut === 'actif' ? (p.expire ? '⏹️ Expirée' : 'Active') : p.statut === 'en_attente' ? '⏳ En attente' : 'Brouillon'}</span>
                 {p.statut === 'actif' && p.date_expiration && !p.expire && <div style={{ fontSize: 11, color: '#92400E', marginTop: 3 }}>⏹️ expire le {new Date(p.date_expiration).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>}</div>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -354,6 +446,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
           item(p.statut === 'actif' ? '⏸ Retirer de la vente' : p.statut === 'en_attente' ? '↩ Annuler la demande' : '▶ Publier', () => action(`/produits/${p.id}/statut`, 'PATCH', { statut: p.statut === 'brouillon' ? 'actif' : 'brouillon' })),
         ];
         const extras: React.ReactNode[] = [];
+        if (outils) extras.push(item('✏️ Modification groupée', () => setGroupee([p.id])));
         if (e) { if (e.statut === 'active' && e.nb_mises === 0) extras.push(item("🔨 Annuler l'enchère", () => annulerEnchere(e), '#b45309')); }
         else if (addonEncheres && p.statut === 'actif' && (p.stock === null || p.stock > 0)) extras.push(item('🔨 Mettre aux enchères', () => ouvrirEnchere(p), '#b45309'));
         if (addonOffres && onOffre && p.statut === 'actif' && !e) extras.push(item('🔥 Offre du jour', () => onOffre(p.id), '#c2410c'));
@@ -377,15 +470,12 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
         );
       })()}
 
-      {/* Pagination */}
+      {/* Pagination du bas */}
       {data && data.total > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 14, fontSize: 13, color: T.light, flexWrap: 'wrap', gap: 8 }}>
-          <span>{data.total} annonce{data.total > 1 ? 's' : ''} · page {data.page} / {data.pages}</span>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button disabled={page <= 1} onClick={() => setPage(p => p - 1)} style={{ ...bouton(T.light), padding: '7px 14px', opacity: page <= 1 ? 0.4 : 1 }}>← Précédent</button>
-            <button disabled={page >= data.pages} onClick={() => setPage(p => p + 1)} style={{ ...bouton(T.light), padding: '7px 14px', opacity: page >= data.pages ? 0.4 : 1 }}>Suivant →</button>
-          </div>
-        </div>
+        <>
+          <Pagination page={page} totalPages={data.pages} onPageChange={p => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }} accent={accent} />
+          <div style={{ textAlign: 'center', marginTop: 8, fontSize: 12, color: T.light }}>{data.total} annonce{data.total > 1 ? 's' : ''} · page {data.page} / {data.pages}</div>
+        </>
       )}
 
       {infoEnchere && <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#1a2332', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, zIndex: 1100 }}>{infoEnchere}</div>}
@@ -418,6 +508,13 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modification groupée (add-on Outils avancés d'annonces) */}
+      {groupee && (
+        <CollaborateurModifGroupee gestionnaireId={gestionnaireId} accent={accent} isMobile={isMobile} ids={groupee} apercu={apercuChoix(groupee)}
+          onClose={() => setGroupee(null)}
+          onSaved={(nb, note) => { setGroupee(null); setChoisis([]); setToutesIds(null); setInfoEnchere(`✅ ${nb} annonce${nb > 1 ? 's modifiées' : ' modifiée'}.${note ? ' ' + note : ''}`); setTimeout(() => setInfoEnchere(''), 7000); charger(); }} />
       )}
 
       {/* Confirmation de suppression */}

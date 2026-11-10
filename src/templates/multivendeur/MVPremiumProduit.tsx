@@ -189,6 +189,13 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   }, [produit?.id, gId, isDemo]);
 
   useEffect(() => { setVariante(''); setQuantite(1); }, [produit?.id]);
+  // Compteur de vues anonyme (add-on « Outils avancés d'annonces ») : une fois par annonce et par session, sans témoin ni donnée personnelle
+  useEffect(() => {
+    if (isDemo || !gId || !produit?.id) return;
+    const cle = `vue_${gId}_${produit.id}`;
+    try { if (sessionStorage.getItem(cle)) return; sessionStorage.setItem(cle, '1'); } catch { /* stockage indisponible : le serveur limite déjà les répétitions */ }
+    fetch(`${API_BASE}/studio-forfaits/public/${gId}/vue/${produit.id}`, { method: 'POST' }).catch(() => {});
+  }, [isDemo, gId, produit?.id]);
 
   const annonceExpiree = produit?.expire === true;   // arrêt de publication : plus d'achat
   const parutionBloquee = (!!produit?.date_parution && !venteOuverte) || annonceExpiree;   // annonce pas encore en vente : pas d'achat

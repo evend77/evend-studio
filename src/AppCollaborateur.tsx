@@ -258,7 +258,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     try { ['plan', 'session_id'].forEach(k => q.delete(k)); window.history.replaceState({}, '', `${window.location.pathname}?${q.toString()}`); } catch {}
   }, [gestionnaireId, chargerPlan]);
   useEffect(() => { chargerPlan(); }, [chargerPlan, pageActive]);
-  const CODES_PAR_PLAN = ['blog_collab', 'faq_collab', 'chat_collab', 'encheres', 'encheres_visibles', 'offres_du_jour', 'faire_une_offre', 'questions_produit', 'prix_paliers', 'parution_future', 'etiquette_shippo', 'etiquette_easypost', 'etiquette_postescanada', 'connecteur_ebay'];
+  const CODES_PAR_PLAN = ['blog_collab', 'faq_collab', 'chat_collab', 'encheres', 'encheres_visibles', 'offres_du_jour', 'faire_une_offre', 'questions_produit', 'prix_paliers', 'parution_future', 'etiquette_shippo', 'etiquette_easypost', 'etiquette_postescanada', 'connecteur_ebay', 'outils_annonces'];
   const addonsMV: Record<string, boolean> = { ...addonsBrut };
   if (etatPlan.systeme) {
     const permis = new Set(etatPlan.addons || []);
@@ -405,7 +405,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const initiale = (compte?.nom_boutique || compte?.nom_responsable || 'C').charAt(0).toUpperCase();
 
   const menuItems = [
-    { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+    { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '🧰' },
     {
       id: 'annonces', label: 'VOS ANNONCES', icon: '📦',
       sousMenu: [
