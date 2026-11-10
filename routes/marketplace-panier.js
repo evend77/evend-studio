@@ -16,6 +16,7 @@ const cfgMV = require('../services/studio_config_mv');
 const regles = require('../services/studio_regles_produits');
 const regCmd = require('../services/studio_regles_commande');
 const OFFRES = require('../services/studio_offres');
+const PALIERS = require('../services/studio_paliers');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -152,12 +153,14 @@ router.get('/:gid/panier', authMV, async (req, res) => {
     try {
       const ids = [...new Set(r.rows.filter((l) => !l.enchere_id && !l.negociation_id).map((l) => parseInt(l.produit_id, 10)).filter((n) => Number.isInteger(n) && n > 0))];
       if (ids.length) {
-        const pr = await pool.query(`SELECT id, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes FROM produits WHERE gestionnaire_id = $1 AND id = ANY($2::int[])`, [parseInt(gid, 10), ids]);
+        const pr = await pool.query(`SELECT id, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes, paliers FROM produits WHERE gestionnaire_id = $1 AND id = ANY($2::int[])`, [parseInt(gid, 10), ids]);
+        const palActif = pr.rows.some((x) => x.paliers) && await PALIERS.actifPourBoutique(gid);
         const parId = new Map(pr.rows.map((x) => [x.id, x]));
         for (const l of r.rows) {
           const prod = l.enchere_id || l.negociation_id ? null : parId.get(parseInt(l.produit_id, 10));
           if (!prod) continue;
           const c = prixEtStock(prod, l.variante || '', regP.gererStock);
+          if (!c.erreur && palActif && prod.paliers) c.prix = PALIERS.prixPourQuantite(prod.paliers, l.variante || '', parseInt(l.quantite, 10) || 1, c.prix);
           if (!c.erreur && Number.isFinite(c.prix) && Math.abs(c.prix - Number(l.prix)) > 0.004) {
             await pool.query('UPDATE marketplace_panier SET prix = $1 WHERE id = $2', [c.prix, l.id]);
             l.prix = c.prix;

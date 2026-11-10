@@ -20,6 +20,7 @@ const taxesMV = require('./studio_taxes');
 const regCmd = require('./studio_regles_commande');
 const cfgMV = require('./studio_config_mv');
 const OFFRES = require('./studio_offres');
+const PALIERS = require('./studio_paliers');
 const NEGO = require('./studio_negociations');
 const reglesMV = require('./studio_regles_produits');
 
@@ -241,7 +242,7 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       }
       const pid = parseInt(ligne.produit_id, 10);
       const prod = pid ? (await client.query(
-        `SELECT id, titre, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes, statut, quantite_min, date_parution, date_expiration FROM produits
+        `SELECT id, titre, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes, statut, quantite_min, date_parution, date_expiration, paliers FROM produits
           WHERE id = $1 AND gestionnaire_id = $2 AND collaborateur_id = $3 FOR UPDATE`, [pid, gid, collaborateurId])).rows[0] : null;
       if (!prod || prod.statut !== 'actif') refus(`« ${ligne.titre} » n'est plus disponible. Retirez-le de votre panier.`, 409);
       if (prod.date_parution && new Date(prod.date_parution).getTime() > Date.now()) refus(`« ${ligne.titre} » sera disponible à la vente le ${new Date(prod.date_parution).toLocaleString('fr-CA', { timeZone: 'America/Toronto', dateStyle: 'long', timeStyle: 'short' })}. Retirez-le de votre panier.`, 409);
@@ -251,9 +252,11 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       if (choix.erreur) refus(`« ${ligne.titre} » : ${choix.erreur}`, 409);
       const qte = negoLigne ? 1 : parseInt(ligne.quantite, 10);
       if (!(qte >= 1)) refus('Quantité invalide.', 400);
+      let prixLigne = choix.prix;
+      if (!negoLigne && prod.paliers && (await PALIERS.actifPourBoutique(gid))) prixLigne = PALIERS.prixPourQuantite(prod.paliers, variante, qte, choix.prix);
       if (qte > choix.stock) refus(choix.stock <= 0 ? `« ${ligne.titre} » est épuisé.` : `« ${ligne.titre} » : il n'en reste que ${choix.stock}.`, 409);
       if (!(await ajusterStock(client, pid, variante, -qte))) refus(`« ${ligne.titre} » est épuisé.`, 409);
-      lignes.push({ produit_id: pid, titre: ligne.titre, variante, quantite: qte, quantite_min: negoLigne ? 1 : prod.quantite_min, prix: negoLigne ? Number(negoLigne.prix_final) : choix.prix, image_url: ligne.image_url || null,
+      lignes.push({ produit_id: pid, titre: ligne.titre, variante, quantite: qte, quantite_min: negoLigne ? 1 : prod.quantite_min, prix: negoLigne ? Number(negoLigne.prix_final) : prixLigne, image_url: ligne.image_url || null,
                     produit_numerique: ligne.produit_numerique === true, facturation_taxes: taxMap.get(pid) === true, ...(negoLigne ? { negociation_id: negoLigne.id } : {}) });
     }
 

@@ -25,6 +25,7 @@ const rembMV = require('../services/studio_remboursement');
 const regCmd = require('../services/studio_regles_commande');
 const avisMV = require('../services/studio_avis');
 const addonsMV = require('../services/studio_addons');
+const PALIERS = require('../services/studio_paliers');
 const taxesMV = require('../services/studio_taxes');
 
 const router = express.Router({ mergeParams: true });
@@ -251,14 +252,15 @@ router.get('/produits-regles', h(async (req, res) => {
              qte_min_mode: r.qteMinMode, aide: r.aide, prix_revient: r.prixRevient, devise: r.devise,
              categories: cfgMV.actif(await cfgMV.lire(req.gid, pool), 'permettre_categories', true),
              expedition_obligatoire: (await regCmd.lire(req.gid, pool)).modeExpedition,
-             parution_future_actif: await addonsMV.addonActifRapide(req.gid, 'parution_future', pool) });
+             parution_future_actif: await addonsMV.addonActifRapide(req.gid, 'parution_future', pool),
+             paliers_actif: await PALIERS.actifPourBoutique(req.gid) });
 }));
 
 router.get('/produits/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
   const r = await pool.query(
-    `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id, photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient,
+    `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id, photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient, paliers,
             to_char(date_parution AT TIME ZONE 'America/Toronto', 'YYYY-MM-DD"T"HH24:MI') AS date_parution_local, date_parution,
             to_char(date_expiration AT TIME ZONE 'America/Toronto', 'YYYY-MM-DD"T"HH24:MI') AS date_expiration_local, date_expiration,
             (date_expiration IS NOT NULL AND date_expiration <= NOW()) AS expire
@@ -271,6 +273,7 @@ router.get('/produits/:id', h(async (req, res) => {
   const prod = { ...r.rows[0], methodes_expedition_ids: methodes, stock_reserve_enchere: reserve };
   if (!(await regles.lire(req.gid, pool)).prixRevient) delete prod.prix_revient;   // champ masqué si le gestionnaire ne l'active pas
   if (reserve && prod.stock !== null && prod.stock !== undefined) prod.stock = Number(prod.stock) + 1;
+  prod.paliers = (await PALIERS.actifPourBoutique(req.gid)) ? PALIERS.pourAffichage(prod.paliers) : [];
   res.json(prod);
 }));
 
@@ -338,7 +341,16 @@ function lireProduit(req) {
     else if (typeof b.date_expiration === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(b.date_expiration.trim())) dateExpiration = b.date_expiration.trim();
     else bad("Date d'expiration invalide");
   }
-  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes, poids, methodesIds, quantiteMin, prixRevient, dateParution, dateExpiration };
+  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes, poids, methodesIds, quantiteMin, prixRevient, dateParution, dateExpiration, paliersBrut: b.paliers };
+}
+
+// Paliers de prix (add-on payant) : { change, valeur } — champ absent = inchangé; vide = effacer (toujours permis); sinon add-on actif + validation
+async function resoudrePaliers(req, p) {
+  if (p.paliersBrut === undefined) return { change: false, valeur: null };
+  if (p.paliersBrut === null || (Array.isArray(p.paliersBrut) && !p.paliersBrut.length)) return { change: true, valeur: null };
+  if (!(await PALIERS.actifPourBoutique(req.gid))) bad("L'option « Prix par palier de quantité » n'est pas activée pour cette marketplace.", 403);
+  try { const v = PALIERS.valider(p.paliersBrut, p.prix, p.variantes); return { change: true, valeur: v ? JSON.stringify(v) : null }; }
+  catch (e) { if (e instanceof PALIERS.ErreurPalier) bad(e.message, e.status); throw e; }
 }
 
 // Date de parution à enregistrer. Retourne { change, valeur } (valeur = chaîne locale Montréal ou null).
@@ -412,6 +424,7 @@ router.post('/produits', h(async (req, res) => {
   await appliquerRegles(req, p, null);
   const dp = await resoudreDateParution(req, p, null);
   const dx = await resoudreDateExpiration(req, p, null);
+  const pal = await resoudrePaliers(req, p);
   const n = await pool.query(`SELECT COUNT(*) AS n FROM produits WHERE collaborateur_id = $1`, [req.cid]);
   if (+n.rows[0].n >= 1000) bad('Limite de 1000 produits atteinte', 409);
   // Limite fixée par le gestionnaire (Config marketplace → Max produits par vendeur), tant que les plans vendeur ne sont pas utilisés
@@ -422,10 +435,10 @@ router.post('/produits', h(async (req, res) => {
   }
   const r = await pool.query(
     `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
-                           photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient, date_parution, date_expiration)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, $18::timestamp AT TIME ZONE 'America/Toronto', $19::timestamp AT TIME ZONE 'America/Toronto') RETURNING id`,
+                           photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient, date_parution, date_expiration, paliers)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, $18::timestamp AT TIME ZONE 'America/Toronto', $19::timestamp AT TIME ZONE 'America/Toronto', $20::jsonb) RETURNING id`,
     [req.gid, req.cid, p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
-     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, p.poids, p.quantiteMin, p.prixRevient === undefined ? null : p.prixRevient, dp.valeur, dx.valeur]);
+     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, p.poids, p.quantiteMin, p.prixRevient === undefined ? null : p.prixRevient, dp.valeur, dx.valeur, pal.valeur]);
   try { await sauverMethodesProduit(req, r.rows[0].id, p.methodesIds); }
   catch (e) { await pool.query('DELETE FROM produits WHERE id = $1', [r.rows[0].id]); throw e; }
   res.status(201).json({ id: r.rows[0].id, statut: p.statut });
@@ -441,6 +454,7 @@ router.put('/produits/:id', h(async (req, res) => {
   await appliquerRegles(req, p, ancien.rows[0].statut);
   const dp = await resoudreDateParution(req, p, id);
   const dx = await resoudreDateExpiration(req, p, id);
+  const pal = await resoudrePaliers(req, p);
   // Le stock saisi est le total : on garde 1 unité réservée à l'enchère en cours
   if (p.stock !== null && await uniteReserveeEnchere(pool, id)) {
     if (p.stock < 1) bad("Une enchère est en cours : il faut au moins 1 unité en stock (celle de l'enchère).");
@@ -451,11 +465,12 @@ router.put('/produits/:id', h(async (req, res) => {
             photo_principale=$9, photos=$10, variantes=$11, statut=$12, poids=$16, quantite_min=$17,
             prix_revient = CASE WHEN $18::boolean THEN $19::numeric ELSE prix_revient END,
             date_parution = CASE WHEN $20::boolean THEN $21::timestamp AT TIME ZONE 'America/Toronto' ELSE date_parution END,
-            date_expiration = CASE WHEN $22::boolean THEN $23::timestamp AT TIME ZONE 'America/Toronto' ELSE date_expiration END, updated_at=NOW()
+            date_expiration = CASE WHEN $22::boolean THEN $23::timestamp AT TIME ZONE 'America/Toronto' ELSE date_expiration END,
+            paliers = CASE WHEN $24::boolean THEN $25::jsonb ELSE paliers END, updated_at=NOW()
       WHERE id=$13 AND collaborateur_id=$14 AND gestionnaire_id=$15`,
     [p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
      p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, id, req.cid, req.gid, p.poids,
-     p.quantiteMin, p.prixRevient !== undefined, p.prixRevient === undefined ? null : p.prixRevient, dp.change, dp.valeur, dx.change, dx.valeur]);
+     p.quantiteMin, p.prixRevient !== undefined, p.prixRevient === undefined ? null : p.prixRevient, dp.change, dp.valeur, dx.change, dx.valeur, pal.change, pal.valeur]);
   if (!r.rowCount) bad('Produit introuvable', 404);
   await sauverMethodesProduit(req, id, p.methodesIds);
   res.json({ success: true, statut: p.statut });

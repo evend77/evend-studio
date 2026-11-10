@@ -58,6 +58,7 @@ interface Produit {
   images?: string;
   description?: string;
   stock: number;
+  paliers?: { qte_min: number; type: 'pourcentage' | 'fixe'; valeur: number; variante: string | null }[];   // add-on « Prix par palier de quantité »
   variantes?: { nom: string; prix: number | null; stock: number }[];   // choix du vendeur (taille, couleur…) : prix/stock propres à chacun
   etat?: string;
   marque?: string;
@@ -236,6 +237,16 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   const varChoisie = lesVariantes.find(v => v.nom === variante) || null;
   const prixVariante = varChoisie && varChoisie.prix !== null && varChoisie.prix !== undefined;   // la variante a son propre prix
   const prixAffiche = prixVariante ? Number(varChoisie!.prix) : parseFloat(String(produit.prix));
+  // Prix par palier (add-on) : lignes applicables au prix et à la variante affichés; le serveur recalcule au panier et au paiement
+  const arr2 = (n: number) => Math.round(n * 100) / 100;
+  const tousPaliers = Array.isArray(produit.paliers) ? produit.paliers : [];
+  const lignesPaliers = tousPaliers
+    .filter(p => p.type === 'pourcentage' || (p.variante || '') === (variante || ''))
+    .sort((a, b) => a.qte_min - b.qte_min)
+    .map(p => ({ qte_min: p.qte_min, prix: p.type === 'pourcentage' ? arr2(prixAffiche * (1 - p.valeur / 100)) : arr2(p.valeur) }))
+    .filter(l => l.prix > 0 && l.prix < prixAffiche);
+  const palierAtteint = lignesPaliers.filter(l => l.qte_min <= quantite).pop() || null;
+  const palierFixeSansVariante = tousPaliers.some(p => p.type === 'fixe') && lesVariantes.length > 0 && !variante;
   const prixOrig = prixVariante ? null : produit.prix_original;   // pas de prix barré avec un prix de variante
   const stockDispo = varChoisie ? varChoisie.stock : produit.stock;
   const rabais = prixOrig && parseFloat(String(prixOrig)) > prixAffiche
@@ -421,6 +432,29 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Prix par palier de quantité (add-on) */}
+            {!annonceExpiree && !parutionBloquee && stockDispo > 0 && (lignesPaliers.length > 0 || palierFixeSansVariante) && (
+              <div style={{ marginBottom: 20, padding: '14px 16px', borderRadius: 12, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)' }}>
+                <p style={{ fontSize: 13, fontWeight: 800, color: '#fff', margin: '0 0 8px' }}>💰 Plus vous en prenez, moins c'est cher</p>
+                {palierFixeSansVariante && lignesPaliers.length === 0 && <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', margin: 0 }}>Choisissez une variante pour voir les prix par quantité.</p>}
+                {lignesPaliers.map(l => {
+                  const actif = palierAtteint && palierAtteint.qte_min === l.qte_min;
+                  return (
+                    <div key={l.qte_min} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 10px', borderRadius: 8, marginBottom: 4, fontSize: 13, fontWeight: actif ? 800 : 600, color: actif ? '#fff' : 'rgba(255,255,255,0.7)', background: actif ? 'rgba(16,185,129,0.18)' : 'transparent', border: `1px solid ${actif ? 'rgba(16,185,129,0.5)' : 'transparent'}` }}>
+                      <span>{l.qte_min}+ unités</span>
+                      <span>{formaterPrix(l.prix)} / unité</span>
+                    </div>
+                  );
+                })}
+                {palierAtteint && (
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#34d399', margin: '8px 0 0' }}>
+                    {quantite} × {formaterPrix(palierAtteint.prix)} = {formaterPrix(arr2(quantite * palierAtteint.prix))} — vous économisez {formaterPrix(arr2(quantite * (prixAffiche - palierAtteint.prix)))}
+                  </p>
+                )}
+                {lignesPaliers.length > 0 && palierFixeSansVariante === false && tousPaliers.some(p => p.type === 'fixe') && lesVariantes.length > 0 && <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', margin: '6px 0 0' }}>Prix selon la variante choisie.</p>}
               </div>
             )}
 

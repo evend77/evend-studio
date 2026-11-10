@@ -22,6 +22,7 @@ const cfgMV = require('../services/studio_config_mv');
 const avisMV = require('../services/studio_avis');
 const addonsMV = require('../services/studio_addons');
 const OFFRES = require('../services/studio_offres');
+const PALIERS = require('../services/studio_paliers');
 const router = express.Router();
 
 function entier(v) {
@@ -32,7 +33,7 @@ function entier(v) {
 // Gérer l'inventaire désactivé (Config produits) : le stock n'est plus suivi, tout est « en stock »
 const SANS_STOCK = `COALESCE((SELECT st.config->'multivendeur'->>'gerer_inventaire_par_defaut' = 'false' FROM sites st WHERE st.gestionnaire_id = p.gestionnaire_id LIMIT 1), false)`;
 const COLS = `p.id, p.titre, p.description, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, ${OFFRES.sqlFin('p')} AS offre_fin, p.stock, p.categorie, p.photo_principale, p.photos,
-  p.created_at, p.collaborateur_id, p.variantes, p.date_parution, (p.date_expiration IS NOT NULL AND p.date_expiration <= NOW()) AS expire,
+  p.created_at, p.collaborateur_id, p.variantes, p.paliers, p.date_parution, (p.date_expiration IS NOT NULL AND p.date_expiration <= NOW()) AS expire,
   COALESCE(NULLIF(mc.nom_boutique,''), mc.nom_responsable) AS nom_boutique, mc.ville AS vendeur_ville, mc.politique_livraison, mc.politique_retour,
   p.categorie_id, COALESCE(sc.nom, cp.label) AS categorie_nom, sg.nom AS groupe_nom,
   (mc.inscrit_taxes IS TRUE AND COALESCE(sc.taxable, true)) AS facturation_taxes, ${SANS_STOCK} AS sans_stock, ${vac.VAC_COLS}`;
@@ -139,7 +140,8 @@ router.get('/produit/:produitId', async (req, res, next) => {
     }
     let badges = [];
     try { badges = (await badgesDesBoutiques(p.gestionnaire_id, [p.collaborateur_id]))[p.collaborateur_id] || []; } catch (e) { badges = []; }
-    res.json({ produit: { ...formater(p), vendeur_badges: badges }, similaires: sim.rows.map(formater), avis });
+    const paliers = p.paliers && (await PALIERS.actifPourBoutique(p.gestionnaire_id)) ? PALIERS.pourAffichage(p.paliers) : [];
+    res.json({ produit: { ...formater(p), vendeur_badges: badges, paliers }, similaires: sim.rows.map(formater), avis });
   } catch (e) {
     console.error('[catalogue_public] produit', e.message);
     res.status(500).json({ error: 'Erreur serveur' });
