@@ -3,6 +3,7 @@
 // Monté sur : /api/ebay-connexion      GET /callback   GET /refus
 // Aucune session ici : le collaborateur est identifié par l'« état » à usage unique créé quand il a cliqué « Connecter ».
 
+const crypto = require('crypto');
 const express = require('express');
 const svc = require('../services/studio_ebay');
 
@@ -38,6 +39,29 @@ router.get('/refus', async (req, res) => {
     if (e) return retour(res, e.retour_url, 'refuse');
   } catch (err) { console.error('❌ eBay refus :', err.message); }
   res.status(200).send("Connexion annulée. Vous pouvez fermer cette page et retourner dans votre tableau de bord.");
+});
+
+// ─── Notification eBay « Marketplace Account Deletion » (obligatoire pour activer les clés de production) ───
+// Adresse à donner à eBay :  https://e-vendstudio.ca/api/ebay-connexion/suppression-compte
+// Jeton de vérification (32 à 80 caractères) : variable EBAY_VERIFICATION_TOKEN, sinon la valeur ci-dessous.
+const JETON_EBAY = process.env.EBAY_VERIFICATION_TOKEN || 'evend-studio-ebay-verification-2026-jeton-v1';
+const POINT_FINAL = `${(process.env.PUBLIC_BASE_URL || 'https://e-vendstudio.ca').replace(/\/+$/, '')}/api/ebay-connexion/suppression-compte`;
+
+// 1) Vérification : eBay envoie ?challenge_code=… ; on répond avec SHA-256(code + jeton + adresse)
+router.get('/suppression-compte', (req, res) => {
+  const code = String(req.query.challenge_code || '');
+  if (!code) return res.status(400).json({ error: 'challenge_code manquant' });
+  const h = crypto.createHash('sha256').update(code).update(JETON_EBAY).update(POINT_FINAL).digest('hex');
+  res.status(200).type('application/json').json({ challengeResponse: h });
+});
+
+// 2) Notification réelle : on accuse réception (200). Studio ne garde pas de données d'acheteurs eBay.
+router.post('/suppression-compte', express.json({ limit: '100kb' }), (req, res) => {
+  try {
+    const d = (req.body && req.body.notification && req.body.notification.data) || {};
+    console.log('[eBay] suppression de compte reçue :', d.userId ? 'userId reçu' : 'sans userId');
+  } catch (e) { /* on répond quand même 200 */ }
+  res.sendStatus(200);
 });
 
 module.exports = router;
