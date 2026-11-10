@@ -181,7 +181,16 @@ function VueDashboard({
     { label: 'Depenses', valeur: `${formaterPrix(Number(stats?.total_depense ?? commandes.reduce((a, c) => a + (Number(c.total) || 0), 0)))}`, icon: '💳', couleur: couleurAccent },
   ];
 
-  const nonLus = messages.filter(m => !m.lu).length + notifications.filter(n => !n.lu).length;
+  const nbNotifNonLues = notifications.filter(n => !n.lu).length;
+  const nbGestNonLus = messages.filter(m => !m.lu && m.type === 'gestionnaire').length;
+  const nbChatNonLus = messages.filter(m => !m.lu && m.type === 'collaborateur').length;
+  const nonLus = nbNotifNonLues + nbGestNonLus + nbChatNonLus;
+  // L'avis mène à la page où se trouvent les non lus (la plus chargée d'abord)
+  const pageAvis: PageDash = (nbNotifNonLues >= nbGestNonLus && nbNotifNonLues >= nbChatNonLus) ? 'notifications' : (nbChatNonLus > nbGestNonLus ? 'chat' : 'messagerie');
+  const texteAvis = [
+    nbNotifNonLues > 0 ? `${nbNotifNonLues} nouvelle${nbNotifNonLues > 1 ? 's' : ''} notification${nbNotifNonLues > 1 ? 's' : ''}` : '',
+    (nbGestNonLus + nbChatNonLus) > 0 ? `${nbGestNonLus + nbChatNonLus} nouveau${(nbGestNonLus + nbChatNonLus) > 1 ? 'x' : ''} message${(nbGestNonLus + nbChatNonLus) > 1 ? 's' : ''}` : '',
+  ].filter(Boolean).join(' et ');
 
   return (
     <div>
@@ -196,11 +205,11 @@ function VueDashboard({
 
       {nonLus > 0 && (
         <div
-          onClick={() => naviguer('messagerie')}
+          onClick={() => naviguer(pageAvis)}
           style={{ background: `${couleurAccent}15`, border: `1px solid ${couleurAccent}44`, borderRadius: 12, padding: '10px 16px', marginBottom: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 10 }}
         >
           <span style={{ fontSize: 18 }}>🔔</span>
-          <span style={{ fontSize: 13, color: couleurAccent, fontWeight: 700 }}>{nonLus} nouveau{nonLus > 1 ? 'x' : ''} message{nonLus > 1 ? 's' : ''} ou notification{nonLus > 1 ? 's' : ''}</span>
+          <span style={{ fontSize: 13, color: couleurAccent, fontWeight: 700 }}>{texteAvis}</span>
           <span style={{ marginLeft: 'auto', fontSize: 12, color: couleurAccent }}>Voir →</span>
         </div>
       )}

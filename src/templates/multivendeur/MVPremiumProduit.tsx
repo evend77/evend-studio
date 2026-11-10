@@ -198,7 +198,9 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
         body: JSON.stringify({ produit_id: produit.id, titre: produit.nom, quantite, prix: produit.prix }),
       });
       if (res.status === 401) { try { localStorage.removeItem(`mv_compte_${gId}`); } catch { /* stockage indisponible */ } }
-      setMsgAjout({ succes: res.ok, texte: res.ok ? '✓ Ajouté au panier !' : res.status === 401 ? 'Session expirée — reconnectez-vous' : '❌ Erreur' });
+      let erreurServeur = '';
+      if (!res.ok && res.status !== 401) { try { erreurServeur = String((await res.json())?.error || '').slice(0, 140); } catch { erreurServeur = ''; } }
+      setMsgAjout({ succes: res.ok, texte: res.ok ? '✓ Ajouté au panier !' : res.status === 401 ? 'Session expirée — reconnectez-vous' : (erreurServeur ? '❌ ' + erreurServeur : '❌ Erreur') });
     } catch { setMsgAjout({ succes: false, texte: '❌ Erreur réseau' }); }
     setAjoutEnCours(false);
     setTimeout(() => setMsgAjout(null), 3000);
