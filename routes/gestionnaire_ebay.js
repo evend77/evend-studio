@@ -20,6 +20,9 @@ const BASE_PUBLIQUE = (process.env.PUBLIC_BASE_URL || 'https://e-vendstudio.ca')
 const URL_ACCEPTEE = `${BASE_PUBLIQUE}/api/ebay-connexion/callback`;
 const URL_REFUSEE = `${BASE_PUBLIQUE}/api/ebay-connexion/refus`;
 
+// Clés Etsy du gestionnaire (add-on « Connecteur Etsy ») : sous-routeur avec sa propre authentification et son propre add-on
+router.use('/etsy', require('./gestionnaire_etsy'));
+
 router.use(authenticateToken);
 router.use((req, res, next) => {
   if (!req.user || req.user.role !== 'gestionnaire') return res.status(403).json({ error: 'Accès réservé aux gestionnaires' });

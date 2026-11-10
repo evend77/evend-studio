@@ -31,6 +31,7 @@ const ADDONS_PAR_PLAN = [
   { code: 'etiquette_easypost',     nom: 'Étiquettes EasyPost',         emoji: '🏷️' },
   { code: 'etiquette_postescanada', nom: 'Étiquettes Postes Canada',    emoji: '🏷️' },
   { code: 'connecteur_ebay',        nom: 'Connecteur eBay',             emoji: '🔗' },
+  { code: 'connecteur_etsy',        nom: 'Connecteur Etsy',             emoji: '🧶' },
   { code: 'outils_annonces',         nom: "Outils avancés d'annonces",   emoji: '🧰' },
 ];
 const CODES_PERMIS = new Set(ADDONS_PAR_PLAN.map((a) => a.code));

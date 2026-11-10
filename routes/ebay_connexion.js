@@ -9,11 +9,11 @@ const svc = require('../services/studio_ebay');
 
 const router = express.Router();
 
-function retour(res, url, etat) {
+function retour(res, url, etat, param = 'ebay') {
   let u;
   try { u = new URL(url); } catch (e) { return res.status(400).send('Lien de retour invalide.'); }
   u.searchParams.set('page', 'dashboard-collaborateur');
-  u.searchParams.set('ebay', etat);
+  u.searchParams.set(param, etat);
   u.hash = '';
   res.redirect(302, u.toString());
 }
@@ -39,6 +39,23 @@ router.get('/refus', async (req, res) => {
     if (e) return retour(res, e.retour_url, 'refuse');
   } catch (err) { console.error('❌ eBay refus :', err.message); }
   res.status(200).send("Connexion annulée. Vous pouvez fermer cette page et retourner dans votre tableau de bord.");
+});
+
+// ─── Retour d'Etsy (connecteur Etsy) : adresse à déclarer dans l'app Etsy du gestionnaire ───
+const etsySvc = require('../services/studio_etsy');
+router.get('/etsy-callback', async (req, res) => {
+  let e = null;
+  try {
+    e = await etsySvc.consommerEtat(req.query.state);
+    if (!e) return res.status(400).send('Lien expiré ou invalide. Retournez dans votre tableau de bord et cliquez de nouveau sur « Connecter mon Etsy ».');
+    if (req.query.error || !req.query.code) return retour(res, e.retour_url, 'refuse', 'etsy');
+    await etsySvc.connecterAvecCode(e.gestionnaire_id, e.collaborateur_id, String(req.query.code), e.code_verifier);
+    retour(res, e.retour_url, 'ok', 'etsy');
+  } catch (err) {
+    console.error('❌ Etsy callback :', err.message);
+    if (e) return retour(res, e.retour_url, 'erreur', 'etsy');
+    res.status(500).send('Erreur serveur.');
+  }
 });
 
 // ─── Notification eBay « Marketplace Account Deletion » (obligatoire pour activer les clés de production) ───
