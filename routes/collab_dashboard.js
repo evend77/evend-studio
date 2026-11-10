@@ -220,18 +220,35 @@ router.get('/categories', h(async (req, res) => {
   res.json(r.rows);
 }));
 
+// Origine d'une annonce : Studio (créée ici), eBay ou Etsy (importée). Les colonnes d'import peuvent ne pas exister (connecteur pas installé).
+let _colsSource = null;
+async function colsSource() {
+  if (_colsSource) return _colsSource;
+  try {
+    const r = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'produits' AND column_name IN ('ebay_item_id','etsy_listing_id','etsy_item_id')`);
+    const n = r.rows.map(x => x.column_name);
+    _colsSource = { ebay: n.includes('ebay_item_id') ? 'ebay_item_id' : null, etsy: n.includes('etsy_listing_id') ? 'etsy_listing_id' : (n.includes('etsy_item_id') ? 'etsy_item_id' : null) };
+  } catch (e) { return { ebay: null, etsy: null }; }
+  return _colsSource;
+}
+
 router.get('/produits', h(async (req, res) => {
+  const cs = await colsSource();
+  const exprSource = cs.ebay || cs.etsy
+    ? `CASE ${cs.ebay ? `WHEN ${cs.ebay} IS NOT NULL THEN 'ebay' ` : ''}${cs.etsy ? `WHEN ${cs.etsy} IS NOT NULL THEN 'etsy' ` : ''}ELSE 'studio' END`
+    : `'studio'`;
   const where = ['collaborateur_id = $1', 'gestionnaire_id = $2'];
   const params = [req.cid, req.gid];
   const m = motif(req.query.q);
   if (m) { params.push(m); where.push(`(titre ILIKE $${params.length} OR sku ILIKE $${params.length})`); }
   if (STATUTS_FILTRE.includes(req.query.statut)) { params.push(req.query.statut); where.push(`statut = $${params.length}`); }
   if (req.query.stock === 'rupture') where.push('stock = 0');
+  if (['studio', 'ebay', 'etsy'].includes(req.query.source)) { params.push(req.query.source); where.push(`(${exprSource}) = $${params.length}`); }
   const W = where.join(' AND ');
   const page = pageDemandee(req);
   const [liste, total, stats] = await Promise.all([
     pool.query(
-      `SELECT id, titre, prix, prix_promo, stock, sku, categorie, photo_principale, statut, created_at,
+      `SELECT id, titre, prix, prix_promo, stock, sku, categorie, photo_principale, statut, created_at, ${exprSource} AS source,
               CASE WHEN date_parution > NOW() THEN date_parution END AS date_parution, date_expiration,
               (date_expiration IS NOT NULL AND date_expiration <= NOW()) AS expire
          FROM produits WHERE ${W} ORDER BY created_at DESC, id DESC LIMIT ${PAR_PAGE} OFFSET ${(page - 1) * PAR_PAGE}`, params),

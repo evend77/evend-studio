@@ -9,6 +9,7 @@ interface Produit {
   id: number; titre: string; prix: string; prix_promo: string | null; stock: number | null;
   sku: string | null; categorie: string | null; photo_principale: string | null;
   statut: 'actif' | 'brouillon' | 'en_attente'; created_at: string;
+  source?: 'studio' | 'ebay' | 'etsy';
   expire?: boolean; date_expiration?: string | null;   // date d'expiration (arrêt de publication)
 }
 interface Reponse {
@@ -25,6 +26,15 @@ interface Props {
 }
 
 const T = { border: '#e1e4e8', text: '#1a2332', light: '#6b7280', danger: '#dc2626', success: '#16a34a', bg: '#f4f6f8' };
+const SOURCES: Record<string, { nom: string; color: string; bg: string }> = {
+  studio: { nom: 'Studio', color: '#0f766e', bg: '#e6f6f4' },
+  ebay: { nom: 'eBay', color: '#0064d2', bg: '#e5f0ff' },
+  etsy: { nom: 'Etsy', color: '#d5641c', bg: '#fef0e5' },
+};
+const pastilleSource = (src?: string) => {
+  const c = SOURCES[src || 'studio'] || SOURCES.studio;
+  return <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700, color: c.color, background: c.bg, whiteSpace: 'nowrap' }}>{c.nom}</span>;
+};
 const argent = (v: string | number | null) => (v === null || v === undefined ? '—' : formaterPrix(v));
 
 export default function CollaborateurProduits({ gestionnaireId, accent, isMobile, onCreer, onModifier, onOffre }: Props) {
@@ -35,6 +45,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
   const [qEff, setQEff] = useState('');
   const [statut, setStatut] = useState('');
   const [rupture, setRupture] = useState(false);
+  const [source, setSource] = useState('');
   const [choisis, setChoisis] = useState<number[]>([]);
   const [aSupprimer, setASupprimer] = useState<number[] | null>(null);
   const [erreur, setErreur] = useState('');
@@ -68,13 +79,14 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
     if (qEff) p.set('q', qEff);
     if (statut) p.set('statut', statut);
     if (rupture) p.set('stock', 'rupture');
+    if (source) p.set('source', source);
     try {
       const res = await fetch(`${base}/produits?${p}`, { credentials: 'include' });
       if (res.ok) { setData(await res.json()); setErreur(''); }
       else setErreur((await res.json().catch(() => ({}))).error || 'Chargement impossible');
     } catch { setErreur('Erreur réseau'); }
     setChargement(false);
-  }, [base, page, qEff, statut, rupture]);
+  }, [base, page, qEff, statut, rupture, source]);
 
   useEffect(() => { charger(); }, [charger]);
 
@@ -224,6 +236,13 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
           <option value="brouillon">Brouillons</option>
           <option value="en_attente">En attente d'approbation</option>
         </select>
+        <select value={source} onChange={e => { setSource(e.target.value); setPage(1); }}
+          style={{ flex: isMobile ? 1 : undefined, minWidth: 0, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 8, padding: '9px 12px', fontSize: isMobile ? 14 : 13 }}>
+          <option value="">Toutes les sources</option>
+          <option value="studio">Studio</option>
+          <option value="ebay">eBay</option>
+          <option value="etsy">Etsy</option>
+        </select>
         {rupture && <button onClick={() => { setRupture(false); setPage(1); }} style={bouton(accent)}>En rupture ✕</button>}
         {choisis.length > 0 && (
           <button onClick={() => setASupprimer(choisis)} style={{ ...bouton(T.danger), padding: '9px 14px', fontSize: 12 }}>🗑️ Supprimer ({choisis.length})</button>
@@ -241,9 +260,9 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
       ) : (
         <div style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, overflow: 'hidden' }}>
           {!isMobile && (
-            <div style={{ display: 'grid', gridTemplateColumns: '36px 56px 1fr 110px 80px 100px 250px', gap: 10, padding: '10px 14px', background: '#f8fafc', borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.light, textTransform: 'uppercase', alignItems: 'center' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '36px 56px 1fr 90px 110px 80px 100px 250px', gap: 10, padding: '10px 14px', background: '#f8fafc', borderBottom: `1px solid ${T.border}`, fontSize: 11, fontWeight: 700, color: T.light, textTransform: 'uppercase', alignItems: 'center' }}>
               <input type="checkbox" checked={tous} onChange={() => setChoisis(tous ? [] : lignes.map(p => p.id))} />
-              <span></span><span>Annonce</span><span>Prix</span><span>Stock</span><span>Statut</span><span>Actions</span>
+              <span></span><span>Annonce</span><span>Source</span><span>Prix</span><span>Stock</span><span>Statut</span><span>Actions</span>
             </div>
           )}
           {isMobile && lignes.map(p => {
@@ -271,6 +290,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
                   <span style={{ fontSize: 12, color: p.stock === 0 ? T.danger : T.light, fontWeight: p.stock === 0 ? 700 : 500 }}>
                     · {p.stock === null ? 'Stock ∞' : p.stock === 0 ? 'Rupture' : `Stock ${p.stock}`}
                   </span>
+                  {pastilleSource(p.source)}
                   <span style={{ ...bs, marginLeft: 'auto' }}>{p.statut === 'actif' ? (p.expire ? '⏹️ Expirée' : 'Active') : p.statut === 'en_attente' ? '⏳ En attente' : 'Brouillon'}</span>
                 </div>
                 {(enc && !(enc.statut === 'active' && enc.nb_mises === 0)) && (
@@ -283,7 +303,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
           {!isMobile && lignes.map(p => (
             <div key={p.id} style={isMobile
               ? { padding: 14, borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 8 }
-              : { display: 'grid', gridTemplateColumns: '36px 56px 1fr 110px 80px 100px 250px', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${T.border}`, alignItems: 'center' }}>
+              : { display: 'grid', gridTemplateColumns: '36px 56px 1fr 90px 110px 80px 100px 250px', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${T.border}`, alignItems: 'center' }}>
               {!isMobile && <input type="checkbox" checked={choisis.includes(p.id)} onChange={() => basculer(p.id)} />}
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
                 <div style={{ width: 48, height: 48, borderRadius: 8, background: T.bg, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -297,6 +317,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
                   <div style={{ fontSize: 11, color: T.light }}>{[p.sku && `SKU ${p.sku}`, p.categorie].filter(Boolean).join(' · ') || '—'}</div>
                 </div>
               )}
+              <div>{pastilleSource(p.source)}</div>
               <div style={{ fontSize: 13 }}>
                 {p.prix_promo ? (<><strong style={{ color: T.danger }}>{argent(p.prix_promo)}</strong> <s style={{ color: T.light, fontSize: 11 }}>{argent(p.prix)}</s></>) : <strong>{argent(p.prix)}</strong>}
               </div>
