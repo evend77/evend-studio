@@ -52,10 +52,10 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
   useEffect(() => {
     if (!menu) return;
     const fermer = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
-    const defiler = () => setMenu(null);
+    const defiler = () => { if (!isMobile) setMenu(null); };
     window.addEventListener('keydown', fermer); window.addEventListener('scroll', defiler, true); window.addEventListener('resize', defiler);
     return () => { window.removeEventListener('keydown', fermer); window.removeEventListener('scroll', defiler, true); window.removeEventListener('resize', defiler); };
-  }, [menu]);
+  }, [menu, isMobile]);
   const [fDepart, setFDepart] = useState('');
   const [fReserve, setFReserve] = useState('');
   const [fDuree, setFDuree] = useState('24');
@@ -162,6 +162,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
   };
 
   const basculer = (id: number) => setChoisis(c => (c.includes(id) ? c.filter(x => x !== id) : [...c, id]));
+  const lignes0 = data?.produits.length || 0;
   const tous = !!data && data.produits.length > 0 && data.produits.every(p => choisis.includes(p.id));
   const bouton = (couleur: string): React.CSSProperties => ({ background: 'none', border: `1px solid ${couleur}`, color: couleur, borderRadius: 6, padding: '4px 9px', fontSize: 11, fontWeight: 700, cursor: 'pointer' });
   const badge = (s: string): React.CSSProperties => ({ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: s === 'actif' ? '#E9F7EF' : '#FEF9E7', color: s === 'actif' ? '#1E8449' : '#B7950B' });
@@ -181,7 +182,9 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
       </div>
 
       {/* Compteurs */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : `repeat(${(data?.stats.en_attente ?? 0) > 0 ? 5 : 4}, 1fr)`, gap: 10, marginBottom: 16 }}>
+      <div style={isMobile
+        ? { display: 'flex', gap: 8, overflowX: 'auto', marginBottom: 12, paddingBottom: 2 }
+        : { display: 'grid', gridTemplateColumns: `repeat(${(data?.stats.en_attente ?? 0) > 0 ? 5 : 4}, 1fr)`, gap: 10, marginBottom: 16 }}>
         {[
           { l: 'Total', v: data?.stats.total ?? 0, f: () => { setStatut(''); setRupture(false); setPage(1); } },
           { l: 'Actives', v: data?.stats.actifs ?? 0, f: () => { setStatut('actif'); setRupture(false); setPage(1); } },
@@ -189,19 +192,33 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
           ...((data?.stats.en_attente ?? 0) > 0 ? [{ l: 'En attente', v: data?.stats.en_attente ?? 0, f: () => { setStatut('en_attente'); setRupture(false); setPage(1); } }] : []),
           { l: 'En rupture', v: data?.stats.ruptures ?? 0, f: () => { setStatut(''); setRupture(true); setPage(1); } },
         ].map(c => (
+          isMobile ? (
+            <button key={c.l} onClick={c.f} style={{ flexShrink: 0, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 20, padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: T.text, whiteSpace: 'nowrap' }}>
+              {c.l} <span style={{ color: accent }}>{c.v}</span>
+            </button>
+          ) : (
           <button key={c.l} onClick={c.f} style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, padding: '12px 14px', textAlign: 'left', cursor: 'pointer' }}>
             <div style={{ fontSize: 22, fontWeight: 800, color: T.text }}>{c.v}</div>
             <div style={{ fontSize: 11, color: T.light, textTransform: 'uppercase', fontWeight: 700 }}>{c.l}</div>
           </button>
+          )
         ))}
       </div>
 
       {/* Filtres */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
-        <input value={q} onChange={e => changerRecherche(e.target.value)} placeholder="🔍 Titre ou SKU…" maxLength={80}
-          style={{ flex: 1, minWidth: 180, border: `1px solid ${T.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13, outline: 'none' }} />
+        <div style={{ flex: isMobile ? '1 1 100%' : 1, minWidth: isMobile ? 0 : 180, display: 'flex', alignItems: 'center', gap: 8, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 8, padding: '0 12px' }}>
+          <span style={{ fontSize: 14, opacity: 0.6 }}>🔍</span>
+          <input value={q} onChange={e => changerRecherche(e.target.value)} placeholder="Rechercher par titre ou SKU…" maxLength={80}
+            style={{ flex: 1, minWidth: 0, border: 'none', padding: '10px 0', fontSize: 16, outline: 'none', background: 'transparent' }} />
+        </div>
+        {isMobile && lignes0 > 0 && (
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: T.light, fontWeight: 600 }}>
+            <input type="checkbox" checked={tous} onChange={() => setChoisis(tous ? [] : (data?.produits || []).map(p => p.id))} style={{ width: 18, height: 18 }} /> Tout
+          </label>
+        )}
         <select value={statut} onChange={e => { setStatut(e.target.value); setPage(1); }}
-          style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: '9px 12px', fontSize: 13 }}>
+          style={{ flex: isMobile ? 1 : undefined, minWidth: 0, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 8, padding: '9px 12px', fontSize: isMobile ? 14 : 13 }}>
           <option value="">Tous les statuts</option>
           <option value="actif">Actives</option>
           <option value="brouillon">Brouillons</option>
@@ -229,7 +246,41 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
               <span></span><span>Annonce</span><span>Prix</span><span>Stock</span><span>Statut</span><span>Actions</span>
             </div>
           )}
-          {lignes.map(p => (
+          {isMobile && lignes.map(p => {
+            const enc = encheres[p.id];
+            const bs = p.statut === 'en_attente' ? { ...badge('x'), background: '#FFF3E0', color: '#C2570C' } : p.statut === 'actif' && p.expire ? { ...badge('x'), background: '#FEE2E2', color: '#B91C1C' } : badge(p.statut);
+            return (
+              <div key={p.id} style={{ padding: '12px 12px', borderBottom: `1px solid ${T.border}`, background: choisis.includes(p.id) ? '#f8fafc' : '#fff' }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <input type="checkbox" checked={choisis.includes(p.id)} onChange={() => basculer(p.id)} style={{ width: 18, height: 18, marginTop: 4, flexShrink: 0 }} />
+                  <div onClick={() => onModifier(p.id)} style={{ width: 56, height: 56, borderRadius: 8, background: T.bg, border: `1px solid ${T.border}`, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                    {p.photo_principale ? <img src={p.photo_principale} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 20 }}>📦</span>}
+                  </div>
+                  <div onClick={() => onModifier(p.id)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: T.text, lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.titre}</div>
+                    <div style={{ fontSize: 11, color: T.light, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{[p.sku && `SKU ${p.sku}`, p.categorie].filter(Boolean).join(' · ') || '—'}</div>
+                  </div>
+                  <button disabled={occupe} aria-label="Actions"
+                    onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu({ p, x: r.right, y: r.bottom, haut: r.top }); }}
+                    style={{ background: '#fff', border: `1px solid ${T.border}`, borderRadius: 8, width: 38, height: 36, fontSize: 20, fontWeight: 800, lineHeight: 1, color: T.text, cursor: 'pointer', flexShrink: 0 }}>⋮</button>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginTop: 8, paddingLeft: 28 }}>
+                  <span style={{ fontSize: 14 }}>
+                    {p.prix_promo ? (<><strong style={{ color: T.danger }}>{argent(p.prix_promo)}</strong> <s style={{ color: T.light, fontSize: 11 }}>{argent(p.prix)}</s></>) : <strong>{argent(p.prix)}</strong>}
+                  </span>
+                  <span style={{ fontSize: 12, color: p.stock === 0 ? T.danger : T.light, fontWeight: p.stock === 0 ? 700 : 500 }}>
+                    · {p.stock === null ? 'Stock ∞' : p.stock === 0 ? 'Rupture' : `Stock ${p.stock}`}
+                  </span>
+                  <span style={{ ...bs, marginLeft: 'auto' }}>{p.statut === 'actif' ? (p.expire ? '⏹️ Expirée' : 'Active') : p.statut === 'en_attente' ? '⏳ En attente' : 'Brouillon'}</span>
+                </div>
+                {(enc && !(enc.statut === 'active' && enc.nb_mises === 0)) && (
+                  <div style={{ marginTop: 6, paddingLeft: 28 }}><span style={{ ...badge('actif'), background: '#FEF3C7', color: '#92400E' }}>🔨 {enc.statut === 'active' ? `${enc.nb_mises} mise${enc.nb_mises > 1 ? 's' : ''}` : 'À payer'}</span></div>
+                )}
+                {p.statut === 'actif' && p.date_expiration && !p.expire && <div style={{ fontSize: 11, color: '#92400E', marginTop: 4, paddingLeft: 28 }}>⏹️ expire le {new Date(p.date_expiration).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>}
+              </div>
+            );
+          })}
+          {!isMobile && lignes.map(p => (
             <div key={p.id} style={isMobile
               ? { padding: 14, borderBottom: `1px solid ${T.border}`, display: 'flex', flexDirection: 'column', gap: 8 }
               : { display: 'grid', gridTemplateColumns: '36px 56px 1fr 110px 80px 100px 250px', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${T.border}`, alignItems: 'center' }}>
@@ -274,7 +325,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
         const p = menu.p, e = encheres[p.id];
         const item = (label: string, onClick: () => void, couleur?: string) => (
           <button key={label} className="cp-mi" disabled={occupe} onClick={() => { setMenu(null); onClick(); }}
-            style={{ display: 'block', width: '100%', textAlign: 'left', padding: '10px 16px', background: 'none', border: 'none', fontSize: 13, fontWeight: 600, color: couleur || T.text, cursor: 'pointer', fontFamily: 'inherit' }}>{label}</button>
+            style={{ display: 'block', width: '100%', textAlign: 'left', padding: isMobile ? '13px 18px' : '10px 16px', background: 'none', border: 'none', fontSize: isMobile ? 15 : 13, fontWeight: 600, color: couleur || T.text, cursor: 'pointer', fontFamily: 'inherit' }}>{label}</button>
         );
         const sep = (k: string) => <div key={k} style={{ height: 1, background: T.border, margin: '4px 0' }} />;
         const entrees: React.ReactNode[] = [
@@ -290,9 +341,13 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
         return (
           <>
             <style>{`.cp-mi:hover:not(:disabled){background:#f3f4f6}`}</style>
-            <div onClick={() => setMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />
-            <div role="menu" style={{ position: 'fixed', zIndex: 3000, right: Math.max(8, window.innerWidth - menu.x), top: enHaut ? undefined : menu.y + 4, bottom: enHaut ? window.innerHeight - menu.haut + 4 : undefined,
+            {!isMobile && <div onClick={() => setMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 2999 }} />}
+            {isMobile && <div onClick={() => setMenu(null)} style={{ position: 'fixed', inset: 0, zIndex: 2999, background: 'rgba(0,0,0,0.35)' }} />}
+            <div role="menu" style={isMobile
+              ? { position: 'fixed', zIndex: 3000, left: 0, right: 0, bottom: 0, maxHeight: '80vh', overflowY: 'auto', background: '#fff', borderRadius: '16px 16px 0 0', boxShadow: '0 -8px 30px rgba(0,0,0,0.2)', padding: '8px 0 18px' }
+              : { position: 'fixed', zIndex: 3000, right: Math.max(8, window.innerWidth - menu.x), top: enHaut ? undefined : menu.y + 4, bottom: enHaut ? window.innerHeight - menu.haut + 4 : undefined,
               minWidth: 220, background: '#fff', border: `1px solid ${T.border}`, borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.16)', padding: '6px 0' }}>
+              {isMobile && <div style={{ padding: '6px 16px 8px', fontSize: 12, fontWeight: 700, color: T.light, borderBottom: `1px solid ${T.border}`, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.titre}</div>}
               {entrees}{extras}{sep('s1')}
               {item('⧉ Dupliquer', () => action(`/produits/${p.id}/dupliquer`, 'POST'))}
               {item('🗑️ Supprimer', () => setASupprimer([p.id]), T.danger)}

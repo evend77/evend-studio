@@ -273,7 +273,9 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
           .mvp-thumbs button { flex-shrink:0 !important; scroll-snap-align:start; }
           .mvp-titre { font-size:20px !important; margin-bottom:12px !important; word-break:break-word; }
           .mvp-prix-actuel { font-size:24px !important; }
-          .mvp-action { display:flex !important; flex-direction:row !important; gap:10px !important; align-items:center !important; margin-bottom:14px !important; }
+          .mvp-action { margin-bottom:14px !important; }
+          .mvp-achat { display:flex !important; flex-direction:row !important; gap:10px !important; align-items:center !important; margin-bottom:12px !important; }
+          .mvp-palier-ligne span { white-space:nowrap; }
           .mvp-qty { margin:0 !important; flex:0 0 auto !important; }
           .mvp-qty label { display:none !important; }
           .mvp-action .mvp-btn-panier { flex:1 !important; width:auto !important; margin:0 !important; padding:14px 10px !important; }
@@ -443,7 +445,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                 {lignesPaliers.map(l => {
                   const actif = palierAtteint && palierAtteint.qte_min === l.qte_min;
                   return (
-                    <div key={l.qte_min} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 10px', borderRadius: 8, marginBottom: 4, fontSize: 13, fontWeight: actif ? 800 : 600, color: actif ? '#fff' : 'rgba(255,255,255,0.7)', background: actif ? 'rgba(16,185,129,0.18)' : 'transparent', border: `1px solid ${actif ? 'rgba(16,185,129,0.5)' : 'transparent'}` }}>
+                    <div key={l.qte_min} className="mvp-palier-ligne" style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '6px 10px', borderRadius: 8, marginBottom: 4, fontSize: 13, fontWeight: actif ? 800 : 600, color: actif ? '#fff' : 'rgba(255,255,255,0.7)', background: actif ? 'rgba(16,185,129,0.18)' : 'transparent', border: `1px solid ${actif ? 'rgba(16,185,129,0.5)' : 'transparent'}` }}>
                       <span>{l.qte_min}+ unités</span>
                       <span>{formaterPrix(l.prix)} / unité</span>
                     </div>
@@ -458,6 +460,10 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               </div>
             )}
 
+            {/* Favoris : ♥ au-dessus de la quantité */}
+            <MVSouhaitProduit zone="avant_panier" gestionnaireId={gId} produitId={produit.id} isDemo={isDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
+
+            <div className="mvp-achat">
             {/* Quantité */}
             {stockDispo > 0 && produit.vacances?.mode !== 'masque' && !parutionBloquee && (
               <div className="mvp-qty" style={{ marginBottom: 20 }}>
@@ -469,9 +475,6 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                 </div>
               </div>
             )}
-
-            {/* Favoris : ♥ avant le bouton panier */}
-            <MVSouhaitProduit zone="avant_panier" gestionnaireId={gId} produitId={produit.id} isDemo={isDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
 
             {/* Bouton panier */}
             {annonceExpiree && <div style={{ width: '100%', marginBottom: 12, padding: '14px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: '#fca5a5', fontSize: 14, fontWeight: 700, textAlign: 'center', boxSizing: 'border-box' }}>⏹️ Cette annonce n'est plus disponible.</div>}
@@ -491,6 +494,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               }}>
               {ajoutEnCours ? '⏳ Ajout...' : stockDispo === 0 ? 'Épuisé' : '🛒 Ajouter au panier'}
             </button>}
+            </div>
             <MVFaireOffre gestionnaireId={gId} produitId={produit.id} prix={prixAffiche} variante={variante} varianteRequise={lesVariantes.length > 0 && !variante}
               masque={enchereActive || parutionBloquee || stockDispo === 0 || produit.vacances?.mode === 'masque'} couleurAccent={couleurAccent} isDemo={isDemo}
               allerConnexion={() => naviguer({ page: 'login' })} />
