@@ -306,7 +306,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
               : { display: 'grid', gridTemplateColumns: '36px 56px 1fr 90px 110px 80px 100px 250px', gap: 10, padding: '10px 14px', borderBottom: `1px solid ${T.border}`, alignItems: 'center' }}>
               {!isMobile && <input type="checkbox" checked={choisis.includes(p.id)} onChange={() => basculer(p.id)} />}
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
-                <div style={{ width: 48, height: 48, borderRadius: 8, background: T.bg, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div onClick={() => onModifier(p.id)} title="Modifier cette annonce" style={{ cursor: 'pointer', width: 48, height: 48, borderRadius: 8, background: T.bg, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {p.photo_principale ? <img src={p.photo_principale} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 20 }}>🖼️</span>}
                 </div>
                 {isMobile && <strong style={{ fontSize: 14, color: T.text }}>{p.titre}</strong>}
