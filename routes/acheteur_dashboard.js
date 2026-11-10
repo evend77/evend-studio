@@ -122,7 +122,7 @@ async function authAcheteur(req, res, next) {
       return res.status(403).json({ error: 'Accès refusé' });
     }
     const r = await pool.query(
-      `SELECT id FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2`,
+      `SELECT id FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2 AND suspendu IS NOT TRUE`,
       [entier(payload.id), gid]
     );
     if (!r.rows.length) return res.status(403).json({ error: 'Compte introuvable' });

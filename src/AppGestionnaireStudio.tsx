@@ -53,6 +53,7 @@ import StudioMVAvis            from './pages/gestionnaire/StudioMVAvis';
 import StudioMVQuestions       from './pages/gestionnaire/StudioMVQuestions';
 import StudioMVOffres          from './pages/gestionnaire/StudioMVOffres';
 import StudioMVPlansCollab     from './pages/gestionnaire/StudioMVPlansCollab';
+import StudioMVAcheteurs       from './pages/gestionnaire/StudioMVAcheteurs';
 import StudioMVNegociations    from './pages/gestionnaire/StudioMVNegociations';
 import StudioSousVendeurs       from './pages/gestionnaire/StudioCollaborateurs';
 import StudioGestionBadges      from './pages/gestionnaire/StudioGestionBadges';
@@ -1223,6 +1224,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
       menuSousVendeurs,
+      { id:'mv-acheteurs',label:'MES ACHETEURS',icon:'👥' },   // acheteurs de la marketplace (template MV seulement)
       ...(addonsMV.badges ? [menuBadges] : []),
       ...(addonsMV.chat_collab ? [menuChatSV] : []),
       menuStudioMV,
@@ -1534,6 +1536,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mv-avis') return <StudioMVAvis gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-questions') return <StudioMVQuestions gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-offres') return <StudioMVOffres gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-acheteurs' && estMultiVendeur) return <StudioMVAcheteurs gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-plans-collab') return <StudioMVPlansCollab gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-negociations') return <StudioMVNegociations gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-encheres') return <StudioEncheres gestionnaireId={gestionnaire.id} />;

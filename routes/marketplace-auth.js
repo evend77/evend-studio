@@ -150,6 +150,9 @@ router.post('/:gestionnaireId/login', async (req, res) => {
     if (type === 'collaborateur' && compte.statut !== 'actif') {
       return res.status(403).json({ message: 'Votre compte collaborateur est encore en attente d\'approbation' });
     }
+    if (type === 'acheteur' && compte.suspendu === true) {
+      return res.status(403).json({ message: 'Votre compte est suspendu. Contactez la boutique pour plus d\'informations.' });
+    }
 
     await pool.query(`DELETE FROM login_attempts WHERE email = $1 AND user_type = $2`, [email.toLowerCase(), userTypeKey]);
 
@@ -182,7 +185,7 @@ router.post('/:gestionnaireId/logout', (req, res) => {
 // valide (peu importe la boutique) passait cette vérification, ce qui
 // permettait à un acheteur/collaborateur de boutique A d'appeler les routes
 // de boutique B en devinant/itérant des IDs numériques dans l'URL.
-function authMarketplace(req, res, next) {
+async function authMarketplace(req, res, next) {
   const { gestionnaireId } = req.params;
   const cookieToken = req.cookies && req.cookies[nomCookieMarketplace(gestionnaireId)];
   const authHeader = req.headers.authorization;
@@ -198,6 +201,10 @@ function authMarketplace(req, res, next) {
       return res.status(403).json({ message: 'Ce compte n\'appartient pas à cette boutique.' });
     }
 
+    if (payload.type === 'acheteur') {   // compte suspendu par le gestionnaire : session fermée
+      const sus = await pool.query('SELECT suspendu FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2', [payload.id, Number(gestionnaireId)]);
+      if (sus.rows[0] && sus.rows[0].suspendu === true) return res.status(403).json({ message: 'Votre compte est suspendu.', suspendu: true });
+    }
     req.mvUser = payload;
     next();
   } catch { res.status(401).json({ message: 'Token invalide ou expire' }); }

@@ -24,7 +24,7 @@ const JWT_SECRET = process.env.JWT_SECRET;
 // Cookie httpOnly mv_token_<gid> (posé par marketplace-auth.js), avec repli sur
 // l'en-tête Authorization. Le jeton doit appartenir à CETTE boutique et à un
 // acheteur : un collaborateur n'a pas de panier.
-function authMV(req, res, next) {
+async function authMV(req, res, next) {
   const gid = req.params.gid;
   const cookieToken = req.cookies && req.cookies[`mv_token_${gid}`];
   const auth = req.headers.authorization;
@@ -39,6 +39,8 @@ function authMV(req, res, next) {
     if (payload.type !== 'acheteur') {
       return res.status(403).json({ message: 'Un compte acheteur est requis.' });
     }
+    const sus = await pool.query('SELECT suspendu FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2', [payload.id, Number(gid)]);
+    if (sus.rows[0] && sus.rows[0].suspendu === true) return res.status(403).json({ message: 'Votre compte est suspendu. Contactez la boutique.', suspendu: true });
     req.mvUser = payload;
     next();
   } catch { res.status(401).json({ message: 'Token invalide' }); }

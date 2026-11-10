@@ -3,7 +3,7 @@
 // fonctionnalités, commission), règle le système (jours de grâce, action si impayé) et assigne les plans.
 // API : /api/studio/mv/:gid/plans  (GET · POST /plans · PUT /plans/:id · DELETE /plans/:id · PUT /config · PUT /collaborateurs/:id · POST /assigner-tous)
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 const API_BASE = '/api';
 const C = { accent: '#c9a96e', green: '#10b981', red: '#ef4444', orange: '#f59e0b', bg: '#f4f6f8', card: '#fff', border: '#e1e4e8', text: '#1a2332', textLight: '#64748b' };
@@ -44,6 +44,11 @@ const StudioMVPlansCollab: React.FC<{ gestionnaireId: number }> = ({ gestionnair
   const [occupe, setOccupe] = useState(false);
   const [cfg, setCfg] = useState<Config | null>(null);
   const [planTous, setPlanTous] = useState('');
+  // Fenêtre de confirmation (remplace celle du navigateur)
+  const [conf, setConf] = useState<{ titre: string; texte: string; bouton: string; danger?: boolean } | null>(null);
+  const resolveur = useRef<((v: boolean) => void) | null>(null);
+  const confirmer = (c: { titre: string; texte: string; bouton: string; danger?: boolean }) => new Promise<boolean>((resolve) => { resolveur.current = resolve; setConf(c); });
+  const repondre = (v: boolean) => { setConf(null); if (resolveur.current) { resolveur.current(v); resolveur.current = null; } };
 
   const charger = useCallback(async () => {
     setChargement(true); setErreur('');
@@ -97,7 +102,7 @@ const StudioMVPlansCollab: React.FC<{ gestionnaireId: number }> = ({ gestionnair
     try {
       let r = await fetch(`${base}/collaborateurs/${c.id}`, { method: 'PUT', credentials: 'include', headers: entetes(), body: JSON.stringify(corps) });
       let j = await r.json().catch(() => ({}));
-      if (r.status === 409 && window.confirm(`${j.error}\n\nForcer quand même ?`)) {
+      if (r.status === 409 && await confirmer({ titre: 'Forcer ce plan ?', texte: String(j.error || ''), bouton: 'Forcer quand même' })) {
         r = await fetch(`${base}/collaborateurs/${c.id}`, { method: 'PUT', credentials: 'include', headers: entetes(), body: JSON.stringify({ ...corps, forcer: true }) });
         j = await r.json().catch(() => ({}));
       }
@@ -121,8 +126,9 @@ const StudioMVPlansCollab: React.FC<{ gestionnaireId: number }> = ({ gestionnair
       <div style={{ ...carte, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderColor: cfg.actif ? C.green : C.orange }}>
         <b>{cfg.actif ? '🟢 Les plans sont utilisés' : '🟠 Les plans ne sont pas encore utilisés'}</b>
         <span style={{ color: C.textLight, fontSize: 13, flex: 1 }}>{cfg.actif ? 'Vos collaborateurs doivent avoir un plan.' : 'Tant que c\'est désactivé, rien ne change pour vos collaborateurs.'}</span>
-        <button disabled={occupe} style={bouton(cfg.actif ? C.red : C.green)} onClick={() => {
-          if (!cfg.actif && !window.confirm(`Activer les plans ?\n\nLes collaborateurs existants devront choisir un plan avant de créer ou modifier des annonces (leurs annonces restent en ligne). Vous pouvez leur assigner un plan à l'avance dans l'onglet Collaborateurs.`)) return;
+        <button disabled={occupe} style={bouton(cfg.actif ? C.red : C.green)} onClick={async () => {
+          if (!cfg.actif && !(await confirmer({ titre: 'Activer les plans ?', texte: "Les collaborateurs existants devront choisir un plan avant de créer ou modifier des annonces (leurs annonces restent en ligne). Vous pouvez leur assigner un plan à l'avance dans l'onglet Collaborateurs.", bouton: 'Activer les plans' }))) return;
+          if (cfg.actif && !(await confirmer({ titre: 'Désactiver les plans ?', texte: 'Tout revient comme avant : commission de Config multi, limite « Max produits » et fonctionnalités selon vos add-ons. Vos plans sont conservés.', bouton: 'Désactiver', danger: true }))) return;
           agir('/config', 'PUT', { actif: !cfg.actif }, cfg.actif ? 'Plans désactivés.' : 'Plans activés.');
         }}>{cfg.actif ? 'Désactiver' : 'Activer les plans'}</button>
       </div>
@@ -157,7 +163,7 @@ const StudioMVPlansCollab: React.FC<{ gestionnaireId: number }> = ({ gestionnair
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
                   <button style={bouton(C.accent, false)} onClick={() => setEdition({ ...p })}>✏️ Modifier</button>
-                  <button style={bouton(C.red, false)} disabled={occupe} onClick={() => { if (window.confirm(`Supprimer le plan « ${p.nom} » ?${(p.nb_collaborateurs || 0) > 0 ? '\n\nDes collaborateurs l\'ont : il sera archivé (ils le gardent).' : ''}`)) agir(`/plans/${p.id}`, 'DELETE', undefined, 'Plan supprimé.'); }}>🗑️</button>
+                  <button style={bouton(C.red, false)} disabled={occupe} onClick={async () => { if (await confirmer({ titre: `Supprimer le plan « ${p.nom} » ?`, texte: (p.nb_collaborateurs || 0) > 0 ? "Des collaborateurs l'ont : il sera archivé (ils le gardent, mais il ne sera plus offert)." : 'Cette action est définitive.', bouton: (p.nb_collaborateurs || 0) > 0 ? 'Archiver' : 'Supprimer', danger: true })) agir(`/plans/${p.id}`, 'DELETE', undefined, 'Plan supprimé.'); }}>🗑️</button>
                 </div>
               </div>
             </div>
@@ -173,7 +179,7 @@ const StudioMVPlansCollab: React.FC<{ gestionnaireId: number }> = ({ gestionnair
               <option value="">— Choisir un plan —</option>
               {plans.filter((p) => p.actif).map((p) => <option key={p.id} value={p.id}>{p.emoji} {p.nom}{!p.visible ? ' (caché)' : ''}</option>)}
             </select>
-            <button style={bouton(C.accent)} disabled={!planTous || occupe} onClick={() => { if (window.confirm(`Assigner ce plan aux ${data.sans_plan || 0} collaborateur(s) sans plan ?`)) agir('/assigner-tous', 'POST', { plan_id: Number(planTous), seulement_sans_plan: true }, 'Plan assigné.'); }}>Assigner</button>
+            <button style={bouton(C.accent)} disabled={!planTous || occupe} onClick={async () => { if (await confirmer({ titre: 'Assigner ce plan ?', texte: `Il sera donné aux ${data.sans_plan || 0} collaborateur(s) qui n'ont pas encore de plan.`, bouton: 'Assigner' })) agir('/assigner-tous', 'POST', { plan_id: Number(planTous), seulement_sans_plan: true }, 'Plan assigné.'); }}>Assigner</button>
           </div>
           {collabs.length === 0 && <div style={{ color: C.textLight, textAlign: 'center', padding: 20 }}>Aucun collaborateur.</div>}
           {collabs.map((c) => (
@@ -260,6 +266,19 @@ const StudioMVPlansCollab: React.FC<{ gestionnaireId: number }> = ({ gestionnair
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
               <button style={bouton(C.textLight, false)} onClick={() => setEdition(null)}>Annuler</button>
               <button style={bouton(C.green)} disabled={occupe} onClick={sauverPlan}>💾 Enregistrer</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {conf && (
+        <div onClick={() => repondre(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 26, width: '100%', maxWidth: 440, boxShadow: '0 20px 50px rgba(0,0,0,.3)', textAlign: 'center' }}>
+            <div style={{ fontSize: 40 }}>{conf.danger ? '⚠️' : '🧾'}</div>
+            <h3 style={{ margin: '6px 0 8px', fontSize: 19, color: C.text }}>{conf.titre}</h3>
+            <p style={{ fontSize: 14, color: C.textLight, lineHeight: 1.6, margin: 0 }}>{conf.texte}</p>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={() => repondre(false)} style={{ flex: 1, padding: 11, borderRadius: 10, border: `1px solid ${C.border}`, background: '#fff', color: C.textLight, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>Annuler</button>
+              <button onClick={() => repondre(true)} style={{ flex: 1, padding: 11, borderRadius: 10, border: 'none', background: conf.danger ? C.red : C.green, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>{conf.bouton}</button>
             </div>
           </div>
         </div>

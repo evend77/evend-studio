@@ -613,4 +613,70 @@ router.put('/negociations/config', h(async (req, res) => {
   res.json({ success: true, validite_heures: (await NEG.reglages(req.gid)).validiteHeures });
 }));
 
+
+// ── Acheteurs de la marketplace (page « Mes acheteurs ») ─────────────────────
+router.get('/acheteurs', h(async (req, res) => {
+  const params = [req.gid];
+  const where = ['a.gestionnaire_id = $1'];
+  const q = String(req.query.q || '').trim().slice(0, 80);
+  if (q) { params.push(`%${q.replace(/[%_\\]/g, '\\$&')}%`); where.push(`(a.email ILIKE $${params.length} OR a.prenom ILIKE $${params.length} OR a.nom ILIKE $${params.length} OR CONCAT(a.prenom, ' ', a.nom) ILIKE $${params.length})`); }
+  if (req.query.statut === 'suspendu') where.push('a.suspendu IS TRUE');
+  else if (req.query.statut === 'actif') where.push('a.suspendu IS NOT TRUE');
+  const W = where.join(' AND ');
+  const pg = page(req);
+  const [liste, total, st] = await Promise.all([
+    pool.query(
+      `SELECT a.id, a.prenom, a.nom, a.email, a.telephone, a.created_at, a.suspendu, a.suspendu_raison,
+              COALESCE(c.nb, 0)::int AS nb_commandes, COALESCE(c.depense, 0) AS total_depense, c.derniere
+         FROM marketplace_acheteurs a
+         LEFT JOIN (SELECT acheteur_id, COUNT(*) FILTER (WHERE statut_paiement = 'paye') AS nb,
+                           SUM(total) FILTER (WHERE statut_paiement = 'paye') AS depense, MAX(date_commande) AS derniere
+                      FROM marketplace_commandes WHERE gestionnaire_id = $1 GROUP BY acheteur_id) c ON c.acheteur_id = a.id
+        WHERE ${W} ORDER BY a.created_at DESC, a.id DESC LIMIT ${PAR_PAGE} OFFSET ${(pg - 1) * PAR_PAGE}`, params),
+    pool.query(`SELECT COUNT(*) AS n FROM marketplace_acheteurs a WHERE ${W}`, params),
+    pool.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE suspendu IS TRUE)::int AS suspendus,
+                       COUNT(*) FILTER (WHERE created_at > NOW() - INTERVAL '30 days')::int AS nouveaux
+                  FROM marketplace_acheteurs WHERE gestionnaire_id = $1`, [req.gid]),
+  ]);
+  const n = parseInt(total.rows[0].n, 10);
+  res.json({ acheteurs: liste.rows.map((a) => ({ ...a, total_depense: Number(a.total_depense) })), total: n, page: pg, pages: Math.max(1, Math.ceil(n / PAR_PAGE)), stats: st.rows[0] });
+}));
+
+router.get('/acheteurs/:id', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Acheteur invalide.');
+  const a = await pool.query(
+    `SELECT id, prenom, nom, email, telephone, infolettre, created_at, suspendu, suspendu_raison, suspendu_le
+       FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2`, [id, req.gid]);
+  if (!a.rows.length) bad('Acheteur introuvable.', 404);
+  const [cmd, boutiques] = await Promise.all([
+    pool.query(
+      `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.total, c.date_commande, col.nom_boutique AS boutique
+         FROM marketplace_commandes c LEFT JOIN marketplace_collaborateurs col ON col.id = c.collaborateur_id
+        WHERE c.acheteur_id = $1 AND c.gestionnaire_id = $2 ORDER BY c.date_commande DESC, c.id DESC LIMIT 20`, [id, req.gid]),
+    pool.query(
+      `SELECT col.nom_boutique AS boutique, COUNT(*)::int AS nb, COALESCE(SUM(c.total), 0) AS total
+         FROM marketplace_commandes c LEFT JOIN marketplace_collaborateurs col ON col.id = c.collaborateur_id
+        WHERE c.acheteur_id = $1 AND c.gestionnaire_id = $2 AND c.statut_paiement = 'paye' GROUP BY col.nom_boutique ORDER BY 3 DESC`, [id, req.gid]),
+  ]);
+  res.json({ ...a.rows[0], commandes: cmd.rows, boutiques: boutiques.rows.map((b) => ({ ...b, total: Number(b.total) })) });
+}));
+
+router.post('/acheteurs/:id/suspendre', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Acheteur invalide.');
+  const raison = String((req.body && req.body.raison) || '').trim().slice(0, 300);
+  const r = await pool.query(`UPDATE marketplace_acheteurs SET suspendu = TRUE, suspendu_raison = $3, suspendu_le = NOW() WHERE id = $1 AND gestionnaire_id = $2`, [id, req.gid, raison || null]);
+  if (!r.rowCount) bad('Acheteur introuvable.', 404);
+  res.json({ success: true });
+}));
+
+router.post('/acheteurs/:id/reactiver', h(async (req, res) => {
+  const id = entier(req.params.id);
+  if (!id) bad('Acheteur invalide.');
+  const r = await pool.query(`UPDATE marketplace_acheteurs SET suspendu = FALSE, suspendu_raison = NULL, suspendu_le = NULL WHERE id = $1 AND gestionnaire_id = $2`, [id, req.gid]);
+  if (!r.rowCount) bad('Acheteur introuvable.', 404);
+  res.json({ success: true });
+}));
+
 module.exports = router;
