@@ -122,7 +122,8 @@ router.post('/visite', async (req, res) => {
  * PATCH /api/analytique/visite/:id/duree
  * Met à jour la durée passée sur une page (appelé au unmount du composant)
  */
-router.patch('/visite/:id/duree', async (req, res) => {
+// POST accepté aussi : navigator.sendBeacon (envoi à la fermeture de la page) ne sait faire que du POST
+async function enregistrerDuree(req, res) {
   try {
     const { duree_secondes } = req.body;
     const id = parseInt(req.params.id);
@@ -141,7 +142,9 @@ router.patch('/visite/:id/duree', async (req, res) => {
     console.error('PATCH /analytique/visite/:id/duree:', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
-});
+}
+router.patch('/visite/:id/duree', enregistrerDuree);
+router.post('/visite/:id/duree', enregistrerDuree);
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  ROUTE GESTIONNAIRE — protégée, toujours scopée sur req.user.id
@@ -190,7 +193,7 @@ router.get('/stats', verifierToken, estGestionnaire, async (req, res) => {
       // Visites par jour
       db.query(`
         SELECT
-          DATE(created_at AT TIME ZONE 'America/Toronto') AS jour,
+          TO_CHAR(DATE(created_at AT TIME ZONE 'America/Toronto'), 'YYYY-MM-DD') AS jour,
           COUNT(*)                                         AS visites,
           COUNT(DISTINCT session_id)                       AS visiteurs
         FROM visites
