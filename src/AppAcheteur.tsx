@@ -17,6 +17,7 @@ import MessagerieGestionnaire  from './pages/acheteur/MessagerieGestionnaire';
 import ChatAvecCollaborateurs  from './pages/acheteur/ChatAvecCollaborateurs';
 import Documents               from './pages/acheteur/Documents';
 import MesEncheres             from './pages/acheteur/MesEncheres';
+import MesOffres               from './pages/acheteur/MesOffres';
 import { formaterPrix } from './templates/shared/devise';
 import BanniereDashboard from './templates/shared/BanniereDashboard';
 
@@ -68,7 +69,7 @@ interface Stats {
 type PageDash =
   | 'dashboard' | 'commandes' | 'panier' | 'checkout' | 'wishlist' | 'favoris'
   | 'messagerie' | 'chat' | 'notifications' | 'documents'
-  | 'profil' | 'retours' | 'encheres';
+  | 'profil' | 'retours' | 'encheres' | 'offres';
 
 interface Props {
   vendeurId?: number;
@@ -298,9 +299,10 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
   const [nonLusChat,    setNonLusChat]    = useState(0);
   const [collabInitial, setCollabInitial] = useState<number | null>(null);
   const [chatActif, setChatActif] = useState(false);   // add-on « Chat collaborateurs »
+  const [offresActif, setOffresActif] = useState(false);   // add-on « Faire une offre »
   const [favorisActif, setFavorisActif] = useState(false);   // add-on « Favoris » (souhaits + boutiques favorites)
   useEffect(() => {
-    fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons?t=${Date.now()}`).then(r => r.json()).then(d => { setChatActif(!!d.chat_collab); setFavorisActif(!!d.favoris); }).catch(() => { setChatActif(false); setFavorisActif(false); });
+    fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons?t=${Date.now()}`).then(r => r.json()).then(d => { setChatActif(!!d.chat_collab); setFavorisActif(!!d.favoris); setOffresActif(!!d.faire_une_offre); }).catch(() => { setChatActif(false); setFavorisActif(false); setOffresActif(false); });
   }, [gestionnaireId]);
   const [loading,       setLoading]       = useState(true);
 
@@ -447,6 +449,7 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     ...(chatActif ? [{ id: 'chat' as PageDash, label: 'CHAT COLLABORATEURS', icon: '💬', badge: nonLusChat }] : []),
     { id: 'notifications', label: 'NOTIFICATIONS',    icon: '🔔', badge: nonLusNotifs },
     { id: 'encheres',      label: 'MES ENCHÈRES',     icon: '🔨' },
+    ...(offresActif ? [{ id: 'offres' as PageDash, label: 'MES OFFRES', icon: '🤝' }] : []),
     { id: 'panier',        label: 'MON PANIER',       icon: '🛒' },
     { id: 'retours',       label: 'RETOURS',          icon: '🔄' },
     { id: 'documents',     label: 'DOCUMENTS',        icon: '📄' },
@@ -469,6 +472,7 @@ export default function AppAcheteur({ vendeurId, config = {}, naviguerTemplate =
     if (page === 'panier')        return <Panier naviguer={(p: string) => naviguer(p as PageDash)} gestionnaireId={gestionnaireId} config={config} />;
     if (page === 'checkout')      return <Checkout naviguer={(p: string) => naviguer(p as PageDash)} vendeurId={checkoutCollabId ?? undefined} gestionnaireId={gestionnaireId} config={config} />;
     if (page === 'encheres')      return <MesEncheres {...commun} naviguer={versBoutique} onVoirProduit={(id) => naviguerTemplate({ page: 'produit', produitId: id })} />;
+    if (page === 'offres' && offresActif) return <MesOffres {...commun} naviguer={versBoutique} onVoirProduit={(id) => naviguerTemplate({ page: 'produit', produitId: id })} />;
     if (page === 'wishlist' && favorisActif) return <Wishlist {...commun} naviguer={versBoutique} />;
     if (page === 'favoris' && favorisActif) return <CollaborateursFavoris {...commun} onEcrire={chatActif ? ecrireACollab : undefined} />;
     if (page === 'messagerie')    return <MessagerieGestionnaire {...commun} />;

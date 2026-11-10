@@ -12,6 +12,7 @@ import { formaterPrix } from '../shared/devise';
 import MVParutionCountdown, { formaterDateParution, useConfigParution } from './MVParutionCountdown';
 import MVOffreCompteur from './MVOffre';
 import MVQuestionsProduit from './MVQuestionsProduit';
+import MVFaireOffre from './MVFaireOffre';
 
 const API_BASE = '/api';
 
@@ -453,6 +454,9 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               }}>
               {ajoutEnCours ? '⏳ Ajout...' : stockDispo === 0 ? 'Épuisé' : '🛒 Ajouter au panier'}
             </button>}
+            <MVFaireOffre gestionnaireId={gId} produitId={produit.id} prix={prixAffiche} variante={variante} varianteRequise={lesVariantes.length > 0 && !variante}
+              masque={enchereActive || parutionBloquee || stockDispo === 0 || produit.vacances?.mode === 'masque'} couleurAccent={couleurAccent} isDemo={isDemo}
+              allerConnexion={() => naviguer({ page: 'login' })} />
             <MVSouhaitProduit zone="apres_panier" gestionnaireId={gId} produitId={produit.id} isDemo={isDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
             </div>
 

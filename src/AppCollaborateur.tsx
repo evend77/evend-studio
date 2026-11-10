@@ -24,6 +24,7 @@ import CollaborateurMethodesExpedition from './pages/collaborateur/Collaborateur
 import CollaborateurBlogs from './pages/collaborateur/CollaborateurBlogs';
 import CollaborateurFaq from './pages/collaborateur/CollaborateurFaq';
 import CollaborateurQuestions from './pages/collaborateur/CollaborateurQuestions';
+import CollaborateurNegociations from './pages/collaborateur/CollaborateurNegociations';
 import CollaborateurOffres from './pages/collaborateur/CollaborateurOffres';
 import CollaborateurRapportFinancier from './pages/collaborateur/CollaborateurRapportFinancier';
 import CollaborateurCommandeDetail from './pages/collaborateur/CollaborateurCommandeDetail';
@@ -227,6 +228,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
   const [avisAttente, setAvisAttente] = useState(0);
   const [offreProduitId, setOffreProduitId] = useState<number | null>(null);   // « 🔥 Offre du jour » depuis le menu ⋮ d'un produit
+  const [offresAttente, setOffresAttente] = useState(0);   // offres de prix à répondre (add-on « Faire une offre »)
   const [questionsAttente, setQuestionsAttente] = useState(0);   // questions d'acheteurs sans réponse (add-on « Questions sur le produit »)   // avis qui attendent mon approbation
   const [addonsMV, setAddonsMV] = useState<Record<string, boolean>>({});   // add-ons du gestionnaire (blog, FAQ, chat)
   useEffect(() => {
@@ -306,6 +308,19 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
       if (r.ok) setAvisAttente(Number((await r.json()).attente) || 0);
     } catch {}
   }, [compte?.id, gestionnaireId]);
+  // Offres de prix à répondre : lues à l'ouverture et après chaque réponse (pas de rafraîchissement automatique)
+  const chargerOffresAttente = useCallback(async () => {
+    if (!compte?.id || !addonsMV.faire_une_offre) { setOffresAttente(0); return; }
+    try {
+      const r = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/negociations/collaborateur/mes?etat=attente`, { credentials: 'include' });
+      if (r.ok) setOffresAttente(Number((await r.json()).stats?.a_repondre) || 0);
+    } catch {}
+  }, [compte?.id, gestionnaireId, addonsMV.faire_une_offre]);
+  useEffect(() => {
+    chargerOffresAttente();
+    window.addEventListener('negociations-collab-maj', chargerOffresAttente);
+    return () => window.removeEventListener('negociations-collab-maj', chargerOffresAttente);
+  }, [chargerOffresAttente]);
   // Questions des acheteurs à répondre (pastille du menu Mon profil › Questions des acheteurs)
   const chargerQuestionsAttente = useCallback(async () => {
     if (!compte?.id || !addonsMV.questions_produit) { setQuestionsAttente(0); return; }
@@ -378,14 +393,15 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
         { id: 'commandes-retours',   label: 'Retours',             icon: '🔄' },
       ]
     },
-    ...((addonsMV.chat_collab || addonsMV.questions_produit) ? [{
-      id: 'messagerie', label: 'MESSAGERIE', icon: '💬', badge: ((addonsMV.chat_collab ? nonLus.total : 0) + (addonsMV.questions_produit ? questionsAttente : 0)) > 0 ? ((addonsMV.chat_collab ? nonLus.total : 0) + (addonsMV.questions_produit ? questionsAttente : 0)) : undefined,
+    ...((addonsMV.chat_collab || addonsMV.questions_produit || addonsMV.faire_une_offre) ? [{
+      id: 'messagerie', label: 'MESSAGERIE', icon: '💬', badge: ((addonsMV.chat_collab ? nonLus.total : 0) + (addonsMV.questions_produit ? questionsAttente : 0) + (addonsMV.faire_une_offre ? offresAttente : 0)) > 0 ? ((addonsMV.chat_collab ? nonLus.total : 0) + (addonsMV.questions_produit ? questionsAttente : 0) + (addonsMV.faire_une_offre ? offresAttente : 0)) : undefined,
       sousMenu: [
         ...(addonsMV.chat_collab ? [
           { id: 'messagerie-acheteurs',    label: 'Messages acheteurs',  icon: '🛒', badge: nonLus.acheteurs > 0 ? nonLus.acheteurs : undefined },
           { id: 'messagerie-gestionnaire', label: 'Message gestionnaire', icon: '🏢', badge: nonLus.gestionnaire > 0 ? nonLus.gestionnaire : undefined },
         ] : []),
         ...(addonsMV.questions_produit ? [{ id: 'messagerie-questions', label: 'Questions des acheteurs', icon: '❓', badge: questionsAttente > 0 ? questionsAttente : undefined }] : []),
+        ...(addonsMV.faire_une_offre ? [{ id: 'messagerie-offres', label: 'Offres des acheteurs', icon: '🤝', badge: offresAttente > 0 ? offresAttente : undefined }] : []),
       ]
     }] : []),
     {
@@ -436,6 +452,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'profil-blogs')      return <CollaborateurBlogs {...commun} />;
     if (pageActive === 'profil-faq')        return <CollaborateurFaq {...commun} />;
     if (pageActive === 'messagerie-questions' && addonsMV.questions_produit) return <CollaborateurQuestions {...commun} />;
+    if (pageActive === 'messagerie-offres' && addonsMV.faire_une_offre) return <CollaborateurNegociations {...commun} />;
     if (pageActive === 'annonces-offres' && addonsMV.offres_du_jour) return <CollaborateurOffres {...commun} produitInitial={offreProduitId} onProduitOuvert={() => setOffreProduitId(null)} />;
     if (pageActive === 'profil-rapport')    return <CollaborateurRapportFinancier {...commun} nomVendeur={compte.nom_boutique} />;
     if (pageActive === 'config-stripe')

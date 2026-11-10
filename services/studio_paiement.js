@@ -20,6 +20,7 @@ const taxesMV = require('./studio_taxes');
 const regCmd = require('./studio_regles_commande');
 const cfgMV = require('./studio_config_mv');
 const OFFRES = require('./studio_offres');
+const NEGO = require('./studio_negociations');
 const reglesMV = require('./studio_regles_produits');
 
 const DUREE_SESSION_MIN = 30; // minimum permis par Stripe
@@ -98,6 +99,19 @@ async function remettreEnchereAuPanier(client, cmd, enchereId) {
     [e.gestionnaire_id, e.gagnant_id, e.collaborateur_id, String(e.produit_id), e.titre, e.image_url, e.prix_final, e.id]);
 }
 
+// Add-on « Faire une offre » : l'offre acceptée revient au panier si elle est encore valide (le stock, lui, est remis par libererCommande)
+async function remettreNegociationAuPanier(client, cmd, negociationId) {
+  const n = (await client.query(
+    `SELECT * FROM negociations WHERE id = $1 AND statut = 'acceptee' AND acheteur_id = $2 AND expire_le > NOW()`, [negociationId, cmd.acheteur_id])).rows[0];
+  if (!n) return;
+  const deja = await client.query('SELECT 1 FROM marketplace_panier WHERE negociation_id = $1 AND acheteur_id = $2', [negociationId, cmd.acheteur_id]);
+  if (deja.rows.length) return;
+  await client.query(
+    `INSERT INTO marketplace_panier (gestionnaire_id, acheteur_id, collaborateur_id, produit_id, titre, image_url, prix, quantite, variante, negociation_id)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,1,$8,$9)`,
+    [n.gestionnaire_id, n.acheteur_id, n.collaborateur_id, String(n.produit_id), n.titre, n.image_url, n.prix_final, n.variante, n.id]);
+}
+
 // Remet le stock d'une commande non payée. Idempotent : le drapeau stock_reserve n'est retiré qu'une fois.
 async function libererCommande(commandeId, { raison, annuler = true, par = 'systeme' } = {}) {
   const client = await pool.connect();
@@ -114,6 +128,7 @@ async function libererCommande(commandeId, { raison, annuler = true, par = 'syst
       const pid = parseInt(a.produit_id, 10);
       const q = parseInt(a.quantite, 10);
       if (pid && q > 0) await ajusterStock(client, pid, a.variante || '', q);
+      if (a.negociation_id) await remettreNegociationAuPanier(client, c.rows[0], a.negociation_id);
     }
     // Le code promo retrouve son utilisation (paiement jamais complété)
     if (c.rows[0].reduction_comptee && c.rows[0].reduction_id) {
@@ -218,6 +233,12 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
                       facturation_taxes: (await taxesMV.taxabilite(client, gid, [e.produit_id])).get(parseInt(e.produit_id, 10)) === true });
         continue;
       }
+      // Prix négocié : prix = prix convenu, quantité 1, le stock se retire normalement (il n'était pas réservé)
+      let negoLigne = null;
+      if (ligne.negociation_id) {
+        negoLigne = await NEGO.pourCaisse(client, gid, acheteurId, collaborateurId, ligne.negociation_id);
+        if (!negoLigne) refus(`L'offre négociée de « ${ligne.titre} » n'est plus valide. Retirez l'article de votre panier.`, 409);
+      }
       const pid = parseInt(ligne.produit_id, 10);
       const prod = pid ? (await client.query(
         `SELECT id, titre, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes, statut, quantite_min, date_parution FROM produits
@@ -227,12 +248,12 @@ async function creerCommandePayable({ gid, acheteurId, collaborateurId, adresse,
       const variante = ligne.variante || '';
       const choix = outils.prixEtStock(prod, variante, reglesPrd.gererStock);
       if (choix.erreur) refus(`« ${ligne.titre} » : ${choix.erreur}`, 409);
-      const qte = parseInt(ligne.quantite, 10);
+      const qte = negoLigne ? 1 : parseInt(ligne.quantite, 10);
       if (!(qte >= 1)) refus('Quantité invalide.', 400);
       if (qte > choix.stock) refus(choix.stock <= 0 ? `« ${ligne.titre} » est épuisé.` : `« ${ligne.titre} » : il n'en reste que ${choix.stock}.`, 409);
       if (!(await ajusterStock(client, pid, variante, -qte))) refus(`« ${ligne.titre} » est épuisé.`, 409);
-      lignes.push({ produit_id: pid, titre: ligne.titre, variante, quantite: qte, quantite_min: prod.quantite_min, prix: choix.prix, image_url: ligne.image_url || null,
-                    produit_numerique: ligne.produit_numerique === true, facturation_taxes: taxMap.get(pid) === true });
+      lignes.push({ produit_id: pid, titre: ligne.titre, variante, quantite: qte, quantite_min: negoLigne ? 1 : prod.quantite_min, prix: negoLigne ? Number(negoLigne.prix_final) : choix.prix, image_url: ligne.image_url || null,
+                    produit_numerique: ligne.produit_numerique === true, facturation_taxes: taxMap.get(pid) === true, ...(negoLigne ? { negociation_id: negoLigne.id } : {}) });
     }
 
     // Quantité minimum d'achat : l'acheteur est averti dans le panier, et le paiement est refusé ici tant que le minimum n'est pas atteint
@@ -417,6 +438,7 @@ async function confirmerPaiement(gid, session) {
     let arts = lignes && lignes.articles; if (typeof arts === 'string') { try { arts = JSON.parse(arts); } catch (e) { arts = []; } }
     for (const a of Array.isArray(arts) ? arts : []) {
       if (a.enchere_id) await pool.query(`UPDATE encheres SET statut = 'payee', commande_id = $1, updated_at = NOW() WHERE id = $2 AND statut = 'attente_paiement'`, [commandeId, a.enchere_id]);
+      if (a.negociation_id) await pool.query(`UPDATE negociations SET statut = 'payee', commande_id = $1, updated_at = NOW() WHERE id = $2 AND statut = 'acceptee'`, [commandeId, a.negociation_id]);
     }
     capturerFraisStripe(gid, commandeId, { reessayerMs: 3000 }); // en arrière-plan : ne retarde jamais l'accusé de réception du webhook
     return { paye: true, commande: r.rows[0] };

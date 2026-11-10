@@ -575,4 +575,41 @@ router.post('/offres/:produitId/retirer', h(async (req, res) => {
   res.json({ success: true });
 }));
 
+// ── Faire une offre (add-on « Faire une offre ») ──
+// Le gestionnaire voit les négociations de tous ses collaborateurs et règle la validité d'une offre acceptée / contre-offre (heures).
+router.get('/negociations', h(async (req, res) => {
+  const NEG = require('../services/studio_negociations');
+  const etat = ['attente', 'contre', 'acceptee', 'refusee', 'annulee', 'payee', 'expiree'].includes(req.query.etat) ? req.query.etat : null;
+  const params = [req.gid]; let filtre = '';
+  if (etat) { params.push(etat); filtre += ` AND ${NEG.sqlEtat('n')} = $${params.length}`; }
+  const m = motif(req.query.q);
+  if (m) { params.push(m); filtre += ` AND n.titre ILIKE $${params.length}`; }
+  const pg = page(req);
+  params.push(PAR_PAGE, (pg - 1) * PAR_PAGE);
+  const r = await pool.query(
+    `SELECT n.id, n.titre, n.variante, n.image_url, n.prix_produit, n.prix_offert, n.prix_contre, n.prix_final, n.created_at, n.expire_le, ${NEG.sqlEtat('n')} AS etat,
+            COALESCE(c.nom_boutique, c.nom_responsable) AS boutique, COUNT(*) OVER()::int AS total_lignes
+       FROM negociations n LEFT JOIN marketplace_collaborateurs c ON c.id = n.collaborateur_id
+      WHERE n.gestionnaire_id = $1${filtre} ORDER BY n.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+  const stats = (await pool.query(
+    `SELECT COUNT(*) FILTER (WHERE ${NEG.sqlEtat('n')} IN ('attente','contre'))::int AS en_cours, COUNT(*) FILTER (WHERE ${NEG.sqlEtat('n')} = 'acceptee')::int AS acceptees,
+            COUNT(*) FILTER (WHERE n.statut = 'payee')::int AS payees, COUNT(*)::int AS total FROM negociations n WHERE n.gestionnaire_id = $1`, [req.gid])).rows[0];
+  const total = r.rows.length ? r.rows[0].total_lignes : 0;
+  res.json({
+    addon_actif: await NEG.actifPourBoutique(req.gid), validite_heures: (await NEG.reglages(req.gid)).validiteHeures, total, page: pg, pages: Math.max(1, Math.ceil(total / PAR_PAGE)), stats,
+    negociations: r.rows.map((x) => ({ id: x.id, titre: x.titre, variante: x.variante || '', photo: x.image_url || null, boutique: x.boutique, etat: x.etat, prix_produit: Number(x.prix_produit),
+      prix_offert: Number(x.prix_offert), prix_contre: x.prix_contre === null ? null : Number(x.prix_contre), prix_final: x.prix_final === null ? null : Number(x.prix_final), cree: x.created_at, expire: x.expire_le })),
+  });
+}));
+
+router.put('/negociations/config', h(async (req, res) => {
+  const NEG = require('../services/studio_negociations');
+  const heures = Math.round(Number(req.body && req.body.validite_heures));
+  if (!Number.isFinite(heures) || heures < 1 || heures > 336) bad('La validité doit être entre 1 et 336 heures (14 jours).');
+  const r = await pool.query(
+    `UPDATE sites SET config = jsonb_set(COALESCE(config, '{}'::jsonb), '{multivendeur}', COALESCE(config->'multivendeur', '{}'::jsonb) || jsonb_build_object('negociation_validite_heures', $2::int)) WHERE gestionnaire_id = $1`, [req.gid, heures]);
+  if (!r.rowCount) bad('Site introuvable.', 404);
+  res.json({ success: true, validite_heures: (await NEG.reglages(req.gid)).validiteHeures });
+}));
+
 module.exports = router;

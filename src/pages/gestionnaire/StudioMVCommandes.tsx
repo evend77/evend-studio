@@ -239,7 +239,7 @@ const StudioMVCommandes: React.FC<{ gestionnaireId: number }> = ({ gestionnaireI
             <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
               {articles.map((a, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, padding: '8px 12px', borderBottom: i < articles.length - 1 ? `1px solid ${C.border}` : 'none', fontSize: 13 }}>
-                  <span>{a.titre}{a.variante ? ` (${a.variante})` : ''}{a.enchere_id ? ' 🔨' : ''} × {a.quantite}</span>
+                  <span>{a.titre}{a.variante ? ` (${a.variante})` : ''}{a.enchere_id ? ' 🔨' : ''}{a.negociation_id ? ' 🤝' : ''} × {a.quantite}</span>
                   <span>{argent(Number(a.prix) * Number(a.quantite) - Number(a.rabais || 0))}</span>
                 </div>
               ))}

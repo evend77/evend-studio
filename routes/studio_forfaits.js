@@ -88,7 +88,7 @@ router.get('/public/:gid/addons', h(async (req, res) => {
   res.json({ badge_masque: actif('badge_evend_masquer'), verificateur_age: actif('verificateur_age'), popup_annonce: actif('popup_annonce'),
              encheres: actif('encheres'), encheres_visibles: actif('encheres') || enCours, parution_future: actif('parution_future'),
              blog_collab: actif('blog_collab'), faq_collab: actif('faq_collab'), chat_collab: actif('chat_collab'), badges: actif('badges'), favoris: actif('favoris'), chatbot: actif('chatbot'),
-             etiquette_shippo: actif('etiquette_shippo'), etiquette_easypost: actif('etiquette_easypost'), etiquette_postescanada: actif('etiquette_postescanada'), connecteur_ebay: actif('connecteur_ebay'), pwa_boutique: actif('pwa_boutique'), favicon_boutique: actif('favicon_boutique'), effets_boutique: actif('effets_boutique'), questions_produit: actif('questions_produit'), offres_du_jour: actif('offres_du_jour') });
+             etiquette_shippo: actif('etiquette_shippo'), etiquette_easypost: actif('etiquette_easypost'), etiquette_postescanada: actif('etiquette_postescanada'), connecteur_ebay: actif('connecteur_ebay'), pwa_boutique: actif('pwa_boutique'), favicon_boutique: actif('favicon_boutique'), effets_boutique: actif('effets_boutique'), questions_produit: actif('questions_produit'), offres_du_jour: actif('offres_du_jour'), faire_une_offre: actif('faire_une_offre') });
 }));
 
 // Apparence du compte à rebours « Parution future » pour cette marketplace (plateforme + réglages du gestionnaire)

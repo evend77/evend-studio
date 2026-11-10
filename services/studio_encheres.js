@@ -92,6 +92,11 @@ async function creerEnchere({ gid, collaborateurId, produitId, prixDepart, prixR
     }
     const vivante = await client.query(`SELECT 1 FROM encheres WHERE produit_id = $1 AND statut IN ('active','attente_paiement')`, [produitId]);
     if (vivante.rows.length) refus('Ce produit a déjà une enchère en cours.', 409);
+    // Add-on « Faire une offre » : un prix déjà accepté avec un acheteur (encore valide) ne peut pas passer aux enchères
+    try {
+      const nego = await client.query(`SELECT 1 FROM negociations WHERE produit_id = $1 AND statut = 'acceptee' AND expire_le > NOW() LIMIT 1`, [produitId]);
+      if (nego.rows.length) refus("Une offre a été acceptée sur ce produit et attend le paiement de l'acheteur : attendez qu'elle soit payée ou expirée.", 409);
+    } catch (e) { if (e && e.status) throw e; }
 
     // 1 unité réservée (stock vide = illimité : rien à réserver)
     const suivi = rp.gererStock && p.stock !== null && p.stock !== undefined;

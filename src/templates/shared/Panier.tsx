@@ -17,6 +17,7 @@ interface ArticlePanier {
   vendeur_id: number;
   vendeur_nom: string; // nom_boutique du collaborateur
   enchere_id?: number | null; // article gagné aux enchères : prix et quantité verrouillés par le serveur
+  negociation_id?: number | null; // prix négocié (add-on « Faire une offre ») : prix et quantité verrouillés par le serveur
 }
 
 interface GroupeVendeur {
@@ -459,6 +460,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <p style={{ fontSize: "13px", fontWeight: 600, color: "#1c1917", margin: "0 0 4px", lineHeight: 1.4 }}>{article.titre}</p>
                               {article.enchere_id ? <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 700, color: "#7c3aed", background: "#f3e8ff", borderRadius: "6px", padding: "2px 8px", margin: "0 0 4px" }}>🔨 Gagné aux enchères</span> : null}
+                              {article.negociation_id ? <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 700, color: "#047857", background: "#d1fae5", borderRadius: "6px", padding: "2px 8px", margin: "0 0 4px" }}>🤝 Prix négocié</span> : null}
                               <span style={s.articleVendeurTag}>Vendu par {article.vendeur_nom}</span>
                               <p style={{ fontSize: "15px", fontWeight: 700, color: "#b47828", margin: "6px 0 2px" }}>{formaterPrix(parseFloat(String(article.prix)))} / unité</p>
                               <p style={{ fontSize: "14px", fontWeight: 800, color: "#1c1917", margin: 0 }}>
@@ -467,7 +469,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                               </p>
                             </div>
                             <div style={{ display: "flex", flexDirection: "column", gap: "6px", flexShrink: 0 }}>
-                              <button className="btn-plus-tard" hidden={!!article.enchere_id} style={{ ...s.btnPlusTard, display: article.enchere_id ? "none" : undefined, opacity: enCoursPlusTard === article.id ? 0.5 : 1 }}
+                              <button className="btn-plus-tard" hidden={!!(article.enchere_id || article.negociation_id)} style={{ ...s.btnPlusTard, display: (article.enchere_id || article.negociation_id) ? "none" : undefined, opacity: enCoursPlusTard === article.id ? 0.5 : 1 }}
                                 onClick={() => mettreDeCote(article.id)} disabled={enCoursPlusTard === article.id} title="Plus tard">
                                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                               </button>
@@ -478,7 +480,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                             </div>
                           </div>
                           {/* Barre quantité mobile */}
-                          <div style={{ display: article.enchere_id ? "none" : "flex", alignItems: "center", justifyContent: "space-between", background: "#fef9ee", padding: "10px 16px", borderTop: "1px solid #f0e6d3" }}>
+                          <div style={{ display: (article.enchere_id || article.negociation_id) ? "none" : "flex", alignItems: "center", justifyContent: "space-between", background: "#fef9ee", padding: "10px 16px", borderTop: "1px solid #f0e6d3" }}>
                             <span style={{ fontSize: "13px", color: "#a8926a", fontWeight: 600 }}>Quantité</span>
                             <div style={s.qteControle}>
                               <button className="btn-qte" style={{ ...s.btnQte, opacity: enCoursQte === article.id || article.quantite <= 1 ? 0.4 : 1 }}
@@ -510,6 +512,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                           <div style={s.articleInfos}>
                             <p style={s.articleTitre}>{article.titre}</p>
                             {article.enchere_id ? <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 700, color: "#7c3aed", background: "#f3e8ff", borderRadius: "6px", padding: "2px 8px", margin: "0 0 4px" }}>🔨 Gagné aux enchères</span> : null}
+                              {article.negociation_id ? <span style={{ display: "inline-block", fontSize: "11px", fontWeight: 700, color: "#047857", background: "#d1fae5", borderRadius: "6px", padding: "2px 8px", margin: "0 0 4px" }}>🤝 Prix négocié</span> : null}
                             <div style={s.articleMeta}><span style={s.articleVendeurTag}>Vendu par {article.vendeur_nom}</span></div>
                             <div style={s.articlePrixWrap}>
                               <span style={s.articlePrixUnit}>{formaterPrix(parseFloat(String(article.prix)))}</span>
@@ -519,7 +522,7 @@ export default function Panier({ naviguer, gestionnaireId = 0, config = {} }: Pa
                         </>
                       )}
                                             {/* Controles quantite — desktop seulement */}
-                      <div style={{ ...s.qteSection, display: isMobile || article.enchere_id ? "none" : undefined }}>
+                      <div style={{ ...s.qteSection, display: isMobile || article.enchere_id || article.negociation_id ? "none" : undefined }}>
                         <p style={s.qteLabel}>Quantite</p>
                         <div style={s.qteControle}>
                           <button

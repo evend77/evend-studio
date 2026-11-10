@@ -114,6 +114,15 @@ router.get('/:gid/panier', authMV, async (req, res) => {
   const { gid } = req.params;
   const acheteurId = req.mvUser.id;
   try {
+    // Add-on « Faire une offre » : un article au prix négocié dont l'offre a expiré (ou été retirée) quitte le panier — nettoyage fait à la lecture, sans tâche planifiée
+    const avertNego = [];
+    try {
+      const perdus = await pool.query(
+        `DELETE FROM marketplace_panier mp USING negociations n
+          WHERE mp.negociation_id = n.id AND mp.acheteur_id = $1 AND mp.gestionnaire_id = $2 AND NOT (n.statut = 'acceptee' AND n.expire_le > NOW())
+          RETURNING mp.titre`, [acheteurId, gid]);
+      for (const x of perdus.rows) avertNego.push({ message: `Le prix négocié de « ${x.titre} » n'est plus valide : l'article a été retiré de votre panier.` });
+    } catch (e) { console.error('[panier] offres expirées :', e.message); }
     const r = await pool.query(
       `SELECT mp.*, mp.collaborateur_id AS vendeur_id, COALESCE(mc.nom_boutique, mc.nom_responsable) AS vendeur_nom,
               (SELECT p.quantite_min FROM produits p WHERE p.id = NULLIF(regexp_replace(mp.produit_id, '[^0-9].*$', ''), '')::int) AS quantite_min
@@ -125,7 +134,7 @@ router.get('/:gid/panier', authMV, async (req, res) => {
     );
     // Quantité minimum d'achat (Config produits) : on avertit ici, et le paiement est refusé tant que ce n'est pas respecté
     const regP = await regles.lire(gid, pool);
-    const avertissements = [];
+    const avertissements = [...avertNego];
     if (regP.qteMinActive) {
       const parVendeur = new Map();
       for (const l of r.rows) { if (!parVendeur.has(l.vendeur_id)) parVendeur.set(l.vendeur_id, []); parVendeur.get(l.vendeur_id).push({ produit_id: l.produit_id, titre: l.titre, quantite: l.quantite, quantite_min: l.quantite_min, enchere_id: l.enchere_id }); }
@@ -133,12 +142,12 @@ router.get('/:gid/panier', authMV, async (req, res) => {
     }
     // Prix à jour (offres du jour qui commencent ou se terminent) : le panier affiche le prix que le paiement facturera, jamais un prix périmé
     try {
-      const ids = [...new Set(r.rows.filter((l) => !l.enchere_id).map((l) => parseInt(l.produit_id, 10)).filter((n) => Number.isInteger(n) && n > 0))];
+      const ids = [...new Set(r.rows.filter((l) => !l.enchere_id && !l.negociation_id).map((l) => parseInt(l.produit_id, 10)).filter((n) => Number.isInteger(n) && n > 0))];
       if (ids.length) {
         const pr = await pool.query(`SELECT id, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes FROM produits WHERE gestionnaire_id = $1 AND id = ANY($2::int[])`, [parseInt(gid, 10), ids]);
         const parId = new Map(pr.rows.map((x) => [x.id, x]));
         for (const l of r.rows) {
-          const prod = l.enchere_id ? null : parId.get(parseInt(l.produit_id, 10));
+          const prod = l.enchere_id || l.negociation_id ? null : parId.get(parseInt(l.produit_id, 10));
           if (!prod) continue;
           const c = prixEtStock(prod, l.variante || '', regP.gererStock);
           if (!c.erreur && Number.isFinite(c.prix) && Math.abs(c.prix - Number(l.prix)) > 0.004) {
@@ -183,7 +192,7 @@ router.post('/:gid/panier', authMV, async (req, res) => {
     if (choix.erreur) return res.status(400).json({ error: choix.erreur });
 
     const existant = await pool.query(
-      `SELECT id, quantite FROM marketplace_panier WHERE acheteur_id=$1 AND gestionnaire_id=$2 AND produit_id=$3 AND COALESCE(variante,'') = $4`,
+      `SELECT id, quantite FROM marketplace_panier WHERE acheteur_id=$1 AND gestionnaire_id=$2 AND produit_id=$3 AND COALESCE(variante,'') = $4 AND negociation_id IS NULL AND enchere_id IS NULL`,
       [acheteurId, gid, produit_id.toString(), nomVariante]
     );
     const dejaDansPanier = existant.rows[0] ? existant.rows[0].quantite : 0;
@@ -218,11 +227,12 @@ router.patch('/:gid/panier/:id', authMV, async (req, res) => {
   if (!Number.isInteger(qte) || qte < 1 || qte > 999) return res.status(400).json({ error: 'Quantite invalide' });
   try {
     const l = await pool.query(
-      `SELECT mp.variante, mp.enchere_id, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, p.stock, p.variantes
+      `SELECT mp.variante, mp.enchere_id, mp.negociation_id, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, p.stock, p.variantes
          FROM marketplace_panier mp LEFT JOIN produits p ON p.id = NULLIF(regexp_replace(mp.produit_id, '[^0-9].*$', ''), '')::int
         WHERE mp.id=$1 AND mp.acheteur_id=$2 AND mp.gestionnaire_id=$3`, [id, acheteurId, gid]);
     if (!l.rows[0]) return res.status(404).json({ error: 'Article introuvable' });
     if (l.rows[0].enchere_id) return res.status(409).json({ error: 'Article gagné aux enchères : la quantité ne peut pas être modifiée.' });
+    if (l.rows[0].negociation_id) return res.status(409).json({ error: 'Prix négocié : la quantité est fixée à 1.' });
     if (l.rows[0].prix !== null) {
       const c = prixEtStock(l.rows[0], l.rows[0].variante || '', (await regles.lire(gid, pool)).gererStock);
       if (!c.erreur && qte > c.stock) return res.status(409).json({ error: c.stock <= 0 ? 'Cet article est épuisé.' : `Stock insuffisant : il n'en reste que ${c.stock}.` });
@@ -276,6 +286,7 @@ router.post('/:gid/panier/:id/plus-tard', authMV, async (req, res) => {
     if (!art.rows[0]) return res.status(404).json({ error: 'Article introuvable' });
     const a = art.rows[0];
     if (a.enchere_id) return res.status(409).json({ error: 'Un article gagné aux enchères ne peut pas être mis de côté : payez-le avant la fin du délai.' });
+    if (a.negociation_id) return res.status(409).json({ error: 'Un article au prix négocié ne peut pas être mis de côté : payez-le avant la fin du délai.' });
     await pool.query(
       'INSERT INTO marketplace_panier_plus_tard (gestionnaire_id, acheteur_id, collaborateur_id, produit_id, titre, image_url, prix) VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT DO NOTHING',
       [gid, acheteurId, a.collaborateur_id, a.produit_id, a.titre, a.image_url, a.prix]

@@ -526,6 +526,7 @@ app.use('/api/studio/mv/:gestionnaireId', studioMvAdmin);
 app.use('/api/marketplace/:gid/encheres', studioEncheres);
 app.use('/api/marketplace/:gid/questions', require('./routes/studio_questions'));   // add-on « Questions sur le produit »
 app.use('/api/marketplace/:gid/offres', require('./routes/studio_offres'));   // add-on « Offres du jour »
+app.use('/api/marketplace/:gid/negociations', require('./routes/studio_negociations'));   // add-on « Faire une offre »
 require('./services/studio_encheres').demarrerEncheres();
 // Paiement des commandes : remet en vente le stock des commandes jamais payées (toutes les 5 min)
 require('./services/studio_paiement').demarrerBalayage();
