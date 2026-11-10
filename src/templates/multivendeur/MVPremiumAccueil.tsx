@@ -7,6 +7,7 @@ import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche } from './mvSecurite';
 import MVPremiumAvantages from './MVPremiumAvantages';
+import MVBoutonInstallerApp from './MVBoutonInstallerApp';
 import { formaterPrix } from '../shared/devise';
 
 const API_BASE = '/api';
@@ -242,6 +243,8 @@ export default function MVPremiumAccueil({ vendeurId, isDemo, config = {}, navig
                 Voir les boutiques
               </button>
             </div>
+            {/* Add-on « App installable » : bouton mobile seulement, visible seulement si la PWA est active */}
+            <div style={{ marginLeft: -20, maxWidth: 400 }}><MVBoutonInstallerApp /></div>
           </div>
           <div className="mv-hero-stats" style={s.heroStats}>
             {[
