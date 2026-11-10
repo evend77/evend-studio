@@ -148,13 +148,7 @@ router.post('/produit/:produitId', exiger('acheteur'), limiteEcriture, h(async (
     `INSERT INTO questions_produit (gestionnaire_id, produit_id, collaborateur_id, acheteur_id, question) VALUES ($1,$2,$3,$4,$5) RETURNING id`,
     [gid, pid, prod.collaborateur_id, uid, question]);
 
-  // Prévient le vendeur (messagerie automatique + courriel si le SMTP est actif)
-  try {
-    await require('../services/studio_notif_collab').notifier({
-      gid, collabId: prod.collaborateur_id,
-      texte: `❓ Nouvelle question sur votre annonce « ${prod.titre} » : « ${question} ». Répondez dans Mon profil → Questions des acheteurs.`,
-    });
-  } catch (e) { console.error('[studio_questions] notif collaborateur :', e.message); }
+  // Le vendeur voit la question dans son menu (pastille « Questions des acheteurs »). Aucun message n'est envoyé dans sa messagerie.
 
   res.status(201).json({ id: ins.rows[0].id, message: 'Votre question a été envoyée au vendeur. Elle sera affichée sur la page dès qu\'il aura répondu.' });
 }));
@@ -199,7 +193,7 @@ router.get('/collaborateur/mes', exiger('collaborateur'), h(async (req, res) => 
   if (statut) { params.push(statut); filtre = ` AND q.statut = $${params.length}`; }
   params.push(PAR_PAGE, (pg - 1) * PAR_PAGE);
   const r = await pool.query(
-    `SELECT q.id, q.produit_id, q.question, q.reponse, q.reponse_le, q.statut, q.masque_raison, q.masque_par, q.created_at, p.titre AS produit_titre,
+    `SELECT q.id, q.produit_id, q.question, q.reponse, q.reponse_le, q.statut, q.masque_raison, q.masque_par, q.created_at, p.titre AS produit_titre, p.photo_principale, p.sku, p.prix, p.prix_promo, p.stock,
             a.prenom, a.nom AS acheteur_nom, COUNT(*) OVER()::int AS total_lignes
        FROM questions_produit q
        LEFT JOIN produits p ON p.id = q.produit_id
@@ -212,7 +206,7 @@ router.get('/collaborateur/mes', exiger('collaborateur'), h(async (req, res) => 
   const total = r.rows.length ? r.rows[0].total_lignes : 0;
   res.json({
     addon_actif: await actif(gid), questions_actif: await collabAccepte(gid, cid), total, page: pg, pages: Math.max(1, Math.ceil(total / PAR_PAGE)), stats,
-    questions: r.rows.map((x) => ({ id: x.id, produit_id: x.produit_id, produit_titre: x.produit_titre, question: x.question, reponse: x.reponse, reponse_le: x.reponse_le,
+    questions: r.rows.map((x) => ({ id: x.id, produit_id: x.produit_id, produit_titre: x.produit_titre, produit_photo: x.photo_principale || null, produit_sku: x.sku || null, produit_prix: x.prix_promo != null && Number(x.prix_promo) > 0 ? x.prix_promo : x.prix, produit_stock: x.stock, question: x.question, reponse: x.reponse, reponse_le: x.reponse_le,
       statut: x.statut, masque_raison: x.masque_raison, masque_par: x.masque_par, created_at: x.created_at, acheteur: Q.nomPublic(x.prenom, x.acheteur_nom) })),
   });
 }));

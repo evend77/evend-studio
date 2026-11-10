@@ -8,7 +8,7 @@ const API_BASE = '/api';
 const C = { accent: '#c9a96e', green: '#10b981', red: '#ef4444', orange: '#f59e0b', bg: '#f4f6f8', card: '#fff', border: '#e1e4e8', text: '#1a2332', textLight: '#64748b' };
 
 interface Question {
-  id: number; produit_id: number; produit_titre: string | null; boutique: string | null; question: string; reponse: string | null; reponse_le: string | null;
+  id: number; produit_id: number; produit_titre: string | null; produit_photo?: string | null; produit_sku?: string | null; produit_prix?: number | string | null; produit_stock?: number | null; boutique: string | null; question: string; reponse: string | null; reponse_le: string | null;
   statut: 'attente' | 'publiee' | 'masquee'; masque_raison: string | null; masque_par: string | null; signalements: number; created_at: string; acheteur: string;
 }
 interface Reponse { addon_actif?: boolean; questions: Question[]; total: number; page: number; pages: number; stats: { total: number; attente: number; publiees: number; masquees: number; signalees: number } }
@@ -122,7 +122,15 @@ const StudioMVQuestions: React.FC<{ gestionnaireId: number }> = ({ gestionnaireI
               return (
                 <div key={x.id} style={{ background: C.card, border: `1px solid ${x.statut === 'publiee' && x.signalements > 0 ? C.red : C.border}`, borderLeft: `4px solid ${st.couleur}`, borderRadius: 12, padding: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', fontSize: 12, color: C.textLight, marginBottom: 6 }}>
-                    <span>« <b style={{ color: C.text }}>{x.produit_titre || 'annonce supprimée'}</b> » · {x.boutique || '—'} · {x.acheteur} · {quand(x.created_at)}</span>
+                    <span style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
+                      {x.produit_photo
+                        ? <img src={x.produit_photo} alt="" loading="lazy" style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 8, border: `1px solid ${C.border}`, flexShrink: 0 }} />
+                        : <span style={{ width: 44, height: 44, borderRadius: 8, border: `1px solid ${C.border}`, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>📦</span>}
+                      <span style={{ minWidth: 0 }}>
+                        <b style={{ color: C.text }}>{x.produit_titre || 'Annonce supprimée'}</b>{x.produit_sku ? ` · SKU ${x.produit_sku}` : ''}
+                        <br />{x.boutique || '—'} · {x.acheteur} · {quand(x.created_at)}
+                      </span>
+                    </span>
                     <span>
                       <b style={{ color: st.couleur }}>{st.label}</b>
                       {x.signalements > 0 && <b style={{ color: C.red }}> · ⚠️ {x.signalements} signalement{x.signalements > 1 ? 's' : ''}</b>}

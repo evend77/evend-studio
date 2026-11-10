@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 interface Question {
-  id: number; produit_id: number; produit_titre: string | null; question: string; reponse: string | null; reponse_le: string | null;
+  id: number; produit_id: number; produit_titre: string | null; produit_photo?: string | null; produit_sku?: string | null; produit_prix?: number | string | null; produit_stock?: number | null; question: string; reponse: string | null; reponse_le: string | null;
   statut: 'attente' | 'publiee' | 'masquee'; masque_raison: string | null; masque_par: string | null; created_at: string; acheteur: string;
 }
 interface Reponse { addon_actif: boolean; questions_actif: boolean; questions: Question[]; total: number; page: number; pages: number; stats: { attente: number; publiee: number; masquee: number } }
@@ -123,8 +123,21 @@ export default function CollaborateurQuestions({ gestionnaireId, accent, isMobil
               const valeur = brouillons[q.id] ?? (enEdition ? q.reponse || '' : '');
               return (
                 <div key={q.id} style={{ ...carte, borderLeft: `4px solid ${q.statut === 'attente' ? T.orange : q.statut === 'publiee' ? T.green : T.red}` }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 10, paddingBottom: 10, borderBottom: `1px solid ${T.border}` }}>
+                    {q.produit_photo
+                      ? <img src={q.produit_photo} alt="" loading="lazy" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, border: `1px solid ${T.border}`, flexShrink: 0, background: '#f3f4f6' }} />
+                      : <div style={{ width: 56, height: 56, borderRadius: 8, border: `1px solid ${T.border}`, background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>📦</div>}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 800, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.produit_titre || 'Annonce supprimée'}</div>
+                      <div style={{ fontSize: 12, color: T.light, marginTop: 2, display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                        {q.produit_sku && <span>SKU : <b style={{ color: T.text }}>{q.produit_sku}</b></span>}
+                        {q.produit_prix != null && q.produit_prix !== '' && <span>{Number(q.produit_prix).toFixed(2)} $</span>}
+                        {typeof q.produit_stock === 'number' && <span style={{ color: q.produit_stock <= 0 ? T.red : T.light }}>{q.produit_stock <= 0 ? 'Rupture' : `Stock : ${q.produit_stock}`}</span>}
+                      </div>
+                    </div>
+                  </div>
                   <div style={{ fontSize: 12, color: T.light, marginBottom: 6 }}>
-                    Sur « <b style={{ color: T.text }}>{q.produit_titre || 'annonce supprimée'}</b> » · {q.acheteur} · {dateCourte(q.created_at)}
+                    Posée par {q.acheteur} · {dateCourte(q.created_at)}
                     {q.statut === 'masquee' && <span style={{ color: T.red, fontWeight: 700 }}> · Retirée{q.masque_par === 'gestionnaire' ? ' par le gestionnaire' : ''}{q.masque_raison ? ` (${q.masque_raison})` : ''}</span>}
                   </div>
                   <div style={{ fontSize: 15, fontWeight: 700, color: T.text, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>« {q.question} »</div>

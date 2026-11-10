@@ -383,7 +383,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
       ]
     }] : []),
     {
-      id: 'profil', label: 'MON PROFIL', icon: '👤', badge: avisAttente > 0 ? avisAttente : undefined,
+      id: 'profil', label: 'MON PROFIL', icon: '👤', badge: (avisAttente + questionsAttente) > 0 ? (avisAttente + questionsAttente) : undefined,
       sousMenu: [
         { id: 'profil-compte',  label: 'Mon compte',        icon: '👤' },
         { id: 'profil-boutique',label: 'Ma boutique',       icon: '🏪' },

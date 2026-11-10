@@ -389,7 +389,7 @@ router.get('/questions', h(async (req, res) => {
   params.push(PAR_PAGE, (pg - 1) * PAR_PAGE);
   const r = await pool.query(
     `SELECT q.id, q.question, q.reponse, q.reponse_le, q.statut, q.masque_raison, q.masque_par, q.signalements, q.created_at,
-            q.produit_id, p.titre AS produit_titre, c.nom_boutique AS boutique, a.prenom, a.nom AS acheteur_nom, COUNT(*) OVER()::int AS total_lignes
+            q.produit_id, p.titre AS produit_titre, p.photo_principale, p.sku, p.prix, p.prix_promo, p.stock, c.nom_boutique AS boutique, a.prenom, a.nom AS acheteur_nom, COUNT(*) OVER()::int AS total_lignes
        FROM questions_produit q
        LEFT JOIN produits p ON p.id = q.produit_id
        LEFT JOIN marketplace_collaborateurs c ON c.id = q.collaborateur_id
@@ -404,7 +404,7 @@ router.get('/questions', h(async (req, res) => {
   const nomPublic = require('../services/studio_questions').nomPublic;
   res.json({
     addon_actif: actifAddon, total, page: pg, pages: Math.max(1, Math.ceil(total / PAR_PAGE)), stats,
-    questions: r.rows.map((x) => ({ id: x.id, produit_id: x.produit_id, produit_titre: x.produit_titre, boutique: x.boutique, question: x.question, reponse: x.reponse, reponse_le: x.reponse_le,
+    questions: r.rows.map((x) => ({ id: x.id, produit_id: x.produit_id, produit_titre: x.produit_titre, produit_photo: x.photo_principale || null, produit_sku: x.sku || null, produit_prix: x.prix_promo != null && Number(x.prix_promo) > 0 ? x.prix_promo : x.prix, produit_stock: x.stock, boutique: x.boutique, question: x.question, reponse: x.reponse, reponse_le: x.reponse_le,
       statut: x.statut, masque_raison: x.masque_raison, masque_par: x.masque_par, signalements: x.signalements, created_at: x.created_at, acheteur: nomPublic(x.prenom, x.acheteur_nom) })),
   });
 }));
