@@ -28,6 +28,7 @@ const LEGACY_COLS = {
   badge_evend_masquer: 'cacher_propulse',
   verificateur_age: 'verificateur_age',
   popup_annonce: 'popup_annonce',
+  analytique: 'analytique',           // Analytique : options_gestionnaire.analytique (déjà lue par SitePreview et l'écran ANALYTIQUE)
   chatbot: 'chatbot',                 // Chatbot (sans IA) : options_gestionnaire.chatbot, comme dans les autres templates
 };
 

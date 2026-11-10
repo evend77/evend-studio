@@ -24,6 +24,7 @@ import AppCollaborateur               from '../../AppCollaborateur';
 import { MVFavorisToast, MVSouhaitsAcces } from './MVFavoris';
 import MVChatbot from './MVChatbot';
 import EffetsBoutique from './EffetsBoutique';
+import { useAnalytics } from '../../hooks/useAnalytics';
 
 const API_BASE = '/api';
 
@@ -157,15 +158,35 @@ export default function TemplateMultiVendeurPremium({ vendeurId, isDemo = false,
   const [encheresVisibles, setEncheresVisibles] = useState(true);
   // Add-on « Offres du jour » : lien et page visibles seulement si l'add-on est actif
   const [offresActives, setOffresActives] = useState(false);
+  // Add-on « Analytique » : chaque page vue (accueil, catalogue, annonce, boutique…) est comptée, après consentement du visiteur (Loi 25)
+  const [analytiqueActif, setAnalytiqueActif] = useState(false);
+  const { trackPageView } = useAnalytics(gestionnaireId, !isDemo && analytiqueActif, false);
+  // Si le visiteur accepte les cookies d'analyse après l'arrivée, la page en cours est comptée à ce moment-là
+  const [consentTick, setConsentTick] = useState(0);
+  useEffect(() => {
+    const maj = () => setConsentTick(n => n + 1);
+    window.addEventListener('evend-cookie-consent-updated', maj);
+    return () => window.removeEventListener('evend-cookie-consent-updated', maj);
+  }, []);
   useEffect(() => {
     if (isDemo || !gestionnaireId) return;
     let actif = true;
     fetch(`${API_BASE}/studio-forfaits/public/${gestionnaireId}/addons`)
       .then(r => (r.ok ? r.json() : {}))
-      .then((d: any) => { if (actif) { setPorteAge(d?.verificateur_age === true); setPopupAnnonce(d?.popup_annonce === true); setChatbotActif(d?.chatbot === true); setEffetsActifs(d?.effets_boutique === true); if (typeof d?.encheres_visibles === 'boolean') setEncheresVisibles(d.encheres_visibles); setOffresActives(d?.offres_du_jour === true); } })
+      .then((d: any) => { if (actif) { setPorteAge(d?.verificateur_age === true); setPopupAnnonce(d?.popup_annonce === true); setChatbotActif(d?.chatbot === true); setEffetsActifs(d?.effets_boutique === true); if (typeof d?.encheres_visibles === 'boolean') setEncheresVisibles(d.encheres_visibles); setOffresActives(d?.offres_du_jour === true); setAnalytiqueActif(d?.analytique === true); } })
       .catch(() => {});
     return () => { actif = false; };
   }, [gestionnaireId, isDemo]);
+
+  // Pages privées (tableaux de bord, connexion) : jamais comptées
+  useEffect(() => {
+    if (!analytiqueActif || nav.page === 'login' || nav.page === 'inscription-acheteur' || nav.page === 'inscription-collaborateur' || nav.page === 'dashboard-acheteur' || nav.page === 'dashboard-collaborateur') return;
+    const chemin = nav.page === 'produit' ? `/annonce/${nav.produitId}` : nav.page === 'boutique-page' ? `/boutique/${nav.boutiqueSlug}`
+      : nav.page === 'accueil' ? '/' : `/${nav.page}`;
+    const titres: Record<string, string> = { accueil: 'Accueil', catalogue: 'Catalogue', boutiques: 'Boutiques', 'boutique-page': 'Page boutique', produit: 'Fiche annonce', encheres: 'Enchères', offres: 'Offres du jour', documents: 'Documents', politique: 'Politique', contact: 'Contact' };
+    trackPageView(chemin, titres[nav.page] || nav.page);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analytiqueActif, nav.page, nav.produitId, nav.boutiqueSlug, consentTick]);
 
   const naviguer = (dest: NavMVPremium) => {
     const type = lireTypeCompte();

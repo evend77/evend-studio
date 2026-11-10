@@ -191,7 +191,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
 
   // Add-on Analytique — track le chargement du site, respecte le consentement
   // cookie du visiteur. Jamais actif en mode démo ni sans vendeurId.
-  useAnalytics(vendeurId, !isDemo && !!options?.analytique);
+  useAnalytics(vendeurId, !isDemo && !!options?.analytique && !(forceTemplate || siteData?.template_id || '').startsWith('multi-vendeur-premium'));   // le template Multi-vendeur Premium suit ses pages internes lui-même
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', flexDirection: 'column', gap: 16, background: '#0d0d0d' }}>

@@ -67,10 +67,12 @@ interface UseAnalyticsReturn {
 /**
  * @param gestionnaireId  id du gestionnaire propriétaire du site affiché
  * @param actif           options?.analytique du gestionnaire (add-on activé ou non)
+ * @param suivreChargement false = ne compte PAS la page initiale toute seule (le template appelle trackPageView lui-même, ex. Multi-vendeur Premium)
  */
 export function useAnalytics(
   gestionnaireId: number | string | undefined | null,
-  actif: boolean | undefined
+  actif: boolean | undefined,
+  suivreChargement: boolean = true
 ): UseAnalyticsReturn {
   const derniereVisiteId       = useRef<number | null>(null);
   const debutVisite            = useRef<number>(Date.now());
@@ -120,7 +122,7 @@ export function useAnalytics(
 
   // ── Chargement initial : track dès que le consentement est disponible ────
   useEffect(() => {
-    if (!actif || !gestionnaireId || dejaTrackeAuChargement.current) return;
+    if (!suivreChargement || !actif || !gestionnaireId || dejaTrackeAuChargement.current) return;
 
     const pageInitiale = window.location.pathname || '/';
 
@@ -140,7 +142,7 @@ export function useAnalytics(
     };
     window.addEventListener('evend-cookie-consent-updated', onConsentUpdate);
     return () => window.removeEventListener('evend-cookie-consent-updated', onConsentUpdate);
-  }, [actif, gestionnaireId, trackPageView]);
+  }, [actif, gestionnaireId, trackPageView, suivreChargement]);
 
   // ── Envoyer la durée quand le visiteur quitte ou change d'onglet ─────────
   useEffect(() => {
