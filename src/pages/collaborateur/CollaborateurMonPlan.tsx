@@ -28,9 +28,10 @@ const CollaborateurMonPlan: React.FC<Props> = ({ gestionnaireId, accent, isMobil
   const [occupe, setOccupe] = useState<number | null>(null);
   const [erreur, setErreur] = useState('');
   const [message, setMessage] = useState('');
+  const [aConfirmer, setAConfirmer] = useState<PlanCollab | null>(null);
 
   const choisir = async (p: PlanCollab) => {
-    if (!window.confirm(`Choisir le plan « ${p.nom} » ?`)) return;
+    setAConfirmer(null);
     setOccupe(p.id); setErreur(''); setMessage('');
     try {
       const r = await fetch(`${API_BASE}/collab/${gestionnaireId}/plans/choisir`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ plan_id: p.id, retour: window.location.href }) });
@@ -108,12 +109,31 @@ const CollaborateurMonPlan: React.FC<Props> = ({ gestionnaireId, accent, isMobil
             </ul>
             {p.prix_mensuel > 0 && !etat.paiement_en_ligne
               ? <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', borderRadius: 8, padding: 8 }}>Plan payant : les paiements de cette marketplace ne sont pas encore configurés. Contactez le gestionnaire.</div>
-              : <button disabled={occupe !== null} onClick={() => choisir(p)} style={{ padding: '10px', border: 'none', borderRadius: 8, background: accent, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, opacity: occupe !== null ? 0.6 : 1 }}>
+              : <button disabled={occupe !== null} onClick={() => setAConfirmer(p)} style={{ padding: '10px', border: 'none', borderRadius: 8, background: accent, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14, opacity: occupe !== null ? 0.6 : 1 }}>
                   {occupe === p.id ? '…' : p.prix_mensuel > 0 ? 'S\'abonner' : 'Choisir ce plan'}
                 </button>}
           </div>
         ))}
       </div>
+      {aConfirmer && (
+        <div onClick={() => setAConfirmer(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 26, width: '100%', maxWidth: 420, boxShadow: '0 20px 50px rgba(0,0,0,.3)', textAlign: 'center' }}>
+            <div style={{ fontSize: 44 }}>{aConfirmer.emoji}</div>
+            <h3 style={{ margin: '6px 0 2px', fontSize: 20 }}>Choisir le plan « {aConfirmer.nom} » ?</h3>
+            <div style={{ fontSize: 24, fontWeight: 800, color: accent, margin: '4px 0 10px' }}>{aConfirmer.prix_mensuel > 0 ? `${$$(prixDe(aConfirmer))}/mois` : 'Gratuit'}</div>
+            <div style={{ background: '#f4f6f8', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#444', textAlign: 'left', lineHeight: 1.7 }}>
+              <div>📦 {aConfirmer.limite_annonces == null ? 'Annonces illimitées' : `${aConfirmer.limite_annonces} annonces`}</div>
+              <div>💼 Commission : {commission(aConfirmer)}{aConfirmer.commission_max != null ? ` (max ${$$(aConfirmer.commission_max)})` : ''}</div>
+              {aConfirmer.addons.length > 0 && <div>🧩 {aConfirmer.addons.map(nomAddon).join(' · ')}</div>}
+            </div>
+            <p style={{ fontSize: 12, color: '#777', margin: '12px 0 0' }}>{aConfirmer.prix_mensuel > 0 ? 'Vous serez redirigé vers Stripe pour payer en toute sécurité. Annulable en tout temps.' : 'Vos annonces actuelles restent en ligne.'}</p>
+            <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
+              <button onClick={() => setAConfirmer(null)} style={{ flex: 1, padding: 11, borderRadius: 10, border: '1px solid #d0d5db', background: '#fff', color: '#555', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>Annuler</button>
+              <button onClick={() => choisir(aConfirmer)} style={{ flex: 1, padding: 11, borderRadius: 10, border: 'none', background: accent, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>{aConfirmer.prix_mensuel > 0 ? 'Continuer vers le paiement' : 'Confirmer'}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

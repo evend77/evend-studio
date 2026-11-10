@@ -1,420 +1,290 @@
-// src/pages/gestionnaire/MVPremiumPlan.tsx
-// e-Vend Studio — Forfait & Plan Multi-Vendeur Premium
-//
-// Les forfaits, leurs prix, limites et add-ons inclus viennent du SERVEUR (admin : ⭐ Forfaits & Plans MV).
-// Rien n'est écrit en dur ici sauf l'apparence (couleur/icône) et les lignes fixes communes à tous les forfaits.
-//   GET    /api/studio-forfaits/mv/mon-forfait          → { forfait, addons[], plans[], total_ht }
-//   PUT    /api/studio-forfaits/mv/mon-forfait          → { plan_id }
-//   POST   /api/studio-forfaits/mv/addons/:code/activer
-//   DELETE /api/studio-forfaits/mv/addons/:code
-// La facturation Stripe viendra plus tard : on enregistre seulement les choix.
+// CHEMIN : src/pages/gestionnaire/StudioMVPlansCollab.tsx
+// e-Vend Studio — Multi-vendeur : add-on « Plans collaborateurs ». Le gestionnaire crée ses plans (limite d'annonces,
+// fonctionnalités, commission), règle le système (jours de grâce, action si impayé) et assigne les plans.
+// API : /api/studio/mv/:gid/plans  (GET · POST /plans · PUT /plans/:id · DELETE /plans/:id · PUT /config · PUT /collaborateurs/:id · POST /assigner-tous)
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 
 const API_BASE = '/api';
-
-interface Props { gestionnaireId: number; }
+const C = { accent: '#c9a96e', green: '#10b981', red: '#ef4444', orange: '#f59e0b', bg: '#f4f6f8', card: '#fff', border: '#e1e4e8', text: '#1a2332', textLight: '#64748b' };
 
 interface Plan {
-  plan_id: string; nom: string; prix: number; vendeurs_max: number | null; stockage_go: number | null;
-  actif: boolean; ordre: number; addons_inclus: string[]; tous_addons: boolean;
+  id: number; nom: string; emoji: string; description: string; prix_mensuel: number; limite_annonces: number | null; addons: string[];
+  type_commission: 'pourcentage' | 'fixe' | 'mixte'; commission_pct: number; commission_fixe: number; commission_max: number | null;
+  visible: boolean; actif: boolean; nb_collaborateurs?: number;
 }
-interface Addon {
-  code: string; nom: string; description: string; emoji: string; prix_ht: number;
-  inclus: boolean; achete: boolean; actif_pour_gestionnaire: boolean; prix_facture: number;
+interface AddonDispo { code: string; nom: string; emoji: string; actif: boolean }
+interface Collab { id: number; nom_boutique: string; nom_responsable: string; email: string; statut: string; plan_id: number | null; plan_statut: string; abonne?: boolean; plan_annule?: boolean; nb_annonces: number }
+interface Config { actif: boolean; jours_grace: number; action_impaye: 'bloquer' | 'bloquer_masquer'; taxes_ajoutees: boolean }
+interface Reponse { addon_actif: boolean; config?: Config; plans?: Plan[]; addons_disponibles?: AddonDispo[]; collaborateurs?: Collab[]; sans_plan?: number }
+
+function entetes(): Record<string, string> {
+  let token: string | null = null;
+  try { token = localStorage.getItem('token'); } catch { /* ignore */ }
+  return { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
-interface Etat { forfait: (Plan & { par_defaut?: boolean }) | null; addons: Addon[]; plans: Plan[]; total_ht: number; }
+const champ: React.CSSProperties = { padding: '9px 11px', border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 14, color: C.text, background: '#fff', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box' };
+const bouton = (couleur: string, plein = true): React.CSSProperties => ({ padding: '8px 14px', borderRadius: 8, border: plein ? 'none' : `1px solid ${couleur}`, background: plein ? couleur : '#fff', color: plein ? '#fff' : couleur, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' });
+const carte: React.CSSProperties = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 18, marginBottom: 16 };
+const $$ = (n: number) => `${Number(n).toFixed(2)} $`;
 
-// Apparence seulement (le contenu vient du serveur). Un forfait inconnu reçoit une couleur de la liste, selon sa position.
-const STYLE: Record<string, { couleur: string; icone: string; badge?: string }> = {
-  'mv-demarrage': { couleur: '#6366f1', icone: '🌱' },
-  'mv-croissance': { couleur: '#2563eb', icone: '📈', badge: 'Populaire' },
-  'mv-affaires': { couleur: '#0891b2', icone: '💼' },
-  'mv-pro': { couleur: '#c9a96e', icone: '⭐' },
-  'mv-marche': { couleur: '#dc2626', icone: '🏪', badge: 'Ultime' },
-};
-const PALETTE = ['#6366f1', '#2563eb', '#0891b2', '#c9a96e', '#dc2626', '#7c3aed', '#059669'];
-const styleDe = (p: Plan, i: number) => STYLE[p.plan_id] || { couleur: PALETTE[i % PALETTE.length], icone: '🏷️' };
+const VIDE: Plan = { id: 0, nom: '', emoji: '📦', description: '', prix_mensuel: 0, limite_annonces: 20, addons: [], type_commission: 'pourcentage', commission_pct: 10, commission_fixe: 0, commission_max: null, visible: true, actif: true };
 
-const $ = (n: number) => n.toFixed(2).replace('.', ',') + ' $';
-const go = (n: number | null) => (n == null ? '—' : `${Number.isInteger(n) ? n : String(n).replace('.', ',')} Go`);
-const nbV = (n: number | null) => (n == null ? 'Vendeurs illimités' : `${n} vendeur${n > 1 ? 's' : ''} actif${n > 1 ? 's' : ''}`);
+const resumeCommission = (p: Plan) => p.type_commission === 'fixe' ? `${$$(p.commission_fixe)} par commande`
+  : p.type_commission === 'mixte' ? `${p.commission_pct} % + ${$$(p.commission_fixe)}` : `${p.commission_pct} %`;
 
-// Anciens add-ons « Branding & options » (table options_gestionnaire) : toujours facturés, donc comptés dans le total
-// pour que cette page et « Mes services » donnent le même montant. Même catalogue que BrandingEtOptions.tsx / MesServices.tsx.
-const ADDONS_ANCIENS: { id: string; nom: string; prix_ht: number }[] = [
-  { id: 'cacher_propulse', nom: 'Cacher le branding', prix_ht: 2 },
-  { id: 'verificateur_age', nom: "Vérificateur d'âge", prix_ht: 5 },
-  { id: 'popup_annonce', nom: 'Popup Annonce', prix_ht: 3 },
-];
-interface LigneAncienne { nom: string; prix_ht: number; }
-
-const inclut = (p: Plan | null | undefined, code: string) => !!p && (p.tous_addons || p.addons_inclus.includes(code));
-
-export default function MVPremiumPlan({ gestionnaireId }: Props) {
-  const [etat, setEtat] = useState<Etat | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [erreurChargement, setErreurChargement] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; texte: string } | null>(null);
-  const [cible, setCible] = useState<string | null>(null);        // forfait en cours de confirmation
-  const [anciens, setAnciens] = useState<LigneAncienne[]>([]);
-  const [stockageUtilise] = useState(0);                          // Mo — le calcul réel viendra plus tard
-
-  const entetes = useCallback((json = false): Record<string, string> => {
-    const h: Record<string, string> = { Authorization: `Bearer ${localStorage.getItem('token')}` };
-    if (json) h['Content-Type'] = 'application/json';
-    return h;
-  }, []);
+const StudioMVPlansCollab: React.FC<{ gestionnaireId: number }> = ({ gestionnaireId }) => {
+  const base = `${API_BASE}/studio/mv/${gestionnaireId}/plans`;
+  const [data, setData] = useState<Reponse | null>(null);
+  const [onglet, setOnglet] = useState<'plans' | 'collabs' | 'config'>('plans');
+  const [edition, setEdition] = useState<Plan | null>(null);
+  const [chargement, setChargement] = useState(true);
+  const [erreur, setErreur] = useState('');
+  const [message, setMessage] = useState('');
+  const [occupe, setOccupe] = useState(false);
+  const [cfg, setCfg] = useState<Config | null>(null);
+  const [planTous, setPlanTous] = useState('');
+  // Fenêtre de confirmation (remplace celle du navigateur)
+  const [conf, setConf] = useState<{ titre: string; texte: string; bouton: string; danger?: boolean } | null>(null);
+  const resolveur = useRef<((v: boolean) => void) | null>(null);
+  const confirmer = (c: { titre: string; texte: string; bouton: string; danger?: boolean }) => new Promise<boolean>((resolve) => { resolveur.current = resolve; setConf(c); });
+  const repondre = (v: boolean) => { setConf(null); if (resolveur.current) { resolveur.current(v); resolveur.current = null; } };
 
   const charger = useCallback(async () => {
+    setChargement(true); setErreur('');
     try {
-      const r = await fetch(`${API_BASE}/studio-forfaits/mv/mon-forfait`, { headers: entetes(), credentials: 'include' });
-      if (!r.ok) throw new Error();
-      setEtat(await r.json());
-      setErreurChargement(false);
-      try {
-        const [o, b] = await Promise.all([
-          fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/options`, { headers: entetes(), credentials: 'include' }),
-          fetch(`${API_BASE}/messagerie-contact/gestionnaire/${gestionnaireId}/facturation-cycle`, { headers: entetes(), credentials: 'include' }),
-        ]);
-        const od = o.ok ? await o.json().catch(() => ({})) : {};
-        const bd = b.ok ? await b.json().catch(() => ({ achats: [] })) : { achats: [] };
-        setAnciens([
-          ...ADDONS_ANCIENS.filter(a => !!od?.[a.id]).map(a => ({ nom: a.nom, prix_ht: a.prix_ht })),
-          ...(bd.achats || []).map((a: any) => ({ nom: `Bloc de ${a.quantite_messages} messages (formulaire de contact)`, prix_ht: parseFloat(a.prix_ht) || 0 })),
-        ]);
-      } catch { setAnciens([]); }
-    } catch { setErreurChargement(true); }
-    setLoading(false);
-  }, [entetes, gestionnaireId]);
-
+      const r = await fetch(base, { credentials: 'include', headers: entetes() });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'Erreur de chargement');
+      setData(j); if (j.config) setCfg(j.config);
+    } catch (e: any) { setErreur(e.message || 'Erreur de chargement'); }
+    finally { setChargement(false); }
+  }, [base]);
   useEffect(() => { charger(); }, [charger]);
 
-  const notifier = (type: 'ok' | 'err', texte: string) => {
-    setMsg({ type, texte });
-    setTimeout(() => setMsg(null), 4000);
-  };
-
-  const appeler = async (url: string, method: string, body?: unknown) => {
-    const r = await fetch(`${API_BASE}/studio-forfaits${url}`, {
-      method, headers: entetes(!!body), credentials: 'include', body: body ? JSON.stringify(body) : undefined,
-    });
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(j.error || j.message || 'Erreur — réessayez.');
-    return j;
-  };
-
-  const confirmerChangement = async (planId: string) => {
-    setBusy(true); setCible(null);
+  const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(''), 4000); };
+  const agir = async (chemin: string, methode: string, corps: object | undefined, ok: string): Promise<any> => {
+    setOccupe(true); setErreur('');
     try {
-      const j = await appeler('/mv/mon-forfait', 'PUT', { plan_id: planId });
-      const devenus: string[] = j.devenus_inclus || [];
-      const noms = devenus.map(c => etat?.addons.find(a => a.code === c)?.nom || c);
-      notifier('ok', noms.length ? `Forfait mis à jour ! ${noms.join(', ')} ${noms.length > 1 ? 'sont maintenant inclus' : 'est maintenant inclus'} — vous ne le payez plus.` : 'Forfait mis à jour !');
-      await charger();
-    } catch (e: any) { notifier('err', e.message); }
-    setBusy(false);
+      const r = await fetch(`${base}${chemin}`, { method: methode, credentials: 'include', headers: entetes(), body: corps ? JSON.stringify(corps) : undefined });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { const err: any = new Error(j.error || 'Erreur'); err.status = r.status; throw err; }
+      flash(j.message || ok); await charger(); return j;
+    } catch (e: any) { setErreur(e.message || 'Erreur'); return null; }
+    finally { setOccupe(false); }
   };
 
-  const basculerAddon = async (a: Addon) => {
-    setBusy(true);
-    try {
-      if (a.achete) await appeler(`/mv/addons/${encodeURIComponent(a.code)}`, 'DELETE');
-      else await appeler(`/mv/addons/${encodeURIComponent(a.code)}/activer`, 'POST');
-      notifier('ok', a.achete ? `${a.nom} désactivé.` : `${a.nom} activé !`);
-      await charger();
-    } catch (e: any) { notifier('err', e.message); }
-    setBusy(false);
-  };
-
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 300, fontFamily: "'Inter',sans-serif", color: '#888' }}>
-      Chargement...
+  if (chargement && !data) return <div style={{ padding: 40, textAlign: 'center', color: C.textLight }}>Chargement…</div>;
+  if (data && !data.addon_actif) return (
+    <div style={{ maxWidth: 640, margin: '40px auto', ...carte, textAlign: 'center' }}>
+      <div style={{ fontSize: 44 }}>🧾</div>
+      <h2 style={{ margin: '8px 0', color: C.text }}>Plans collaborateurs</h2>
+      <p style={{ color: C.textLight, fontSize: 14 }}>Cet add-on n'est pas activé. Activez-le dans « Mon plan & limites » pour créer des plans pour vos collaborateurs.</p>
     </div>
   );
-  if (erreurChargement || !etat || !etat.forfait) return (
-    <div style={{ maxWidth: 520, margin: '60px auto', textAlign: 'center', fontFamily: "'Inter',sans-serif", color: '#555' }}>
-      <div style={{ fontSize: 40, marginBottom: 10 }}>⚠️</div>
-      <p style={{ fontSize: 14 }}>Impossible de charger vos forfaits pour le moment.</p>
-      <button onClick={() => { setLoading(true); charger(); }}
-        style={{ padding: '10px 20px', border: 'none', borderRadius: 10, background: '#2563eb', color: '#fff', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>Réessayer</button>
-    </div>
-  );
+  if (!data || !cfg) return <div style={{ padding: 40, color: C.red }}>{erreur || 'Erreur'}</div>;
 
-  const plans = [...etat.plans].sort((a, b) => a.ordre - b.ordre || a.prix - b.prix);
-  const courant = plans.find(p => p.plan_id === etat.forfait!.plan_id) || etat.forfait!;
-  const idxCourant = plans.findIndex(p => p.plan_id === courant.plan_id);
-  const styleCourant = styleDe(courant, Math.max(idxCourant, 0));
-  const stockageMax = (courant.stockage_go || 0) * 1024;
-  const stockagePct = stockageMax ? Math.min((stockageUtilise / stockageMax) * 100, 100) : 0;
-  const stockageAffiche = stockageUtilise < 1024 ? `${stockageUtilise.toFixed(0)} Mo` : `${(stockageUtilise / 1024).toFixed(1)} Go`;
-  const nomAddon = (code: string) => etat.addons.find(a => a.code === code)?.nom || code;
-  const prixAddon = (code: string) => etat.addons.find(a => a.code === code)?.prix_ht || 0;
+  const plans = data.plans || [];
+  const collabs = data.collaborateurs || [];
+  const dispo = data.addons_disponibles || [];
 
-  // Lignes d'un forfait : ce qu'il ajoute par rapport au précédent (« tout du forfait précédent + … »)
-  const lignes = (p: Plan, i: number): { texte: string; fort?: boolean }[] => {
-    const prec = i > 0 ? plans[i - 1] : null;
-    const out: { texte: string; fort?: boolean }[] = [];
-    if (prec) out.push({ texte: `Tout du forfait ${prec.nom}, plus :`, fort: true });
-    out.push({ texte: nbV(p.vendeurs_max) });
-    out.push({ texte: `${go(p.stockage_go)} de stockage partagé` });
-    if (!prec) {
-      out.push({ texte: 'Boutiques individuelles' });
-      out.push({ texte: 'Catalogue unifié' });
-      out.push({ texte: 'Fiche produit complète' });
-    }
-    if (p.tous_addons) {
-      out.push({ texte: '✨ Tous les add-ons inclus', fort: true });
-    } else {
-      etat.addons.filter(a => inclut(p, a.code) && !inclut(prec, a.code)).forEach(a => out.push({ texte: `${a.emoji} ${a.nom} inclus`, fort: true }));
-    }
-    out.push({ texte: '0 % de commission sur vos ventes', fort: true });
-    return out;
+  const sauverPlan = async () => {
+    if (!edition) return;
+    const corps = { ...edition, limite_annonces: edition.limite_annonces === null || (edition.limite_annonces as any) === '' ? null : Number(edition.limite_annonces),
+      commission_max: edition.commission_max === null || (edition.commission_max as any) === '' ? null : Number(edition.commission_max) };
+    const r = edition.id ? await agir(`/plans/${edition.id}`, 'PUT', corps, 'Plan enregistré.') : await agir('/plans', 'POST', corps, 'Plan créé.');
+    if (r) setEdition(null);
   };
 
-  const planCible = cible ? plans.find(p => p.plan_id === cible) || null : null;
-  const idxCible = planCible ? plans.findIndex(p => p.plan_id === planCible.plan_id) : -1;
-  const estDowngrade = !!planCible && idxCible < idxCourant;
+  const assigner = async (c: Collab, planId: string) => {
+    const corps = { plan_id: planId === '' ? null : Number(planId) };
+    setOccupe(true); setErreur('');
+    try {
+      let r = await fetch(`${base}/collaborateurs/${c.id}`, { method: 'PUT', credentials: 'include', headers: entetes(), body: JSON.stringify(corps) });
+      let j = await r.json().catch(() => ({}));
+      if (r.status === 409 && await confirmer({ titre: 'Forcer ce plan ?', texte: String(j.error || ''), bouton: 'Forcer quand même' })) {
+        r = await fetch(`${base}/collaborateurs/${c.id}`, { method: 'PUT', credentials: 'include', headers: entetes(), body: JSON.stringify({ ...corps, forcer: true }) });
+        j = await r.json().catch(() => ({}));
+      }
+      if (!r.ok) throw new Error(j.error || 'Erreur');
+      flash('Plan assigné.'); await charger();
+    } catch (e: any) { setErreur(e.message || 'Erreur'); }
+    finally { setOccupe(false); }
+  };
+
+  const onglets: [typeof onglet, string][] = [['plans', '🧾 Plans'], ['collabs', `👥 Collaborateurs${data.sans_plan ? ` (${data.sans_plan} sans plan)` : ''}`], ['config', '⚙️ Config plans']];
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '32px 24px', fontFamily: "'Inter',sans-serif" }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');`}</style>
+    <div style={{ maxWidth: 1000, margin: '0 auto', padding: 20, color: C.text }}>
+      <h1 style={{ fontSize: 24, margin: '0 0 4px' }}>🧾 Plans collaborateurs</h1>
+      <p style={{ color: C.textLight, fontSize: 13, margin: '0 0 16px' }}>
+        Créez des plans (limite d'annonces, fonctionnalités, commission) pour vos collaborateurs. Quand les plans sont utilisés, <b>la commission du plan remplace celle de Config multi → Commission</b>.
+      </p>
+      {message && <div style={{ background: '#ecfdf5', border: `1px solid ${C.green}`, color: '#065f46', padding: '9px 12px', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>✅ {message}</div>}
+      {erreur && <div style={{ background: '#fef2f2', border: `1px solid ${C.red}`, color: '#991b1b', padding: '9px 12px', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>❌ {erreur}</div>}
 
-      {/* En-tête */}
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <h1 style={{ fontSize: 28, fontWeight: 900, color: '#1a1a2e', margin: '0 0 8px' }}>🏪 Forfait & Plan Multi-Vendeur Premium</h1>
-        <p style={{ fontSize: 14, color: '#888', margin: 0 }}>
-          Tous les prix sont en dollars canadiens + taxes applicables · <strong style={{ color: '#16a34a' }}>0 % de commission sur vos ventes</strong>
-        </p>
-        {etat.forfait.par_defaut && (
-          <p style={{ fontSize: 13, color: '#92400e', background: '#fef9ec', border: '1px solid #fde68a', display: 'inline-block', padding: '6px 14px', borderRadius: 10, margin: '12px 0 0' }}>
-            Vous êtes sur le forfait de départ <strong>{courant.nom}</strong>. Passez à un forfait supérieur quand vous voulez.
-          </p>
-        )}
+      <div style={{ ...carte, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', borderColor: cfg.actif ? C.green : C.orange }}>
+        <b>{cfg.actif ? '🟢 Les plans sont utilisés' : '🟠 Les plans ne sont pas encore utilisés'}</b>
+        <span style={{ color: C.textLight, fontSize: 13, flex: 1 }}>{cfg.actif ? 'Vos collaborateurs doivent avoir un plan.' : 'Tant que c\'est désactivé, rien ne change pour vos collaborateurs.'}</span>
+        <button disabled={occupe} style={bouton(cfg.actif ? C.red : C.green)} onClick={async () => {
+          if (!cfg.actif && !(await confirmer({ titre: 'Activer les plans ?', texte: "Les collaborateurs existants devront choisir un plan avant de créer ou modifier des annonces (leurs annonces restent en ligne). Vous pouvez leur assigner un plan à l'avance dans l'onglet Collaborateurs.", bouton: 'Activer les plans' }))) return;
+          if (cfg.actif && !(await confirmer({ titre: 'Désactiver les plans ?', texte: 'Tout revient comme avant : commission de Config multi, limite « Max produits » et fonctionnalités selon vos add-ons. Vos plans sont conservés.', bouton: 'Désactiver', danger: true }))) return;
+          agir('/config', 'PUT', { actif: !cfg.actif }, cfg.actif ? 'Plans désactivés.' : 'Plans activés.');
+        }}>{cfg.actif ? 'Désactiver' : 'Activer les plans'}</button>
       </div>
 
-      {/* Barre stockage */}
-      <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: '16px 24px', marginBottom: 32, display: 'flex', alignItems: 'center', gap: 20, flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>💾 Stockage utilisé</span>
-            <span style={{ fontSize: 13, color: '#888' }}>{stockageAffiche} / {go(courant.stockage_go)}</span>
-          </div>
-          <div style={{ height: 8, background: '#f3f4f6', borderRadius: 4, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: `${stockagePct}%`, background: stockagePct > 85 ? '#ef4444' : stockagePct > 60 ? '#f59e0b' : styleCourant.couleur, borderRadius: 4, transition: 'width 0.5s' }} />
-          </div>
-        </div>
-        <div style={{ fontSize: 12, color: '#888', flexShrink: 0 }}>
-          {stockagePct < 60 ? '✅ Espace disponible' : stockagePct < 85 ? '⚠️ Espace limité' : '🔴 Presque plein'}
-        </div>
-        <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 8, padding: '6px 14px', fontSize: 12, color: '#888' }}>
-          ⚡ Calcul réel du stockage à venir
-        </div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 14, flexWrap: 'wrap' }}>
+        {onglets.map(([id, l]) => (
+          <button key={id} onClick={() => setOnglet(id)} style={{ ...bouton(C.accent, onglet === id), padding: '9px 16px' }}>{l}</button>
+        ))}
       </div>
 
-      {/* Grille des forfaits */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16, marginBottom: 32 }}>
-        {plans.map((plan, i) => {
-          const st = styleDe(plan, i);
-          const estActuel = plan.plan_id === courant.plan_id;
-          const estUpgrade = i > idxCourant;
-          return (
-            <div key={plan.plan_id} style={{ background: '#fff', border: `2px solid ${estActuel ? st.couleur : '#e5e7eb'}`, borderRadius: 16, overflow: 'hidden', boxShadow: estActuel ? `0 4px 20px ${st.couleur}30` : 'none', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-              {st.badge && (
-                <div style={{ position: 'absolute', top: 12, right: 12, background: st.couleur, color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 20 }}>{st.badge}</div>
-              )}
-              {estActuel && (
-                <div style={{ position: 'absolute', top: 12, left: 12, background: st.couleur, color: '#fff', fontSize: 10, fontWeight: 800, padding: '3px 10px', borderRadius: 20 }}>Actuel</div>
-              )}
-
-              <div style={{ background: `linear-gradient(135deg, ${st.couleur}22, ${st.couleur}08)`, padding: '28px 16px 16px', borderBottom: `1px solid ${st.couleur}20`, textAlign: 'center' }}>
-                <div style={{ fontSize: 32, marginBottom: 8 }}>{st.icone}</div>
-                <h3 style={{ fontSize: 16, fontWeight: 800, color: '#1a1a2e', margin: '0 0 12px' }}>{plan.nom}</h3>
-                <div style={{ fontSize: 28, fontWeight: 900, color: st.couleur }}>
-                  {$(plan.prix)}<span style={{ fontSize: 12, fontWeight: 500, color: '#888' }}>/mois</span>
-                </div>
-              </div>
-
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, background: `${st.couleur}15`, color: st.couleur, padding: '4px 10px', borderRadius: 20 }}>👥 {plan.vendeurs_max ?? '∞'} vendeurs</span>
-                <span style={{ fontSize: 11, fontWeight: 700, background: '#f3f4f6', color: '#555', padding: '4px 10px', borderRadius: 20 }}>💾 {go(plan.stockage_go)}</span>
-              </div>
-
-              <div style={{ padding: '14px 16px', flex: 1 }}>
-                {lignes(plan, i).map((l, k) => (
-                  <div key={k} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-                    <span style={{ color: st.couleur, fontSize: 12, flexShrink: 0, marginTop: 1 }}>✓</span>
-                    <span style={{ fontSize: 12, color: '#444', lineHeight: 1.4, fontWeight: l.fort ? 700 : 400 }}>{l.texte}</span>
+      {onglet === 'plans' && (
+        <>
+          <div style={{ textAlign: 'right', marginBottom: 10 }}><button style={bouton(C.green)} onClick={() => setEdition({ ...VIDE })}>➕ Nouveau plan</button></div>
+          {plans.length === 0 && <div style={{ ...carte, textAlign: 'center', color: C.textLight }}>Aucun plan pour l'instant. Créez-en un (ex. « Gratuit », « Pro »).</div>}
+          {plans.map((p) => (
+            <div key={p.id} style={{ ...carte, opacity: p.actif ? 1 : 0.6 }}>
+              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <div style={{ fontSize: 32 }}>{p.emoji}</div>
+                <div style={{ flex: 1, minWidth: 220 }}>
+                  <div style={{ fontWeight: 800, fontSize: 17 }}>{p.nom}
+                    {!p.visible && <span style={{ marginLeft: 8, fontSize: 11, background: '#f3e8ff', color: '#6b21a8', padding: '2px 8px', borderRadius: 10 }}>🔒 Caché</span>}
+                    {!p.actif && <span style={{ marginLeft: 8, fontSize: 11, background: '#f1f5f9', color: C.textLight, padding: '2px 8px', borderRadius: 10 }}>Archivé</span>}
                   </div>
-                ))}
-              </div>
-
-              <div style={{ padding: '0 16px 16px' }}>
-                {estActuel ? (
-                  <div style={{ textAlign: 'center', padding: '10px', background: `${st.couleur}15`, borderRadius: 10, fontSize: 13, fontWeight: 800, color: st.couleur }}>✅ Forfait actuel</div>
-                ) : (
-                  <button onClick={() => setCible(plan.plan_id)} disabled={busy}
-                    style={{ width: '100%', padding: '10px', border: `2px solid ${st.couleur}`, borderRadius: 10, background: estUpgrade ? st.couleur : 'transparent', color: estUpgrade ? '#fff' : st.couleur, fontSize: 13, fontWeight: 800, cursor: busy ? 'default' : 'pointer', fontFamily: 'inherit' }}>
-                    {estUpgrade ? `Passer à ${plan.nom} ↑` : `Rétrograder à ${plan.nom} ↓`}
-                  </button>
-                )}
+                  {p.description && <div style={{ color: C.textLight, fontSize: 13, margin: '2px 0 6px' }}>{p.description}</div>}
+                  <div style={{ fontSize: 13 }}>
+                    💵 {p.prix_mensuel > 0 ? `${$$(p.prix_mensuel)}/mois` : 'Gratuit'} · 📦 {p.limite_annonces == null ? 'Annonces illimitées' : `${p.limite_annonces} annonces`} · 💼 Commission {resumeCommission(p)}{p.commission_max != null ? ` (max ${$$(p.commission_max)})` : ''}
+                  </div>
+                  <div style={{ fontSize: 12, color: C.textLight, marginTop: 6 }}>
+                    {p.addons.length ? p.addons.map((c) => { const a = dispo.find((x) => x.code === c); return a ? `${a.emoji} ${a.nom}` : c; }).join(' · ') : 'Aucune fonctionnalité en plus'}
+                  </div>
+                  <div style={{ fontSize: 12, color: C.textLight, marginTop: 4 }}>👥 {p.nb_collaborateurs || 0} collaborateur{(p.nb_collaborateurs || 0) > 1 ? 's' : ''}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button style={bouton(C.accent, false)} onClick={() => setEdition({ ...p })}>✏️ Modifier</button>
+                  <button style={bouton(C.red, false)} disabled={occupe} onClick={async () => { if (await confirmer({ titre: `Supprimer le plan « ${p.nom} » ?`, texte: (p.nb_collaborateurs || 0) > 0 ? "Des collaborateurs l'ont : il sera archivé (ils le gardent, mais il ne sera plus offert)." : 'Cette action est définitive.', bouton: (p.nb_collaborateurs || 0) > 0 ? 'Archiver' : 'Supprimer', danger: true })) agir(`/plans/${p.id}`, 'DELETE', undefined, 'Plan supprimé.'); }}>🗑️</button>
+                </div>
               </div>
             </div>
-          );
-        })}
-      </div>
+          ))}
+        </>
+      )}
 
-      {/* Add-ons */}
-      {etat.addons.length > 0 && (
-        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '22px 24px', marginBottom: 24 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 900, color: '#1a1a2e', margin: '0 0 4px' }}>🧩 Add-ons</h2>
-          <p style={{ fontSize: 13, color: '#888', margin: '0 0 16px' }}>Ajoutez des fonctionnalités à votre marketplace. Ceux déjà inclus dans votre forfait ne sont jamais facturés.</p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {etat.addons.map(a => (
-              <div key={a.code} style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', padding: '14px 16px', border: `1px solid ${a.actif_pour_gestionnaire ? '#bbf7d0' : '#e5e7eb'}`, background: a.actif_pour_gestionnaire ? '#f0fdf4' : '#fff', borderRadius: 12 }}>
-                <div style={{ fontSize: 28 }}>{a.emoji}</div>
-                <div style={{ flex: 1, minWidth: 220 }}>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{a.nom}</div>
-                  <div style={{ fontSize: 12, color: '#666', lineHeight: 1.5 }}>{a.description}</div>
-                </div>
-                {a.inclus ? (
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#16a34a', whiteSpace: 'nowrap' }}>✅ Inclus dans votre forfait</div>
-                ) : (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e', whiteSpace: 'nowrap' }}>{$(a.prix_ht)}<span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>/mois</span></div>
-                    <button onClick={() => basculerAddon(a)} disabled={busy}
-                      style={a.achete
-                        ? { padding: '9px 16px', border: '1px solid #fecaca', borderRadius: 10, background: '#fff', color: '#dc2626', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }
-                        : { padding: '9px 16px', border: 'none', borderRadius: 10, background: styleCourant.couleur, color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-                      {a.achete ? 'Désactiver' : 'Activer'}
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
+      {onglet === 'collabs' && (
+        <div style={carte}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 14, paddingBottom: 14, borderBottom: `1px solid ${C.border}` }}>
+            <b style={{ fontSize: 13 }}>Assigner à tous ceux qui n'ont pas de plan :</b>
+            <select style={{ ...champ, width: 220 }} value={planTous} onChange={(e) => setPlanTous(e.target.value)}>
+              <option value="">— Choisir un plan —</option>
+              {plans.filter((p) => p.actif).map((p) => <option key={p.id} value={p.id}>{p.emoji} {p.nom}{!p.visible ? ' (caché)' : ''}</option>)}
+            </select>
+            <button style={bouton(C.accent)} disabled={!planTous || occupe} onClick={async () => { if (await confirmer({ titre: 'Assigner ce plan ?', texte: `Il sera donné aux ${data.sans_plan || 0} collaborateur(s) qui n'ont pas encore de plan.`, bouton: 'Assigner' })) agir('/assigner-tous', 'POST', { plan_id: Number(planTous), seulement_sans_plan: true }, 'Plan assigné.'); }}>Assigner</button>
           </div>
+          {collabs.length === 0 && <div style={{ color: C.textLight, textAlign: 'center', padding: 20 }}>Aucun collaborateur.</div>}
+          {collabs.map((c) => (
+            <div key={c.id} style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', padding: '10px 0', borderBottom: `1px solid ${C.border}` }}>
+              <div style={{ flex: 1, minWidth: 180 }}>
+                <div style={{ fontWeight: 700 }}>{c.nom_boutique || c.nom_responsable}</div>
+                <div style={{ fontSize: 12, color: C.textLight }}>{c.email} · 📦 {c.nb_annonces} annonce{c.nb_annonces > 1 ? 's' : ''}{c.statut !== 'actif' ? ` · ${c.statut}` : ''}</div>
+              </div>
+              {!c.plan_id && <span style={{ fontSize: 11, background: '#fffbeb', color: '#92400e', padding: '2px 8px', borderRadius: 10 }}>Sans plan</span>}
+              {c.abonne && <span style={{ fontSize: 11, background: '#ecfdf5', color: '#065f46', padding: '2px 8px', borderRadius: 10 }}>{c.plan_annule ? '🔄 Abonnement annulé' : '🔄 Abonné'}</span>}
+              {c.plan_statut === 'impaye' && <span style={{ fontSize: 11, background: '#fef2f2', color: '#991b1b', padding: '2px 8px', borderRadius: 10 }}>Impayé</span>}
+              <select style={{ ...champ, width: 220 }} disabled={occupe || !!c.abonne} title={c.abonne ? 'Abonnement actif : le collaborateur change de plan lui-même' : ''} value={c.plan_id || ''} onChange={(e) => assigner(c, e.target.value)}>
+                <option value="">— Aucun plan —</option>
+                {plans.filter((p) => p.actif || p.id === c.plan_id).map((p) => <option key={p.id} value={p.id}>{p.emoji} {p.nom}{!p.visible ? ' (caché)' : ''}</option>)}
+              </select>
+
+            </div>
+          ))}
         </div>
       )}
 
-      {/* Total */}
-      <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 16, padding: '18px 24px', marginBottom: 20 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', marginBottom: 6 }}>
-          <span>Forfait {courant.nom}</span><strong>{$(courant.prix)}</strong>
+      {onglet === 'config' && (
+        <div style={carte}>
+          <h3 style={{ marginTop: 0 }}>⚙️ Config plans</h3>
+          <p style={{ fontSize: 13, color: C.textLight, marginTop: 0 }}>Les plans payants sont facturés chaque mois par Stripe, sur votre compte Stripe. Ce que vous décidez quand un collaborateur ne paie pas son plan (abonnement mensuel Stripe).</p>
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '10px 0 4px' }}>Jours de grâce après un paiement échoué</label>
+          <input type="number" min={0} max={90} style={{ ...champ, width: 120 }} value={cfg.jours_grace} onChange={(e) => setCfg({ ...cfg, jours_grace: Number(e.target.value) })} />
+          <label style={{ display: 'block', fontSize: 13, fontWeight: 700, margin: '14px 0 4px' }}>Après les jours de grâce</label>
+          <select style={{ ...champ, maxWidth: 420 }} value={cfg.action_impaye} onChange={(e) => setCfg({ ...cfg, action_impaye: e.target.value as Config['action_impaye'] })}>
+            <option value="bloquer">Bloquer la création et la modification d'annonces</option>
+            <option value="bloquer_masquer">Bloquer ET masquer ses annonces de la boutique</option>
+          </select>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, margin: '14px 0' }}>
+            <input type="checkbox" checked={cfg.taxes_ajoutees} onChange={(e) => setCfg({ ...cfg, taxes_ajoutees: e.target.checked })} />
+            Ajouter les taxes au prix des plans (TPS/TVQ… selon la province réglée dans Config multi → Commission)
+          </label>
+          <button style={bouton(C.green)} disabled={occupe} onClick={() => agir('/config', 'PUT', { jours_grace: cfg.jours_grace, action_impaye: cfg.action_impaye, taxes_ajoutees: cfg.taxes_ajoutees }, 'Réglages enregistrés.')}>💾 Enregistrer</button>
         </div>
-        {etat.addons.filter(a => a.actif_pour_gestionnaire).map(a => (
-          <div key={a.code} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', marginBottom: 6 }}>
-            <span>{a.emoji} {a.nom}{a.inclus ? ' (inclus)' : ''}</span><strong>{a.inclus ? $(0) : $(a.prix_facture)}</strong>
-          </div>
-        ))}
-        {anciens.map((l, i) => (
-          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, color: '#555', marginBottom: 6 }}>
-            <span>⚙️ {l.nom} <span style={{ color: '#aaa' }}>(Branding & options)</span></span><strong>{$(l.prix_ht)}</strong>
-          </div>
-        ))}
-        <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 10, paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 16, fontWeight: 900, color: '#1a1a2e' }}>
-          <span>Total mensuel</span><span>{$(etat.total_ht + anciens.reduce((t, l) => t + l.prix_ht, 0))} <span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>+ taxes</span></span>
-        </div>
-      </div>
+      )}
 
-      {msg && <div style={{ textAlign: 'center', color: msg.type === 'ok' ? '#16a34a' : '#ef4444', fontWeight: 700, marginBottom: 16 }}>{msg.type === 'ok' ? '✅' : '❌'} {msg.texte}</div>}
-
-      <p style={{ textAlign: 'center', fontSize: 12, color: '#aaa' }}>
-        Tous les prix sont en $ CAD + taxes applicables · Facturé mensuellement · Annulable en tout temps · Aucune commission sur vos ventes
-      </p>
-
-      {/* Modal confirmation */}
-      {planCible && (() => {
-        const st = styleDe(planCible, idxCible);
-        const diff = planCible.prix - courant.prix;
-        const perdus = estDowngrade ? etat.addons.filter(a => inclut(courant, a.code) && !inclut(planCible, a.code)) : [];
-        const gagnes = !estDowngrade ? etat.addons.filter(a => !inclut(courant, a.code) && inclut(planCible, a.code)) : [];
-        const fusionnes = gagnes.filter(a => a.achete);     // déjà payés → ne les paiera plus
-        const fond = estDowngrade ? 'linear-gradient(135deg,#dc2626,#ef4444)' : `linear-gradient(135deg, ${st.couleur}dd, ${st.couleur})`;
-        return (
-          <div onClick={() => setCible(null)}
-            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
-            <div onClick={e => e.stopPropagation()}
-              style={{ background: '#fff', borderRadius: 20, maxWidth: 480, width: '100%', maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.2)', fontFamily: 'inherit' }}>
-              <div style={{ background: fond, padding: '26px 30px', textAlign: 'center' }}>
-                <div style={{ fontSize: 40, marginBottom: 8 }}>{estDowngrade ? '⚠️' : st.icone}</div>
-                <h2 style={{ fontSize: 19, fontWeight: 900, color: '#fff', margin: 0 }}>
-                  {estDowngrade ? `Rétrograder au forfait ${planCible.nom}` : `Passer au forfait ${planCible.nom}`}
-                </h2>
+      {edition && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 2000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: 20 }} onClick={() => setEdition(null)}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: 22, width: '100%', maxWidth: 620 }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0 }}>{edition.id ? 'Modifier le plan' : 'Nouveau plan'}</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr', gap: 10 }}>
+              <div><label style={{ fontSize: 12, fontWeight: 700 }}>Emoji</label><input style={{ ...champ, textAlign: 'center' }} value={edition.emoji} maxLength={4} onChange={(e) => setEdition({ ...edition, emoji: e.target.value })} /></div>
+              <div><label style={{ fontSize: 12, fontWeight: 700 }}>Nom du plan</label><input style={champ} value={edition.nom} maxLength={80} onChange={(e) => setEdition({ ...edition, nom: e.target.value })} /></div>
+            </div>
+            <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginTop: 10 }}>Description (visible par le collaborateur)</label>
+            <textarea style={{ ...champ, minHeight: 60 }} maxLength={500} value={edition.description} onChange={(e) => setEdition({ ...edition, description: e.target.value })} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+              <div><label style={{ fontSize: 12, fontWeight: 700 }}>Prix par mois ($, 0 = gratuit)</label><input type="number" min={0} step="0.01" style={champ} value={edition.prix_mensuel} onChange={(e) => setEdition({ ...edition, prix_mensuel: Number(e.target.value) })} /></div>
+              <div><label style={{ fontSize: 12, fontWeight: 700 }}>Limite d'annonces (vide = illimité)</label><input type="number" min={1} style={champ} value={edition.limite_annonces ?? ''} onChange={(e) => setEdition({ ...edition, limite_annonces: e.target.value === '' ? null : Number(e.target.value) })} /></div>
+            </div>
+            <div style={{ background: C.bg, borderRadius: 10, padding: 12, marginTop: 12 }}>
+              <b style={{ fontSize: 13 }}>💼 Commission de ce plan</b>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 8 }}>
+                <div><label style={{ fontSize: 12 }}>Type</label>
+                  <select style={champ} value={edition.type_commission} onChange={(e) => setEdition({ ...edition, type_commission: e.target.value as Plan['type_commission'] })}>
+                    <option value="pourcentage">Pourcentage</option><option value="fixe">Montant fixe</option><option value="mixte">% + montant fixe</option>
+                  </select></div>
+                {edition.type_commission !== 'fixe' && <div><label style={{ fontSize: 12 }}>Pourcentage (%)</label><input type="number" min={0} max={100} step="0.01" style={champ} value={edition.commission_pct} onChange={(e) => setEdition({ ...edition, commission_pct: Number(e.target.value) })} /></div>}
+                {edition.type_commission !== 'pourcentage' && <div><label style={{ fontSize: 12 }}>Montant fixe ($)</label><input type="number" min={0} step="0.01" style={champ} value={edition.commission_fixe} onChange={(e) => setEdition({ ...edition, commission_fixe: Number(e.target.value) })} /></div>}
               </div>
-              <div style={{ padding: '22px 30px 26px' }}>
-                <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, gap: 10 }}>
-                    <span style={{ fontSize: 13, color: '#888' }}>Forfait actuel</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{courant.nom} — {$(courant.prix)}/mois</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, gap: 10 }}>
-                    <span style={{ fontSize: 13, color: '#888' }}>Nouveau forfait</span>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: st.couleur }}>{planCible.nom} — {$(planCible.prix)}/mois</span>
-                  </div>
-                  <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 10, display: 'flex', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e' }}>Différence</span>
-                    <span style={{ fontSize: 14, fontWeight: 900, color: diff >= 0 ? st.couleur : '#16a34a' }}>{diff >= 0 ? '+' : '−'}{$(Math.abs(diff))}/mois</span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-                  <span style={{ fontSize: 12, background: `${st.couleur}15`, color: st.couleur, padding: '4px 10px', borderRadius: 20, fontWeight: 700 }}>👥 {planCible.vendeurs_max ?? '∞'} vendeurs</span>
-                  <span style={{ fontSize: 12, background: '#f3f4f6', color: '#555', padding: '4px 10px', borderRadius: 20, fontWeight: 700 }}>💾 {go(planCible.stockage_go)}</span>
-                </div>
-
-                {estDowngrade && (
-                  <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
-                    <p style={{ margin: 0, fontSize: 13, color: '#1a1a2e', lineHeight: 1.7 }}>
-                      Vous passez de <strong>{courant.nom}</strong> ({courant.vendeurs_max ?? '∞'} vendeurs, {go(courant.stockage_go)}) à <strong>{planCible.nom}</strong> ({planCible.vendeurs_max ?? '∞'} vendeurs, {go(planCible.stockage_go)}).
-                      Si vous dépassez {planCible.vendeurs_max ?? '∞'} vendeurs actifs ou {go(planCible.stockage_go)}, certaines fonctionnalités seront limitées.
-                    </p>
-                  </div>
-                )}
-
-                {perdus.length > 0 && (
-                  <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
-                    <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 800, color: '#9a3412' }}>Ne seront plus inclus :</p>
-                    {perdus.map(a => (
-                      <p key={a.code} style={{ margin: '0 0 4px', fontSize: 13, color: '#7c2d12', lineHeight: 1.5 }}>
-                        {a.emoji} <strong>{nomAddon(a.code)}</strong> sera désactivé, sauf si vous l'activez ensuite à {$(prixAddon(a.code))}/mois.
-                      </p>
-                    ))}
-                  </div>
-                )}
-
-                {gagnes.length > 0 && (
-                  <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: '14px 16px', marginBottom: 14 }}>
-                    <p style={{ margin: '0 0 6px', fontSize: 13, fontWeight: 800, color: '#166534' }}>Ce que vous gagnez :</p>
-                    {gagnes.map(a => (
-                      <p key={a.code} style={{ margin: '0 0 4px', fontSize: 13, color: '#14532d', lineHeight: 1.5 }}>
-                        {a.emoji} <strong>{a.nom}</strong> inclus{fusionnes.some(f => f.code === a.code) ? ` — vous ne paierez plus les ${$(a.prix_facture)}/mois de cet add-on.` : '.'}
-                      </p>
-                    ))}
-                  </div>
-                )}
-
-                {!estDowngrade && (
-                  <div style={{ background: '#fef9ec', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
-                    <p style={{ margin: 0, fontSize: 13, color: '#92400e', lineHeight: 1.6 }}>
-                      Le changement est effectif immédiatement. La facturation de <strong>{$(planCible.prix)}/mois + taxes</strong> s'appliquera à votre prochain renouvellement.
-                    </p>
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button onClick={() => setCible(null)}
-                    style={{ flex: 1, padding: '11px', border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', color: '#555' }}>Annuler</button>
-                  <button onClick={() => confirmerChangement(planCible.plan_id)}
-                    style={{ flex: 2, padding: '11px', border: 'none', borderRadius: 10, background: fond, color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>
-                    {estDowngrade ? 'Confirmer la rétrogradation' : `✅ Confirmer — ${$(planCible.prix)}/mois`}
-                  </button>
-                </div>
+              <label style={{ fontSize: 12, display: 'block', marginTop: 8 }}>Commission maximum par commande ($, vide = aucun plafond)</label>
+              <input type="number" min={0} step="0.01" style={{ ...champ, maxWidth: 200 }} value={edition.commission_max ?? ''} onChange={(e) => setEdition({ ...edition, commission_max: e.target.value === '' ? null : Number(e.target.value) })} />
+            </div>
+            <div style={{ marginTop: 12 }}>
+              <b style={{ fontSize: 13 }}>🧩 Fonctionnalités incluses</b>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(230px,1fr))', gap: 6, marginTop: 8 }}>
+                {dispo.map((a) => (
+                  <label key={a.code} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, opacity: a.actif ? 1 : 0.5 }} title={a.actif ? '' : "Cet add-on n'est pas activé dans votre boutique"}>
+                    <input type="checkbox" disabled={!a.actif} checked={edition.addons.includes(a.code)} onChange={(e) => setEdition({ ...edition, addons: e.target.checked ? [...edition.addons, a.code] : edition.addons.filter((x) => x !== a.code) })} />
+                    {a.emoji} {a.nom}{!a.actif ? ' (non activé)' : ''}
+                  </label>
+                ))}
               </div>
+              <div style={{ fontSize: 11, color: C.textLight, marginTop: 6 }}>Un add-on doit être activé dans votre boutique ET inclus dans le plan pour que le collaborateur l'utilise.</div>
+            </div>
+            <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, marginTop: 12 }}>
+              <input type="checkbox" checked={edition.visible} onChange={(e) => setEdition({ ...edition, visible: e.target.checked })} />
+              Visible par les collaborateurs (décochez pour un plan caché, offert seulement par vous)
+            </label>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button style={bouton(C.textLight, false)} onClick={() => setEdition(null)}>Annuler</button>
+              <button style={bouton(C.green)} disabled={occupe} onClick={sauverPlan}>💾 Enregistrer</button>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
+      {conf && (
+        <div onClick={() => repondre(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 3000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, padding: 26, width: '100%', maxWidth: 440, boxShadow: '0 20px 50px rgba(0,0,0,.3)', textAlign: 'center' }}>
+            <div style={{ fontSize: 40 }}>{conf.danger ? '⚠️' : '🧾'}</div>
+            <h3 style={{ margin: '6px 0 8px', fontSize: 19, color: C.text }}>{conf.titre}</h3>
+            <p style={{ fontSize: 14, color: C.textLight, lineHeight: 1.6, margin: 0 }}>{conf.texte}</p>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button onClick={() => repondre(false)} style={{ flex: 1, padding: 11, borderRadius: 10, border: `1px solid ${C.border}`, background: '#fff', color: C.textLight, fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>Annuler</button>
+              <button onClick={() => repondre(true)} style={{ flex: 1, padding: 11, borderRadius: 10, border: 'none', background: conf.danger ? C.red : C.green, color: '#fff', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>{conf.bouton}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};
+
+export default StudioMVPlansCollab;
