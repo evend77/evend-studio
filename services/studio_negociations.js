@@ -63,7 +63,7 @@ function prixEtStock(produit, nomVariante, gererStock = true) {
 
 async function lireProduit(db, gid, produitId, verrou = false) {
   return (await db.query(
-    `SELECT id, titre, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes, statut, date_parution, collaborateur_id, photo_principale,
+    `SELECT id, titre, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes, statut, date_parution, date_expiration, collaborateur_id, photo_principale,
             ${OFFRES.sqlEnchereVivante('produits')} AS enchere
        FROM produits WHERE id = $1 AND gestionnaire_id = $2${verrou ? ' FOR UPDATE' : ''}`, [produitId, gid])).rows[0];
 }
@@ -93,6 +93,7 @@ async function faireOffre({ gid, acheteurId, produitId, variante, prix, message 
     const p = await lireProduit(client, gid, produitId, true);
     if (!p || p.statut !== 'actif') refus("Ce produit n'est plus disponible.", 404);
     if (p.date_parution && new Date(p.date_parution).getTime() > Date.now()) refus("Ce produit n'est pas encore en vente.", 409);
+    if (p.date_expiration && new Date(p.date_expiration).getTime() <= Date.now()) refus("Cette annonce n'est plus disponible.", 409);
     if (p.enchere) refus('Ce produit est aux enchères : on ne peut pas y faire une offre.', 409);
     const cfgC = await reglagesCollab(gid, p.collaborateur_id, client);
     if (!cfgC.actif) refus("Ce vendeur n'accepte pas les offres de prix.", 409);
@@ -198,6 +199,7 @@ async function mettreAuPanier({ gid, acheteurId, id }) {
     const p = await lireProduit(client, gid, n.produit_id);
     if (!p || p.statut !== 'actif') refus("Ce produit n'est plus disponible.", 409);
     if (p.enchere) refus('Ce produit est maintenant aux enchères.', 409);
+    if (p.date_expiration && new Date(p.date_expiration).getTime() <= Date.now()) refus("Cette annonce n'est plus disponible (expirée).", 409);
     const regP = await reglesMV.lire(gid, client);
     const choix = prixEtStock(p, n.variante, regP.gererStock);
     if (choix.erreur) refus(choix.erreur, 409);

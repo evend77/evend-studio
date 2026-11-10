@@ -123,6 +123,14 @@ router.get('/:gid/panier', authMV, async (req, res) => {
           RETURNING mp.titre`, [acheteurId, gid]);
       for (const x of perdus.rows) avertNego.push({ message: `Le prix négocié de « ${x.titre} » n'est plus valide : l'article a été retiré de votre panier.` });
     } catch (e) { console.error('[panier] offres expirées :', e.message); }
+    // Annonce expirée (date d'expiration passée) : l'article quitte le panier — nettoyage fait à la lecture. Les articles gagnés aux enchères restent.
+    try {
+      const expires = await pool.query(
+        `DELETE FROM marketplace_panier mp USING produits p
+          WHERE p.id = NULLIF(regexp_replace(mp.produit_id, '[^0-9].*$', ''), '')::int AND mp.acheteur_id = $1 AND mp.gestionnaire_id = $2
+            AND mp.enchere_id IS NULL AND p.date_expiration IS NOT NULL AND p.date_expiration <= NOW() RETURNING mp.titre`, [acheteurId, gid]);
+      for (const x of expires.rows) avertNego.push({ message: `« ${x.titre} » n'est plus disponible (annonce expirée) : l'article a été retiré de votre panier.` });
+    } catch (e) { console.error('[panier] annonces expirées :', e.message); }
     const r = await pool.query(
       `SELECT mp.*, mp.collaborateur_id AS vendeur_id, COALESCE(mc.nom_boutique, mc.nom_responsable) AS vendeur_nom,
               (SELECT p.quantite_min FROM produits p WHERE p.id = NULLIF(regexp_replace(mp.produit_id, '[^0-9].*$', ''), '')::int) AS quantite_min
@@ -173,10 +181,11 @@ router.post('/:gid/panier', authMV, async (req, res) => {
 
   try {
     const prodRes = await pool.query(
-      `SELECT id, collaborateur_id, titre, photo_principale, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes, date_parution FROM produits WHERE id = $1 AND statut = $2 AND gestionnaire_id = $3 AND collaborateur_id IS NOT NULL`,
+      `SELECT id, collaborateur_id, titre, photo_principale, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo, stock, variantes, date_parution, date_expiration FROM produits WHERE id = $1 AND statut = $2 AND gestionnaire_id = $3 AND collaborateur_id IS NOT NULL`,
       [parseInt(produit_id), 'actif', gid]
     );
     if (!prodRes.rows[0]) return res.status(404).json({ error: 'Produit introuvable' });
+    if (prodRes.rows[0].date_expiration && new Date(prodRes.rows[0].date_expiration).getTime() <= Date.now()) return res.status(409).json({ error: "Cette annonce n'est plus disponible (date d'expiration dépassée)." });
 
     const produit = prodRes.rows[0];
     const collaborateurId = produit.collaborateur_id;

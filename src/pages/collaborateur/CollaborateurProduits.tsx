@@ -9,6 +9,7 @@ interface Produit {
   id: number; titre: string; prix: string; prix_promo: string | null; stock: number | null;
   sku: string | null; categorie: string | null; photo_principale: string | null;
   statut: 'actif' | 'brouillon' | 'en_attente'; created_at: string;
+  expire?: boolean; date_expiration?: string | null;   // date d'expiration (arrêt de publication)
 }
 interface Reponse {
   produits: Produit[]; total: number; page: number; pages: number;
@@ -251,7 +252,8 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
               <div style={{ fontSize: 13, color: p.stock === 0 ? T.danger : T.text, fontWeight: p.stock === 0 ? 700 : 400 }}>
                 {p.stock === null ? '∞' : p.stock === 0 ? 'Rupture' : p.stock}
               </div>
-              <div><span style={p.statut === 'en_attente' ? { ...badge('x'), background: '#FFF3E0', color: '#C2570C' } : badge(p.statut)} title={p.statut === 'en_attente' ? 'Le gestionnaire doit approuver cette annonce avant sa publication' : undefined}>{p.statut === 'actif' ? 'Active' : p.statut === 'en_attente' ? '⏳ En attente' : 'Brouillon'}</span></div>
+              <div><span style={p.statut === 'en_attente' ? { ...badge('x'), background: '#FFF3E0', color: '#C2570C' } : p.statut === 'actif' && p.expire ? { ...badge('x'), background: '#FEE2E2', color: '#B91C1C' } : badge(p.statut)} title={p.statut === 'en_attente' ? 'Le gestionnaire doit approuver cette annonce avant sa publication' : undefined}>{p.statut === 'actif' ? (p.expire ? '⏹️ Expirée' : 'Active') : p.statut === 'en_attente' ? '⏳ En attente' : 'Brouillon'}</span>
+                {p.statut === 'actif' && p.date_expiration && !p.expire && <div style={{ fontSize: 11, color: '#92400E', marginTop: 3 }}>⏹️ expire le {new Date(p.date_expiration).toLocaleString('fr-CA', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>}</div>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                 {encheres[p.id] && !(encheres[p.id].statut === 'active' && encheres[p.id].nb_mises === 0) && (
                   <span style={{ ...badge('actif'), background: '#FEF3C7', color: '#92400E' }}>

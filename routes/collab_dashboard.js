@@ -220,7 +220,8 @@ router.get('/produits', h(async (req, res) => {
   const [liste, total, stats] = await Promise.all([
     pool.query(
       `SELECT id, titre, prix, prix_promo, stock, sku, categorie, photo_principale, statut, created_at,
-              CASE WHEN date_parution > NOW() THEN date_parution END AS date_parution
+              CASE WHEN date_parution > NOW() THEN date_parution END AS date_parution, date_expiration,
+              (date_expiration IS NOT NULL AND date_expiration <= NOW()) AS expire
          FROM produits WHERE ${W} ORDER BY created_at DESC, id DESC LIMIT ${PAR_PAGE} OFFSET ${(page - 1) * PAR_PAGE}`, params),
     pool.query(`SELECT COUNT(*) AS n FROM produits WHERE ${W}`, params),
     pool.query(
@@ -258,7 +259,9 @@ router.get('/produits/:id', h(async (req, res) => {
   if (!id) bad('Produit invalide');
   const r = await pool.query(
     `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id, photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient,
-            to_char(date_parution AT TIME ZONE 'America/Toronto', 'YYYY-MM-DD"T"HH24:MI') AS date_parution_local, date_parution
+            to_char(date_parution AT TIME ZONE 'America/Toronto', 'YYYY-MM-DD"T"HH24:MI') AS date_parution_local, date_parution,
+            to_char(date_expiration AT TIME ZONE 'America/Toronto', 'YYYY-MM-DD"T"HH24:MI') AS date_expiration_local, date_expiration,
+            (date_expiration IS NOT NULL AND date_expiration <= NOW()) AS expire
        FROM produits WHERE id = $1 AND collaborateur_id = $2 AND gestionnaire_id = $3`, [id, req.cid, req.gid]);
   if (!r.rows.length) bad('Produit introuvable', 404);
   let methodes = [];
@@ -328,7 +331,14 @@ function lireProduit(req) {
     else if (typeof b.date_parution === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(b.date_parution.trim())) dateParution = b.date_parution.trim();
     else bad('Date de parution invalide');
   }
-  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes, poids, methodesIds, quantiteMin, prixRevient, dateParution };
+  // Date d'expiration (arrêt de publication) : même format ; '' / null = retirer ; absent = ne pas toucher
+  let dateExpiration;
+  if (b.date_expiration !== undefined) {
+    if (b.date_expiration === null || b.date_expiration === '') dateExpiration = null;
+    else if (typeof b.date_expiration === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(b.date_expiration.trim())) dateExpiration = b.date_expiration.trim();
+    else bad("Date d'expiration invalide");
+  }
+  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes, poids, methodesIds, quantiteMin, prixRevient, dateParution, dateExpiration };
 }
 
 // Date de parution à enregistrer. Retourne { change, valeur } (valeur = chaîne locale Montréal ou null).
@@ -344,6 +354,20 @@ async function resoudreDateParution(req, p, produitId) {
   const ok = await pool.query(`SELECT (($1::timestamp AT TIME ZONE 'America/Toronto') > NOW() + INTERVAL '30 minutes') AS ok`, [p.dateParution]);
   if (!ok.rows[0].ok) bad('La date de parution doit être dans au moins 30 minutes.');
   return { change: true, valeur: p.dateParution };
+}
+
+// Date d'expiration à enregistrer. Retourne { change, valeur }. Fixer une NOUVELLE date exige au moins 30 min d'avance et une date après la parution; effacer est toujours permis.
+async function resoudreDateExpiration(req, p, produitId) {
+  if (p.dateExpiration === undefined) return { change: false, valeur: null };
+  if (p.dateExpiration === null) return { change: true, valeur: null };
+  if (produitId) {
+    const a = await pool.query(`SELECT to_char(date_expiration AT TIME ZONE 'America/Toronto', 'YYYY-MM-DD"T"HH24:MI') AS d FROM produits WHERE id=$1`, [produitId]);
+    if (a.rows[0] && a.rows[0].d === p.dateExpiration) return { change: false, valeur: null };
+  }
+  const ok = await pool.query(`SELECT (($1::timestamp AT TIME ZONE 'America/Toronto') > NOW() + INTERVAL '30 minutes') AS ok`, [p.dateExpiration]);
+  if (!ok.rows[0].ok) bad("La date d'expiration doit être dans au moins 30 minutes.");
+  if (typeof p.dateParution === 'string' && p.dateParution >= p.dateExpiration) bad("La date d'expiration doit être après la date de parution.");
+  return { change: true, valeur: p.dateExpiration };
 }
 
 // Règles du gestionnaire appliquées à une annonce enregistrée (prix, quantité minimum, prix de revient, approbation).
@@ -387,6 +411,7 @@ router.post('/produits', h(async (req, res) => {
   p.categorie = await nomCategorie(req, p.categorieId);
   await appliquerRegles(req, p, null);
   const dp = await resoudreDateParution(req, p, null);
+  const dx = await resoudreDateExpiration(req, p, null);
   const n = await pool.query(`SELECT COUNT(*) AS n FROM produits WHERE collaborateur_id = $1`, [req.cid]);
   if (+n.rows[0].n >= 1000) bad('Limite de 1000 produits atteinte', 409);
   // Limite fixée par le gestionnaire (Config marketplace → Max produits par vendeur), tant que les plans vendeur ne sont pas utilisés
@@ -397,10 +422,10 @@ router.post('/produits', h(async (req, res) => {
   }
   const r = await pool.query(
     `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
-                           photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient, date_parution)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, $18::timestamp AT TIME ZONE 'America/Toronto') RETURNING id`,
+                           photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient, date_parution, date_expiration)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17, $18::timestamp AT TIME ZONE 'America/Toronto', $19::timestamp AT TIME ZONE 'America/Toronto') RETURNING id`,
     [req.gid, req.cid, p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
-     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, p.poids, p.quantiteMin, p.prixRevient === undefined ? null : p.prixRevient, dp.valeur]);
+     p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, p.poids, p.quantiteMin, p.prixRevient === undefined ? null : p.prixRevient, dp.valeur, dx.valeur]);
   try { await sauverMethodesProduit(req, r.rows[0].id, p.methodesIds); }
   catch (e) { await pool.query('DELETE FROM produits WHERE id = $1', [r.rows[0].id]); throw e; }
   res.status(201).json({ id: r.rows[0].id, statut: p.statut });
@@ -415,6 +440,7 @@ router.put('/produits/:id', h(async (req, res) => {
   if (!ancien.rows.length) bad('Produit introuvable', 404);
   await appliquerRegles(req, p, ancien.rows[0].statut);
   const dp = await resoudreDateParution(req, p, id);
+  const dx = await resoudreDateExpiration(req, p, id);
   // Le stock saisi est le total : on garde 1 unité réservée à l'enchère en cours
   if (p.stock !== null && await uniteReserveeEnchere(pool, id)) {
     if (p.stock < 1) bad("Une enchère est en cours : il faut au moins 1 unité en stock (celle de l'enchère).");
@@ -424,11 +450,12 @@ router.put('/produits/:id', h(async (req, res) => {
     `UPDATE produits SET titre=$1, description=$2, prix=$3, prix_promo=$4, stock=$5, sku=$6, categorie=$7, categorie_id=$8,
             photo_principale=$9, photos=$10, variantes=$11, statut=$12, poids=$16, quantite_min=$17,
             prix_revient = CASE WHEN $18::boolean THEN $19::numeric ELSE prix_revient END,
-            date_parution = CASE WHEN $20::boolean THEN $21::timestamp AT TIME ZONE 'America/Toronto' ELSE date_parution END, updated_at=NOW()
+            date_parution = CASE WHEN $20::boolean THEN $21::timestamp AT TIME ZONE 'America/Toronto' ELSE date_parution END,
+            date_expiration = CASE WHEN $22::boolean THEN $23::timestamp AT TIME ZONE 'America/Toronto' ELSE date_expiration END, updated_at=NOW()
       WHERE id=$13 AND collaborateur_id=$14 AND gestionnaire_id=$15`,
     [p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
      p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, id, req.cid, req.gid, p.poids,
-     p.quantiteMin, p.prixRevient !== undefined, p.prixRevient === undefined ? null : p.prixRevient, dp.change, dp.valeur]);
+     p.quantiteMin, p.prixRevient !== undefined, p.prixRevient === undefined ? null : p.prixRevient, dp.change, dp.valeur, dx.change, dx.valeur]);
   if (!r.rowCount) bad('Produit introuvable', 404);
   await sauverMethodesProduit(req, id, p.methodesIds);
   res.json({ success: true, statut: p.statut });

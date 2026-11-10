@@ -29,6 +29,8 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
   // Parution future (add-on) : 'AAAA-MM-JJTHH:mm' en heure de Montréal, '' = en vente tout de suite
   const [dateParution, setDateParution] = useState('');
   const [dateParutionInitiale, setDateParutionInitiale] = useState('');
+  const [dateExpiration, setDateExpiration] = useState('');   // arrêt de publication (heure de Montréal)
+  const [dejaExpiree, setDejaExpiree] = useState(false);
   const [regles, setRegles] = useState<Regles>(REGLES_DEFAUT);
   const [categorieId, setCategorieId] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
@@ -70,6 +72,7 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
         setStock(p.stock === null || p.stock === undefined ? '' : String(p.stock));
         setQuantiteMin(p.quantite_min ? String(p.quantite_min) : ''); setPrixRevient(p.prix_revient === null || p.prix_revient === undefined ? '' : String(p.prix_revient));
         setDateParution(p.date_parution_local || ''); setDateParutionInitiale(p.date_parution_local || '');
+        setDateExpiration(p.date_expiration_local || ''); setDejaExpiree(p.expire === true);
         setSku(p.sku || ''); setCategorieId(p.categorie_id ? String(p.categorie_id) : '');
         setPoids(p.poids === null || p.poids === undefined ? '' : String(Number(p.poids)));
         setMethodesSel(Array.isArray(p.methodes_expedition_ids) ? p.methodes_expedition_ids : []);
@@ -134,6 +137,7 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
           poids: poids === '' ? null : poids,
           // Parution future : envoyée seulement si l'add-on est actif (ou pour retirer une date existante)
           ...((regles.parution_future_actif || (dateParution === '' && dateParutionInitiale !== '')) ? { date_parution: dateParution === '' ? null : dateParution } : {}),
+          date_expiration: dateExpiration === '' ? null : dateExpiration,
           methodes_expedition_ids: methodesVendeur.length > 0 ? methodesSel : [],
           variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock })),
         }),
@@ -299,6 +303,20 @@ export default function CollaborateurCreerAnnonce({ gestionnaireId, accent, isMo
           )}
         </div>
       )}
+
+      <div style={carte}>
+        <label style={lbl}>⏹️ Date d'expiration — arrêt de publication (optionnel)</label>
+        {dejaExpiree && dateExpiration && (
+          <div style={{ background: '#fef2f2', color: '#b91c1c', borderRadius: 8, padding: '9px 12px', fontSize: 13, fontWeight: 600, margin: '0 0 10px' }}>
+            ⏹️ Cette annonce a expiré le {dateExpiration.replace('T', ' à ')} : elle n'est plus visible dans le catalogue et ne peut plus être achetée. Choisissez une nouvelle date ou retirez la date pour la republier.
+          </div>
+        )}
+        <input type="datetime-local" value={dateExpiration} onChange={e => setDateExpiration(e.target.value)} style={{ ...champ, maxWidth: 260 }} />
+        {dateExpiration && <button type="button" onClick={() => setDateExpiration('')} style={{ marginLeft: 10, border: `1px solid ${T.border}`, background: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>✕ Retirer la date</button>}
+        <p style={{ fontSize: 11, color: T.light, margin: '8px 0 0' }}>
+          Heure de Montréal. À cette date, l'annonce disparaît du catalogue et ne peut plus être achetée (les commandes déjà payées ne changent pas). Une nouvelle date doit être dans au moins 30 minutes. Laissez vide pour ne jamais expirer.
+        </p>
+      </div>
 
       <div style={carte}>
         <label style={lbl}>🚚 Expédition</label>

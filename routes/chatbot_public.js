@@ -235,6 +235,7 @@ async function rechercherMV(gid, mots, sources, maxResultats) {
          LEFT JOIN categories_pub cp ON cp.cle = p.categorie
          LEFT JOIN studio_categories sc ON sc.id = p.categorie_id
         WHERE p.gestionnaire_id = $1 AND p.statut = 'actif' AND p.collaborateur_id IS NOT NULL AND NOT ${vac.VAC_MASQUE}
+          AND (p.date_expiration IS NULL OR p.date_expiration > NOW())
           AND (${conditionLike(['p.titre', 'p.description', 'COALESCE(sc.nom, cp.label)'], mots.length)})
         LIMIT 60`, [gid, ...motifs]);
     for (const p of rows) {
@@ -511,7 +512,7 @@ router.post('/ask', async (req, res) => {
         const { rows: produits } = await db.query(
           `SELECT id, titre, description, prix, ${OFFRES.sqlPromo('produits')} AS prix_promo
            FROM produits
-           WHERE gestionnaire_id = $1 AND statut = 'actif' AND (${condProduits})
+           WHERE gestionnaire_id = $1 AND statut = 'actif' AND (date_expiration IS NULL OR date_expiration > NOW()) AND (${condProduits})
            LIMIT ${maxResultats}`,
           [gestionnaire_id, ...paramsMots]
         );

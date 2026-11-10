@@ -77,6 +77,7 @@ interface Produit {
   retour_offert?: string;
   lien_youtube?: string;
   vacances?: { mode: 'visible' | 'masque'; message: string; retour: string | null } | null;
+  expire?: boolean;   // date d'expiration passée : fiche visible, achat fermé
   date_parution?: string | null;   // Parution future : date d'ouverture de la vente (ISO), absente si déjà en vente
   offre_fin?: string | null;       // Offres du jour : fin de l'offre en cours (compte à rebours)
   heure_serveur?: string;
@@ -188,11 +189,12 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
 
   useEffect(() => { setVariante(''); setQuantite(1); }, [produit?.id]);
 
-  const parutionBloquee = !!produit?.date_parution && !venteOuverte;   // annonce pas encore en vente : pas d'achat
+  const annonceExpiree = produit?.expire === true;   // arrêt de publication : plus d'achat
+  const parutionBloquee = (!!produit?.date_parution && !venteOuverte) || annonceExpiree;   // annonce pas encore en vente : pas d'achat
 
   const ajouterPanier = async () => {
     if (!produit) return;
-    if (parutionBloquee) { setMsgAjout({ succes: false, texte: `Disponible le ${formaterDateParution(produit.date_parution!)}` }); setTimeout(() => setMsgAjout(null), 3000); return; }
+    if (parutionBloquee) { setMsgAjout({ succes: false, texte: annonceExpiree ? "Cette annonce n'est plus disponible" : `Disponible le ${formaterDateParution(produit.date_parution!)}` }); setTimeout(() => setMsgAjout(null), 3000); return; }
     let type: string | null = null;
     try { type = JSON.parse(localStorage.getItem(`mv_compte_${gId}`) || 'null')?.type || null; } catch { type = null; }
     if (!type) { setMsgAjout({ succes: false, texte: 'Connectez-vous pour acheter' }); setTimeout(() => setMsgAjout(null), 3000); return; }
@@ -438,7 +440,8 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             <MVSouhaitProduit zone="avant_panier" gestionnaireId={gId} produitId={produit.id} isDemo={isDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
 
             {/* Bouton panier */}
-            {parutionBloquee && (cfgParution.afficher_message_atc && cfgParution.texte_atc_bloque
+            {annonceExpiree && <div style={{ width: '100%', marginBottom: 12, padding: '14px 16px', borderRadius: 12, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: '#fca5a5', fontSize: 14, fontWeight: 700, textAlign: 'center', boxSizing: 'border-box' }}>⏹️ Cette annonce n'est plus disponible.</div>}
+            {parutionBloquee && !annonceExpiree && (cfgParution.afficher_message_atc && cfgParution.texte_atc_bloque
               ? <div style={{ width: '100%', marginBottom: 12, padding: '14px 16px', borderRadius: 12, background: 'rgba(251,191,36,0.12)', border: '1px solid rgba(251,191,36,0.4)', color: '#fcd34d', fontSize: 14, fontWeight: 700, textAlign: 'center' }}>{cfgParution.texte_atc_bloque}</div>
               : <button className="mvp-btn-panier" disabled style={{ ...s.btnPrimary, background: 'rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.4)', cursor: 'not-allowed', width: '100%', marginBottom: 12 }}>🔒 Pas encore disponible</button>)}
             {!parutionBloquee && !(enchereActive && produit.stock === 0) && produit.vacances?.mode !== 'masque' && <button
