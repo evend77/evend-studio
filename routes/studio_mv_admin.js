@@ -20,6 +20,9 @@
 //   POST  /avis/:id/approuver       → publie un avis en attente (et prévient le collaborateur)
 //   POST  /avis/:id/masquer         → { raison (min. 5 caractères) } : refuse un avis en attente ou masque un avis publié
 //   POST  /avis/:id/retablir        → remet en ligne un avis masqué
+//   GET   /questions                → ?q= ?statut=attente|publiee|masquee|signalees ?collaborateur_id= ?page=  (+ stats) — add-on « Questions sur le produit »
+//   GET   /questions/compte         → { signalees } pastille du menu
+//   POST  /questions/:id/masquer | /retablir | /ignorer-signalements ; DELETE /questions/:id
 //   GET   /dashboard                → ?periode=7|30|90|365  statistiques du tableau de bord (selon le template du site)
 
 'use strict';
@@ -363,6 +366,82 @@ router.post('/avis/:id/retablir', h(async (req, res) => {
       WHERE id = $1 AND gestionnaire_id = $2 AND approuve = false AND masque_le IS NOT NULL`, [id, req.gid]);
   if (!r.rowCount) bad('Avis introuvable ou pas masqué.', 404);
   res.json({ success: true });
+}));
+
+// ── Questions sur le produit (add-on « questions_produit ») : modération du gestionnaire ─────────────────────────────────
+// Les questions sont posées par les acheteurs, le vendeur y répond ; ici le gestionnaire voit tout, masque, rétablit ou supprime.
+router.get('/questions/compte', h(async (req, res) => {
+  const r = await pool.query(`SELECT COUNT(*)::int AS n FROM questions_produit WHERE gestionnaire_id = $1 AND statut = 'publiee' AND signalements > 0`, [req.gid]);
+  res.json({ signalees: r.rows[0].n });
+}));
+
+router.get('/questions', h(async (req, res) => {
+  const actifAddon = await require('../services/studio_addons').addonActifRapide(req.gid, 'questions_produit', pool);
+  const statut = ['attente', 'publiee', 'masquee', 'signalees'].includes(req.query.statut) ? req.query.statut : null;
+  const params = [req.gid]; let filtre = '';
+  if (statut === 'signalees') filtre += ` AND q.statut = 'publiee' AND q.signalements > 0`;
+  else if (statut) { params.push(statut); filtre += ` AND q.statut = $${params.length}`; }
+  const cid = entier(req.query.collaborateur_id);
+  if (cid) { params.push(cid); filtre += ` AND q.collaborateur_id = $${params.length}`; }
+  const m = motif(req.query.q);
+  if (m) { params.push(m); filtre += ` AND (q.question ILIKE $${params.length} OR q.reponse ILIKE $${params.length} OR p.titre ILIKE $${params.length})`; }
+  const pg = page(req);
+  params.push(PAR_PAGE, (pg - 1) * PAR_PAGE);
+  const r = await pool.query(
+    `SELECT q.id, q.question, q.reponse, q.reponse_le, q.statut, q.masque_raison, q.masque_par, q.signalements, q.created_at,
+            q.produit_id, p.titre AS produit_titre, c.nom_boutique AS boutique, a.prenom, a.nom AS acheteur_nom, COUNT(*) OVER()::int AS total_lignes
+       FROM questions_produit q
+       LEFT JOIN produits p ON p.id = q.produit_id
+       LEFT JOIN marketplace_collaborateurs c ON c.id = q.collaborateur_id
+       LEFT JOIN marketplace_acheteurs a ON a.id = q.acheteur_id
+      WHERE q.gestionnaire_id = $1${filtre}
+      ORDER BY (q.statut = 'publiee' AND q.signalements > 0) DESC, q.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+  const stats = (await pool.query(
+    `SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE statut = 'attente')::int AS attente, COUNT(*) FILTER (WHERE statut = 'publiee')::int AS publiees,
+            COUNT(*) FILTER (WHERE statut = 'masquee')::int AS masquees, COUNT(*) FILTER (WHERE statut = 'publiee' AND signalements > 0)::int AS signalees
+       FROM questions_produit WHERE gestionnaire_id = $1`, [req.gid])).rows[0];
+  const total = r.rows.length ? r.rows[0].total_lignes : 0;
+  const nomPublic = require('../services/studio_questions').nomPublic;
+  res.json({
+    addon_actif: actifAddon, total, page: pg, pages: Math.max(1, Math.ceil(total / PAR_PAGE)), stats,
+    questions: r.rows.map((x) => ({ id: x.id, produit_id: x.produit_id, produit_titre: x.produit_titre, boutique: x.boutique, question: x.question, reponse: x.reponse, reponse_le: x.reponse_le,
+      statut: x.statut, masque_raison: x.masque_raison, masque_par: x.masque_par, signalements: x.signalements, created_at: x.created_at, acheteur: nomPublic(x.prenom, x.acheteur_nom) })),
+  });
+}));
+
+router.post('/questions/:id/masquer', h(async (req, res) => {
+  const id = entier(req.params.id); if (!id) bad('Question invalide.');
+  const raison = typeof req.body.raison === 'string' ? req.body.raison.trim().slice(0, 200) : '';
+  if (raison.length < 3) bad('Indiquez la raison (au moins 3 caractères).');
+  const r = await pool.query(`UPDATE questions_produit SET statut = 'masquee', masque_raison = $1, masque_par = 'gestionnaire' WHERE id = $2 AND gestionnaire_id = $3 AND statut <> 'masquee'`, [raison, id, req.gid]);
+  if (!r.rowCount) bad('Question introuvable.', 404);
+  res.json({ message: 'Question masquée.' });
+}));
+
+router.post('/questions/:id/retablir', h(async (req, res) => {
+  const id = entier(req.params.id); if (!id) bad('Question invalide.');
+  const r = await pool.query(
+    `UPDATE questions_produit SET statut = CASE WHEN reponse IS NOT NULL THEN 'publiee' ELSE 'attente' END, masque_raison = NULL, masque_par = NULL, signalements = 0
+      WHERE id = $1 AND gestionnaire_id = $2 AND statut = 'masquee'`, [id, req.gid]);
+  if (!r.rowCount) bad('Question introuvable.', 404);
+  await pool.query('DELETE FROM questions_produit_signalements WHERE question_id = $1', [id]);
+  res.json({ message: 'Question rétablie.' });
+}));
+
+// « Ignorer » les signalements d'une question publiée (elle reste en ligne)
+router.post('/questions/:id/ignorer-signalements', h(async (req, res) => {
+  const id = entier(req.params.id); if (!id) bad('Question invalide.');
+  const r = await pool.query(`UPDATE questions_produit SET signalements = 0 WHERE id = $1 AND gestionnaire_id = $2`, [id, req.gid]);
+  if (!r.rowCount) bad('Question introuvable.', 404);
+  await pool.query('DELETE FROM questions_produit_signalements WHERE question_id = $1', [id]);
+  res.json({ message: 'Signalements ignorés.' });
+}));
+
+router.delete('/questions/:id', h(async (req, res) => {
+  const id = entier(req.params.id); if (!id) bad('Question invalide.');
+  const r = await pool.query('DELETE FROM questions_produit WHERE id = $1 AND gestionnaire_id = $2', [id, req.gid]);
+  if (!r.rowCount) bad('Question introuvable.', 404);
+  res.json({ message: 'Question supprimée.' });
 }));
 
 // ── Tableau de bord ──────────────────────────────────────────────────────────

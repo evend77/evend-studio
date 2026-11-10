@@ -23,6 +23,7 @@ import CollaborateurConfiguration from './pages/collaborateur/CollaborateurConfi
 import CollaborateurMethodesExpedition from './pages/collaborateur/CollaborateurMethodesExpedition';
 import CollaborateurBlogs from './pages/collaborateur/CollaborateurBlogs';
 import CollaborateurFaq from './pages/collaborateur/CollaborateurFaq';
+import CollaborateurQuestions from './pages/collaborateur/CollaborateurQuestions';
 import CollaborateurRapportFinancier from './pages/collaborateur/CollaborateurRapportFinancier';
 import CollaborateurCommandeDetail from './pages/collaborateur/CollaborateurCommandeDetail';
 import CollaborateurEtiquettes from './pages/collaborateur/CollaborateurEtiquettes';
@@ -223,7 +224,8 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const [menuOuvert, setMenuOuvert]   = useState<string | null>(retourStripe || retourEbay ? 'configuration' : null);
   const [heure,      setHeure]        = useState(new Date());
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
-  const [avisAttente, setAvisAttente] = useState(0);   // avis qui attendent mon approbation
+  const [avisAttente, setAvisAttente] = useState(0);
+  const [questionsAttente, setQuestionsAttente] = useState(0);   // questions d'acheteurs sans réponse (add-on « Questions sur le produit »)   // avis qui attendent mon approbation
   const [addonsMV, setAddonsMV] = useState<Record<string, boolean>>({});   // add-ons du gestionnaire (blog, FAQ, chat)
   useEffect(() => {
     if (!gestionnaireId) return;
@@ -302,6 +304,21 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
       if (r.ok) setAvisAttente(Number((await r.json()).attente) || 0);
     } catch {}
   }, [compte?.id, gestionnaireId]);
+  // Questions des acheteurs à répondre (pastille du menu Mon profil › Questions des acheteurs)
+  const chargerQuestionsAttente = useCallback(async () => {
+    if (!compte?.id || !addonsMV.questions_produit) { setQuestionsAttente(0); return; }
+    try {
+      const r = await fetch(`${API_BASE}/marketplace/${gestionnaireId}/questions/collaborateur/compte`, { credentials: 'include' });
+      if (r.ok) setQuestionsAttente(Number((await r.json()).attente) || 0);
+    } catch {}
+  }, [compte?.id, gestionnaireId, addonsMV.questions_produit]);
+  useEffect(() => {
+    chargerQuestionsAttente();
+    const iv = setInterval(chargerQuestionsAttente, 60000);
+    window.addEventListener('questions-collab-maj', chargerQuestionsAttente);
+    return () => { clearInterval(iv); window.removeEventListener('questions-collab-maj', chargerQuestionsAttente); };
+  }, [chargerQuestionsAttente]);
+
   useEffect(() => {
     chargerAvisAttente();
     const iv = setInterval(chargerAvisAttente, 60000);
@@ -373,6 +390,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
         { id: 'profil-avis',    label: 'Mes avis clients',  icon: '⭐', badge: avisAttente > 0 ? avisAttente : undefined },
         ...(addonsMV.blog_collab ? [{ id: 'profil-blogs',   label: 'Mes blogs',         icon: '📝' }] : []),
         ...(addonsMV.faq_collab ? [{ id: 'profil-faq',     label: 'Ma FAQ',            icon: '❓' }] : []),
+        ...(addonsMV.questions_produit ? [{ id: 'profil-questions', label: 'Questions des acheteurs', icon: '💬', badge: questionsAttente > 0 ? questionsAttente : undefined }] : []),
         { id: 'profil-rapport', label: 'Rapport financier', icon: '📈' },
       ]
     },
@@ -412,6 +430,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'profil-avis')       return <CollaborateurAvis {...commun} />;
     if (pageActive === 'profil-blogs')      return <CollaborateurBlogs {...commun} />;
     if (pageActive === 'profil-faq')        return <CollaborateurFaq {...commun} />;
+    if (pageActive === 'profil-questions' && addonsMV.questions_produit) return <CollaborateurQuestions {...commun} />;
     if (pageActive === 'profil-rapport')    return <CollaborateurRapportFinancier {...commun} nomVendeur={compte.nom_boutique} />;
     if (pageActive === 'config-stripe')
       return <CollaborateurStripe gestionnaireId={gestionnaireId} collaborateurId={compte.id} accent={accent} isMobile={isMobile} />;

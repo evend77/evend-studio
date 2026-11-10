@@ -10,6 +10,7 @@ import Navbar from './MVPremiumNavbar';
 import { fondDe } from './mvTheme';
 import { formaterPrix } from '../shared/devise';
 import MVParutionCountdown, { formaterDateParution, useConfigParution } from './MVParutionCountdown';
+import MVQuestionsProduit from './MVQuestionsProduit';
 
 const API_BASE = '/api';
 
@@ -55,6 +56,7 @@ interface Produit {
   images?: string;
   description?: string;
   stock: number;
+  variantes?: { nom: string; prix: number | null; stock: number }[];   // choix du vendeur (taille, couleur…) : prix/stock propres à chacun
   etat?: string;
   marque?: string;
   modele?: string;
@@ -121,6 +123,7 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   const [loading,      setLoading]     = useState(true);
   const [imageActive,  setImageActive] = useState<string | null>(null);
   const [quantite,     setQuantite]    = useState(1);
+  const [variante,     setVariante]    = useState('');   // variante choisie (vide : aucune)
   const [zoomOuvert,   setZoomOuvert]  = useState(false);
   const [onglet,       setOnglet]      = useState<'description'|'details'|'livraison'>('description');
   const [msgAjout,     setMsgAjout]    = useState<{succes: boolean; texte: string} | null>(null);
@@ -180,6 +183,8 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
     return () => { annule = true; };
   }, [produit?.id, gId, isDemo]);
 
+  useEffect(() => { setVariante(''); setQuantite(1); }, [produit?.id]);
+
   const parutionBloquee = !!produit?.date_parution && !venteOuverte;   // annonce pas encore en vente : pas d'achat
 
   const ajouterPanier = async () => {
@@ -189,13 +194,14 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
     try { type = JSON.parse(localStorage.getItem(`mv_compte_${gId}`) || 'null')?.type || null; } catch { type = null; }
     if (!type) { setMsgAjout({ succes: false, texte: 'Connectez-vous pour acheter' }); setTimeout(() => setMsgAjout(null), 3000); return; }
     if (type !== 'acheteur') { setMsgAjout({ succes: false, texte: 'Un compte acheteur est requis pour acheter' }); setTimeout(() => setMsgAjout(null), 3000); return; }
+    if ((produit.variantes || []).length > 0 && !variante) { setMsgAjout({ succes: false, texte: 'Choisissez une variante' }); setTimeout(() => setMsgAjout(null), 3000); return; }
     setAjoutEnCours(true);
     try {
       const res = await fetch(`${API_BASE}/marketplace/${gId}/panier`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ produit_id: produit.id, titre: produit.nom, quantite, prix: produit.prix }),
+        body: JSON.stringify({ produit_id: produit.id, titre: produit.nom, quantite, prix: produit.prix, ...(variante ? { variante } : {}) }),
       });
       if (res.status === 401) { try { localStorage.removeItem(`mv_compte_${gId}`); } catch { /* stockage indisponible */ } }
       let erreurServeur = '';
@@ -221,9 +227,14 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
   );
 
   const images = getImages(produit);
-  const prixAffiche = parseFloat(String(produit.prix));
-  const rabais = produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche
-    ? Math.round(((parseFloat(String(produit.prix_original)) - prixAffiche) / parseFloat(String(produit.prix_original))) * 100)
+  const lesVariantes = Array.isArray(produit.variantes) ? produit.variantes : [];
+  const varChoisie = lesVariantes.find(v => v.nom === variante) || null;
+  const prixVariante = varChoisie && varChoisie.prix !== null && varChoisie.prix !== undefined;   // la variante a son propre prix
+  const prixAffiche = prixVariante ? Number(varChoisie!.prix) : parseFloat(String(produit.prix));
+  const prixOrig = prixVariante ? null : produit.prix_original;   // pas de prix barré avec un prix de variante
+  const stockDispo = varChoisie ? varChoisie.stock : produit.stock;
+  const rabais = prixOrig && parseFloat(String(prixOrig)) > prixAffiche
+    ? Math.round(((parseFloat(String(prixOrig)) - prixAffiche) / parseFloat(String(prixOrig))) * 100)
     : null;
 
   return (
@@ -342,8 +353,8 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                 <span className="mvp-prix-actuel" style={{ ...s.prixActuel, color: couleurAccent }}>
                   {formaterPrix(prixAffiche)}
                 </span>
-                {produit.prix_original && parseFloat(String(produit.prix_original)) > prixAffiche && (
-                  <span style={s.prixOriginal}>{formaterPrix(parseFloat(String(produit.prix_original)))}</span>
+                {prixOrig && parseFloat(String(prixOrig)) > prixAffiche && (
+                  <span style={s.prixOriginal}>{formaterPrix(parseFloat(String(prixOrig)))}</span>
                 )}
                 <span style={{ fontSize: 13, fontWeight: 700, color: produit.facturation_taxes ? '#ef4444' : '#10b981' }}>
                   {produit.facturation_taxes ? '+ taxe' : 'sans taxe'}
@@ -367,8 +378,8 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
                 <span style={{ fontSize: 13, fontWeight: 700, color: produit.facturation_taxes ? '#ef4444' : '#10b981' }}>{produit.facturation_taxes ? '+ taxe' : 'sans taxe'}</span>
               </div>
             )}
-            {!parutionBloquee && <p style={{ fontSize: 14, fontWeight: 600, color: produit.stock > 0 ? '#10b981' : enchereActive ? 'rgba(255,255,255,0.5)' : '#ef4444', margin: '0 0 20px' }}>
-              {produit.stock > 0 ? `✓ En stock (${produit.stock} disponible${produit.stock > 1 ? 's' : ''})` : enchereActive ? 'Aucune unité disponible en vente directe : seule l\'enchère est ouverte.' : '✗ Épuisé'}
+            {!parutionBloquee && <p style={{ fontSize: 14, fontWeight: 600, color: stockDispo > 0 ? '#10b981' : enchereActive ? 'rgba(255,255,255,0.5)' : '#ef4444', margin: '0 0 20px' }}>
+              {stockDispo > 0 ? `✓ En stock (${stockDispo} disponible${stockDispo > 1 ? 's' : ''})` : enchereActive ? 'Aucune unité disponible en vente directe : seule l\'enchère est ouverte.' : '✗ Épuisé'}
             </p>}
 
             {enchereActive && produit.stock < 9999 && (
@@ -376,14 +387,41 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             )}
 
             <div className="mvp-action">
+            {/* Variantes (taille, couleur…) : le vendeur les définit ; le panier exige un choix */}
+            {lesVariantes.length > 0 && produit.vacances?.mode !== 'masque' && !parutionBloquee && (
+              <div style={{ marginBottom: 20 }}>
+                <label style={s.label}>Variante{varChoisie ? ` : ${varChoisie.nom}` : ''}</label>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {lesVariantes.map(v => {
+                    const actif = v.nom === variante;
+                    const epuisee = v.stock <= 0;
+                    return (
+                      <button key={v.nom} type="button" disabled={epuisee}
+                        onClick={() => { setVariante(v.nom); setQuantite(1); }}
+                        style={{
+                          padding: '9px 16px', borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
+                          cursor: epuisee ? 'not-allowed' : 'pointer', opacity: epuisee ? 0.45 : 1,
+                          background: actif ? `${couleurAccent}25` : 'rgba(255,255,255,0.05)',
+                          color: actif ? couleurAccent : '#fff',
+                          border: `1.5px solid ${actif ? couleurAccent : 'rgba(255,255,255,0.18)'}`,
+                          textDecoration: epuisee ? 'line-through' : 'none',
+                        }}>
+                        {v.nom}{v.prix !== null && v.prix !== undefined ? ` · ${formaterPrix(Number(v.prix))}` : ''}{epuisee ? ' (épuisé)' : ''}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Quantité */}
-            {produit.stock > 0 && produit.vacances?.mode !== 'masque' && !parutionBloquee && (
+            {stockDispo > 0 && produit.vacances?.mode !== 'masque' && !parutionBloquee && (
               <div className="mvp-qty" style={{ marginBottom: 20 }}>
                 <label style={s.label}>Quantité</label>
                 <div style={s.qtyRow}>
                   <button onClick={() => setQuantite(q => Math.max(1, q - 1))} style={s.qtyBtn}>−</button>
                   <span style={s.qtyVal}>{quantite}</span>
-                  <button onClick={() => setQuantite(q => Math.min(produit.stock, q + 1))} style={s.qtyBtn}>+</button>
+                  <button onClick={() => setQuantite(q => Math.min(stockDispo, q + 1))} style={s.qtyBtn}>+</button>
                 </div>
               </div>
             )}
@@ -398,15 +436,15 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
             {!parutionBloquee && !(enchereActive && produit.stock === 0) && produit.vacances?.mode !== 'masque' && <button
               className="mvp-btn-panier"
               onClick={ajouterPanier}
-              disabled={ajoutEnCours || produit.stock === 0}
+              disabled={ajoutEnCours || stockDispo === 0}
               style={{
                 ...s.btnPrimary,
-                background: produit.stock === 0 ? 'rgba(255,255,255,0.1)' : couleurAccent,
-                color: produit.stock === 0 ? 'rgba(255,255,255,0.3)' : '#000',
-                cursor: produit.stock === 0 ? 'not-allowed' : 'pointer',
+                background: stockDispo === 0 ? 'rgba(255,255,255,0.1)' : couleurAccent,
+                color: stockDispo === 0 ? 'rgba(255,255,255,0.3)' : '#000',
+                cursor: stockDispo === 0 ? 'not-allowed' : 'pointer',
                 width: '100%', marginBottom: 12,
               }}>
-              {ajoutEnCours ? '⏳ Ajout...' : produit.stock === 0 ? 'Épuisé' : '🛒 Ajouter au panier'}
+              {ajoutEnCours ? '⏳ Ajout...' : stockDispo === 0 ? 'Épuisé' : '🛒 Ajouter au panier'}
             </button>}
             <MVSouhaitProduit zone="apres_panier" gestionnaireId={gId} produitId={produit.id} isDemo={isDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
             </div>
@@ -516,6 +554,11 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
               />
             </div>
           </div>
+        )}
+
+        {/* ── Questions et réponses (add-on « Questions sur le produit » : le bloc se cache de lui-même si inactif) ── */}
+        {!isDemo && gId && (
+          <MVQuestionsProduit gestionnaireId={gId} produitId={produit.id} couleurAccent={couleurAccent} allerConnexion={() => naviguer({ page: 'login' })} />
         )}
 
         {/* ── Produits similaires ── */}

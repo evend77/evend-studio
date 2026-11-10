@@ -50,6 +50,7 @@ import StudioEncheres          from './pages/gestionnaire/StudioEncheres';
 import StudioMVProduits        from './pages/gestionnaire/StudioMVProduits';
 import StudioMVCommandes       from './pages/gestionnaire/StudioMVCommandes';
 import StudioMVAvis            from './pages/gestionnaire/StudioMVAvis';
+import StudioMVQuestions       from './pages/gestionnaire/StudioMVQuestions';
 import StudioSousVendeurs       from './pages/gestionnaire/StudioCollaborateurs';
 import StudioGestionBadges      from './pages/gestionnaire/StudioGestionBadges';
 import StudioBadgesAttribues    from './pages/gestionnaire/StudioBadgesAttribues';
@@ -372,6 +373,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [signalementsNouveaux, setSignalementsNouveaux] = useState(0);
   const [contactNonLus, setContactNonLus] = useState(0); // messages du formulaire Contact du site multi-vendeur
   const [avisAttente, setAvisAttente] = useState(0);     // avis clients en attente d'approbation
+  const [questionsSignalees, setQuestionsSignalees] = useState(0);   // questions produit signalées par des acheteurs (add-on « Questions sur le produit »)
 
   useEffect(() => {
     const chargerNonLus = async () => {
@@ -778,6 +780,22 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     return () => { clearInterval(interval); window.removeEventListener('avis-maj', charger); };
   }, [gestionnaire?.id]);
 
+  // Questions produit signalées (pastille du menu MULTI-VENDEUR › Questions) — seulement si l'add-on est actif
+  useEffect(() => {
+    if (!gestionnaire?.id || !addonsMV.questions_produit) { setQuestionsSignalees(0); return; }
+    const charger = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const r = await fetch(`${API_BASE}/studio/mv/${gestionnaire.id}/questions/compte`, { credentials: 'include', headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (r.ok) { const d = await r.json(); setQuestionsSignalees(Number(d.signalees) || 0); }
+      } catch {}
+    };
+    charger();
+    const interval = setInterval(charger, 60000);
+    window.addEventListener('questions-maj', charger);
+    return () => { clearInterval(interval); window.removeEventListener('questions-maj', charger); };
+  }, [gestionnaire?.id, addonsMV.questions_produit]);
+
   // ── Mes collaborateurs ──────────────────────────────────────────────────
   const menuSousVendeurs: MenuItem = {
     id: 'collaborateurs', label: 'MES COLLABORATEURS', icon: '🏪',
@@ -864,7 +882,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuVosAnnoncesBeaute: MenuItem = { id:'annonces',label:'VOS PRODUITS',icon:'💄',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigBeaute: MenuItem = { id:'config-beaute',label:'CONFIG MES PAGES',icon:'💄',sousMenu:[{ id:'beaute-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'beaute-plan',label:'Mon plan & limites',icon:'📊' },{ id:'beaute-branding',label:'Branding & options',icon:'⚙️' }] };
   const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
-  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-avis',label:'Avis',icon:'⭐',badge: avisAttente > 0 ? avisAttente : undefined },...(addonsMV.encheres_visibles ? [{ id:'mv-encheres',label:'Enchères',icon:'🔨' }] : []),...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []), ...(addonsMV.parution_future ? [itemParutionFutur] : []), ...(addonsMV.favoris ? [itemFavoris] : []), ...(addonsMV.chatbot ? [{ id:'mes-chatbot', label:'Chatbot 💬', icon:'💬' }] : []),...(addonsMV.connecteur_ebay ? [{ id:'mv-ebay', label:'Connecteur eBay', icon:'🏷️' }] : []),...(addonsMV.pwa_boutique ? [{ id:'mv-pwa', label:'App installable', icon:'📲' }] : []),...(addonsMV.favicon_boutique ? [{ id:'mv-favicon', label:'Favicon', icon:'🖼️' }] : []),...(addonsMV.effets_boutique ? [{ id:'mv-effets', label:'Effets de boutique', icon:'🎃' }] : [])], badge: (contactNonLus + avisAttente) > 0 ? (contactNonLus + avisAttente) : undefined };
+  const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-avis',label:'Avis',icon:'⭐',badge: avisAttente > 0 ? avisAttente : undefined },...(addonsMV.questions_produit ? [{ id:'mv-questions',label:'Questions produits',icon:'💬',badge: questionsSignalees > 0 ? questionsSignalees : undefined }] : []),...(addonsMV.encheres_visibles ? [{ id:'mv-encheres',label:'Enchères',icon:'🔨' }] : []),...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []), ...(addonsMV.parution_future ? [itemParutionFutur] : []), ...(addonsMV.favoris ? [itemFavoris] : []), ...(addonsMV.chatbot ? [{ id:'mes-chatbot', label:'Chatbot 💬', icon:'💬' }] : []),...(addonsMV.connecteur_ebay ? [{ id:'mv-ebay', label:'Connecteur eBay', icon:'🏷️' }] : []),...(addonsMV.pwa_boutique ? [{ id:'mv-pwa', label:'App installable', icon:'📲' }] : []),...(addonsMV.favicon_boutique ? [{ id:'mv-favicon', label:'Favicon', icon:'🖼️' }] : []),...(addonsMV.effets_boutique ? [{ id:'mv-effets', label:'Effets de boutique', icon:'🎃' }] : [])], badge: (contactNonLus + avisAttente + questionsSignalees) > 0 ? (contactNonLus + avisAttente + questionsSignalees) : undefined };
 
   // ── Construction du menu selon le template ────────────────────────────────
   let menuItems: MenuItem[];
@@ -1511,6 +1529,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mv-produits') return <StudioMVProduits gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-commandes') return <StudioMVCommandes gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-avis') return <StudioMVAvis gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'mv-questions') return <StudioMVQuestions gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-encheres') return <StudioEncheres gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-courriels-boutique') return <StudioModelesCourriel gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'chat-acheteur-sv')         return <SurveillanceChats     gestionnaireId={gestionnaire.id} />;

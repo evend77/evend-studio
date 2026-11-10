@@ -524,6 +524,7 @@ app.use('/api/studio/courriels/:gestionnaireId', studioCourriels);
 app.use('/api/studio/encheres/:gestionnaireId', studioEncheresAdmin);
 app.use('/api/studio/mv/:gestionnaireId', studioMvAdmin);
 app.use('/api/marketplace/:gid/encheres', studioEncheres);
+app.use('/api/marketplace/:gid/questions', require('./routes/studio_questions'));   // add-on « Questions sur le produit »
 require('./services/studio_encheres').demarrerEncheres();
 // Paiement des commandes : remet en vente le stock des commandes jamais payées (toutes les 5 min)
 require('./services/studio_paiement').demarrerBalayage();
