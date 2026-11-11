@@ -40,6 +40,10 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
   const [photos, setPhotos] = useState<string[]>([]);
   const [variantes, setVariantes] = useState<Variante[]>([]);
   const [categories, setCategories] = useState<Categorie[]>([]);
+  // Expédition : méthodes du gestionnaire (Config → Méthode d'expédition) offertes pour cette annonce
+  const [methodes, setMethodes] = useState<any[]>([]);
+  const [methodesSel, setMethodesSel] = useState<number[]>([]);
+  const [methodesChargees, setMethodesChargees] = useState(false);
   const [chargement, setChargement] = useState(!!produitId);
   const [envoi, setEnvoi] = useState(false);
   const [sauvegarde, setSauvegarde] = useState(false);
@@ -50,6 +54,7 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
 
   useEffect(() => {
     bq('/categories').then(r => { if (r.ok && Array.isArray(r.data)) setCategories(r.data); });
+    bq('/expedition/methodes/details').then(r => { if (r.ok && Array.isArray(r.data)) { setMethodes(r.data); setMethodesChargees(true); } });
   }, []);
 
   useEffect(() => {
@@ -67,6 +72,7 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
       setPrixRevient(p.prix_revient === null || p.prix_revient === undefined ? '' : String(Number(p.prix_revient)));
       setPoids(p.poids === null || p.poids === undefined ? '' : String(Number(p.poids)));
       setCategorieId(p.categorie_id ? String(p.categorie_id) : '');
+      setMethodesSel(Array.isArray(p.methodes_expedition_ids) ? p.methodes_expedition_ids : []);
       setPhotos(Array.isArray(p.photos) ? p.photos : []);
       setVariantes((Array.isArray(p.variantes) ? p.variantes : []).map((v: any) => ({
         nom: v.nom || '',
@@ -111,6 +117,9 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
     if (quantiteMin !== '' && (!Number.isInteger(Number(quantiteMin)) || Number(quantiteMin) < 1 || Number(quantiteMin) > 9999)) { setErreur('La quantité minimum doit être un nombre entier entre 1 et 9 999'); return; }
     if (poids !== '' && (!Number.isFinite(Number(poids)) || Number(poids) < 0)) { setErreur('Le poids est invalide'); return; }
     if (prixRevient !== '' && (!Number.isFinite(Number(prixRevient)) || Number(prixRevient) < 0)) { setErreur('Le prix de revient est invalide'); return; }
+    if (methodes.some(m => methodesSel.indexOf(m.id) >= 0 && (m.mode_calcul === 'kg' || m.mode_calcul === 'fixe_kg')) && !(Number(poids) > 0)) {
+      setErreur('Indiquez le poids du produit : une des méthodes choisies calcule les frais au kg.'); return;
+    }
     for (const v of variantes) {
       if (v.nom.trim() && v.prix !== '' && Number(v.prix) < 0.01) { setErreur(`Variante « ${v.nom.trim()} » : le prix doit être d'au moins 0,01 $`); return; }
     }
@@ -120,6 +129,7 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
       body: {
         titre, description, prix, prix_promo: prixPromo, stock, sku, quantite_min: quantiteMin, prix_revient: prixRevient,
         poids: poids === '' ? null : poids, categorie_id: categorieId || null, photos, statut,
+        ...(methodesChargees ? { methodes_expedition_ids: methodesSel.filter(id => methodes.some(m => m.id === id)) } : {}),
         variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock })),
       },
     });
@@ -202,7 +212,7 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
             </span>
           </div>
         )}
-        <p style={{ fontSize: 11, color: T.light, margin: '8px 0 0' }}>Le prix de revient n'est jamais visible par les acheteurs. Stock vide = illimité. Le poids servira au calcul des frais d'expédition.</p>
+        <p style={{ fontSize: 11, color: T.light, margin: '8px 0 0' }}>Le prix de revient n'est jamais visible par les acheteurs. Stock vide = illimité. Le poids sert au calcul des frais d'expédition au kilo.</p>
 
         <div style={{ marginTop: 14 }}>
           <label style={lbl}>Catégorie</label>
@@ -214,6 +224,37 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
             </select>
           ) : <p style={{ margin: 0, fontSize: 12, color: T.light }}>Vous n'avez pas encore créé de catégories.</p>}
         </div>
+      </div>
+
+      <div style={carte}>
+        <label style={lbl}>🚚 Expédition</label>
+        {methodes.length === 0 ? (
+          <p style={{ fontSize: 13, color: T.light, margin: 0, lineHeight: 1.5 }}>
+            🎁 Livraison gratuite pour ce produit : vous n'avez pas encore configuré de méthode d'expédition.
+            {naviguerVers && <> <button type="button" onClick={() => naviguerVers('config-expedition')} style={{ background: 'none', border: 'none', color: couleur, fontWeight: 700, cursor: 'pointer', fontSize: 13, padding: 0 }}>Configurer mes méthodes →</button></>}
+          </p>
+        ) : (
+          <>
+            <p style={{ fontSize: 12, color: T.light, margin: '0 0 10px' }}>Cochez les méthodes offertes pour ce produit. Si vous n'en cochez aucune, la livraison est gratuite pour ce produit.</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {methodes.map((m: any) => {
+                const choisi = methodesSel.indexOf(m.id) >= 0;
+                return (
+                  <div key={m.id} onClick={() => setMethodesSel(prev => (prev.indexOf(m.id) >= 0 ? prev.filter(x => x !== m.id) : prev.concat([m.id])))}
+                    style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', borderRadius: 10, border: `2px solid ${choisi ? couleur : '#e1e3e5'}`, background: choisi ? '#fafaff' : '#fff', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={choisi} onChange={() => undefined} style={{ width: 16, height: 16 }} />
+                    <span style={{ fontSize: 20 }}>{m.logo || '📦'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{m.nom || 'Expédition'}</div>
+                      {m.delais_estime && <div style={{ fontSize: 12, color: T.light }}>⏱ {m.delais_estime}</div>}
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 700, background: '#f5f5f5', padding: '3px 10px', borderRadius: 20 }}>{m.libelle_prix}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       <div style={carte}>

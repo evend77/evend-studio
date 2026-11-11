@@ -12,5 +12,7 @@ const router = express.Router();
 
 router.use('/gestionnaire', require('./boutique_produits'));
 router.use('/gestionnaire/paiement', require('./boutique_paiement_config'));
+router.use('/gestionnaire/expedition', require('./boutique_expedition_config'));
+router.use('/gestionnaire/taxes', require('./boutique_taxes_config'));
 
 module.exports = router;

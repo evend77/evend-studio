@@ -83,6 +83,8 @@ import BoutiqueCreerAnnonce        from './pages/gestionnaire/BoutiqueCreerAnnon
 import BoutiquePlan                from './pages/gestionnaire/BoutiquePlan';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueModale              from './pages/gestionnaire/BoutiqueModale';
+import BoutiqueTaxes               from './pages/gestionnaire/BoutiqueTaxes';
+import BoutiqueExpedition          from './pages/gestionnaire/BoutiqueExpedition';
 
 // =====================================================================
 // 🚧 PAGES EN CONSTRUCTION — placeholders compilables
@@ -1165,6 +1167,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
         itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
@@ -1193,6 +1196,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
         itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
@@ -1221,6 +1225,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
         itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
@@ -1270,6 +1275,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
         itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
@@ -1515,6 +1521,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         return <BoutiquePlan gestionnaireId={gestionnaire.id} accent={accentSolo} naviguerVers={setPageActive} />;
       }
       if (pageActive === 'config-paiements') return <BoutiqueConfigPaiements gestionnaireId={gestionnaire.id} accent={accentSolo} />;
+      if (pageActive === 'config-expedition') return <BoutiqueExpedition gestionnaireId={gestionnaire.id} accent={accentSolo} />;
+      if (pageActive === 'config-taxes') return <BoutiqueTaxes gestionnaireId={gestionnaire.id} accent={accentSolo} naviguerVers={setPageActive} />;
     }
     if (pageActive === 'creer') return <CreerAnnonce onRetour={() => setPageActive('annonces-liste')} />;
     if (pageActive.startsWith('creer-annonce?dupliquer=')) {
