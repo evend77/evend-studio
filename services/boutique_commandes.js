@@ -246,8 +246,8 @@ async function demarrerStripe(cmd, cfg, acheteur, urlSite) {
   const session = await stripe.checkout.sessions.create({
     mode: 'payment', line_items: items, customer_email: acheteur.email, metadata: meta, payment_intent_data: { metadata: meta },
     expires_at: Math.floor(new Date(cmd.expire_le).getTime() / 1000),
-    success_url: `${urlSite}/?page=commande-confirmee&commande=${encodeURIComponent(cmd.numero_commande)}`,
-    cancel_url: `${urlSite}/?page=panier&paiement=annule&commande=${encodeURIComponent(cmd.numero_commande)}`,
+    success_url: `${urlSite}/?page=dashboard-acheteur&vue=commande-confirmee&commande=${encodeURIComponent(cmd.numero_commande)}`,
+    cancel_url: `${urlSite}/?page=dashboard-acheteur&vue=panier&paiement=annule&commande=${encodeURIComponent(cmd.numero_commande)}`,
   });
   await pool.query('UPDATE boutique_commandes SET stripe_session_id = $1 WHERE id = $2', [session.id, cmd.id]);
   return session.url;
@@ -259,8 +259,8 @@ async function demarrerPaypal(cmd, cfg, urlSite) {
     purchase_units: [{ custom_id: String(cmd.id), invoice_id: cmd.numero_commande, description: `Commande ${cmd.numero_commande}`,
       amount: { currency_code: cmd.devise, value: Number(cmd.total).toFixed(2) } }],
     payment_source: { paypal: { experience_context: { user_action: 'PAY_NOW', shipping_preference: 'NO_SHIPPING',
-      return_url: `${urlSite}/?page=commande-confirmee&commande=${encodeURIComponent(cmd.numero_commande)}&mode=paypal`,
-      cancel_url: `${urlSite}/?page=panier&paiement=annule&commande=${encodeURIComponent(cmd.numero_commande)}` } } },
+      return_url: `${urlSite}/?page=dashboard-acheteur&vue=commande-confirmee&commande=${encodeURIComponent(cmd.numero_commande)}&mode=paypal`,
+      cancel_url: `${urlSite}/?page=dashboard-acheteur&vue=panier&paiement=annule&commande=${encodeURIComponent(cmd.numero_commande)}` } } },
   });
   const lien = r.data && Array.isArray(r.data.links) ? r.data.links.find((x) => x.rel === 'payer-action' || x.rel === 'approve') : null;
   if (r.status >= 300 || !r.data.id || !lien) throw new Error((r.data && r.data.message) || `PayPal a refusé la commande (${r.status})`);
