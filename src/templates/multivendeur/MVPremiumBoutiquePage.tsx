@@ -8,16 +8,11 @@ import MVPremiumFooter from './MVPremiumFooter';
 import { fondDe, fondNav } from './mvTheme';
 import { nettoyerRecherche, nettoyerTexte } from './mvSecurite';
 import { formaterPrix } from '../shared/devise';
-import MVParutionCountdown from './MVParutionCountdown';
-import MVOffreCompteur from './MVOffre';
-import MVBadgesCollab, { BadgeCollab } from './MVBadgesCollab';
-import { MVSouhaitsAcces, MVSouhaitCarte } from './MVFavoris';
 
 const API_BASE = '/api';
 
 interface Boutique {
   id: number;
-  badges?: BadgeCollab[];
   vacances?: { mode: 'visible' | 'masque'; message: string; retour: string | null } | null;
   nom_boutique: string;
   description_courte?: string;
@@ -38,8 +33,6 @@ interface Boutique {
 
 interface Produit {
   id: number; nom: string; prix: number; image?: string; stock: number; categorie_nom?: string;
-  date_parution?: string | null; heure_serveur?: string;   // Parution future
-  offre_fin?: string | null;   // Offres du jour : fin de l'offre en cours
 }
 
 interface BlogArticle {
@@ -124,7 +117,6 @@ function Navbar({ naviguer, config }: { naviguer: (d: NavMV) => void; config: Re
         </div>
         <div className="mvn-liens" style={s.navLinks}>
           {liens.map(l => <span key={l.label} style={s.navLink} onClick={() => aller(l.dest)}>{l.label}</span>)}
-          <MVSouhaitsAcces variante="entete" gestionnaireId={config?.gestionnaire_id} isDemo={!!config?.__demo} naviguer={naviguer} />
           <button onClick={() => aller({ page: 'login' })} style={{ padding: '8px 18px', background: accent, border: 'none', borderRadius: 8, color: '#000', fontSize: 13, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit' }}>Mon compte</button>
         </div>
         <button className="mvn-burger" aria-label="Menu" onClick={() => setMenuOuvert(v => !v)}
@@ -169,13 +161,17 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
   const [filtreCatMobileOuvert, setFiltreCatMobileOuvert] = useState(false);
 
   // Add-ons
-  const [addonsStatut, setAddonsStatut] = useState({ blog_actif: false, faq_actif: false, avis_actif: false, chat_actif: false, favoris_actif: false });
+  const [addonsStatut, setAddonsStatut] = useState({ blog_actif: false, faq_actif: false, avis_actif: false });
   const [blog, setBlog] = useState<BlogArticle[]>([]);
   const [faq, setFaq] = useState<FaqItem[]>([]);
   const [avis, setAvis] = useState<Avis[]>([]);
   const [moyenneAvis, setMoyenneAvis] = useState(0);
   const [totalAvis, setTotalAvis] = useState(0);
   const [pageAvis, setPageAvis] = useState(1);
+  // Pagination des produits : 48 par page, on revient à la page 1 quand la recherche ou les filtres changent
+  const PRODUITS_PAR_PAGE = 48;
+  const [pageProduits, setPageProduits] = useState(1);
+  useEffect(() => { setPageProduits(1); }, [recherche, categoriesActives]);
   const [pagesAvis, setPagesAvis] = useState(1);
   const [repartAvis, setRepartAvis] = useState<Record<string, number>>({});
   const [avisOccupe, setAvisOccupe] = useState(false);
@@ -208,7 +204,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
     if (isDemo) {
       setBoutique(DEMO_BOUTIQUE);
       setProduits(DEMO_PRODUITS_BOUTIQUE);
-      setAddonsStatut({ blog_actif: true, faq_actif: true, avis_actif: true, chat_actif: true, favoris_actif: true });
+      setAddonsStatut({ blog_actif: true, faq_actif: true, avis_actif: true });
       setBlog(DEMO_BLOG);
       setFaq(DEMO_FAQ);
       setAvis(DEMO_AVIS);
@@ -234,7 +230,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
 
     fetch(`${apiBoutique}/addons-statut`)
       .then(r => r.ok ? r.json() : {} as any)
-      .then((d: any) => setAddonsStatut({ blog_actif: !!d.blog_actif, faq_actif: !!d.faq_actif, avis_actif: !!d.avis_actif, chat_actif: !!d.chat_actif, favoris_actif: !!d.favoris_actif }))
+      .then((d: any) => setAddonsStatut(d))
       .catch(() => {});
   }, [boutiqueId, gId, isDemo]);
 
@@ -363,6 +359,38 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
     return true;
   });
 
+  const totalPagesProduits = Math.max(1, Math.ceil(produitsFiltres.length / PRODUITS_PAR_PAGE));
+  const pageCourante = Math.min(pageProduits, totalPagesProduits);
+  const produitsPage = produitsFiltres.slice((pageCourante - 1) * PRODUITS_PAR_PAGE, pageCourante * PRODUITS_PAR_PAGE);
+  const changerPageProduits = (n: number) => {
+    setPageProduits(n);
+    const el = typeof document !== 'undefined' ? document.getElementById('mvp-produits-haut') : null;
+    if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const barrePages = (ou: string) => {
+    if (totalPagesProduits <= 1) return null;
+    const nums: (number | '...')[] = [];
+    if (totalPagesProduits <= 7) { for (let i = 1; i <= totalPagesProduits; i++) nums.push(i); }
+    else {
+      nums.push(1);
+      if (pageCourante > 3) nums.push('...');
+      for (let i = Math.max(2, pageCourante - 1); i <= Math.min(totalPagesProduits - 1, pageCourante + 1); i++) nums.push(i);
+      if (pageCourante < totalPagesProduits - 2) nums.push('...');
+      nums.push(totalPagesProduits);
+    }
+    const b = (actif: boolean, off?: boolean): React.CSSProperties => ({ minWidth: 36, padding: '8px 10px', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: off ? 'not-allowed' : 'pointer', opacity: off ? 0.35 : 1,
+      background: actif ? couleurAccent : 'rgba(255,255,255,0.06)', color: actif ? '#000' : '#fff', border: `1px solid ${actif ? couleurAccent : 'rgba(255,255,255,0.15)'}` });
+    return (
+      <div key={ou} role="navigation" aria-label="Pages de produits" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 6, flexWrap: 'wrap', margin: ou === 'haut' ? '0 0 16px' : '24px 0 0' }}>
+        <button disabled={pageCourante <= 1} onClick={() => changerPageProduits(pageCourante - 1)} style={b(false, pageCourante <= 1)} aria-label="Page précédente">‹</button>
+        {nums.map((n, i) => n === '...'
+          ? <span key={'e' + i} style={{ color: 'rgba(255,255,255,0.4)', padding: '0 4px' }}>…</span>
+          : <button key={n} onClick={() => changerPageProduits(n)} style={b(n === pageCourante)} aria-current={n === pageCourante ? 'page' : undefined}>{n}</button>)}
+        <button disabled={pageCourante >= totalPagesProduits} onClick={() => changerPageProduits(pageCourante + 1)} style={b(false, pageCourante >= totalPagesProduits)} aria-label="Page suivante">›</button>
+      </div>
+    );
+  };
+
   const toggleCategorie = (cat: string) => {
     setCategoriesActives(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
   };
@@ -405,10 +433,7 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
               : <span style={{ fontSize: 32, fontWeight: 900, color: couleurAccent }}>{boutique.nom_boutique[0]}</span>}
           </div>
           <div style={{ flex: 1, minWidth: 200 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <h1 style={s.nomBoutique}>{boutique.nom_boutique}</h1>
-              <MVBadgesCollab badges={boutique.badges} taille={32} />
-            </div>
+            <h1 style={s.nomBoutique}>{boutique.nom_boutique}</h1>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 6, marginTop: 8 }}>
               {boutique.nb_produits != null && <span style={s.badgeMeta}>📦 {boutique.nb_produits} produit{boutique.nb_produits > 1 ? 's' : ''}</span>}
               {boutique.nb_vendus != null && <span style={s.badgeMeta}>🛒 {boutique.nb_vendus} produit{boutique.nb_vendus > 1 ? 's' : ''} vendu{boutique.nb_vendus > 1 ? 's' : ''}</span>}
@@ -420,11 +445,11 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
             </div>
           </div>
           <div className="mvp-actions" style={s.actions}>
-            {addonsStatut.favoris_actif && <button onClick={basculerFavori} disabled={favoriOccupe}
+            <button onClick={basculerFavori} disabled={favoriOccupe}
               style={{ ...s.btnAction, borderColor: estFavori ? '#ef4444' : 'rgba(255,255,255,0.18)', color: estFavori ? '#f87171' : '#fff', background: estFavori ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.06)' }}>
               {estFavori ? '❤️ Favori' : '🤍 Favori'}
-            </button>}
-            {addonsStatut.chat_actif && <button onClick={ouvrirChat} style={{ ...s.btnAction, borderColor: `${couleurAccent}66`, color: couleurAccent, background: `${couleurAccent}14` }}>💬 Chat</button>}
+            </button>
+            <button onClick={ouvrirChat} style={{ ...s.btnAction, borderColor: `${couleurAccent}66`, color: couleurAccent, background: `${couleurAccent}14` }}>💬 Chat</button>
             <button onClick={() => { setModalMsg(null); setModal('signaler'); }} style={{ ...s.btnAction, borderColor: 'rgba(239,68,68,0.35)', color: '#f87171', background: 'rgba(239,68,68,0.08)' }}>⚠️ Signaler</button>
           </div>
         </div>
@@ -486,33 +511,26 @@ export default function MVPremiumBoutiquePage({ vendeurId, isDemo, config = {}, 
               )}
 
               {/* Grille produits */}
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div id="mvp-produits-haut" style={{ flex: 1, minWidth: 0, scrollMarginTop: 80 }}>
+                {barrePages('haut')}
                 {produitsFiltres.length === 0 ? (
                   <div style={s.vide}><div style={{ fontSize: 40, marginBottom: 10 }}>📦</div><p style={{ color: 'rgba(255,255,255,0.5)' }}>{recherche || categoriesActives.length > 0 ? 'Aucun produit ne correspond à votre recherche' : 'Aucun produit pour le moment'}</p></div>
                 ) : (
                   <div className="mvp-grille" style={s.grilleProduits}>
-                    {produitsFiltres.map(p => (
+                    {produitsPage.map(p => (
                       <div key={p.id} onClick={() => naviguer({ page: 'produit', produitId: p.id })} style={s.carteProduit}>
-                        <div style={{ ...s.carteImg, position: 'relative' }}>
+                        <div style={s.carteImg}>
                           {p.image ? <img src={p.image} alt={p.nom} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ fontSize: 32, opacity: 0.2 }}>📦</div>}
-                          <MVSouhaitCarte zone="superposition" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
-                          {p.date_parution && (
-                            <div style={{ position: 'absolute', left: 6, right: 6, bottom: 6 }}>
-                              <MVParutionCountdown compact gestionnaireId={gId} dateParution={p.date_parution} heureServeur={p.heure_serveur} />
-                            </div>
-                          )}
                         </div>
                         <div style={{ padding: 12 }}>
-                          <MVSouhaitCarte zone="haut" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                           <p style={{ fontSize: 13, color: '#fff', margin: '0 0 6px', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{p.nom}</p>
                           <p style={{ fontSize: 15, fontWeight: 800, color: couleurAccent, margin: 0 }}>{formaterPrix(parseFloat(String(p.prix)))}</p>
-                          {p.offre_fin && <MVOffreCompteur compact fin={p.offre_fin} heureServeur={p.heure_serveur} />}
-                          <MVSouhaitCarte zone="bas" gestionnaireId={gId} produitId={p.id} isDemo={isDemo} />
                         </div>
                       </div>
                     ))}
                   </div>
                 )}
+                {barrePages('bas')}
               </div>
             </div>
           </div>
