@@ -99,4 +99,7 @@ router.post('/suppression-compte', express.json({ limit: '100kb' }), (req, res) 
   res.sendStatus(200);
 });
 
+// Pont Studio → e-Vend (e-Vend lit les annonces Studio du collaborateur) : /api/ebay-connexion/studio-pont/…
+router.use('/studio-pont', require('./studio_pont_fournisseur'));
+
 module.exports = router;
