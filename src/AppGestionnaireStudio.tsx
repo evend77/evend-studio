@@ -77,6 +77,12 @@ import StudioConfigParutionFutur   from './pages/gestionnaire/StudioConfigParuti
 import StudioConfigFavoris         from './pages/gestionnaire/StudioConfigFavoris';
 import MVPremiumPlan               from './pages/gestionnaire/MVPremiumPlan';
 import ConfigMultiVendeurPremium   from './pages/gestionnaire/ConfigMultiVendeurPremium';
+// ── Templates boutique (solo) : système parallèle au MV, tout est préfixé Boutique ──
+import BoutiqueListeProduits       from './pages/gestionnaire/BoutiqueListeProduits';
+import BoutiqueCreerAnnonce        from './pages/gestionnaire/BoutiqueCreerAnnonce';
+import BoutiquePlan                from './pages/gestionnaire/BoutiquePlan';
+import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
+import BoutiqueModale              from './pages/gestionnaire/BoutiqueModale';
 
 // =====================================================================
 // 🚧 PAGES EN CONSTRUCTION — placeholders compilables
@@ -371,6 +377,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
 
   const [pageActive, setPageActive]         = useState('dashboard');
   const [templateIdChoisi, setTemplateIdChoisi] = useState<string>('');
+  // Message affiché quand le serveur refuse un changement de template (ex. trop d'annonces actives pour la limite du nouveau)
+  const [erreurTemplate, setErreurTemplate] = useState<string>('');
   const [modalOuvert, setModalOuvert] = useState(false);
   const [message, setMessage] = useState('');
   const [nonLus, setNonLus] = useState({ acheteurs: 0, admin: 0, notifs: 0, contact: 0, total: 0 });
@@ -690,6 +698,10 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const estBeaute        = templateActif.startsWith('boutique-beaute');
   const estMultiVendeur  = templateActif.startsWith('multi-vendeur-premium');
   const aucunTemplate    = !templateActif;
+  // Templates boutique « solo » : le gestionnaire est son propre vendeur (pages Boutique*, API /api/boutique)
+  const estSolo          = estSimplisse || estPremium || estSimplisseMode || estBeaute;
+  const pagePlanSolo     = estPremium ? 'premium-plan' : estSimplisseMode ? 'mode-plan' : estBeaute ? 'beaute-plan' : 'simplisse-plan';
+  const accentSolo       = estPremium ? '#c9a96e' : estBeaute ? '#ec4899' : estSimplisseMode ? '#0f766e' : '#4f46e5';
 
   // ── Menus Studio (communs à tous) ────────────────────────────────────────
   const menuStudio: MenuItem = {
@@ -1489,6 +1501,21 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   };
 
   const renderPage = () => {
+    // ── Templates boutique (solo) : pages Boutique*, jamais les anciennes pages e-Vend ni le MV ──
+    if (estSolo) {
+      const versListe = () => setPageActive('annonces-liste');
+      const propsCreer = { gestionnaireId: gestionnaire.id, accent: accentSolo, isMobile, pagePlan: pagePlanSolo, naviguerVers: setPageActive, onRetour: versListe };
+      if (pageActive === 'annonces-liste') return <BoutiqueListeProduits gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
+      if (pageActive === 'annonces-creer' || pageActive === 'creer') return <BoutiqueCreerAnnonce key="nouvelle" produitId={null} {...propsCreer} />;
+      if (pageActive.startsWith('modifier-annonce?id=')) {
+        const idModif = parseInt(pageActive.replace('modifier-annonce?id=', ''), 10);
+        if (Number.isInteger(idModif) && idModif > 0) return <BoutiqueCreerAnnonce key={`modif-${idModif}`} produitId={idModif} {...propsCreer} />;
+      }
+      if (pageActive === 'premium-plan' || pageActive === 'simplisse-plan' || pageActive === 'mode-plan' || pageActive === 'beaute-plan') {
+        return <BoutiquePlan gestionnaireId={gestionnaire.id} accent={accentSolo} naviguerVers={setPageActive} />;
+      }
+      if (pageActive === 'config-paiements') return <BoutiqueConfigPaiements gestionnaireId={gestionnaire.id} accent={accentSolo} />;
+    }
     if (pageActive === 'creer') return <CreerAnnonce onRetour={() => setPageActive('annonces-liste')} />;
     if (pageActive.startsWith('creer-annonce?dupliquer=')) {
       const dupliquerDeId = pageActive.replace('creer-annonce?dupliquer=', '');
@@ -1573,16 +1600,28 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
 
     // ── Routes e-Vend Studio ──
     if (pageActive === 'studio-choisir-template') return (
-      <PageChoisirTemplate gestionnaireId={gestionnaire.id} onChoisir={(templateId) => {
+      <PageChoisirTemplate gestionnaireId={gestionnaire.id} onChoisir={async (templateId) => {
         const token = localStorage.getItem('token');
-        fetch(`/api/studio/sites/${gestionnaire.id}/config`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          credentials: 'include',
-          body: JSON.stringify({ template_id: templateId }),
-        })
-        .then(r => { if (!r.ok) console.error('Erreur sauvegarde template'); else console.log('Template sauvegardé:', templateId); })
-        .catch(err => console.error('Erreur fetch template:', err));
+        // On attend la réponse du serveur : s'il refuse (ex. trop d'annonces actives pour la limite du nouveau template),
+        // on n'affiche PAS le changement et on montre son message.
+        let reponse: Response;
+        try {
+          reponse = await fetch(`/api/studio/sites/${gestionnaire.id}/config`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            credentials: 'include',
+            body: JSON.stringify({ template_id: templateId }),
+          });
+        } catch (err) {
+          setErreurTemplate('Erreur réseau : le template n’a pas été changé. Réessayez.');
+          return;
+        }
+        if (!reponse.ok) {
+          let texte = 'Le template n’a pas pu être changé. Réessayez.';
+          try { const d = await reponse.json(); if (d && (d.message || d.error)) texte = d.message || d.error; } catch (err) { /* garde le message par défaut */ }
+          setErreurTemplate(texte);
+          return;
+        }
         setTemplateIdChoisi(templateId);
         setGestionnaire(prev => ({ ...prev, site_template_id: templateId }));
         if (templateId === 'boutique-complete') {
@@ -2079,6 +2118,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         onClose={() => setModalPhotoOuvert(false)}
         onSelectPhoto={handleSelectPhoto}
       />
+
+      {erreurTemplate && (
+        <BoutiqueModale type="erreur" titre="Changement de template impossible" message={erreurTemplate}
+          actionSecondaire={/annonce/i.test(erreurTemplate) ? { texte: 'Voir mes annonces', onClick: () => { setErreurTemplate(''); setPageActive('annonces-liste'); } } : undefined}
+          onFermer={() => setErreurTemplate('')} />
+      )}
 
       {modalOuvert && (
         <div onClick={fermerModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
