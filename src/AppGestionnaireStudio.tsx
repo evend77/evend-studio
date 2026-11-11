@@ -84,6 +84,7 @@ import BoutiquePlan                from './pages/gestionnaire/BoutiquePlan';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
 import BoutiquePaiements          from './pages/gestionnaire/BoutiquePaiements';
+import BoutiquePromos             from './pages/gestionnaire/BoutiquePromos';
 import BoutiqueModale              from './pages/gestionnaire/BoutiqueModale';
 import BoutiqueTaxes               from './pages/gestionnaire/BoutiqueTaxes';
 import BoutiqueExpedition          from './pages/gestionnaire/BoutiqueExpedition';
@@ -1524,6 +1525,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       }
       if (pageActive === 'config-paiements') return <BoutiqueConfigPaiements gestionnaireId={gestionnaire.id} accent={accentSolo} />;
       if (pageActive === 'config-expedition') return <BoutiqueExpedition gestionnaireId={gestionnaire.id} accent={accentSolo} />;
+      if (pageActive === 'annonces-promos') return <BoutiquePromos gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} />;
       if (pageActive === 'commandes-liste') return <BoutiqueCommandes gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} naviguerVers={setPageActive} />;
       if (pageActive === 'commandes-paiements') return <BoutiquePaiements gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} naviguerVers={setPageActive} />;
       if (pageActive === 'config-taxes') return <BoutiqueTaxes gestionnaireId={gestionnaire.id} accent={accentSolo} naviguerVers={setPageActive} />;

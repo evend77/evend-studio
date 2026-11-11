@@ -18,9 +18,8 @@ const EXP = require('./boutique_expedition');
 const DUREE_SESSION_MIN = 35;      // Stripe exige au moins 30 min
 const DELAI_GRACE_MIN = 5;         // on ne balaie qu'après l'expiration + ce délai (laisse arriver le webhook)
 
-class ErreurCommande extends Error {
-  constructor(message, status = 400, code) { super(message); this.status = status; this.code = code; }
-}
+const { ErreurCommande } = require('./boutique_commandes_erreur');
+const PROMOS = require('./boutique_promos');
 const refus = (m, s, c) => { throw new ErreurCommande(m, s, c); };
 const cents = (n) => Math.round(Number(n) * 100 + 1e-7);
 
@@ -126,19 +125,22 @@ function normaliserAdresse(a) {
 
 // ── Calcul complet (aperçu ET commande) ──────────────────────────────────────
 // Retourne { sousTotalC, fraisC, taxes, totalC, methode } ou lève ErreurCommande.
-async function calculerTotaux(db, gid, lignes, province, methodeId) {
+async function calculerTotaux(db, gid, lignes, province, methodeId, rabaisC = 0) {
   const sousTotalC = lignes.reduce((s, l) => s + cents(l.prix) * l.quantite, 0);
+  const alloc = PROMOS.repartir(lignes, rabaisC);                                   // rabais par ligne
+  const nets = lignes.map((l, i) => cents(l.prix) * l.quantite - alloc[i]);          // montant net de chaque ligne
+  const sousNetC = sousTotalC - rabaisC;
   const exp = await EXP.fraisPourPaiement(db, {
     gid, lignes: lignes.map((l) => ({ produit_id: l.produit_id, quantite: l.quantite })),
-    sousTotal: sousTotalC / 100, sousTotalNet: sousTotalC / 100, province, methodeId });
+    sousTotal: sousTotalC / 100, sousTotalNet: sousNetC / 100, province, methodeId });
   if (exp.erreur) refus(exp.erreur, 400);
   const fraisC = cents(exp.frais || 0);
-  const taxes = await TAXES.calculer(db, { gid, lignes: lignes.map((l) => ({ produit_id: l.produit_id, montant: cents(l.prix) * l.quantite / 100 })), fraisExpedition: fraisC / 100, province });
+  const taxes = await TAXES.calculer(db, { gid, lignes: lignes.map((l, i) => ({ produit_id: l.produit_id, montant: nets[i] / 100 })), fraisExpedition: fraisC / 100, province });
   const taxesC = cents(taxes.total_taxes);
-  return { sousTotalC, fraisC, taxes, taxesC, totalC: sousTotalC + fraisC + taxesC };
+  return { sousTotalC, rabaisC, alloc, nets, sousNetC, fraisC, taxes, taxesC, totalC: sousNetC + fraisC + taxesC };
 }
 
-async function apercu(gid, acheteurId, { province, methodeId } = {}) {
+async function apercu(gid, acheteurId, { province, methodeId, codePromo } = {}) {
   const lignes = await lireLignes(pool, gid, acheteurId);
   const prov = EXP.PROVINCES.includes(province) ? province : 'QC';
   const sousTotal = lignes.reduce((s, l) => s + (l.erreur ? 0 : cents(l.prix) * l.quantite), 0) / 100;
@@ -152,8 +154,13 @@ async function apercu(gid, acheteurId, { province, methodeId } = {}) {
   const choix = methodeId !== undefined && methodeId !== null && methodeId !== '' ? methodeId : (exp.methodes.length === 1 ? exp.methodes[0].id : null);
   if (lignes.length && !out.problemes.length && !exp.indisponible && choix !== null) {
     try {
-      const t = await calculerTotaux(pool, gid, lignes, prov, choix);
-      out.totaux = { sous_total: t.sousTotalC / 100, frais_expedition: t.fraisC / 100, taxes: t.taxes, total: t.totalC / 100 };
+      let rabaisC = 0;
+      if (codePromo && String(codePromo).trim()) {
+        try { const ev = await PROMOS.evaluer(pool, { gid, acheteurId, code: codePromo, sousTotalC: Math.round(sousTotal * 100) }); rabaisC = ev.rabaisC; out.code_promo = { code: ev.promo.code, rabais: rabaisC / 100 }; }
+        catch (e) { if (!(e instanceof ErreurCommande)) throw e; out.code_erreur = e.message; }
+      }
+      const t = await calculerTotaux(pool, gid, lignes, prov, choix, rabaisC);
+      out.totaux = { sous_total: t.sousTotalC / 100, rabais: t.rabaisC / 100, frais_expedition: t.fraisC / 100, taxes: t.taxes, total: t.totalC / 100 };
     } catch (e) { if (!(e instanceof ErreurCommande)) throw e; out.totaux_erreur = e.message; }
   }
   return out;
@@ -166,7 +173,7 @@ async function urlDuSite(gid) {
   return d ? `https://${d}` : null;
 }
 
-async function creerCommande({ gid, acheteurId, adresse, methodeId, note, mode }) {
+async function creerCommande({ gid, acheteurId, adresse, methodeId, note, mode, codePromo }) {
   const cfg = await paiement.config(gid);
   const modes = modesDisponibles(cfg);
   if (mode !== 'stripe' && mode !== 'paypal') refus('Choisissez un mode de paiement.');
@@ -191,7 +198,13 @@ async function creerCommande({ gid, acheteurId, adresse, methodeId, note, mode }
     const bad = lignes.find((l) => l.erreur);
     if (bad) refus(bad.erreur, 409);
     for (const l of lignes) if (!(await ajusterStock(client, l.produit_id, l.variante, -l.quantite))) refus(`« ${l.titre} » est épuisé.`, 409);
-    const t = await calculerTotaux(pool, gid, lignes, adr.province, methodeId);   // lectures seules : pas besoin de la transaction
+    // Code promo : vérifié ICI, avec verrou, au moment de créer la commande (jamais cru sur parole)
+    let promo = null, rabaisC = 0;
+    if (codePromo && String(codePromo).trim()) {
+      const ev = await PROMOS.evaluer(client, { gid, acheteurId, code: codePromo, sousTotalC: lignes.reduce((s2, l) => s2 + cents(l.prix) * l.quantite, 0), verrou: true });
+      promo = ev.promo; rabaisC = ev.rabaisC;
+    }
+    const t = await calculerTotaux(pool, gid, lignes, adr.province, methodeId, rabaisC);   // lectures seules : pas besoin de la transaction
     if (t.totalC < 50) refus('Le montant de la commande est trop bas pour un paiement en ligne.', 400);
 
     // Méthode retenue (pour l'historique)
@@ -201,15 +214,15 @@ async function creerCommande({ gid, acheteurId, adresse, methodeId, note, mode }
       const f = m.methodes.find((x) => String(x.id) === String(methodeId));
       if (f) methode = { id: f.id, nom: f.nom || f.transporteur_nom || null, delais: f.delais_estime || null, frais: t.fraisC / 100 };
     }
-    const articles = lignes.map((l) => ({ produit_id: l.produit_id, titre: l.titre, variante: l.variante, quantite: l.quantite, prix: l.prix, image_url: l.image_url }));
+    const articles = lignes.map((l, i) => ({ produit_id: l.produit_id, titre: l.titre, variante: l.variante, quantite: l.quantite, prix: l.prix, image_url: l.image_url, ...(t.alloc[i] ? { rabais: t.alloc[i] / 100 } : {}) }));
     const numero = `BQ-${gid}-${Date.now()}`;
     const expireLe = new Date(Date.now() + DUREE_SESSION_MIN * 60000);
     const ins = await client.query(
       `INSERT INTO boutique_commandes (gestionnaire_id, acheteur_id, numero_commande, mode_paiement, devise, sous_total, frais_expedition, taxes, total,
-         articles, methode_expedition, adresse_livraison, note, stock_reserve, expire_le, env)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,true,$14,$15) RETURNING *`,
+         articles, methode_expedition, adresse_livraison, note, stock_reserve, expire_le, env, code_promo, code_promo_id, rabais)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,true,$14,$15,$16,$17,$18) RETURNING *`,
       [gid, acheteurId, numero, mode, devise, t.sousTotalC / 100, t.fraisC / 100, JSON.stringify({ ...t.taxes, province: adr.province }), t.totalC / 100,
-       JSON.stringify(articles), methode ? JSON.stringify(methode) : null, JSON.stringify(adr), note ? String(note).slice(0, 500) : null, expireLe, modes.env]);
+       JSON.stringify(articles), methode ? JSON.stringify(methode) : null, JSON.stringify(adr), note ? String(note).slice(0, 500) : null, expireLe, modes.env, promo ? promo.code : null, promo ? promo.id : null, t.rabaisC / 100]);
     cmd = ins.rows[0];
     // Le panier reste en place jusqu'à ce que le paiement soit bien démarré (voir plus bas)
     await client.query('COMMIT');
@@ -235,10 +248,15 @@ async function demarrerStripe(cmd, cfg, acheteur, urlSite) {
   const stripe = paiement.clientStripe(cfg, cmd.env);
   if (!stripe) refus("Le paiement par carte n'est pas disponible.", 409);
   const devise = cmd.devise.toLowerCase();
-  const items = (Array.isArray(cmd.articles) ? cmd.articles : []).map((l) => ({
-    quantity: l.quantite,
-    price_data: { currency: devise, unit_amount: cents(l.prix), product_data: { name: (String(l.titre) + (l.variante ? ` — ${l.variante}` : '')).slice(0, 120) } },
-  }));
+  const items = [];
+  for (const l of (Array.isArray(cmd.articles) ? cmd.articles : [])) {
+    const nom = (String(l.titre) + (l.variante ? ` — ${l.variante}` : '')).slice(0, 120);
+    const rabaisL = cents(l.rabais || 0);
+    if (!rabaisL) { items.push({ quantity: l.quantite, price_data: { currency: devise, unit_amount: cents(l.prix), product_data: { name: nom } } }); continue; }
+    // Ligne rabaissée : un seul montant exact (Stripe n'accepte ni montant négatif ni cents fractionnaires)
+    const net = cents(l.prix) * l.quantite - rabaisL;
+    if (net > 0) items.push({ quantity: 1, price_data: { currency: devise, unit_amount: net, product_data: { name: (nom.slice(0, 100) + (l.quantite > 1 ? ` × ${l.quantite}` : '')).slice(0, 120), description: `Code promo ${cmd.code_promo} : -${(rabaisL / 100).toFixed(2)} $` } } });
+  }
   if (cents(cmd.frais_expedition) > 0) items.push({ quantity: 1, price_data: { currency: devise, unit_amount: cents(cmd.frais_expedition), product_data: { name: 'Expédition' } } });
   const tx = cmd.taxes || {};
   if (cents(tx.total_taxes || 0) > 0) items.push({ quantity: 1, price_data: { currency: devise, unit_amount: cents(tx.total_taxes), product_data: { name: `Taxes (${tx.label || 'taxes'})` } } });

@@ -66,6 +66,7 @@ export default function CommandesBoutique({ gestionnaireId: gid, couleurAccent, 
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}><span>{a.titre}{a.variante ? ` — ${a.variante}` : ''} × {a.quantite}</span><span>{argent(a.prix * a.quantite, c.devise)}</span></div>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', padding: '4px 0' }}><span>Sous-total</span><span>{argent(c.sous_total, c.devise)}</span></div>
+                {Number(c.rabais) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34d399', padding: '4px 0' }}><span>Code {c.code_promo}</span><span>− {argent(c.rabais, c.devise)}</span></div>}
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', padding: '4px 0' }}><span>Expédition{c.methode_expedition && c.methode_expedition.nom ? ` (${c.methode_expedition.nom})` : ''}</span><span>{Number(c.frais_expedition) === 0 ? 'Gratuit' : argent(c.frais_expedition, c.devise)}</span></div>
                 {c.taxes && Number(c.taxes.total_taxes) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', padding: '4px 0' }}><span>Taxes</span><span>{argent(c.taxes.total_taxes, c.devise)}</span></div>}
                 {c.adresse_livraison && c.adresse_livraison.adresse1 && (

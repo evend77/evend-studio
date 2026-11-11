@@ -11,7 +11,8 @@ interface Infos {
   sous_total: number; devise: string;
   methodes_expedition: { id: number; nom?: string; transporteur_nom?: string; logo?: string; frais_calcule?: number; delais_estime?: string; detail_calcul?: string }[];
   expedition_indisponible: boolean; modes_paiement: { stripe: boolean; paypal: boolean }; problemes: string[];
-  totaux?: { sous_total: number; frais_expedition: number; taxes: { total_taxes: number; tps: number; tvq: number; tvh: number; tvp: number; label: string }; total: number };
+  code_promo?: { code: string; rabais: number }; code_erreur?: string;
+  totaux?: { sous_total: number; rabais?: number; frais_expedition: number; taxes: { total_taxes: number; tps: number; tvq: number; tvh: number; tvp: number; label: string }; total: number };
   totaux_erreur?: string;
 }
 interface Props { gestionnaireId: number; accent?: string; naviguerVers: (page: string) => void; }
@@ -26,11 +27,13 @@ export default function CaisseBoutique({ gestionnaireId: gid, accent, naviguerVe
   const [mode, setMode] = useState<'stripe' | 'paypal' | ''>('');
   const [note, setNote] = useState('');
   const [infos, setInfos] = useState<Infos | null>(null);
+  const [codeSaisi, setCodeSaisi] = useState('');
+  const [codeApplique, setCodeApplique] = useState('');
   const [erreur, setErreur] = useState('');
   const [envoi, setEnvoi] = useState(false);
 
-  const charger = useCallback(async (province: string, methode: string) => {
-    const r = await ba(gid, '/caisse/infos', { method: 'POST', body: { province, methode_id: methode || undefined } });
+  const charger = useCallback(async (province: string, methode: string, code: string) => {
+    const r = await ba(gid, '/caisse/infos', { method: 'POST', body: { province, methode_id: methode || undefined, code_promo: code || undefined } });
     if (r.status === 401) { setErreur('Connectez-vous pour passer à la caisse.'); return; }
     if (!r.ok) { setErreur(messageAcheteur(r)); return; }
     const d = r.data as Infos;
@@ -40,7 +43,7 @@ export default function CaisseBoutique({ gestionnaireId: gid, accent, naviguerVe
     setMethodeId(cur => (cur && d.methodes_expedition.some(x => String(x.id) === cur)) ? cur : (d.methodes_expedition.length === 1 ? String(d.methodes_expedition[0].id) : ''));
   }, [gid]);
 
-  useEffect(() => { charger(adr.province, methodeId); }, [adr.province, methodeId, charger]);
+  useEffect(() => { charger(adr.province, methodeId, codeApplique); }, [adr.province, methodeId, codeApplique, charger]);
 
   const maj = (k: string, v: string) => { setErreur(''); setAdr(a => ({ ...a, [k]: v })); };
 
@@ -48,8 +51,8 @@ export default function CaisseBoutique({ gestionnaireId: gid, accent, naviguerVe
     setErreur('');
     if (!mode) { setErreur('Choisissez un mode de paiement.'); return; }
     setEnvoi(true);
-    const r = await ba(gid, '/caisse/commande', { method: 'POST', body: { adresse: adr, methode_id: methodeId || undefined, mode, note } });
-    if (!r.ok) { setErreur(messageAcheteur(r)); setEnvoi(false); charger(adr.province, methodeId); return; }
+    const r = await ba(gid, '/caisse/commande', { method: 'POST', body: { adresse: adr, methode_id: methodeId || undefined, mode, note, code_promo: codeApplique || undefined } });
+    if (!r.ok) { setErreur(messageAcheteur(r)); setEnvoi(false); charger(adr.province, methodeId, codeApplique); return; }
     window.location.href = r.data.checkout_url;   // page de paiement du gestionnaire (Stripe ou PayPal)
   };
 
@@ -111,6 +114,12 @@ export default function CaisseBoutique({ gestionnaireId: gid, accent, naviguerVe
         {infos.lignes.map(l => <div key={l.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, fontSize: 14, marginBottom: 6 }}><span>{l.titre}{l.variante ? ` — ${l.variante}` : ''} × {l.quantite}</span><span>{argent(l.total_ligne, infos.devise)}</span></div>)}
         <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '12px 0' }} />
         <Ligne n="Sous-total" v={argent(infos.sous_total, infos.devise)} />
+        <div style={{ display: 'flex', gap: 6, margin: '6px 0 10px' }}>
+          <input value={codeSaisi} onChange={e => setCodeSaisi(e.target.value.toUpperCase())} onKeyDown={e => { if (e.key === 'Enter') setCodeApplique(codeSaisi.trim()); }} placeholder="Code promo" style={{ ...champ, padding: '8px 10px' }} />
+          <button onClick={() => setCodeApplique(codeSaisi.trim())} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: 8, padding: '0 12px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Appliquer</button>
+        </div>
+        {infos.code_erreur && <div style={{ color: '#b91c1c', fontSize: 12, margin: '-4px 0 8px' }}>{infos.code_erreur}</div>}
+        {t && t.rabais ? <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 6, color: '#047857' }}><span>Code {infos.code_promo ? infos.code_promo.code : ''}</span><span>− {argent(t.rabais, infos.devise)}</span></div> : null}
         {t ? (
           <>
             <Ligne n="Expédition" v={t.frais_expedition === 0 ? 'Gratuit' : argent(t.frais_expedition, infos.devise)} />

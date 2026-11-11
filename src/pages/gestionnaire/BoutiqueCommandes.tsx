@@ -89,6 +89,7 @@ export default function BoutiqueCommandes({ accent, isMobile }: Props) {
             ))}
             <div style={{ marginTop: 12, fontSize: 14 }}>
               <Ligne n="Sous-total" v={formaterArgent(c.sous_total, c.devise)} />
+              {Number(c.rabais) > 0 && <Ligne n={`Code promo ${c.code_promo || ''}`} v={`− ${formaterArgent(c.rabais, c.devise)}`} />}
               <Ligne n={`Expédition${c.methode_expedition && c.methode_expedition.nom ? ` (${c.methode_expedition.nom})` : ''}`} v={Number(c.frais_expedition) === 0 ? 'Gratuit' : formaterArgent(c.frais_expedition, c.devise)} />
               {Number(tx.tps) > 0 && <Ligne n="TPS" v={formaterArgent(tx.tps, c.devise)} />}
               {Number(tx.tvq) > 0 && <Ligne n="TVQ" v={formaterArgent(tx.tvq, c.devise)} />}

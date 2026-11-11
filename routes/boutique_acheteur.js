@@ -145,16 +145,16 @@ router.delete('/panier', wrap(async (req, res) => {
 // ═════════════════════════════ CAISSE ═════════════════════════════════════
 // Aperçu : méthodes d'expédition, modes de paiement offerts et totaux (taxes et expédition calculées par le serveur)
 router.post('/caisse/infos', wrap(async (req, res) => {
-  res.json(await C.apercu(req.gid, req.acheteurId, { province: String(req.body.province || '').toUpperCase(), methodeId: req.body.methode_id }));
+  res.json(await C.apercu(req.gid, req.acheteurId, { province: String(req.body.province || '').toUpperCase(), methodeId: req.body.methode_id, codePromo: req.body.code_promo }));
 }));
 
 router.post('/caisse/commande', wrap(async (req, res) => {
   const b = req.body || {};
-  res.status(201).json(await C.creerCommande({ gid: req.gid, acheteurId: req.acheteurId, adresse: b.adresse, methodeId: b.methode_id, note: b.note, mode: b.mode }));
+  res.status(201).json(await C.creerCommande({ gid: req.gid, acheteurId: req.acheteurId, adresse: b.adresse, methodeId: b.methode_id, note: b.note, mode: b.mode, codePromo: b.code_promo }));
 }));
 
 // ═════════════════════════════ COMMANDES ══════════════════════════════════
-const COLS = `id, numero_commande, statut, statut_paiement, mode_paiement, devise, sous_total, frais_expedition, taxes, total, articles, methode_expedition, adresse_livraison, note, expire_le, paye_le, created_at`;
+const COLS = `id, numero_commande, statut, statut_paiement, mode_paiement, devise, sous_total, rabais, code_promo, frais_expedition, taxes, total, articles, methode_expedition, adresse_livraison, note, expire_le, paye_le, created_at`;
 
 router.get('/commandes', wrap(async (req, res) => {
   const r = await pool.query(`SELECT ${COLS} FROM boutique_commandes WHERE gestionnaire_id = $1 AND acheteur_id = $2 ORDER BY created_at DESC LIMIT 100`, [req.gid, req.acheteurId]);
