@@ -1,0 +1,32 @@
+{
+  "_chemin": "public/pwa/studio-manifest.json",
+  "name": "e-Vend Studio",
+  "short_name": "e-Vend Studio",
+  "description": "Gère ton site web et ta boutique en ligne avec e-Vend Studio.",
+  "lang": "fr-CA",
+  "start_url": "/login",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#060d1f",
+  "theme_color": "#060d1f",
+  "icons": [
+    {
+      "src": "/pwa/studio-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa/studio-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa/studio-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
