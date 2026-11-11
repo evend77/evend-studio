@@ -2,8 +2,8 @@
 // e-Vend Studio — Paiement des templates boutique (solo). Chaque gestionnaire utilise SON PROPRE Stripe et SON PROPRE PayPal :
 // pas de Stripe Connect, pas de commission, jamais le Stripe de l'admin. Aucun lien avec services/studio_paiement.js (MV).
 //
-// Étape 2 : accès aux clés du gestionnaire, appels Stripe/PayPal, réception des événements des webhooks.
-// Étape 4 (panier et paiement) : les fonctions « confirmer… » et le balayage seront complétés dans CE fichier.
+// Accès aux clés du gestionnaire, appels Stripe/PayPal, réception des événements des webhooks.
+// Les commandes (panier, stock, confirmation) sont dans services/boutique_commandes.js.
 
 'use strict';
 
@@ -66,23 +66,14 @@ async function appelPaypal(cfg, env, methode, chemin, corps) {
   return { status: r.status, data };
 }
 
-// ─── Événements reçus des webhooks ────────────────────────────────────────────
-// Étape 2 : on les reçoit, on les vérifie, on les enregistre. Étape 4 : on les applique aux commandes (boutique_commandes).
-async function confirmerPaiementStripe(gid, session) {
-  console.log(`ℹ️ [boutique-stripe] gestionnaire=${gid} paiement reçu (session ${session && session.id}) — commandes : étape 4`);
-  return { traite: false };
-}
-async function sessionStripeExpiree(gid, session) {
-  console.log(`ℹ️ [boutique-stripe] gestionnaire=${gid} session expirée (${session && session.id}) — commandes : étape 4`);
-  return { traite: false };
-}
-async function evenementPaypal(gid, evenement) {
-  console.log(`ℹ️ [boutique-paypal] gestionnaire=${gid} ${evenement && evenement.event_type} — commandes : étape 4`);
-  return { traite: false };
-}
-
-// Étape 4 : remettra en vente le stock des commandes jamais payées. Aucune tâche tant qu'il n'y a pas de commandes.
-function demarrerBalayage() { /* rien pour l'instant */ }
+// ─── Événements reçus des webhooks → appliqués aux commandes (services/boutique_commandes.js) ───
+// (chargé au moment de l'appel : boutique_commandes a besoin de ce fichier, pas l'inverse)
+const commandes = () => require('./boutique_commandes');
+const confirmerPaiementStripe = (gid, session) => commandes().confirmerStripe(gid, session);
+const sessionStripeExpiree = (gid, session) => commandes().expireeStripe(gid, session);
+const evenementPaypal = (gid, evenement) => commandes().evenementPaypalCommande(gid, evenement);
+// Remet en vente le stock des commandes jamais payées (toutes les 5 minutes)
+const demarrerBalayage = () => commandes().demarrerBalayage();
 
 module.exports = {
   lire, envDe, config, clientStripe, jetonPaypal, appelPaypal, PAYPAL_HOTE,
