@@ -573,7 +573,11 @@ export default function MVPremiumProduit({ vendeurId, isDemo, config = {}, navig
           <div style={s.ongletContenu}>
             {onglet === 'description' && (
               produit.description
-                ? <div dangerouslySetInnerHTML={{ __html: produit.description }} style={{ color: 'rgba(255,255,255,0.8)', lineHeight: 1.8, fontSize: 15 }} />
+                ? (/<\/?(p|br|div|ul|ol|li|h[1-6]|strong|em|b|i|span|a)[\s>\/]/i.test(produit.description)
+                    // Description en HTML (éditeur) : affichée telle quelle
+                    ? <div dangerouslySetInnerHTML={{ __html: produit.description }} style={{ color: 'rgba(255,255,255,0.8)', lineHeight: 1.8, fontSize: 15 }} />
+                    // Texte simple (annonce créée à la main ou importée) : on garde les sauts de ligne et les paragraphes
+                    : <div style={{ color: 'rgba(255,255,255,0.8)', lineHeight: 1.8, fontSize: 15, whiteSpace: 'pre-line', overflowWrap: 'anywhere' }}>{produit.description}</div>)
                 : <p style={{ color: 'rgba(255,255,255,0.4)', fontStyle: 'italic' }}>Aucune description disponible.</p>
             )}
             {onglet === 'details' && (
