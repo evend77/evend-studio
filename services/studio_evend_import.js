@@ -15,6 +15,7 @@ const net = require('net');
 const https = require('https');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const pool = require('../db');
+const expMV = require('./studio_expedition');
 const svc = require('./studio_evend');
 const regles = require('./studio_regles_produits');
 const cfgMV = require('./studio_config_mv');
@@ -201,6 +202,75 @@ async function resoudrePhotos(gid, cid, sources, ctx) {
   return sortie.filter(Boolean);
 }
 
+// ─── Méthodes d'expédition ────────────────────────────────────────────────────
+// e-Vend et Studio utilisent le même catalogue de transporteurs et les mêmes réglages : on recopie les méthodes COCHÉES par le collaborateur.
+// Une méthode que le collaborateur a déjà dans Studio garde SES réglages (seul « actif » est remis). Les annonces sans méthode cochée
+// n'ont aucun lien : Studio leur donne alors la livraison gratuite (comportement habituel de Studio).
+const IDS_TRANSPORTEURS = [...Object.keys(expMV.TRANSPORTEURS).map(Number), ...expMV.IDS_PERSONNALISES];
+const dec = (v, max = 100000) => { const n = nombre(v); return n !== null && n >= 0 && n <= max ? Math.round(n * 100) / 100 : null; };
+
+// Convertit une méthode e-Vend en ligne Studio (null = à ignorer, avec la raison)
+function convertirMethode(m) {
+  const tid = Number(m && m.transporteur_id);
+  if (!IDS_TRANSPORTEURS.includes(tid)) return { raison: 'transporteur inconnu' };
+  const perso = expMV.IDS_PERSONNALISES.includes(tid);
+  const mode = ['fixe', 'fixe_kg', 'kg', 'zone'].includes(m.mode_calcul) ? m.mode_calcul : 'fixe';
+  const fixes = dec(m.frais_fixes), parKg = dec(m.frais_par_kg);
+  let zones = null;
+  if (mode === 'zone') {
+    zones = {};
+    const fz = m.frais_zones && typeof m.frais_zones === 'object' ? m.frais_zones : null;
+    if (!fz) return { raison: 'frais par province manquants' };
+    for (const code of expMV.PROVINCES) {
+      const v = fz[code];
+      if (v === undefined) return { raison: 'frais par province incomplets' };
+      zones[code] = v === null || v === 'non' ? null : (dec(v) === null ? undefined : String(dec(v)));
+      if (zones[code] === undefined) return { raison: 'frais par province invalides' };
+    }
+  }
+  if ((mode === 'fixe' || mode === 'fixe_kg') && fixes === null && tid !== 14) return { raison: 'frais fixe manquant' };
+  if ((mode === 'kg' || mode === 'fixe_kg') && !parKg) return { raison: 'frais par kg manquant' };
+  const nomPerso = perso ? String(m.nom_personnalise || '').replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 100) : null;
+  if (perso && !nomPerso) return { raison: 'nom du transporteur manquant' };
+  const logo = perso ? (expMV.LOGOS_PERSONNALISES.includes(m.logo_personnalise) ? m.logo_personnalise : expMV.LOGOS_PERSONNALISES[0]) : null;
+  return {
+    tid, mode, zones, fixes: mode === 'kg' || mode === 'zone' ? fixes : (fixes === null ? 0 : fixes), parKg, nomPerso, logo,
+    gratuit: dec(m.gratuit_superieur),
+    delais: m.delais_estime ? String(m.delais_estime).replace(/[\u0000-\u001F\u007F]/g, ' ').trim().slice(0, 100) : null,
+    combine: m.combine_shipping === true, fixeUnique: m.combine_frais_fixe_unique !== false, kgAdd: m.combine_kg_additionne !== false,
+  };
+}
+
+// Crée (ou réactive) les méthodes cochées chez le collaborateur ; ctx.liens : transporteur → identifiant de la méthode Studio
+async function preparerExpedition(job, jeton, ctx) {
+  ctx.liens = new Map();
+  const choisies = (job.methodes || []).map(Number).filter((n) => IDS_TRANSPORTEURS.includes(n));
+  if (!choisies.length) return;
+  const gid = job.gestionnaire_id, cid = job.collaborateur_id;
+  const j = await svc.appeler('GET', '/expedition', { jeton });
+  for (const brute of (Array.isArray(j.methodes) ? j.methodes : [])) {
+    if (!choisies.includes(Number(brute.transporteur_id))) continue;
+    const m = convertirMethode(brute);
+    if (!m.tid) { ctx.avertissements.add(`Une méthode d'expédition n'a pas été reprise (${m.raison}).`); continue; }
+    await pool.query(
+      `INSERT INTO collab_methodes_expedition (collaborateur_id, gestionnaire_id, transporteur_id, actif, frais_fixes, frais_par_kg, delais_estime,
+              gratuit_superieur, mode_calcul, combine_shipping, combine_frais_fixe_unique, combine_kg_additionne, frais_zones, nom_personnalise, logo_personnalise)
+       VALUES ($1,$2,$3,true,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+       ON CONFLICT (collaborateur_id, transporteur_id) DO UPDATE SET actif = true, updated_at = NOW()`,
+      [cid, gid, m.tid, m.fixes, m.parKg, m.delais, m.gratuit, m.mode, m.combine, m.fixeUnique, m.kgAdd, m.zones ? JSON.stringify(m.zones) : null, m.nomPerso, m.logo]);
+  }
+  const r = await pool.query('SELECT id, transporteur_id FROM collab_methodes_expedition WHERE collaborateur_id = $1 AND gestionnaire_id = $2 AND actif = true AND transporteur_id = ANY($3::int[])', [cid, gid, choisies]);
+  r.rows.forEach((x) => ctx.liens.set(x.transporteur_id, x.id));
+}
+
+// Lie l'annonce aux méthodes cochées qu'elle utilisait sur e-Vend
+async function lierExpedition(produitId, l, ctx) {
+  if (!ctx.liens || !ctx.liens.size) return;
+  const ids = [];
+  (Array.isArray(l.methodes_expedition) ? l.methodes_expedition : []).forEach((t) => { const id = ctx.liens.get(Number(t)); if (id && ids.indexOf(id) < 0) ids.push(id); });
+  if (ids.length) await pool.query('INSERT INTO collab_produit_methodes_expedition (produit_id, methode_id) SELECT $1, UNNEST($2::int[]) ON CONFLICT DO NOTHING', [produitId, ids]);
+}
+
 // ─── Catégories ───────────────────────────────────────────────────────────────
 async function categorieDefaut(gid) {
   const ex = await pool.query('SELECT id FROM studio_categories WHERE gestionnaire_id = $1 AND LOWER(nom) = LOWER($2)', [gid, CATEGORIE_DEFAUT]);
@@ -234,17 +304,20 @@ async function importerUne(job, l, ctx) {
       const ph = await resoudrePhotos(gid, cid, convertir(l, ctx).photosSrc, ctx);
       if (ph.length) { await pool.query('UPDATE produits SET photo_principale = $2, photos = $3 WHERE id = $1 AND photo_principale IS NULL', [deja.rows[0].id, ph[0], JSON.stringify(ph)]); ctx.completees++; }
     }
+    // Pas encore de méthode d'expédition liée (import précédent) : on les ajoute
+    if (ctx.liens && ctx.liens.size && !(await pool.query('SELECT 1 FROM collab_produit_methodes_expedition WHERE produit_id = $1 LIMIT 1', [deja.rows[0].id])).rows.length) await lierExpedition(deja.rows[0].id, l, ctx);
     return 'ignore';
   }
   const p = convertir(l, ctx);
   p.photos = await resoudrePhotos(gid, cid, p.photosSrc, ctx);
-  await pool.query(
+  const ins = await pool.query(
     `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
                            photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient, evend_produit_id)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
-     ON CONFLICT (collaborateur_id, evend_produit_id) WHERE evend_produit_id IS NOT NULL DO NOTHING`,
+     ON CONFLICT (collaborateur_id, evend_produit_id) WHERE evend_produit_id IS NOT NULL DO NOTHING RETURNING id`,
     [gid, cid, p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku, p.categorie.nom, p.categorie.id,
       p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, p.poids, p.quantiteMin, p.prixRevient, id]);
+  if (ins.rows[0]) await lierExpedition(ins.rows[0].id, l, ctx);
   p.avert.forEach((a) => ctx.avertissements.add(a));
   if (p.sansCorrespondance) ctx.sansCorrespondance++;
   return p.statut === 'brouillon' ? 'brouillon' : 'importe';
@@ -252,13 +325,14 @@ async function importerUne(job, l, ctx) {
 
 // ─── Travaux ──────────────────────────────────────────────────────────────────
 const ACTIFS = `statut IN ('en_attente','en_cours','pause')`;
-async function creerImport(gid, cid, categorieDefautId) {
+async function creerImport(gid, cid, categorieDefautId, methodes) {
+  const ms = Array.isArray(methodes) ? [...new Set(methodes.map(Number).filter((n) => IDS_TRANSPORTEURS.includes(n)))].slice(0, 20) : [];
   const choisie = categorieDefautId ? await categorieChoisie(gid, parseInt(categorieDefautId, 10)) : null;
   if (categorieDefautId && !choisie) { const e = new Error('Catégorie invalide'); e.status = 400; throw e; }
   const dej = await pool.query(`SELECT id FROM evend_jobs WHERE collaborateur_id = $1 AND ${ACTIFS}`, [cid]);
   if (dej.rows.length) return { id: dej.rows[0].id, dejaEnCours: true };
   try {
-    const r = await pool.query(`INSERT INTO evend_jobs (gestionnaire_id, collaborateur_id, categorie_defaut_id) VALUES ($1,$2,$3) RETURNING id`, [gid, cid, choisie ? choisie.id : null]);
+    const r = await pool.query(`INSERT INTO evend_jobs (gestionnaire_id, collaborateur_id, categorie_defaut_id, methodes) VALUES ($1,$2,$3,$4) RETURNING id`, [gid, cid, choisie ? choisie.id : null, ms]);
     return { id: r.rows[0].id, dejaEnCours: false };
   } catch (e) {
     if (e.code === '23505') { const x = await pool.query(`SELECT id FROM evend_jobs WHERE collaborateur_id = $1 AND ${ACTIFS}`, [cid]); return { id: x.rows[0].id, dejaEnCours: true }; }
@@ -298,6 +372,7 @@ async function traiterTranche(job) {
       ctx.defaut = (await categorieChoisie(gid, job.categorie_defaut_id)) || (await categorieDefaut(gid));
       ctx.index = await indexCategories(gid);
     }
+    await preparerExpedition(job, jeton, ctx);
     let { traites, importes, ignores, erreurs } = job;
     let apres = job.apres_id || 0;
 
@@ -390,4 +465,4 @@ async function etatImport(cid, gid) {
   return r.rows[0] || null;
 }
 
-module.exports = { deps, ipPrivee, telecharger, creerImport, etatImport, demarrer, prochainTravail, convertir, htmlEnTexte, normaliser };
+module.exports = { convertirMethode, deps, ipPrivee, telecharger, creerImport, etatImport, demarrer, prochainTravail, convertir, htmlEnTexte, normaliser };

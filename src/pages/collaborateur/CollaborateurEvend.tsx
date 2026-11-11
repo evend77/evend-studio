@@ -12,6 +12,7 @@ interface Etat {
   connexion: { vendeur: string | null; importables: number; numeriques: number; autres: number; expire_le: string; connecte_le: string } | null;
 }
 interface Categorie { id: number; nom: string }
+interface Methode { transporteur_id: number; nom: string; logo: string; libelle_prix: string; nb_annonces: number; deja: boolean }
 
 const T = { border: '#e1e4e8', text: '#1a2332', light: '#6b7280', danger: '#dc2626', ok: '#1E8449' };
 
@@ -25,6 +26,8 @@ export default function CollaborateurEvend({ gestionnaireId, accent, isMobile }:
   const [confirmer, setConfirmer] = useState(false);
   const [categories, setCategories] = useState<Categorie[]>([]);
   const [categorieId, setCategorieId] = useState('');
+  const [methodes, setMethodes] = useState<Methode[]>([]);
+  const [cochees, setCochees] = useState<number[]>([]);
 
   const charger = useCallback(async () => {
     try {
@@ -59,6 +62,16 @@ export default function CollaborateurEvend({ gestionnaireId, accent, isMobile }:
       .catch(() => { /* le choix reste « automatique » */ });
   }, [gestionnaireId]);
 
+  // Méthodes d'expédition du compte e-Vend (une fois connecté) : toutes cochées au départ
+  const connecte = !!etat?.connexion;
+  useEffect(() => {
+    if (!connecte) { setMethodes([]); return; }
+    fetch(`${base}/expedition`, { credentials: 'include' })
+      .then((r) => (r.ok ? r.json() : { methodes: [] }))
+      .then((j) => { const l: Methode[] = Array.isArray(j.methodes) ? j.methodes : []; setMethodes(l); setCochees(l.map((m) => m.transporteur_id)); })
+      .catch(() => { /* l'import se fait sans méthodes */ });
+  }, [connecte, base]);
+
   useEffect(() => {
     charger();
     try {
@@ -88,7 +101,7 @@ export default function CollaborateurEvend({ gestionnaireId, accent, isMobile }:
   const importer = async () => {
     setOccupe(true); setErreur(''); setInfo('');
     try {
-      const res = await fetch(`${base}/importer`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categorie_defaut_id: categorieId ? Number(categorieId) : null }) });
+      const res = await fetch(`${base}/importer`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ categorie_defaut_id: categorieId ? Number(categorieId) : null, methodes: cochees }) });
       const j = await res.json().catch(() => ({}));
       if (res.ok) await chargerImport(); else setErreur(j.error || 'Import impossible');
     } catch { setErreur('Erreur réseau'); }
@@ -146,6 +159,20 @@ export default function CollaborateurEvend({ gestionnaireId, accent, isMobile }:
                 {categories.map((k) => <option key={k.id} value={k.id}>{k.nom}</option>)}
               </select>
               <div style={{ fontSize: 12, color: T.light, marginTop: 4 }}>Si le nom d'une catégorie e-Vend est identique à l'une des vôtres, l'annonce y est rangée automatiquement.</div>
+            </div>
+          )}
+
+          {methodes.length > 0 && (
+            <div style={{ margin: '12px 0 14px' }}>
+              <div style={{ fontSize: 13, color: T.light, marginBottom: 6 }}>Méthodes d'expédition à importer</div>
+              {methodes.map((m) => (
+                <label key={m.transporteur_id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 14, cursor: enCours ? 'default' : 'pointer' }}>
+                  <input type="checkbox" disabled={enCours} checked={cochees.indexOf(m.transporteur_id) >= 0}
+                    onChange={(e) => setCochees(e.target.checked ? cochees.concat(m.transporteur_id) : cochees.filter((x) => x !== m.transporteur_id))} />
+                  <span>{m.logo} <strong>{m.nom}</strong> — {m.libelle_prix}{m.nb_annonces ? ` · ${m.nb_annonces} annonce${m.nb_annonces > 1 ? 's' : ''}` : ''}{m.deja ? ' · déjà configurée (vos réglages sont gardés)' : ''}</span>
+                </label>
+              ))}
+              <div style={{ fontSize: 12, color: T.light, marginTop: 4 }}>Les annonces qui n'utilisent aucune méthode cochée auront la livraison gratuite.</div>
             </div>
           )}
 
