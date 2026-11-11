@@ -285,9 +285,9 @@ router.get('/produits', h(async (req, res) => {
     const ids = liste.rows.map(r => r.id);
     const pan = {}, ven = {};
     try {
-      const r = await pool.query(`SELECT produit_id, COUNT(DISTINCT acheteur_id) AS n FROM marketplace_panier WHERE gestionnaire_id = $1 AND produit_id = ANY($2::int[]) GROUP BY produit_id`, [req.gid, ids]);
-      r.rows.forEach(x => { pan[x.produit_id] = +x.n; });
-    } catch (e) { /* paniers indisponibles : on affiche 0 */ }
+      const r = await pool.query(`SELECT produit_id::text AS pid, COUNT(DISTINCT acheteur_id) AS n FROM marketplace_panier WHERE gestionnaire_id = $1 AND produit_id::text = ANY($2::text[]) GROUP BY produit_id::text`, [req.gid, ids.map(String)]);
+      r.rows.forEach(x => { pan[Number(x.pid)] = +x.n; });
+    } catch (e) { console.warn('[outils_annonces] paniers :', e.message); }
     try {
       const r = await pool.query(
         `SELECT (a->>'produit_id')::int AS pid, SUM(GREATEST(1, COALESCE(NULLIF(a->>'quantite','')::numeric, 1)))::int AS n
@@ -296,7 +296,7 @@ router.get('/produits', h(async (req, res) => {
             AND jsonb_typeof(c.articles::text::jsonb) = 'array' AND (a->>'produit_id') ~ '^[0-9]+$' AND (a->>'produit_id')::int = ANY($3::int[])
           GROUP BY 1`, [req.cid, req.gid, ids]);
       r.rows.forEach(x => { ven[x.pid] = +x.n; });
-    } catch (e) { /* ventes indisponibles : on affiche 0 */ }
+    } catch (e) { console.warn('[outils_annonces] ventes :', e.message); }
     let vues = {};
     try {
       const r = await pool.query('SELECT id, vues FROM produits WHERE id = ANY($1::int[])', [ids]);
