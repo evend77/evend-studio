@@ -99,6 +99,12 @@ app.use('/api/webhooks/paiements-connect', require('./routes/webhooks_paiements_
 app.post('/api/webhooks/gestionnaire-stripe/:gestionnaireId/:type', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/gestionnaire-stripe', require('./routes/webhooks_gestionnaire_stripe'));
 
+// ✅ Webhooks des templates boutique (solo) — Stripe et PayPal PROPRES à chaque gestionnaire (sans lien avec le MV) — body brut obligatoire (avant express.json)
+app.post('/api/webhooks/boutique-stripe/:gestionnaireId', express.raw({ type: 'application/json' }));
+app.use('/api/webhooks/boutique-stripe', require('./routes/boutique_webhook_stripe'));
+app.post('/api/webhooks/boutique-paypal/:gestionnaireId', express.raw({ type: 'application/json' }));
+app.use('/api/webhooks/boutique-paypal', require('./routes/boutique_webhook_paypal'));
+
 // ✅ Webhook de suivi des étiquettes d'expédition des collaborateurs (Shippo, EasyPost) — body brut (avant express.json)
 app.post('/api/webhooks-etiquettes/shippo', express.raw({ type: 'application/json' }));
 app.post('/api/webhooks-etiquettes/easypost', express.raw({ type: 'application/json' }));
@@ -321,6 +327,18 @@ app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (re
     }
   }
 
+  // 🛍️ Templates boutique (solo) : si le gestionnaire a plus d'annonces actives que le nouveau template le permet,
+  // le changement est refusé avec un message (409). Sans effet pour l'admin, le MV et les autres templates.
+  if (template_id && req.user.role !== 'admin') {
+    try {
+      const rl = await require('./services/boutique_limites').appliquerChangementTemplate(parseInt(req.params.gestionnaireId, 10), template_id);
+      if (!rl.ok) return res.status(409).json({ message: rl.message, code: rl.code });
+    } catch (err) {
+      console.error('boutique_limites.appliquerChangementTemplate', err);
+      return res.status(500).json({ message: 'Erreur serveur.' });
+    }
+  }
+
   try {
     const result = await pool.query(
       `INSERT INTO sites (gestionnaire_id, config, sous_type, template_id, slug, domaine_custom, publie, updated_at)
@@ -530,6 +548,8 @@ app.use('/api/marketplace/:gid/negociations', require('./routes/studio_negociati
 require('./services/studio_encheres').demarrerEncheres();
 // Paiement des commandes : remet en vente le stock des commandes jamais payées (toutes les 5 min)
 require('./services/studio_paiement').demarrerBalayage();
+// 🛍️ Templates boutique (solo) : même rôle pour les commandes boutique (ne touche pas au MV)
+require('./services/boutique_paiement').demarrerBalayage();
 
 // =====================================================================
 // 🏅 BADGES VENDEUR STUDIO
@@ -575,6 +595,8 @@ app.use('/api/produits/gestionnaire', require('./routes/produits_gestionnaire'))
 app.use('/api/marketplace', require('./routes/marketplace-auth'));
 app.use('/api/marketplace', require('./routes/marketplace-panier'));
 app.use('/api/marketplace', require('./routes/marketplace-stripe'));
+// 🛍️ Templates boutique (solo) : annonces, plan, paiements… (voir routes/boutique_index.js) — tout est préfixé boutique_, aucun lien avec le MV
+app.use('/api/boutique', require('./routes/boutique_index'));
 app.use('/api/admin/domaines', require('./routes/admin_domaines'));
 app.use('/api/unsplash', unsplashRoutes);
 app.use('/api/sponsors/photos', sponsorsPhotosRoutes);
