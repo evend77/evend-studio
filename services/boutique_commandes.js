@@ -389,7 +389,12 @@ async function annulerNonPayee(commandeId, { par = 'acheteur', raison } = {}) {
       catch (e) { if (/complete/i.test(e.message || '') && !/expired/i.test(e.message || '')) refus('Le paiement est en cours de traitement. Réessayez dans un instant.', 409); }
     }
   }
-  return liberer(commandeId, { raison: raison || "Annulée par l'acheteur", par });
+  const libere = await liberer(commandeId, { raison: raison || "Annulée par l'acheteur", par });
+  // Filet : une commande non payée dont le stock était déjà remis doit quand même passer à « annulée »
+  await pool.query(
+    `UPDATE boutique_commandes SET statut = 'annulee', statut_paiement = 'echoue', annule_par = COALESCE(annule_par, $2), raison_annulation = COALESCE(raison_annulation, $3), updated_at = NOW()
+      WHERE id = $1 AND statut_paiement = 'en_attente' AND statut <> 'annulee'`, [commandeId, par, raison || "Annulée par l'acheteur"]);
+  return libere;
 }
 
 // ── Balayage : commandes jamais payées ───────────────────────────────────────

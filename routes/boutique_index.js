@@ -14,6 +14,7 @@ router.use('/gestionnaire', require('./boutique_produits'));
 router.use('/gestionnaire/paiement', require('./boutique_paiement_config'));
 router.use('/gestionnaire/expedition', require('./boutique_expedition_config'));
 router.use('/gestionnaire/taxes', require('./boutique_taxes_config'));
+router.use('/gestionnaire/commandes', require('./boutique_commandes_gestionnaire'));
 
 // Acheteur connecté : panier, caisse, commandes (compte acheteur du MV réutilisé)
 router.use('/acheteur/:gid', require('./boutique_acheteur'));
