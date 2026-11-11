@@ -1,11 +1,19 @@
 // CHEMIN : services/studio_evend_import.js
 // e-Vend Studio — Import des annonces e-Vend d'un collaborateur dans ses produits Studio (lecture seule : rien n'est modifié sur e-Vend).
+// PHOTOS : celles de media.e-vend.ca gardent leur adresse (aucune copie). Celles hébergées ailleurs (eBay, Shopify, Etsy, Square… e-Vend synchronise
+// plusieurs plateformes) sont COPIÉES sur le stockage de Studio, avec protections : HTTPS seulement, adresses privées/internes refusées (même après redirection),
+// 5 Mo maximum, vrai format d'image vérifié.
 // Même principe que l'import Etsy : file de travaux dans la BASE (pas de Redis), tranches de ≈40 s, tout ou rien sur la limite d'annonces.
 // Les photos gardent LEUR ADRESSE e-Vend (media.e-vend.ca) : aucune copie. Catégories : même nom que chez le gestionnaire, sinon la catégorie choisie
 // (par défaut « Autre / Divers / Général »).
 
 'use strict';
 
+const crypto = require('crypto');
+const dns = require('dns');
+const net = require('net');
+const https = require('https');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const pool = require('../db');
 const svc = require('./studio_evend');
 const regles = require('./studio_regles_produits');
@@ -66,8 +74,9 @@ function convertir(l, ctx) {
   }
 
   const imgs = Array.isArray(l.images) ? l.images : [];
-  const photos = imgs.filter((u) => typeof u === 'string' && PHOTO_RE.test(u)).slice(0, 8);
-  if (imgs.length > photos.length && imgs.length <= 8) avert.push("Certaines photos ne sont pas hébergées par e-Vend : elles n'ont pas été reprises.");
+  const valides = imgs.filter((u) => typeof u === 'string' && u.length <= 2000 && /^https:\/\//i.test(u));
+  const photosSrc = valides.slice(0, 8);   // adresses d'origine : copiées plus tard (importerUne) si elles ne viennent pas d'e-Vend
+  if (imgs.length > valides.length && imgs.length <= 8) avert.push("Certaines photos avaient une adresse invalide (non sécurisée) : elles n'ont pas été reprises.");
   if (imgs.length > 8) avert.push('Seules les 8 premières photos de chaque annonce sont reprises.');
 
   const brutVar = Array.isArray(l.variantes) ? l.variantes : [];
@@ -98,8 +107,98 @@ function convertir(l, ctx) {
   return {
     titre, description: htmlEnTexte(l.description), prix, prixPromo, stock,
     sku: l.sku ? String(l.sku).slice(0, 60) : null,
-    categorie: cat, sansCorrespondance, photos, variantes, statut, poids, quantiteMin, prixRevient, avert,
+    categorie: cat, sansCorrespondance, photosSrc, variantes, statut, poids, quantiteMin, prixRevient, avert,
   };
+}
+
+// ─── Photos ───────────────────────────────────────────────────────────────────
+const MEDIA_URL = 'https://media.e-vend.ca';
+const MIMES = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+let s3 = null;
+const clientS3 = () => s3 || (s3 = new S3Client({
+  region: 'auto', endpoint: process.env.R2_ENDPOINT,
+  credentials: { accessKeyId: process.env.R2_ACCESS_KEY_ID, secretAccessKey: process.env.R2_SECRET_ACCESS_KEY },
+}));
+
+// Adresse interne/privée ? (protège le serveur contre les adresses piégées)
+function ipPrivee(ip) {
+  const v = net.isIP(ip);
+  if (v === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    return a === 0 || a === 10 || a === 127 || a >= 224 || (a === 100 && b >= 64 && b <= 127) || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 192 && b === 0) || (a === 198 && (b === 18 || b === 19));
+  }
+  if (v === 6) {
+    const x = ip.toLowerCase();
+    if (x === '::' || x === '::1') return true;
+    const m = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(x);
+    if (m) return ipPrivee(m[1]);
+    return /^f[cd]/.test(x) || /^fe[89ab]/.test(x) || x.startsWith('ff');
+  }
+  return true;
+}
+// Résolution DNS vérifiée AU MOMENT de la connexion (impossible de la contourner par un changement d'adresse entre-temps)
+function lookupSur(host, opts, cb) {
+  dns.lookup(host, { all: true, family: 0 }, (err, liste) => {
+    if (err) return cb(err);
+    const ok = (liste || []).filter((a) => !ipPrivee(a.address));
+    if (!ok.length || ok.length !== liste.length) return cb(new Error('adresse refusée'));
+    if (opts && opts.all) return cb(null, ok);
+    cb(null, ok[0].address, ok[0].family);
+  });
+}
+function extension(b) {
+  if (b.length < 12) return null;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpg';
+  if (b[0] === 0x89 && b.toString('latin1', 1, 4) === 'PNG') return 'png';
+  if (b.toString('latin1', 0, 4) === 'RIFF' && b.toString('latin1', 8, 12) === 'WEBP') return 'webp';
+  if (b.toString('latin1', 0, 4) === 'GIF8') return 'gif';
+  return null;
+}
+// Télécharge une image (HTTPS seulement, 5 Mo max, 3 redirections max, chaque étape revérifiée)
+function telecharger(url, restes = 3) {
+  return new Promise((resolve) => {
+    let u; try { u = new URL(url); } catch (e) { return resolve(null); }
+    if (u.protocol !== 'https:' || u.username || u.password || (u.port && u.port !== '443')) return resolve(null);
+    if (net.isIP(u.hostname.replace(/^\[|\]$/g, '')) && ipPrivee(u.hostname.replace(/^\[|\]$/g, ''))) return resolve(null);
+    const req = https.get(u, { lookup: lookupSur, timeout: 15000, headers: { 'User-Agent': 'e-Vend-Studio-import', Accept: 'image/*' } }, (res) => {
+      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
+        res.resume();
+        if (restes <= 0) return resolve(null);
+        let suite; try { suite = new URL(res.headers.location, u).toString(); } catch (e) { return resolve(null); }
+        return resolve(telecharger(suite, restes - 1));
+      }
+      if (res.statusCode !== 200) { res.resume(); return resolve(null); }
+      const morceaux = []; let taille = 0;
+      res.on('data', (c) => { taille += c.length; if (taille > 5 * 1024 * 1024) { req.destroy(); resolve(null); } else morceaux.push(c); });
+      res.on('end', () => resolve(taille ? Buffer.concat(morceaux) : null));
+      res.on('error', () => resolve(null));
+    });
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.on('error', () => resolve(null));
+  });
+}
+const haute = (u) => u.replace(/(\/s-l)\d+(\.(?:jpg|png|webp))$/i, '$11600$2');   // eBay : version grande taille
+async function copierPhoto(gid, cid, url) {
+  const buf = await telecharger(/(^|\.)ebayimg\.com\//i.test(url) ? haute(url) : url);
+  if (!buf) return null;
+  const ext = extension(buf); if (!ext) return null;
+  const cle = `studio/collab/${gid}/${cid}/${crypto.randomBytes(16).toString('hex')}.${ext}`;
+  try { await clientS3().send(new PutObjectCommand({ Bucket: process.env.R2_BUCKET_PRODUITS, Key: cle, Body: buf, ContentType: MIMES[ext] })); }
+  catch (e) { return null; }
+  return `${MEDIA_URL}/${cle}`;
+}
+const deps = { copier: copierPhoto };   // remplaçable dans les tests
+// Photos d'une annonce : celles d'e-Vend gardées telles quelles, les autres copiées (4 à la fois)
+async function resoudrePhotos(gid, cid, sources, ctx) {
+  const sortie = new Array(sources.length).fill(null);
+  for (let i = 0; i < sources.length; i += 4) {
+    await Promise.all(sources.slice(i, i + 4).map(async (u, k) => {
+      if (PHOTO_RE.test(u)) { sortie[i + k] = u; return; }
+      const c = await deps.copier(gid, cid, u);
+      if (c) { sortie[i + k] = c; ctx.photosCopiees++; } else ctx.photosEchec++;
+    }));
+  }
+  return sortie.filter(Boolean);
 }
 
 // ─── Catégories ───────────────────────────────────────────────────────────────
@@ -128,9 +227,17 @@ async function indexCategories(gid) {
 async function importerUne(job, l, ctx) {
   const gid = job.gestionnaire_id, cid = job.collaborateur_id;
   const id = String(l.id);
-  const deja = await pool.query('SELECT 1 FROM produits WHERE collaborateur_id = $1 AND evend_produit_id = $2', [cid, id]);
-  if (deja.rows.length) return 'ignore';
+  const deja = await pool.query('SELECT id, photo_principale FROM produits WHERE collaborateur_id = $1 AND evend_produit_id = $2', [cid, id]);
+  if (deja.rows.length) {
+    // Déjà importée : si elle n'a aucune photo (import précédent), on la complète
+    if (!deja.rows[0].photo_principale) {
+      const ph = await resoudrePhotos(gid, cid, convertir(l, ctx).photosSrc, ctx);
+      if (ph.length) { await pool.query('UPDATE produits SET photo_principale = $2, photos = $3 WHERE id = $1 AND photo_principale IS NULL', [deja.rows[0].id, ph[0], JSON.stringify(ph)]); ctx.completees++; }
+    }
+    return 'ignore';
+  }
   const p = convertir(l, ctx);
+  p.photos = await resoudrePhotos(gid, cid, p.photosSrc, ctx);
   await pool.query(
     `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
                            photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient, evend_produit_id)
@@ -186,7 +293,7 @@ async function traiterTranche(job) {
     const co = (await pool.query('SELECT importables FROM evend_connexions WHERE collaborateur_id = $1', [cid])).rows[0];
     const rg = await regles.lire(gid, pool);
     const categories = cfgMV.actif(await cfgMV.lire(gid, pool), 'permettre_categories', true);
-    const ctx = { regles: rg, categories, defaut: null, index: null, avertissements: new Set(), sansCorrespondance: 0 };
+    const ctx = { regles: rg, categories, defaut: null, index: null, avertissements: new Set(), sansCorrespondance: 0, photosCopiees: 0, photosEchec: 0, completees: 0 };
     if (categories) {
       ctx.defaut = (await categorieChoisie(gid, job.categorie_defaut_id)) || (await categorieDefaut(gid));
       ctx.index = await indexCategories(gid);
@@ -232,6 +339,8 @@ async function traiterTranche(job) {
     await pool.query('UPDATE evend_jobs SET traites=$2, importes=$3, ignores=$4, erreurs=$5, apres_id=$6 WHERE id=$1', [job.id, traites, importes, ignores, erreurs, apres]);
     const notes = [...ctx.avertissements];
     if (ctx.sansCorrespondance > 0 && ctx.defaut) notes.push(`${ctx.sansCorrespondance} annonce(s) sans catégorie correspondante ont été rangées dans « ${ctx.defaut.nom} » : changez-les avec la modification groupée.`);
+    if (ctx.completees > 0) notes.push(`${ctx.completees} annonce(s) déjà importées ont reçu leurs photos manquantes.`);
+    if (ctx.photosEchec > 0) notes.push(`${ctx.photosEchec} photo(s) n'ont pas pu être copiées (site de la photo indisponible ou image trop lourde).`);
     if (co && co.numeriques > 0) notes.push(`${co.numeriques} annonce(s) numérique(s) n'ont pas été reprises.`);
     if (co && co.autres > 0) notes.push(`${co.autres} annonce(s) autre(s) qu'à prix fixe (enchères…) n'ont pas été reprises.`);
     await terminer(job.id, 'termine', notes.join(' ') || null);
@@ -281,4 +390,4 @@ async function etatImport(cid, gid) {
   return r.rows[0] || null;
 }
 
-module.exports = { creerImport, etatImport, demarrer, prochainTravail, convertir, htmlEnTexte, normaliser };
+module.exports = { deps, ipPrivee, telecharger, creerImport, etatImport, demarrer, prochainTravail, convertir, htmlEnTexte, normaliser };
