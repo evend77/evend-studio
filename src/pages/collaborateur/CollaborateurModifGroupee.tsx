@@ -105,7 +105,7 @@ export default function CollaborateurModifGroupee({ gestionnaireId, accent, isMo
       }
     } catch { setErreur('Erreur réseau'); setOccupe(false); setConfirme(false); return; }
     setOccupe(false); setConfirme(false);
-    const note = ignores.size ? `Ignoré (désactivé par la boutique) : ${[...ignores].map(x => x === 'prix_revient' ? 'prix de revient' : 'quantité minimum').join(', ')}.` : undefined;
+    const note = ignores.size ? `Ignoré (désactivé par la boutique) : ${Array.from(ignores).map(x => x === 'prix_revient' ? 'prix de revient' : 'quantité minimum').join(', ')}.` : undefined;
     onSaved(total, note);
   };
 
