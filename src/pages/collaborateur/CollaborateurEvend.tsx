@@ -6,6 +6,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 
 interface Props { gestionnaireId: number; accent: string; isMobile: boolean }
+const URL_GUIDE = 'https://e-vendstudio.ca/documents/import-d-annonce-de-e-vend';
 interface Travail { id: number; statut: 'en_attente' | 'en_cours' | 'pause' | 'termine' | 'erreur' | 'annule'; total: number; traites: number; importes: number; ignores: number; erreurs: number; message: string | null; reprise_a: string | null }
 interface Etat {
   configure: boolean;
@@ -122,7 +123,7 @@ export default function CollaborateurEvend({ gestionnaireId, accent, isMobile }:
   const c = etat?.connexion;
   return (
     <div style={{ maxWidth: 720, color: T.text }}>
-      <h2 style={{ margin: '0 0 6px', fontSize: isMobile ? 20 : 24 }}>🛒 Importer mes annonces e-Vend</h2>
+      <h2 style={{ margin: '0 0 6px', fontSize: isMobile ? 20 : 24 }}>🛒 Importer mes annonces e-Vend <a href={URL_GUIDE} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: accent, textDecoration: 'none', border: `1px solid ${accent}`, borderRadius: 12, padding: '2px 10px', marginLeft: 10, verticalAlign: 'middle', whiteSpace: 'nowrap' }}>📖 Guide</a></h2>
       <p style={{ margin: '0 0 20px', color: T.light, fontSize: 14 }}>Copiez vos annonces e-Vend dans votre boutique Studio. Vous vous identifiez directement sur e-Vend : nous ne voyons jamais votre mot de passe, l'accès est en lecture seule et rien n'est modifié sur e-Vend.</p>
 
       {erreur && <div style={{ ...carte, borderColor: T.danger, color: T.danger, padding: 14 }}>{erreur}</div>}
