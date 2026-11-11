@@ -6,6 +6,7 @@
 const crypto = require('crypto');
 const express = require('express');
 const svc = require('../services/studio_ebay');
+const evendSvc = require('../services/studio_evend');
 
 const router = express.Router();
 
@@ -54,6 +55,23 @@ router.get('/etsy-callback', async (req, res) => {
   } catch (err) {
     console.error('❌ Etsy callback :', err.message);
     if (e) return retour(res, e.retour_url, 'erreur', 'etsy');
+    res.status(500).send('Erreur serveur.');
+  }
+});
+
+// ─── Retour d'e-Vend (pont e-Vend → Studio) : adresse FIXE https://e-vendstudio.ca/api/ebay-connexion/evend-callback ───
+// e-Vend renvoie ?etat=…&code=… (code à usage unique) ou ?etat=…&erreur=refuse
+router.get('/evend-callback', async (req, res) => {
+  let e = null;
+  try {
+    e = await evendSvc.consommerEtat(req.query.etat);
+    if (!e) return res.status(400).send('Lien expiré ou invalide. Retournez dans votre tableau de bord et cliquez de nouveau sur « Connecter mon e-Vend ».');
+    if (req.query.erreur || !req.query.code) return retour(res, e.retour_url, 'refuse', 'evend');
+    await evendSvc.connecterAvecCode(e.gestionnaire_id, e.collaborateur_id, String(req.query.code));
+    retour(res, e.retour_url, 'ok', 'evend');
+  } catch (err) {
+    console.error('❌ e-Vend callback :', err.message);
+    if (e) return retour(res, e.retour_url, 'erreur', 'evend');
     res.status(500).send('Erreur serveur.');
   }
 });

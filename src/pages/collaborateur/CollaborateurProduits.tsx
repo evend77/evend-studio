@@ -10,7 +10,7 @@ interface Produit {
   id: number; titre: string; prix: string; prix_promo: string | null; stock: number | null;
   sku: string | null; categorie: string | null; photo_principale: string | null;
   statut: 'actif' | 'brouillon' | 'en_attente'; created_at: string;
-  source?: 'studio' | 'ebay' | 'etsy';
+  source?: 'studio' | 'ebay' | 'etsy' | 'evend';
   expire?: boolean; date_expiration?: string | null;   // date d'expiration (arrêt de publication)
   vues?: number; paniers?: number; ventes?: number;     // add-on « Outils avancés d'annonces »
 }
@@ -33,6 +33,7 @@ const SOURCES: Record<string, { nom: string; color: string; bg: string }> = {
   studio: { nom: 'Studio', color: '#0f766e', bg: '#e6f6f4' },
   ebay: { nom: 'eBay', color: '#0064d2', bg: '#e5f0ff' },
   etsy: { nom: 'Etsy', color: '#d5641c', bg: '#fef0e5' },
+  evend: { nom: 'e-Vend', color: '#6d28d9', bg: '#efe8fd' },
 };
 const pastilleSource = (src?: string) => {
   const c = SOURCES[src || 'studio'] || SOURCES.studio;
@@ -309,6 +310,7 @@ export default function CollaborateurProduits({ gestionnaireId, accent, isMobile
           <option value="studio">Studio</option>
           <option value="ebay">eBay</option>
           <option value="etsy">Etsy</option>
+          <option value="evend">e-Vend</option>
         </select>
         {rupture && <button onClick={() => { setRupture(false); setPage(1); }} style={bouton(accent)}>En rupture ✕</button>}
         {outils && choisis.length > 0 && (

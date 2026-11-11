@@ -31,6 +31,7 @@ import CollaborateurCommandeDetail from './pages/collaborateur/CollaborateurComm
 import CollaborateurEtiquettes from './pages/collaborateur/CollaborateurEtiquettes';
 import CollaborateurEbay from './pages/collaborateur/CollaborateurEbay';
 import CollaborateurEtsy from './pages/collaborateur/CollaborateurEtsy';
+import CollaborateurEvend from './pages/collaborateur/CollaborateurEvend';
 import CollaborateurMonPlan, { EtatPlan } from './pages/collaborateur/CollaborateurMonPlan';
 import BanniereDashboard from './templates/shared/BanniereDashboard';
 import { formaterPrix } from './templates/shared/devise';
@@ -221,13 +222,14 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   const retourStripe = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('stripe');
   // Retour d'eBay (?ebay=ok|refuse|erreur) : on ouvre la page Connecteur eBay.
   const retourEbay = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('ebay');
+  const retourEvend = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('evend');
   const retourEtsy = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('etsy');
 
   const retourPlan = typeof window !== 'undefined' && !!new URLSearchParams(window.location.search).get('plan');   // retour du paiement d'un plan
-  const [pageActive, setPageActive]   = useState(retourStripe ? 'config-stripe' : retourEbay ? 'config-ebay' : retourEtsy ? 'config-etsy' : retourPlan ? 'profil-plan' : 'dashboard');
+  const [pageActive, setPageActive]   = useState(retourStripe ? 'config-stripe' : retourEbay ? 'config-ebay' : retourEtsy ? 'config-etsy' : retourEvend ? 'config-evend' : retourPlan ? 'profil-plan' : 'dashboard');
   const [isMobile,   setIsMobile]     = useState(false);
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
-  const [menuOuvert, setMenuOuvert]   = useState<string | null>(retourStripe || retourEbay || retourEtsy ? 'configuration' : retourPlan ? 'profil' : null);
+  const [menuOuvert, setMenuOuvert]   = useState<string | null>(retourStripe || retourEbay || retourEtsy || retourEvend ? 'configuration' : retourPlan ? 'profil' : null);
   const [heure,      setHeure]        = useState(new Date());
   const [nonLus,     setNonLus]       = useState({ acheteurs: 0, gestionnaire: 0, total: 0 });
   const [avisAttente, setAvisAttente] = useState(0);
@@ -457,6 +459,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
         ...(addonsMV.etiquette_shippo || addonsMV.etiquette_easypost || addonsMV.etiquette_postescanada ? [{ id: 'config-etiquettes', label: "Étiquettes d'expédition", icon: '🏷️' }] : []),
         ...(addonsMV.connecteur_ebay ? [{ id: 'config-ebay', label: 'Connecteur eBay', icon: '🔗' }] : []),
         ...(addonsMV.connecteur_etsy ? [{ id: 'config-etsy', label: 'Connecteur Etsy', icon: '🧶' }] : []),
+        { id: 'config-evend', label: 'Importer depuis e-Vend', icon: '🛒' },
       ]
     },
   ];
@@ -499,6 +502,7 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
     if (pageActive === 'config-etiquettes') return <CollaborateurEtiquettes {...commun} naviguer={naviguer} />;
     if (pageActive === 'config-ebay')       return <CollaborateurEbay {...commun} />;
     if (pageActive === 'config-etsy')       return <CollaborateurEtsy {...commun} />;
+    if (pageActive === 'config-evend')      return <CollaborateurEvend {...commun} />;
     return null;
   };
 

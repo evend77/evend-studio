@@ -202,6 +202,13 @@ function urlImage(req, v, nom) {
   return v;
 }
 
+// Photo d'annonce : envoyée sur Studio, ou reprise telle quelle d'e-Vend (même adresse media.e-vend.ca, aucune copie)
+const PHOTO_EVEND_RE = /^https:\/\/media\.e-vend\.ca\/[A-Za-z0-9_\-./%]+\.(jpe?g|png|webp|gif|avif)$/i;
+function urlPhoto(req, v, nom) {
+  if (typeof v === 'string' && PHOTO_EVEND_RE.test(v)) return v;
+  return urlImage(req, v, nom);
+}
+
 // ════════════════════════════════════════════════════════════════════════════
 // PRODUITS (annonces)
 // ════════════════════════════════════════════════════════════════════════════
@@ -225,16 +232,16 @@ let _colsSource = null;
 async function colsSource() {
   if (_colsSource) return _colsSource;
   try {
-    const r = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'produits' AND column_name IN ('ebay_item_id','etsy_listing_id','etsy_item_id')`);
+    const r = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'produits' AND column_name IN ('ebay_item_id','etsy_listing_id','etsy_item_id','evend_produit_id')`);
     const n = r.rows.map(x => x.column_name);
-    _colsSource = { ebay: n.includes('ebay_item_id') ? 'ebay_item_id' : null, etsy: n.includes('etsy_listing_id') ? 'etsy_listing_id' : (n.includes('etsy_item_id') ? 'etsy_item_id' : null) };
-  } catch (e) { return { ebay: null, etsy: null }; }
+    _colsSource = { ebay: n.includes('ebay_item_id') ? 'ebay_item_id' : null, etsy: n.includes('etsy_listing_id') ? 'etsy_listing_id' : (n.includes('etsy_item_id') ? 'etsy_item_id' : null), evend: n.includes('evend_produit_id') ? 'evend_produit_id' : null };
+  } catch (e) { return { ebay: null, etsy: null, evend: null }; }
   return _colsSource;
 }
 
 function exprSourceDe(cs) {
-  return cs.ebay || cs.etsy
-    ? `CASE ${cs.ebay ? `WHEN ${cs.ebay} IS NOT NULL THEN 'ebay' ` : ''}${cs.etsy ? `WHEN ${cs.etsy} IS NOT NULL THEN 'etsy' ` : ''}ELSE 'studio' END`
+  return cs.ebay || cs.etsy || cs.evend
+    ? `CASE ${cs.ebay ? `WHEN ${cs.ebay} IS NOT NULL THEN 'ebay' ` : ''}${cs.etsy ? `WHEN ${cs.etsy} IS NOT NULL THEN 'etsy' ` : ''}${cs.evend ? `WHEN ${cs.evend} IS NOT NULL THEN 'evend' ` : ''}ELSE 'studio' END`
     : `'studio'`;
 }
 
@@ -247,7 +254,7 @@ router.get('/produits-ids', h(async (req, res) => {
   if (m) { params.push(m); where.push(`(titre ILIKE $${params.length} OR sku ILIKE $${params.length})`); }
   if (STATUTS_FILTRE.includes(req.query.statut)) { params.push(req.query.statut); where.push(`statut = $${params.length}`); }
   if (req.query.stock === 'rupture') where.push('stock = 0');
-  if (['studio', 'ebay', 'etsy'].includes(req.query.source)) { params.push(req.query.source); where.push(`(${exprSource}) = $${params.length}`); }
+  if (['studio', 'ebay', 'etsy', 'evend'].includes(req.query.source)) { params.push(req.query.source); where.push(`(${exprSource}) = $${params.length}`); }
   const r = await pool.query(`SELECT id FROM produits WHERE ${where.join(' AND ')} ORDER BY created_at DESC, id DESC LIMIT 1000`, params);
   res.json({ ids: r.rows.map(x => x.id) });
 }));
@@ -261,7 +268,7 @@ router.get('/produits', h(async (req, res) => {
   if (m) { params.push(m); where.push(`(titre ILIKE $${params.length} OR sku ILIKE $${params.length})`); }
   if (STATUTS_FILTRE.includes(req.query.statut)) { params.push(req.query.statut); where.push(`statut = $${params.length}`); }
   if (req.query.stock === 'rupture') where.push('stock = 0');
-  if (['studio', 'ebay', 'etsy'].includes(req.query.source)) { params.push(req.query.source); where.push(`(${exprSource}) = $${params.length}`); }
+  if (['studio', 'ebay', 'etsy', 'evend'].includes(req.query.source)) { params.push(req.query.source); where.push(`(${exprSource}) = $${params.length}`); }
   const W = where.join(' AND ');
   const page = pageDemandee(req);
   const [liste, total, stats] = await Promise.all([
@@ -367,7 +374,7 @@ function lireProduit(req) {
   const statut = b.statut === undefined ? 'brouillon' : b.statut;
   if (!STATUTS_PRODUIT.includes(statut)) bad('Statut invalide');
   if (!Array.isArray(b.photos || [])) bad('Photos invalides');
-  const photos = (b.photos || []).slice(0, 8).map((u) => urlImage(req, u, 'Photo'));
+  const photos = (b.photos || []).slice(0, 8).map((u) => urlPhoto(req, u, 'Photo'));
   if ((b.photos || []).length > 8) bad('Maximum 8 photos');
   if (!Array.isArray(b.variantes || [])) bad('Variantes invalides');
   if ((b.variantes || []).length > 20) bad('Maximum 20 variantes');
@@ -1616,6 +1623,7 @@ router.use('/ebay', exigerAddon('connecteur_ebay', 'Connecteur eBay'));
 router.use('/', require('./collab_ebay')({ h, bad }));
 router.use('/etsy', exigerAddon('connecteur_etsy', 'Connecteur Etsy'));
 router.use('/', require('./collab_etsy')({ h, bad }));
+router.use('/', require('./collab_evend')({ h, bad }));   // import e-Vend → Studio (aucun add-on requis)
 
 router.get('/faq', h(async (req, res) => {
   const r = await pool.query(
