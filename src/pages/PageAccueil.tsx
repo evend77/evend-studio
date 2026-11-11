@@ -11,6 +11,7 @@ import {
 } from './PageTemplates';
 import MenuPublic from '../components/MenuPublic';
 import BasDePage from '../components/BasDePage';
+import BoutonInstallerStudio from '../components/BoutonInstallerStudio';
 
 // Illustration décorative créée pour e-Vend Studio.
 // Copier le dossier public/images fourni avec ce fichier dans le dossier public du projet.
@@ -164,6 +165,8 @@ export default function PageAccueil() {
           align-items: center; gap: 10px;
         }
         .studio-hero-copy { position: relative; z-index: 4; max-width: 650px; padding: 16px 0 24px; }
+        /* Bouton « Installer e-Vend Studio » : mobile seulement, au-dessus du badge ; caché s'il est vide */
+        .studio-install-mobile { display: none; }
         .studio-eyebrow {
           display: inline-flex; align-items: center; gap: 11px; margin-bottom: 25px;
           padding: 9px 17px; border: 1px solid rgba(0, 207, 255, .42); border-radius: 999px;
@@ -332,6 +335,8 @@ export default function PageAccueil() {
           .studio-hero { min-height: 0; padding: 128px 22px 34px; }
           .studio-hero-inner { grid-template-columns: 1fr; gap: 0; }
           .studio-hero-copy { max-width: 680px; padding: 12px 0 0; text-align: center; margin: 0 auto; }
+          .studio-install-mobile { display: block; max-width: 340px; margin: 0 auto 18px; }
+          .studio-install-mobile:empty { display: none; }
           .studio-eyebrow { margin-bottom: 20px; font-size: 10px; }
           .studio-hero h1 { font-size: clamp(42px, 10vw, 64px); line-height: 1.02; }
           .studio-hero-description { margin-left: auto; margin-right: auto; font-size: 15px; }
@@ -397,6 +402,7 @@ export default function PageAccueil() {
       <section ref={heroRef} className="studio-hero">
         <div className="studio-hero-inner">
           <div className="studio-hero-copy">
+            <div className="studio-install-mobile"><BoutonInstallerStudio /></div>
             <div className="studio-eyebrow reveal">
               <span className="studio-eyebrow-dot" />
               ✨ Lancez votre boutique en 10 minutes
