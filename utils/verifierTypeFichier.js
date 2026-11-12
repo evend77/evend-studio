@@ -16,10 +16,6 @@ const FileType = require('file-type');
 // Extensions considérées comme "image" pour les besoins de la vérification.
 // mime associé à chaque extension acceptée (file-type retourne l'extension
 // ET le mime réel détecté depuis les octets).
-//
-// 🐛 CORRECTION : ajout des types audio (mp3, wav, ogg, oga) qui manquaient.
-// Sans ces entrées, un mp3 valide était rejeté car EXTENSIONS_CONNUES['mp3']
-// était undefined → mimeCoherent = false → ok = false → 400 Bad Request.
 const EXTENSIONS_CONNUES = {
   jpg:  ['image/jpeg'],
   jpeg: ['image/jpeg'],
@@ -34,16 +30,6 @@ const EXTENSIONS_CONNUES = {
   ogg:  ['application/ogg', 'video/ogg', 'audio/ogg'],
   ogv:  ['video/ogg'],
   oga:  ['audio/ogg'],
-
-  // ── Audio ──────────────────────────────────────────────────────────────
-  // file-type retourne ext='mp3', mime='audio/mpeg' pour un MP3.
-  // Note : "audio/mp3" n'existe pas officiellement, mais on l'accepte par
-  // sécurité si un jour un fichier est mal détecté par une ancienne version
-  // de file-type.
-  mp3:  ['audio/mpeg', 'audio/mp3'],
-  // WAV : file-type retourne ext='wav', mime='audio/x-wav' ou 'audio/wav'
-  // selon la version. On accepte les deux.
-  wav:  ['audio/x-wav', 'audio/wav', 'audio/vnd.wave'],
 };
 
 /**
@@ -74,17 +60,10 @@ async function verifierTypeFichier(buffer, extensionsAutorisees) {
   const extensionAcceptee = listeAutorisee.includes(ext)
     || (listeAutorisee.includes('ogg') && OGG_FAMILLE.includes(ext));
 
-  // 🐛 CORRECTION : si 'mp3' est demandé, on accepte aussi 'mpeg' (certaines
-  // versions de file-type retournent ext='mpeg' au lieu de 'mp3' selon le
-  // fichier — MP3 avec tag ID3v2 par exemple).
-  const extensionAlternative =
-    (ext === 'mp3' && listeAutorisee.includes('mp3'))
-    || (ext === 'mpeg' && listeAutorisee.includes('mp3'));
-
   const mimeCoherent = attendus && attendus.includes(mime);
 
   return {
-    ok: (extensionAcceptee || extensionAlternative) && mimeCoherent,
+    ok: extensionAcceptee && mimeCoherent,
     extensionDetectee: ext,
     mimeDetecte: mime,
   };
