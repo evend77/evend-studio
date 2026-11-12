@@ -27,11 +27,14 @@ try {
 router.get('/', async (req, res) => {
     try {
         const { statut } = req.query;
+        // 🐛 CORRECTION : la table `produits` utilise `gestionnaire_id` dans Studio
+        // (pas `vendeur_id`, terme du multivendeur). L'ancienne requête plantait
+        // avec "column vendeur_id does not exist" → bloquait l'admin.
         const baseQuery = `
             SELECT v.*, COALESCE(p.nb_produits, 0) AS produits
             FROM gestionnaires v
             LEFT JOIN (
-                SELECT vendeur_id AS gestionnaire_id, COUNT(*) AS nb_produits FROM produits GROUP BY vendeur_id
+                SELECT gestionnaire_id, COUNT(*) AS nb_produits FROM produits GROUP BY gestionnaire_id
             ) p ON p.gestionnaire_id = v.id
         `;
         let result;
@@ -105,7 +108,11 @@ router.post('/', async (req, res) => {
         const tokenVerifEmail = crypto.randomBytes(32).toString('hex');
         const expirationVerifEmail = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
-        const colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'vendeurs'`);
+        // 🐛 CORRECTION : la table s'appelle `gestionnaires`, pas `vendeurs`.
+        // L'ancien code interrogeait information_schema pour `vendeurs` → aucune
+        // colonne trouvée → les champs optionnels (adresse, taxes, etc.) n'étaient
+        // jamais insérés à l'inscription.
+        const colCheck = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'gestionnaires'`);
         const existingCols = colCheck.rows.map(r => r.column_name);
 
         const insertCols = [
