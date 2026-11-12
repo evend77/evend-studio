@@ -24,6 +24,7 @@ const EXTENSIONS_CONNUES = {
   webp: ['image/webp'],
   pdf:  ['application/pdf'],
   mp4:  ['video/mp4'],
+  mp3: ['audio/mpeg'],
   webm: ['video/webm'],
   // Conteneur Ogg — file-type peut retourner l'une ou l'autre extension
   // selon ce qu'il détecte à l'intérieur (vidéo, audio, ou générique).
