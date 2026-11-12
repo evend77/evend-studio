@@ -5,6 +5,8 @@
 // 100% mobile responsive
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import AppAcheteurBoutique from '../AppAcheteurBoutique';
+import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur } from '../pages/boutique/boutiqueAcheteurApi';
 
 const OR    = '#c9a96e';
 const OR2   = '#e8c87a';
@@ -37,8 +39,6 @@ interface AcheteurUser {
   id: number; prenom: string; nom: string; email: string;
   telephone?: string; adresse?: string; ville?: string; province?: string; code_postal?: string;
 }
-
-interface PanierItem { produit: Produit; qte: number; variante?: string; }
 
 interface Props { config: any; siteId?: number; vendeurId: number; }
 
@@ -117,20 +117,6 @@ function NotifVente({ cp }: { cp:string }) {
   );
 }
 
-function BarreLivraison({ total, seuil, cp }: { total:number; seuil:number; cp:string }) {
-  const pct = Math.min(100,(total/seuil)*100);
-  const reste = Math.max(0,seuil-total);
-  return (
-    <div style={{ background:SURF,borderRadius:10,padding:'12px 16px',marginBottom:16 }}>
-      {reste>0 ? <p style={{ fontSize:13,color:'#ccc',margin:'0 0 8px' }}>Ajoutez <strong style={{ color:cp }}>{px(reste)}</strong> pour la <strong style={{ color:cp }}>livraison gratuite</strong> !</p>
-               : <p style={{ fontSize:13,color:'#4ade80',margin:'0 0 8px',fontWeight:700 }}>🎉 Livraison gratuite !</p>}
-      <div style={{ background:'#333',borderRadius:4,height:6,overflow:'hidden' }}>
-        <div style={{ width:`${pct}%`,height:'100%',background:`linear-gradient(90deg,${cp},${OR2})`,borderRadius:4,transition:'width 0.5s ease' }} />
-      </div>
-    </div>
-  );
-}
-
 function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grille' }: {
   produit:Produit; cp:string; onClick:()=>void; onWishlist?:()=>void; inWishlist?:boolean; vue?:'grille'|'liste';
 }) {
@@ -199,10 +185,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [categories,setCategories] = useState<string[]>([]);
   const [avisActif,setAvisActif]   = useState<Avis[]>([]);
   const [acheteur,setAcheteur]     = useState<AcheteurUser|null>(null);
-  const [tokenAcheteur,setTokenAcheteur] = useState('');
-  const [panier,setPanier]         = useState<PanierItem[]>([]);
+  const [nbPanier,setNbPanier] = useState(0);
+  const [vueCompte,setVueCompte] = useState<'dashboard'|'panier'>('dashboard');
+  const [avisPanier,setAvisPanier] = useState('');
   const [wishlist,setWishlist]     = useState<number[]>([]);
-  const [panierOuvert,setPanierOuvert] = useState(false);
   const [filtreCat,setFiltreCat]   = useState('');
   const [filtreRecherche,setFiltreRecherche] = useState('');
   const [filtrePrixMin,setFiltrePrixMin] = useState('');
@@ -217,8 +203,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [zoomActif,setZoomActif]   = useState(false);
   const [sourisPos,setSourisPos]   = useState({x:0,y:0});
   const [ongletProduit,setOngletProduit] = useState<'description'|'avis'|'livraison'>('description');
-  const [codePromo,setCodePromo]   = useState('');
-  const [codePromoApplique,setCodePromoApplique] = useState<{valeur:number;type:string}|null>(null);
   const [faqOuvert,setFaqOuvert]   = useState<number|null>(null);
   const [contactForm,setContactForm] = useState({nom:'',courriel:'',sujet:'',message:''});
   const [contactStatut,setContactStatut] = useState<'idle'|'loading'|'ok'|'err'>('idle');
@@ -237,13 +221,22 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
   useEffect(()=>{ fetch(`${API_BASE}/blog/vendeur/${vendeurId}?publie=true&limit=20`).then(r=>r.ok?r.json():[]).then(data=>setArticles(Array.isArray(data)?data:data.articles||[])).catch(()=>{}); },[vendeurId]);
 
+  // Compte acheteur = celui du MV (mêmes clés que AppAcheteur)
   useEffect(()=>{
-    const u=localStorage.getItem(`acheteur_${vendeurId}`),t=localStorage.getItem(`acheteur_token_${vendeurId}`);
-    if(u&&t){ try{ setAcheteur(JSON.parse(u)); setTokenAcheteur(t); } catch{} }
-  },[vendeurId]);
+    try{ const u=localStorage.getItem(`mv_compte_${vendeurId}`),t=localStorage.getItem(`mv_token_${vendeurId}`); setAcheteur(u&&t?JSON.parse(u):null); } catch{ setAcheteur(null); }
+  },[vendeurId,page]);
+
+  // Pastille du panier (panier du serveur)
+  useEffect(()=>{
+    if(!acheteur){ setNbPanier(0); return; }
+    ba(vendeurId,'/panier').then(r=>{ if(r.ok) setNbPanier((r.data.articles||[]).reduce((s:number,a:any)=>s+(a.quantite||0),0)); });
+  },[acheteur,vendeurId,page,vueCompte]);
+
+  useEffect(()=>{ if(!avisPanier) return; const t=setTimeout(()=>setAvisPanier(''),4000); return()=>clearTimeout(t); },[avisPanier]);
 
   const naviguer = useCallback((dest:string)=>{
-    setMenuOuvert(false); setPanierOuvert(false); window.scrollTo({top:0,behavior:'smooth'});
+    setMenuOuvert(false); window.scrollTo({top:0,behavior:'smooth'});
+    if(dest.toLowerCase()==='panier'){ setVueCompte('panier'); setPage('compte'); return; }
     const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login' };
     if(map[dest.toLowerCase()]) setPage(map[dest.toLowerCase()]);
   },[]);
@@ -251,32 +244,30 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const voirProduit = (p:Produit)=>{ setProduitActif(p); setPhotoIdx(0); setQteChoisie(1); setVarianteChoisie({}); setOngletProduit('description'); setPage('produit'); window.scrollTo({top:0,behavior:'smooth'}); fetch(`${API_BASE}/avis/produit/${p.id}`).then(r=>r.ok?r.json():[]).then(data=>setAvisActif(Array.isArray(data)?data:[])).catch(()=>{}); };
   const voirArticle = (a:ArticleBlog)=>{ setArticleActif(a); setPage('article'); window.scrollTo({top:0,behavior:'smooth'}); };
 
-  const ajouterAuPanier = (produit:Produit)=>{
-    const variante=Object.values(varianteChoisie).join(' / ')||undefined;
-    setPanier(prev=>{ const ex=prev.find(i=>i.produit.id===produit.id&&i.variante===variante); if(ex) return prev.map(i=>i.produit.id===produit.id&&i.variante===variante?{...i,qte:i.qte+qteChoisie}:i); return [...prev,{produit,qte:qteChoisie,variante}]; });
-    setPanierOuvert(true);
+  const ajouterAuPanier = async (produit:Produit)=>{
+    if(!acheteur){ setAvisPanier('Connectez-vous pour ajouter au panier.'); naviguer('login'); return; }
+    const variante=Object.values(varianteChoisie).join(' / ');
+    const r=await ajouterAuPanierServeur(vendeurId,produit.id,qteChoisie,variante);
+    if(!r.ok){ setAvisPanier(messageAcheteur(r)); return; }
+    setVueCompte('panier'); naviguer('compte');
   };
-
-  const totalPanier  = panier.reduce((s,i)=>s+(i.produit.prix_promo||i.produit.prix)*i.qte,0);
-  const nbPanier     = panier.reduce((s,i)=>s+i.qte,0);
-  const totalApresCode = codePromoApplique ? (codePromoApplique.type==='pourcentage' ? totalPanier*(1-codePromoApplique.valeur/100) : Math.max(0,totalPanier-codePromoApplique.valeur)) : totalPanier;
+  const ouvrirCompte = ()=>{ setVueCompte('dashboard'); naviguer(acheteur?'compte':'login'); };
+  const ouvrirPanier = ()=>{ if(!acheteur){ setAvisPanier('Connectez-vous pour voir votre panier.'); naviguer('login'); return; } setVueCompte('panier'); naviguer('compte'); };
   const toggleWishlist = (id:number)=>setWishlist(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
 
   const handleLogin = async()=>{
     setLoginStatut('loading'); setLoginErreur('');
     try{
-      const res=await fetch(`${API_BASE}/acheteurs/login`,{ method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:loginForm.email,mot_de_passe:loginForm.mdp,gestionnaire_id:vendeurId}) });
-      const data=await res.json();
+      const res=await fetch(`${API_BASE}/marketplace/${vendeurId}/login`,{ method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({type:'acheteur',email:loginForm.email,password:loginForm.mdp}) });
+      const data=await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(data.message||'Erreur');
-      setAcheteur(data.acheteur); setTokenAcheteur(data.token);
-      localStorage.setItem(`acheteur_${vendeurId}`,JSON.stringify(data.acheteur)); localStorage.setItem(`acheteur_token_${vendeurId}`,data.token);
+      try{ localStorage.setItem(`mv_token_${vendeurId}`,data.token); localStorage.setItem(`mv_compte_${vendeurId}`,JSON.stringify(data.compte)); } catch{}
+      setAcheteur(data.compte);
       setLoginStatut('idle'); naviguer('compte');
     } catch(e:any){ setLoginErreur(e.message||'Erreur'); setLoginStatut('err'); }
   };
 
-  const handleLogout=()=>{ setAcheteur(null); setTokenAcheteur(''); localStorage.removeItem(`acheteur_${vendeurId}`); localStorage.removeItem(`acheteur_token_${vendeurId}`); naviguer('accueil'); };
 
-  const appliquerCode=async()=>{ if(!codePromo.trim()) return; try{ const res=await fetch(`${API_BASE}/reductions/verifier`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:codePromo,vendeur_id:vendeurId,total:totalPanier})}); if(res.ok){ const data=await res.json(); setCodePromoApplique({valeur:data.valeur,type:data.type_remise}); } } catch{} };
   const envoyerContact=async()=>{ setContactStatut('loading'); try{ const res=await fetch(`${API_BASE}/contact/vendeur/${vendeurId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(contactForm)}); if(!res.ok) throw new Error(); setContactStatut('ok'); setContactForm({nom:'',courriel:'',sujet:'',message:''}); } catch{ setContactStatut('err'); } setTimeout(()=>setContactStatut('idle'),4000); };
 
   const produitsFiltres = produits.filter(p=>{ const mc=!filtreCat||p.categorie===filtreCat; const mr=!filtreRecherche||p.titre.toLowerCase().includes(filtreRecherche.toLowerCase()); const mn=!filtrePrixMin||p.prix>=parseFloat(filtrePrixMin); const mx=!filtrePrixMax||p.prix<=parseFloat(filtrePrixMax); return mc&&mr&&mn&&mx; }).sort((a,b)=>{ if(tri==='prix_asc') return (a.prix_promo||a.prix)-(b.prix_promo||b.prix); if(tri==='prix_desc') return (b.prix_promo||b.prix)-(a.prix_promo||a.prix); if(tri==='note') return (b.note_moyenne||0)-(a.note_moyenne||0); return 0; });
@@ -298,11 +289,11 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           ))}</div>}
         <div style={{ display:'flex',alignItems:'center',gap:8 }}>
           {cfg.afficherWishlist&&<button onClick={()=>naviguer('wishlist')} style={{ position:'relative',background:'none',border:`1px solid #333`,borderRadius:10,width:40,height:40,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16 }}>🤍{wishlist.length>0&&<span style={{ position:'absolute',top:-4,right:-4,background:'#ef4444',color:'#fff',borderRadius:'50%',width:16,height:16,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:800 }}>{wishlist.length}</span>}</button>}
-          <button onClick={()=>naviguer(acheteur?'compte':'login')} style={{ background:'none',border:`1px solid #333`,borderRadius:10,width:40,height:40,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,position:'relative' }}>
+          <button onClick={ouvrirCompte} style={{ background:'none',border:`1px solid #333`,borderRadius:10,width:40,height:40,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,position:'relative' }}>
             {acheteur?'👤':'🔑'}{acheteur&&<div style={{ position:'absolute',bottom:2,right:2,width:8,height:8,borderRadius:'50%',background:'#4ade80',border:'1.5px solid #0a0a0a' }}/>}
           </button>
-          <button onClick={()=>setPanierOuvert(!panierOuvert)} style={{ position:'relative',display:'flex',alignItems:'center',gap:8,background:`${cp}20`,border:`1px solid ${BORD}`,borderRadius:10,padding:'8px 14px',cursor:'pointer',color:'#fff',fontSize:13,fontWeight:600 }}>
-            🛒{nbPanier>0&&<span style={{ background:cp,color:'#000',borderRadius:20,padding:'2px 8px',fontSize:11,fontWeight:800 }}>{nbPanier}</span>}{!isMobile&&<span>{px(totalPanier)}</span>}
+          <button onClick={ouvrirPanier} style={{ position:'relative',display:'flex',alignItems:'center',gap:8,background:`${cp}20`,border:`1px solid ${BORD}`,borderRadius:10,padding:'8px 14px',cursor:'pointer',color:'#fff',fontSize:13,fontWeight:600 }}>
+            🛒{nbPanier>0&&<span style={{ background:cp,color:'#000',borderRadius:20,padding:'2px 8px',fontSize:11,fontWeight:800 }}>{nbPanier}</span>}
           </button>
           {isMobile&&<button onClick={()=>setMenuOuvert(!menuOuvert)} style={{ background:'none',border:`1px solid #333`,borderRadius:8,width:40,height:40,cursor:'pointer',color:'#fff',fontSize:18 }}>{menuOuvert?'✕':'☰'}</button>}
         </div>
@@ -312,51 +303,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           <button key={id} onClick={()=>naviguer(id)} style={{ display:'block',width:'100%',textAlign:'left',background:page===id?`${cp}15`:'none',border:'none',borderRadius:8,color:page===id?cp:'#ccc',fontSize:15,fontWeight:page===id?700:400,cursor:'pointer',padding:'12px 14px',marginBottom:4 }}>{label}</button>
         ))}</div>}
     </nav>
-  );
-
-  const TiroirPanier = () => (
-    <>
-      {panierOuvert&&<div onClick={()=>setPanierOuvert(false)} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.7)',zIndex:199,backdropFilter:'blur(4px)' }}/>}
-      <div style={{ position:'fixed',top:0,right:panierOuvert?0:'-460px',width:Math.min(460,window.innerWidth),height:'100vh',background:NOIR2,zIndex:200,boxShadow:`-8px 0 40px rgba(0,0,0,0.5)`,display:'flex',flexDirection:'column',transition:'right 0.35s cubic-bezier(0.4,0,0.2,1)',borderLeft:`1px solid ${BORD}` }}>
-        <div style={{ padding:'20px 24px',borderBottom:`1px solid ${BORD}`,display:'flex',justifyContent:'space-between',alignItems:'center' }}>
-          <div><h2 style={{ margin:0,fontSize:18,fontWeight:800,color:'#fff' }}>Votre panier</h2><span style={{ fontSize:12,color:cp }}>{nbPanier} article{nbPanier>1?'s':''}</span></div>
-          <button onClick={()=>setPanierOuvert(false)} style={{ background:SURF,border:'none',borderRadius:8,width:36,height:36,cursor:'pointer',fontSize:18,color:'#fff' }}>✕</button>
-        </div>
-        <div style={{ flex:1,overflowY:'auto',padding:'16px 24px' }}>
-          {panier.length===0 ? <div style={{ textAlign:'center',padding:'60px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>🛒</div><p style={{ color:'#666',marginBottom:20 }}>Votre panier est vide</p><button onClick={()=>{naviguer('catalogue');setPanierOuvert(false);}} style={{ ...styleBtn,padding:'10px 24px',fontSize:13 }}>Voir les produits</button></div>
-          : <>{cfg.afficherBarreLivraison&&<BarreLivraison total={totalPanier} seuil={cfg.seuilLivraisonGratuite} cp={cp}/>}
-              {panier.map((item,i)=>(
-                <div key={i} style={{ display:'flex',gap:14,padding:'14px 0',borderBottom:`1px solid #222`,alignItems:'center' }}>
-                  <div style={{ width:70,height:70,borderRadius:8,background:SURF,overflow:'hidden',flexShrink:0 }}>{item.produit.photo_principale?<img src={item.produit.photo_principale} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>:<div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24 }}>📦</div>}</div>
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <p style={{ margin:'0 0 4px',fontSize:13,fontWeight:600,color:'#e5e5e5',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{item.produit.titre}</p>
-                    {item.variante&&<p style={{ margin:'0 0 4px',fontSize:11,color:'#666' }}>{item.variante}</p>}
-                    <p style={{ margin:0,fontSize:14,fontWeight:700,color:cp }}>{px((item.produit.prix_promo||item.produit.prix)*item.qte)}</p>
-                  </div>
-                  <div style={{ display:'flex',alignItems:'center',gap:6 }}>
-                    <button onClick={()=>setPanier(prev=>prev.map((it,j)=>j===i?{...it,qte:Math.max(1,it.qte-1)}:it))} style={{ width:28,height:28,borderRadius:6,border:'1px solid #333',background:SURF,color:'#fff',cursor:'pointer',fontSize:14 }}>−</button>
-                    <span style={{ fontSize:13,fontWeight:700,color:'#fff',minWidth:20,textAlign:'center' }}>{item.qte}</span>
-                    <button onClick={()=>setPanier(prev=>prev.map((it,j)=>j===i?{...it,qte:it.qte+1}:it))} style={{ width:28,height:28,borderRadius:6,border:'1px solid #333',background:SURF,color:'#fff',cursor:'pointer',fontSize:14 }}>+</button>
-                    <button onClick={()=>setPanier(prev=>prev.filter((_,j)=>j!==i))} style={{ width:28,height:28,borderRadius:6,border:'none',background:'rgba(239,68,68,0.15)',color:'#ef4444',cursor:'pointer',fontSize:13 }}>✕</button>
-                  </div>
-                </div>
-              ))}</>}
-        </div>
-        {panier.length>0&&<div style={{ padding:'20px 24px',borderTop:`1px solid ${BORD}` }}>
-          <div style={{ display:'flex',gap:8,marginBottom:12 }}>
-            <input value={codePromo} onChange={e=>setCodePromo(e.target.value)} placeholder="Code promo" style={{ ...styleInput,padding:'10px 14px',fontSize:13,flex:1 }}/>
-            <button onClick={appliquerCode} style={{ padding:'10px 16px',background:SURF2,border:`1px solid #444`,borderRadius:10,color:'#fff',fontSize:13,cursor:'pointer',fontWeight:600,flexShrink:0 }}>OK</button>
-          </div>
-          {codePromoApplique&&<div style={{ background:'rgba(74,222,128,0.1)',border:'1px solid rgba(74,222,128,0.3)',borderRadius:8,padding:'8px 12px',marginBottom:12,fontSize:13,color:'#4ade80',display:'flex',justifyContent:'space-between' }}><span>✅ Code appliqué</span><button onClick={()=>{setCodePromoApplique(null);setCodePromo('');}} style={{ background:'none',border:'none',color:'#4ade80',cursor:'pointer',fontSize:12 }}>Retirer</button></div>}
-          <div style={{ display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:16,paddingTop:12,borderTop:`1px solid #333` }}>
-            <span style={{ fontSize:16,fontWeight:700,color:'#fff' }}>Total</span>
-            <span style={{ fontSize:22,fontWeight:800,color:cp }}>{px(totalApresCode)}</span>
-          </div>
-          <button style={{ ...styleBtn,width:'100%',textAlign:'center',fontSize:15 }}>Passer à la caisse →</button>
-          <button onClick={()=>naviguer('panier')} style={{ width:'100%',marginTop:10,padding:'10px',background:'none',border:`1px solid #444`,borderRadius:10,color:'#aaa',fontSize:13,cursor:'pointer' }}>Voir le panier complet</button>
-        </div>}
-      </div>
-    </>
   );
 
   const PageAccueil = () => {
@@ -646,52 +592,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     );
   };
 
-  const PagePanier = () => (
-    <div style={{ maxWidth:1100,margin:'0 auto',padding:'40px 24px' }}>
-      <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ VOTRE PANIER</div>
-      <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:40 }}>{nbPanier} article{nbPanier>1?'s':''}</h1>
-      {panier.length===0 ? <div style={{ textAlign:'center',padding:'80px 0' }}><div style={{ fontSize:80,marginBottom:24 }}>🛒</div><h2 style={{ color:'#666',fontWeight:600,marginBottom:12 }}>Votre panier est vide</h2><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'14px 32px' }}>Découvrir nos produits →</button></div>
-      : <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 380px',gap:32,alignItems:'flex-start' }}>
-          <div>
-            {cfg.afficherBarreLivraison&&<BarreLivraison total={totalPanier} seuil={cfg.seuilLivraisonGratuite} cp={cp}/>}
-            {panier.map((item,i)=>(
-              <div key={i} style={{ display:'flex',gap:18,padding:'20px 0',borderBottom:`1px solid #1a1a1a`,alignItems:'center' }}>
-                <div style={{ width:90,height:90,borderRadius:10,background:SURF,overflow:'hidden',flexShrink:0 }}>{item.produit.photo_principale?<img src={item.produit.photo_principale} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>:<div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:32 }}>📦</div>}</div>
-                <div style={{ flex:1,minWidth:0 }}>
-                  <p style={{ margin:'0 0 4px',fontSize:15,fontWeight:600,color:'#e5e5e5' }}>{item.produit.titre}</p>
-                  {item.variante&&<p style={{ margin:'0 0 6px',fontSize:12,color:'#666' }}>{item.variante}</p>}
-                  <p style={{ margin:0,fontSize:16,fontWeight:700,color:cp }}>{px((item.produit.prix_promo||item.produit.prix)*item.qte)}</p>
-                </div>
-                <div style={{ display:'flex',alignItems:'center',gap:8 }}>
-                  <button onClick={()=>setPanier(prev=>prev.map((it,j)=>j===i?{...it,qte:Math.max(1,it.qte-1)}:it))} style={{ width:34,height:34,borderRadius:7,border:'1px solid #333',background:SURF,color:'#fff',cursor:'pointer',fontSize:16 }}>−</button>
-                  <span style={{ fontSize:15,fontWeight:700,color:'#fff',minWidth:24,textAlign:'center' }}>{item.qte}</span>
-                  <button onClick={()=>setPanier(prev=>prev.map((it,j)=>j===i?{...it,qte:it.qte+1}:it))} style={{ width:34,height:34,borderRadius:7,border:'1px solid #333',background:SURF,color:'#fff',cursor:'pointer',fontSize:16 }}>+</button>
-                  <button onClick={()=>setPanier(prev=>prev.filter((_,j)=>j!==i))} style={{ width:34,height:34,borderRadius:7,border:'none',background:'rgba(239,68,68,0.15)',color:'#ef4444',cursor:'pointer',fontSize:14 }}>✕</button>
-                </div>
-              </div>
-            ))}
-            <button onClick={()=>naviguer('catalogue')} style={{ marginTop:20,padding:'10px 20px',background:'none',border:`1px solid #333`,borderRadius:8,color:'#888',fontSize:13,cursor:'pointer' }}>← Continuer les achats</button>
-          </div>
-          <div style={{ background:SURF,border:`1px solid #222`,borderRadius:16,padding:24 }}>
-            <h3 style={{ fontSize:18,fontWeight:700,color:'#fff',marginBottom:20 }}>Résumé de la commande</h3>
-            <div style={{ display:'flex',gap:8,marginBottom:16 }}>
-              <input value={codePromo} onChange={e=>setCodePromo(e.target.value)} placeholder="Code promo" style={{ ...styleInput,padding:'10px 14px',fontSize:13,flex:1 }}/>
-              <button onClick={appliquerCode} style={{ padding:'10px 14px',background:SURF2,border:`1px solid #444`,borderRadius:8,color:'#fff',fontSize:13,cursor:'pointer',fontWeight:600,flexShrink:0 }}>OK</button>
-            </div>
-            {codePromoApplique&&<div style={{ marginBottom:12,fontSize:13,color:'#4ade80' }}>✅ Code appliqué</div>}
-            <div style={{ borderTop:`1px solid #1a1a1a`,paddingTop:16,marginBottom:20 }}>
-              <div style={{ display:'flex',justifyContent:'space-between',marginBottom:10,fontSize:14,color:'#888' }}><span>Sous-total</span><span style={{ color:'#ccc' }}>{px(totalPanier)}</span></div>
-              {codePromoApplique&&<div style={{ display:'flex',justifyContent:'space-between',marginBottom:10,fontSize:14,color:'#4ade80' }}><span>Réduction</span><span>−{px(totalPanier-totalApresCode)}</span></div>}
-              <div style={{ display:'flex',justifyContent:'space-between',marginBottom:10,fontSize:14,color:'#888' }}><span>Livraison</span><span style={{ color:totalPanier>=cfg.seuilLivraisonGratuite?'#4ade80':'#ccc' }}>{totalPanier>=cfg.seuilLivraisonGratuite?'GRATUITE':'Calculée au checkout'}</span></div>
-              <div style={{ display:'flex',justifyContent:'space-between',paddingTop:12,borderTop:`1px solid #1a1a1a`,fontSize:18,fontWeight:800 }}><span style={{ color:'#fff' }}>Total</span><span style={{ color:cp }}>{px(totalApresCode)}</span></div>
-            </div>
-            <button style={{ ...styleBtn,width:'100%',textAlign:'center',padding:'16px',fontSize:15 }}>Passer à la caisse →</button>
-            <p style={{ textAlign:'center',fontSize:11,color:'#555',marginTop:12 }}>🔒 Paiement sécurisé SSL</p>
-          </div>
-        </div>}
-    </div>
-  );
-
   const PageWishlist = () => {
     const items = produits.filter(p=>wishlist.includes(p.id));
     return (
@@ -722,46 +622,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       </div>
     </div>
   );
-
-  const PageCompte = () => {
-    const [section,setSection] = useState('dashboard');
-    if(!acheteur){ naviguer('login'); return null; }
-    const initiale=(acheteur.prenom?.[0]||acheteur.email[0]).toUpperCase();
-    const sections=[['dashboard','Tableau de bord','📊'],['commandes','Mes commandes','📦'],['wishlist','Ma wishlist','❤️'],['profil','Mon profil','👤']];
-    return (
-      <div style={{ maxWidth:1100,margin:'0 auto',padding:'40px 24px' }}>
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'260px 1fr',gap:28,alignItems:'flex-start' }}>
-          <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:24 }}>
-            <div style={{ textAlign:'center',marginBottom:24,paddingBottom:24,borderBottom:`1px solid #1a1a1a` }}>
-              <div style={{ width:64,height:64,borderRadius:'50%',background:`linear-gradient(135deg,${cp},${OR2})`,margin:'0 auto 12px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:26,fontWeight:800,color:'#000' }}>{initiale}</div>
-              <div style={{ fontSize:16,fontWeight:700,color:'#fff' }}>{acheteur.prenom} {acheteur.nom}</div>
-              <div style={{ fontSize:12,color:'#666',marginTop:4 }}>{acheteur.email}</div>
-            </div>
-            {sections.map(([id,label,ico])=><button key={id} onClick={()=>setSection(id)} style={{ display:'flex',alignItems:'center',gap:12,width:'100%',padding:'11px 14px',background:section===id?`${cp}15`:'none',border:'none',borderRadius:8,color:section===id?cp:'#888',fontSize:13,fontWeight:section===id?700:400,cursor:'pointer',marginBottom:4,textAlign:'left',transition:'all 0.15s' }}><span style={{ fontSize:16 }}>{ico}</span>{label}</button>)}
-            <div style={{ borderTop:`1px solid #1a1a1a`,marginTop:12,paddingTop:12 }}><button onClick={handleLogout} style={{ display:'flex',alignItems:'center',gap:12,width:'100%',padding:'11px 14px',background:'rgba(239,68,68,0.1)',border:'none',borderRadius:8,color:'#ef4444',fontSize:13,fontWeight:600,cursor:'pointer' }}>🚪 Se déconnecter</button></div>
-          </div>
-          <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:28 }}>
-            {section==='dashboard'&&<>
-              <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ TABLEAU DE BORD</div>
-              <h2 style={{ fontSize:24,fontWeight:800,color:'#fff',marginBottom:24 }}>Bonjour, {acheteur.prenom} 👋</h2>
-              <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:14,marginBottom:28 }}>
-                {[['📦','0','Commandes'],['❤️',`${wishlist.length}`,'Wishlist'],['⭐','0','Avis'],['🔔','0','Notifications']].map(([ico,nb,label])=>(
-                  <div key={label as string} style={{ background:NOIR,border:`1px solid #222`,borderRadius:12,padding:'18px 16px',textAlign:'center' }}>
-                    <div style={{ fontSize:28,marginBottom:8 }}>{ico}</div>
-                    <div style={{ fontSize:24,fontWeight:800,color:cp,marginBottom:4 }}>{nb}</div>
-                    <div style={{ fontSize:12,color:'#666' }}>{label}</div>
-                  </div>
-                ))}
-              </div>
-            </>}
-            {section==='commandes'&&<><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ MES COMMANDES</div><h2 style={{ fontSize:24,fontWeight:800,color:'#fff',marginBottom:24 }}>Historique</h2><div style={{ textAlign:'center',padding:'40px 0',color:'#555' }}><div style={{ fontSize:48,marginBottom:12 }}>📦</div><p>Aucune commande.</p><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'12px 24px',marginTop:16,fontSize:13 }}>Commencer vos achats →</button></div></>}
-            {section==='wishlist'&&<><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ MA WISHLIST</div><h2 style={{ fontSize:24,fontWeight:800,color:'#fff',marginBottom:24 }}>Mes coups de cœur</h2>{wishlist.length===0?<div style={{ textAlign:'center',padding:'40px 0',color:'#555' }}><div style={{ fontSize:48,marginBottom:12 }}>🤍</div><p>Wishlist vide.</p></div>:<div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(160px,1fr))',gap:14 }}>{produits.filter(p=>wishlist.includes(p.id)).map(p=><CarteProduit key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={true}/>)}</div>}</>}
-            {section==='profil'&&<><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ MON PROFIL</div><h2 style={{ fontSize:24,fontWeight:800,color:'#fff',marginBottom:24 }}>Mes informations</h2><div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,maxWidth:560 }}>{[['Prénom',acheteur.prenom],['Nom',acheteur.nom],['Courriel',acheteur.email],['Téléphone',acheteur.telephone||'Non renseigné']].map(([label,val])=><div key={label as string}><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6 }}>{label}</label><div style={{ padding:'11px 14px',background:NOIR,border:'1px solid #222',borderRadius:8,fontSize:14,color:'#ccc' }}>{val}</div></div>)}</div></>}
-          </div>
-        </div>
-      </div>
-    );
-  };
 
   const PageBlog = () => (
     <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
@@ -1009,13 +869,16 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     </>
   );
 
+  // Espace acheteur : plein écran, comme AppAcheteur (MV) — il a son propre menu et son bouton « Retour à la boutique »
+  if(page==='compte') return <AppAcheteurBoutique key={vueCompte} vendeurId={vendeurId} pageInitiale={vueCompte} config={{ couleur_accent:cp, nom_boutique:cfg.nomBoutique, gestionnaire_id:vendeurId }} naviguerTemplate={(d:any)=>{ setVueCompte('dashboard'); naviguer(d&&d.page?d.page:'accueil'); }} />;
+
   return (
     <div style={{ fontFamily:"'Inter',-apple-system,sans-serif",background:cfg.couleurFond,color:cfg.couleurTexte,minHeight:'100vh',display:'flex',flexDirection:'column' }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}button{font-family:inherit;}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:${NOIR};}::-webkit-scrollbar-thumb{background:${BORD};border-radius:3px;}`}</style>
 
       {cfg.afficherTicker&&<Ticker texte={cfg.tickerTexte} couleur={cp}/>}
       <Nav/>
-      <TiroirPanier/>
+      {avisPanier&&<div style={{ position:'fixed',top:84,left:'50%',transform:'translateX(-50%)',zIndex:300,background:SURF,border:`1px solid ${cp}`,color:'#fff',padding:'12px 20px',borderRadius:10,fontSize:13,fontWeight:600,boxShadow:'0 8px 30px rgba(0,0,0,0.5)' }}>{avisPanier}</div>}
       {popupPromo&&<PopupPromo/>}
       {cfg.afficherNotifVente&&page==='accueil'&&<NotifVente cp={cp}/>}
 
@@ -1028,10 +891,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         {page==='faq'       && <PageFaq/>}
         {page==='a-propos'   && <PageAPropos/>}
         {page==='contact'   && <PageContact/>}
-        {page==='panier'    && <PagePanier/>}
         {page==='wishlist'  && <PageWishlist/>}
         {page==='login'     && <PageLogin/>}
-        {page==='compte'    && <PageCompte/>}
       </main>
 
       <Footer/>

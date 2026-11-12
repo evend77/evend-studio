@@ -21,7 +21,7 @@ const API_BASE = '/api';
 
 interface CompteAcheteur { id: number; prenom: string; nom: string; email: string; telephone?: string; }
 type PageDash = 'dashboard' | 'commandes' | 'retours' | 'panier' | 'checkout' | 'confirmation' | 'messagerie' | 'notifications' | 'profil';
-interface Props { vendeurId?: number; config?: Record<string, any>; naviguerTemplate: (dest: any) => void; }
+interface Props { vendeurId?: number; config?: Record<string, any>; naviguerTemplate: (dest: any) => void; pageInitiale?: 'dashboard' | 'panier'; }
 
 function pageDepuisUrl(): PageDash {
   try {
@@ -33,12 +33,12 @@ function pageDepuisUrl(): PageDash {
   return 'dashboard';
 }
 
-export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTemplate = () => {} }: Props) {
+export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTemplate = () => {}, pageInitiale }: Props) {
   const gestionnaireId = vendeurId || config.gestionnaire_id || 0;
   const couleurAccent = config.couleur_accent || '#fbbf24';
   const nomSite = config.nom_boutique || 'Ma Boutique';
 
-  const [page, setPage] = useState<PageDash>(pageDepuisUrl());
+  const [page, setPage] = useState<PageDash>(pageInitiale || pageDepuisUrl());
   const [isMobile, setIsMobile] = useState(false);
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
   const [compte, setCompte] = useState<CompteAcheteur | null>(null);
