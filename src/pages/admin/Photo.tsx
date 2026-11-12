@@ -1,3 +1,4 @@
+
 // src/pages/admin/Photo.tsx
 // Gestionnaire de fichiers Cloudflare R2 - Logos, Divers & Audio (e-Vend Studio)
 
@@ -26,12 +27,16 @@ const THEME = {
   success: '#16a34a',
 };
 
+const MAX_FILE_SIZE = 15 * 1024 * 1024;
+
 export default function Photo() {
   const [activeTab, setActiveTab] = useState<'logo' | 'divers' | 'audio'>('logo');
   const [images, setImages] = useState<ImageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const fetchImages = useCallback(async () => {
@@ -54,7 +59,20 @@ export default function Photo() {
   }, [fetchImages]);
 
   const uploadImage = async (file: File) => {
+    setUploadError(null);
+    setUploadSuccess(null);
+
+    // Vérification immédiate de la taille du fichier
+    if (file.size > MAX_FILE_SIZE) {
+      setUploadError(
+        `Fichier trop volumineux : ${file.name} pèse ${formatSize(file.size)}. La taille maximale autorisée est de 15 Mo. Veuillez choisir un fichier plus petit.`
+      );
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setUploading(true);
+
     const formData = new FormData();
     formData.append('category', activeTab);
     formData.append('image', file);
@@ -65,12 +83,37 @@ export default function Photo() {
         credentials: 'include',
         body: formData,
       });
-      const data = await res.json();
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (
+          res.status === 413 ||
+          data.code === 'LIMIT_FILE_SIZE' ||
+          data.error?.toLowerCase().includes('file too large') ||
+          data.error?.toLowerCase().includes('trop volumineux')
+        ) {
+          throw new Error(
+            'Fichier trop volumineux. La taille maximale autorisée est de 15 Mo. Veuillez choisir un fichier plus petit.'
+          );
+        }
+
+        throw new Error(data.error || `Erreur lors de l'envoi (${res.status}).`);
+      }
+
       if (data.image) {
         setImages(prev => [data.image, ...prev]);
+        setUploadSuccess(`« ${file.name} » a été envoyé avec succès !`);
+      } else {
+        throw new Error('Le serveur a reçu le fichier, mais aucune confirmation n’a été retournée.');
       }
     } catch (error) {
-      alert("Erreur d'upload");
+      console.error('Erreur upload:', error);
+      setUploadError(
+        error instanceof Error
+          ? error.message
+          : "Une erreur inattendue est survenue pendant l'envoi."
+      );
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -80,10 +123,15 @@ export default function Photo() {
   const deleteImage = async (image: ImageItem) => {
     if (!confirm(`Supprimer "${image.nom}" ?`)) return;
     try {
-      await fetch(`${API_BASE}/images/${image.id}`, {
+      const res = await fetch(`${API_BASE}/images/${image.id}`, {
         method: 'DELETE',
         credentials: 'include',
       });
+
+      if (!res.ok) {
+        throw new Error('Erreur lors de la suppression.');
+      }
+
       setImages(prev => prev.filter(img => img.id !== image.id));
     } catch (error) {
       alert('Erreur suppression');
@@ -134,13 +182,84 @@ export default function Photo() {
             cursor: uploading ? 'wait' : 'pointer',
             opacity: uploading ? 0.6 : 1,
           }}
-          onClick={() => fileInputRef.current?.click()}
+          onClick={() => {
+            setUploadError(null);
+            setUploadSuccess(null);
+            fileInputRef.current?.click();
+          }}
           disabled={uploading}
         >
           {uploading ? '⏳ Upload...' : '+ Ajouter'}
         </button>
-        <input ref={fileInputRef} type="file" accept={activeTab === 'audio' ? 'audio/mpeg,.mp3' : 'image/*'} style={{ display: 'none' }} onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0])} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={activeTab === 'audio' ? 'audio/mpeg,.mp3' : 'image/*'}
+          style={{ display: 'none' }}
+          onChange={e => e.target.files?.[0] && uploadImage(e.target.files[0])}
+        />
       </div>
+
+      {/* Messages d'upload */}
+      {uploadError && (
+        <div
+          role="alert"
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '12px',
+            padding: '16px 18px',
+            marginBottom: '18px',
+            background: '#fef2f2',
+            border: '1px solid #fecaca',
+            borderLeft: '5px solid #dc2626',
+            borderRadius: '12px',
+            color: '#991b1b',
+          }}
+        >
+          <span style={{ fontSize: '24px' }}>⚠️</span>
+          <div style={{ flex: 1 }}>
+            <strong style={{ display: 'block', fontSize: '15px', marginBottom: '5px' }}>
+              Impossible d'envoyer le fichier
+            </strong>
+            <span style={{ fontSize: '13px', lineHeight: 1.5 }}>
+              {uploadError}
+            </span>
+          </div>
+          <button
+            onClick={() => setUploadError(null)}
+            aria-label="Fermer"
+            style={{
+              border: 'none',
+              background: 'transparent',
+              color: '#991b1b',
+              cursor: 'pointer',
+              fontSize: '20px',
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {uploadSuccess && (
+        <div
+          role="status"
+          style={{
+            padding: '14px 18px',
+            marginBottom: '18px',
+            background: '#f0fdf4',
+            border: '1px solid #bbf7d0',
+            borderLeft: '5px solid #16a34a',
+            borderRadius: '12px',
+            color: '#166534',
+            fontSize: '14px',
+            fontWeight: 600,
+          }}
+        >
+          ✓ {uploadSuccess}
+        </div>
+      )}
 
       {/* Onglets */}
       <div style={{ display: 'flex', gap: '4px', background: '#fff', padding: '4px', borderRadius: '10px', border: `1px solid ${THEME.border}`, width: 'fit-content', marginBottom: '20px' }}>
