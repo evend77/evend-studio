@@ -11,6 +11,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const C = require('../services/boutique_commandes');
+const R = require('../services/boutique_retours');
 
 const router = express.Router({ mergeParams: true });
 
@@ -179,5 +180,11 @@ router.post('/commandes/:numero/annuler', wrap(async (req, res) => {
   await C.annulerNonPayee(c.id, { par: 'acheteur', raison: "Annulée par l'acheteur" });
   res.json({ message: 'Commande annulée. Vos articles sont de retour dans votre panier.' });
 }));
+
+// ═════════════════════════════ RETOURS ════════════════════════════════════
+router.get('/retours', wrap(async (req, res) => { res.json({ retours: await R.listerAcheteur(req.gid, req.acheteurId) }); }));
+router.get('/retours/eligibles', wrap(async (req, res) => { res.json(await R.eligibles(req.gid, req.acheteurId)); }));
+router.post('/retours', wrap(async (req, res) => { res.status(201).json({ retour: await R.demander(req.gid, req.acheteurId, req.body || {}) }); }));
+router.post('/retours/:numero/annuler', wrap(async (req, res) => { await R.annulerAcheteur(req.gid, req.acheteurId, req.params.numero); res.json({ message: 'Demande de retour annulée.' }); }));
 
 module.exports = router;

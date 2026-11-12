@@ -9,6 +9,7 @@ import PanierBoutique from './pages/boutique/PanierBoutique';
 import CaisseBoutique from './pages/boutique/CaisseBoutique';
 import CommandeBoutique from './pages/boutique/CommandeBoutique';
 import CommandesBoutique, { statutCommande } from './pages/boutique/CommandesBoutique';
+import RetoursBoutique from './pages/boutique/RetoursBoutique';
 import { ba } from './pages/boutique/boutiqueAcheteurApi';
 import Notifications from './pages/acheteur/Notifications';
 import Profil from './pages/acheteur/Profil';
@@ -19,7 +20,7 @@ import BanniereDashboard from './templates/shared/BanniereDashboard';
 const API_BASE = '/api';
 
 interface CompteAcheteur { id: number; prenom: string; nom: string; email: string; telephone?: string; }
-type PageDash = 'dashboard' | 'commandes' | 'panier' | 'checkout' | 'confirmation' | 'messagerie' | 'notifications' | 'profil';
+type PageDash = 'dashboard' | 'commandes' | 'retours' | 'panier' | 'checkout' | 'confirmation' | 'messagerie' | 'notifications' | 'profil';
 interface Props { vendeurId?: number; config?: Record<string, any>; naviguerTemplate: (dest: any) => void; }
 
 function pageDepuisUrl(): PageDash {
@@ -42,6 +43,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
   const [menuMobileOuvert, setMenuMobileOuvert] = useState(false);
   const [compte, setCompte] = useState<CompteAcheteur | null>(null);
   const [commandes, setCommandes] = useState<any[]>([]);
+  const [retourCommande, setRetourCommande] = useState<string | null>(null);
   const [nbPanier, setNbPanier] = useState(0);
   const [nbNotifs, setNbNotifs] = useState(0);
   const [nbMessages, setNbMessages] = useState(0);
@@ -116,6 +118,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
   const MENU: { id: PageDash; label: string; icon: string; badge?: number }[] = [
     { id: 'dashboard', label: 'Tableau de bord', icon: '📊' },
     { id: 'commandes', label: 'Mes commandes', icon: '📦' },
+    { id: 'retours', label: 'Mes retours', icon: '🔄' },
     { id: 'panier', label: 'Mon panier', icon: '🛒', badge: nbPanier },
     { id: 'messagerie', label: 'Messagerie', icon: '💬', badge: nbMessages },
     { id: 'notifications', label: 'Notifications', icon: '🔔', badge: nbNotifs },
@@ -165,7 +168,8 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
         </div>
       );
     }
-    if (page === 'commandes') return <CommandesBoutique {...commun} naviguer={naviguer} />;
+    if (page === 'commandes') return <CommandesBoutique {...commun} naviguer={naviguer} demanderRetour={(n: string) => { setRetourCommande(n); naviguer('retours'); }} />;
+    if (page === 'retours') return <RetoursBoutique key={retourCommande || 'r'} {...commun} commandeInitiale={retourCommande} />;
     if (page === 'panier') return <div style={{ background: '#fff', color: '#111', borderRadius: 16 }}><PanierBoutique gestionnaireId={gestionnaireId} accent={couleurAccent === '#fbbf24' ? '#111827' : couleurAccent} naviguerVers={naviguer} /></div>;
     if (page === 'checkout') return <div style={{ background: '#fff', color: '#111', borderRadius: 16 }}><CaisseBoutique gestionnaireId={gestionnaireId} accent={couleurAccent === '#fbbf24' ? '#111827' : couleurAccent} naviguerVers={naviguer} /></div>;
     if (page === 'confirmation') return <div style={{ background: '#fff', color: '#111', borderRadius: 16 }}><CommandeBoutique gestionnaireId={gestionnaireId} accent={couleurAccent === '#fbbf24' ? '#111827' : couleurAccent} naviguerVers={(p: string) => { if (p === 'accueil') naviguer('commandes'); else naviguer(p); }} /></div>;

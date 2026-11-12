@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ba, messageAcheteur, argent } from './boutiqueAcheteurApi';
 
-interface Props { gestionnaireId: number; couleurAccent?: string; isMobile?: boolean; naviguer?: (p: string) => void; }
+interface Props { gestionnaireId: number; couleurAccent?: string; isMobile?: boolean; naviguer?: (p: string) => void; demanderRetour?: (numero: string) => void; }
 
 export function statutCommande(c: { statut: string; statut_paiement: string }): { texte: string; couleur: string } {
   if (c.statut === 'annulee') return { texte: 'Annulée', couleur: '#ef4444' };
@@ -15,7 +15,7 @@ export function statutCommande(c: { statut: string; statut_paiement: string }): 
   return { texte: 'Confirmée', couleur: '#3b82f6' };
 }
 
-export default function CommandesBoutique({ gestionnaireId: gid, couleurAccent, naviguer }: Props) {
+export default function CommandesBoutique({ gestionnaireId: gid, couleurAccent, naviguer, demanderRetour }: Props) {
   const accent = couleurAccent || '#fbbf24';
   const [liste, setListe] = useState<any[] | null>(null);
   const [ouverte, setOuverte] = useState<string | null>(null);
@@ -71,6 +71,9 @@ export default function CommandesBoutique({ gestionnaireId: gid, couleurAccent, 
                 {c.taxes && Number(c.taxes.total_taxes) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', padding: '4px 0' }}><span>Taxes</span><span>{argent(c.taxes.total_taxes, c.devise)}</span></div>}
                 {c.adresse_livraison && c.adresse_livraison.adresse1 && (
                   <div style={{ marginTop: 10, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>📍 {c.adresse_livraison.nom} — {c.adresse_livraison.adresse1}{c.adresse_livraison.adresse2 ? `, ${c.adresse_livraison.adresse2}` : ''}, {c.adresse_livraison.ville} {c.adresse_livraison.province} {c.adresse_livraison.code_postal}</div>
+                )}
+                {demanderRetour && c.statut_paiement === 'paye' && (c.statut === 'expediee' || c.statut === 'livree') && (
+                  <button onClick={() => demanderRetour(c.numero_commande)} style={{ marginTop: 12, marginRight: 8, background: 'none', border: `1px solid ${accent}`, color: accent, borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>🔄 Demander un retour</button>
                 )}
                 {c.statut !== 'annulee' && c.statut_paiement !== 'paye' && (
                   <button disabled={occupe} onClick={() => annuler(c.numero_commande)} style={{ marginTop: 12, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.4)', color: '#f87171', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13 }}>Annuler cette commande</button>
