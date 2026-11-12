@@ -1,5 +1,5 @@
 // routes/images.js
-// Gestionnaire de fichiers Cloudflare R2 - Logos, Divers & Audio (e-Vend Studio, indépendant du blog)
+// Gestionnaire de fichiers Cloudflare R2 - Logos, Divers & Audio (e-Vend Studio)
 
 const express = require('express');
 const router = express.Router();
@@ -18,21 +18,17 @@ const s3 = new S3Client({
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
   },
 });
-const BUCKET = process.env.R2_BUCKET_ADMIN; // photos-videos-admin-pour-site
+const BUCKET = process.env.R2_BUCKET_ADMIN;
 
-// 🆕 Catégorie "audio" (musique de fond boutique publique).
-// Multer n'a pas accès de façon fiable à req.body.category à ce stade (l'ordre
-// des champs du FormData n'est pas garanti), donc on reste permissif ici
-// (image OU audio) et c'est verifierTypeFichier() ci-dessous — avec la bonne
-// liste selon la catégorie réelle — qui fait l'étape de validation stricte.
+// 🆕 Catégorie "audio" — on reste permissif dans fileFilter (l'ordre des champs
+// FormData n'est pas garanti) et c'est verifierTypeFichier() qui valide le vrai
+// contenu selon la catégorie.
 //
-// 🐛 CORRECTION : la regex précédente (/mpeg/i) ne matchait que "audio/mpeg".
-// Or certains navigateurs (Firefox, mobiles) envoient "audio/mp3", "audio/wav",
-// "audio/x-wav", "audio/ogg" ou "audio/webm" → le fichier était rejeté
-// silencieusement (cb(null, false) → req.file undefined → 400 trompeur
-// "Aucun fichier fourni"). On accepte maintenant explicitement tous les
-// formats audio courants, et on renvoie une VRAIE erreur multer (cb(new Error))
-// pour que le message soit clair côté client.
+// 🐛 CORRECTION vs version précédente : /mpeg/i ne matchait que "audio/mpeg".
+// Certains navigateurs envoient "audio/mp3", "audio/wav", "audio/ogg", "audio/webm"
+// → rejet silencieux → req.file undefined → 400 "Aucun fichier fourni".
+// On accepte désormais explicitement tous ces MIME, et on renvoie une vraie
+// erreur multer (cb(new Error)) pour un message clair côté client.
 const IMAGE_MIME_REGEX = /^image\/(jpeg|jpg|png|gif|webp)$/i;
 const AUDIO_MIME_REGEX = /^audio\/(mpeg|mp3|mpg|wav|x-wav|wave|ogg|webm)$/i;
 
@@ -54,20 +50,18 @@ const upload = multer({
 const EXTENSIONS_PAR_CATEGORIE = {
   logo:   ['jpg', 'jpeg', 'png', 'gif', 'webp'],
   divers: ['jpg', 'jpeg', 'png', 'gif', 'webp'],
-  audio:  ['mp3', 'wav', 'ogg', 'webm'], // élargi : cohérent avec les MIME acceptés
+  audio:  ['mp3', 'wav', 'ogg', 'webm'], // élargi
 };
 
 // Upload vers R2
 async function uploadToR2(buffer, originalName, mimetype, folder, category) {
-  // 🔒 Vérification du VRAI contenu du fichier (magic bytes) — le
-  // fileFilter ne regarde que le Content-Type déclaré par le client.
   const extensionsAutorisees =
     EXTENSIONS_PAR_CATEGORIE[category] || EXTENSIONS_PAR_CATEGORIE.divers;
 
   const verif = await verifierTypeFichier(buffer, extensionsAutorisees);
   if (!verif.ok) {
     console.warn(
-      `⚠️ Upload rejeté (images admin, catégorie "${category}") : contenu réel non conforme (détecté: ${verif.mimeDetecte || 'inconnu'})`
+      `⚠️ Upload rejeté (catégorie "${category}") : contenu réel non conforme (détecté: ${verif.mimeDetecte || 'inconnu'})`
     );
     const err = new Error(
       category === 'audio'
@@ -78,7 +72,7 @@ async function uploadToR2(buffer, originalName, mimetype, folder, category) {
     throw err;
   }
 
-  const ext = verif.extensionDetectee; // extension réelle détectée
+  const ext = verif.extensionDetectee;
   const safeName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_');
   const key = `studio/${folder}/${Date.now()}-${safeName}`;
 
@@ -99,8 +93,25 @@ async function uploadToR2(buffer, originalName, mimetype, folder, category) {
 
 // ─── ROUTES ───────────────────────────────────────────────────────────────
 
-// Gestionnaire de fichiers : réservé aux admins du Studio.
-router.use(authenticateToken, isAdmin);
+// Gestionnaire de fichiers : accessible aux modérateurs qui ont la permission
+// 'parametres' (logos, divers, musiques) OU 'produits' (images). Le propriétaire passe toujours.
+function autoriserImages(req, res, next) {
+  const perms = req.user.permissions || [];
+  if (
+    req.user.rang === 'proprietaire' ||
+    perms.includes('parametres') ||
+    perms.includes('produits')
+  ) {
+    return next();
+  }
+  return res.status(403).json({
+    error: 'Permission requise: parametres ou produits',
+    code: 'PERMISSION_REQUISE',
+    permission_manquante: 'parametres',
+  });
+}
+
+router.use(authenticateToken, isAdmin, autoriserImages);
 
 // GET /api/images?category=logo|divers|audio
 router.get('/', async (req, res) => {
@@ -140,8 +151,7 @@ router.post('/upload', upload.single('image'), async (req, res) => {
       .json({ error: 'category must be "logo", "divers" or "audio"' });
   }
 
-  // 🔒 Cohérence catégorie ↔ type MIME : évite qu'un mp3 soit classé
-  // en "logo" ou une image en "audio" (ce qui casserait l'affichage).
+  // Cohérence catégorie ↔ type MIME
   const isAudio = AUDIO_MIME_REGEX.test(req.file.mimetype);
   if (category === 'audio' && !isAudio) {
     return res
@@ -210,9 +220,7 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// ⚠️ Middleware d'erreurs LOCAL au routeur — DOIT être en dernier.
-// Convertit les erreurs Multer (taille, type refusé) en réponse JSON 400
-// au lieu d'une 500 générique ou d'une page HTML.
+// ⚠️ Middleware d'erreurs LOCAL — DOIT être en dernier
 router.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     console.warn('⚠️ Erreur Multer :', err.code, err.message);
