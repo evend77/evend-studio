@@ -18,6 +18,9 @@ router.use('/gestionnaire/commandes', require('./boutique_commandes_gestionnaire
 router.use('/gestionnaire/promos', require('./boutique_promos_config'));
 router.use('/gestionnaire/retours', require('./boutique_retours_gestionnaire'));
 
+// Inscription publique d'un acheteur (sans connexion) — AVANT la zone connectée ci-dessous
+router.use('/acheteur/:gid/inscription', require('./boutique_inscription'));
+
 // Acheteur connecté : panier, caisse, commandes (compte acheteur du MV réutilisé)
 router.use('/acheteur/:gid', require('./boutique_acheteur'));
 

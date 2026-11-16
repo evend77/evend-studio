@@ -169,12 +169,27 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
   );
 }
 
+// ── Inscription acheteur : config du gestionnaire (onglet « Compte / Inscription ») fusionnée avec les défauts ──
+type ChampInsc = { id:string; type:'text'|'email'|'tel'|'select'|'textarea'|'checkbox'; label:string; placeholder?:string; options?:string[]; requis?:boolean };
+const INSC_DEF = {
+  titre:'Créer un compte', sousTitre:'', boutonTexte:'Créer mon compte',
+  messageSuccesTitre:'Compte créé avec succès !', messageSuccesTexte:'Vous pouvez maintenant vous connecter.',
+  libelles:{ prenom:'Prénom', nom:'Nom', email:'Courriel', mot_de_passe:'Mot de passe', confirmation:'Confirmez le mot de passe' },
+  telephone:{ mode:'cache' }, infolettre:{ affiche:false, texte:'Je veux recevoir les nouveautés par courriel' },
+  age:{ affiche:true, minimum:16, texte:'Je déclare avoir {age} ans ou + (consentement parental pour les mineurs)' },
+  termes:{ affiche:true, texte:"J'accepte les termes et conditions de la boutique", url:'' },
+};
+function fusionInsc(b:any){
+  const x=b&&typeof b==='object'?b:{}; const sous=(k:'libelles'|'telephone'|'infolettre'|'age'|'termes')=>({...INSC_DEF[k],...(x[k]&&typeof x[k]==='object'?x[k]:{})});
+  return { ...INSC_DEF, ...x, libelles:sous('libelles'), telephone:sous('telephone'), infolettre:sous('infolettre'), age:sous('age'), termes:sous('termes'), champs:(Array.isArray(x.champs)?x.champs:[]) as ChampInsc[] };
+}
+
 export default function TemplateBoutiquePremium({ config: configBrut, siteId, vendeurId }: Props) {
   const raw = configBrut?.premium || {};
   const cfg = { ...CFG_DEF, ...raw, footer: { ...CFG_DEF.footer, ...(raw.footer||{}) } };
   const cp  = cfg.couleurAccent || OR;
 
-  type PageId = 'accueil'|'catalogue'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'wishlist'|'compte'|'login';
+  type PageId = 'accueil'|'catalogue'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'wishlist'|'compte'|'login'|'inscription';
   const [page,setPage]             = useState<PageId>('accueil');
   const [produitActif,setProduitActif] = useState<Produit|null>(null);
   const [articleActif,setArticleActif] = useState<ArticleBlog|null>(null);
@@ -209,6 +224,13 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [loginForm,setLoginForm]   = useState({email:'',mdp:''});
   const [loginStatut,setLoginStatut] = useState<'idle'|'loading'|'err'>('idle');
   const [loginErreur,setLoginErreur] = useState('');
+  const [inscVal,setInscVal]     = useState<Record<string,any>>({});
+  const [inscStatut,setInscStatut] = useState<'idle'|'loading'|'ok'>('idle');
+  const [inscErreur,setInscErreur] = useState('');
+  const [honeypot,setHoneypot]     = useState('');
+  const [sourisBougee,setSourisBougee] = useState(false);
+  const debutInscription = useRef<number>(Date.now());
+  const ins = fusionInsc(raw.inscription);
 
   useEffect(()=>{ const c=()=>setIsMobile(window.innerWidth<768); c(); window.addEventListener('resize',c); return()=>window.removeEventListener('resize',c); },[]);
   useEffect(()=>{ if(cfg.afficherPopupPromo){ const t=setTimeout(()=>setPopupPromo(true),4000); return()=>clearTimeout(t); } },[cfg.afficherPopupPromo]);
@@ -237,7 +259,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const naviguer = useCallback((dest:string)=>{
     setMenuOuvert(false); window.scrollTo({top:0,behavior:'smooth'});
     if(dest.toLowerCase()==='panier'){ setVueCompte('panier'); setPage('compte'); return; }
-    const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login' };
+    const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login',inscription:'inscription' };
     if(map[dest.toLowerCase()]) setPage(map[dest.toLowerCase()]);
   },[]);
 
@@ -267,6 +289,32 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     } catch(e:any){ setLoginErreur(e.message||'Erreur'); setLoginStatut('err'); }
   };
 
+
+  // Anti-bot (comme l'inscription e-Vend) : champ piège + délai minimum + mouvement de souris
+  useEffect(()=>{
+    if(page!=='inscription') return;
+    debutInscription.current=Date.now(); setSourisBougee(false);
+    const bouge=()=>setSourisBougee(true);
+    window.addEventListener('mousemove',bouge,{once:true});
+    return()=>window.removeEventListener('mousemove',bouge);
+  },[page]);
+
+  const handleInscription = async()=>{
+    setInscErreur('');
+    const v=inscVal;
+    if(v.mdp&&v.mdp2&&v.mdp!==v.mdp2) return setInscErreur('Les mots de passe ne correspondent pas.');
+    const champs:Record<string,any>={}; ins.champs.forEach(c=>{ champs[c.id]=v['c_'+c.id]; });
+    setInscStatut('loading');
+    try{
+      const res=await fetch(`${API_BASE}/boutique/acheteur/${vendeurId}/inscription`,{ method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+        prenom:v.prenom||'', nom:v.nom||'', email:v.email||'', mot_de_passe:v.mdp||'', confirmation:v.mdp2||'',
+        telephone:v.telephone||'', infolettre:v.infolettre===true, age_confirme:v.age===true, termes_acceptes:v.termes===true, champs,
+        duree_ms:Date.now()-debutInscription.current, souris:sourisBougee, website:honeypot }) });
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok) throw new Error(data.message||"Erreur lors de l'inscription.");
+      setLoginForm({email:(v.email||'').trim(),mdp:''}); setInscStatut('ok');
+    } catch(e:any){ setInscErreur(e.message||'Erreur de connexion au serveur.'); setInscStatut('idle'); }
+  };
 
   const envoyerContact=async()=>{ setContactStatut('loading'); try{ const res=await fetch(`${API_BASE}/contact/vendeur/${vendeurId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(contactForm)}); if(!res.ok) throw new Error(); setContactStatut('ok'); setContactForm({nom:'',courriel:'',sujet:'',message:''}); } catch{ setContactStatut('err'); } setTimeout(()=>setContactStatut('idle'),4000); };
 
@@ -592,6 +640,65 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     );
   };
 
+  const champInsc = (cle:string,libelle:string,type:string,ph:string,requis:boolean,extra?:any)=>(
+    <div key={cle} style={{ marginBottom:20 }}>
+      <label style={{ fontSize:12,fontWeight:600,color:'#888',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>{libelle}{requis&&' *'}</label>
+      {type==='textarea'
+        ? <textarea value={inscVal[cle]||''} onChange={e=>setInscVal(f=>({...f,[cle]:e.target.value}))} placeholder={ph} rows={3} style={{ ...styleInput,resize:'vertical' }}/>
+        : type==='select'
+        ? <select value={inscVal[cle]||''} onChange={e=>setInscVal(f=>({...f,[cle]:e.target.value}))} style={styleInput}><option value="">— Choisir —</option>{(extra||[]).map((o:string)=><option key={o} value={o}>{o}</option>)}</select>
+        : <input type={type} value={inscVal[cle]||''} onChange={e=>setInscVal(f=>({...f,[cle]:e.target.value}))} placeholder={ph} style={styleInput} autoComplete={type==='password'?'new-password':undefined}/>}
+    </div>
+  );
+  const caseInsc = (cle:string,contenu:any,requis:boolean)=>(
+    <div key={cle} onClick={()=>setInscVal(f=>({...f,[cle]:!f[cle]}))} style={{ display:'flex',alignItems:'flex-start',gap:10,cursor:'pointer',marginBottom:14 }}>
+      <div style={{ width:20,height:20,minWidth:20,borderRadius:5,border:`2px solid ${inscVal[cle]?cp:'#555'}`,background:inscVal[cle]?`${cp}33`:'transparent',display:'flex',alignItems:'center',justifyContent:'center',color:cp,fontSize:12,marginTop:2 }}>{inscVal[cle]&&'✓'}</div>
+      <span style={{ fontSize:13,color:'#ccc',lineHeight:1.5 }}>{contenu}{requis&&<span style={{ color:'#f87171' }}> *</span>}</span>
+    </div>
+  );
+
+  const PageInscription = () => (
+    <div style={{ minHeight:'70vh',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 24px' }}>
+      <div style={{ width:'100%',maxWidth:480 }}>
+        <div style={{ textAlign:'center',marginBottom:40 }}>
+          <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ ESPACE CLIENT</div>
+          <h1 style={{ fontSize:32,fontWeight:900,color:'#fff',margin:0 }}>{ins.titre}</h1>
+          {ins.sousTitre&&<p style={{ color:'#888',marginTop:10,fontSize:14 }}>{ins.sousTitre}</p>}
+          <p style={{ color:'#666',marginTop:10,fontSize:14 }}>Vous avez déjà un compte ? <button onClick={()=>naviguer('login')} style={{ background:'none',border:'none',color:cp,fontSize:14,cursor:'pointer',fontWeight:600 }}>Se connecter</button></p>
+        </div>
+        {inscStatut==='ok' ? (
+          <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:32,textAlign:'center' }}>
+            <div style={{ fontSize:48,marginBottom:12 }}>🎉</div>
+            <h2 style={{ color:'#fff',fontSize:20,fontWeight:800,margin:'0 0 8px' }}>{ins.messageSuccesTitre}</h2>
+            <p style={{ color:'#888',fontSize:14,margin:'0 0 24px' }}>{ins.messageSuccesTexte}</p>
+            <button onClick={()=>naviguer('login')} style={{ ...styleBtn,width:'100%',textAlign:'center',padding:'16px',fontSize:15 }}>→ Se connecter</button>
+          </div>
+        ) : (
+          <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:32 }}>
+            <div style={{ position:'absolute',left:-9999,top:-9999,opacity:0,pointerEvents:'none' }} aria-hidden="true"><input type="text" name="website" value={honeypot} onChange={e=>setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off"/></div>
+            {champInsc('prenom',ins.libelles.prenom,'text','',true)}
+            {champInsc('nom',ins.libelles.nom,'text','',true)}
+            {champInsc('email',ins.libelles.email,'email','votre@courriel.com',true)}
+            {ins.telephone.mode!=='cache'&&champInsc('telephone','Téléphone','tel','',ins.telephone.mode==='obligatoire')}
+            {champInsc('mdp',ins.libelles.mot_de_passe,'password','Minimum 8 caractères',true)}
+            {champInsc('mdp2',ins.libelles.confirmation,'password','',true)}
+            {inscVal.mdp2&&inscVal.mdp!==inscVal.mdp2&&<div style={{ fontSize:12,color:'#f87171',margin:'-12px 0 16px' }}>⚠️ Les mots de passe ne correspondent pas.</div>}
+            {ins.champs.map(c=>c.type==='checkbox'
+              ? caseInsc('c_'+c.id,c.label,!!c.requis)
+              : champInsc('c_'+c.id,c.label,c.type,c.placeholder||'',!!c.requis,c.options))}
+            {ins.infolettre.affiche&&caseInsc('infolettre',ins.infolettre.texte,false)}
+            {ins.age.affiche&&caseInsc('age',String(ins.age.texte).replace('{age}',String(ins.age.minimum)),true)}
+            {ins.termes.affiche&&caseInsc('termes',ins.termes.url
+              ? <a href={ins.termes.url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{ color:cp,textDecoration:'underline' }}>{ins.termes.texte}</a>
+              : ins.termes.texte,true)}
+            {inscErreur&&<div style={{ background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,padding:'10px 14px',marginBottom:16,fontSize:13,color:'#ef4444' }}>⚠️ {inscErreur}</div>}
+            <button onClick={handleInscription} disabled={inscStatut==='loading'} style={{ ...styleBtn,width:'100%',textAlign:'center',padding:'16px',fontSize:15 }}>{inscStatut==='loading'?'⏳ Création en cours…':ins.boutonTexte}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   const PageWishlist = () => {
     const items = produits.filter(p=>wishlist.includes(p.id));
     return (
@@ -617,7 +724,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           <div style={{ marginBottom:28 }}><label style={{ fontSize:12,fontWeight:600,color:'#888',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Mot de passe</label><input type="password" value={loginForm.mdp} onChange={e=>setLoginForm(f=>({...f,mdp:e.target.value}))} placeholder="••••••••" style={styleInput} onKeyDown={e=>e.key==='Enter'&&handleLogin()}/></div>
           {loginErreur&&<div style={{ background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,padding:'10px 14px',marginBottom:16,fontSize:13,color:'#ef4444' }}>❌ {loginErreur}</div>}
           <button onClick={handleLogin} disabled={loginStatut==='loading'} style={{ ...styleBtn,width:'100%',textAlign:'center',padding:'16px',fontSize:15 }}>{loginStatut==='loading'?'⏳ Connexion...':'Se connecter →'}</button>
-          <div style={{ textAlign:'center',marginTop:20 }}><span style={{ fontSize:13,color:'#555' }}>Pas encore de compte ? </span><button style={{ background:'none',border:'none',color:cp,fontSize:13,cursor:'pointer',fontWeight:600 }}>Créer un compte</button></div>
+          <div style={{ textAlign:'center',marginTop:20 }}><span style={{ fontSize:13,color:'#555' }}>Pas encore de compte ? </span><button onClick={()=>{ setInscStatut('idle'); setInscErreur(''); naviguer('inscription'); }} style={{ background:'none',border:'none',color:cp,fontSize:13,cursor:'pointer',fontWeight:600 }}>Créer un compte</button></div>
         </div>
       </div>
     </div>
@@ -892,7 +999,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         {page==='a-propos'   && <PageAPropos/>}
         {page==='contact'   && <PageContact/>}
         {page==='wishlist'  && <PageWishlist/>}
-        {page==='login'     && <PageLogin/>}
+        {page==='login'     && PageLogin()}
+        {page==='inscription' && PageInscription()}
       </main>
 
       <Footer/>
