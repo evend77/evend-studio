@@ -23,7 +23,7 @@ import MesSponsorsGestionnaire from './pages/gestionnaire/MesSponsorsGestionnair
 import AnalytiqueGestionnaire from './pages/gestionnaire/AnalytiqueGestionnaire';
 import ChatbotConfig from './pages/gestionnaire/ChatbotConfig';
 import ConfigurationPaiements from './pages/gestionnaire/ConfigurationPaiements';
-import MesAcheteurs                  from './pages/studio/MesAcheteurs';
+import MesAcheteurs                  from './pages/gestionnaire/MesAcheteurs';
 import StudioConfigPage404   from './pages/gestionnaire/StudioConfigPage404';
 import StudioMesPolitiques  from './pages/gestionnaire/StudioMesPolitiques';
 import StudioMesPages       from './pages/gestionnaire/StudioMesPages';
@@ -86,6 +86,7 @@ import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
 import BoutiquePaiements          from './pages/gestionnaire/BoutiquePaiements';
 import BoutiquePromos             from './pages/gestionnaire/BoutiquePromos';
 import BoutiqueRetours            from './pages/gestionnaire/BoutiqueRetours';
+import BoutiqueAcheteurs          from './pages/gestionnaire/BoutiqueAcheteurs';
 import BoutiqueModale              from './pages/gestionnaire/BoutiqueModale';
 import BoutiqueTaxes               from './pages/gestionnaire/BoutiqueTaxes';
 import BoutiqueExpedition          from './pages/gestionnaire/BoutiqueExpedition';
@@ -1530,6 +1531,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       if (pageActive === 'commandes-liste') return <BoutiqueCommandes gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} naviguerVers={setPageActive} />;
       if (pageActive === 'commandes-retours') return <BoutiqueRetours gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} />;
       if (pageActive === 'commandes-paiements') return <BoutiquePaiements gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} naviguerVers={setPageActive} />;
+      if (pageActive === 'acheteurs-liste') return <BoutiqueAcheteurs gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} />;
       if (pageActive === 'config-taxes') return <BoutiqueTaxes gestionnaireId={gestionnaire.id} accent={accentSolo} naviguerVers={setPageActive} />;
     }
     if (pageActive === 'creer') return <CreerAnnonce onRetour={() => setPageActive('annonces-liste')} />;
@@ -1963,7 +1965,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           </div>
 
           <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
-            {menuItems.map((it) => (estMultiVendeur || !it.sousMenu ? it : { ...it, sousMenu: it.sousMenu.filter((s) => s.id !== 'config-multivendeur') })).map((item) => (
+            {menuItems.map((item) => (
               <div key={item.id}>
                 {!item.sousMenu ? (
                   <div

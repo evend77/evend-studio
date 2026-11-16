@@ -98,10 +98,37 @@ const CFG_DEF = {
     couleurFond: '#050505', couleurTexte: '#ffffff',
     reseaux: { facebook:'', instagram:'', tiktok:'', twitter:'', youtube:'', linkedin:'', pinterest:'' },
     colonnes: { titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nFAQ', titre2:'Aide', liens2:'Contact\nRetours\nLivraison', titre3:'Légal', liens3:'Conditions\nConfidentialité' },
-    politiques: { afficherConditions:true, afficherConfidentialite:true, afficherRetours:true, afficherLivraison:true },
+    politiques: { afficherConditions:true, afficherConfidentialite:true, afficherRetours:true, afficherLivraison:true, afficherMentions:true },
     afficherPropulse: true,
   },
 };
+
+// ── Politiques légales du site : les 6 politiques fixes que le gestionnaire rédige (Configuration → Mes politiques) ──
+const POLITIQUES_SLUGS = ['retour-remboursement','confidentialite','conditions-service','expedition','coordonnees','mentions-legales'];
+const sansAccent = (t:string)=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+// Reconnaît un lien de pied de page (ou un slug) qui désigne une politique : retourne son slug, sinon ''
+function slugPolitique(dest:string):string {
+  const d=sansAccent(dest).replace(/[-_]+/g,' ');
+  const t:Record<string,string>={ 'conditions':'conditions-service','conditions de service':'conditions-service','termes':'conditions-service','termes et conditions':'conditions-service',
+    'confidentialite':'confidentialite','politique de confidentialite':'confidentialite','vie privee':'confidentialite',
+    'retours':'retour-remboursement','retour':'retour-remboursement','remboursement':'retour-remboursement','remboursements':'retour-remboursement','retour et remboursement':'retour-remboursement','retours et remboursements':'retour-remboursement','retour remboursement':'retour-remboursement',
+    'livraison':'expedition','expedition':'expedition','livraison et expedition':'expedition',
+    'coordonnees':'coordonnees','mentions legales':'mentions-legales' };
+  return t[d]||'';
+}
+// Nettoie le HTML d'une politique avant l'affichage (le serveur le nettoie déjà à l'enregistrement) : retire scripts, cadres, formulaires, gestionnaires d'événements et liens javascript:
+function htmlSur(h:string):string {
+  try {
+    const doc=new DOMParser().parseFromString('<div id="r">'+h+'</div>','text/html'); const racine=doc.getElementById('r'); if(!racine) return '';
+    racine.querySelectorAll('script,style,iframe,object,embed,form,link,meta,base,svg,math').forEach(e=>e.remove());
+    racine.querySelectorAll('*').forEach(e=>{
+      Array.from(e.attributes).forEach(a=>{ const n=a.name.toLowerCase(), v=a.value.replace(/[\s\u0000-\u001f]/g,'').toLowerCase();
+        if(n.startsWith('on')||n==='style'||((n==='href'||n==='src'||n==='xlink:href'||n==='action')&&!/^(https?:|mailto:|tel:|#|\/)/.test(v))) e.removeAttribute(a.name); });
+      if(e.tagName==='A'){ e.setAttribute('target','_blank'); e.setAttribute('rel','noopener noreferrer'); }
+    });
+    return racine.innerHTML;
+  } catch { return ''; }
+}
 
 function Etoiles({ note, taille=14 }: { note:number; taille?:number }) {
   return <span style={{ display:'inline-flex',gap:1 }}>{[1,2,3,4,5].map(i=><span key={i} style={{ fontSize:taille,color:i<=Math.round(note)?OR:'#444' }}>★</span>)}</span>;
@@ -238,7 +265,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const lienHttp=(u:any):string=>/^https?:\/\//i.test(String(u||''))?String(u):'';
   const cp  = cfg.couleurAccent || OR;
 
-  type PageId = 'accueil'|'catalogue'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'wishlist'|'compte'|'login'|'inscription';
+  type PageId = 'accueil'|'catalogue'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'wishlist'|'compte'|'login'|'inscription'|'politique';
   const [page,setPage]             = useState<PageId>('accueil');
   const [produitActif,setProduitActif] = useState<Produit|null>(null);
   const [articleActif,setArticleActif] = useState<ArticleBlog|null>(null);
@@ -246,6 +273,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [menuOuvert,setMenuOuvert] = useState(false);
   const [produits,setProduits]     = useState<Produit[]>([]);
   const [produitsDemo,setProduitsDemo] = useState(true); // vrai tant que seuls les exemples sont affichés
+  const [politiquesRedigees,setPolitiquesRedigees] = useState<Record<string,boolean>|null>(null); // slug → rédigée ? (null = pas encore lu)
+  const [politique,setPolitique] = useState<{slug:string;titre:string;contenu:string}|null>(null);
+  const [politiqueStatut,setPolitiqueStatut] = useState<'idle'|'loading'|'err'>('idle');
+  const politiqueEnCours = useRef('');
   const [catalogueCharge,setCatalogueCharge] = useState(false); // vrai quand la lecture des vraies annonces est terminée
   const modeDemo = catalogueCharge&&produitsDemo; // éléments de démonstration seulement (futurs add-ons payants) : jamais sur une boutique qui a de vraies annonces
   const [articles,setArticles]     = useState<ArticleBlog[]>([]);
@@ -285,6 +316,9 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const ins = fusionInsc(raw.inscription);
 
   useEffect(()=>{ const c=()=>setIsMobile(window.innerWidth<768); c(); window.addEventListener('resize',c); return()=>window.removeEventListener('resize',c); },[]);
+  useEffect(()=>{
+    fetch(`${API_BASE}/studio/politiques/${vendeurId}/public`).then(r=>r.ok?r.json():null).then(d=>{ if(!d||!Array.isArray(d.politiques)) return; const m:Record<string,boolean>={}; d.politiques.forEach((p:any)=>{ m[p.slug]=typeof p.contenu==='string'&&p.contenu.trim().length>0; }); setPolitiquesRedigees(m); }).catch(()=>{});
+  },[vendeurId]);
   useEffect(()=>{ if(cfg.afficherPopupPromo){ const t=setTimeout(()=>setPopupPromo(true),4000); return()=>clearTimeout(t); } },[cfg.afficherPopupPromo]);
 
   useEffect(()=>{
@@ -311,9 +345,13 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const naviguer = useCallback((dest:string)=>{
     setMenuOuvert(false); window.scrollTo({top:0,behavior:'smooth'});
     if(dest.toLowerCase()==='panier'){ setVueCompte('panier'); setPage('compte'); return; }
+    const slugPol=slugPolitique(dest);
+    if(slugPol){ politiqueEnCours.current=slugPol; setPolitique(null); setPolitiqueStatut('loading'); setPage('politique');
+      fetch(`${API_BASE}/studio/politiques/${vendeurId}/public/${slugPol}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{ if(politiqueEnCours.current!==slugPol) return; const p=d&&d.politique; if(!p) throw new Error(); setPolitique({ slug:slugPol, titre:String(p.titre||''), contenu:typeof p.contenu==='string'?p.contenu:'' }); setPolitiqueStatut('idle'); }).catch(()=>{ if(politiqueEnCours.current===slugPol) setPolitiqueStatut('err'); });
+      return; }
     const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login',inscription:'inscription' };
     if(map[dest.toLowerCase()]) setPage(map[dest.toLowerCase()]);
-  },[]);
+  },[vendeurId]);
 
   const voirProduit = (p:Produit)=>{ setProduitActif(p); setPhotoIdx(0); setQteChoisie(1); setVarianteChoisie({}); setOngletProduit('description'); setPage('produit'); window.scrollTo({top:0,behavior:'smooth'}); fetch(`${API_BASE}/avis/produit/${p.id}`).then(r=>r.ok?r.json():[]).then(data=>setAvisActif(Array.isArray(data)?data:[])).catch(()=>{}); };
   const voirArticle = (a:ArticleBlog)=>{ setArticleActif(a); setPage('article'); window.scrollTo({top:0,behavior:'smooth'}); };
@@ -466,7 +504,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             <div><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('accueil','vedetteSurtitre','Sélection')}</div><h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:0,lineHeight:1.1 }}>{tx('accueil','vedetteTitre','Nos coups de cœur')}</h2></div>
             <button onClick={()=>naviguer('catalogue')} style={{ background:'none',border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 20px',color:cp,fontSize:13,fontWeight:600,cursor:'pointer',display:isMobile?'none':'block' }}>{tx('accueil','vedetteBouton','Voir tout →')}</button>
           </div>
-          <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(4,vedette.length)},1fr)`,gap:isMobile?12:20 }}>
+          <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:isMobile?12:20 }}>
             {vedette.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
           </div>
         </div>}
@@ -701,7 +739,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         {similaires.length>0&&<div style={{ marginTop:72,paddingTop:48,borderTop:`1px solid ${BORD}` }}>
           <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('ficheProduit','similairesSurtitre','Vous aimerez aussi')}</div>
           <h2 style={{ fontSize:isMobile?24:32,fontWeight:900,color:'#fff',marginBottom:28 }}>{tx('ficheProduit','similairesTitre','Produits similaires')}</h2>
-          <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(4,similaires.length)},1fr)`,gap:16 }}>
+          <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(4,nbr('ficheProduit','similairesNombre',4,1,8))},1fr)`,gap:16 }}>
             {similaires.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
           </div>
         </div>}
@@ -891,7 +929,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           <div style={lblStyle}>✦ {t('valeursSurtitre','Nos valeurs')}</div>
           <h2 style={{ fontSize:isMobile?24:36,fontWeight:900,color:'#fff',margin:0 }}>{t('valeursTitre','Ce qui nous définit')}</h2>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':`repeat(${Math.min(valeurs.length,3)},1fr)`,gap:20 }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:20 }}>
           {valeurs.map((v:any,i:number)=>(
             <div key={i} style={{ background:SURF,border:`1px solid #222`,borderRadius:16,padding:'28px 24px',transition:'border-color 0.2s' }}
               onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.borderColor=BORD}
@@ -907,7 +945,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       {/* Chiffres */}
       {ap.afficherChiffres!==false&&(
       <div style={{ background:`linear-gradient(135deg,${SURF},${SURF2})`,borderTop:`1px solid ${BORD}`,borderBottom:`1px solid ${BORD}`,padding:'48px 24px',marginBottom:64,borderRadius:16 }}>
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(chiffres.length,4)},1fr)`,gap:32,textAlign:'center' }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:32,textAlign:'center' }}>
           {chiffres.map((x:any,i:number)=>(
             <div key={i}>
               <div style={{ fontSize:isMobile?32:44,fontWeight:900,color:cp,marginBottom:8,letterSpacing:'-0.02em' }}>{x.nb}</div>
@@ -924,7 +962,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           <div style={lblStyle}>✦ {t('equipeSurtitre',"L'équipe")}</div>
           <h2 style={{ fontSize:isMobile?24:36,fontWeight:900,color:'#fff',margin:0 }}>{t('equipeTitre','Les visages derrière la boutique')}</h2>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':`repeat(${Math.min(equipe.length,3)},1fr)`,gap:20 }}>
+        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:20 }}>
           {equipe.map((m:any,i:number)=>{ const col=couleursEquipe[i%3]; const photo=/^https?:\/\//i.test(m.photo||'')?m.photo:''; return (
             <div key={i} style={{ background:SURF,border:`1px solid #222`,borderRadius:16,padding:'28px 24px',textAlign:'center' }}>
               {photo
@@ -949,6 +987,21 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         </div>
       </div>)}
     </div>
+    );
+  };
+
+  const PagePolitique = () => {
+    const contenu=politique&&politique.contenu.trim()?htmlSur(politique.contenu):'';
+    return (
+      <div style={{ maxWidth:860,margin:'0 auto',padding:'40px 24px' }}>
+        <style>{`.pol-contenu h1{font-size:30px;font-weight:900;color:#fff;margin:0 0 20px;line-height:1.2}.pol-contenu h2{font-size:20px;font-weight:800;color:#fff;margin:32px 0 10px}.pol-contenu h3{font-size:16px;font-weight:700;color:#fff;margin:22px 0 8px}.pol-contenu p{color:#aaa;line-height:1.9;margin:0 0 14px;font-size:15px}.pol-contenu ul,.pol-contenu ol{color:#aaa;padding-left:22px;margin:0 0 14px}.pol-contenu li{line-height:1.8;margin-bottom:6px;font-size:15px}.pol-contenu a{color:${cp};text-decoration:underline}.pol-contenu strong{color:#fff}.pol-contenu blockquote{border-left:3px solid ${cp};padding:8px 18px;margin:16px 0;color:#bbb}.pol-contenu hr{border:0;border-top:1px solid ${BORD};margin:24px 0}`}</style>
+        <button onClick={()=>naviguer('accueil')} style={{ background:'none',border:'none',color:cp,fontSize:14,cursor:'pointer',marginBottom:28,padding:0 }}>← Retour à l'accueil</button>
+        {politiqueStatut==='loading'&&<p style={{ color:'#666' }}>Chargement…</p>}
+        {politiqueStatut==='err'&&<p style={{ color:'#ef4444' }}>Impossible de charger cette page. Veuillez réessayer.</p>}
+        {politiqueStatut==='idle'&&politique&&(contenu
+          ? <div className="pol-contenu" dangerouslySetInnerHTML={{ __html:contenu }}/>
+          : <><h1 style={{ fontSize:30,fontWeight:900,color:'#fff',marginBottom:16 }}>{politique.titre}</h1><p style={{ color:'#777' }}>Cette page n'a pas encore été rédigée.</p></>)}
+      </div>
     );
   };
 
@@ -1006,6 +1059,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
   const Footer = () => {
     const f=cfg.footer;
+    const pol:any={ ...CFG_DEF.footer.politiques, ...(f.politiques||{}) };
+    // Un lien légal n'apparaît que si le gestionnaire a rédigé cette politique (en démonstration : tous, pour l'aperçu)
+    const polVisible=(slug:string)=>modeDemo||(politiquesRedigees?politiquesRedigees[slug]===true:false);
+    const liensPol=[['conditions-service','Conditions',pol.afficherConditions],['confidentialite','Confidentialité',pol.afficherConfidentialite],['retour-remboursement','Retours',pol.afficherRetours],['expedition','Livraison',pol.afficherLivraison],['mentions-legales','Mentions légales',pol.afficherMentions]].filter(([slug,,actif])=>actif!==false&&polVisible(slug as string));
     const reseaux=Object.entries(f.reseaux).filter(([,v])=>v);
     const icos:Record<string,string>={ facebook:'f',instagram:'📸',tiktok:'♪',twitter:'𝕏',youtube:'▶',linkedin:'in',pinterest:'P' };
     return (
@@ -1023,7 +1080,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             {['1','2','3'].map(n=>f.colonnes[`titre${n}`]?(
               <div key={n}>
                 <div style={{ fontSize:11,fontWeight:700,color:cp,textTransform:'uppercase',letterSpacing:'0.15em',marginBottom:18 }}>{f.colonnes[`titre${n}`]}</div>
-                {f.colonnes[`liens${n}`].split('\n').filter(Boolean).map((l:string,i:number)=>(
+                {f.colonnes[`liens${n}`].split('\n').filter((l:string)=>{ if(!l.trim()) return false; const sp=slugPolitique(l); return !sp||polVisible(sp); }).map((l:string,i:number)=>(
                   <div key={i} style={{ marginBottom:10 }}><button onClick={()=>naviguer(l.toLowerCase())} style={{ background:'none',border:'none',color:'#555',fontSize:13,cursor:'pointer',padding:0,textAlign:'left' }} onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.color=cp} onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.color='#555'}>{l}</button></div>
                 ))}
               </div>
@@ -1032,9 +1089,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           <div style={{ borderTop:`1px solid rgba(201,169,110,0.1)`,padding:'20px 0',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12 }}>
             <div style={{ fontSize:12,color:'#333' }}>© {new Date().getFullYear()} {f.nomBoutique}. Tous droits réservés.</div>
             <div style={{ display:'flex',gap:16,flexWrap:'wrap' }}>
-              {f.politiques.afficherConditions&&<button onClick={()=>naviguer('conditions')} style={{ background:'none',border:'none',color:'#444',fontSize:11,cursor:'pointer' }}>Conditions</button>}
-              {f.politiques.afficherConfidentialite&&<button onClick={()=>naviguer('confidentialite')} style={{ background:'none',border:'none',color:'#444',fontSize:11,cursor:'pointer' }}>Confidentialité</button>}
-              {f.politiques.afficherRetours&&<button onClick={()=>naviguer('retours')} style={{ background:'none',border:'none',color:'#444',fontSize:11,cursor:'pointer' }}>Retours</button>}
+              {liensPol.map(([slug,label])=><button key={slug as string} onClick={()=>naviguer(slug as string)} style={{ background:'none',border:'none',color:'#444',fontSize:11,cursor:'pointer' }}>{label}</button>)}
             </div>
             {f.afficherPropulse&&<a href="https://e-vend.ca" target="_blank" rel="noopener noreferrer" style={{ fontSize:10,color:'#2a2a2a',textDecoration:'none' }}>Propulsé par e-Vend Studio</a>}
           </div>
@@ -1085,6 +1140,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         {page==='faq'       && <PageFaq/>}
         {page==='a-propos'   && <PageAPropos/>}
         {page==='contact'   && <PageContact/>}
+        {page==='politique' && PagePolitique()}
         {page==='wishlist'  && <PageWishlist/>}
         {page==='login'     && PageLogin()}
         {page==='inscription' && PageInscription()}
