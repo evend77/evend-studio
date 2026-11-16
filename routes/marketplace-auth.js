@@ -10,6 +10,8 @@ const bcrypt = require('bcrypt');
 const cfgMV = require('../services/studio_config_mv');
 const jwt = require('jsonwebtoken');
 
+const sec = require('../services/studio_securite_inscription');
+
 const JWT_SECRET = process.env.JWT_SECRET;
 const { verifierCompteBloque, gererTentativeEchouee } = require('./authStudio');
 
@@ -32,34 +34,99 @@ function nomCookieMarketplace(gestionnaireId) {
   return `mv_token_${gestionnaireId}`;
 }
 
+// ─── Protection des inscriptions (acheteur + collaborateur) ──────────────────
+// 1) GET .../inscription/jeton : jeton signé émis au chargement de la page
+// 2) POST : piège (champ "website"), délai minimum, limites IP / boutique,
+//    types vérifiés, texte nettoyé, formats validés.
+function idBoutique(req) {
+  const n = Number(req.params.gestionnaireId);
+  return Number.isInteger(n) && n > 0 && n < 2147483647 ? n : null;
+}
+
+router.get('/:gestionnaireId/inscription/jeton', (req, res) => {
+  const gid = idBoutique(req);
+  if (!gid) return res.status(400).json({ message: 'Boutique invalide' });
+  res.set('Cache-Control', 'no-store');
+  res.json({ jeton: sec.creerJeton(gid, 'inscription') });
+});
+
+// Contrôles anti-robot communs. Retourne true si la réponse a déjà été envoyée.
+function refuserRobot(req, res, gid, portee, limites) {
+  const b = req.body && typeof req.body === 'object' ? req.body : {};
+  // Piège : un humain ne voit pas ce champ. On répond "succès" sans rien créer.
+  if (typeof b.website === 'string' && b.website !== '') {
+    res.status(201).json({ ok: true });
+    return true;
+  }
+  const probleme = sec.verifierJeton(b.jeton, gid, 'inscription');
+  if (probleme) {
+    const msg = probleme === 'trop_rapide' ? 'Veuillez patienter quelques secondes avant d\'envoyer le formulaire.'
+      : 'Le formulaire a expiré. Rechargez la page et réessayez.';
+    res.status(400).json({ message: msg });
+    return true;
+  }
+  const ip = sec.ipClient(req);
+  const cleIp = `${portee}:ip:${ip}`, cleBoutique = `${portee}:b:${gid}`;
+  if (sec.depasse(cleIp + ':essais', limites.essaisIp) || sec.depasse(cleBoutique + ':essais', limites.essaisBoutique)
+      || sec.depasse(cleIp + ':ok', limites.creationsIp) || sec.depasse(cleBoutique + ':ok', limites.creationsBoutique)) {
+    res.status(429).json({ message: 'Trop de tentatives d\'inscription. Réessayez plus tard.' });
+    return true;
+  }
+  sec.noter(cleIp + ':essais'); sec.noter(cleBoutique + ':essais');
+  return false;
+}
+
+function noterCreation(req, gid, portee) {
+  sec.noter(`${portee}:ip:${sec.ipClient(req)}:ok`); sec.noter(`${portee}:b:${gid}:ok`);
+}
+
 router.post('/:gestionnaireId/acheteurs/inscription', async (req, res) => {
   try {
-    const { gestionnaireId } = req.params;
-    const { prenom, nom, email, mot_de_passe, telephone, infolettre } = req.body;
+    const gid = idBoutique(req);
+    if (!gid) return res.status(400).json({ message: 'Boutique invalide' });
 
     // Inscriptions acheteur fermées par le gestionnaire (Config marketplace → Inscriptions)
-    if (cfgMV.actif(await cfgMV.lire(parseInt(gestionnaireId, 10), pool), 'bloquer_inscription_acheteur', false)) {
+    if (cfgMV.actif(await cfgMV.lire(gid, pool), 'bloquer_inscription_acheteur', false)) {
       return res.status(403).json({ message: "Les inscriptions d'acheteurs sont fermées sur cette marketplace.", ferme: true });
     }
 
-    if (!prenom || !nom || !email || !mot_de_passe) {
-      return res.status(400).json({ message: 'Champs obligatoires manquants' });
-    }
+    if (refuserRobot(req, res, gid, 'acheteur', { essaisIp: 15, essaisBoutique: 200, creationsIp: 3, creationsBoutique: 60 })) return;
+
+    const b = req.body || {};
+    const prenom = sec.validerNomPersonne(b.prenom, 100);
+    const nom = sec.validerNomPersonne(b.nom, 100);
+    const email = sec.validerCourriel(b.email);
+    const tel = sec.validerTelephone(b.telephone);
+    const erreurMdp = sec.validerMotDePasse(b.mot_de_passe);
+    const adr = sec.validerAdresse(b);
+
+    if (!prenom || !nom) return res.status(400).json({ message: 'Prénom et nom invalides (lettres, espaces, tirets et apostrophes seulement).' });
+    if (!email) return res.status(400).json({ message: 'Adresse courriel invalide.' });
+    if (!tel.ok) return res.status(400).json({ message: 'Numéro de téléphone invalide.' });
+    if (erreurMdp) return res.status(400).json({ message: erreurMdp });
+    if (!adr.ok) return res.status(400).json({ message: adr.message });
 
     const existant = await pool.query(
-      'SELECT id FROM marketplace_acheteurs WHERE gestionnaire_id = $1 AND email = $2',
-      [gestionnaireId, email]
+      'SELECT id FROM marketplace_acheteurs WHERE gestionnaire_id = $1 AND LOWER(email) = $2',
+      [gid, email]
     );
     if (existant.rows.length > 0) {
       return res.status(409).json({ message: 'Un compte existe deja avec ce courriel' });
     }
 
-    const hash = await bcrypt.hash(mot_de_passe, 10);
-    const result = await pool.query(
-      `INSERT INTO marketplace_acheteurs (gestionnaire_id, prenom, nom, email, mot_de_passe, telephone, infolettre)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id, prenom, nom, email`,
-      [gestionnaireId, prenom, nom, email, hash, telephone || null, !!infolettre]
-    );
+    const hash = await bcrypt.hash(b.mot_de_passe, 10);
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO marketplace_acheteurs (gestionnaire_id, prenom, nom, email, mot_de_passe, telephone, infolettre, adresse, ville, province, code_postal)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id, prenom, nom, email`,
+        [gid, prenom, nom, email, hash, tel.valeur, b.infolettre === true, adr.adresse, adr.ville, adr.province, adr.code_postal]
+      );
+    } catch (e) {
+      if (e && e.code === '23505') return res.status(409).json({ message: 'Un compte existe deja avec ce courriel' });
+      throw e;
+    }
+    noterCreation(req, gid, 'acheteur');
 
     res.status(201).json({ acheteur: result.rows[0] });
   } catch (err) {
@@ -68,37 +135,59 @@ router.post('/:gestionnaireId/acheteurs/inscription', async (req, res) => {
   }
 });
 
+const TYPES_ENTREPRISE = ['particulier', 'entreprise'];
+
 router.post('/:gestionnaireId/collaborateurs/inscription', async (req, res) => {
   try {
-    const { gestionnaireId } = req.params;
-    const { nom_responsable, nom_boutique, email, mot_de_passe, telephone, type_entreprise } = req.body;
+    const gid = idBoutique(req);
+    if (!gid) return res.status(400).json({ message: 'Boutique invalide' });
 
     // Inscriptions collaborateur fermées par le gestionnaire (ancienne clé : bloquer_inscription_vendeur)
-    const mvIns = await cfgMV.lire(parseInt(gestionnaireId, 10), pool);
+    const mvIns = await cfgMV.lire(gid, pool);
     if (cfgMV.actif(mvIns, 'bloquer_inscription_collaborateur', cfgMV.actif(mvIns, 'bloquer_inscription_vendeur', false))) {
       return res.status(403).json({ message: 'Les inscriptions de collaborateurs sont fermées sur cette marketplace.', ferme: true });
     }
 
-    if (!nom_responsable || !nom_boutique || !email || !mot_de_passe || !type_entreprise) {
-      return res.status(400).json({ message: 'Champs obligatoires manquants' });
-    }
+    if (refuserRobot(req, res, gid, 'collab', { essaisIp: 10, essaisBoutique: 60, creationsIp: 3, creationsBoutique: 20 })) return;
+
+    const b = req.body || {};
+    const nomResp = sec.validerNomPersonne(b.nom_responsable, 100);
+    const nomBoutique = sec.nettoyerTexte(b.nom_boutique, 100);
+    const email = sec.validerCourriel(b.email);
+    const tel = sec.validerTelephone(b.telephone);
+    const erreurMdp = sec.validerMotDePasse(b.mot_de_passe);
+    const type = typeof b.type_entreprise === 'string' ? b.type_entreprise : '';
+
+    if (!nomResp) return res.status(400).json({ message: 'Nom du responsable invalide (lettres, espaces, tirets et apostrophes seulement).' });
+    if (nomBoutique.length < 2) return res.status(400).json({ message: 'Nom de boutique invalide.' });
+    if (!email) return res.status(400).json({ message: 'Adresse courriel invalide.' });
+    if (!tel.ok) return res.status(400).json({ message: 'Numéro de téléphone invalide.' });
+    if (erreurMdp) return res.status(400).json({ message: erreurMdp });
+    if (!TYPES_ENTREPRISE.includes(type)) return res.status(400).json({ message: "Type d'entreprise invalide." });
 
     const existant = await pool.query(
-      'SELECT id FROM marketplace_collaborateurs WHERE gestionnaire_id = $1 AND email = $2',
-      [gestionnaireId, email]
+      'SELECT id FROM marketplace_collaborateurs WHERE gestionnaire_id = $1 AND LOWER(email) = $2',
+      [gid, email]
     );
     if (existant.rows.length > 0) {
       return res.status(409).json({ message: 'Une demande existe deja avec ce courriel' });
     }
 
-    const hash = await bcrypt.hash(mot_de_passe, 10);
+    const hash = await bcrypt.hash(b.mot_de_passe, 10);
     // Approbation automatique (Config marketplace → Config vendeur) : compte actif tout de suite, sinon « pending » (le gestionnaire approuve).
     const statutInitial = cfgMV.actif(mvIns, 'approuver_auto_collaborateur', false) ? 'actif' : 'pending';
-    const result = await pool.query(
-      `INSERT INTO marketplace_collaborateurs (gestionnaire_id, nom_responsable, nom_boutique, email, mot_de_passe, telephone, type_entreprise, statut)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, nom_boutique, email, statut`,
-      [gestionnaireId, nom_responsable, nom_boutique, email, hash, telephone || null, type_entreprise, statutInitial]
-    );
+    let result;
+    try {
+      result = await pool.query(
+        `INSERT INTO marketplace_collaborateurs (gestionnaire_id, nom_responsable, nom_boutique, email, mot_de_passe, telephone, type_entreprise, statut)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id, nom_boutique, email, statut`,
+        [gid, nomResp, nomBoutique, email, hash, tel.valeur, type, statutInitial]
+      );
+    } catch (e) {
+      if (e && e.code === '23505') return res.status(409).json({ message: 'Une demande existe deja avec ce courriel' });
+      throw e;
+    }
+    noterCreation(req, gid, 'collab');
 
     res.status(201).json({ collaborateur: result.rows[0] });
   } catch (err) {
@@ -115,6 +204,9 @@ router.post('/:gestionnaireId/login', async (req, res) => {
     if (!type || !email || !password) {
       return res.status(400).json({ message: 'Champs obligatoires manquants' });
     }
+    if (typeof email !== 'string' || typeof password !== 'string' || typeof type !== 'string') {
+      return res.status(400).json({ message: 'Champs invalides' });
+    }
     if (type !== 'acheteur' && type !== 'collaborateur') {
       return res.status(400).json({ message: 'Type de compte invalide' });
     }
@@ -130,8 +222,8 @@ router.post('/:gestionnaireId/login', async (req, res) => {
 
     const table = type === 'acheteur' ? 'marketplace_acheteurs' : 'marketplace_collaborateurs';
     const result = await pool.query(
-      `SELECT * FROM ${table} WHERE gestionnaire_id = $1 AND email = $2`,
-      [gestionnaireId, email]
+      `SELECT * FROM ${table} WHERE gestionnaire_id = $1 AND LOWER(email) = LOWER($2)`,
+      [gestionnaireId, email.trim()]
     );
 
     if (result.rows.length === 0) {
@@ -218,7 +310,7 @@ router.get('/:gestionnaireId/acheteurs/:acheteurId/profil', authMarketplace, asy
       return res.status(403).json({ message: 'Acces refuse.' });
     }
     const r = await pool.query(
-      'SELECT id, prenom, nom, email, telephone, infolettre, created_at FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2',
+      'SELECT id, prenom, nom, email, telephone, infolettre, adresse, ville, province, code_postal, created_at FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2',
       [acheteurId, gestionnaireId]
     );
     if (!r.rows[0]) return res.status(404).json({ message: 'Acheteur introuvable' });

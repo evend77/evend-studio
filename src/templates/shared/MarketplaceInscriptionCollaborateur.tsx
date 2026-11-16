@@ -2,9 +2,12 @@
 // e-Vend Studio — Inscription vendeur marketplace (partagee entre tous les templates multi-vendeur)
 // Cree une demande de vendeur (statut "pending") rattachee a ce gestionnaire — a approuver depuis son dashboard
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const API_BASE = '/api';
+
+const REGEX_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const REGEX_TEL = /^[0-9 ()+.\-]+$/;
 
 
 
@@ -30,6 +33,24 @@ export default function MarketplaceInscriptionCollaborateur({ vendeurId, isDemo,
   const [passwordConfirm, setPasswordConfirm] = useState('');
   const [termesAcceptes, setTermesAcceptes] = useState(false);
 
+  // ── Protection anti-robot : jeton signé émis au chargement + délai minimum ──
+  const [jeton, setJeton] = useState('');
+  const interaction = useRef(false);
+  const ouvertLe = useRef(Date.now());
+  useEffect(() => {
+    if (isDemo || !gestionnaireId) return;
+    let actif = true;
+    fetch(`${API_BASE}/marketplace/${gestionnaireId}/inscription/jeton`)
+      .then(r => r.json()).then(d => { if (actif && d && d.jeton) setJeton(d.jeton); })
+      .catch(() => { /* le serveur refusera l'envoi sans jeton */ });
+    const marquer = () => { interaction.current = true; };
+    const evts = ['mousemove', 'touchstart', 'keydown', 'pointerdown'];
+    evts.forEach(e => window.addEventListener(e, marquer, { passive: true }));
+    return () => { actif = false; evts.forEach(e => window.removeEventListener(e, marquer)); };
+  }, [gestionnaireId, isDemo]);
+  // Champ piège (honeypot) : invisible pour un humain, rempli par les robots
+  const [piege, setPiege] = useState('');
+
   const [submitting, setSubmitting] = useState(false);
   const [erreur, setErreur] = useState('');
   const [succes, setSucces] = useState(false);
@@ -38,16 +59,39 @@ export default function MarketplaceInscriptionCollaborateur({ vendeurId, isDemo,
     e.preventDefault();
     setErreur('');
 
-    if (!nomResponsable || !nomBoutique || !email || !password || !typeEntreprise) {
+    if (!nomResponsable.trim() || !nomBoutique.trim() || !email.trim() || !password || !typeEntreprise) {
       setErreur('Veuillez remplir tous les champs obligatoires');
       return;
+    }
+    if (/[<>]/.test(nomResponsable + nomBoutique)) {
+      setErreur('Les caractères < et > ne sont pas permis.');
+      return;
+    }
+    if (nomBoutique.trim().length < 2) {
+      setErreur('Nom de boutique trop court');
+      return;
+    }
+    if (!REGEX_EMAIL.test(email.trim())) {
+      setErreur('Adresse courriel invalide');
+      return;
+    }
+    if (telephone.trim()) {
+      const chiffres = telephone.replace(/\D/g, '');
+      if (!REGEX_TEL.test(telephone.trim()) || chiffres.length < 10 || chiffres.length > 15) {
+        setErreur('Numéro de téléphone invalide (ex : 514-555-1234)');
+        return;
+      }
     }
     if (password !== passwordConfirm) {
       setErreur('Les mots de passe ne correspondent pas');
       return;
     }
-    if (password.length < 6) {
-      setErreur('Le mot de passe doit contenir au moins 6 caracteres');
+    if (password.length < 8) {
+      setErreur('Le mot de passe doit contenir au moins 8 caractères');
+      return;
+    }
+    if (password.length > 72) {
+      setErreur('Le mot de passe est trop long (72 caractères maximum)');
       return;
     }
     if (!termesAcceptes) {
@@ -58,6 +102,11 @@ export default function MarketplaceInscriptionCollaborateur({ vendeurId, isDemo,
     if (isDemo) {
       setSucces(true);
       return;
+    }
+    if (!isDemo) {
+      if (piege) { setSucces(true); return; } // robot : faux succès, rien n'est envoyé
+      if (Date.now() - ouvertLe.current < 3000) { setErreur('Veuillez patienter quelques secondes avant d\'envoyer le formulaire.'); return; }
+      if (!interaction.current) { setErreur('Veuillez remplir le formulaire manuellement.'); return; }
     }
 
     setSubmitting(true);
@@ -70,8 +119,9 @@ export default function MarketplaceInscriptionCollaborateur({ vendeurId, isDemo,
           nom_boutique: nomBoutique,
           email,
           mot_de_passe: password,
-          telephone: telephone || null,
+          telephone: telephone.trim() || null,
           type_entreprise: typeEntreprise,
+          jeton, website: piege,
         }),
       });
       const data = await res.json();
@@ -117,51 +167,57 @@ export default function MarketplaceInscriptionCollaborateur({ vendeurId, isDemo,
 
       <div style={s.card}>
         <div style={s.cardBody}>
-          <h1 style={s.titre}>Devenir vendeur</h1>
+          <h1 style={s.titre}>Devenir vendeur (collaborateur)</h1>
           <p style={s.sousTitre}>Ouvrez votre boutique sur {nom}</p>
           <div style={s.pendingNote}>📋 Votre demande devra etre approuvee par le gestionnaire de la marketplace avant activation.</div>
 
           {erreur && <div style={s.erreurBox}>⚠️ {erreur}</div>}
 
           <form onSubmit={handleSubmit}>
+            {/* Champ piège : ne pas remplir (invisible pour les humains) */}
+            <div style={s.piege} aria-hidden="true">
+              <label>Site web</label>
+              <input type="text" name="website" tabIndex={-1} autoComplete="off" value={piege} onChange={e => setPiege(e.target.value)} />
+            </div>
+
             <div style={s.champ}>
               <label style={s.label}>Nom du responsable</label>
-              <input className="mv-input" style={s.input} value={nomResponsable} onChange={e => setNomResponsable(e.target.value)} />
+              <input className="mv-input" style={s.input} maxLength={100} autoComplete="name" value={nomResponsable} onChange={e => setNomResponsable(e.target.value)} />
             </div>
 
             <div style={s.champ}>
               <label style={s.label}>Nom de la boutique</label>
-              <input className="mv-input" style={s.input} value={nomBoutique} onChange={e => setNomBoutique(e.target.value)} />
+              <input className="mv-input" style={s.input} maxLength={100} value={nomBoutique} onChange={e => setNomBoutique(e.target.value)} />
             </div>
 
             <div style={s.row2}>
               <div style={s.champ}>
                 <label style={s.label}>Courriel</label>
-                <input className="mv-input" type="email" style={s.input} value={email} onChange={e => setEmail(e.target.value)} />
+                <input className="mv-input" type="email" maxLength={254} autoComplete="email" style={s.input} value={email} onChange={e => setEmail(e.target.value)} />
               </div>
               <div style={s.champ}>
                 <label style={s.label}>Telephone</label>
-                <input className="mv-input" style={s.input} value={telephone} onChange={e => setTelephone(e.target.value)} />
+                <input className="mv-input" style={s.input} maxLength={30} autoComplete="tel" value={telephone} onChange={e => setTelephone(e.target.value)} />
               </div>
             </div>
 
             <div style={s.champ}>
               <label style={s.label}>Type d'entreprise</label>
-              <select className="mv-select" style={s.input} value={typeEntreprise} onChange={e => setTypeEntreprise(e.target.value)}>
-                <option value="">Selectionner...</option>
-                <option value="particulier">Particulier (non enregistree)</option>
-                <option value="entreprise">Entreprise enregistree</option>
+              <select className="mv-select" style={{ ...s.input, colorScheme: 'dark' }} value={typeEntreprise} onChange={e => setTypeEntreprise(e.target.value)}>
+                <option value="" style={s.option}>Selectionner...</option>
+                <option value="particulier" style={s.option}>Particulier (non enregistree)</option>
+                <option value="entreprise" style={s.option}>Entreprise enregistree</option>
               </select>
             </div>
 
             <div style={s.row2}>
               <div style={s.champ}>
                 <label style={s.label}>Mot de passe</label>
-                <input className="mv-input" type="password" style={s.input} value={password} onChange={e => setPassword(e.target.value)} />
+                <input className="mv-input" type="password" maxLength={72} autoComplete="new-password" style={s.input} value={password} onChange={e => setPassword(e.target.value)} />
               </div>
               <div style={s.champ}>
                 <label style={s.label}>Confirmer</label>
-                <input className="mv-input" type="password" style={s.input} value={passwordConfirm} onChange={e => setPasswordConfirm(e.target.value)} />
+                <input className="mv-input" type="password" maxLength={72} autoComplete="new-password" style={s.input} value={passwordConfirm} onChange={e => setPasswordConfirm(e.target.value)} />
               </div>
             </div>
 
@@ -188,7 +244,7 @@ export default function MarketplaceInscriptionCollaborateur({ vendeurId, isDemo,
 }
 
 const s: Record<string, React.CSSProperties> = {
-  page: { minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans',sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 16px' },
+  page: { position: 'relative', minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "'DM Sans',sans-serif", display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 16px' },
   logoWrap: { display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28, cursor: 'pointer' },
   logoIcon: { width: 42, height: 42, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 800, color: '#fff' },
   logoText: { fontSize: 20, fontWeight: 800, fontFamily: "'Syne',sans-serif" },
@@ -198,6 +254,8 @@ const s: Record<string, React.CSSProperties> = {
   sousTitre: { fontSize: 13, color: 'rgba(255,255,255,0.45)', margin: '0 0 16px' },
   pendingNote: { background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 10, padding: '10px 14px', fontSize: 12.5, color: 'rgba(255,255,255,0.7)', marginBottom: 20 },
   erreurBox: { background: 'rgba(220,38,38,0.12)', border: '1px solid rgba(220,38,38,0.35)', borderRadius: 10, padding: '10px 14px', color: '#fca5a5', fontSize: 13, marginBottom: 18 },
+  piege: { position: 'absolute', left: '-10000px', top: 'auto', width: 1, height: 1, overflow: 'hidden', opacity: 0 },
+  option: { background: '#1a1a1a', color: '#fff' },
   row2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 },
   champ: { marginBottom: 16 },
   label: { display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.5)', marginBottom: 6 },
