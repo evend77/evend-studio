@@ -34,6 +34,7 @@ const INSCRIPTION_DEF = {
   messageSuccesTitre: 'Compte créé avec succès !', messageSuccesTexte: 'Vous pouvez maintenant vous connecter.',
   libelles: { prenom: 'Prénom', nom: 'Nom', email: 'Courriel', mot_de_passe: 'Mot de passe', confirmation: 'Confirmez le mot de passe' },
   telephone: { mode: 'cache' as 'cache' | 'facultatif' | 'obligatoire' },
+  adresse: { mode: 'obligatoire' as 'cache' | 'facultatif' | 'obligatoire' },
   infolettre: { affiche: false, texte: 'Je veux recevoir les nouveautés par courriel' },
   age: { affiche: true, minimum: 16, texte: 'Je déclare avoir {age} ans ou + (consentement parental pour les mineurs)' },
   termes: { affiche: true, texte: "J'accepte les termes et conditions de la boutique", url: '' },
@@ -43,8 +44,8 @@ const INSCRIPTION_DEF = {
 // Fusionne la config sauvegardée avec les défauts (une config partielle ne perd jamais ses valeurs par défaut)
 function fusionInscription(b: any) {
   const x = b && typeof b === 'object' ? b : {};
-  const sous = (k: 'libelles' | 'telephone' | 'infolettre' | 'age' | 'termes') => ({ ...INSCRIPTION_DEF[k], ...(x[k] && typeof x[k] === 'object' ? x[k] : {}) });
-  return { ...INSCRIPTION_DEF, ...x, libelles: sous('libelles'), telephone: sous('telephone'), infolettre: sous('infolettre'), age: sous('age'), termes: sous('termes'), champs: Array.isArray(x.champs) ? x.champs : [] };
+  const sous = (k: 'libelles' | 'telephone' | 'adresse' | 'infolettre' | 'age' | 'termes') => ({ ...INSCRIPTION_DEF[k], ...(x[k] && typeof x[k] === 'object' ? x[k] : {}) });
+  return { ...INSCRIPTION_DEF, ...x, libelles: sous('libelles'), telephone: sous('telephone'), adresse: sous('adresse'), infolettre: sous('infolettre'), age: sous('age'), termes: sous('termes'), champs: Array.isArray(x.champs) ? x.champs : [] };
 }
 
 const DEF = {
@@ -445,6 +446,10 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
               <F label="Téléphone">
                 <Choix valeur={ins.telephone.mode} onChoisir={v => setIns({ telephone: { mode: v } })} options={[['cache', 'Caché'], ['facultatif', 'Facultatif'], ['obligatoire', 'Obligatoire']]} />
               </F>
+              <F label="Adresse de livraison (adresse, ville, code postal, province)">
+                <Choix valeur={ins.adresse.mode} onChoisir={v => setIns({ adresse: { mode: v } })} options={[['cache', 'Cachée'], ['facultatif', 'Facultative'], ['obligatoire', 'Obligatoire']]} />
+              </F>
+              <p style={{ fontSize: 12, color: '#888', margin: '-6px 0 14px', lineHeight: 1.6 }}>Enregistrée de façon chiffrée et pré-remplie à la caisse. Format canadien vérifié (code postal, province).</p>
               <Toggle label="Case « infolettre »" checked={ins.infolettre.affiche} onChange={(v: boolean) => setIns({ infolettre: { ...ins.infolettre, affiche: v } })} desc="Le client peut cocher pour recevoir vos nouveautés (jamais obligatoire)" />
               {ins.infolettre.affiche && <F label="Texte de la case"><Inp value={ins.infolettre.texte} onChange={(v: string) => setIns({ infolettre: { ...ins.infolettre, texte: v } })} /></F>}
             </S>
@@ -466,6 +471,7 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
               {ins.termes.affiche && <>
                 <F label="Texte de la case"><Inp value={ins.termes.texte} onChange={(v: string) => setIns({ termes: { ...ins.termes, texte: v } })} /></F>
                 <F label="Lien vers vos conditions (optionnel)"><Inp value={ins.termes.url} onChange={(v: string) => setIns({ termes: { ...ins.termes, url: v } })} placeholder="https://..." /></F>
+                {ins.termes.url && !/^https?:\/\//i.test(ins.termes.url) && <div style={{ fontSize: 12, color: '#dc2626', margin: '-6px 0 10px' }}>⚠️ Le lien doit commencer par https:// pour s'afficher.</div>}
               </>}
             </S>
             <S titre={`Champs personnalisés (${champs.length}/${MAX_CHAMPS_INSC})`}>

@@ -12,6 +12,7 @@ const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const C = require('../services/boutique_commandes');
 const R = require('../services/boutique_retours');
+const INSC = require('../services/boutique_inscription');
 
 const router = express.Router({ mergeParams: true });
 
@@ -142,6 +143,9 @@ router.delete('/panier', wrap(async (req, res) => {
   await pool.query('DELETE FROM boutique_panier WHERE acheteur_id = $1 AND gestionnaire_id = $2', [req.acheteurId, req.gid]);
   res.json({ message: 'Panier vidé' });
 }));
+
+// Adresse saisie à l'inscription (pré-remplit la caisse) ; null si aucune
+router.get('/adresse', wrap(async (req, res) => { res.json({ adresse: await INSC.adresseDe(req.gid, req.acheteurId) }); }));
 
 // ═════════════════════════════ CAISSE ═════════════════════════════════════
 // Aperçu : méthodes d'expédition, modes de paiement offerts et totaux (taxes et expédition calculées par le serveur)

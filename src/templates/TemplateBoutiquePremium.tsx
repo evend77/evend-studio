@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AppAcheteurBoutique from '../AppAcheteurBoutique';
-import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur } from '../pages/boutique/boutiqueAcheteurApi';
+import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
 
 const OR    = '#c9a96e';
 const OR2   = '#e8c87a';
@@ -175,13 +175,13 @@ const INSC_DEF = {
   titre:'Créer un compte', sousTitre:'', boutonTexte:'Créer mon compte',
   messageSuccesTitre:'Compte créé avec succès !', messageSuccesTexte:'Vous pouvez maintenant vous connecter.',
   libelles:{ prenom:'Prénom', nom:'Nom', email:'Courriel', mot_de_passe:'Mot de passe', confirmation:'Confirmez le mot de passe' },
-  telephone:{ mode:'cache' }, infolettre:{ affiche:false, texte:'Je veux recevoir les nouveautés par courriel' },
+  telephone:{ mode:'cache' }, adresse:{ mode:'obligatoire' }, infolettre:{ affiche:false, texte:'Je veux recevoir les nouveautés par courriel' },
   age:{ affiche:true, minimum:16, texte:'Je déclare avoir {age} ans ou + (consentement parental pour les mineurs)' },
   termes:{ affiche:true, texte:"J'accepte les termes et conditions de la boutique", url:'' },
 };
 function fusionInsc(b:any){
-  const x=b&&typeof b==='object'?b:{}; const sous=(k:'libelles'|'telephone'|'infolettre'|'age'|'termes')=>({...INSC_DEF[k],...(x[k]&&typeof x[k]==='object'?x[k]:{})});
-  return { ...INSC_DEF, ...x, libelles:sous('libelles'), telephone:sous('telephone'), infolettre:sous('infolettre'), age:sous('age'), termes:sous('termes'), champs:(Array.isArray(x.champs)?x.champs:[]) as ChampInsc[] };
+  const x=b&&typeof b==='object'?b:{}; const sous=(k:'libelles'|'telephone'|'adresse'|'infolettre'|'age'|'termes')=>({...INSC_DEF[k],...(x[k]&&typeof x[k]==='object'?x[k]:{})});
+  return { ...INSC_DEF, ...x, libelles:sous('libelles'), telephone:sous('telephone'), adresse:sous('adresse'), infolettre:sous('infolettre'), age:sous('age'), termes:sous('termes'), champs:(Array.isArray(x.champs)?x.champs:[]) as ChampInsc[] };
 }
 
 export default function TemplateBoutiquePremium({ config: configBrut, siteId, vendeurId }: Props) {
@@ -303,12 +303,26 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     setInscErreur('');
     const v=inscVal;
     if(v.mdp&&v.mdp2&&v.mdp!==v.mdp2) return setInscErreur('Les mots de passe ne correspondent pas.');
-    const champs:Record<string,any>={}; ins.champs.forEach(c=>{ champs[c.id]=v['c_'+c.id]; });
+    if(!(v.prenom||'').trim()||!(v.nom||'').trim()) return setInscErreur('Prénom et nom obligatoires.');
+    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v.email||'').trim())) return setInscErreur('Adresse courriel invalide.');
+    if((v.mdp||'').length<8) return setInscErreur('Le mot de passe doit contenir au moins 8 caractères.');
+    const tel=(v.telephone||'').trim();
+    if(ins.telephone.mode==='obligatoire'&&!tel) return setInscErreur('Téléphone : obligatoire.');
+    if(ins.telephone.mode!=='cache'&&tel&&!/^(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$/.test(tel)) return setInscErreur('Numéro de téléphone invalide (ex: 514-555-0100).');
+    if(ins.adresse.mode!=='cache'){
+      const a=(v.adresse||'').trim(), vi=(v.ville||'').trim(), cpo=(v.code_postal||'').trim();
+      if(ins.adresse.mode==='obligatoire'||a||vi||cpo){
+        if(a.length<3) return setInscErreur('Adresse invalide.');
+        if(vi.length<2) return setInscErreur('Ville invalide.');
+        if(!/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(cpo)) return setInscErreur('Code postal invalide (ex: H2X 1Y4).');
+      }
+    }
+    const champs:Record<string,any>={}; ins.champs.forEach((c:ChampInsc)=>{ champs[c.id]=v['c_'+c.id]; });
     setInscStatut('loading');
     try{
       const res=await fetch(`${API_BASE}/boutique/acheteur/${vendeurId}/inscription`,{ method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
         prenom:v.prenom||'', nom:v.nom||'', email:v.email||'', mot_de_passe:v.mdp||'', confirmation:v.mdp2||'',
-        telephone:v.telephone||'', infolettre:v.infolettre===true, age_confirme:v.age===true, termes_acceptes:v.termes===true, champs,
+        telephone:v.telephone||'', adresse:v.adresse||'', ville:v.ville||'', code_postal:v.code_postal||'', province:v.province||'QC', infolettre:v.infolettre===true, age_confirme:v.age===true, termes_acceptes:v.termes===true, champs,
         duree_ms:Date.now()-debutInscription.current, souris:sourisBougee, website:honeypot }) });
       const data=await res.json().catch(()=>({}));
       if(!res.ok) throw new Error(data.message||"Erreur lors de l'inscription.");
@@ -680,15 +694,26 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             {champInsc('nom',ins.libelles.nom,'text','',true)}
             {champInsc('email',ins.libelles.email,'email','votre@courriel.com',true)}
             {ins.telephone.mode!=='cache'&&champInsc('telephone','Téléphone','tel','',ins.telephone.mode==='obligatoire')}
+            {ins.adresse.mode!=='cache'&&<>
+              {champInsc('adresse','Adresse','text','Numéro et rue',ins.adresse.mode==='obligatoire')}
+              {champInsc('ville','Ville','text','',ins.adresse.mode==='obligatoire')}
+              <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:12 }}>
+                {champInsc('code_postal','Code postal','text','H2X 1Y4',ins.adresse.mode==='obligatoire')}
+                <div style={{ marginBottom:20 }}>
+                  <label style={{ display:'block',fontSize:12,fontWeight:700,color:'#aaa',marginBottom:8,letterSpacing:'0.05em',textTransform:'uppercase' }}>Province{ins.adresse.mode==='obligatoire'?' *':''}</label>
+                  <select value={inscVal.province||'QC'} onChange={e=>setInscVal(f=>({...f,province:e.target.value}))} style={styleInput}>{PROVINCES.map(p=><option key={p.code} value={p.code}>{p.nom}</option>)}</select>
+                </div>
+              </div>
+            </>}
             {champInsc('mdp',ins.libelles.mot_de_passe,'password','Minimum 8 caractères',true)}
             {champInsc('mdp2',ins.libelles.confirmation,'password','',true)}
             {inscVal.mdp2&&inscVal.mdp!==inscVal.mdp2&&<div style={{ fontSize:12,color:'#f87171',margin:'-12px 0 16px' }}>⚠️ Les mots de passe ne correspondent pas.</div>}
-            {ins.champs.map(c=>c.type==='checkbox'
+            {ins.champs.map((c:ChampInsc)=>c.type==='checkbox'
               ? caseInsc('c_'+c.id,c.label,!!c.requis)
               : champInsc('c_'+c.id,c.label,c.type,c.placeholder||'',!!c.requis,c.options))}
             {ins.infolettre.affiche&&caseInsc('infolettre',ins.infolettre.texte,false)}
             {ins.age.affiche&&caseInsc('age',String(ins.age.texte).replace('{age}',String(ins.age.minimum)),true)}
-            {ins.termes.affiche&&caseInsc('termes',ins.termes.url
+            {ins.termes.affiche&&caseInsc('termes',/^https?:\/\//i.test(ins.termes.url||'')
               ? <a href={ins.termes.url} target="_blank" rel="noopener noreferrer" onClick={e=>e.stopPropagation()} style={{ color:cp,textDecoration:'underline' }}>{ins.termes.texte}</a>
               : ins.termes.texte,true)}
             {inscErreur&&<div style={{ background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,padding:'10px 14px',marginBottom:16,fontSize:13,color:'#ef4444' }}>⚠️ {inscErreur}</div>}

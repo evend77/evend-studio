@@ -43,6 +43,14 @@ export default function CaisseBoutique({ gestionnaireId: gid, accent, naviguerVe
     setMethodeId(cur => (cur && d.methodes_expedition.some(x => String(x.id) === cur)) ? cur : (d.methodes_expedition.length === 1 ? String(d.methodes_expedition[0].id) : ''));
   }, [gid]);
 
+  // Pré-remplit avec l'adresse saisie à l'inscription (sans écraser ce que l'acheteur a déjà tapé)
+  useEffect(() => {
+    ba(gid, '/adresse').then(r => {
+      const a = r.ok ? (r.data as any).adresse : null;
+      if (a) setAdr(cur => cur.adresse1 || cur.ville || cur.code_postal ? cur : { ...cur, nom: a.nom || '', adresse1: a.adresse1 || '', ville: a.ville || '', province: a.province || cur.province, code_postal: a.code_postal || '', telephone: a.telephone || '' });
+    });
+  }, [gid]);
+
   useEffect(() => { charger(adr.province, methodeId, codeApplique); }, [adr.province, methodeId, codeApplique, charger]);
 
   const maj = (k: string, v: string) => { setErreur(''); setAdr(a => ({ ...a, [k]: v })); };
