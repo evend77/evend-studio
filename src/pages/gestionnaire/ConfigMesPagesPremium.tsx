@@ -29,6 +29,33 @@ interface ChampInsc { id: string; type: TypeChampInsc; label: string; placeholde
 const TYPE_CHAMP_LABELS: Record<TypeChampInsc, string> = { text: 'Texte court', email: 'Email', tel: 'Téléphone', select: 'Menu déroulant', textarea: 'Zone de texte', checkbox: 'Case à cocher' };
 const MAX_CHAMPS_INSC = 10;
 
+// Exemples de démonstration de la page À propos (mêmes que dans le template) : affichés sur le site tant que la liste est vide
+const APROPOS_EX = {
+  valeurs: [
+    { ico: '💎', titre: 'Qualité sans compromis', desc: 'Chaque produit est sélectionné selon des critères rigoureux. Nous refusons la médiocrité — chaque article que vous recevez a été validé par notre équipe.' },
+    { ico: '🤝', titre: 'Service humain', desc: "Derrière chaque commande, il y a une personne réelle. Notre équipe est disponible pour vous accompagner à chaque étape de votre expérience d'achat." },
+    { ico: '🌱', titre: 'Responsabilité', desc: 'Nous choisissons prioritairement des fournisseurs éthiques et des emballages éco-responsables. Notre croissance respecte les gens et la planète.' },
+  ],
+  chiffres: [{ nb: '500+', label: 'Produits sélectionnés' }, { nb: '4.8/5', label: 'Note moyenne' }, { nb: '2 000+', label: 'Clients satisfaits' }, { nb: '30 jours', label: 'Politique de retour' }],
+  equipe: [{ prenom: 'Alexandre', poste: 'Fondateur & Directeur', photo: '' }, { prenom: 'Marie', poste: 'Responsable des achats', photo: '' }, { prenom: 'Sophie', poste: 'Service à la clientèle', photo: '' }],
+};
+const EX = {
+  avantages: [{ ico: '🚚', titre: 'Livraison Premium', desc: 'Offerte dès 100$' }, { ico: '🔒', titre: 'Paiement Sécurisé', desc: 'SSL & Stripe' }, { ico: '💎', titre: 'Qualité Garantie', desc: 'Sélection rigoureuse' }, { ico: '🔄', titre: 'Retour 30 Jours', desc: 'Sans questions' }],
+  temoignages: [
+    { texte: 'Qualité exceptionnelle, livraison ultra rapide. Je suis cliente fidèle depuis 2 ans !', auteur: 'Marie L.', ville: 'Montréal', note: 5 },
+    { texte: 'Service client impeccable. Mes articles arrivent toujours parfaitement emballés.', auteur: 'Jean-Pierre M.', ville: 'Québec', note: 5 },
+    { texte: 'Des produits haut de gamme à des prix justes. Ma boutique préférée!', auteur: 'Sophie R.', ville: 'Laval', note: 5 },
+  ],
+  reassurance: [{ ico: '🚚', texte: 'Livraison 2-5 jours' }, { ico: '🔒', texte: 'Paiement sécurisé Stripe' }, { ico: '🔄', texte: 'Retour sous 30 jours' }],
+  livraisonInfos: [
+    { ico: '🚚', titre: 'Livraison standard', delai: '2-5 jours ouvrables', info: 'Gratuite dès 100$' },
+    { ico: '⚡', titre: 'Livraison express', delai: '1-2 jours ouvrables', info: 'Disponible au checkout' },
+    { ico: '🔄', titre: 'Retours', delai: 'Sous 30 jours', info: 'Articles non utilisés dans emballage original' },
+  ],
+};
+const MENU_PAGES: [string, string, boolean][] = [['accueil', 'Accueil', false], ['catalogue', 'Catalogue', false], ['blog', 'Blog', true], ['faq', 'FAQ', true], ['a-propos', 'À propos', true], ['contact', 'Contact', true]];
+const MAX_VALEURS = 6, MAX_CHIFFRES = 6, MAX_EQUIPE = 12;
+
 const INSCRIPTION_DEF = {
   titre: 'Créer un compte', sousTitre: '', boutonTexte: 'Créer mon compte',
   messageSuccesTitre: 'Compte créé avec succès !', messageSuccesTexte: 'Vous pouvez maintenant vous connecter.',
@@ -67,22 +94,25 @@ const DEF = {
   afficherNbVues: true,
   afficherWishlist: true,
   afficherAvis: true,
-  catalogue: { colonnes: 3, afficherFiltres: true, afficherRecherche: true, afficherPrix: true, afficherStock: true },
-  ficheProduit: { afficherZoom: true, afficherAvis: true, afficherPartage: true, afficherSimilaires: true, similairesNombre: 4, boutonLabel: 'Ajouter au panier', boutonCouleur: CP },
+  catalogue: { colonnes: 3, afficherFiltres: true, afficherRecherche: true, afficherPrix: true, afficherStock: true, surtitre: '', titre: '', videTitre: '', videTexte: '' },
+  ficheProduit: { afficherZoom: true, afficherAvis: true, afficherPartage: true, afficherSimilaires: true, similairesNombre: 4, boutonLabel: 'Ajouter au panier', boutonCouleur: CP, reassurance: [] as any[], livraisonInfos: [] as any[], similairesSurtitre: '', similairesTitre: '' },
+  accueil: {
+    heroSurtitre: '', boutonPrincipal: '', boutonSecondaire: '',
+    afficherAvantages: true, avantages: [] as any[],
+    afficherVedette: true, vedetteSurtitre: '', vedetteTitre: '', vedetteBouton: '', vedetteNombre: 8,
+    afficherCategories: true, categoriesSurtitre: '', categoriesTitre: '',
+    afficherTemoignages: true, temoignagesSurtitre: '', temoignagesTitre: '', temoignages: [] as any[],
+    afficherInfolettre: true, infolettreSurtitre: '', infolettreTitre: '', infolettreTexte: '', infolettreBouton: '',
+  },
+  menu: { accueil: '', catalogue: '', blog: '', faq: '', 'a-propos': '', contact: '', masques: [] as string[] },
+  popupPromoSurtitre: '', popupPromoBouton: '',
   aPropos: {
-    titre: 'À propos de nous', sousTitre: 'Notre histoire',
+    titre: '', sousTitre: '', accroche: '',
     afficherValeurs: true, afficherChiffres: true, afficherEquipe: true, afficherCta: true,
-    valeurs: [
-      { ico: '💎', titre: 'Qualité sans compromis', desc: 'Chaque produit est sélectionné selon des critères rigoureux.' },
-      { ico: '🤝', titre: 'Service humain', desc: 'Notre équipe est disponible pour vous accompagner à chaque étape.' },
-      { ico: '🌱', titre: 'Responsabilité', desc: 'Nous choisissons prioritairement des fournisseurs éthiques.' },
-    ],
-    chiffres: [
-      { nb: '500+', label: 'Produits sélectionnés' },
-      { nb: '4.8/5', label: 'Note moyenne' },
-      { nb: '2 000+', label: 'Clients satisfaits' },
-      { nb: '30 jours', label: 'Politique de retour' },
-    ],
+    valeursSurtitre: '', valeursTitre: '', valeurs: [] as any[],
+    chiffres: [] as any[],
+    equipeSurtitre: '', equipeTitre: '', equipe: [] as any[],
+    ctaSurtitre: '', ctaTitre: '', ctaTexte: '', ctaBoutonCatalogue: '', ctaBoutonContact: '',
   },
   faq: { titre: 'Questions fréquentes', items: [
     { question: 'Quels sont vos délais de livraison ?', reponse: 'Les commandes sont expédiées sous 24–48h ouvrables. Livraison standard 2-5 jours.' },
@@ -90,13 +120,48 @@ const DEF = {
     { question: 'Quels modes de paiement ?', reponse: 'Visa, Mastercard, American Express et Apple Pay via Stripe.' },
     { question: 'Comment suivre ma commande ?', reponse: 'Un courriel avec numéro de suivi vous est envoyé dès expédition.' },
   ]},
-  blog: { titre: 'Notre univers', afficherAuteur: true, afficherDate: true, colonnes: 3 },
+  blog: { titre: 'Notre univers', afficherAuteur: true, afficherDate: true, colonnes: 3, surtitre: '', videTitre: '' },
   inscription: INSCRIPTION_DEF,
-  contact: { titre: 'Nous contacter', sousTitre: 'Une question ? Écrivez-nous !', adresse: '', telephone: '', courriel: '', afficherCarte: false, urlCarte: '' },
+  contact: { titre: 'Nous contacter', sousTitre: 'Une question ? Écrivez-nous !', adresse: '', telephone: '', courriel: '', heures: '', afficherCarte: false, urlCarte: '', surtitre: '', coordonneesTitre: '', succesTitre: '', succesTexte: '' },
   footer: { nomBoutique: 'Ma Boutique Premium', slogan: "L'excellence à votre portée", couleurFond: '#050505', couleurTexte: '#ffffff', afficherPropulse: true, reseaux: { facebook: '', instagram: '', tiktok: '', twitter: '', youtube: '', linkedin: '', pinterest: '' }, colonnes: { titre1: 'Boutique', liens1: 'Accueil\nCatalogue\nBlog\nFAQ\nÀ propos', titre2: 'Aide', liens2: 'Contact\nRetours\nLivraison', titre3: 'Légal', liens3: 'Conditions\nConfidentialité' }, politiques: { afficherConditions: true, afficherConfidentialite: true, afficherRetours: true, afficherLivraison: true } },
 };
 
 // ─── Composants UI ────────────────────────────────────────────────────────────
+// Liste modifiable (avantages, témoignages, réassurance…) : vide = le site affiche les exemples de démonstration
+function ListeEditeur({ items, onChange, max, champs, vide, exemples, ajouter }: {
+  items: any[]; onChange: (l: any[]) => void; max: number; vide: string; exemples: any[]; ajouter: string;
+  champs: { k: string; ph: string; w?: number; multi?: boolean; type?: string }[];
+}) {
+  const liste = Array.isArray(items) ? items : [];
+  const maj = (i: number, patch: any) => { const a = [...liste]; a[i] = { ...a[i], ...patch }; onChange(a); };
+  const nouveau: any = {}; champs.forEach(ch => { nouveau[ch.k] = ''; });
+  return (
+    <>
+      {liste.length === 0 && (
+        <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#475569', lineHeight: 1.6, marginBottom: 12 }}>
+          {vide}
+          <div style={{ marginTop: 8 }}><button onClick={() => onChange(exemples.map(x => ({ ...x })))} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer', color: '#334155' }}>✏️ Partir des exemples</button></div>
+        </div>
+      )}
+      {liste.map((it, i) => (
+        <div key={i} style={{ border: '1px solid #222', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            {champs.map(ch => (
+              <div key={ch.k} style={{ flex: ch.w ? `0 0 ${ch.w}px` : '1 1 160px', minWidth: 0 }}>
+                {ch.multi
+                  ? <Textarea value={it[ch.k] ?? ''} onChange={(v: string) => maj(i, { [ch.k]: v })} placeholder={ch.ph} rows={2} />
+                  : <Inp type={ch.type || 'text'} value={it[ch.k] ?? ''} onChange={(v: string) => maj(i, { [ch.k]: ch.type === 'number' ? (parseInt(v, 10) || '') : v })} placeholder={ch.ph} />}
+              </div>
+            ))}
+            <button onClick={() => onChange(liste.filter((_, k) => k !== i))} style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '8px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>🗑️</button>
+          </div>
+        </div>
+      ))}
+      {liste.length < max && <button onClick={() => onChange([...liste, { ...nouveau }])} style={{ width: '100%', padding: '9px', border: `2px dashed ${CP}40`, borderRadius: 8, background: `${CP}05`, color: CP, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{ajouter}</button>}
+    </>
+  );
+}
+
 const S = ({ titre, children }: { titre: string; children: React.ReactNode }) => (
   <div style={{ marginBottom: 28 }}>
     <h3 style={{ fontSize: 12, fontWeight: 700, color: CP, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 16, borderBottom: '1px solid #1a1a1a', paddingBottom: 10 }}>{titre}</h3>
@@ -197,13 +262,16 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
   const setFaq  = useCallback((patch: any) => setConfig((c: any) => ({ ...c, faq: { ...c.faq, ...patch } })), []);
   const setIns  = useCallback((patch: any) => setConfig((c: any) => ({ ...c, inscription: { ...c.inscription, ...patch } })), []);
   const [dernierChampInsc, setDernierChampInsc] = useState<string | null>(null);
+  const setAcc  = useCallback((patch: any) => setConfig((c: any) => ({ ...c, accueil: { ...c.accueil, ...patch } })), []);
+  const setMenu = useCallback((patch: any) => setConfig((c: any) => ({ ...c, menu: { ...c.menu, ...patch } })), []);
+  const setBlog = useCallback((patch: any) => setConfig((c: any) => ({ ...c, blog: { ...c.blog, ...patch } })), []);
   const setCont = useCallback((patch: any) => setConfig((c: any) => ({ ...c, contact: { ...c.contact, ...patch } })), []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     fetch(`${API_BASE}/studio/sites/${gestionnaireId}`, { headers: { Authorization: `Bearer ${token}` }, credentials: 'include' })
       .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data?.config?.premium) setConfig({ ...DEF, ...data.config.premium, inscription: fusionInscription(data.config.premium.inscription) }); })
+      .then(data => { if (data?.config?.premium) setConfig({ ...DEF, ...data.config.premium, inscription: fusionInscription(data.config.premium.inscription), aPropos: { ...DEF.aPropos, ...(data.config.premium.aPropos || {}) }, ...Object.fromEntries(['accueil', 'menu', 'catalogue', 'ficheProduit', 'blog', 'contact'].map(k => [k, { ...(DEF as any)[k], ...((data.config.premium as any)[k] || {}) }])) }); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [gestionnaireId]);
@@ -253,10 +321,62 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
           <S titre="Fonctionnalités avancées">
             <Toggle label="Barre livraison gratuite" checked={config.afficherBarreLivraison} onChange={(v: boolean) => set('afficherBarreLivraison', v)} desc="Barre de progression dans le panier vers la livraison gratuite" />
             {config.afficherBarreLivraison && <F label="Seuil livraison gratuite ($)"><Inp type="number" value={config.seuilLivraisonGratuite} onChange={(v: string) => set('seuilLivraisonGratuite', parseFloat(v))} placeholder="100" /></F>}
-            <Toggle label="Notification dernière vente" checked={config.afficherNotifVente} onChange={(v: boolean) => set('afficherNotifVente', v)} desc="Popup en bas à gauche — ex: Marie de Montréal a acheté la Montre..." />
-            <Toggle label="Nombre de personnes qui regardent" checked={config.afficherNbVues} onChange={(v: boolean) => set('afficherNbVues', v)} desc="Affiche un compteur sur la fiche produit pour créer l'urgence" />
+            <Toggle label="Notification dernière vente" checked={config.afficherNotifVente} onChange={(v: boolean) => set('afficherNotifVente', v)} desc="Démonstration seulement — sera une option payante (add-on). Jamais affiché sur une boutique avec de vraies annonces." />
+            <Toggle label="Nombre de personnes qui regardent" checked={config.afficherNbVues} onChange={(v: boolean) => set('afficherNbVues', v)} desc="Démonstration seulement — sera une option payante (add-on). Jamais affiché sur une boutique avec de vraies annonces." />
             <Toggle label="Wishlist (favoris)" checked={config.afficherWishlist} onChange={(v: boolean) => set('afficherWishlist', v)} desc="Bouton cœur sur les cartes produit et la fiche produit" />
             <Toggle label="Avis clients" checked={config.afficherAvis} onChange={(v: boolean) => set('afficherAvis', v)} desc="Étoiles, notes et commentaires sur les fiches produit" />
+          </S>
+
+          <S titre="Menu du haut">
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.6 }}>Renommez les liens du menu ou cachez les pages dont vous n'avez pas besoin. Vide = nom par défaut.</p>
+            {MENU_PAGES.map(([id, defaut, masquable]) => {
+              const masque = (config.menu.masques || []).includes(id);
+              return (
+                <div key={id} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8, opacity: masque ? 0.5 : 1 }}>
+                  <div style={{ flex: 1 }}><Inp value={config.menu[id] || ''} onChange={(v: string) => setMenu({ [id]: v })} placeholder={defaut} /></div>
+                  {masquable && <button onClick={() => setMenu({ masques: masque ? config.menu.masques.filter((x: string) => x !== id) : [...(config.menu.masques || []), id] })} style={{ background: masque ? '#fef2f2' : '#f0fdf4', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: masque ? '#dc2626' : '#16a34a', cursor: 'pointer', minWidth: 78 }}>{masque ? 'Caché' : 'Affiché'}</button>}
+                </div>
+              );
+            })}
+          </S>
+          <S titre="Accueil — bannière">
+            <F label="Sur-titre"><Inp value={config.accueil.heroSurtitre} onChange={(v: string) => setAcc({ heroSurtitre: v })} placeholder="Collection exclusive" /></F>
+            <F label="Bouton principal (vers le catalogue)"><Inp value={config.accueil.boutonPrincipal} onChange={(v: string) => setAcc({ boutonPrincipal: v })} placeholder="Découvrir la collection →" /></F>
+            <F label="Bouton secondaire (vers le blogue)"><Inp value={config.accueil.boutonSecondaire} onChange={(v: string) => setAcc({ boutonSecondaire: v })} placeholder="Notre univers" /></F>
+            <p style={{ fontSize: 12, color: '#888', margin: 0 }}>Le titre est le nom de la boutique et la phrase en dessous est le slogan (section Identité ci-dessus).</p>
+          </S>
+          <S titre="Accueil — avantages (bandeau)">
+            <Toggle label="Afficher le bandeau d'avantages" checked={config.accueil.afficherAvantages !== false} onChange={(v: boolean) => setAcc({ afficherAvantages: v })} />
+            <ListeEditeur items={config.accueil.avantages} onChange={(l) => setAcc({ avantages: l })} max={4} exemples={EX.avantages} ajouter="+ Ajouter un avantage"
+              vide="Liste vide : le site affiche des exemples de démonstration (Livraison Premium, Paiement Sécurisé…)."
+              champs={[{ k: 'ico', ph: '🚚', w: 64 }, { k: 'titre', ph: 'Titre' }, { k: 'desc', ph: 'Description courte' }]} />
+          </S>
+          <S titre="Accueil — produits vedette">
+            <Toggle label="Afficher la section" checked={config.accueil.afficherVedette !== false} onChange={(v: boolean) => setAcc({ afficherVedette: v })} />
+            <F label="Sur-titre"><Inp value={config.accueil.vedetteSurtitre} onChange={(v: string) => setAcc({ vedetteSurtitre: v })} placeholder="Sélection" /></F>
+            <F label="Titre"><Inp value={config.accueil.vedetteTitre} onChange={(v: string) => setAcc({ vedetteTitre: v })} placeholder="Nos coups de cœur" /></F>
+            <F label="Texte du bouton"><Inp value={config.accueil.vedetteBouton} onChange={(v: string) => setAcc({ vedetteBouton: v })} placeholder="Voir tout →" /></F>
+            <F label="Nombre de produits affichés (1 à 12)"><Inp type="number" value={config.accueil.vedetteNombre} onChange={(v: string) => setAcc({ vedetteNombre: Math.max(1, Math.min(12, parseInt(v, 10) || 8)) })} placeholder="8" /></F>
+          </S>
+          <S titre="Accueil — catégories">
+            <Toggle label="Afficher la section" checked={config.accueil.afficherCategories !== false} onChange={(v: boolean) => setAcc({ afficherCategories: v })} />
+            <F label="Sur-titre"><Inp value={config.accueil.categoriesSurtitre} onChange={(v: string) => setAcc({ categoriesSurtitre: v })} placeholder="Univers" /></F>
+            <F label="Titre"><Inp value={config.accueil.categoriesTitre} onChange={(v: string) => setAcc({ categoriesTitre: v })} placeholder="Nos catégories" /></F>
+          </S>
+          <S titre="Accueil — témoignages">
+            <Toggle label="Afficher la section" checked={config.accueil.afficherTemoignages !== false} onChange={(v: boolean) => setAcc({ afficherTemoignages: v })} desc="Mettez ici de vrais témoignages de clients. Sinon, cachez la section." />
+            <F label="Sur-titre"><Inp value={config.accueil.temoignagesSurtitre} onChange={(v: string) => setAcc({ temoignagesSurtitre: v })} placeholder="Témoignages" /></F>
+            <F label="Titre"><Inp value={config.accueil.temoignagesTitre} onChange={(v: string) => setAcc({ temoignagesTitre: v })} placeholder="Ce que disent nos clients" /></F>
+            <ListeEditeur items={config.accueil.temoignages} onChange={(l) => setAcc({ temoignages: l })} max={6} exemples={EX.temoignages} ajouter="+ Ajouter un témoignage"
+              vide="Liste vide : le site affiche 3 témoignages d'exemple (démonstration)."
+              champs={[{ k: 'texte', ph: 'Témoignage', multi: true }, { k: 'auteur', ph: 'Nom (ex: Marie L.)' }, { k: 'ville', ph: 'Ville' }, { k: 'note', ph: 'Note 1-5', w: 90, type: 'number' }]} />
+          </S>
+          <S titre="Accueil — infolettre">
+            <Toggle label="Afficher la section" checked={config.accueil.afficherInfolettre !== false} onChange={(v: boolean) => setAcc({ afficherInfolettre: v })} desc="Démonstration seulement — sera une option payante (add-on). Jamais affichée sur une boutique avec de vraies annonces." />
+            <F label="Sur-titre"><Inp value={config.accueil.infolettreSurtitre} onChange={(v: string) => setAcc({ infolettreSurtitre: v })} placeholder="Exclusivités" /></F>
+            <F label="Titre"><Inp value={config.accueil.infolettreTitre} onChange={(v: string) => setAcc({ infolettreTitre: v })} placeholder="Restez dans la boucle" /></F>
+            <F label="Texte"><Textarea value={config.accueil.infolettreTexte} onChange={(v: string) => setAcc({ infolettreTexte: v })} placeholder="Offres exclusives, nouvelles collections…" rows={2} /></F>
+            <F label="Texte du bouton"><Inp value={config.accueil.infolettreBouton} onChange={(v: string) => setAcc({ infolettreBouton: v })} placeholder="S'inscrire →" /></F>
           </S>
         </>
       );
@@ -278,6 +398,12 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
             <Toggle label="Afficher la recherche" checked={config.catalogue.afficherRecherche} onChange={(v: boolean) => setCat({ afficherRecherche: v })} />
             <Toggle label="Afficher les prix" checked={config.catalogue.afficherPrix} onChange={(v: boolean) => setCat({ afficherPrix: v })} />
             <Toggle label="Afficher le stock" checked={config.catalogue.afficherStock} onChange={(v: boolean) => setCat({ afficherStock: v })} />
+          </S>
+          <S titre="Textes de la page">
+            <F label="Sur-titre"><Inp value={config.catalogue.surtitre} onChange={(v: string) => setCat({ surtitre: v })} placeholder="Catalogue" /></F>
+            <F label="Titre"><Inp value={config.catalogue.titre} onChange={(v: string) => setCat({ titre: v })} placeholder="Tous nos produits" /></F>
+            <F label="Message quand aucun produit — titre"><Inp value={config.catalogue.videTitre} onChange={(v: string) => setCat({ videTitre: v })} placeholder="Aucun produit" /></F>
+            <F label="Message quand aucun produit — texte"><Inp value={config.catalogue.videTexte} onChange={(v: string) => setCat({ videTexte: v })} placeholder="Modifiez vos filtres" /></F>
           </S>
         </>
       );
@@ -316,42 +442,104 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
             </F>
             <Couleur label="Couleur du bouton" value={config.ficheProduit.boutonCouleur} onChange={(v: string) => setFP({ boutonCouleur: v })} />
           </S>
+          <S titre="Rassurance (sous le bouton d'achat)">
+            <ListeEditeur items={config.ficheProduit.reassurance} onChange={(l) => setFP({ reassurance: l })} max={5} exemples={EX.reassurance} ajouter="+ Ajouter une ligne"
+              vide="Liste vide : le site affiche des lignes d'exemple (Livraison 2-5 jours, Paiement sécurisé…)."
+              champs={[{ k: 'ico', ph: '🚚', w: 64 }, { k: 'texte', ph: 'Texte' }]} />
+          </S>
+          <S titre="Onglet « Livraison »">
+            <ListeEditeur items={config.ficheProduit.livraisonInfos} onChange={(l) => setFP({ livraisonInfos: l })} max={6} exemples={EX.livraisonInfos} ajouter="+ Ajouter une ligne"
+              vide="Liste vide : le site affiche des exemples (Livraison standard, express, Retours). Vos vraies méthodes et frais sont calculés à la caisse."
+              champs={[{ k: 'ico', ph: '🚚', w: 64 }, { k: 'titre', ph: 'Titre' }, { k: 'delai', ph: 'Délai' }, { k: 'info', ph: 'Information' }]} />
+          </S>
+          <S titre="Produits similaires — textes">
+            <F label="Sur-titre"><Inp value={config.ficheProduit.similairesSurtitre} onChange={(v: string) => setFP({ similairesSurtitre: v })} placeholder="Vous aimerez aussi" /></F>
+            <F label="Titre"><Inp value={config.ficheProduit.similairesTitre} onChange={(v: string) => setFP({ similairesTitre: v })} placeholder="Produits similaires" /></F>
+          </S>
         </>
       );
 
-      case 'a-propos': return (
+      case 'a-propos': {
+        const ap = config.aPropos;
+        const maj = (cle: string, i: number, patch: any) => { const arr = [...(ap[cle] || [])]; arr[i] = { ...arr[i], ...patch }; setAP({ [cle]: arr }); };
+        const ret = (cle: string, i: number) => setAP({ [cle]: (ap[cle] || []).filter((_: any, k: number) => k !== i) });
+        const exemples = (cle: 'valeurs' | 'chiffres' | 'equipe') => setAP({ [cle]: APROPOS_EX[cle].map((x: any) => ({ ...x })) });
+        const vide = (cle: string) => !(ap[cle] || []).length;
+        const noteVide = (cle: 'valeurs' | 'chiffres' | 'equipe') => (
+          <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#475569', lineHeight: 1.6, marginBottom: 12 }}>
+            Liste vide : le site affiche des <b>exemples de démonstration</b>. Ajoutez vos éléments pour les remplacer, ou partez des exemples pour les modifier.
+            <div style={{ marginTop: 8 }}><button onClick={() => exemples(cle)} style={{ background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 12px', fontSize: 12, cursor: 'pointer', color: '#334155' }}>✏️ Partir des exemples</button></div>
+          </div>
+        );
+        return (
         <>
           <S titre="Titres">
-            <F label="Titre principal"><Inp value={config.aPropos.titre} onChange={(v: string) => setAP({ titre: v })} placeholder="À propos de nous" /></F>
-            <F label="Sous-titre"><Inp value={config.aPropos.sousTitre} onChange={(v: string) => setAP({ sousTitre: v })} placeholder="Notre histoire" /></F>
+            <F label="Titre principal"><Inp value={ap.titre} onChange={(v: string) => setAP({ titre: v })} placeholder="À propos de nous" /></F>
+            <F label="Sous-titre (au-dessus du titre)"><Inp value={ap.sousTitre} onChange={(v: string) => setAP({ sousTitre: v })} placeholder="Notre histoire" /></F>
           </S>
-          <S titre="Sections">
-            <Toggle label="Bloc valeurs (3 cartes)" checked={config.aPropos.afficherValeurs} onChange={(v: boolean) => setAP({ afficherValeurs: v })} />
-            <Toggle label="Chiffres clés (4 statistiques)" checked={config.aPropos.afficherChiffres} onChange={(v: boolean) => setAP({ afficherChiffres: v })} />
-            <Toggle label="Section équipe" checked={config.aPropos.afficherEquipe} onChange={(v: boolean) => setAP({ afficherEquipe: v })} />
-            <Toggle label="Bouton CTA vers catalogue" checked={config.aPropos.afficherCta} onChange={(v: boolean) => setAP({ afficherCta: v })} />
+          <S titre="Présentation">
+            <F label="Phrase d'accroche (grosse phrase en haut)"><Textarea value={ap.accroche} onChange={(v: string) => setAP({ accroche: v })} placeholder="Nous croyons que le luxe devrait être accessible à tous — sans compromis sur la qualité." rows={2} /></F>
+            <F label="Description de la boutique"><Textarea value={config.description} onChange={(v: string) => set('description', v)} placeholder="Racontez votre histoire..." rows={5} /></F>
+          </S>
+          <S titre="Sections affichées">
+            <Toggle label="Bloc valeurs (cartes)" checked={ap.afficherValeurs !== false} onChange={(v: boolean) => setAP({ afficherValeurs: v })} />
+            <Toggle label="Chiffres clés" checked={ap.afficherChiffres !== false} onChange={(v: boolean) => setAP({ afficherChiffres: v })} />
+            <Toggle label="Section équipe" checked={ap.afficherEquipe !== false} onChange={(v: boolean) => setAP({ afficherEquipe: v })} />
+            <Toggle label="Bloc final avec boutons" checked={ap.afficherCta !== false} onChange={(v: boolean) => setAP({ afficherCta: v })} />
           </S>
           <S titre="Nos valeurs">
-            {config.aPropos.valeurs.map((v: any, i: number) => (
+            <F label="Sur-titre"><Inp value={ap.valeursSurtitre} onChange={(v: string) => setAP({ valeursSurtitre: v })} placeholder="NOS VALEURS" /></F>
+            <F label="Titre"><Inp value={ap.valeursTitre} onChange={(v: string) => setAP({ valeursTitre: v })} placeholder="Ce qui nous définit" /></F>
+            {vide('valeurs') && noteVide('valeurs')}
+            {(ap.valeurs || []).map((v: any, i: number) => (
               <div key={i} style={{ border: '1px solid #222', borderRadius: 8, padding: 12, marginBottom: 10 }}>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  <Inp value={v.ico} onChange={(val: string) => { const arr = [...config.aPropos.valeurs]; arr[i] = { ...arr[i], ico: val }; setAP({ valeurs: arr }); }} placeholder="💎" />
-                  <Inp value={v.titre} onChange={(val: string) => { const arr = [...config.aPropos.valeurs]; arr[i] = { ...arr[i], titre: val }; setAP({ valeurs: arr }); }} placeholder="Titre de la valeur" />
+                  <div style={{ width: 70 }}><Inp value={v.ico} onChange={(val: string) => maj('valeurs', i, { ico: val })} placeholder="💎" /></div>
+                  <Inp value={v.titre} onChange={(val: string) => maj('valeurs', i, { titre: val })} placeholder="Titre de la valeur" />
+                  <button onClick={() => ret('valeurs', i)} style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>🗑️</button>
                 </div>
-                <Inp value={v.desc} onChange={(val: string) => { const arr = [...config.aPropos.valeurs]; arr[i] = { ...arr[i], desc: val }; setAP({ valeurs: arr }); }} placeholder="Description..." />
+                <Textarea value={v.desc} onChange={(val: string) => maj('valeurs', i, { desc: val })} placeholder="Description..." rows={2} />
               </div>
             ))}
+            {(ap.valeurs || []).length < MAX_VALEURS && <button onClick={() => setAP({ valeurs: [...(ap.valeurs || []), { ico: '⭐', titre: '', desc: '' }] })} style={{ width: '100%', padding: '9px', border: `2px dashed ${CP}40`, borderRadius: 8, background: `${CP}05`, color: CP, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ajouter une valeur</button>}
           </S>
           <S titre="Chiffres clés">
-            {config.aPropos.chiffres.map((c: any, i: number) => (
+            {vide('chiffres') && noteVide('chiffres')}
+            {(ap.chiffres || []).map((x: any, i: number) => (
               <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <Inp value={c.nb} onChange={(val: string) => { const arr = [...config.aPropos.chiffres]; arr[i] = { ...arr[i], nb: val }; setAP({ chiffres: arr }); }} placeholder="500+" />
-                <Inp value={c.label} onChange={(val: string) => { const arr = [...config.aPropos.chiffres]; arr[i] = { ...arr[i], label: val }; setAP({ chiffres: arr }); }} placeholder="Produits sélectionnés" />
+                <div style={{ width: 130 }}><Inp value={x.nb} onChange={(val: string) => maj('chiffres', i, { nb: val })} placeholder="500+" /></div>
+                <Inp value={x.label} onChange={(val: string) => maj('chiffres', i, { label: val })} placeholder="Produits sélectionnés" />
+                <button onClick={() => ret('chiffres', i)} style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>🗑️</button>
               </div>
             ))}
+            {(ap.chiffres || []).length < MAX_CHIFFRES && <button onClick={() => setAP({ chiffres: [...(ap.chiffres || []), { nb: '', label: '' }] })} style={{ width: '100%', padding: '9px', border: `2px dashed ${CP}40`, borderRadius: 8, background: `${CP}05`, color: CP, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ajouter un chiffre</button>}
+          </S>
+          <S titre="Équipe">
+            <F label="Sur-titre"><Inp value={ap.equipeSurtitre} onChange={(v: string) => setAP({ equipeSurtitre: v })} placeholder="L'ÉQUIPE" /></F>
+            <F label="Titre"><Inp value={ap.equipeTitre} onChange={(v: string) => setAP({ equipeTitre: v })} placeholder="Les visages derrière la boutique" /></F>
+            {vide('equipe') && noteVide('equipe')}
+            {(ap.equipe || []).map((m: any, i: number) => (
+              <div key={i} style={{ border: '1px solid #222', borderRadius: 8, padding: 12, marginBottom: 10 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <Inp value={m.prenom} onChange={(val: string) => maj('equipe', i, { prenom: val })} placeholder="Prénom" />
+                  <Inp value={m.poste} onChange={(val: string) => maj('equipe', i, { poste: val })} placeholder="Poste" />
+                  <button onClick={() => ret('equipe', i)} style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>🗑️</button>
+                </div>
+                <Inp value={m.photo} onChange={(val: string) => maj('equipe', i, { photo: val })} placeholder="URL de la photo (facultatif, https://...)" />
+              </div>
+            ))}
+            {(ap.equipe || []).length < MAX_EQUIPE && <button onClick={() => setAP({ equipe: [...(ap.equipe || []), { prenom: '', poste: '', photo: '' }] })} style={{ width: '100%', padding: '9px', border: `2px dashed ${CP}40`, borderRadius: 8, background: `${CP}05`, color: CP, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>+ Ajouter une personne</button>}
+          </S>
+          <S titre="Bloc final">
+            <F label="Sur-titre"><Inp value={ap.ctaSurtitre} onChange={(v: string) => setAP({ ctaSurtitre: v })} placeholder="REJOIGNEZ-NOUS" /></F>
+            <F label="Titre"><Inp value={ap.ctaTitre} onChange={(v: string) => setAP({ ctaTitre: v })} placeholder="Prêt à découvrir notre sélection ?" /></F>
+            <F label="Texte"><Textarea value={ap.ctaTexte} onChange={(v: string) => setAP({ ctaTexte: v })} placeholder="Des produits d'exception vous attendent..." rows={2} /></F>
+            <F label="Bouton 1 (vers le catalogue)"><Inp value={ap.ctaBoutonCatalogue} onChange={(v: string) => setAP({ ctaBoutonCatalogue: v })} placeholder="Voir notre catalogue →" /></F>
+            <F label="Bouton 2 (vers contact)"><Inp value={ap.ctaBoutonContact} onChange={(v: string) => setAP({ ctaBoutonContact: v })} placeholder="Nous contacter" /></F>
           </S>
         </>
-      );
+        );
+      }
 
       case 'faq': return (
         <>
@@ -394,6 +582,8 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
               </div>
             </F>
             <Toggle label="Afficher l'auteur" checked={config.blog.afficherAuteur} onChange={(v: boolean) => set('blog', { ...config.blog, afficherAuteur: v })} />
+            <F label="Sur-titre"><Inp value={config.blog.surtitre} onChange={(v: string) => setBlog({ surtitre: v })} placeholder="Blogue" /></F>
+            <F label="Message quand aucun article"><Inp value={config.blog.videTitre} onChange={(v: string) => setBlog({ videTitre: v })} placeholder="Aucun article" /></F>
             <Toggle label="Afficher la date" checked={config.blog.afficherDate} onChange={(v: boolean) => set('blog', { ...config.blog, afficherDate: v })} />
           </S>
         </>
@@ -407,8 +597,15 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
             <F label="Adresse"><Inp value={config.contact.adresse} onChange={(v: string) => setCont({ adresse: v })} placeholder="123 rue Principale, Montréal QC" /></F>
             <F label="Téléphone"><Inp value={config.contact.telephone} onChange={(v: string) => setCont({ telephone: v })} placeholder="514 000-0000" /></F>
             <F label="Courriel"><Inp value={config.contact.courriel} onChange={(v: string) => setCont({ courriel: v })} placeholder="info@maboutique.ca" /></F>
+            <F label="Heures d'ouverture"><Inp value={config.contact.heures} onChange={(v: string) => setCont({ heures: v })} placeholder="Lun-Ven 9h-17h" /></F>
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 14px', lineHeight: 1.6 }}>Si aucune coordonnée n'est remplie, le site affiche des coordonnées d'exemple (démonstration). Remplissez-en au moins une pour les remplacer.</p>
+            <F label="Sur-titre"><Inp value={config.contact.surtitre} onChange={(v: string) => setCont({ surtitre: v })} placeholder="Contact" /></F>
+            <F label="Titre de la colonne coordonnées"><Inp value={config.contact.coordonneesTitre} onChange={(v: string) => setCont({ coordonneesTitre: v })} placeholder="Nos coordonnées" /></F>
+            <F label="Message envoyé — titre"><Inp value={config.contact.succesTitre} onChange={(v: string) => setCont({ succesTitre: v })} placeholder="Message envoyé !" /></F>
+            <F label="Message envoyé — texte"><Inp value={config.contact.succesTexte} onChange={(v: string) => setCont({ succesTexte: v })} placeholder="Nous vous répondrons sous peu." /></F>
             <Toggle label="Afficher Google Maps" checked={config.contact.afficherCarte} onChange={(v: boolean) => setCont({ afficherCarte: v })} />
-            {config.contact.afficherCarte && <F label="URL de la carte"><Inp value={config.contact.urlCarte} onChange={(v: string) => setCont({ urlCarte: v })} placeholder="https://maps.google.com/..." /></F>}
+            {config.contact.afficherCarte && <F label="URL de la carte"><Inp value={config.contact.urlCarte} onChange={(v: string) => setCont({ urlCarte: v })} placeholder="https://www.google.com/maps/embed?pb=..." /></F>}
+            {config.contact.afficherCarte && <p style={{ fontSize: 12, color: '#888', margin: '0 0 10px', lineHeight: 1.6 }}>Dans Google Maps : Partager → Intégrer une carte → copiez l'adresse qui suit src="…" (elle doit commencer par https://).</p>}
           </S>
         </>
       );
@@ -531,9 +728,16 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
               </p>
             </div>
             <Toggle label="Ticker défilant en haut" checked={config.afficherTicker} onChange={(v: boolean) => set('afficherTicker', v)} desc="Barre de défilement pour annonces et promotions" />
+            {config.afficherTicker && <F label="Texte de la bannière du haut (ticker)"><Textarea value={config.tickerTexte} onChange={(v: string) => set('tickerTexte', v)} placeholder="✦ LIVRAISON GRATUITE dès 100$ ✦ RETOUR 30 JOURS ✦" rows={2} /></F>}
             <Toggle label="Popup promo au chargement" checked={config.afficherPopupPromo} onChange={(v: boolean) => set('afficherPopupPromo', v)} desc="Apparaît après 4 secondes — idéal pour les codes promo" />
-            <Toggle label="Notification dernière vente" checked={config.afficherNotifVente} onChange={(v: boolean) => set('afficherNotifVente', v)} desc="Popup en bas à gauche — crée de la preuve sociale" />
-            <Toggle label="Compteur de vues en temps réel" checked={config.afficherNbVues} onChange={(v: boolean) => set('afficherNbVues', v)} desc="Affiche le nombre de personnes qui regardent le produit" />
+            {config.afficherPopupPromo && <>
+              <F label="Sur-titre du popup"><Inp value={config.popupPromoSurtitre} onChange={(v: string) => set('popupPromoSurtitre', v)} placeholder="Offre exclusive" /></F>
+              <F label="Message du popup"><Inp value={config.popupPromoTexte} onChange={(v: string) => set('popupPromoTexte', v)} placeholder="Obtenez 10% de réduction sur votre première commande !" /></F>
+              <F label="Code promo affiché"><Inp value={config.popupPromoCode} onChange={(v: string) => set('popupPromoCode', v)} placeholder="BIENVENUE10" /></F>
+              <F label="Texte du bouton"><Inp value={config.popupPromoBouton} onChange={(v: string) => set('popupPromoBouton', v)} placeholder="Profiter de l'offre →" /></F>
+            </>}
+            <Toggle label="Notification dernière vente" checked={config.afficherNotifVente} onChange={(v: boolean) => set('afficherNotifVente', v)} desc="Démonstration seulement — sera une option payante (add-on). Jamais affiché sur une boutique avec de vraies annonces." />
+            <Toggle label="Compteur de vues en temps réel" checked={config.afficherNbVues} onChange={(v: boolean) => set('afficherNbVues', v)} desc="Démonstration seulement — sera une option payante (add-on). Jamais affiché sur une boutique avec de vraies annonces." />
             <Toggle label="Barre de progression livraison" checked={config.afficherBarreLivraison} onChange={(v: boolean) => set('afficherBarreLivraison', v)} desc="Encourage les clients à ajouter plus d'articles" />
             <Toggle label="Wishlist (liste d'envies)" checked={config.afficherWishlist} onChange={(v: boolean) => set('afficherWishlist', v)} desc="Permet aux clients de sauvegarder leurs produits préférés" />
             <Toggle label="Zoom image sur fiche produit" checked={config.ficheProduit.afficherZoom} onChange={(v: boolean) => setFP({ afficherZoom: v })} desc="Zoom fluide au survol de la souris — effet luxe garanti" />

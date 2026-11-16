@@ -55,6 +55,36 @@ const PRODUITS_DEMO: Produit[] = [
   { id:8, titre:'Écharpe Cachemire', prix:199.99, prix_promo:159.99, stock:7, categorie:'Mode', note_moyenne:4.9, nb_avis:67, description:'Écharpe 100% cachemire mongolien. Tissage fait main.', photo_principale:'' },
 ];
 
+// Exemples de démonstration de la page À propos : affichés tant que le gestionnaire n'a rien saisi (Config Mes pages → À propos)
+const APROPOS_DEMO = {
+  accroche: 'Nous croyons que le luxe devrait être accessible à tous — sans compromis sur la qualité.',
+  description: "Fondée avec une passion pour l'excellence, notre boutique sélectionne rigoureusement chaque produit pour vous offrir ce qu'il y a de mieux. Chaque article est testé, validé et choisi avec soin pour dépasser vos attentes.",
+  valeurs: [
+    { ico:'💎', titre:'Qualité sans compromis', desc:'Chaque produit est sélectionné selon des critères rigoureux. Nous refusons la médiocrité — chaque article que vous recevez a été validé par notre équipe.' },
+    { ico:'🤝', titre:'Service humain', desc:"Derrière chaque commande, il y a une personne réelle. Notre équipe est disponible pour vous accompagner à chaque étape de votre expérience d'achat." },
+    { ico:'🌱', titre:'Responsabilité', desc:'Nous choisissons prioritairement des fournisseurs éthiques et des emballages éco-responsables. Notre croissance respecte les gens et la planète.' },
+  ],
+  chiffres: [{ nb:'500+', label:'Produits sélectionnés' }, { nb:'4.8/5', label:'Note moyenne' }, { nb:'2 000+', label:'Clients satisfaits' }, { nb:'30 jours', label:'Politique de retour' }],
+  equipe: [{ prenom:'Alexandre', poste:'Fondateur & Directeur', photo:'' }, { prenom:'Marie', poste:'Responsable des achats', photo:'' }, { prenom:'Sophie', poste:'Service à la clientèle', photo:'' }],
+};
+
+// Exemples de démonstration (accueil, fiche produit, contact) : affichés tant que le gestionnaire n'a rien saisi dans Config Mes pages
+const DEMO = {
+  avantages: [{ ico:'🚚', titre:'Livraison Premium', desc:'Offerte dès 100$' },{ ico:'🔒', titre:'Paiement Sécurisé', desc:'SSL & Stripe' },{ ico:'💎', titre:'Qualité Garantie', desc:'Sélection rigoureuse' },{ ico:'🔄', titre:'Retour 30 Jours', desc:'Sans questions' }],
+  temoignages: [
+    { texte:"Qualité exceptionnelle, livraison ultra rapide. Je suis cliente fidèle depuis 2 ans !", auteur:'Marie L.', ville:'Montréal', note:5 },
+    { texte:"Service client impeccable. Mes articles arrivent toujours parfaitement emballés.", auteur:'Jean-Pierre M.', ville:'Québec', note:5 },
+    { texte:"Des produits haut de gamme à des prix justes. Ma boutique préférée!", auteur:'Sophie R.', ville:'Laval', note:5 },
+  ],
+  reassurance: [{ ico:'🚚', texte:'Livraison 2-5 jours' },{ ico:'🔒', texte:'Paiement sécurisé Stripe' },{ ico:'🔄', texte:'Retour sous 30 jours' }],
+  livraisonInfos: [
+    { ico:'🚚', titre:'Livraison standard', delai:'2-5 jours ouvrables', info:'Gratuite dès 100$' },
+    { ico:'⚡', titre:'Livraison express', delai:'1-2 jours ouvrables', info:'Disponible au checkout' },
+    { ico:'🔄', titre:'Retours', delai:'Sous 30 jours', info:'Articles non utilisés dans emballage original' },
+  ],
+  contact: [{ ico:'📍', label:'Adresse', val:'123 rue Principale, Montréal QC' },{ ico:'📞', label:'Téléphone', val:'514 000-0000' },{ ico:'✉️', label:'Courriel', val:'info@boutique.ca' },{ ico:'⏰', label:'Heures', val:'Lun-Ven 9h-17h' }],
+};
+
 const CFG_DEF = {
   nomBoutique: 'Ma Boutique Premium', slogan: "L'excellence à votre portée",
   couleurAccent: OR, couleurFond: NOIR, couleurTexte: '#ffffff',
@@ -117,10 +147,11 @@ function NotifVente({ cp }: { cp:string }) {
   );
 }
 
-function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grille' }: {
-  produit:Produit; cp:string; onClick:()=>void; onWishlist?:()=>void; inWishlist?:boolean; vue?:'grille'|'liste';
+function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grille', opts }: {
+  opts?:{ prix:boolean; stock:boolean }; produit:Produit; cp:string; onClick:()=>void; onWishlist?:()=>void; inWishlist?:boolean; vue?:'grille'|'liste';
 }) {
   const [hovered,setHovered] = useState(false);
+  const montrerPrix=opts?opts.prix:true, montrerStock=opts?opts.stock:true;
   const enPromo = produit.prix_promo && produit.prix_promo < produit.prix;
 
   if (vue==='liste') return (
@@ -136,8 +167,8 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
         {produit.description && <p style={{ fontSize:13,color:'#888',margin:0,lineHeight:1.5,overflow:'hidden',textOverflow:'ellipsis',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical' as any }}>{produit.description}</p>}
       </div>
       <div style={{ textAlign:'right',flexShrink:0 }}>
-        {enPromo ? (<><div style={{ fontSize:20,fontWeight:800,color:'#ef4444' }}>{px(produit.prix_promo!)}</div><div style={{ fontSize:13,color:'#555',textDecoration:'line-through' }}>{px(produit.prix)}</div></>) 
-                 : <div style={{ fontSize:20,fontWeight:800,color:cp }}>{px(produit.prix)}</div>}
+        {montrerPrix&&(enPromo ? (<><div style={{ fontSize:20,fontWeight:800,color:'#ef4444' }}>{px(produit.prix_promo!)}</div><div style={{ fontSize:13,color:'#555',textDecoration:'line-through' }}>{px(produit.prix)}</div></>) 
+                 : <div style={{ fontSize:20,fontWeight:800,color:cp }}>{px(produit.prix)}</div>)}
         <button onClick={e=>{e.stopPropagation();onClick();}} style={{ marginTop:8,padding:'6px 14px',background:cp,border:'none',borderRadius:6,color:'#000',fontSize:12,fontWeight:700,cursor:'pointer' }}>Voir</button>
       </div>
     </div>
@@ -149,7 +180,7 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
       <div style={{ aspectRatio:'1',background:'#111',display:'flex',alignItems:'center',justifyContent:'center',fontSize:56,overflow:'hidden',position:'relative' }}>
         {produit.photo_principale ? <img src={produit.photo_principale} alt={produit.titre} style={{ width:'100%',height:'100%',objectFit:'cover',transition:'transform 0.4s ease',transform:hovered?'scale(1.08)':'scale(1)' }}/> : <span style={{ color:'#333' }}>📦</span>}
         {enPromo && <span style={{ position:'absolute',top:10,left:10,background:'#ef4444',color:'#fff',fontSize:10,fontWeight:800,padding:'3px 8px',borderRadius:6 }}>SOLDE</span>}
-        {produit.stock!==undefined && produit.stock<=3 && produit.stock>0 && <span style={{ position:'absolute',top:10,right:onWishlist?44:10,background:'#f59e0b',color:'#000',fontSize:9,fontWeight:800,padding:'3px 7px',borderRadius:6 }}>Plus que {produit.stock}!</span>}
+        {montrerStock && produit.stock!==undefined && produit.stock<=3 && produit.stock>0 && <span style={{ position:'absolute',top:10,right:onWishlist?44:10,background:'#f59e0b',color:'#000',fontSize:9,fontWeight:800,padding:'3px 7px',borderRadius:6 }}>Plus que {produit.stock}!</span>}
         {produit.stock===0 && <div style={{ position:'absolute',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center' }}><span style={{ color:'#fff',fontSize:13,fontWeight:700,background:'#333',padding:'6px 14px',borderRadius:6 }}>Épuisé</span></div>}
         {onWishlist && <button onClick={e=>{e.stopPropagation();onWishlist();}} style={{ position:'absolute',top:10,right:10,width:32,height:32,borderRadius:'50%',background:'rgba(0,0,0,0.6)',border:`1px solid ${inWishlist?'#ef4444':'#444'}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14 }}>{inWishlist?'❤️':'🤍'}</button>}
         <div style={{ position:'absolute',bottom:0,left:0,right:0,padding:'12px',background:'linear-gradient(transparent,rgba(0,0,0,0.8))',opacity:hovered?1:0,transition:'opacity 0.25s ease' }}>
@@ -160,10 +191,10 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
         {produit.categorie && <span style={{ fontSize:9,color:cp,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em' }}>{produit.categorie}</span>}
         <h3 style={{ fontSize:14,fontWeight:600,color:'#e5e5e5',margin:'4px 0 6px',lineHeight:1.3 }}>{produit.titre}</h3>
         {produit.note_moyenne && <div style={{ display:'flex',alignItems:'center',gap:4,marginBottom:8 }}><Etoiles note={produit.note_moyenne} taille={11}/><span style={{ fontSize:10,color:'#666' }}>({produit.nb_avis})</span></div>}
-        <div style={{ display:'flex',alignItems:'baseline',gap:8 }}>
+        {montrerPrix&&<div style={{ display:'flex',alignItems:'baseline',gap:8 }}>
           {enPromo ? (<><span style={{ fontSize:17,fontWeight:800,color:'#ef4444' }}>{px(produit.prix_promo!)}</span><span style={{ fontSize:12,color:'#555',textDecoration:'line-through' }}>{px(produit.prix)}</span><span style={{ fontSize:10,color:'#ef4444',fontWeight:700 }}>-{Math.round((1-produit.prix_promo!/produit.prix)*100)}%</span></>)
                    : <span style={{ fontSize:17,fontWeight:800,color:cp }}>{px(produit.prix)}</span>}
-        </div>
+        </div>}
       </div>
     </div>
   );
@@ -187,6 +218,24 @@ function fusionInsc(b:any){
 export default function TemplateBoutiquePremium({ config: configBrut, siteId, vendeurId }: Props) {
   const raw = configBrut?.premium || {};
   const cfg = { ...CFG_DEF, ...raw, footer: { ...CFG_DEF.footer, ...(raw.footer||{}) } };
+  // Lecture de la config du gestionnaire : texte saisi, sinon exemple ; interrupteur actif sauf s'il est coupé ; liste saisie, sinon exemples
+  const tx=(sec:string,cle:string,defaut:string):string=>{ const v=raw?.[sec]?.[cle]; return typeof v==='string'&&v.trim()?v.trim():defaut; };
+  const on=(sec:string,cle:string):boolean=>raw?.[sec]?.[cle]!==false;
+  const lst=(sec:string,cle:string,demo:any[],ok:(x:any)=>boolean):any[]=>{ const l=(Array.isArray(raw?.[sec]?.[cle])?raw[sec][cle]:[]).filter((x:any)=>x&&typeof x==='object'&&ok(x)); return l.length>0?l:demo; };
+  const nbr=(sec:string,cle:string,defaut:number,min:number,max:number):number=>{ const n=Number(raw?.[sec]?.[cle]); return Number.isFinite(n)&&n>=min&&n<=max?Math.round(n):defaut; };
+  const optsCarte={ prix:on('catalogue','afficherPrix'), stock:on('catalogue','afficherStock') };
+  const couleurBtn=/^#[0-9a-f]{6}$/i.test(String(raw?.ficheProduit?.boutonCouleur||''))?String(raw.ficheProduit.boutonCouleur):'';
+  const lumi=couleurBtn?(parseInt(couleurBtn.slice(1,3),16)*0.299+parseInt(couleurBtn.slice(3,5),16)*0.587+parseInt(couleurBtn.slice(5,7),16)*0.114)/255:0;
+  const styleBtnProduit:React.CSSProperties=couleurBtn?{ background:couleurBtn,color:lumi>0.55?'#000':'#fff' }:{};
+  const partager=(reseau:string,titre:string)=>{
+    const u=encodeURIComponent(window.location.href), t=encodeURIComponent(titre);
+    const url=reseau==='Facebook'?`https://www.facebook.com/sharer/sharer.php?u=${u}`:reseau==='Pinterest'?`https://pinterest.com/pin/create/button/?url=${u}&description=${t}`:`https://twitter.com/intent/tweet?url=${u}&text=${t}`;
+    window.open(url,'_blank','noopener,noreferrer,width=600,height=500');
+  };
+  const cc:any=raw?.contact||{};
+  const saisiContact=[['📍','Adresse',cc.adresse],['📞','Téléphone',cc.telephone],['✉️','Courriel',cc.courriel],['⏰','Heures',cc.heures]].filter(([,,v])=>typeof v==='string'&&String(v).trim()).map(([ico,label,val])=>({ico,label,val:String(val).trim()}));
+  const lignesContact:any[]=saisiContact.length>0?saisiContact:DEMO.contact;
+  const lienHttp=(u:any):string=>/^https?:\/\//i.test(String(u||''))?String(u):'';
   const cp  = cfg.couleurAccent || OR;
 
   type PageId = 'accueil'|'catalogue'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'wishlist'|'compte'|'login'|'inscription';
@@ -197,6 +246,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [menuOuvert,setMenuOuvert] = useState(false);
   const [produits,setProduits]     = useState<Produit[]>([]);
   const [produitsDemo,setProduitsDemo] = useState(true); // vrai tant que seuls les exemples sont affichés
+  const [catalogueCharge,setCatalogueCharge] = useState(false); // vrai quand la lecture des vraies annonces est terminée
+  const modeDemo = catalogueCharge&&produitsDemo; // éléments de démonstration seulement (futurs add-ons payants) : jamais sur une boutique qui a de vraies annonces
   const [articles,setArticles]     = useState<ArticleBlog[]>([]);
   const [categories,setCategories] = useState<string[]>([]);
   const [avisActif,setAvisActif]   = useState<Avis[]>([]);
@@ -211,7 +262,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [filtrePrixMax,setFiltrePrixMax] = useState('');
   const [tri,setTri]               = useState<'recent'|'prix_asc'|'prix_desc'|'note'>('recent');
   const [vueCatalogue,setVueCatalogue] = useState<'grille'|'liste'>('grille');
-  const [colonnes,setColonnes]     = useState(3);
+  const [colonnes,setColonnes]     = useState(()=>{ const n=Number(raw?.catalogue?.colonnes); return n>=2&&n<=4?Math.round(n):3; });
   const [popupPromo,setPopupPromo] = useState(false);
   const [photoIdx,setPhotoIdx]     = useState(0);
   const [qteChoisie,setQteChoisie] = useState(1);
@@ -237,9 +288,9 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   useEffect(()=>{ if(cfg.afficherPopupPromo){ const t=setTimeout(()=>setPopupPromo(true),4000); return()=>clearTimeout(t); } },[cfg.afficherPopupPromo]);
 
   useEffect(()=>{
-    if(configBrut?.__produits_demo__){ setProduits(configBrut.__produits_demo__); setCategories(Array.from(new Set(configBrut.__produits_demo__.map((p:any)=>p.categorie).filter(Boolean))) as string[]); return; }
+    if(configBrut?.__produits_demo__){ setCatalogueCharge(true); setProduits(configBrut.__produits_demo__); setCategories(Array.from(new Set(configBrut.__produits_demo__.map((p:any)=>p.categorie).filter(Boolean))) as string[]); return; }
     setProduits(PRODUITS_DEMO); setCategories(Array.from(new Set(PRODUITS_DEMO.map(p=>p.categorie).filter(Boolean))) as string[]);
-    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`).then(r=>r.ok?r.json():null).then(data=>{ if(!data) return; const l:Produit[]=data.produits||data||[]; if(l.length>0){ setProduitsDemo(false); setProduits(l); setCategories(Array.from(new Set(l.map(p=>p.categorie).filter(Boolean))) as string[]); } }).catch(()=>{});
+    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`).then(r=>r.ok?r.json():null).then(data=>{ if(!data) return; const l:Produit[]=data.produits||data||[]; if(l.length>0){ setProduitsDemo(false); setProduits(l); setCategories(Array.from(new Set(l.map(p=>p.categorie).filter(Boolean))) as string[]); } }).catch(()=>{}).then(()=>setCatalogueCharge(true));
   },[vendeurId]);
 
   useEffect(()=>{ fetch(`${API_BASE}/blog/vendeur/${vendeurId}?publie=true&limit=20`).then(r=>r.ok?r.json():[]).then(data=>setArticles(Array.isArray(data)?data:data.articles||[])).catch(()=>{}); },[vendeurId]);
@@ -339,6 +390,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const styleInput:React.CSSProperties = { width:'100%',padding:'12px 16px',background:SURF,border:`1px solid #333`,borderRadius:10,fontSize:14,outline:'none',color:'#fff',fontFamily:'inherit',boxSizing:'border-box' };
   const styleBtn:React.CSSProperties  = { background:`linear-gradient(135deg,${cp},${OR2})`,color:'#000',border:'none',borderRadius:10,padding:'14px 28px',fontSize:14,fontWeight:800,cursor:'pointer',letterSpacing:'0.05em' };
 
+  const menuNav:string[][]=[['accueil','Accueil'],['catalogue','Catalogue'],['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']]
+    .filter(([id])=>!(Array.isArray(raw?.menu?.masques)?raw.menu.masques:[]).includes(id)).map(([id,l])=>[id,tx('menu',id,l)]);
   const Nav = () => (
     <nav style={{ position:'sticky',top:0,zIndex:100,background:'rgba(10,10,10,0.92)',backdropFilter:'blur(16px)',borderBottom:`1px solid ${BORD}` }}>
       <div style={{ maxWidth:1300,margin:'0 auto',padding:'0 24px',height:70,display:'flex',alignItems:'center',justifyContent:'space-between' }}>
@@ -348,7 +401,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
                 {cfg.slogan&&<div style={{ fontSize:9,color:cp,letterSpacing:'0.15em',textTransform:'uppercase',marginTop:2 }}>{cfg.slogan}</div>}</div>}
         </button>
         {!isMobile&&<div style={{ display:'flex',gap:4 }}>
-          {[['accueil','Accueil'],['catalogue','Catalogue'],['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']].map(([id,label])=>(
+          {menuNav.map(([id,label])=>(
             <button key={id} onClick={()=>naviguer(id)} style={{ background:'none',border:'none',color:page===id?cp:'rgba(255,255,255,0.7)',fontSize:13,fontWeight:page===id?700:500,cursor:'pointer',padding:'8px 14px',borderRadius:8,letterSpacing:'0.04em',transition:'color 0.2s' }}>{label}</button>
           ))}</div>}
         <div style={{ display:'flex',alignItems:'center',gap:8 }}>
@@ -363,14 +416,14 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         </div>
       </div>
       {isMobile&&menuOuvert&&<div style={{ background:NOIR2,borderTop:`1px solid ${BORD}`,padding:'12px 24px 20px' }}>
-        {[['accueil','Accueil'],['catalogue','Catalogue'],['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']].map(([id,label])=>(
+        {menuNav.map(([id,label])=>(
           <button key={id} onClick={()=>naviguer(id)} style={{ display:'block',width:'100%',textAlign:'left',background:page===id?`${cp}15`:'none',border:'none',borderRadius:8,color:page===id?cp:'#ccc',fontSize:15,fontWeight:page===id?700:400,cursor:'pointer',padding:'12px 14px',marginBottom:4 }}>{label}</button>
         ))}</div>}
     </nav>
   );
 
   const PageAccueil = () => {
-    const vedette = produits.slice(0,8);
+    const vedette = produits.slice(0,nbr('accueil','vedetteNombre',8,1,12));
     return (
       <>
         {/* Hero */}
@@ -380,12 +433,12 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           {[...Array(8)].map((_,i)=><div key={i} style={{ position:'absolute',width:2,height:2,background:cp,borderRadius:'50%',top:`${10+i*12}%`,left:`${5+i*11}%`,animation:`glow ${2+i*0.3}s ease-in-out infinite`,opacity:0.4 }}/>)}
           <div style={{ position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',padding:'0 24px' }}>
             <div style={{ textAlign:'center',maxWidth:800,animation:'slideIn 0.8s ease' }}>
-              <div style={{ display:'inline-block',fontSize:11,fontWeight:700,color:cp,letterSpacing:'0.2em',textTransform:'uppercase',borderBottom:`1px solid ${BORD}`,paddingBottom:8,marginBottom:24 }}>✦ COLLECTION EXCLUSIVE ✦</div>
+              <div style={{ display:'inline-block',fontSize:11,fontWeight:700,color:cp,letterSpacing:'0.2em',textTransform:'uppercase',borderBottom:`1px solid ${BORD}`,paddingBottom:8,marginBottom:24 }}>✦ {tx('accueil','heroSurtitre','Collection exclusive')} ✦</div>
               <h1 style={{ fontSize:isMobile?'clamp(36px,10vw,56px)':'clamp(48px,6vw,80px)',fontWeight:900,color:'#fff',lineHeight:1.05,margin:'0 0 24px',letterSpacing:'-0.02em' }}>{cfg.nomBoutique}</h1>
               <p style={{ fontSize:isMobile?16:20,color:'rgba(255,255,255,0.6)',lineHeight:1.6,marginBottom:40,maxWidth:560,margin:'0 auto 40px' }}>{cfg.slogan}</p>
               <div style={{ display:'flex',gap:16,justifyContent:'center',flexWrap:'wrap' }}>
-                <button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'16px 40px',fontSize:15 }}>Découvrir la collection →</button>
-                <button onClick={()=>naviguer('blog')} style={{ padding:'16px 32px',background:'none',border:`1px solid ${BORD}`,borderRadius:10,color:'rgba(255,255,255,0.7)',fontSize:15,cursor:'pointer' }}>Notre univers</button>
+                <button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'16px 40px',fontSize:15 }}>{tx('accueil','boutonPrincipal','Découvrir la collection →')}</button>
+                <button onClick={()=>naviguer('blog')} style={{ padding:'16px 32px',background:'none',border:`1px solid ${BORD}`,borderRadius:10,color:'rgba(255,255,255,0.7)',fontSize:15,cursor:'pointer' }}>{tx('accueil','boutonSecondaire','Notre univers')}</button>
               </div>
             </div>
           </div>
@@ -396,32 +449,32 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         </div>
 
         {/* Avantages */}
-        <div style={{ background:`linear-gradient(135deg,${SURF},${SURF2})`,borderTop:`1px solid ${BORD}`,borderBottom:`1px solid ${BORD}` }}>
+        {on('accueil','afficherAvantages')&&<div style={{ background:`linear-gradient(135deg,${SURF},${SURF2})`,borderTop:`1px solid ${BORD}`,borderBottom:`1px solid ${BORD}` }}>
           <div style={{ maxWidth:1300,margin:'0 auto',padding:'20px 24px',display:'grid',gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:20 }}>
-            {[['🚚','Livraison Premium','Offerte dès 100$'],['🔒','Paiement Sécurisé','SSL & Stripe'],['💎','Qualité Garantie','Sélection rigoureuse'],['🔄','Retour 30 Jours','Sans questions']].map(([ico,titre,desc])=>(
-              <div key={titre as string} style={{ display:'flex',alignItems:'center',gap:12 }}>
+            {lst('accueil','avantages',DEMO.avantages,x=>!!(x.titre||x.desc)).slice(0,4).map((a:any,i:number)=>{ const {ico,titre,desc}=a; return (
+              <div key={i} style={{ display:'flex',alignItems:'center',gap:12 }}>
                 <div style={{ width:44,height:44,borderRadius:10,background:`${cp}15`,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0 }}>{ico}</div>
                 <div><div style={{ fontSize:13,fontWeight:700,color:'#fff' }}>{titre}</div><div style={{ fontSize:11,color:'#666' }}>{desc}</div></div>
               </div>
-            ))}
+            ); })}
           </div>
-        </div>
+        </div>}
 
         {/* Produits vedette */}
-        {vedette.length>0&&<div style={{ maxWidth:1300,margin:'0 auto',padding:'72px 24px' }}>
+        {on('accueil','afficherVedette')&&vedette.length>0&&<div style={{ maxWidth:1300,margin:'0 auto',padding:'72px 24px' }}>
           <div style={{ display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:48 }}>
-            <div><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ SÉLECTION</div><h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:0,lineHeight:1.1 }}>Nos coups de cœur</h2></div>
-            <button onClick={()=>naviguer('catalogue')} style={{ background:'none',border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 20px',color:cp,fontSize:13,fontWeight:600,cursor:'pointer',display:isMobile?'none':'block' }}>Voir tout →</button>
+            <div><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('accueil','vedetteSurtitre','Sélection')}</div><h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:0,lineHeight:1.1 }}>{tx('accueil','vedetteTitre','Nos coups de cœur')}</h2></div>
+            <button onClick={()=>naviguer('catalogue')} style={{ background:'none',border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 20px',color:cp,fontSize:13,fontWeight:600,cursor:'pointer',display:isMobile?'none':'block' }}>{tx('accueil','vedetteBouton','Voir tout →')}</button>
           </div>
           <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(4,vedette.length)},1fr)`,gap:isMobile?12:20 }}>
-            {vedette.map(p=><CarteProduit key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
+            {vedette.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
           </div>
         </div>}
 
         {/* Catégories */}
-        {categories.length>0&&<div style={{ background:SURF,borderTop:`1px solid ${BORD}`,borderBottom:`1px solid ${BORD}`,padding:'72px 24px' }}>
+        {on('accueil','afficherCategories')&&categories.length>0&&<div style={{ background:SURF,borderTop:`1px solid ${BORD}`,borderBottom:`1px solid ${BORD}`,padding:'72px 24px' }}>
           <div style={{ maxWidth:1300,margin:'0 auto' }}>
-            <div style={{ textAlign:'center',marginBottom:48 }}><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ UNIVERS</div><h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:0 }}>Nos catégories</h2></div>
+            <div style={{ textAlign:'center',marginBottom:48 }}><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('accueil','categoriesSurtitre','Univers')}</div><h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:0 }}>{tx('accueil','categoriesTitre','Nos catégories')}</h2></div>
             <div style={{ display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center' }}>
               {categories.map(cat=>(
                 <button key={cat} onClick={()=>{ setFiltreCat(cat); naviguer('catalogue'); }} style={{ padding:'12px 28px',background:NOIR,border:`1px solid ${BORD}`,borderRadius:50,fontSize:14,fontWeight:600,color:'#ccc',cursor:'pointer',transition:'all 0.2s',letterSpacing:'0.04em' }}
@@ -435,34 +488,34 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         </div>}
 
         {/* Témoignages */}
-        <div style={{ maxWidth:1300,margin:'0 auto',padding:'72px 24px' }}>
-          <div style={{ textAlign:'center',marginBottom:48 }}><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ TÉMOIGNAGES</div><h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:0 }}>Ce que disent nos clients</h2></div>
+        {on('accueil','afficherTemoignages')&&<div style={{ maxWidth:1300,margin:'0 auto',padding:'72px 24px' }}>
+          <div style={{ textAlign:'center',marginBottom:48 }}><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('accueil','temoignagesSurtitre','Témoignages')}</div><h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:0 }}>{tx('accueil','temoignagesTitre','Ce que disent nos clients')}</h2></div>
           <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:20 }}>
-            {[{ texte:"Qualité exceptionnelle, livraison ultra rapide. Je suis cliente fidèle depuis 2 ans !",auteur:'Marie L.',ville:'Montréal',note:5 },{ texte:"Service client impeccable. Mes articles arrivent toujours parfaitement emballés.",auteur:'Jean-Pierre M.',ville:'Québec',note:5 },{ texte:"Des produits haut de gamme à des prix justes. Ma boutique préférée!",auteur:'Sophie R.',ville:'Laval',note:5 }].map((t,i)=>(
+            {lst('accueil','temoignages',DEMO.temoignages,x=>!!x.texte).slice(0,6).map((t:any,i:number)=>(
               <div key={i} style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:28 }}>
-                <Etoiles note={t.note} taille={16}/>
+                <Etoiles note={Number(t.note)||5} taille={16}/>
                 <p style={{ fontSize:15,color:'#ccc',lineHeight:1.7,margin:'16px 0 20px',fontStyle:'italic' }}>"{t.texte}"</p>
                 <div style={{ display:'flex',alignItems:'center',gap:12 }}>
-                  <div style={{ width:40,height:40,borderRadius:'50%',background:`${cp}20`,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:cp }}>{t.auteur[0]}</div>
+                  <div style={{ width:40,height:40,borderRadius:'50%',background:`${cp}20`,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,fontWeight:700,color:cp }}>{String(t.auteur||'?')[0]}</div>
                   <div><div style={{ fontSize:14,fontWeight:700,color:'#fff' }}>{t.auteur}</div><div style={{ fontSize:12,color:'#666' }}>{t.ville}</div></div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </div>}
 
         {/* Infolettre */}
-        <div style={{ background:`linear-gradient(135deg,${SURF},${NOIR})`,borderTop:`1px solid ${BORD}`,padding:'72px 24px' }}>
+        {modeDemo&&on('accueil','afficherInfolettre')&&<div style={{ background:`linear-gradient(135deg,${SURF},${NOIR})`,borderTop:`1px solid ${BORD}`,padding:'72px 24px' }}>
           <div style={{ maxWidth:560,margin:'0 auto',textAlign:'center' }}>
-            <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ EXCLUSIVITÉS</div>
-            <h2 style={{ fontSize:isMobile?28:36,fontWeight:900,color:'#fff',marginBottom:12 }}>Restez dans la boucle</h2>
-            <p style={{ fontSize:15,color:'#888',marginBottom:32,lineHeight:1.6 }}>Offres exclusives, nouvelles collections et avant-premières réservées à nos abonnés.</p>
+            <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('accueil','infolettreSurtitre','Exclusivités')}</div>
+            <h2 style={{ fontSize:isMobile?28:36,fontWeight:900,color:'#fff',marginBottom:12 }}>{tx('accueil','infolettreTitre','Restez dans la boucle')}</h2>
+            <p style={{ fontSize:15,color:'#888',marginBottom:32,lineHeight:1.6 }}>{tx('accueil','infolettreTexte','Offres exclusives, nouvelles collections et avant-premières réservées à nos abonnés.')}</p>
             <div style={{ display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center' }}>
               <input type="email" placeholder="votre@courriel.com" style={{ flex:1,minWidth:220,padding:'14px 20px',background:SURF,border:`1px solid ${BORD}`,borderRadius:10,fontSize:14,color:'#fff',outline:'none' }}/>
-              <button style={{ ...styleBtn,padding:'14px 24px',fontSize:14,flexShrink:0 }}>S'inscrire →</button>
+              <button style={{ ...styleBtn,padding:'14px 24px',fontSize:14,flexShrink:0 }}>{tx('accueil','infolettreBouton',"S'inscrire →")}</button>
             </div>
           </div>
-        </div>
+        </div>}
       </>
     );
   };
@@ -471,12 +524,12 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     const [filtresPanneau,setFiltresPanneau] = useState(!isMobile);
     return (
       <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
-        <div style={{ marginBottom:32 }}><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ CATALOGUE</div><h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:0 }}>Tous nos produits</h1></div>
+        <div style={{ marginBottom:32 }}><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ {tx('catalogue','surtitre','Catalogue')}</div><h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:0 }}>{tx('catalogue','titre','Tous nos produits')}</h1></div>
         <div style={{ display:'flex',gap:12,marginBottom:24,alignItems:'center',flexWrap:'wrap' }}>
-          <div style={{ flex:1,minWidth:200,position:'relative' }}>
+          {on('catalogue','afficherRecherche')&&<div style={{ flex:1,minWidth:200,position:'relative' }}>
             <span style={{ position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',color:'#555',fontSize:14 }}>🔍</span>
             <input type="text" placeholder="Rechercher..." value={filtreRecherche} onChange={e=>setFiltreRecherche(e.target.value)} style={{ ...styleInput,paddingLeft:40,fontSize:13 }}/>
-          </div>
+          </div>}
           <select value={tri} onChange={e=>setTri(e.target.value as any)} style={{ padding:'12px 16px',background:SURF,border:`1px solid #333`,borderRadius:10,fontSize:13,color:'#fff',cursor:'pointer',outline:'none' }}>
             <option value="recent">Plus récents</option><option value="prix_asc">Prix croissant</option><option value="prix_desc">Prix décroissant</option><option value="note">Mieux notés</option>
           </select>
@@ -486,10 +539,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           {vueCatalogue==='grille'&&!isMobile&&<div style={{ display:'flex',border:`1px solid #333`,borderRadius:10,overflow:'hidden' }}>
             {[2,3,4].map(n=><button key={n} onClick={()=>setColonnes(n)} style={{ padding:'10px 14px',background:colonnes===n?SURF2:'transparent',border:'none',color:colonnes===n?cp:'#666',cursor:'pointer',fontSize:12,fontWeight:700 }}>{n}</button>)}
           </div>}
-          <button onClick={()=>setFiltresPanneau(!filtresPanneau)} style={{ padding:'12px 16px',background:filtresPanneau?`${cp}20`:SURF,border:`1px solid ${filtresPanneau?cp:'#333'}`,borderRadius:10,color:filtresPanneau?cp:'#888',fontSize:13,cursor:'pointer',fontWeight:600 }}>⚡ Filtres</button>
+          {on('catalogue','afficherFiltres')&&<button onClick={()=>setFiltresPanneau(!filtresPanneau)} style={{ padding:'12px 16px',background:filtresPanneau?`${cp}20`:SURF,border:`1px solid ${filtresPanneau?cp:'#333'}`,borderRadius:10,color:filtresPanneau?cp:'#888',fontSize:13,cursor:'pointer',fontWeight:600 }}>⚡ Filtres</button>}
         </div>
         <div style={{ display:'flex',gap:24,alignItems:'flex-start' }}>
-          {filtresPanneau&&<div style={{ width:240,flexShrink:0,background:SURF,border:`1px solid #222`,borderRadius:14,padding:20,position:'sticky',top:90,maxHeight:'calc(100vh - 110px)',overflowY:'auto' }}>
+          {filtresPanneau&&on('catalogue','afficherFiltres')&&<div style={{ width:240,flexShrink:0,background:SURF,border:`1px solid #222`,borderRadius:14,padding:20,position:'sticky',top:90,maxHeight:'calc(100vh - 110px)',overflowY:'auto' }}>
             <h3 style={{ fontSize:11,fontWeight:700,color:cp,textTransform:'uppercase',letterSpacing:'0.15em',margin:'0 0 16px' }}>Catégories</h3>
             <div style={{ marginBottom:24 }}>
               <button onClick={()=>setFiltreCat('')} style={{ display:'block',width:'100%',textAlign:'left',padding:'8px 12px',background:!filtreCat?`${cp}20`:'none',border:'none',borderRadius:7,color:!filtreCat?cp:'#888',fontSize:13,cursor:'pointer',marginBottom:4 }}>Tous</button>
@@ -504,10 +557,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           </div>}
           <div style={{ flex:1 }}>
             <div style={{ marginBottom:16,fontSize:13,color:'#666' }}><strong style={{ color:'#fff' }}>{produitsFiltres.length}</strong> produit{produitsFiltres.length>1?'s':''}</div>
-            {produitsFiltres.length===0 ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>🔍</div><h3 style={{ color:'#777',fontWeight:600,marginBottom:8 }}>Aucun produit</h3><p>Modifiez vos filtres</p></div>
+            {produitsFiltres.length===0 ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>🔍</div><h3 style={{ color:'#777',fontWeight:600,marginBottom:8 }}>{tx('catalogue','videTitre','Aucun produit')}</h3><p>{tx('catalogue','videTexte','Modifiez vos filtres')}</p></div>
             : vueCatalogue==='grille'
-              ? <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{produitsFiltres.map(p=><CarteProduit key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>
-              : <div style={{ display:'flex',flexDirection:'column',gap:12 }}>{produitsFiltres.map(p=><CarteProduit key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} vue="liste" onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>}
+              ? <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{produitsFiltres.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>
+              : <div style={{ display:'flex',flexDirection:'column',gap:12 }}>{produitsFiltres.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} vue="liste" onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>}
           </div>
         </div>
       </div>
@@ -520,7 +573,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     const p = produitActif;
     const enPromo = p.prix_promo && p.prix_promo < p.prix;
     const photos = [p.photo_principale,...(p.photos||[])].filter(Boolean) as string[];
-    const similaires = produits.filter(pr=>pr.id!==p.id&&pr.categorie===p.categorie).slice(0,4);
+    const similaires = on('ficheProduit','afficherSimilaires')?produits.filter(pr=>pr.id!==p.id&&pr.categorie===p.categorie).slice(0,nbr('ficheProduit','similairesNombre',4,1,8)):[];
 
     return (
       <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
@@ -534,15 +587,15 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:56,alignItems:'flex-start' }}>
           {/* Galerie avec zoom */}
           <div>
-            <div style={{ position:'relative',borderRadius:16,overflow:'hidden',background:SURF,aspectRatio:'1',marginBottom:12,cursor:zoomActif?'zoom-out':'zoom-in' }}
-              onClick={()=>setZoomActif(!zoomActif)}
+            <div style={{ position:'relative',borderRadius:16,overflow:'hidden',background:SURF,aspectRatio:'1',marginBottom:12,cursor:!on('ficheProduit','afficherZoom')?'default':zoomActif?'zoom-out':'zoom-in' }}
+              onClick={()=>{ if(on('ficheProduit','afficherZoom')) setZoomActif(!zoomActif); }}
               onMouseMove={e=>{const r=e.currentTarget.getBoundingClientRect();setSourisPos({x:((e.clientX-r.left)/r.width)*100,y:((e.clientY-r.top)/r.height)*100});}}>
               {photos.length>0
                 ? <img src={photos[photoIdx]} alt={p.titre} style={{ width:'100%',height:'100%',objectFit:'cover',transition:'transform 0.3s ease',transform:zoomActif?`scale(2) translate(${50-sourisPos.x}%,${50-sourisPos.y}%)`:'scale(1)',transformOrigin:`${sourisPos.x}% ${sourisPos.y}%` }}/>
                 : <div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:80,color:'#333' }}>📦</div>}
               {enPromo&&<span style={{ position:'absolute',top:16,left:16,background:'#ef4444',color:'#fff',fontSize:12,fontWeight:800,padding:'4px 12px',borderRadius:8 }}>SOLDE -{Math.round((1-p.prix_promo!/p.prix)*100)}%</span>}
               {cfg.afficherWishlist&&<button onClick={e=>{e.stopPropagation();toggleWishlist(p.id);}} style={{ position:'absolute',top:16,right:16,width:40,height:40,borderRadius:'50%',background:'rgba(0,0,0,0.6)',border:`1px solid ${wishlist.includes(p.id)?'#ef4444':'#444'}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,backdropFilter:'blur(4px)' }}>{wishlist.includes(p.id)?'❤️':'🤍'}</button>}
-              <div style={{ position:'absolute',bottom:12,right:12,background:'rgba(0,0,0,0.6)',backdropFilter:'blur(4px)',borderRadius:6,padding:'4px 10px',fontSize:11,color:'#aaa' }}>{zoomActif?'🔍 Cliquer pour dézoomer':'🔍 Cliquer pour zoomer'}</div>
+              {on('ficheProduit','afficherZoom')&&<div style={{ position:'absolute',bottom:12,right:12,background:'rgba(0,0,0,0.6)',backdropFilter:'blur(4px)',borderRadius:6,padding:'4px 10px',fontSize:11,color:'#aaa' }}>{zoomActif?'🔍 Cliquer pour dézoomer':'🔍 Cliquer pour zoomer'}</div>}
             </div>
             {photos.length>1&&<div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
               {photos.map((ph,i)=><div key={i} onClick={()=>{setPhotoIdx(i);setZoomActif(false);}} style={{ width:68,height:68,borderRadius:8,overflow:'hidden',cursor:'pointer',border:`2px solid ${photoIdx===i?cp:'#333'}`,transition:'border-color 0.2s' }}><img src={ph} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/></div>)}
@@ -554,7 +607,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             {p.categorie&&<div style={{ fontSize:10,color:cp,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.15em',marginBottom:8 }}>{p.categorie}</div>}
             {p.marque&&<div style={{ fontSize:11,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.1em' }}>{p.marque}</div>}
             <h1 style={{ fontSize:isMobile?24:32,fontWeight:900,color:'#fff',marginBottom:16,lineHeight:1.15 }}>{p.titre}</h1>
-            {p.note_moyenne&&<div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:20 }}><Etoiles note={p.note_moyenne} taille={16}/><span style={{ fontSize:13,color:'#888' }}>{p.note_moyenne.toFixed(1)} ({p.nb_avis} avis)</span><button onClick={()=>setOngletProduit('avis')} style={{ background:'none',border:'none',color:cp,fontSize:12,cursor:'pointer',textDecoration:'underline' }}>Voir les avis</button></div>}
+            {on('ficheProduit','afficherAvis')&&p.note_moyenne&&<div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:20 }}><Etoiles note={p.note_moyenne} taille={16}/><span style={{ fontSize:13,color:'#888' }}>{p.note_moyenne.toFixed(1)} ({p.nb_avis} avis)</span><button onClick={()=>setOngletProduit('avis')} style={{ background:'none',border:'none',color:cp,fontSize:12,cursor:'pointer',textDecoration:'underline' }}>Voir les avis</button></div>}
 
             <div style={{ display:'flex',alignItems:'baseline',gap:12,marginBottom:24 }}>
               {enPromo ? (<><span style={{ fontSize:36,fontWeight:900,color:'#ef4444' }}>{px(p.prix_promo!)}</span><span style={{ fontSize:20,color:'#555',textDecoration:'line-through' }}>{px(p.prix)}</span></>) : <span style={{ fontSize:36,fontWeight:900,color:cp }}>{px(p.prix)}</span>}
@@ -562,7 +615,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
             <div style={{ display:'flex',gap:16,marginBottom:20,flexWrap:'wrap' }}>
               {p.stock!==undefined&&<span style={{ fontSize:12,fontWeight:600,color:p.stock>5?'#4ade80':p.stock>0?'#f59e0b':'#ef4444' }}>{p.stock>5?'✅ En stock':p.stock>0?`⚠️ Plus que ${p.stock} !`:'❌ Épuisé'}</span>}
-              {cfg.afficherNbVues&&<span style={{ fontSize:12,color:'#555' }}>👁 {nbVues} personnes regardent</span>}
+              {modeDemo&&cfg.afficherNbVues&&<span style={{ fontSize:12,color:'#555' }}>👁 {nbVues} personnes regardent</span>}
               {p.sku&&<span style={{ fontSize:11,color:'#555' }}>SKU: {p.sku}</span>}
             </div>
 
@@ -585,29 +638,29 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             </div>
 
             <div style={{ display:'flex',gap:10,marginBottom:20,flexWrap:'wrap' }}>
-              <button onClick={()=>ajouterAuPanier(p)} disabled={p.stock===0} style={{ flex:1,...styleBtn,padding:'16px 24px',fontSize:15,opacity:p.stock===0?0.5:1,cursor:p.stock===0?'not-allowed':'pointer' }}>{p.stock===0?'ÉPUISÉ':'🛒 AJOUTER AU PANIER'}</button>
+              <button onClick={()=>ajouterAuPanier(p)} disabled={p.stock===0} style={{ flex:1,...styleBtn,...styleBtnProduit,padding:'16px 24px',fontSize:15,opacity:p.stock===0?0.5:1,cursor:p.stock===0?'not-allowed':'pointer' }}>{p.stock===0?'ÉPUISÉ':'🛒 '+tx('ficheProduit','boutonLabel','Ajouter au panier').toUpperCase()}</button>
               {cfg.afficherWishlist&&<button onClick={()=>toggleWishlist(p.id)} style={{ width:50,height:50,borderRadius:10,border:`1px solid ${wishlist.includes(p.id)?'#ef4444':'#333'}`,background:wishlist.includes(p.id)?'rgba(239,68,68,0.15)':SURF,color:wishlist.includes(p.id)?'#ef4444':'#888',cursor:'pointer',fontSize:20,flexShrink:0 }}>{wishlist.includes(p.id)?'❤️':'🤍'}</button>}
             </div>
 
             <div style={{ background:SURF,border:`1px solid #222`,borderRadius:12,padding:'14px 16px',marginBottom:24 }}>
-              {[['🚚','Livraison 2-5 jours'],['🔒','Paiement sécurisé Stripe'],['🔄','Retour sous 30 jours']].map(([ico,txt])=>(
-                <div key={txt as string} style={{ display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:'1px solid #1a1a1a',fontSize:13,color:'#888' }}><span>{ico}</span><span>{txt}</span></div>
+              {lst('ficheProduit','reassurance',DEMO.reassurance,x=>!!x.texte).slice(0,5).map(({ico,texte:txt}:any,i:number)=>(
+                <div key={i} style={{ display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:'1px solid #1a1a1a',fontSize:13,color:'#888' }}><span>{ico}</span><span>{txt}</span></div>
               ))}
             </div>
 
-            <div style={{ display:'flex',gap:8,alignItems:'center' }}>
+            {on('ficheProduit','afficherPartage')&&<div style={{ display:'flex',gap:8,alignItems:'center' }}>
               <span style={{ fontSize:12,color:'#555' }}>Partager :</span>
               {[['Facebook','🔵'],['Pinterest','📌'],['X','𝕏']].map(([nom,ico])=>(
-                <button key={nom as string} style={{ padding:'6px 12px',background:SURF,border:`1px solid #333`,borderRadius:6,color:'#888',fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',gap:4 }}>{ico} {nom}</button>
+                <button key={nom as string} onClick={()=>partager(nom as string,p.titre)} style={{ padding:'6px 12px',background:SURF,border:`1px solid #333`,borderRadius:6,color:'#888',fontSize:12,cursor:'pointer',display:'flex',alignItems:'center',gap:4 }}>{ico} {nom}</button>
               ))}
-            </div>
+            </div>}
           </div>
         </div>
 
         {/* Onglets */}
         <div style={{ marginTop:56,borderTop:`1px solid ${BORD}`,paddingTop:40 }}>
           <div style={{ display:'flex',gap:0,borderBottom:`1px solid #222`,marginBottom:32 }}>
-            {([['description','Description'],['avis',`Avis (${avisActif.length})`],['livraison','Livraison']] as const).map(([id,label])=>(
+            {([['description','Description'],['avis',`Avis (${avisActif.length})`],['livraison','Livraison']] as const).filter(([id])=>id!=='avis'||on('ficheProduit','afficherAvis')).map(([id,label])=>(
               <button key={id} onClick={()=>setOngletProduit(id)} style={{ padding:'14px 24px',background:'none',border:'none',borderBottom:`2px solid ${ongletProduit===id?cp:'transparent'}`,color:ongletProduit===id?cp:'#666',fontSize:14,fontWeight:ongletProduit===id?700:500,cursor:'pointer',marginBottom:-1,transition:'all 0.2s',letterSpacing:'0.04em' }}>{label}</button>
             ))}
           </div>
@@ -634,8 +687,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           )}
           {ongletProduit==='livraison'&&(
             <div style={{ maxWidth:560 }}>
-              {[['🚚','Livraison standard','2-5 jours ouvrables','Gratuite dès 100$'],['⚡','Livraison express','1-2 jours ouvrables','Disponible au checkout'],['🔄','Retours','Sous 30 jours','Articles non utilisés dans emballage original']].map(([ico,titre,delai,info])=>(
-                <div key={titre as string} style={{ display:'flex',gap:16,padding:'18px 0',borderBottom:`1px solid #1a1a1a` }}>
+              {lst('ficheProduit','livraisonInfos',DEMO.livraisonInfos,x=>!!(x.titre||x.delai||x.info)).slice(0,6).map(({ico,titre,delai,info}:any,i:number)=>(
+                <div key={i} style={{ display:'flex',gap:16,padding:'18px 0',borderBottom:`1px solid #1a1a1a` }}>
                   <div style={{ width:44,height:44,borderRadius:10,background:`${cp}15`,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0 }}>{ico}</div>
                   <div><div style={{ fontSize:14,fontWeight:700,color:'#fff',marginBottom:4 }}>{titre}</div><div style={{ fontSize:13,color:cp,marginBottom:4 }}>{delai}</div><div style={{ fontSize:12,color:'#666' }}>{info}</div></div>
                 </div>
@@ -646,10 +699,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
         {/* Similaires */}
         {similaires.length>0&&<div style={{ marginTop:72,paddingTop:48,borderTop:`1px solid ${BORD}` }}>
-          <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ VOUS AIMEREZ AUSSI</div>
-          <h2 style={{ fontSize:isMobile?24:32,fontWeight:900,color:'#fff',marginBottom:28 }}>Produits similaires</h2>
+          <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('ficheProduit','similairesSurtitre','Vous aimerez aussi')}</div>
+          <h2 style={{ fontSize:isMobile?24:32,fontWeight:900,color:'#fff',marginBottom:28 }}>{tx('ficheProduit','similairesTitre','Produits similaires')}</h2>
           <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(4,similaires.length)},1fr)`,gap:16 }}>
-            {similaires.map(p=><CarteProduit key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
+            {similaires.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
           </div>
         </div>}
       </div>
@@ -733,7 +786,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ LISTE D'ENVIES</div>
         <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:40 }}>{items.length} article{items.length>1?'s':''} sauvegardé{items.length>1?'s':''}</h1>
         {items.length===0 ? <div style={{ textAlign:'center',padding:'80px 0' }}><div style={{ fontSize:80,marginBottom:24 }}>🤍</div><h2 style={{ color:'#666',fontWeight:600,marginBottom:12 }}>Liste vide</h2><p style={{ color:'#555',marginBottom:24 }}>Cliquez sur ❤️ sur les produits que vous aimez.</p><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'14px 32px' }}>Découvrir nos produits →</button></div>
-        : <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:20 }}>{items.map(p=><CarteProduit key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={true}/>)}</div>}
+        : <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:20 }}>{items.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={true}/>)}</div>}
       </div>
     );
   };
@@ -759,10 +812,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
   const PageBlog = () => (
     <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
-      <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ BLOGUE</div>
-      <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:40 }}>Notre univers</h1>
-      {articles.length===0 ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>📝</div><h3 style={{ color:'#666' }}>Aucun article</h3></div>
-      : <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:24 }}>
+      <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('blog','surtitre','Blogue')}</div>
+      <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:40 }}>{tx('blog','titre','Notre univers')}</h1>
+      {articles.length===0 ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>📝</div><h3 style={{ color:'#666' }}>{tx('blog','videTitre','Aucun article')}</h3></div>
+      : <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':`repeat(${nbr('blog','colonnes',3,2,4)},1fr)`,gap:24 }}>
           {articles.map(a=>(
             <div key={a.id} onClick={()=>voirArticle(a)} style={{ background:SURF,border:`1px solid #222`,borderRadius:14,overflow:'hidden',cursor:'pointer',transition:'all 0.2s' }}
               onMouseEnter={e=>{(e.currentTarget as HTMLDivElement).style.border=`1px solid ${BORD}`;(e.currentTarget as HTMLDivElement).style.transform='translateY(-4px)';}}
@@ -775,8 +828,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
                 <h2 style={{ fontSize:17,fontWeight:700,color:'#fff',margin:'8px 0 10px',lineHeight:1.3 }}>{a.titre}</h2>
                 {a.resume&&<p style={{ fontSize:13,color:'#777',lineHeight:1.6,marginBottom:14 }}>{a.resume}</p>}
                 <div style={{ display:'flex',gap:14,fontSize:11,color:'#555' }}>
-                  {a.auteur&&<span>✍️ {a.auteur}</span>}
-                  {a.date_publication&&<span>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA')}</span>}
+                  {a.auteur&&on('blog','afficherAuteur')&&<span>✍️ {a.auteur}</span>}
+                  {a.date_publication&&on('blog','afficherDate')&&<span>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA')}</span>}
                 </div>
               </div>
             </div>
@@ -795,8 +848,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         {a.categorie&&<span style={{ fontSize:10,color:cp,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.15em' }}>{a.categorie}</span>}
         <h1 style={{ fontSize:isMobile?26:40,fontWeight:900,color:'#fff',margin:'12px 0 20px',lineHeight:1.15 }}>{a.titre}</h1>
         <div style={{ display:'flex',gap:16,fontSize:13,color:'#555',marginBottom:36 }}>
-          {a.auteur&&<span>✍️ {a.auteur}</span>}
-          {a.date_publication&&<span>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</span>}
+          {a.auteur&&on('blog','afficherAuteur')&&<span>✍️ {a.auteur}</span>}
+          {a.date_publication&&on('blog','afficherDate')&&<span>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</span>}
         </div>
         {a.resume&&<p style={{ fontSize:17,color:'#aaa',lineHeight:1.8,marginBottom:32,fontStyle:'italic',borderLeft:`3px solid ${cp}`,paddingLeft:20 }}>{a.resume}</p>}
         <p style={{ fontSize:15,color:'#999',lineHeight:1.9 }}>Contenu disponible depuis le gestionnaire de blog.</p>
@@ -805,10 +858,20 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   };
 
 
-  const PageAPropos = () => (
+  const PageAPropos = () => {
+    // Gestionnaire : ce qu'il a saisi (Config Mes pages → À propos). Vide : exemples de démonstration.
+    const ap:any = raw.aPropos||{};
+    const liste=(cle:string,ex:any[],ok:(x:any)=>boolean)=>{ const l=(Array.isArray(ap[cle])?ap[cle]:[]).filter((x:any)=>x&&typeof x==='object'&&ok(x)); return l.length>0?l:ex; };
+    const valeurs=liste('valeurs',APROPOS_DEMO.valeurs,(x)=>!!(x.titre||x.desc));
+    const chiffres=liste('chiffres',APROPOS_DEMO.chiffres,(x)=>!!(x.nb||x.label));
+    const equipe=liste('equipe',APROPOS_DEMO.equipe,(x)=>!!(x.prenom||x.poste));
+    const t=(cle:string,defaut:string)=>(typeof ap[cle]==='string'&&ap[cle].trim())?ap[cle].trim():defaut;
+    const couleursEquipe=[cp,'#818cf8','#34d399'];
+    const lblStyle:React.CSSProperties={ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 };
+    return (
     <div style={{ maxWidth:1100,margin:'0 auto',padding:'40px 24px' }}>
-      <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ NOTRE HISTOIRE</div>
-      <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:48 }}>À propos de nous</h1>
+      <div style={lblStyle}>✦ {t('sousTitre','Notre histoire')}</div>
+      <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:48 }}>{t('titre','À propos de nous')}</h1>
 
       {/* Hero à propos */}
       <div style={{ background:`linear-gradient(135deg,${SURF},${SURF2})`,border:`1px solid ${BORD}`,borderRadius:20,padding:isMobile?'32px 24px':'56px 64px',marginBottom:64,position:'relative',overflow:'hidden' }}>
@@ -816,83 +879,78 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         <div style={{ position:'absolute',bottom:-60,left:-20,width:150,height:150,borderRadius:'50%',background:`${cp}05` }}/>
         <div style={{ position:'relative',maxWidth:640 }}>
           <div style={{ width:48,height:3,background:`linear-gradient(90deg,${cp},transparent)`,marginBottom:24,borderRadius:2 }}/>
-          <p style={{ fontSize:isMobile?18:24,fontWeight:700,color:'#fff',lineHeight:1.6,margin:'0 0 20px' }}>
-            Nous croyons que le luxe devrait être accessible à tous — sans compromis sur la qualité.
-          </p>
-          <p style={{ fontSize:15,color:'#888',lineHeight:1.9,margin:0 }}>
-            {cfg.description || "Fondée avec une passion pour l'excellence, notre boutique sélectionne rigoureusement chaque produit pour vous offrir ce qu'il y a de mieux. Chaque article est testé, validé et choisi avec soin pour dépasser vos attentes."}
-          </p>
+          <p style={{ fontSize:isMobile?18:24,fontWeight:700,color:'#fff',lineHeight:1.6,margin:'0 0 20px' }}>{t('accroche',APROPOS_DEMO.accroche)}</p>
+          <p style={{ fontSize:15,color:'#888',lineHeight:1.9,margin:0,whiteSpace:'pre-line' }}>{cfg.description||APROPOS_DEMO.description}</p>
         </div>
       </div>
 
       {/* Valeurs */}
+      {ap.afficherValeurs!==false&&(
       <div style={{ marginBottom:64 }}>
         <div style={{ textAlign:'center',marginBottom:40 }}>
-          <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ NOS VALEURS</div>
-          <h2 style={{ fontSize:isMobile?24:36,fontWeight:900,color:'#fff',margin:0 }}>Ce qui nous définit</h2>
+          <div style={lblStyle}>✦ {t('valeursSurtitre','Nos valeurs')}</div>
+          <h2 style={{ fontSize:isMobile?24:36,fontWeight:900,color:'#fff',margin:0 }}>{t('valeursTitre','Ce qui nous définit')}</h2>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:20 }}>
-          {[
-            { ico:'💎',titre:'Qualité sans compromis',desc:"Chaque produit est sélectionné selon des critères rigoureux. Nous refusons la médiocrité — chaque article que vous recevez a été validé par notre équipe." },
-            { ico:'🤝',titre:'Service humain',desc:"Derrière chaque commande, il y a une personne réelle. Notre équipe est disponible pour vous accompagner à chaque étape de votre expérience d'achat." },
-            { ico:'🌱',titre:'Responsabilité',desc:"Nous choisissons prioritairement des fournisseurs éthiques et des emballages éco-responsables. Notre croissance respecte les gens et la planète." },
-          ].map((v,i)=>(
+        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':`repeat(${Math.min(valeurs.length,3)},1fr)`,gap:20 }}>
+          {valeurs.map((v:any,i:number)=>(
             <div key={i} style={{ background:SURF,border:`1px solid #222`,borderRadius:16,padding:'28px 24px',transition:'border-color 0.2s' }}
               onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.borderColor=BORD}
               onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.borderColor='#222'}>
-              <div style={{ width:52,height:52,borderRadius:14,background:`${cp}15`,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,marginBottom:18 }}>{v.ico}</div>
+              {v.ico&&<div style={{ width:52,height:52,borderRadius:14,background:`${cp}15`,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:24,marginBottom:18 }}>{v.ico}</div>}
               <h3 style={{ fontSize:17,fontWeight:800,color:'#fff',marginBottom:12 }}>{v.titre}</h3>
               <p style={{ fontSize:14,color:'#777',lineHeight:1.8,margin:0 }}>{v.desc}</p>
             </div>
           ))}
         </div>
-      </div>
+      </div>)}
 
       {/* Chiffres */}
+      {ap.afficherChiffres!==false&&(
       <div style={{ background:`linear-gradient(135deg,${SURF},${SURF2})`,borderTop:`1px solid ${BORD}`,borderBottom:`1px solid ${BORD}`,padding:'48px 24px',marginBottom:64,borderRadius:16 }}>
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:32,textAlign:'center' }}>
-          {[['500+','Produits sélectionnés'],['4.8/5','Note moyenne'],['2 000+','Clients satisfaits'],['30 jours','Politique de retour']].map(([nb,label])=>(
-            <div key={label}>
-              <div style={{ fontSize:isMobile?32:44,fontWeight:900,color:cp,marginBottom:8,letterSpacing:'-0.02em' }}>{nb}</div>
-              <div style={{ fontSize:13,color:'#666',fontWeight:500 }}>{label}</div>
+        <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(chiffres.length,4)},1fr)`,gap:32,textAlign:'center' }}>
+          {chiffres.map((x:any,i:number)=>(
+            <div key={i}>
+              <div style={{ fontSize:isMobile?32:44,fontWeight:900,color:cp,marginBottom:8,letterSpacing:'-0.02em' }}>{x.nb}</div>
+              <div style={{ fontSize:13,color:'#666',fontWeight:500 }}>{x.label}</div>
             </div>
           ))}
         </div>
-      </div>
+      </div>)}
 
       {/* Équipe */}
+      {ap.afficherEquipe!==false&&(
       <div style={{ marginBottom:64 }}>
         <div style={{ textAlign:'center',marginBottom:40 }}>
-          <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ L'ÉQUIPE</div>
-          <h2 style={{ fontSize:isMobile?24:36,fontWeight:900,color:'#fff',margin:0 }}>Les visages derrière la boutique</h2>
+          <div style={lblStyle}>✦ {t('equipeSurtitre',"L'équipe")}</div>
+          <h2 style={{ fontSize:isMobile?24:36,fontWeight:900,color:'#fff',margin:0 }}>{t('equipeTitre','Les visages derrière la boutique')}</h2>
         </div>
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:20 }}>
-          {[
-            { prenom:'Alexandre',poste:'Fondateur & Directeur',initiale:'A',couleur:cp },
-            { prenom:'Marie',poste:'Responsable des achats',initiale:'M',couleur:'#818cf8' },
-            { prenom:'Sophie',poste:'Service à la clientèle',initiale:'S',couleur:'#34d399' },
-          ].map((m,i)=>(
+        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':`repeat(${Math.min(equipe.length,3)},1fr)`,gap:20 }}>
+          {equipe.map((m:any,i:number)=>{ const col=couleursEquipe[i%3]; const photo=/^https?:\/\//i.test(m.photo||'')?m.photo:''; return (
             <div key={i} style={{ background:SURF,border:`1px solid #222`,borderRadius:16,padding:'28px 24px',textAlign:'center' }}>
-              <div style={{ width:72,height:72,borderRadius:'50%',background:`linear-gradient(135deg,${m.couleur},${m.couleur}88)`,margin:'0 auto 16px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,fontWeight:900,color:m.couleur==='#c9a96e'?'#000':'#fff',boxShadow:`0 4px 20px ${m.couleur}30` }}>{m.initiale}</div>
+              {photo
+                ? <img src={photo} alt={m.prenom||''} style={{ width:72,height:72,borderRadius:'50%',objectFit:'cover',margin:'0 auto 16px',display:'block',boxShadow:`0 4px 20px ${col}30` }}/>
+                : <div style={{ width:72,height:72,borderRadius:'50%',background:`linear-gradient(135deg,${col},${col}88)`,margin:'0 auto 16px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,fontWeight:900,color:col===cp?'#000':'#fff',boxShadow:`0 4px 20px ${col}30` }}>{(m.prenom||'?').charAt(0).toUpperCase()}</div>}
               <div style={{ fontSize:17,fontWeight:700,color:'#fff',marginBottom:6 }}>{m.prenom}</div>
-              <div style={{ fontSize:13,color:m.couleur,fontWeight:600 }}>{m.poste}</div>
+              <div style={{ fontSize:13,color:col,fontWeight:600 }}>{m.poste}</div>
             </div>
-          ))}
+          ); })}
         </div>
-      </div>
+      </div>)}
 
-      {/* CTA */}
+      {/* Bloc final */}
+      {ap.afficherCta!==false&&(
       <div style={{ textAlign:'center',padding:'56px 24px',background:`linear-gradient(135deg,${SURF},${NOIR})`,borderRadius:20,border:`1px solid ${BORD}` }}>
-        <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:16 }}>✦ REJOIGNEZ-NOUS</div>
-        <h2 style={{ fontSize:isMobile?24:36,fontWeight:900,color:'#fff',marginBottom:14 }}>Prêt à découvrir notre sélection ?</h2>
-        <p style={{ fontSize:15,color:'#888',marginBottom:32,maxWidth:480,margin:'0 auto 32px' }}>Des produits d'exception vous attendent. Commencez votre expérience premium dès aujourd'hui.</p>
+        <div style={{ ...lblStyle,marginBottom:16 }}>✦ {t('ctaSurtitre','Rejoignez-nous')}</div>
+        <h2 style={{ fontSize:isMobile?24:36,fontWeight:900,color:'#fff',marginBottom:14 }}>{t('ctaTitre','Prêt à découvrir notre sélection ?')}</h2>
+        <p style={{ fontSize:15,color:'#888',marginBottom:32,maxWidth:480,margin:'0 auto 32px' }}>{t('ctaTexte',"Des produits d'exception vous attendent. Commencez votre expérience premium dès aujourd'hui.")}</p>
         <div style={{ display:'flex',gap:14,justifyContent:'center',flexWrap:'wrap' }}>
-          <button onClick={()=>naviguer('catalogue')} style={{ background:`linear-gradient(135deg,${cp},${OR2})`,color:'#000',border:'none',borderRadius:10,padding:'14px 32px',fontSize:15,fontWeight:800,cursor:'pointer',letterSpacing:'0.05em' }}>Voir notre catalogue →</button>
-          <button onClick={()=>naviguer('contact')} style={{ padding:'14px 28px',background:'none',border:`1px solid ${BORD}`,borderRadius:10,color:'rgba(255,255,255,0.7)',fontSize:15,cursor:'pointer' }}>Nous contacter</button>
+          <button onClick={()=>naviguer('catalogue')} style={{ background:`linear-gradient(135deg,${cp},${OR2})`,color:'#000',border:'none',borderRadius:10,padding:'14px 32px',fontSize:15,fontWeight:800,cursor:'pointer',letterSpacing:'0.05em' }}>{t('ctaBoutonCatalogue','Voir notre catalogue →')}</button>
+          <button onClick={()=>naviguer('contact')} style={{ padding:'14px 28px',background:'none',border:`1px solid ${BORD}`,borderRadius:10,color:'rgba(255,255,255,0.7)',fontSize:15,cursor:'pointer' }}>{t('ctaBoutonContact','Nous contacter')}</button>
         </div>
-      </div>
+      </div>)}
     </div>
-  );
+    );
+  };
 
   const PageFaq = () => {
     const faq=cfg.faq?.items||[{ question:'Quels sont vos délais de livraison ?',reponse:'Les commandes sont expédiées sous 24–48h. Livraison standard 2-5 jours.' },{ question:'Puis-je retourner un article ?',reponse:'Oui, sous 30 jours dans leur emballage original.' },{ question:'Quels modes de paiement ?',reponse:'Visa, Mastercard, American Express et Apple Pay via Stripe.' },{ question:'Comment suivre ma commande ?',reponse:'Un courriel avec numéro de suivi vous est envoyé dès expédition.' }];
@@ -915,20 +973,22 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
   const PageContact = () => (
     <div style={{ maxWidth:1100,margin:'0 auto',padding:'40px 24px' }}>
-      <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ CONTACT</div>
-      <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:48 }}>Nous contacter</h1>
+      <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('contact','surtitre','Contact')}</div>
+      <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:tx('contact','sousTitre','')?12:48 }}>{tx('contact','titre','Nous contacter')}</h1>
+      {tx('contact','sousTitre','')&&<p style={{ fontSize:16,color:'#888',marginBottom:48 }}>{tx('contact','sousTitre','')}</p>}
       <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:48 }}>
         <div>
-          <h2 style={{ fontSize:20,fontWeight:700,color:'#fff',marginBottom:24 }}>Nos coordonnées</h2>
-          {[['📍','Adresse','123 rue Principale, Montréal QC'],['📞','Téléphone','514 000-0000'],['✉️','Courriel','info@boutique.ca'],['⏰','Heures','Lun-Ven 9h-17h']].map(([ico,label,val])=>(
-            <div key={label as string} style={{ display:'flex',gap:14,marginBottom:20,alignItems:'flex-start' }}>
+          <h2 style={{ fontSize:20,fontWeight:700,color:'#fff',marginBottom:24 }}>{tx('contact','coordonneesTitre','Nos coordonnées')}</h2>
+          {lignesContact.map(({ico,label,val}:any)=>(
+            <div key={label} style={{ display:'flex',gap:14,marginBottom:20,alignItems:'flex-start' }}>
               <div style={{ width:40,height:40,borderRadius:10,background:`${cp}15`,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0 }}>{ico}</div>
               <div><div style={{ fontSize:12,fontWeight:700,color:'#666',marginBottom:2,textTransform:'uppercase',letterSpacing:'0.08em' }}>{label}</div><div style={{ fontSize:14,color:'#ccc' }}>{val}</div></div>
             </div>
           ))}
+          {cc.afficherCarte&&lienHttp(cc.urlCarte)&&<iframe src={lienHttp(cc.urlCarte)} title="Carte" loading="lazy" style={{ width:'100%',height:220,border:0,borderRadius:12,marginTop:8 }}/>}
         </div>
         <div>
-          {contactStatut==='ok' ? <div style={{ background:'rgba(74,222,128,0.1)',border:'1px solid rgba(74,222,128,0.3)',borderRadius:16,padding:40,textAlign:'center' }}><div style={{ fontSize:48,marginBottom:16 }}>✅</div><h3 style={{ color:'#4ade80',marginBottom:8 }}>Message envoyé !</h3><p style={{ color:'#888' }}>Nous vous répondrons sous peu.</p></div>
+          {contactStatut==='ok' ? <div style={{ background:'rgba(74,222,128,0.1)',border:'1px solid rgba(74,222,128,0.3)',borderRadius:16,padding:40,textAlign:'center' }}><div style={{ fontSize:48,marginBottom:16 }}>✅</div><h3 style={{ color:'#4ade80',marginBottom:8 }}>{tx('contact','succesTitre','Message envoyé !')}</h3><p style={{ color:'#888' }}>{tx('contact','succesTexte','Nous vous répondrons sous peu.')}</p></div>
           : <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
               <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14 }}>
                 <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Nom</label><input value={contactForm.nom} onChange={e=>setContactForm(f=>({...f,nom:e.target.value}))} style={styleInput} placeholder="Votre nom"/></div>
@@ -989,13 +1049,13 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       <div style={{ position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',zIndex:1001,background:SURF,border:`1px solid ${BORD}`,borderRadius:20,width:'90%',maxWidth:440,overflow:'hidden',boxShadow:`0 32px 80px rgba(0,0,0,0.6)` }}>
         <div style={{ padding:'36px 32px',textAlign:'center',position:'relative' }}>
           <div style={{ fontSize:48,marginBottom:16 }}>🎁</div>
-          <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:12 }}>OFFRE EXCLUSIVE</div>
+          <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:12 }}>{(typeof raw.popupPromoSurtitre==='string'&&raw.popupPromoSurtitre.trim())||'Offre exclusive'}</div>
           <h2 style={{ fontSize:26,fontWeight:900,color:'#fff',margin:'0 0 12px',lineHeight:1.2 }}>{cfg.popupPromoTexte}</h2>
           <div style={{ display:'inline-block',background:`${cp}20`,border:`1px solid ${BORD}`,borderRadius:10,padding:'12px 24px',marginBottom:20 }}>
             <span style={{ fontSize:22,fontWeight:900,color:cp,letterSpacing:'0.1em' }}>{cfg.popupPromoCode}</span>
           </div>
           <div style={{ display:'flex',gap:10 }}>
-            <button onClick={()=>{naviguer('catalogue');setPopupPromo(false);}} style={{ flex:1,background:`linear-gradient(135deg,${cp},${OR2})`,color:'#000',border:'none',borderRadius:10,padding:'14px',fontSize:14,fontWeight:800,cursor:'pointer' }}>Profiter de l'offre →</button>
+            <button onClick={()=>{naviguer('catalogue');setPopupPromo(false);}} style={{ flex:1,background:`linear-gradient(135deg,${cp},${OR2})`,color:'#000',border:'none',borderRadius:10,padding:'14px',fontSize:14,fontWeight:800,cursor:'pointer' }}>{(typeof raw.popupPromoBouton==='string'&&raw.popupPromoBouton.trim())||"Profiter de l'offre →"}</button>
             <button onClick={()=>setPopupPromo(false)} style={{ padding:'14px 16px',background:'none',border:`1px solid #333`,borderRadius:10,color:'#666',cursor:'pointer',fontSize:13,flexShrink:0 }}>Plus tard</button>
           </div>
         </div>
@@ -1014,7 +1074,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       <Nav/>
       {avisPanier&&<div style={{ position:'fixed',top:84,left:'50%',transform:'translateX(-50%)',zIndex:300,background:SURF,border:`1px solid ${cp}`,color:'#fff',padding:'12px 20px',borderRadius:10,fontSize:13,fontWeight:600,boxShadow:'0 8px 30px rgba(0,0,0,0.5)' }}>{avisPanier}</div>}
       {popupPromo&&<PopupPromo/>}
-      {cfg.afficherNotifVente&&page==='accueil'&&<NotifVente cp={cp}/>}
+      {modeDemo&&cfg.afficherNotifVente&&page==='accueil'&&<NotifVente cp={cp}/>}
 
       <main style={{ flex:1 }}>
         {page==='accueil'   && <PageAccueil/>}

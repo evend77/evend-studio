@@ -1963,7 +1963,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           </div>
 
           <div style={{ flex: 1, padding: '12px 0', overflowY: 'auto' }}>
-            {menuItems.map((item) => (
+            {menuItems.map((it) => (estMultiVendeur || !it.sousMenu ? it : { ...it, sousMenu: it.sousMenu.filter((s) => s.id !== 'config-multivendeur') })).map((item) => (
               <div key={item.id}>
                 {!item.sousMenu ? (
                   <div
