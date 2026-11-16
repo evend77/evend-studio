@@ -6,7 +6,8 @@ const pool = require('../db');
 const addons = require('./studio_addons');
 
 const CODE_ADDON = 'effets_boutique';
-const ID_RE = /^[a-z0-9-]{1,40}$/;
+// 60 caractères : le nom d'une musique ajoutée donne un identifiant jusqu'à ~53 caractères (50 + « -2 » si le nom existe déjà). Avec 40, un long nom était refusé en silence et la musique ne s'appliquait pas.
+const ID_RE = /^[a-z0-9-]{1,60}$/;
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 const STYLES = ['fixe', 'scintillement', 'chenillard', 'vague'];
 
