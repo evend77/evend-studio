@@ -1,11 +1,11 @@
-// routes/vendeurs_badges.js
+// routes/gestionnaires_badges.js
 // Routes pour les badges (côté admin et côté vendeur)
 // Montées sous /api/vendeurs par server.js
 
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
-const { authenticateToken, isAdmin } = require('../middleware/auth');
+const { authenticateToken, isAdmin, estProprietaireOuAdmin } = require('../middleware/auth');
 
 // GET /badges — liste badges de tous les vendeurs (admin)
 router.get('/badges', authenticateToken, isAdmin, async (req, res) => {
@@ -30,7 +30,7 @@ router.get('/badges', authenticateToken, isAdmin, async (req, res) => {
         res.json(result.rows);
     } catch (err) {
         console.error('Erreur GET /badges:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 
@@ -55,7 +55,7 @@ router.put('/:id/badges', authenticateToken, isAdmin, async (req, res) => {
         res.json({ success: true, vendeur_id: vendeurId, badge_ids: badge_ids || [] });
     } catch (err) {
         console.error('Erreur PUT /:id/badges:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 
@@ -71,7 +71,7 @@ router.delete('/:id/badges', authenticateToken, isAdmin, async (req, res) => {
         res.json({ success: true, vendeur_id: vendeurId });
     } catch (err) {
         console.error('Erreur DELETE /:id/badges:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 
@@ -79,7 +79,7 @@ router.delete('/:id/badges', authenticateToken, isAdmin, async (req, res) => {
 router.get('/:vendeurId/badges', authenticateToken, async (req, res) => {
     try {
         const vendeurId = parseInt(req.params.vendeurId);
-        const isAuthorized = req.user.id === vendeurId || req.user.role === 'admin' || req.user.role === 'administration';
+        const isAuthorized = estProprietaireOuAdmin(req, vendeurId);
         if (!isAuthorized) return res.status(403).json({ error: 'Accès non autorisé' });
 
         const tableCheck = await pool.query(`
@@ -115,7 +115,7 @@ router.get('/:vendeurId/badges', authenticateToken, async (req, res) => {
         res.json(badges);
     } catch (err) {
         console.error('❌ Erreur GET /:vendeurId/badges:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 
@@ -123,7 +123,7 @@ router.get('/:vendeurId/badges', authenticateToken, async (req, res) => {
 router.get('/:vendeurId/badges/stats', authenticateToken, async (req, res) => {
     try {
         const vendeurId = parseInt(req.params.vendeurId);
-        const isAuthorized = req.user.id === vendeurId || req.user.role === 'admin' || req.user.role === 'administration';
+        const isAuthorized = estProprietaireOuAdmin(req, vendeurId);
         if (!isAuthorized) return res.status(403).json({ error: 'Accès non autorisé' });
 
         const tableCheck = await pool.query(`
@@ -183,7 +183,7 @@ router.get('/:vendeurId/badges/stats', authenticateToken, async (req, res) => {
         });
     } catch (err) {
         console.error('❌ Erreur GET /:vendeurId/badges/stats:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 

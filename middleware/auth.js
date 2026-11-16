@@ -1,7 +1,12 @@
 // middleware/auth.js — Vérification JWT
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025';
+// 🔒 Plus de secret de secours écrit dans le code : sans JWT_SECRET, le serveur refuse de démarrer
+// (sinon n'importe qui pourrait fabriquer un faux jeton avec le secret connu).
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET manquant dans les variables d\'environnement — démarrage refusé.');
+}
 
 function authenticateToken(req, res, next) {
   // Priorité au cookie httpOnly ; fallback sur le header Authorization
@@ -39,6 +44,14 @@ function authenticateToken(req, res, next) {
   }
 }
 
+// Propriétaire du compte gestionnaire OU administrateur. Le RÔLE compte : sans lui, un jeton d'acheteur ou de
+// commanditaire dont le numéro est le même que celui du gestionnaire passait la vérification « req.user.id === id ».
+function estProprietaireOuAdmin(req, gestionnaireId) {
+  const u = req.user || {};
+  if (u.role === 'admin' || u.role === 'administration') return true;
+  return u.role === 'gestionnaire' && Number(u.id) === Number(gestionnaireId);
+}
+
 function isAdmin(req, res, next) {
   if (req.user && req.user.role === 'admin') {
     next();
@@ -63,4 +76,4 @@ function isCommanditaire(req, res, next) {
   }
 }
 
-module.exports = { authenticateToken, isAdmin, isGestionnaire, isCommanditaire };
+module.exports = { authenticateToken, isAdmin, isGestionnaire, isCommanditaire, estProprietaireOuAdmin };

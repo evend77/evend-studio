@@ -7,9 +7,10 @@ const router  = express.Router();
 const pool    = require('../db');
 const bcrypt  = require('bcrypt');
 const { nettoyerHtml } = require('../utils/sanitize');
+const sec     = require('../services/studio_securite_inscription');
 const crypto  = require('crypto');
 const jwt     = require('jsonwebtoken');
-const { authenticateToken, isAdmin } = require('../middleware/auth');
+const { authenticateToken, isAdmin, estProprietaireOuAdmin } = require('../middleware/auth');
 const { demarrerEssaiPourGestionnaire } = require('./abonnements_studio');
 // ⚠️ AJUSTER SI NÉCESSAIRE : nom/chemin réel du service d'envoi d'email par template.
 // On s'attend à une fonction envoyerEmailModele(numeroTemplate, destinataireEmail, variables)
@@ -21,6 +22,41 @@ try {
     ({ envoyerEmailModele } = require('../services/email'));
 } catch (e) {
     console.warn('⚠️ services/email.js introuvable — email de bienvenue (#69) non envoyé automatiquement:', e.message);
+}
+
+// 🔒 Champs qui ne doivent JAMAIS sortir dans une réponse : mot de passe haché, jetons (réinitialisation,
+// vérification de courriel), codes de la double authentification, clés. Avant ce correctif, GET / et GET /:id
+// (publics) renvoyaient la ligne complète de la table, donc tout ça, à n'importe quel visiteur.
+const MOTIF_CHAMP_SECRET = /(mot_de_passe|password|token|secret|f2a_code|api_key|private_key|reset_)/i;
+function sansSecrets(row) {
+    if (!row || typeof row !== 'object') return row;
+    const copie = { ...row };
+    for (const k of Object.keys(copie)) {
+        if (MOTIF_CHAMP_SECRET.test(k) || k === 'stripe_customer_id') delete copie[k];
+    }
+    return copie;
+}
+
+// Ces routes d'inscription sont publiques : on regarde seulement si l'appelant est un admin connecté
+// (cookie ou en-tête Bearer). Toute erreur (pas de jeton, expiré, invalide) = visiteur.
+// Adresse https (ou chemin interne « /… ») seulement : jamais javascript:, data:, etc.
+const urlPermise = (v) => {
+    if (typeof v !== 'string') return null;
+    const t = v.trim();
+    return (/^https:\/\/[^\s<>"']{1,500}$/.test(t) || /^\/(?!\/)[^\s<>"']{0,500}$/.test(t)) ? t : null;
+};
+
+function appelantEstAdmin(req) {
+    try {
+        let token = req.cookies && req.cookies['evend_studio_token'];
+        if (!token) {
+            const h = req.headers['authorization'] || '';
+            token = h.startsWith('Bearer ') ? h.split(' ')[1] : null;
+        }
+        if (!token || !process.env.JWT_SECRET) return false;
+        const u = jwt.verify(token, process.env.JWT_SECRET);
+        return !!(u && u.role === 'admin');
+    } catch { return false; }
 }
 
 // GET / — liste tous les vendeurs (avec filtre statut optionnel)
@@ -44,10 +80,10 @@ router.get('/', async (req, res) => {
         } else {
             result = await pool.query(baseQuery + ' ORDER BY v.id');
         }
-        res.json(result.rows);
+        res.json(result.rows.map(sansSecrets));
     } catch (err) {
         console.error('Erreur GET /api/gestionnaires:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 
@@ -72,34 +108,87 @@ router.get('/populaires', async (req, res) => {
 });
 
 // GET /:id — profil public d'un vendeur
-router.get('/:id', async (req, res) => {
+router.get('/:id', async (req, res, next) => {
     try {
         const { id } = req.params;
+        if (!/^\d+$/.test(id)) return next();   // ex. « taux-reference » : route déclarée plus bas
         const result = await pool.query('SELECT * FROM gestionnaires WHERE id = $1', [id]);
         if (result.rows.length === 0) return res.status(404).json({ error: 'Gestionnaire non trouvé' });
-        res.json(result.rows[0]);
+        res.json(sansSecrets(result.rows[0]));
     } catch (err) {
         console.error('Erreur GET /api/vendeurs/:id:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 
-// POST / — création d'un nouveau vendeur (inscription)
+// POST / — création d'un nouveau gestionnaire (inscription)
+// 🔒 Jeton anti-robot : GET /api/marketplace/gestionnaire/inscription/jeton (routes/marketplace-auth.js)
 router.post('/', async (req, res) => {
-    const {
-        nom, email, mot_de_passe, nom_boutique, province,
-        zone_expedition, type_entreprise, telephone, plan, date_inscription,
-        num_civique, rue, ville, code_postal, pays,
-        description, description_longue, politique_retours, politique_livraison,
-        jours_remboursement, est_entreprise_enregistree, province_entreprise,
-        num_entreprise_provincial, no_tps, no_taxe_provinciale, banniere_url, logo_url
-    } = req.body;
+    const R = req.body && typeof req.body === 'object' ? req.body : {};
+    const estAdmin = appelantEstAdmin(req);   // un admin connecté peut créer un compte sans passer par la page publique
+    const ip = sec.ipClient(req);
+
+    if (!estAdmin) {
+        // Champ piège rempli = robot : faux succès, rien n'est créé
+        if (typeof R.website === 'string' && R.website !== '') {
+            return res.status(201).json({ message: 'Compte créé avec succès.', vendeur: { id: 0, seller_id: 'BOT', nom: '' } });
+        }
+        // Jeton signé obligatoire + délai minimum de 3 s depuis l'ouverture de la page
+        const probleme = sec.verifierJeton(R.jeton, 0, 'inscription-gestionnaire');
+        if (probleme) {
+            return res.status(400).json({ error: probleme === 'trop_rapide'
+                ? "Veuillez patienter quelques secondes avant d'envoyer le formulaire."
+                : 'Le formulaire a expiré. Rechargez la page et réessayez.' });
+        }
+        // Limites : 15 essais et 3 comptes par adresse IP par heure, et 100 comptes par heure au total
+        if (sec.depasse('gest:ip:' + ip + ':essais', 15) || sec.depasse('gest:ip:' + ip + ':ok', 3) || sec.depasse('gest:tous:ok', 100)) {
+            return res.status(429).json({ error: "Trop de tentatives d'inscription. Réessayez plus tard." });
+        }
+        sec.noter('gest:ip:' + ip + ':essais');
+    }
+
+    // 🔒 Types vérifiés + texte nettoyé (balises, caractères invisibles, longueur maximale)
+    const brutBoutique = typeof R.nom_boutique === 'string' ? R.nom_boutique : R.boutique;   // la page envoyait « boutique »
+    if (typeof R.nom !== 'string' || typeof R.email !== 'string' || typeof R.mot_de_passe !== 'string'
+        || typeof brutBoutique !== 'string' || typeof R.province !== 'string') {
+        return res.status(400).json({ error: 'Champs obligatoires manquants (nom, email, mot_de_passe, nom_boutique, province).' });
+    }
+    const txt = (v, max) => (typeof v === 'string' ? (sec.nettoyerTexte(v, max) || null) : null);
+    const nom = sec.validerNomPersonne(R.nom, 100);
+    const email = sec.validerCourriel(R.email);            // courriel en minuscules : la connexion le compare en minuscules
+    const mot_de_passe = R.mot_de_passe;
+    const nom_boutique = sec.nettoyerTexte(brutBoutique, 100);
+    const province = sec.nettoyerTexte(R.province, 100);   // la page envoie la région complète (ex. « Montréal (QC) »)
+    const zone_expedition = txt(R.zone_expedition, 150);
+    const type_entreprise = txt(R.type_entreprise, 150);
+    const tel = sec.validerTelephone(typeof R.telephone === 'string' ? R.telephone : '');
+    const telephone = tel.ok ? tel.valeur : null;
+    // Plan et date : fixés par le serveur pour une inscription publique (sinon n'importe qui choisirait son plan)
+    const plan = estAdmin ? (txt(R.plan, 50) || 'Gratuit') : 'Gratuit';
+    const date_inscription = (estAdmin && typeof R.date_inscription === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(R.date_inscription)) ? R.date_inscription : null;
+    const num_civique = txt(R.num_civique, 20), rue = txt(R.rue, 150), ville = txt(R.ville, 80);
+    const code_postal = txt(R.code_postal, 10), pays = txt(R.pays, 60);
+    const description = typeof R.description === 'string' ? R.description.slice(0, 5000) : '';
+    const description_longue = typeof R.description_longue === 'string' ? R.description_longue.slice(0, 20000) : '';
+    const politique_retours = typeof R.politique_retours === 'string' ? R.politique_retours.slice(0, 20000) : '';
+    const politique_livraison = typeof R.politique_livraison === 'string' ? R.politique_livraison.slice(0, 20000) : '';
+    const jours_remboursement = Number.isFinite(Number(R.jours_remboursement)) ? Math.min(Math.max(parseInt(R.jours_remboursement, 10) || 1, 0), 365) : 1;
+    const est_entreprise_enregistree = R.est_entreprise_enregistree === true;
+    const province_entreprise = txt(R.province_entreprise, 10);
+    const num_entreprise_provincial = txt(R.num_entreprise_provincial, 40);
+    const no_tps = txt(R.no_tps, 40), no_taxe_provinciale = txt(R.no_taxe_provinciale, 40);
+    // Images : adresse https seulement (jamais javascript:, data:, etc.)
+    const urlSure = (v) => (typeof v === 'string' && /^https:\/\/[^\s<>"']{1,500}$/.test(v.trim())) ? v.trim() : null;
+    const banniere_url = urlSure(R.banniere_url), logo_url = urlSure(R.logo_url);
 
     try {
-        if (!nom || !email || !mot_de_passe || !nom_boutique || !province)
-            return res.status(400).json({ error: 'Champs obligatoires manquants (nom, email, mot_de_passe, nom_boutique, province).' });
+        if (!nom || !email || !mot_de_passe || nom_boutique.length < 2 || !province)
+            return res.status(400).json({ error: 'Champs invalides : nom (lettres seulement), courriel, mot de passe, nom de boutique et province sont obligatoires.' });
 
-        const emailCheck = await pool.query('SELECT id FROM gestionnaires WHERE email = $1', [email]);
+        const erreurMdp = sec.validerMotDePasse(mot_de_passe);
+        if (erreurMdp) return res.status(400).json({ error: erreurMdp });
+
+        const emailCheck = await pool.query('SELECT id FROM gestionnaires WHERE LOWER(email) = $1', [email]);
         if (emailCheck.rows.length > 0) return res.status(409).json({ error: 'Un compte avec cet email existe déjà.' });
 
         const hashedPassword = await bcrypt.hash(mot_de_passe, 10);
@@ -124,7 +213,7 @@ router.post('/', async (req, res) => {
         const insertVals = [
             nom, email, hashedPassword, nom_boutique, province,
             zone_expedition || null, type_entreprise || null, telephone || null,
-            plan || 'Gratuit', 'actif', // e-Vend Studio : aucune approbation admin requise, compte actif dès l'inscription
+            plan, 'actif', // e-Vend Studio : aucune approbation admin requise, compte actif dès l'inscription
             date_inscription || new Date().toISOString().split('T')[0],
             0, 0, 0,
             false, tokenVerifEmail, expirationVerifEmail, false
@@ -176,6 +265,8 @@ router.post('/', async (req, res) => {
             vendeur.seller_id = sellerIdGenere;
         }
 
+        if (!estAdmin) { sec.noter('gest:ip:' + ip + ':ok'); sec.noter('gest:tous:ok'); }
+
         pool.query(
             `INSERT INTO audit_logs (action, utilisateur, details, niveau) VALUES ($1,$2,$3,$4)`,
             ['INSCRIPTION_VENDEUR', email,
@@ -200,7 +291,7 @@ router.post('/', async (req, res) => {
             message: "Compte créé avec succès. Votre essai gratuit de 14 jours a commencé !",
             token: jwt.sign(
                 { id: vendeur.id, email: vendeur.email, role: 'gestionnaire' },
-                process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
+                process.env.JWT_SECRET,
                 { expiresIn: process.env.JWT_EXPIRES || '7d' }
             ),
             vendeur: {
@@ -212,8 +303,10 @@ router.post('/', async (req, res) => {
             },
         });
     } catch (err) {
-        console.error('❌ Erreur POST /api/vendeurs:', err);
-        res.status(500).json({ error: err.message || 'Erreur serveur' });
+        // Deux inscriptions au même instant : la règle d'unicité de la base refuse la seconde
+        if (err && err.code === '23505') return res.status(409).json({ error: 'Un compte avec cet email existe déjà.' });
+        console.error('❌ Erreur POST /api/gestionnaires:', err);
+        res.status(500).json({ error: 'Erreur serveur' });   // plus de message technique envoyé au visiteur
     }
 });
 
@@ -280,7 +373,7 @@ router.get('/verifier-email/:token', async (req, res) => {
 router.post('/:id/renvoyer-verification', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
-        if (req.user.role !== 'admin' && req.user.id !== parseInt(id)) {
+        if (!estProprietaireOuAdmin(req, id)) {
             return res.status(403).json({ success: false, error: 'Accès non autorisé.' });
         }
 
@@ -332,8 +425,11 @@ router.post('/:id/renvoyer-verification', authenticateToken, async (req, res) =>
 // ⚠️ DOIT être avant PUT /:id sinon Express matche /profil comme un :id
 router.put('/profil/plan', authenticateToken, async (req, res) => {
     try {
+        // 🔒 Seul un gestionnaire (ou un admin en « ouvrir en tant que ») : un jeton d'acheteur/commanditaire de même numéro n'a pas le droit
+        if (req.user.role !== 'gestionnaire') return res.status(403).json({ error: 'Accès non autorisé.' });
         const vendeurId = req.user.id;
-        const { plan } = req.body;
+        const plan = req.body && req.body.plan;
+        if (typeof plan !== 'string' || !/^[\w\- ]{1,50}$/.test(plan)) return res.status(400).json({ error: 'Plan invalide.' });
 
         console.log(`PUT /profil/plan — vendeurId: ${vendeurId} (${typeof vendeurId}), plan: ${plan}`);
 
@@ -378,7 +474,7 @@ router.put('/profil/plan', authenticateToken, async (req, res) => {
 
     } catch (err) {
         console.error('❌ Erreur PUT /profil/plan:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 
@@ -405,7 +501,7 @@ router.get('/:id/options', async (req, res) => {
         return res.json(result.rows[0]);
     } catch (err) {
         console.error('Erreur GET /gestionnaires/:id/options:', err);
-        return res.status(500).json({ success: false, error: err.message });
+        return res.status(500).json({ success: false, error: 'Erreur serveur' });
     }
 });
 
@@ -414,7 +510,7 @@ router.put('/:id/options', authenticateToken, async (req, res) => {
     try {
         const gestionnaireId = parseInt(req.params.id);
         const isAdminUser = req.user.role === 'admin' || req.user.role === 'administration';
-        if (!isAdminUser && req.user.id !== gestionnaireId) {
+        if (!estProprietaireOuAdmin(req, gestionnaireId)) {
             return res.status(403).json({ success: false, message: 'Accès refusé' });
         }
         // Mise à jour partielle sécurisée : un champ absent du body = valeur inchangée
@@ -453,7 +549,7 @@ router.put('/:id/options', authenticateToken, async (req, res) => {
 
     } catch (err) {
         console.error('Erreur PUT /gestionnaires/:id/options:', err);
-        return res.status(500).json({ success: false, error: err.message });
+        return res.status(500).json({ success: false, error: 'Erreur serveur' });
     }
 });
 
@@ -463,7 +559,7 @@ router.put('/:id/plan', authenticateToken, async (req, res) => {
         const gestionnaireId = parseInt(req.params.id);
         const { plan } = req.body;
         const isAdminUser = req.user.role === 'admin' || req.user.role === 'administration';
-        if (!isAdminUser && req.user.id !== gestionnaireId) {
+        if (!estProprietaireOuAdmin(req, gestionnaireId)) {
             return res.status(403).json({ success: false, message: 'Accès refusé' });
         }
         const plansValides = ['simplisse-25','simplisse-50','simplisse-100','simplisse-200','premium-25','premium-50','premium-100','premium-200','premium-500','simplisse-mode-100','mv-demarrage','mv-croissance','mv-affaires','mv-pro','mv-marche'];
@@ -484,7 +580,7 @@ router.put('/:id/plan', authenticateToken, async (req, res) => {
         return res.json({ success: true, plan, details: planDetails });
     } catch (err) {
         console.error('Erreur PUT /gestionnaires/:id/plan:', err);
-        return res.status(500).json({ success: false, error: err.message });
+        return res.status(500).json({ success: false, error: 'Erreur serveur' });
     }
 });
 
@@ -497,27 +593,35 @@ router.get('/taux-reference', async (req, res) => {
         const result = await pool.query('SELECT * FROM taux_taxes_provinces ORDER BY nom_affiche ASC');
         res.json(result.rows);
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 
-router.put('/:id', async (req, res) => {
+// 🔒 CORRIGÉ : cette route n'avait AUCUNE authentification — n'importe qui pouvait changer le courriel, le plan, le statut
+// ou la commission de n'importe quel gestionnaire. Maintenant : connexion obligatoire, et seul l'admin ou le gestionnaire
+// lui-même peut modifier ce compte. Plan, statut, commission, ventes et produits : admin seulement.
+router.put('/:id', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
-        const body = req.body;
+        const body = req.body && typeof req.body === 'object' ? req.body : {};
+        const estAdmin = !!(req.user && (req.user.role === 'admin' || req.user.role === 'administration'));
+        if (!estProprietaireOuAdmin(req, id)) {
+            return res.status(403).json({ error: 'Accès non autorisé.' });
+        }
         const current = await pool.query('SELECT * FROM gestionnaires WHERE id=$1', [id]);
         if (current.rows.length === 0) return res.status(404).json({ error: 'Gestionnaire non trouvé' });
         const v = current.rows[0];
 
-        const nom          = body.nom          !== undefined ? body.nom          : v.nom;
-        const email        = body.email        !== undefined ? body.email        : v.email;
-        const nom_boutique = body.nom_boutique !== undefined ? body.nom_boutique : v.nom_boutique;
-        const plan         = body.plan         !== undefined ? body.plan         : v.plan;
-        const statut       = body.statut       !== undefined ? body.statut       : v.statut;
-        const province     = body.province     !== undefined ? body.province     : v.province;
-        const total_ventes = body.total_ventes !== undefined ? body.total_ventes : v.total_ventes;
-        const commission   = body.commission   !== undefined ? body.commission   : v.commission;
-        const produits     = body.produits     !== undefined ? body.produits     : v.produits;
+        const nom          = (typeof body.nom === 'string' && sec.nettoyerTexte(body.nom, 100)) || v.nom;
+        const emailValide  = typeof body.email === 'string' ? sec.validerCourriel(body.email) : null;
+        const email        = emailValide || v.email;
+        const nom_boutique = (typeof body.nom_boutique === 'string' && sec.nettoyerTexte(body.nom_boutique, 100)) || v.nom_boutique;
+        const plan         = (estAdmin && body.plan         !== undefined) ? body.plan         : v.plan;
+        const statut       = (estAdmin && body.statut       !== undefined) ? body.statut       : v.statut;
+        const province     = (typeof body.province === 'string' && sec.nettoyerTexte(body.province, 100)) || v.province;
+        const total_ventes = (estAdmin && body.total_ventes !== undefined) ? body.total_ventes : v.total_ventes;
+        const commission   = (estAdmin && body.commission   !== undefined) ? body.commission   : v.commission;
+        const produits     = (estAdmin && body.produits     !== undefined) ? body.produits     : v.produits;
 
         // Section entreprise/taxe (Mon Compte) — si est_entreprise_enregistree
         // n'est pas coché, le gestionnaire ne facture aucune taxe à ses clients.
@@ -543,10 +647,10 @@ router.put('/:id', async (req, res) => {
              est_entreprise_enregistree, province_entreprise, num_entreprise_provincial, no_tps, no_taxe_provinciale,
              taux_tps, taux_provincial, id]
         );
-        res.json({ success: true, vendeur: result.rows[0] });
+        res.json({ success: true, vendeur: sansSecrets(result.rows[0]) });
     } catch (err) {
         console.error('Erreur PUT /api/vendeurs/:id:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 
@@ -563,7 +667,7 @@ router.get('/:id/verificateur-age', async (req, res) => {
     return res.json(result.rows[0]);
   } catch (err) {
     console.error('GET /verificateur-age:', err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -572,7 +676,7 @@ router.put('/:id/verificateur-age', authenticateToken, async (req, res) => {
   try {
     const gestionnaireId = parseInt(req.params.id);
     const isAdmin = req.user.role === 'admin' || req.user.role === 'administration';
-    if (!isAdmin && req.user.id !== gestionnaireId) {
+    if (!estProprietaireOuAdmin(req, gestionnaireId)) {
       return res.status(403).json({ success: false, message: 'Accès refusé.' });
     }
     const {
@@ -609,13 +713,13 @@ router.put('/:id/verificateur-age', authenticateToken, async (req, res) => {
        texte_accepter || "Oui, j'ai 18 ans ou plus",
        texte_refuser || "Non, j'ai moins de 18 ans",
        couleur_fond, couleur_accent,
-       logo_url || null, url_redirection_refus || null, se_souvenir_jours]
+       urlPermise(logo_url), urlPermise(url_redirection_refus), se_souvenir_jours]
     );
     console.log(`✅ Config vérificateur d'âge sauvegardée — gestionnaire ${gestionnaireId}`);
     return res.json({ success: true });
   } catch (err) {
     console.error('PUT /verificateur-age:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -631,7 +735,7 @@ router.get('/:id/popup-annonce', async (req, res) => {
     );
     return res.json(result.rows.length ? result.rows[0] : {});
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -640,7 +744,7 @@ router.put('/:id/popup-annonce', authenticateToken, async (req, res) => {
   try {
     const gestionnaireId = parseInt(req.params.id);
     const isAdmin = req.user.role === 'admin' || req.user.role === 'administration';
-    if (!isAdmin && req.user.id !== gestionnaireId)
+    if (!estProprietaireOuAdmin(req, gestionnaireId))
       return res.status(403).json({ success: false, message: 'Acces refuse.' });
 
     const {
@@ -673,7 +777,7 @@ router.put('/:id/popup-annonce', authenticateToken, async (req, res) => {
        titre || 'Annonce importante',
        message || 'Profitez de notre offre speciale !',
        bouton_label || 'En savoir plus',
-       bouton_url || null, bouton_actif,
+       urlPermise(bouton_url), bouton_actif,
        couleur_fond, couleur_texte, couleur_bouton,
        delai_secondes, fermeture_auto, fermeture_auto_secondes,
        se_souvenir_heures, icone,
@@ -683,7 +787,7 @@ router.put('/:id/popup-annonce', authenticateToken, async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     console.error('PUT /popup-annonce:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -694,7 +798,7 @@ router.get('/:id/plan', authenticateToken, async (req, res) => {
   try {
     const gestionnaireId = parseInt(req.params.id);
     const isAdmin = req.user.role === 'admin' || req.user.role === 'administration';
-    if (!isAdmin && req.user.id !== gestionnaireId)
+    if (!estProprietaireOuAdmin(req, gestionnaireId))
       return res.status(403).json({ error: 'Acces refuse' });
 
     const result = await pool.query(
@@ -705,7 +809,7 @@ router.get('/:id/plan', authenticateToken, async (req, res) => {
     return res.json({ plan: result.rows[0].plan || 'mv-croissance' });
   } catch (err) {
     console.error('GET /:id/plan:', err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -714,7 +818,7 @@ router.put('/:id/plan', authenticateToken, async (req, res) => {
   try {
     const gestionnaireId = parseInt(req.params.id);
     const isAdmin = req.user.role === 'admin' || req.user.role === 'administration';
-    if (!isAdmin && req.user.id !== gestionnaireId)
+    if (!estProprietaireOuAdmin(req, gestionnaireId))
       return res.status(403).json({ error: 'Acces refuse' });
 
     const { plan } = req.body;
@@ -728,7 +832,7 @@ router.put('/:id/plan', authenticateToken, async (req, res) => {
     return res.json({ success: true, plan });
   } catch (err) {
     console.error('PUT /:id/plan:', err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -823,7 +927,7 @@ router.get('/:id/config-multivendeur', async (req, res) => {
     return res.json(result.rows.length ? result.rows[0] : {});
   } catch (err) {
     console.error('GET /config-multivendeur:', err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -832,7 +936,7 @@ router.put('/:id/config-multivendeur', authenticateToken, async (req, res) => {
   try {
     const gestionnaireId = parseInt(req.params.id);
     const isAdmin = req.user.role === 'admin' || req.user.role === 'administration';
-    if (!isAdmin && req.user.id !== gestionnaireId)
+    if (!estProprietaireOuAdmin(req, gestionnaireId))
       return res.status(403).json({ success: false, message: 'Acces refuse.' });
 
     const { nom_boutique, slogan, couleur_accent, couleur_fond, accueil_hero_actif, accueil_hero_badge, accueil_categories_actif, accueil_categories_titre, accueil_nouveautes_actif, accueil_nouveautes_titre, accueil_cta_vendeurs_actif, accueil_cta_titre, accueil_cta_texte, catalogue_sidebar_actif, catalogue_filtres_actif, catalogue_tri_defaut, boutiques_hero_titre, boutiques_hero_texte, produit_onglet_description_actif, produit_onglet_details_actif, produit_onglet_livraison_actif, produit_similaires_actif, encheres_actif, encheres_hero_titre, encheres_hero_texte, footer_documents_actif, footer_politiques_actif } = req.body;
@@ -877,7 +981,7 @@ router.put('/:id/config-multivendeur', authenticateToken, async (req, res) => {
     return res.json({ success: true });
   } catch (err) {
     console.error('PUT /config-multivendeur:', err.message);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -891,7 +995,7 @@ router.patch('/:id/config-multivendeur/identite', authenticateToken, async (req,
   try {
     const gestionnaireId = parseInt(req.params.id, 10);
     const admin = req.user.role === 'admin' || req.user.role === 'administration';
-    if (!gestionnaireId || (!admin && req.user.id !== gestionnaireId))
+    if (!gestionnaireId || !estProprietaireOuAdmin(req, gestionnaireId))
       return res.status(403).json({ success: false, message: 'Acces refuse.' });
     const propre = (v, max) => (typeof v === 'string' ? v.replace(/[\u0000-\u001f\u007f<>]/g, '').trim().slice(0, max) : '');
     const nom = propre(req.body && req.body.nom_boutique, 100);
@@ -936,7 +1040,7 @@ router.get('/:id/addons-statut', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /addons-statut:', err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -949,7 +1053,7 @@ router.get('/:id/blog', async (req, res) => {
     );
     return res.json({ articles: result.rows });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -962,7 +1066,7 @@ router.get('/:id/faq', async (req, res) => {
     );
     return res.json({ items: result.rows });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -990,7 +1094,7 @@ router.get('/:id/avis', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /avis:', err.message);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -1015,7 +1119,7 @@ router.get('/:id/politiques', async (req, res) => {
 router.delete('/:id/reinitialiser-template', authenticateToken, async (req, res) => {
   const gestionnaireId = parseInt(req.params.id);
 
-  if (req.user.id !== gestionnaireId && req.user.role !== 'admin') {
+  if (!estProprietaireOuAdmin(req, gestionnaireId)) {
     return res.status(403).json({ message: 'Acces non autorise' });
   }
 
@@ -1049,7 +1153,7 @@ router.delete('/:id/reinitialiser-template', authenticateToken, async (req, res)
     }
   } catch (err) {
     console.error('[reset-template] Etape 1:', err.message);
-    return res.status(500).json({ message: 'Erreur: ' + err.message });
+    return res.status(500).json({ message: 'Erreur serveur' });
   }
 
   // 2. Effacer template_id dans la table sites (c'est la source principale)
@@ -1061,7 +1165,7 @@ router.delete('/:id/reinitialiser-template', authenticateToken, async (req, res)
     console.log('[reset-template] sites UPDATE OK');
   } catch (err) {
     console.error('[reset-template] sites:', err.message);
-    return res.status(500).json({ message: 'Erreur: ' + err.message });
+    return res.status(500).json({ message: 'Erreur serveur' });
   }
 
   // 3. Config multivendeur premium
@@ -1086,7 +1190,7 @@ router.delete('/:id/reinitialiser-template', authenticateToken, async (req, res)
 router.put('/:id/2fa', authenticateToken, async (req, res) => {
     try {
         const { id } = req.params;
-        if (req.user.role !== 'admin' && req.user.id !== parseInt(id)) {
+        if (!estProprietaireOuAdmin(req, id)) {
             return res.status(403).json({ error: 'Accès non autorisé.' });
         }
         const { enabled } = req.body;
@@ -1098,7 +1202,7 @@ router.put('/:id/2fa', authenticateToken, async (req, res) => {
         res.json({ success: true, two_factor_enabled: !!enabled });
     } catch (err) {
         console.error('PUT /gestionnaires/:id/2fa :', err.message);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: 'Erreur serveur' });
     }
 });
 

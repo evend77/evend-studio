@@ -9,6 +9,7 @@ const { COOKIE_OPTIONS, verifierCompteBloque, gererTentativeEchouee } = require(
 const { getTousLesPlansPhotos, versDictionnaire: versDictPhotos, PLAN_PHOTOS_DEFAUT } = require('../config/plansPhotos');
 const { getTousLesPlansPub, versDictionnaire: versDictPub, PLAN_PUB_DEFAUT } = require('../config/plansPub');
 const crypto = require('crypto');
+const sec = require('../services/studio_securite_inscription');
 let envoyerEmailModele = null;
 try { ({ envoyerEmailModele } = require('../services/email')); }
 catch (e) { console.warn('⚠️ services/email.js introuvable (F2A sponsor):', e.message); }
@@ -18,6 +19,13 @@ function genererCodeOtp() {
 }
 
 // ── MIDDLEWARE ──────────────────────────────────────────────────
+// 🔒 Routes « sponsor connecté » : le rôle doit être commanditaire. Sans ça, le jeton d'un gestionnaire ou d'un acheteur
+// dont le numéro est le même que celui du sponsor pouvait lire/modifier ce sponsor (forfait, mot de passe, double authentification).
+function exigerCommanditaire(req, res, next) {
+  if (req.user && req.user.role === 'commanditaire') return next();
+  return res.status(403).json({ error: 'Accès non autorisé.' });
+}
+
 // (isAdmin importé de ../middleware/auth — plus de réimplémentation locale)
 
 // ════════════════════════════════════════════════════════════════
@@ -26,28 +34,42 @@ function genererCodeOtp() {
 
 // POST — Inscription d'un nouveau sponsor
 router.post('/inscription', async (req, res) => {
+  const R = req.body && typeof req.body === 'object' ? req.body : {};
+  const ip = sec.ipClient(req);
+  // 🔒 Protections côté serveur : champ piège, limites par IP (15 essais, 3 comptes par heure), types vérifiés.
+  // (Le jeton anti-robot signé n'est pas exigé tant que la page d'inscription sponsor n'envoie pas de jeton.)
+  if (typeof R.website === 'string' && R.website !== '') {
+    return res.status(201).json({ success: true, message: 'Inscription réussie !' });
+  }
+  if (sec.depasse('spons:ip:' + ip + ':essais', 15) || sec.depasse('spons:ip:' + ip + ':ok', 3)) {
+    return res.status(429).json({ error: "Trop de tentatives d'inscription. Réessayez plus tard." });
+  }
+  sec.noter('spons:ip:' + ip + ':essais');
   try {
-    const { 
-      nom, 
-      email, 
-      mot_de_passe, 
-      site_web, 
-      description, 
-      forfait = 'basique',
-      type_sponsor = 'photos'
-    } = req.body;
-
-    if (!nom || !email || !mot_de_passe) {
+    if (typeof R.nom !== 'string' || typeof R.email !== 'string' || typeof R.mot_de_passe !== 'string') {
       return res.status(400).json({ error: 'Nom, email et mot de passe requis' });
     }
-    if (mot_de_passe.length < 8) {
-      return res.status(400).json({ error: 'Le mot de passe doit contenir au moins 8 caractères' });
+    const nom = sec.nettoyerTexte(R.nom, 100);
+    const email = sec.validerCourriel(R.email);
+    const mot_de_passe = R.mot_de_passe;
+    const type_sponsor = typeof R.type_sponsor === 'string' ? R.type_sponsor : 'photos';
+    // Le forfait choisi à l'inscription n'est pas accepté : tout nouveau sponsor commence au forfait de base
+    // (le changement de forfait passe par PUT /forfait-photos|forfait-pub, après connexion).
+    const forfait = PLAN_PHOTOS_DEFAUT;
+    // Site web : adresse https seulement (jamais javascript:, data:, etc.)
+    const site_web = (typeof R.site_web === 'string' && /^https:\/\/[^\s<>"']{1,300}$/.test(R.site_web.trim())) ? R.site_web.trim() : null;
+    const description = typeof R.description === 'string' ? (sec.nettoyerTexte(R.description, 1000) || null) : null;
+
+    if (!nom || nom.length < 2 || !email) {
+      return res.status(400).json({ error: 'Nom, email et mot de passe requis' });
     }
+    const erreurMdp = sec.validerMotDePasse(mot_de_passe);
+    if (erreurMdp) return res.status(400).json({ error: erreurMdp });
     if (!['photos', 'pub', 'both'].includes(type_sponsor)) {
       return res.status(400).json({ error: 'Type de sponsor invalide' });
     }
 
-    const existing = await pool.query('SELECT id FROM sponsors WHERE email = $1', [email.toLowerCase()]);
+    const existing = await pool.query('SELECT id FROM sponsors WHERE LOWER(email) = $1', [email]);
     if (existing.rows.length > 0) {
       return res.status(409).json({ error: 'Cet email est déjà utilisé' });
     }
@@ -59,14 +81,15 @@ router.post('/inscription', async (req, res) => {
        (nom, email, mot_de_passe, site_web, description, forfait, type_sponsor, active, created_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7, true, NOW())
        RETURNING id, nom, email, site_web, description, forfait, type_sponsor, active, created_at`,
-      [nom.trim(), email.toLowerCase().trim(), hashedPassword, site_web || null, description || null, forfait, type_sponsor]
+      [nom, email, hashedPassword, site_web, description, forfait, type_sponsor]
     );
 
     const sponsor = result.rows[0];
+    sec.noter('spons:ip:' + ip + ':ok');
 
     const token = jwt.sign(
       { id: sponsor.id, email: sponsor.email, role: 'commanditaire' },
-      process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
+      process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
     res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
@@ -87,6 +110,7 @@ router.post('/inscription', async (req, res) => {
       }
     });
   } catch (error) {
+    if (error && error.code === '23505') return res.status(409).json({ error: 'Cet email est déjà utilisé' });
     console.error('❌ Erreur inscription sponsor:', error);
     res.status(500).json({ error: 'Erreur lors de l\'inscription' });
   }
@@ -95,9 +119,9 @@ router.post('/inscription', async (req, res) => {
 // POST — Connexion sponsor
 router.post('/login', async (req, res) => {
   try {
-    const { email, mot_de_passe } = req.body;
+    const { email, mot_de_passe } = req.body || {};
 
-    if (!email || !mot_de_passe) {
+    if (typeof email !== 'string' || typeof mot_de_passe !== 'string' || !email || !mot_de_passe) {
       return res.status(400).json({ error: 'Email et mot de passe requis' });
     }
 
@@ -149,7 +173,7 @@ router.post('/login', async (req, res) => {
 
     const token = jwt.sign(
       { id: sponsor.id, email: sponsor.email, role: 'commanditaire' },
-      process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
+      process.env.JWT_SECRET,
       { expiresIn: '30d' }
     );
     res.cookie('evend_studio_token', token, COOKIE_OPTIONS);
@@ -180,7 +204,7 @@ router.post('/login', async (req, res) => {
 // ════════════════════════════════════════════════════════════════
 
 // GET — Profil du sponsor connecté
-router.get('/moi', authenticateToken, async (req, res) => {
+router.get('/moi', authenticateToken, exigerCommanditaire, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT id, nom, email, site_web, description, logo, forfait, forfait_pub, type_sponsor, active, created_at, updated_at
@@ -228,19 +252,19 @@ router.get('/moi', authenticateToken, async (req, res) => {
 });
 
 // GET — Liste des paliers photos disponibles (pour affichage dans le dashboard)
-router.get('/plans-photos', authenticateToken, async (req, res) => {
+router.get('/plans-photos', authenticateToken, exigerCommanditaire, async (req, res) => {
   const tous = await getTousLesPlansPhotos();
   res.json({ plans: tous.filter(p => p.actif).map(p => ({ id: p.key, ...p })) });
 });
 
 // GET — Liste des paliers pub disponibles (pour affichage dans le dashboard)
-router.get('/plans-pub', authenticateToken, async (req, res) => {
+router.get('/plans-pub', authenticateToken, exigerCommanditaire, async (req, res) => {
   const tous = await getTousLesPlansPub();
   res.json({ plans: tous.filter(p => p.actif).map(p => ({ id: p.key, ...p })) });
 });
 
 // PUT — Changer de forfait pub
-router.put('/forfait-pub', authenticateToken, async (req, res) => {
+router.put('/forfait-pub', authenticateToken, exigerCommanditaire, async (req, res) => {
   try {
     const { forfait } = req.body;
     const plansPub = versDictPub(await getTousLesPlansPub());
@@ -279,7 +303,7 @@ router.put('/forfait-pub', authenticateToken, async (req, res) => {
 });
 
 // PUT — Changer de forfait photos
-router.put('/forfait-photos', authenticateToken, async (req, res) => {
+router.put('/forfait-photos', authenticateToken, exigerCommanditaire, async (req, res) => {
   try {
     const { forfait } = req.body;
     const plansPhotos = versDictPhotos(await getTousLesPlansPhotos());
@@ -318,7 +342,7 @@ router.put('/forfait-photos', authenticateToken, async (req, res) => {
 });
 
 // PUT — Mettre à jour le profil du sponsor
-router.put('/moi', authenticateToken, async (req, res) => {
+router.put('/moi', authenticateToken, exigerCommanditaire, async (req, res) => {
   try {
     const { nom, site_web, description, logo } = req.body;
 
@@ -350,7 +374,7 @@ router.put('/moi', authenticateToken, async (req, res) => {
 });
 
 // PUT — Changer le mot de passe
-router.put('/mot-de-passe', authenticateToken, async (req, res) => {
+router.put('/mot-de-passe', authenticateToken, exigerCommanditaire, async (req, res) => {
   try {
     const { ancien_mot_de_passe, nouveau_mot_de_passe } = req.body;
 
@@ -393,7 +417,7 @@ router.put('/mot-de-passe', authenticateToken, async (req, res) => {
 });
 
 // GET/PUT — Vérification en 2 étapes (F2A) du sponsor connecté
-router.get('/2fa', authenticateToken, async (req, res) => {
+router.get('/2fa', authenticateToken, exigerCommanditaire, async (req, res) => {
   try {
     const result = await pool.query('SELECT two_factor_enabled FROM sponsors WHERE id = $1', [req.user.id]);
     if (result.rows.length === 0) return res.status(404).json({ error: 'Sponsor non trouvé' });
@@ -404,7 +428,7 @@ router.get('/2fa', authenticateToken, async (req, res) => {
   }
 });
 
-router.put('/2fa', authenticateToken, async (req, res) => {
+router.put('/2fa', authenticateToken, exigerCommanditaire, async (req, res) => {
   try {
     const { enabled } = req.body;
     const result = await pool.query(
@@ -420,7 +444,7 @@ router.put('/2fa', authenticateToken, async (req, res) => {
 });
 
 // GET — Statistiques du sponsor
-router.get('/stats', authenticateToken, async (req, res) => {
+router.get('/stats', authenticateToken, exigerCommanditaire, async (req, res) => {
   try {
     const statsResult = await pool.query(
       `SELECT 
@@ -554,7 +578,7 @@ router.post('/admin/:id/impersonate', authenticateToken, isAdmin, async (req, re
     const sponsor = result.rows[0];
     const token = jwt.sign(
       { id: sponsor.id, email: sponsor.email, role: 'commanditaire', impersonated_by: req.user.id },
-      process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
+      process.env.JWT_SECRET,
       { expiresIn: '2h' }
     );
     // Remplace le cookie de session admin par celui du sponsor impersonné —
@@ -583,7 +607,7 @@ router.post('/admin/stop-impersonation', authenticateToken, async (req, res) => 
 
     const token = jwt.sign(
       { id: admin.id, email: admin.email, role: 'admin' },
-      process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES || '7d' }
     );
     res.cookie('evend_studio_token', token, COOKIE_OPTIONS);

@@ -8,7 +8,16 @@ const bcrypt  = require('bcrypt');
 const jwt     = require('jsonwebtoken');
 const { authenticateToken } = require('../middleware/auth');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025';
+const JWT_SECRET = process.env.JWT_SECRET;
+const sec = require('../services/studio_securite_inscription');
+
+// 🔒 Routes « vendeur » : le rôle doit être gestionnaire. Sans ça, un jeton d'acheteur dont le numéro égale celui du
+// gestionnaire listait les acheteurs (courriels, téléphones) de ce gestionnaire.
+function exigerGestionnaire(req, res, next) {
+  const r = req.user && req.user.role;
+  if (r === 'gestionnaire' || r === 'admin' || r === 'administration') return next();
+  return res.status(403).json({ message: 'Accès non autorisé.' });
+}
 const { verifierCompteBloque, gererTentativeEchouee } = require('./authStudio');
 
 // Cookie host-only, scopé par site — cohérent avec le système marketplace.
@@ -36,33 +45,62 @@ function genererTokenAcheteur(acheteur) {
 
 // ─── POST /api/acheteurs-studio/inscription ───────────────────────────────────
 router.post('/inscription', async (req, res) => {
-  const { site_id, prenom, nom, email, mot_de_passe, telephone } = req.body;
-  if (!site_id || !nom || !email || !mot_de_passe) {
+  const R = req.body && typeof req.body === 'object' ? req.body : {};
+  const ip = sec.ipClient(req);
+  // 🔒 Champ piège, limites par IP (15 essais et 3 comptes par heure) et par site (60 comptes par heure), types vérifiés.
+  // (Jeton anti-robot signé : à ajouter quand la page d'inscription qui appelle cette route sera fournie.)
+  if (typeof R.website === 'string' && R.website !== '') {
+    return res.status(201).json({ success: true });
+  }
+  const siteId = Number(R.site_id);
+  if (!Number.isInteger(siteId) || siteId <= 0) {
     return res.status(400).json({ message: 'Champs obligatoires manquants.' });
   }
+  if (sec.depasse('astu:ip:' + ip + ':essais', 15) || sec.depasse('astu:ip:' + ip + ':ok', 3) || sec.depasse('astu:site:' + siteId + ':ok', 60)) {
+    return res.status(429).json({ message: "Trop de tentatives d'inscription. Réessayez plus tard." });
+  }
+  sec.noter('astu:ip:' + ip + ':essais');
+  if (typeof R.nom !== 'string' || typeof R.email !== 'string' || typeof R.mot_de_passe !== 'string') {
+    return res.status(400).json({ message: 'Champs obligatoires manquants.' });
+  }
+  const site_id = siteId;
+  const nom = sec.validerNomPersonne(R.nom, 100);
+  const prenom = typeof R.prenom === 'string' && R.prenom.trim() ? sec.validerNomPersonne(R.prenom, 100) : null;
+  const email = sec.validerCourriel(R.email);
+  const mot_de_passe = R.mot_de_passe;
+  const tel = sec.validerTelephone(typeof R.telephone === 'string' ? R.telephone : '');
+  const telephone = tel.ok ? tel.valeur : null;
+  if (!nom || !email || (R.prenom && String(R.prenom).trim() && !prenom)) {
+    return res.status(400).json({ message: 'Nom ou adresse courriel invalide.' });
+  }
+  const erreurMdp = sec.validerMotDePasse(mot_de_passe);
+  if (erreurMdp) return res.status(400).json({ message: erreurMdp });
   try {
+    const siteInfo = await pool.query('SELECT gestionnaire_id FROM sites WHERE id = $1', [site_id]);
+    if (!siteInfo.rows.length) return res.status(404).json({ message: 'Site introuvable.' });
+
     const existe = await pool.query(
-      'SELECT id FROM acheteurs_studio WHERE site_id = $1 AND email = $2',
-      [site_id, email.toLowerCase()]
+      'SELECT id FROM acheteurs_studio WHERE site_id = $1 AND LOWER(email) = $2',
+      [site_id, email]
     );
     if (existe.rows.length > 0) {
       return res.status(409).json({ message: 'Un compte existe déjà avec cet email.' });
     }
 
     const hash = await bcrypt.hash(mot_de_passe, 12);
-    const siteInfo = await pool.query('SELECT vendeur_id FROM sites WHERE id = $1', [site_id]);
-
     const result = await pool.query(
       `INSERT INTO acheteurs_studio (site_id, vendeur_id, prenom, nom, email, mot_de_passe, telephone)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, prenom, nom, email, site_id, statut`,
-      [site_id, siteInfo.rows[0]?.gestionnaire_id, prenom || null, nom, email.toLowerCase(), hash, telephone || null]
+      [site_id, siteInfo.rows[0]?.gestionnaire_id, prenom || null, nom, email, hash, telephone]
     );
+    sec.noter('astu:ip:' + ip + ':ok'); sec.noter('astu:site:' + site_id + ':ok');
 
     const acheteur = result.rows[0];
     const token = genererTokenAcheteur(acheteur);
     res.cookie(nomCookieAcheteur(site_id), token, optionsCookieAcheteur());
     res.status(201).json({ success: true, token, acheteur });
   } catch (err) {
+    if (err && err.code === '23505') return res.status(409).json({ message: 'Un compte existe déjà avec cet email.' });
     console.error('POST inscription acheteur:', err);
     res.status(500).json({ message: 'Erreur serveur.' });
   }
@@ -70,8 +108,8 @@ router.post('/inscription', async (req, res) => {
 
 // ─── POST /api/acheteurs-studio/connexion ────────────────────────────────────
 router.post('/connexion', async (req, res) => {
-  const { site_id, email, mot_de_passe } = req.body;
-  if (!site_id || !email || !mot_de_passe) {
+  const { site_id, email, mot_de_passe } = req.body || {};
+  if (!site_id || typeof email !== 'string' || typeof mot_de_passe !== 'string' || !email || !mot_de_passe) {
     return res.status(400).json({ message: 'Champs obligatoires manquants.' });
   }
   const userTypeKey = `acheteur_studio_${site_id}`;
@@ -82,7 +120,7 @@ router.post('/connexion', async (req, res) => {
     }
 
     const result = await pool.query(
-      'SELECT * FROM acheteurs_studio WHERE site_id = $1 AND email = $2',
+      'SELECT * FROM acheteurs_studio WHERE site_id = $1 AND LOWER(email) = $2',
       [site_id, email.toLowerCase()]
     );
     if (!result.rows.length) {
@@ -166,7 +204,7 @@ router.get('/mes-commandes', async (req, res) => {
 });
 
 // ─── GET /api/acheteurs-studio/vendeur — liste pour le vendeur ───────────────
-router.get('/vendeur', authenticateToken, async (req, res) => {
+router.get('/vendeur', authenticateToken, exigerGestionnaire, async (req, res) => {
   try {
     const siteResult = await pool.query('SELECT id FROM sites WHERE gestionnaire_id = $1', [req.user.id]);
     if (!siteResult.rows.length) return res.json({ acheteurs: [], total: 0 });
@@ -192,7 +230,7 @@ router.get('/vendeur', authenticateToken, async (req, res) => {
 });
 
 // ─── PUT /api/acheteurs-studio/:id/statut ────────────────────────────────────
-router.put('/:id/statut', authenticateToken, async (req, res) => {
+router.put('/:id/statut', authenticateToken, exigerGestionnaire, async (req, res) => {
   const { statut } = req.body;
   if (!['actif', 'suspendu'].includes(statut)) return res.status(400).json({ message: 'Statut invalide.' });
   try {
@@ -208,7 +246,7 @@ router.put('/:id/statut', authenticateToken, async (req, res) => {
 });
 
 // ─── GET /api/acheteurs-studio/:id/commandes ─────────────────────────────────
-router.get('/:id/commandes', authenticateToken, async (req, res) => {
+router.get('/:id/commandes', authenticateToken, exigerGestionnaire, async (req, res) => {
   try {
     const result = await pool.query(
       `SELECT * FROM commandes_studio

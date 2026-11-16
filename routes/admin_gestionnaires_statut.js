@@ -82,7 +82,7 @@ router.put('/:id/statut', authenticateToken, isAdmin, async (req, res) => {
     res.json({ success: true, statut });
   } catch (err) {
     console.error('PUT /admin/gestionnaires/:id/statut :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -100,7 +100,7 @@ router.put('/:id/2fa', authenticateToken, isAdmin, async (req, res) => {
     res.json({ success: true, two_factor_enabled: !!enabled });
   } catch (err) {
     console.error('PUT /admin/gestionnaires/:id/2fa :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -121,7 +121,7 @@ router.post('/:id/impersonate', authenticateToken, isAdmin, async (req, res) => 
 
     const token = jwt.sign(
       { id: g.id, email: g.email, role: 'gestionnaire', plan: g.plan },
-      process.env.JWT_SECRET || 'evend-studio-jwt-secret-2025',
+      process.env.JWT_SECRET,
       { expiresIn: '2h' } // session d'impersonation volontairement plus courte qu'un login normal
     );
 
@@ -144,7 +144,7 @@ router.post('/:id/impersonate', authenticateToken, isAdmin, async (req, res) => 
     });
   } catch (err) {
     console.error('POST /admin/gestionnaires/:id/impersonate :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -211,7 +211,7 @@ router.delete('/:id', authenticateToken, isAdmin, async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error('DELETE /admin/gestionnaires/:id :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 

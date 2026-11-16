@@ -14,11 +14,16 @@ const router  = express.Router({ mergeParams: true });
 const pool    = require('../db');
 const { nettoyerHtml } = require('../utils/sanitize');
 const { authenticateToken } = require('../middleware/auth');
+const sec = require('../services/studio_securite_inscription');
+
+// Limites de taille (évite les contenus géants) — texte nettoyé : pas de balises dans les titres/descriptions
+const txt = (v, max) => (typeof v === 'string' ? sec.nettoyerTexte(v, max) : '');
 
 // ─── Helper propriétaire ──────────────────────────────────────────────────────
 function verifierProprietaire(req, res) {
   const gestionnaireIdParam = parseInt(req.params.gestionnaireId, 10);
-  if (parseInt(req.user?.id, 10) !== gestionnaireIdParam) {
+  // 🔒 Le rôle compte : un jeton d'acheteur/commanditaire de même numéro n'a pas le droit de modifier ces pages
+  if (req.user?.role !== 'gestionnaire' || parseInt(req.user?.id, 10) !== gestionnaireIdParam) {
     res.status(403).json({ error: 'Accès refusé.' });
     return false;
   }
@@ -53,7 +58,7 @@ router.get('/public', async (req, res) => {
     res.json({ pages: result.rows });
   } catch (err) {
     console.error('GET /studio/pages/:gestionnaireId/public :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -75,7 +80,7 @@ router.get('/public/:slug', async (req, res) => {
     res.json({ page: result.rows[0] });
   } catch (err) {
     console.error('GET /studio/pages/:gestionnaireId/public/:slug :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -97,7 +102,7 @@ router.get('/', authenticateToken, async (req, res) => {
     res.json({ pages: result.rows });
   } catch (err) {
     console.error('GET /studio/pages/:gestionnaireId :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -109,10 +114,17 @@ router.get('/', authenticateToken, async (req, res) => {
 router.post('/', authenticateToken, async (req, res) => {
   if (!verifierProprietaire(req, res)) return;
 
-  const { titre, contenu, meta_description, actif, afficher_dans_menu } = req.body;
+  // 🔒 Avant : un titre qui n'était pas du texte (ex. un nombre) plantait hors du try → erreur non interceptée
+  const B = req.body && typeof req.body === 'object' ? req.body : {};
+  const { contenu, actif, afficher_dans_menu } = B;
+  const titre = txt(B.titre, 200);
+  const meta_description = txt(B.meta_description, 300);
 
-  if (!titre?.trim()) {
+  if (!titre) {
     return res.status(400).json({ error: 'Le titre est obligatoire.' });
+  }
+  if (contenu !== undefined && contenu !== null && (typeof contenu !== 'string' || contenu.length > 200000)) {
+    return res.status(400).json({ error: 'Contenu invalide ou trop long.' });
   }
 
   const { gestionnaireId } = req.params;
@@ -140,9 +152,9 @@ router.post('/', authenticateToken, async (req, res) => {
       [
         gestionnaireId,
         slug,
-        titre.trim(),
+        titre,
         nettoyerHtml(contenu) ?? '',
-        meta_description ?? '',
+        meta_description,
         actif !== false,
         afficher_dans_menu !== false,
       ]
@@ -151,7 +163,7 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(201).json({ success: true, page: result.rows[0] });
   } catch (err) {
     console.error('POST /studio/pages/:gestionnaireId :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -170,7 +182,7 @@ router.get('/:slug', authenticateToken, async (req, res) => {
     res.json({ page: result.rows[0] });
   } catch (err) {
     console.error('GET /studio/pages/:gestionnaireId/:slug :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -182,8 +194,16 @@ router.get('/:slug', authenticateToken, async (req, res) => {
 router.patch('/:slug', authenticateToken, async (req, res) => {
   if (!verifierProprietaire(req, res)) return;
 
-  const { titre, contenu, meta_description, actif, afficher_dans_menu } = req.body;
+  const B = req.body && typeof req.body === 'object' ? req.body : {};
+  const { contenu } = B;
+  const titre = typeof B.titre === 'string' ? txt(B.titre, 200) : null;
+  const meta_description = typeof B.meta_description === 'string' ? txt(B.meta_description, 300) : null;
+  const actif = typeof B.actif === 'boolean' ? B.actif : null;
+  const afficher_dans_menu = typeof B.afficher_dans_menu === 'boolean' ? B.afficher_dans_menu : null;
   const { gestionnaireId, slug } = req.params;
+  if (contenu !== undefined && contenu !== null && (typeof contenu !== 'string' || contenu.length > 200000)) {
+    return res.status(400).json({ error: 'Contenu invalide ou trop long.' });
+  }
 
   try {
     const result = await pool.query(
@@ -197,11 +217,11 @@ router.patch('/:slug', authenticateToken, async (req, res) => {
         WHERE gestionnaire_id = $6 AND slug = $7
         RETURNING *`,
       [
-        titre?.trim() || null,
+        titre || null,
         nettoyerHtml(contenu) ?? null,
-        meta_description ?? null,
-        actif ?? null,
-        afficher_dans_menu ?? null,
+        meta_description,
+        actif,
+        afficher_dans_menu,
         gestionnaireId,
         slug,
       ]
@@ -211,7 +231,7 @@ router.patch('/:slug', authenticateToken, async (req, res) => {
     res.json({ success: true, page: result.rows[0] });
   } catch (err) {
     console.error('PATCH /studio/pages/:gestionnaireId/:slug :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -233,7 +253,7 @@ router.delete('/:slug', authenticateToken, async (req, res) => {
     res.json({ success: true, message: 'Page supprimée.' });
   } catch (err) {
     console.error('DELETE /studio/pages/:gestionnaireId/:slug :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 
@@ -263,7 +283,7 @@ router.patch('/:slug/ordre', authenticateToken, async (req, res) => {
     res.json({ success: true, page: result.rows[0] });
   } catch (err) {
     console.error('PATCH /studio/pages/:gestionnaireId/:slug/ordre :', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Erreur serveur' });
   }
 });
 

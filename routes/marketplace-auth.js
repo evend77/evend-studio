@@ -44,6 +44,11 @@ function idBoutique(req) {
 }
 
 router.get('/:gestionnaireId/inscription/jeton', (req, res) => {
+  // « gestionnaire » = jeton de la page d'inscription des gestionnaires (routes/gestionnaires.js)
+  if (req.params.gestionnaireId === 'gestionnaire') {
+    res.set('Cache-Control', 'no-store');
+    return res.json({ jeton: sec.creerJeton(0, 'inscription-gestionnaire') });
+  }
   const gid = idBoutique(req);
   if (!gid) return res.status(400).json({ message: 'Boutique invalide' });
   res.set('Cache-Control', 'no-store');

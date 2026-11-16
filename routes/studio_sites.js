@@ -5,7 +5,7 @@
 const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken, estProprietaireOuAdmin } = require('../middleware/auth');
 const domainePerso = require('../services/studio_domaine_perso');   // VPS + Caddy (ancien hébergement Render retiré)
 
 // =====================================================================
@@ -104,7 +104,7 @@ router.get('/sousdomaine/verifier/:slug', async (req, res) => {
     return res.json({ success: true, disponible: true });
   } catch (err) {
     console.error('GET /studio/sites/sousdomaine/verifier/:slug', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -163,7 +163,7 @@ router.get('/domaine-perso/public/:domaine', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /studio/sites/domaine-perso/public/:domaine', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -209,7 +209,7 @@ router.get('/sous-domaine/public/:slug', async (req, res) => {
     });
   } catch (err) {
     console.error('GET /studio/sites/sous-domaine/public/:slug', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -238,7 +238,7 @@ router.get('/:gestionnaireId', async (req, res) => {
     return res.json(result.rows[0]);
   } catch (err) {
     console.error('GET /studio/sites/:gestionnaireId', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -251,7 +251,7 @@ router.put('/:gestionnaireId/domaine', authenticateToken, async (req, res) => {
   const { gestionnaireId } = req.params;
   const isAdmin = req.user.role === 'admin' || req.user.role === 'administration';
 
-  if (!isAdmin && String(req.user.id) !== String(gestionnaireId)) {
+  if (!estProprietaireOuAdmin(req, gestionnaireId)) {
     return res.status(403).json({ success: false, message: 'Accès refusé.' });
   }
 
@@ -347,7 +347,7 @@ router.put('/:gestionnaireId/domaine', authenticateToken, async (req, res) => {
     });
   } catch (err) {
     console.error('PUT /studio/sites/:gestionnaireId/domaine', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -359,7 +359,7 @@ router.get('/:gestionnaireId/domaine/statut', authenticateToken, async (req, res
   const { gestionnaireId } = req.params;
   const isAdmin = req.user.role === 'admin' || req.user.role === 'administration';
 
-  if (!isAdmin && String(req.user.id) !== String(gestionnaireId)) {
+  if (!estProprietaireOuAdmin(req, gestionnaireId)) {
     return res.status(403).json({ success: false, message: 'Accès refusé.' });
   }
 
@@ -385,7 +385,7 @@ router.get('/:gestionnaireId/domaine/statut', authenticateToken, async (req, res
     return res.json({ success: true, statut, message });
   } catch (err) {
     console.error('GET /studio/sites/:gestionnaireId/domaine/statut', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -397,11 +397,15 @@ router.put('/:gestionnaireId/config', authenticateToken, async (req, res) => {
     const { gestionnaireId } = req.params;
     const isAdmin = req.user.role === 'admin' || req.user.role === 'administration';
 
-    if (!isAdmin && String(req.user.id) !== String(gestionnaireId)) {
+    if (!estProprietaireOuAdmin(req, gestionnaireId)) {
       return res.status(403).json({ success: false, message: 'Accès refusé.' });
     }
 
+    // 🔒 Le corps doit être un objet (sinon « {...configActuelle, ...'abc'} » écrivait les lettres comme clés)
     const configPatch = req.body;
+    if (!configPatch || typeof configPatch !== 'object' || Array.isArray(configPatch)) {
+      return res.status(400).json({ success: false, message: 'Configuration invalide.' });
+    }
 
     const existing = await pool.query(
       'SELECT config FROM sites WHERE gestionnaire_id = $1 LIMIT 1',
@@ -426,7 +430,7 @@ router.put('/:gestionnaireId/config', authenticateToken, async (req, res) => {
 
   } catch (err) {
     console.error('PUT /studio/sites/:gestionnaireId/config', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -439,11 +443,11 @@ router.put('/:gestionnaireId/template', authenticateToken, async (req, res) => {
     const { template_id } = req.body;
     const isAdmin = req.user.role === 'admin' || req.user.role === 'administration';
 
-    if (!isAdmin && String(req.user.id) !== String(gestionnaireId)) {
+    if (!estProprietaireOuAdmin(req, gestionnaireId)) {
       return res.status(403).json({ success: false, message: 'Accès refusé.' });
     }
 
-    if (!template_id) {
+    if (typeof template_id !== 'string' || !template_id.trim() || template_id.length > 100) {
       return res.status(400).json({ success: false, message: 'template_id requis.' });
     }
 
@@ -456,7 +460,7 @@ router.put('/:gestionnaireId/template', authenticateToken, async (req, res) => {
     return res.json({ success: true, template_id });
   } catch (err) {
     console.error('PUT /studio/sites/:gestionnaireId/template', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 
@@ -469,7 +473,7 @@ router.put('/:gestionnaireId/publier', authenticateToken, async (req, res) => {
     const { publie } = req.body;
     const isAdmin = req.user.role === 'admin' || req.user.role === 'administration';
 
-    if (!isAdmin && String(req.user.id) !== String(gestionnaireId)) {
+    if (!estProprietaireOuAdmin(req, gestionnaireId)) {
       return res.status(403).json({ success: false, message: 'Accès refusé.' });
     }
 
@@ -481,7 +485,7 @@ router.put('/:gestionnaireId/publier', authenticateToken, async (req, res) => {
     return res.json({ success: true, publie: publie === true });
   } catch (err) {
     console.error('PUT /studio/sites/:gestionnaireId/publier', err);
-    return res.status(500).json({ success: false, error: err.message });
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });
 

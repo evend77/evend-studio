@@ -172,13 +172,22 @@ export default function InscriptionGestionnaire({
   const [mouseHasMoved, setMouseHasMoved] = useState(false);
   const formLoadTime = useRef<number>(Date.now());
 
+  // 🔒 Jeton signé émis par le serveur à l'ouverture de la page (le serveur vérifie le délai minimum)
+  const [jeton, setJeton] = useState('');
+
   useEffect(() => { 
     log.admin('Page visitée', 'Inscription gestionnaire'); 
-    console.log('🌐 API_BASE utilisée:', API_BASE);
     formLoadTime.current = Date.now();
-    const onMove = () => setMouseHasMoved(true);
-    window.addEventListener('mousemove', onMove, { once: true });
-    return () => window.removeEventListener('mousemove', onMove);
+    // Souris OU toucher OU clavier : sur téléphone il n'y a jamais de mousemove
+    const onInteraction = () => setMouseHasMoved(true);
+    const evts = ['mousemove', 'touchstart', 'keydown', 'pointerdown'];
+    evts.forEach(ev => window.addEventListener(ev, onInteraction, { once: true, passive: true }));
+    let actif = true;
+    fetch(`${API_BASE}/api/marketplace/gestionnaire/inscription/jeton`)
+      .then(r => r.json())
+      .then(d => { if (actif && d && d.jeton) setJeton(d.jeton); })
+      .catch(() => { /* le serveur refusera l'envoi sans jeton */ });
+    return () => { actif = false; evts.forEach(ev => window.removeEventListener(ev, onInteraction)); };
   }, []);
 
   const set = useCallback((k: keyof FormData, v: string | boolean) =>
@@ -194,8 +203,10 @@ export default function InscriptionGestionnaire({
   const valider = (): string | null => {
     if (!form.sellerName.trim())   return 'Le nom du gestionnaire est obligatoire.';
     if (!form.storeName.trim())    return 'Le nom de la boutique est obligatoire.';
-    if (!form.email.includes('@')) return 'Adresse courriel invalide.';
+    if (/[<>]/.test(form.sellerName + form.storeName)) return 'Les caractères < et > ne sont pas permis.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) return 'Adresse courriel invalide.';
     if (form.password.length < 8)  return 'Le mot de passe doit contenir au moins 8 caractères.';
+    if (form.password.length > 72) return 'Le mot de passe est trop long (72 caractères maximum).';
     if (form.password !== form.confirmPassword) return 'Les mots de passe ne correspondent pas.';
     if (!form.regionAdmin)         return 'Veuillez sélectionner une région administrative.';
     if (!form.zoneExpedition)      return "Veuillez sélectionner une zone d'expédition.";
@@ -244,15 +255,16 @@ export default function InscriptionGestionnaire({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           nom:             form.sellerName,
-          email:           form.email,
+          email:           form.email.trim(),
           mot_de_passe:    form.password,
-          boutique:        form.storeName,
+          nom_boutique:    form.storeName,   // avant : « boutique » (le serveur lit « nom_boutique »)
           province:        form.regionAdmin,
           zone_expedition: form.zoneExpedition,
           type_entreprise: form.typeEntreprise,
           telephone:       '',
-          plan:            'Gratuit',
-          date_inscription: new Date().toISOString().split('T')[0],
+          // Le plan (« Gratuit ») et la date d'inscription sont fixés par le serveur
+          jeton,
+          website:         honeypot,
         }),
       });
 
@@ -378,7 +390,7 @@ export default function InscriptionGestionnaire({
                 <input className="evend-inp" type="text" value={form.sellerName}
                   onChange={e => set('sellerName', e.target.value)}
                   onFocus={() => setFocused('sellerName')} onBlur={() => setFocused(null)}
-                  style={inp('sellerName')} placeholder="Votre nom complet" autoFocus />
+                  style={inp('sellerName')} placeholder="Votre nom complet" maxLength={100} autoComplete="name" autoFocus />
               </div>
 
               {/* Nom boutique */}
@@ -387,7 +399,7 @@ export default function InscriptionGestionnaire({
                 <input className="evend-inp" type="text" value={form.storeName}
                   onChange={e => set('storeName', e.target.value)}
                   onFocus={() => setFocused('storeName')} onBlur={() => setFocused(null)}
-                  style={inp('storeName')} placeholder="Ex : Boutique Artisanat Marie" />
+                  style={inp('storeName')} placeholder="Ex : Boutique Artisanat Marie" maxLength={100} />
               </div>
 
               {/* Email */}
@@ -396,7 +408,7 @@ export default function InscriptionGestionnaire({
                 <input className="evend-inp" type="email" value={form.email}
                   onChange={e => set('email', e.target.value)}
                   onFocus={() => setFocused('email')} onBlur={() => setFocused(null)}
-                  style={inp('email')} placeholder="votre@courriel.ca" />
+                  style={inp('email')} placeholder="votre@courriel.ca" maxLength={254} autoComplete="email" />
               </div>
 
               {/* Mot de passe */}

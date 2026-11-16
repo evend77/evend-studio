@@ -8,6 +8,7 @@ const jwt     = require('jsonwebtoken');
 const pool    = require('../db');
 const { genererLienPaiementPourGestionnaire } = require('./abonnements_studio');
 const crypto = require('crypto');
+const sec = require('../services/studio_securite_inscription');
 let envoyerEmailModele = null;
 try { ({ envoyerEmailModele } = require('../services/email')); }
 catch (e) { console.warn('⚠️ services/email.js introuvable (F2A):', e.message); }
@@ -144,18 +145,27 @@ router.gererTentativeEchouee  = gererTentativeEchouee;
 
 
 // Inscription d'un nouveau gestionnaire Studio
+// ⚠️ Ancienne route (le formulaire actuel passe par POST /api/gestionnaires, routes/gestionnaires.js) — gardée, mais protégée
+// de la même façon : limites par IP, types vérifiés, texte nettoyé, courriel en minuscules, mot de passe de 8 à 72 caractères.
 router.post('/inscription', async (req, res) => {
-  const { nom, email, mot_de_passe } = req.body;
-
-  if (!nom || !email || !mot_de_passe) {
+  const R = req.body && typeof req.body === 'object' ? req.body : {};
+  const ip = sec.ipClient(req);
+  if (sec.depasse('auth:ip:' + ip + ':essais', 15) || sec.depasse('auth:ip:' + ip + ':ok', 3)) {
+    return res.status(429).json({ message: "Trop de tentatives d'inscription. Réessayez plus tard." });
+  }
+  sec.noter('auth:ip:' + ip + ':essais');
+  if (typeof R.nom !== 'string' || typeof R.email !== 'string' || typeof R.mot_de_passe !== 'string') {
     return res.status(400).json({ message: 'Tous les champs sont obligatoires.' });
   }
-  if (mot_de_passe.length < 8) {
-    return res.status(400).json({ message: 'Le mot de passe doit avoir au moins 8 caractères.' });
-  }
+  const nom = sec.validerNomPersonne(R.nom, 100);
+  const email = sec.validerCourriel(R.email);
+  const mot_de_passe = R.mot_de_passe;
+  if (!nom || !email) return res.status(400).json({ message: 'Nom ou adresse courriel invalide.' });
+  const erreurMdp = sec.validerMotDePasse(mot_de_passe);
+  if (erreurMdp) return res.status(400).json({ message: erreurMdp });
 
   try {
-    const existe = await pool.query('SELECT id FROM gestionnaires WHERE email = $1', [email.toLowerCase()]);
+    const existe = await pool.query('SELECT id FROM gestionnaires WHERE LOWER(email) = $1', [email]);
     if (existe.rows.length > 0) {
       return res.status(409).json({ message: 'Cette adresse courriel est déjà utilisée.' });
     }
@@ -166,9 +176,10 @@ router.post('/inscription', async (req, res) => {
       `INSERT INTO gestionnaires (email, mot_de_passe, nom, plan, statut)
        VALUES ($1, $2, $3, 'gratuit', 'actif')
        RETURNING id, email, nom, plan, statut, created_at`,
-      [email.toLowerCase(), hash, nom.trim()]
+      [email, hash, nom]
     );
     const gestionnaire = result.rows[0];
+    sec.noter('auth:ip:' + ip + ':ok');
 
     const slug = nom.toLowerCase()
       .replace(/[^a-z0-9\s-]/g, '')
