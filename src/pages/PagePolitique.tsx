@@ -111,6 +111,11 @@ export default function PagePolitique() {
       .finally(() => setLoading(false));
   }, [slug]);
 
+  // Nouvelle politique ouverte → on remonte en haut de la page (sinon elle s'ouvre au même endroit que la précédente)
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [slug]);
+
   useEffect(() => {
     fetch(`${API_BASE}/politiquesPlateforme/public`)
       .then(r => r.ok ? r.json() : null)
@@ -291,7 +296,7 @@ export default function PagePolitique() {
           max-width: 1200px;
           margin: 0 auto;
           display: grid;
-          grid-template-columns: 240px 1fr;
+          grid-template-columns: 240px minmax(0, 1fr);
           gap: 48px;
           align-items: start;
         }
@@ -300,15 +305,25 @@ export default function PagePolitique() {
 
         @media (max-width: 768px) {
           .page-layout {
-            grid-template-columns: 1fr;
+            grid-template-columns: minmax(0, 1fr);
             gap: 0;
           }
           .desktop-sidebar { display: none; }
           .mobile-menu-bar { display: flex; }
         }
 
+        /* ── Le contenu ne doit jamais dépasser la largeur de l'écran ── */
+        .politique-contenu { max-width: 100%; overflow-wrap: anywhere; word-break: break-word; }
+        .politique-contenu img,
+        .politique-contenu video,
+        .politique-contenu iframe,
+        .politique-contenu svg { max-width: 100% !important; height: auto; }
+        .politique-contenu pre { max-width: 100%; overflow-x: auto; white-space: pre-wrap; }
+
         /* ── Contenu responsive ── */
         @media (max-width: 768px) {
+          .politique-contenu * { max-width: 100% !important; box-sizing: border-box; }
+          .politique-contenu table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
           .politique-contenu h1 { font-size: 1.35rem; }
           .politique-contenu h2 { font-size: 1.15rem; }
           .politique-contenu h3 { font-size: 1rem; }
@@ -616,7 +631,7 @@ const s: Record<string, React.CSSProperties> = {
   },
 
   // Layout
-  main: { flex: 1, padding: '40px 20px 80px' },
+  main: { flex: 1, padding: '40px 20px 80px', minWidth: 0, overflowX: 'clip' as const },
 
   // Sidebar desktop
   sidebar: {
@@ -649,6 +664,7 @@ const s: Record<string, React.CSSProperties> = {
   // Article
   article: {
     minHeight: '60vh',
+    minWidth: 0,
   },
   breadcrumb: {
     display: 'flex', alignItems: 'center', gap: '8px',

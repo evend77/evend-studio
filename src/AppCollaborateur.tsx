@@ -264,7 +264,10 @@ export default function AppCollaborateur({ vendeurId, config = {}, naviguerTempl
   useEffect(() => { chargerPlan(); }, [chargerPlan, pageActive]);
   const CODES_PAR_PLAN = ['blog_collab', 'faq_collab', 'chat_collab', 'encheres', 'encheres_visibles', 'offres_du_jour', 'faire_une_offre', 'questions_produit', 'prix_paliers', 'parution_future', 'etiquette_shippo', 'etiquette_easypost', 'etiquette_postescanada', 'connecteur_ebay', 'connecteur_etsy', 'outils_annonces'];
   const addonsMV: Record<string, boolean> = { ...addonsBrut };
-  if (etatPlan.systeme) {
+  // Tant que le plan n'est pas chargé, on ne montre AUCUN add-on : sinon le menu (ex. Messagerie) s'affiche une seconde puis disparaît quand le plan le retire.
+  if (!planCharge) {
+    for (const c of CODES_PAR_PLAN) addonsMV[c] = false;
+  } else if (etatPlan.systeme) {
     const permis = new Set(etatPlan.addons || []);
     for (const c of CODES_PAR_PLAN) { const base = c === 'encheres_visibles' ? 'encheres' : c; addonsMV[c] = !!addonsBrut[c] && permis.has(base); }
   }
