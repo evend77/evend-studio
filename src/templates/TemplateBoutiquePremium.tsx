@@ -42,7 +42,7 @@ interface AcheteurUser {
 
 interface Props { config: any; siteId?: number; vendeurId: number; }
 
-const px = (n: number) => n?.toFixed(2).replace('.', ',') + ' $';
+const px = (n: number) => Number(n || 0).toFixed(2).replace('.', ',') + ' $';
 
 const PRODUITS_DEMO: Produit[] = [
   { id:1, titre:'Montre Édition Limitée', prix:299.99, prix_promo:249.99, stock:5, categorie:'Accessoires', note_moyenne:4.8, nb_avis:124, description:'Montre de luxe avec boîtier en acier inoxydable et cadran saphir. Étanche 50m. Garantie 2 ans.', photo_principale:'' },
@@ -196,6 +196,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [isMobile,setIsMobile]     = useState(false);
   const [menuOuvert,setMenuOuvert] = useState(false);
   const [produits,setProduits]     = useState<Produit[]>([]);
+  const [produitsDemo,setProduitsDemo] = useState(true); // vrai tant que seuls les exemples sont affichés
   const [articles,setArticles]     = useState<ArticleBlog[]>([]);
   const [categories,setCategories] = useState<string[]>([]);
   const [avisActif,setAvisActif]   = useState<Avis[]>([]);
@@ -238,7 +239,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   useEffect(()=>{
     if(configBrut?.__produits_demo__){ setProduits(configBrut.__produits_demo__); setCategories(Array.from(new Set(configBrut.__produits_demo__.map((p:any)=>p.categorie).filter(Boolean))) as string[]); return; }
     setProduits(PRODUITS_DEMO); setCategories(Array.from(new Set(PRODUITS_DEMO.map(p=>p.categorie).filter(Boolean))) as string[]);
-    fetch(`${API_BASE}/produits/vendeur/${vendeurId}?limit=100`).then(r=>r.ok?r.json():null).then(data=>{ if(!data) return; const l:Produit[]=data.produits||data||[]; if(l.length>0){ setProduits(l); setCategories(Array.from(new Set(l.map(p=>p.categorie).filter(Boolean))) as string[]); } }).catch(()=>{});
+    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`).then(r=>r.ok?r.json():null).then(data=>{ if(!data) return; const l:Produit[]=data.produits||data||[]; if(l.length>0){ setProduitsDemo(false); setProduits(l); setCategories(Array.from(new Set(l.map(p=>p.categorie).filter(Boolean))) as string[]); } }).catch(()=>{});
   },[vendeurId]);
 
   useEffect(()=>{ fetch(`${API_BASE}/blog/vendeur/${vendeurId}?publie=true&limit=20`).then(r=>r.ok?r.json():[]).then(data=>setArticles(Array.isArray(data)?data:data.articles||[])).catch(()=>{}); },[vendeurId]);
@@ -267,6 +268,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const voirArticle = (a:ArticleBlog)=>{ setArticleActif(a); setPage('article'); window.scrollTo({top:0,behavior:'smooth'}); };
 
   const ajouterAuPanier = async (produit:Produit)=>{
+    if(produitsDemo){ setAvisPanier('Produit de démonstration : publiez vos annonces pour vendre.'); return; }
     if(!acheteur){ setAvisPanier('Connectez-vous pour ajouter au panier.'); naviguer('login'); return; }
     const variante=Object.values(varianteChoisie).join(' / ');
     const r=await ajouterAuPanierServeur(vendeurId,produit.id,qteChoisie,variante);
