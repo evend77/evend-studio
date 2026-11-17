@@ -1542,7 +1542,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         if (Number.isInteger(idModif) && idModif > 0) return <BoutiqueCreerAnnonce key={`modif-${idModif}`} produitId={idModif} {...propsCreer} />;
       }
       if (pageActive === 'premium-plan' || pageActive === 'simplisse-plan' || pageActive === 'mode-plan' || pageActive === 'beaute-plan') {
-        return <BoutiquePlan gestionnaireId={gestionnaire.id} accent={accentSolo} naviguerVers={setPageActive} />;
+        return <BoutiquePlan gestionnaireId={gestionnaire.id} accent={accentSolo} naviguerVers={setPageActive} onAddonsChange={setAddonsBoutique} />;
       }
       if (pageActive === 'boutique-effets') return <BoutiqueEffets gestionnaireId={gestionnaire.id} accent={accentSolo} />;
       if (pageActive === 'config-paiements') return <BoutiqueConfigPaiements gestionnaireId={gestionnaire.id} accent={accentSolo} />;
@@ -2143,7 +2143,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
             offsetTop={56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0)}
             onHauteur={setHauteurBandeauEssai}
           />
-          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0) + hauteurBandeauEssai}px`, backgroundColor: pageActive === 'studio-choisir-template' ? '#0d0d12' : ((pageActive === 'mv-premium-plan' || (pageActive === 'dashboard' && !aucunTemplate)) ? '#0c1328' : undefined) }}>
+          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0) + hauteurBandeauEssai}px`, backgroundColor: pageActive === 'studio-choisir-template' ? '#0d0d12' : ((pageActive === 'mv-premium-plan' || (estSolo && (pageActive === 'premium-plan' || pageActive === 'simplisse-plan' || pageActive === 'mode-plan' || pageActive === 'beaute-plan')) || (pageActive === 'dashboard' && !aucunTemplate)) ? '#0c1328' : undefined) }}>
             {renderPage()}
           </div>
           <div className="footer-fixed" style={footerFixedStyle}>{footerText}</div>
