@@ -49,10 +49,10 @@ async function reglages(gid, db) {
 
 async function entreprise(gid, db) {
   const r = await (db || pool).query(
-    'SELECT est_entreprise_enregistree, no_tps, no_taxe_provinciale, province_entreprise FROM gestionnaires WHERE id = $1', [gid]);
+    'SELECT est_entreprise, no_tps, no_taxe_provinciale, province_entreprise FROM gestionnaires WHERE id = $1', [gid]);
   const g = r.rows[0] || {};
   return {
-    inscrit: g.est_entreprise_enregistree === true,
+    inscrit: g.est_entreprise === true,
     no_tps: g.no_tps || null, no_taxe_provinciale: g.no_taxe_provinciale || null, province_entreprise: g.province_entreprise || null,
   };
 }
