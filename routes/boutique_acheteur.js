@@ -13,6 +13,8 @@ const pool = require('../db');
 const C = require('../services/boutique_commandes');
 const R = require('../services/boutique_retours');
 const INSC = require('../services/boutique_inscription');
+const ADR = require('../services/boutique_adresses');
+const bcrypt = require('bcrypt');
 
 const router = express.Router({ mergeParams: true });
 
@@ -144,22 +146,78 @@ router.delete('/panier', wrap(async (req, res) => {
   res.json({ message: 'Panier vidé' });
 }));
 
-// Adresse saisie à l'inscription (pré-remplit la caisse) ; null si aucune
+// Adresse principale de livraison (celle de l'inscription au départ) ; null si aucune
 router.get('/adresse', wrap(async (req, res) => { res.json({ adresse: await INSC.adresseDe(req.gid, req.acheteurId) }); }));
+
+// ═════════════════════════════ CARNET D'ADRESSES ══════════════════════════
+// Plusieurs adresses de livraison et de facturation par acheteur (services/boutique_adresses.js)
+router.get('/adresses', wrap(async (req, res) => { res.json({ adresses: await ADR.lister(req.gid, req.acheteurId), max: ADR.MAX_ADRESSES }); }));
+router.post('/adresses', wrap(async (req, res) => { res.status(201).json({ adresse: await ADR.creer(req.gid, req.acheteurId, req.body) }); }));
+router.put('/adresses/:id/principale', wrap(async (req, res) => {
+  const id = entier(req.params.id); if (!id) return res.status(404).json({ message: 'Adresse introuvable.' });
+  await ADR.definirPrincipale(req.gid, req.acheteurId, id); res.json({ message: 'Adresse principale mise à jour.' });
+}));
+router.put('/adresses/:id', wrap(async (req, res) => {
+  const id = entier(req.params.id); if (!id) return res.status(404).json({ message: 'Adresse introuvable.' });
+  res.json({ adresse: await ADR.modifier(req.gid, req.acheteurId, id, req.body) });
+}));
+router.delete('/adresses/:id', wrap(async (req, res) => {
+  const id = entier(req.params.id); if (!id) return res.status(404).json({ message: 'Adresse introuvable.' });
+  await ADR.supprimer(req.gid, req.acheteurId, id); res.json({ message: 'Adresse supprimée.' });
+}));
+
+// ═════════════════════════════ PROFIL ═════════════════════════════════════
+const txt = (v, n) => String(v === undefined || v === null ? '' : v).replace(/[\u0000-\u001f\u007f<>]/g, ' ').trim().slice(0, n);
+router.get('/profil', wrap(async (req, res) => {
+  const p = (await pool.query('SELECT id, prenom, nom, email, telephone, infolettre, created_at FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2', [req.acheteurId, req.gid])).rows[0];
+  if (!p) return res.status(404).json({ message: 'Compte introuvable.' });
+  const nbCmd = (await pool.query(`SELECT COUNT(*)::int n FROM boutique_commandes WHERE gestionnaire_id = $1 AND acheteur_id = $2 AND statut_paiement = 'paye' AND statut <> 'annulee'`, [req.gid, req.acheteurId])).rows[0].n;
+  const nbAdr = (await pool.query('SELECT COUNT(*)::int n FROM boutique_acheteur_adresses WHERE gestionnaire_id = $1 AND acheteur_id = $2', [req.gid, req.acheteurId])).rows[0].n;
+  res.json({ profil: { ...p, infolettre: p.infolettre === true }, stats: { commandes: nbCmd, adresses: nbAdr } });
+}));
+router.put('/profil', wrap(async (req, res) => {
+  const b = req.body || {};
+  const prenom = txt(b.prenom, 80), nom = txt(b.nom, 80), telephone = txt(b.telephone, 30);
+  if (!prenom || !nom) return res.status(400).json({ message: 'Le prénom et le nom sont requis.' });
+  if (typeof b.infolettre !== 'boolean') return res.status(400).json({ message: 'Valeur invalide.' });
+  const r = await pool.query('UPDATE marketplace_acheteurs SET prenom = $1, nom = $2, telephone = $3, infolettre = $4 WHERE id = $5 AND gestionnaire_id = $6 RETURNING id, prenom, nom, email, telephone, infolettre',
+    [prenom, nom, telephone || null, b.infolettre, req.acheteurId, req.gid]);
+  if (!r.rows[0]) return res.status(404).json({ message: 'Compte introuvable.' });
+  res.json({ profil: r.rows[0] });
+}));
+router.put('/mot-de-passe', wrap(async (req, res) => {
+  const actuel = String((req.body && req.body.actuel) || ''), nouveau = String((req.body && req.body.nouveau) || '');
+  if (!actuel) return res.status(400).json({ message: 'Entrez votre mot de passe actuel.' });
+  if (nouveau.length < 8 || nouveau.length > 128) return res.status(400).json({ message: 'Le nouveau mot de passe doit avoir entre 8 et 128 caractères.' });
+  const a = (await pool.query('SELECT mot_de_passe FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2', [req.acheteurId, req.gid])).rows[0];
+  if (!a || !a.mot_de_passe || !(await bcrypt.compare(actuel, a.mot_de_passe))) return res.status(400).json({ message: 'Mot de passe actuel incorrect.' });
+  await pool.query('UPDATE marketplace_acheteurs SET mot_de_passe = $1 WHERE id = $2 AND gestionnaire_id = $3', [await bcrypt.hash(nouveau, 10), req.acheteurId, req.gid]);
+  res.json({ message: 'Mot de passe modifié.' });
+}));
 
 // ═════════════════════════════ CAISSE ═════════════════════════════════════
 // Aperçu : méthodes d'expédition, modes de paiement offerts et totaux (taxes et expédition calculées par le serveur)
 router.post('/caisse/infos', wrap(async (req, res) => {
-  res.json(await C.apercu(req.gid, req.acheteurId, { province: String(req.body.province || '').toUpperCase(), methodeId: req.body.methode_id, codePromo: req.body.code_promo }));
+  res.json(await C.apercu(req.gid, req.acheteurId, { province: String(req.body.province || '').toUpperCase(), methodeId: req.body.methode_id, codePromo: req.body.code_promo, pourboire: req.body.pourboire }));
 }));
 
+// Livraison : adresse_id (carnet) OU adresse (saisie). Facturation : omise = identique à la livraison ; facturation_id (carnet) OU facturation (saisie).
 router.post('/caisse/commande', wrap(async (req, res) => {
   const b = req.body || {};
-  res.status(201).json(await C.creerCommande({ gid: req.gid, acheteurId: req.acheteurId, adresse: b.adresse, methodeId: b.methode_id, note: b.note, mode: b.mode, codePromo: b.code_promo }));
+  let adresse = b.adresse, facturation = null;
+  if (b.adresse_id !== undefined && b.adresse_id !== null) {
+    adresse = await ADR.lire(req.gid, req.acheteurId, entier(b.adresse_id) || 0);
+    if (!adresse) return res.status(404).json({ message: 'Adresse de livraison introuvable.' });
+  }
+  if (b.facturation_id !== undefined && b.facturation_id !== null) {
+    facturation = await ADR.lire(req.gid, req.acheteurId, entier(b.facturation_id) || 0);
+    if (!facturation) return res.status(404).json({ message: 'Adresse de facturation introuvable.' });
+  } else if (b.facturation && typeof b.facturation === 'object') facturation = b.facturation;
+  res.status(201).json(await C.creerCommande({ gid: req.gid, acheteurId: req.acheteurId, adresse, facturation, methodeId: b.methode_id, note: b.note, mode: b.mode, codePromo: b.code_promo, pourboire: b.pourboire }));
 }));
 
 // ═════════════════════════════ COMMANDES ══════════════════════════════════
-const COLS = `id, numero_commande, statut, statut_paiement, mode_paiement, devise, sous_total, rabais, code_promo, frais_expedition, taxes, total, articles, methode_expedition, adresse_livraison, note, expire_le, paye_le, created_at`;
+const COLS = `id, numero_commande, statut, statut_paiement, mode_paiement, devise, sous_total, rabais, code_promo, frais_expedition, taxes, pourboire, total, articles, methode_expedition, adresse_livraison, adresse_facturation, note, expire_le, paye_le, created_at`;
 
 router.get('/commandes', wrap(async (req, res) => {
   const r = await pool.query(`SELECT ${COLS} FROM boutique_commandes WHERE gestionnaire_id = $1 AND acheteur_id = $2 ORDER BY created_at DESC LIMIT 100`, [req.gid, req.acheteurId]);

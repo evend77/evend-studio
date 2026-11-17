@@ -8,8 +8,8 @@ import { bq, messageErreur } from './boutiqueApi';
 
 interface Acheteur { id: number; prenom: string; nom: string; email: string; telephone: string | null; infolettre: boolean; suspendu: boolean; created_at: string; }
 interface Reponse { id: string; label: string; valeur: any; }
-interface Adresse { nom: string; adresse1: string; ville: string; province: string; code_postal: string; pays: string; telephone: string; }
-interface Fiche { reponses: Reponse[]; adresse: Adresse | null; }
+interface Adresse { libelle?: string; nom: string; adresse1: string; adresse2?: string; ville: string; province: string; code_postal: string; pays: string; telephone: string; type?: string; est_principale?: boolean; }
+interface Fiche { reponses: Reponse[]; adresse: Adresse | null; adresses?: Adresse[]; }
 
 interface Props { gestionnaireId: number; accent?: string; isMobile?: boolean; }
 
@@ -193,15 +193,21 @@ export default function BoutiqueAcheteurs({ accent, isMobile }: Props) {
 
             {chargFiche ? <p style={{ color: '#aaa', fontSize: 13 }}>Chargement...</p> : fiche && (
               <>
-                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: '0 0 10px' }}>Adresse de livraison (inscription)</h3>
-                {fiche.adresse ? (
-                  <div style={{ padding: '12px 16px', background: '#f8f8f6', borderRadius: 8, fontSize: 13, color: '#333', lineHeight: 1.6, marginBottom: 20 }}>
-                    {fiche.adresse.nom && <div style={{ fontWeight: 600 }}>{fiche.adresse.nom}</div>}
-                    <div>{fiche.adresse.adresse1}</div>
-                    <div>{fiche.adresse.ville}, {fiche.adresse.province} {fiche.adresse.code_postal}</div>
-                    <div>{fiche.adresse.pays}</div>
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a', margin: '0 0 10px' }}>Adresses enregistrées</h3>
+                {(fiche.adresses && fiche.adresses.length > 0 ? fiche.adresses : fiche.adresse ? [fiche.adresse] : []).map((a, i) => (
+                  <div key={i} style={{ padding: '12px 16px', background: '#f8f8f6', borderRadius: 8, fontSize: 13, color: '#333', lineHeight: 1.6, marginBottom: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', marginBottom: 2 }}>
+                      {a.type === 'facturation' ? 'Facturation' : 'Livraison'}{a.libelle ? ` — ${a.libelle}` : ''}{a.est_principale ? ' · principale' : ''}
+                    </div>
+                    {a.nom && <div style={{ fontWeight: 600 }}>{a.nom}</div>}
+                    <div>{a.adresse1}{a.adresse2 ? `, ${a.adresse2}` : ''}</div>
+                    <div>{a.ville}, {a.province} {a.code_postal}</div>
+                    <div>{a.pays}</div>
+                    {a.telephone && <div>📞 {a.telephone}</div>}
                   </div>
-                ) : <p style={{ color: '#aaa', fontSize: 13, margin: '0 0 20px' }}>Aucune adresse enregistrée.</p>}
+                ))}
+                {!(fiche.adresses && fiche.adresses.length) && !fiche.adresse && <p style={{ color: '#aaa', fontSize: 13, margin: '0 0 20px' }}>Aucune adresse enregistrée.</p>}
+                <div style={{ marginBottom: 10 }} />
 
                 {fiche.reponses.length > 0 && (
                   <>

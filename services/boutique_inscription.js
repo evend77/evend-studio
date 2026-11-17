@@ -167,8 +167,8 @@ async function inscrire(gid, corps) {
     if (v.adresse) {
       const a = v.adresse;
       await c.query(
-        `INSERT INTO boutique_acheteur_adresses (gestionnaire_id, acheteur_id, nom, adresse1, ville, province, code_postal, telephone)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+        `INSERT INTO boutique_acheteur_adresses (gestionnaire_id, acheteur_id, nom, adresse1, ville, province, code_postal, telephone, type, est_principale)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'livraison',true)`,
         [gid, acheteur.id, `${d.prenom} ${d.nom}`.slice(0, 200), chiffrer(a.adresse1), chiffrer(a.ville), a.province, chiffrer(a.code_postal), d.telephone]
       );
     }
@@ -185,13 +185,13 @@ async function inscrire(gid, corps) {
   }
 }
 
-// Adresse enregistrée à l'inscription (pré-remplit la caisse). null si aucune.
+// Adresse principale de livraison (celle de l'inscription au départ). null si aucune. Le carnet complet : services/boutique_adresses.js
 async function adresseDe(gid, acheteurId) {
-  const r = await pool.query('SELECT nom, adresse1, ville, province, code_postal, telephone FROM boutique_acheteur_adresses WHERE gestionnaire_id = $1 AND acheteur_id = $2', [gid, acheteurId]);
+  const r = await pool.query(`SELECT nom, adresse1, adresse2, ville, province, code_postal, telephone FROM boutique_acheteur_adresses WHERE gestionnaire_id = $1 AND acheteur_id = $2 AND type = 'livraison' ORDER BY est_principale DESC, id LIMIT 1`, [gid, acheteurId]);
   const a = r.rows[0];
   if (!a) return null;
   try {
-    return { nom: a.nom, adresse1: dechiffrer(a.adresse1), ville: dechiffrer(a.ville), province: a.province, code_postal: dechiffrer(a.code_postal), telephone: a.telephone || '' };
+    return { nom: a.nom, adresse1: dechiffrer(a.adresse1), adresse2: a.adresse2 ? dechiffrer(a.adresse2) : '', ville: dechiffrer(a.ville), province: a.province, code_postal: dechiffrer(a.code_postal), telephone: a.telephone || '' };
   } catch (e) { return null; }
 }
 

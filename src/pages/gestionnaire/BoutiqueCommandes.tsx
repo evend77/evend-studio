@@ -95,6 +95,7 @@ export default function BoutiqueCommandes({ accent, isMobile }: Props) {
               {Number(tx.tvq) > 0 && <Ligne n="TVQ" v={formaterArgent(tx.tvq, c.devise)} />}
               {Number(tx.tvh) > 0 && <Ligne n="TVH" v={formaterArgent(tx.tvh, c.devise)} />}
               {Number(tx.tvp) > 0 && <Ligne n="Taxe provinciale" v={formaterArgent(tx.tvp, c.devise)} />}
+              {Number(c.pourboire) > 0 && <Ligne n="Pourboire" v={formaterArgent(c.pourboire, c.devise)} />}
               <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 800, fontSize: 16, borderTop: '1px solid #e5e7eb', paddingTop: 8, marginTop: 6 }}><span>Total</span><span>{formaterArgent(c.total, c.devise)}</span></div>
               {Number(c.rembourse) > 0 && <Ligne n="Déjà remboursé" v={`− ${formaterArgent(c.rembourse, c.devise)}`} />}
             </div>
@@ -106,6 +107,10 @@ export default function BoutiqueCommandes({ accent, isMobile }: Props) {
               <div style={{ color: '#6b7280' }}>{c.acheteur_email}</div>
               <h3 style={{ margin: '14px 0 6px', fontSize: 15 }}>Livraison</h3>
               <div>{adr.nom}<br />{adr.adresse1}{adr.adresse2 ? `, ${adr.adresse2}` : ''}<br />{adr.ville} {adr.province} {adr.code_postal}{adr.telephone ? <><br />📞 {adr.telephone}</> : null}</div>
+              {c.adresse_facturation && c.adresse_facturation.adresse1 && (<>
+                <h3 style={{ margin: '14px 0 6px', fontSize: 15 }}>Facturation</h3>
+                <div>{c.adresse_facturation.nom}<br />{c.adresse_facturation.adresse1}{c.adresse_facturation.adresse2 ? `, ${c.adresse_facturation.adresse2}` : ''}<br />{c.adresse_facturation.ville} {c.adresse_facturation.province} {c.adresse_facturation.code_postal}{c.adresse_facturation.telephone ? <><br />📞 {c.adresse_facturation.telephone}</> : null}</div>
+              </>)}
               {c.note && <div style={{ marginTop: 8, background: '#f9fafb', borderRadius: 8, padding: 8 }}>💬 {c.note}</div>}
               <h3 style={{ margin: '14px 0 6px', fontSize: 15 }}>Paiement</h3>
               <div>{c.mode_paiement === 'stripe' ? '💳 Carte (Stripe)' : '🅿️ PayPal'}{c.env === 'dev' ? ' — mode test' : ''}<br /><span style={{ color: '#6b7280', fontSize: 12 }}>Réf. {c.reference_paiement || '—'}{c.paye_le ? ` · ${date(c.paye_le)}` : ''}</span></div>

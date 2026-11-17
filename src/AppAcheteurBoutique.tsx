@@ -12,7 +12,7 @@ import CommandesBoutique, { statutCommande } from './pages/boutique/CommandesBou
 import RetoursBoutique from './pages/boutique/RetoursBoutique';
 import { ba } from './pages/boutique/boutiqueAcheteurApi';
 import Notifications from './pages/acheteur/Notifications';
-import Profil from './pages/acheteur/Profil';
+import ProfilBoutique from './pages/boutique/ProfilBoutique';
 import MessagerieGestionnaire from './pages/acheteur/MessagerieGestionnaire';
 import { formaterPrix } from './templates/shared/devise';
 import BanniereDashboard from './templates/shared/BanniereDashboard';
@@ -103,7 +103,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
     if (dest === 'boutique' || dest === 'accueil') { naviguerTemplate({ page: dest === 'boutique' ? 'catalogue' : 'accueil' }); return; }
     // Depuis le panier : ouvrir la fiche d'une annonce, ou lire la politique de retour (le template les ouvre lui-même)
     if (dest.startsWith('produit:')) { naviguerTemplate({ page: 'produit', produitId: Number(dest.slice(8)) }); return; }
-    if (dest === 'retour-remboursement') { naviguerTemplate({ page: dest }); return; }
+    if (dest === 'retour-remboursement' || dest === 'conditions-service' || dest === 'confidentialite') { naviguerTemplate({ page: dest }); return; }
     setPage((dest === 'caisse' ? 'checkout' : dest) as PageDash);
     if (isMobile) setMenuMobileOuvert(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -178,7 +178,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
     if (page === 'confirmation') return <div style={{ background: '#fff', color: '#111', borderRadius: 16 }}><CommandeBoutique gestionnaireId={gestionnaireId} accent={couleurAccent === '#fbbf24' ? '#111827' : couleurAccent} naviguerVers={(p: string) => { if (p === 'accueil') naviguer('commandes'); else naviguer(p); }} /></div>;
     if (page === 'messagerie') return <MessagerieGestionnaire {...commun} />;
     if (page === 'notifications') return <Notifications {...commun} />;
-    if (page === 'profil') return <Profil {...commun} onProfilMaj={(p: any) => setCompte(c => (c ? { ...c, ...p } : c))} />;
+    if (page === 'profil') return <ProfilBoutique {...commun} onProfilMaj={(p: any) => setCompte(c => (c ? { ...c, ...p } : c))} />;
     return null;
   };
 

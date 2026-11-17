@@ -59,6 +59,7 @@ export default function CommandeBoutique({ gestionnaireId: gid, accent, numeroCo
         {Number(c.rabais) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#047857' }}><span>Code {c.code_promo}</span><span>− {argent(c.rabais, c.devise)}</span></div>}
         {Number(c.frais_expedition) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#4b5563' }}><span>Expédition</span><span>{argent(c.frais_expedition, c.devise)}</span></div>}
         {c.taxes && Number(c.taxes.total_taxes) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#4b5563' }}><span>Taxes</span><span>{argent(c.taxes.total_taxes, c.devise)}</span></div>}
+        {Number(c.pourboire) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#4b5563' }}><span>Pourboire — merci !</span><span>{argent(c.pourboire, c.devise)}</span></div>}
       </div>
       <button onClick={() => naviguerVers('accueil')} style={{ background: couleur, color: '#fff', border: 'none', borderRadius: 8, padding: '11px 20px', cursor: 'pointer', fontWeight: 600 }}>Continuer mes achats</button>
     </div>

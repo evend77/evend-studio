@@ -12,6 +12,7 @@ interface EnvPaypal { client_id: string; secret_masque: string | null; webhook: 
 interface Config {
   sandbox: boolean;
   devise: string;
+  pourboire: { actif: boolean; pourcentages: number[]; message: string };
   stripe: { actif: boolean; dev: EnvStripe; prod: EnvStripe; webhook_url: string };
   paypal: { actif: boolean; dev: EnvPaypal; prod: EnvPaypal; webhook_url: string };
 }
@@ -44,6 +45,8 @@ export default function BoutiqueConfigPaiements({ accent }: Props) {
   const [msg, setMsg] = useState<Msg>(null);
   const [confirmerProd, setConfirmerProd] = useState(false);
   const [deconnecter, setDeconnecter] = useState<Fournisseur | null>(null);
+  const [tipPct, setTipPct] = useState<string[]>(['1', '2', '5']);
+  const [tipMsg, setTipMsg] = useState('');
 
   const appliquer = (c: Config) => {
     setCfg(c);
@@ -51,6 +54,7 @@ export default function BoutiqueConfigPaiements({ accent }: Props) {
     setStripePub(c.stripe[e].publish_key || '');
     setPpClient(c.paypal[e].client_id || '');
     setStripeSecret(''); setPpSecret('');
+    if (c.pourboire) { setTipPct(c.pourboire.pourcentages.map(String)); setTipMsg(c.pourboire.message || ''); }
   };
 
   useEffect(() => {
@@ -98,6 +102,12 @@ export default function BoutiqueConfigPaiements({ accent }: Props) {
     const corps: any = { [`paypal_${env}_client_id`]: ppClient };
     if (ppSecret.trim()) corps[`paypal_${env}_secret`] = ppSecret;
     sauver(corps, 'paypal-save', 'Clés PayPal enregistrées. Étape suivante : créez le webhook.');
+  };
+
+  const enregistrerPourboire = () => {
+    const liste = tipPct.map(x => parseFloat(x.replace(',', '.'))).filter(x => Number.isFinite(x));
+    if (liste.length < 1 || liste.length !== tipPct.filter(x => x.trim() !== '').length) { setMsg({ type: 'erreur', texte: 'Entrez entre 1 et 4 pourcentages valides.' }); return; }
+    sauver({ pourboire_pourcentages: liste, pourboire_message: tipMsg }, 'tip-save', 'Réglages du pourboire enregistrés.');
   };
 
   const changerMode = (sandbox: boolean) => {
@@ -150,6 +160,36 @@ export default function BoutiqueConfigPaiements({ accent }: Props) {
             <option value="CAD">Dollar canadien (CAD)</option>
             <option value="USD">Dollar américain (USD)</option>
           </select>
+        </div>
+      </div>
+
+      {/* ───────── Pourboire ───────── */}
+      <div style={carte}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 18, color: '#1a2332' }}>🎁 Pourboire <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280' }}>(facultatif, à la caisse)</span></h3>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{cfg.pourboire.actif ? 'Vos clients peuvent ajouter un pourboire. Il est versé sur votre compte avec la commande, sans taxes.' : 'Désactivé : aucun pourboire n’est proposé à la caisse.'}</div>
+          </div>
+          <button disabled={occupe === 'tip-actif'} onClick={() => sauver({ pourboire_actif: !cfg.pourboire.actif }, 'tip-actif')}
+            style={{ position: 'relative', width: 54, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer', background: cfg.pourboire.actif ? '#22c55e' : '#d1d5db', transition: 'background .2s' }} aria-label={cfg.pourboire.actif ? 'Désactiver le pourboire' : 'Activer le pourboire'}>
+            <span style={{ position: 'absolute', top: 3, left: cfg.pourboire.actif ? 29 : 3, width: 22, height: 22, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} />
+          </button>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <label style={lbl}>Pourcentages proposés (1 à 4, calculés sur le sous-total)</label>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            {tipPct.map((v, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <input value={v} inputMode="decimal" onChange={e => setTipPct(l => l.map((x, j) => (j === i ? e.target.value : x)))} style={{ ...champ, width: 70, fontFamily: 'inherit' }} />
+                <span style={{ color: '#6b7280' }}>%</span>
+                {tipPct.length > 1 && <button onClick={() => setTipPct(l => l.filter((_, j) => j !== i))} aria-label="Retirer" style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: 16 }}>✕</button>}
+              </div>
+            ))}
+            {tipPct.length < 4 && <button onClick={() => setTipPct(l => [...l, ''])} style={btn(false)}>+ Ajouter</button>}
+          </div>
+          <label style={{ ...lbl, marginTop: 14 }}>Message affiché au client (facultatif)</label>
+          <input value={tipMsg} maxLength={200} onChange={e => setTipMsg(e.target.value)} placeholder="Merci de soutenir notre petite entreprise !" style={{ ...champ, fontFamily: 'inherit' }} />
+          <div style={{ marginTop: 12 }}><button onClick={enregistrerPourboire} disabled={occupe === 'tip-save'} style={btn(true, occupe === 'tip-save')}>{occupe === 'tip-save' ? '⏳…' : '💾 Enregistrer'}</button></div>
         </div>
       </div>
 

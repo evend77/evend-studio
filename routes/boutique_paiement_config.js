@@ -80,6 +80,14 @@ async function charger(gid) {
   return (await pool.query('SELECT * FROM boutique_paiement_config WHERE gestionnaire_id = $1', [gid])).rows[0];
 }
 
+// Pourcentages proposés à la caisse (1 à 4 valeurs, entre 0,5 % et 100 %). Défaut : 1, 2, 5.
+function pourcentagesPourboire(v) {
+  let p = v;
+  if (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) { p = null; } }
+  p = (Array.isArray(p) ? p : []).map(Number).filter((n) => Number.isFinite(n) && n > 0 && n <= 100).slice(0, 4);
+  return p.length ? p : [1, 2, 5];
+}
+
 function vue(c, req) {
   const base = baseUrl(req);
   const sec = (env) => ({
@@ -97,6 +105,7 @@ function vue(c, req) {
   return {
     sandbox: c.sandbox !== false,
     devise: c.devise || 'CAD',
+    pourboire: { actif: !!c.pourboire_actif, pourcentages: pourcentagesPourboire(c.pourboire_pourcentages), message: c.pourboire_message || '' },
     stripe: { actif: !!c.stripe_actif, dev: sec('dev'), prod: sec('prod'), webhook_url: `${base}/api/webhooks/boutique-stripe/${c.gestionnaire_id}` },
     paypal: { actif: !!c.paypal_actif, dev: pp('dev'), prod: pp('prod'), webhook_url: `${base}/api/webhooks/boutique-paypal/${c.gestionnaire_id}` },
   };
@@ -120,6 +129,17 @@ router.put('/', h(async (req, res) => {
   }
   if (b.stripe_actif !== undefined) { if (typeof b.stripe_actif !== 'boolean') throw new Refus('Valeur invalide'); m.stripe_actif = b.stripe_actif; }
   if (b.paypal_actif !== undefined) { if (typeof b.paypal_actif !== 'boolean') throw new Refus('Valeur invalide'); m.paypal_actif = b.paypal_actif; }
+
+  // Pourboire proposé à la caisse (aucun effet tant que le gestionnaire ne l'active pas)
+  if (b.pourboire_actif !== undefined) { if (typeof b.pourboire_actif !== 'boolean') throw new Refus('Valeur invalide'); m.pourboire_actif = b.pourboire_actif; }
+  if (b.pourboire_pourcentages !== undefined) {
+    if (!Array.isArray(b.pourboire_pourcentages) || b.pourboire_pourcentages.length < 1 || b.pourboire_pourcentages.length > 4) throw new Refus('Proposez entre 1 et 4 pourcentages.');
+    const nets = b.pourboire_pourcentages.map((x) => Math.round(Number(x) * 100) / 100);
+    if (nets.some((x) => !Number.isFinite(x) || x < 0.5 || x > 100)) throw new Refus('Chaque pourcentage doit être entre 0,5 et 100.');
+    m.pourboire_pourcentages = [...new Set(nets)].sort((x, y) => x - y);
+  }
+  if (b.pourboire_message !== undefined) m.pourboire_message = texte(b.pourboire_message, 200) || null;
+  m.pourboire_pourcentages = JSON.stringify(pourcentagesPourboire(m.pourboire_pourcentages));
 
   const resetStripe = [];
   const resetPaypal = [];
@@ -167,6 +187,7 @@ router.put('/', h(async (req, res) => {
     'stripe_prod_publish_key', 'stripe_prod_secret_key', 'stripe_prod_webhook_id', 'stripe_prod_webhook_secret',
     'paypal_dev_client_id', 'paypal_dev_secret', 'paypal_dev_webhook_id',
     'paypal_prod_client_id', 'paypal_prod_secret', 'paypal_prod_webhook_id',
+    'pourboire_actif', 'pourboire_pourcentages', 'pourboire_message',
   ];
   const vals = colonnes.map((k) => (m[k] === undefined ? null : m[k]));
   vals.push(req.gid);

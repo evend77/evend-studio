@@ -69,8 +69,12 @@ export default function CommandesBoutique({ gestionnaireId: gid, couleurAccent, 
                 {Number(c.rabais) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34d399', padding: '4px 0' }}><span>Code {c.code_promo}</span><span>− {argent(c.rabais, c.devise)}</span></div>}
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', padding: '4px 0' }}><span>Expédition{c.methode_expedition && c.methode_expedition.nom ? ` (${c.methode_expedition.nom})` : ''}</span><span>{Number(c.frais_expedition) === 0 ? 'Gratuit' : argent(c.frais_expedition, c.devise)}</span></div>
                 {c.taxes && Number(c.taxes.total_taxes) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', padding: '4px 0' }}><span>Taxes</span><span>{argent(c.taxes.total_taxes, c.devise)}</span></div>}
+                {Number(c.pourboire) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', padding: '4px 0' }}><span>Pourboire</span><span>{argent(c.pourboire, c.devise)}</span></div>}
                 {c.adresse_livraison && c.adresse_livraison.adresse1 && (
                   <div style={{ marginTop: 10, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>📍 {c.adresse_livraison.nom} — {c.adresse_livraison.adresse1}{c.adresse_livraison.adresse2 ? `, ${c.adresse_livraison.adresse2}` : ''}, {c.adresse_livraison.ville} {c.adresse_livraison.province} {c.adresse_livraison.code_postal}</div>
+                )}
+                {c.adresse_facturation && c.adresse_facturation.adresse1 && (
+                  <div style={{ marginTop: 6, color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>📄 Facturation : {c.adresse_facturation.nom} — {c.adresse_facturation.adresse1}{c.adresse_facturation.adresse2 ? `, ${c.adresse_facturation.adresse2}` : ''}, {c.adresse_facturation.ville} {c.adresse_facturation.province} {c.adresse_facturation.code_postal}</div>
                 )}
                 {demanderRetour && c.statut_paiement === 'paye' && (c.statut === 'expediee' || c.statut === 'livree') && (
                   <button onClick={() => demanderRetour(c.numero_commande)} style={{ marginTop: 12, marginRight: 8, background: 'none', border: `1px solid ${accent}`, color: accent, borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>🔄 Demander un retour</button>

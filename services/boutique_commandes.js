@@ -113,13 +113,33 @@ function modesDisponibles(cfg) {
   return { stripe, paypal, env };
 }
 
-function normaliserAdresse(a) {
-  if (!a || typeof a !== 'object') refus("L'adresse de livraison est requise.");
+// ── Pourboire (réglé par le gestionnaire dans Config paiement) ───────────────
+const POURBOIRE_MAX_C = 50000;   // 500 $ : plafond de sécurité contre une faute de frappe
+function reglagePourboire(cfg) {
+  const actif = !!(cfg && cfg.pourboire_actif);
+  let p = cfg && cfg.pourboire_pourcentages;
+  if (typeof p === 'string') { try { p = JSON.parse(p); } catch (e) { p = null; } }
+  p = (Array.isArray(p) ? p : [1, 2, 5]).map(Number).filter((n) => Number.isFinite(n) && n > 0 && n <= 100).slice(0, 4);
+  return { actif, pourcentages: p.length ? p : [1, 2, 5], message: (cfg && cfg.pourboire_message) || null, max: POURBOIRE_MAX_C / 100 };
+}
+// Montant du pourboire en cents. 0 si l'option est fermée ou si rien n'est demandé ; refus si négatif ou trop grand.
+function lirePourboire(cfg, valeur) {
+  if (!reglagePourboire(cfg).actif) return 0;
+  if (valeur === undefined || valeur === null || valeur === '') return 0;
+  const v = Number(valeur);
+  if (!Number.isFinite(v) || v < 0) refus('Pourboire invalide.', 400);
+  const c = cents(v);
+  if (c > POURBOIRE_MAX_C) refus(`Le pourboire maximum est de ${(POURBOIRE_MAX_C / 100).toFixed(0)} $.`, 400);
+  return c;
+}
+
+function normaliserAdresse(a, quelle = 'livraison') {
+  if (!a || typeof a !== 'object') refus(quelle === 'facturation' ? "L'adresse de facturation est incomplète." : "L'adresse de livraison est requise.");
   const t = (v, n) => String(v === undefined || v === null ? '' : v).trim().slice(0, n);
   const adr = { nom: t(a.nom, 120), adresse1: t(a.adresse1, 160), adresse2: t(a.adresse2, 160), ville: t(a.ville, 80),
     province: t(a.province, 2).toUpperCase(), code_postal: t(a.code_postal, 12).toUpperCase(), pays: t(a.pays || 'CA', 2).toUpperCase(), telephone: t(a.telephone, 30) };
-  if (!adr.nom || !adr.adresse1 || !adr.ville || !adr.code_postal) refus("Adresse incomplète (nom, adresse, ville et code postal sont requis).");
-  if (!EXP.PROVINCES.includes(adr.province)) refus('Province invalide.');
+  if (!adr.nom || !adr.adresse1 || !adr.ville || !adr.code_postal) refus(`Adresse de ${quelle} incomplète (nom, adresse, ville et code postal sont requis).`);
+  if (!EXP.PROVINCES.includes(adr.province)) refus(`Province invalide (adresse de ${quelle}).`);
   return adr;
 }
 
@@ -140,15 +160,16 @@ async function calculerTotaux(db, gid, lignes, province, methodeId, rabaisC = 0)
   return { sousTotalC, rabaisC, alloc, nets, sousNetC, fraisC, taxes, taxesC, totalC: sousNetC + fraisC + taxesC };
 }
 
-async function apercu(gid, acheteurId, { province, methodeId, codePromo } = {}) {
+async function apercu(gid, acheteurId, { province, methodeId, codePromo, pourboire } = {}) {
   const lignes = await lireLignes(pool, gid, acheteurId);
   const prov = EXP.PROVINCES.includes(province) ? province : 'QC';
   const sousTotal = lignes.reduce((s, l) => s + (l.erreur ? 0 : cents(l.prix) * l.quantite), 0) / 100;
-  const modes = modesDisponibles(await paiement.config(gid));
+  const cfgPaiement = await paiement.config(gid);
+  const modes = modesDisponibles(cfgPaiement);
   const devise = await EXP.deviseDe(pool, gid);
   const exp = lignes.length ? await EXP.methodesPourPanier(pool, { gid, lignes: lignes.map((l) => ({ produit_id: l.produit_id, quantite: l.quantite })), sousTotal, province: prov }) : { methodes: [], indisponible: false };
   const out = { lignes: lignes.map(publique), sous_total: sousTotal, devise, province: prov,
-    methodes_expedition: exp.methodes, expedition_indisponible: !!exp.indisponible, modes_paiement: { stripe: modes.stripe, paypal: modes.paypal },
+    methodes_expedition: exp.methodes, expedition_indisponible: !!exp.indisponible, modes_paiement: { stripe: modes.stripe, paypal: modes.paypal }, pourboire: reglagePourboire(cfgPaiement),
     problemes: lignes.filter((l) => l.erreur).map((l) => l.erreur) };
   // Totaux détaillés dès que le mode d'expédition est connu (ou unique)
   const choix = methodeId !== undefined && methodeId !== null && methodeId !== '' ? methodeId : (exp.methodes.length === 1 ? exp.methodes[0].id : null);
@@ -160,7 +181,8 @@ async function apercu(gid, acheteurId, { province, methodeId, codePromo } = {}) 
         catch (e) { if (!(e instanceof ErreurCommande)) throw e; out.code_erreur = e.message; }
       }
       const t = await calculerTotaux(pool, gid, lignes, prov, choix, rabaisC);
-      out.totaux = { sous_total: t.sousTotalC / 100, rabais: t.rabaisC / 100, frais_expedition: t.fraisC / 100, taxes: t.taxes, total: t.totalC / 100 };
+      const pourboireC = lirePourboire(cfgPaiement, pourboire);
+      out.totaux = { sous_total: t.sousTotalC / 100, rabais: t.rabaisC / 100, frais_expedition: t.fraisC / 100, taxes: t.taxes, pourboire: pourboireC / 100, total: (t.totalC + pourboireC) / 100 };
     } catch (e) { if (!(e instanceof ErreurCommande)) throw e; out.totaux_erreur = e.message; }
   }
   return out;
@@ -173,7 +195,7 @@ async function urlDuSite(gid) {
   return d ? `https://${d}` : null;
 }
 
-async function creerCommande({ gid, acheteurId, adresse, methodeId, note, mode, codePromo }) {
+async function creerCommande({ gid, acheteurId, adresse, facturation, methodeId, note, mode, codePromo, pourboire }) {
   const cfg = await paiement.config(gid);
   const modes = modesDisponibles(cfg);
   if (mode !== 'stripe' && mode !== 'paypal') refus('Choisissez un mode de paiement.');
@@ -181,6 +203,8 @@ async function creerCommande({ gid, acheteurId, adresse, methodeId, note, mode, 
   const urlSite = await urlDuSite(gid);
   if (!urlSite) refus("Le site de cette boutique n'est pas publié.", 503);
   const adr = normaliserAdresse(adresse);
+  const adrFact = facturation ? normaliserAdresse(facturation, 'facturation') : null;   // null = identique à la livraison
+  const pourboireC = lirePourboire(cfg, pourboire);
   const acheteur = (await pool.query('SELECT id, email FROM marketplace_acheteurs WHERE id = $1 AND gestionnaire_id = $2', [acheteurId, gid])).rows[0];
   if (!acheteur) refus('Compte acheteur introuvable.', 404);
   const devise = String(cfg.devise || 'CAD').toUpperCase();
@@ -205,7 +229,7 @@ async function creerCommande({ gid, acheteurId, adresse, methodeId, note, mode, 
       promo = ev.promo; rabaisC = ev.rabaisC;
     }
     const t = await calculerTotaux(pool, gid, lignes, adr.province, methodeId, rabaisC);   // lectures seules : pas besoin de la transaction
-    if (t.totalC < 50) refus('Le montant de la commande est trop bas pour un paiement en ligne.', 400);
+    if (t.totalC + pourboireC < 50) refus('Le montant de la commande est trop bas pour un paiement en ligne.', 400);
 
     // Méthode retenue (pour l'historique)
     let methode = null;
@@ -219,10 +243,11 @@ async function creerCommande({ gid, acheteurId, adresse, methodeId, note, mode, 
     const expireLe = new Date(Date.now() + DUREE_SESSION_MIN * 60000);
     const ins = await client.query(
       `INSERT INTO boutique_commandes (gestionnaire_id, acheteur_id, numero_commande, mode_paiement, devise, sous_total, frais_expedition, taxes, total,
-         articles, methode_expedition, adresse_livraison, note, stock_reserve, expire_le, env, code_promo, code_promo_id, rabais)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,true,$14,$15,$16,$17,$18) RETURNING *`,
-      [gid, acheteurId, numero, mode, devise, t.sousTotalC / 100, t.fraisC / 100, JSON.stringify({ ...t.taxes, province: adr.province }), t.totalC / 100,
-       JSON.stringify(articles), methode ? JSON.stringify(methode) : null, JSON.stringify(adr), note ? String(note).slice(0, 500) : null, expireLe, modes.env, promo ? promo.code : null, promo ? promo.id : null, t.rabaisC / 100]);
+         articles, methode_expedition, adresse_livraison, note, stock_reserve, expire_le, env, code_promo, code_promo_id, rabais, adresse_facturation, pourboire)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,true,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+      [gid, acheteurId, numero, mode, devise, t.sousTotalC / 100, t.fraisC / 100, JSON.stringify({ ...t.taxes, province: adr.province }), (t.totalC + pourboireC) / 100,
+       JSON.stringify(articles), methode ? JSON.stringify(methode) : null, JSON.stringify(adr), note ? String(note).slice(0, 500) : null, expireLe, modes.env, promo ? promo.code : null, promo ? promo.id : null, t.rabaisC / 100,
+       adrFact ? JSON.stringify(adrFact) : null, pourboireC / 100]);
     cmd = ins.rows[0];
     // Le panier reste en place jusqu'à ce que le paiement soit bien démarré (voir plus bas)
     await client.query('COMMIT');
@@ -260,6 +285,7 @@ async function demarrerStripe(cmd, cfg, acheteur, urlSite) {
   if (cents(cmd.frais_expedition) > 0) items.push({ quantity: 1, price_data: { currency: devise, unit_amount: cents(cmd.frais_expedition), product_data: { name: 'Expédition' } } });
   const tx = cmd.taxes || {};
   if (cents(tx.total_taxes || 0) > 0) items.push({ quantity: 1, price_data: { currency: devise, unit_amount: cents(tx.total_taxes), product_data: { name: `Taxes (${tx.label || 'taxes'})` } } });
+  if (cents(cmd.pourboire || 0) > 0) items.push({ quantity: 1, price_data: { currency: devise, unit_amount: cents(cmd.pourboire), product_data: { name: 'Pourboire' } } });
   const meta = { type: 'boutique_commande', commande_id: String(cmd.id), gestionnaire_id: String(cmd.gestionnaire_id) };
   const session = await stripe.checkout.sessions.create({
     mode: 'payment', line_items: items, customer_email: acheteur.email, metadata: meta, payment_intent_data: { metadata: meta },
@@ -433,5 +459,5 @@ function demarrerBalayage() {
 
 module.exports = {
   ErreurCommande, DUREE_SESSION_MIN, prixEtStock, problemeDisponibilite, ajusterStock, lireLignes, publique, modesDisponibles, normaliserAdresse,
-  calculerTotaux, apercu, creerCommande, capturerPaypal, confirmer, confirmerStripe, expireeStripe, evenementPaypalCommande, liberer, annulerNonPayee, balayer, demarrerBalayage,
+  calculerTotaux, reglagePourboire, lirePourboire, apercu, creerCommande, capturerPaypal, confirmer, confirmerStripe, expireeStripe, evenementPaypalCommande, liberer, annulerNonPayee, balayer, demarrerBalayage,
 };
