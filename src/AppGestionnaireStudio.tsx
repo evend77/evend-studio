@@ -81,6 +81,7 @@ import ConfigMultiVendeurPremium   from './pages/gestionnaire/ConfigMultiVendeur
 import BoutiqueListeProduits       from './pages/gestionnaire/BoutiqueListeProduits';
 import BoutiqueCreerAnnonce        from './pages/gestionnaire/BoutiqueCreerAnnonce';
 import BoutiquePlan                from './pages/gestionnaire/BoutiquePlan';
+import BoutiqueEffets              from './pages/gestionnaire/BoutiqueEffets';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
 import BoutiquePaiements          from './pages/gestionnaire/BoutiquePaiements';
@@ -554,6 +555,23 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
 
   // Add-ons Multi-vendeur qui ajoutent une entrée de menu (Parution future) : actifs = activés ou inclus au forfait.
   const [addonsMV, setAddonsMV] = useState<Record<string, boolean>>({});
+  // Add-ons des templates boutique solo qui ajoutent une entrée de menu (Effets de boutique) : { code: true } pour ceux activés.
+  const [addonsBoutique, setAddonsBoutique] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    if (!gestionnaire?.id) return;
+    let actif = true;
+    const tk = localStorage.getItem('token');
+    fetch(`${API_BASE}/boutique/gestionnaire/addons`, { headers: { Authorization: `Bearer ${tk}` }, credentials: 'include' })
+      .then(r => (r.ok ? r.json() : null))
+      .then((d: any) => {
+        if (!actif) return;
+        const m: Record<string, boolean> = {};
+        if (d && Array.isArray(d.addons)) d.addons.forEach((a: any) => { if (a.achete && a.offert) m[a.code] = true; });
+        setAddonsBoutique(m);
+      })
+      .catch(() => {});
+    return () => { actif = false; };
+  }, [gestionnaire?.id, pageActive]);
   useEffect(() => {
     if (!gestionnaire?.id) return;
     let actif = true;
@@ -708,6 +726,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const estSolo          = estSimplisse || estPremium || estSimplisseMode || estBeaute;
   const pagePlanSolo     = estPremium ? 'premium-plan' : estSimplisseMode ? 'mode-plan' : estBeaute ? 'beaute-plan' : 'simplisse-plan';
   const accentSolo       = estPremium ? '#c9a96e' : estBeaute ? '#ec4899' : estSimplisseMode ? '#0f766e' : '#4f46e5';
+  // Ajoute « Effets de boutique » au menu CONFIG MES PAGES des templates boutique solo, seulement si l'add-on est activé
+  const avecEffets = (m: MenuItem): MenuItem => addonsBoutique.effets_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-effets', label: 'Effets de boutique', icon: '✨' }] } : m;
 
   // ── Menus Studio (communs à tous) ────────────────────────────────────────
   const menuStudio: MenuItem = {
@@ -1167,7 +1187,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioSimplisse,
-      menuConfigMesPages,
+      avecEffets(menuConfigMesPages),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
@@ -1196,7 +1216,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioPremium,
-      menuConfigPremium,
+      avecEffets(menuConfigPremium),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
@@ -1225,7 +1245,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioMode,
-      menuConfigMode,
+      avecEffets(menuConfigMode),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
@@ -1275,7 +1295,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioBeaute,
-      menuConfigBeaute,
+      avecEffets(menuConfigBeaute),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
@@ -1524,6 +1544,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       if (pageActive === 'premium-plan' || pageActive === 'simplisse-plan' || pageActive === 'mode-plan' || pageActive === 'beaute-plan') {
         return <BoutiquePlan gestionnaireId={gestionnaire.id} accent={accentSolo} naviguerVers={setPageActive} />;
       }
+      if (pageActive === 'boutique-effets') return <BoutiqueEffets gestionnaireId={gestionnaire.id} accent={accentSolo} />;
       if (pageActive === 'config-paiements') return <BoutiqueConfigPaiements gestionnaireId={gestionnaire.id} accent={accentSolo} />;
       if (pageActive === 'config-expedition') return <BoutiqueExpedition gestionnaireId={gestionnaire.id} accent={accentSolo} />;
       if (pageActive === 'annonces-promos') return <BoutiquePromos gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} />;

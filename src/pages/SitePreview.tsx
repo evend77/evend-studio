@@ -47,6 +47,7 @@ import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
 import { configPremiumAvecBadge }     from '../templates/shared/addons/badgeEvendMasquer';
+import EffetsBoutiqueSolo                from '../components/EffetsBoutiqueSolo';
 
 const API_BASE = '/api';
 
@@ -330,6 +331,9 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
 
       {/* Chatbot — actif seulement si l'add-on est activé, jamais en mode démo */}
       {!isDemo && vendeurId && !!options?.chatbot && <ChatbotWidget gestionnaireId={Number(vendeurId)} />}
+
+      {/* Effets de boutique (add-on des templates boutique solo) — actif seulement si l'add-on est activé, jamais en mode démo */}
+      {!isDemo && vendeurId && estBoutiqueSolo(templateId) && !!addonsBoutique?.effets_boutique && <EffetsBoutiqueSolo gestionnaireId={Number(vendeurId)} />}
 
       {/* Vérificateur d'âge — actif seulement si l'add-on est activé, jamais en mode démo.
           Le template Multi-vendeur Premium monte le sien (règle forfait/add-on) : on ne le double pas ici,
