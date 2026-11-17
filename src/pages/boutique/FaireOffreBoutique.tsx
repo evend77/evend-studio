@@ -32,9 +32,13 @@ interface Props {
 const typeCompte = (gId: number): string | null => { try { return JSON.parse(localStorage.getItem(`mv_compte_${gId}`) || 'null')?.type || null; } catch { return null; } };
 const quand = (iso: string) => { try { return new Date(iso).toLocaleString('fr-CA', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
 const SANS_OFFRE: Etat = { actif: false, offre: null };
+// Dernier état connu par produit : le bloc est recréé quand la fiche se redessine, il repart donc de cet état (pas de clignotement).
+const MEMO: Record<string, Etat> = {};
 
 export default function FaireOffreBoutique({ gestionnaireId, produitId, prix, variante, varianteRequise, masque, couleurAccent, isDemo, allerConnexion, onPanier }: Props) {
-  const [etat, setEtat] = useState<Etat | null>(null);
+  const cle = `${gestionnaireId}:${produitId}`;
+  const [etat, setEtatBrut] = useState<Etat | null>(() => MEMO[cle] || null);
+  const setEtat = (e: Etat) => { MEMO[cle] = e; setEtatBrut(e); };
   const [ouvert, setOuvert] = useState(false);
   const [montant, setMontant] = useState('');
   const [mot, setMot] = useState('');
