@@ -47,7 +47,13 @@ router.get('/:gid', async (req, res) => {
           ${seulementOffres ? `AND ${O.actif('p')}` : ''}
         ORDER BY ${seulementOffres ? 'p.offre_fin ASC, ' : ''}p.created_at DESC, p.id DESC LIMIT ${limite} OFFSET ${decalage}`, [gid]);
     // NUMERIC revient en texte depuis Postgres : le template attend des nombres
-    res.json({ heure_serveur: new Date().toISOString(), produits: r.rows.map((x) => ({ ...x, prix: Number(x.prix), prix_promo: x.prix_promo === null ? null : Number(x.prix_promo) })) });
+    let totalOffres;
+    if (seulementOffres) {   // nombre total d'offres en cours (pour la pagination et pour savoir s'il faut afficher le lien « Offres du jour »)
+      totalOffres = parseInt((await pool.query(
+        `SELECT COUNT(*) AS n FROM produits p WHERE p.gestionnaire_id = $1 AND p.collaborateur_id IS NULL AND p.statut = 'actif'
+            AND (p.date_parution IS NULL OR p.date_parution <= NOW()) AND (p.date_expiration IS NULL OR p.date_expiration > NOW()) AND ${O.actif('p')}`, [gid])).rows[0].n, 10);
+    }
+    res.json({ heure_serveur: new Date().toISOString(), ...(seulementOffres ? { total: totalOffres } : {}), produits: r.rows.map((x) => ({ ...x, prix: Number(x.prix), prix_promo: x.prix_promo === null ? null : Number(x.prix_promo) })) });
   } catch (err) {
     console.error('Erreur catalogue boutique:', err);
     res.status(500).json({ message: 'Erreur serveur' });

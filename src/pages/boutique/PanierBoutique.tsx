@@ -6,7 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ba, messageAcheteur, argent, paramUrl } from './boutiqueAcheteurApi';
 
-interface Ligne { id: number; produit_id: number; titre: string; variante: string; quantite: number; prix: number; stock: number; total_ligne: number; image_url: string | null; erreur: string | null; }
+interface Ligne { id: number; produit_id: number; titre: string; variante: string; quantite: number; prix: number; stock: number; total_ligne: number; image_url: string | null; erreur: string | null; negocie?: boolean; prix_normal?: number; }
 interface PlusTard { id: number; produit_id: number; titre: string; variante: string; quantite: number; prix: number; image_url: string | null; }
 interface Props { gestionnaireId: number; accent?: string; naviguerVers: (page: string) => void; }
 
@@ -200,7 +200,9 @@ export default function PanierBoutique({ gestionnaireId: gid, accent, naviguerVe
         : <div style={{ width: '100%', height: '100%', background: '#fef9ee', borderRadius: 12, border: '1px solid #f0e6d3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26 }}>📦</div>}
     </button>
   );
-  const Quantite = (l: Ligne) => (
+  const Quantite = (l: Ligne) => l.negocie ? (
+    <div title="Prix négocié : la quantité est fixée à 1" style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 10, padding: '8px 12px', width: 'fit-content', fontSize: 13, fontWeight: 700, color: '#047857' }}>🤝 1 · prix négocié</div>
+  ) : (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef9ee', border: '1px solid #e7d5b8', borderRadius: 10, padding: '6px 10px', width: 'fit-content' }}>
       <button className="pbq-qte" aria-label="Moins" style={btnQte(enCours === 'qte-' + l.id || l.quantite <= 1)} disabled={enCours === 'qte-' + l.id || l.quantite <= 1}
         onClick={() => agir('qte-' + l.id, () => ba(gid, `/panier/${l.id}`, { method: 'PATCH', body: { quantite: l.quantite - 1 } }))}><IcoMoins /></button>
@@ -211,12 +213,12 @@ export default function PanierBoutique({ gestionnaireId: gid, accent, naviguerVe
   );
   const BoutonsAction = (l: Ligne, enColonne: boolean) => (
     <div style={{ display: 'flex', flexDirection: enColonne ? 'column' : 'row', gap: 6, alignItems: 'center' }}>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+      {!l.negocie && <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
         <button className="pbq-tard" onClick={() => agir('tard-' + l.id, () => ba(gid, `/panier/${l.id}/plus-tard`, { method: 'POST' }))} disabled={enCours === 'tard-' + l.id} title="Mettre de côté pour plus tard"
           style={{ width: 38, height: 38, borderRadius: 10, background: '#fef9ee', border: '1px solid #e7d5b8', color: c, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: enCours === 'tard-' + l.id ? 0.5 : 1 }}>
           {enCours === 'tard-' + l.id ? <div style={spinPetit} /> : <IcoMarque />}</button>
         {!mobile && <span style={{ fontSize: 10, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>+ Tard</span>}
-      </div>
+      </div>}
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
         <button className="pbq-suppr" onClick={() => agir('sup-' + l.id, () => ba(gid, `/panier/${l.id}`, { method: 'DELETE' }))} disabled={enCours === 'sup-' + l.id} title="Retirer cet article"
           style={{ width: 38, height: 38, borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: enCours === 'sup-' + l.id ? 0.5 : 1 }}>
@@ -285,7 +287,7 @@ export default function PanierBoutique({ gestionnaireId: gid, accent, naviguerVe
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {titre}
                     {l.variante && <div style={{ fontSize: 12, color: '#a8926a', marginTop: 2 }}>{l.variante}</div>}
-                    <p style={{ fontSize: 15, fontWeight: 700, color: c, margin: '6px 0 2px' }}>{argent(l.prix)} / unité</p>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: c, margin: '6px 0 2px' }}>{argent(l.prix)} / unité{l.negocie && l.prix_normal ? <span style={{ fontSize: 12, color: '#a8926a', fontWeight: 400, textDecoration: 'line-through', marginLeft: 6 }}>{argent(l.prix_normal)}</span> : null}</p>{l.negocie && <p style={{ fontSize: 12, color: '#047857', fontWeight: 700, margin: '0 0 2px' }}>🤝 Prix négocié</p>}
                     <p style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>Total : {total}{l.quantite > 1 && <span style={{ fontSize: 11, color: '#a8926a', fontWeight: 400, marginLeft: 4 }}>{l.quantite}×</span>}</p>
                     {l.erreur && <p style={{ fontSize: 12, color: '#b45309', margin: '6px 0 0' }}>⚠️ {l.erreur}</p>}
                   </div>
@@ -302,7 +304,7 @@ export default function PanierBoutique({ gestionnaireId: gid, accent, naviguerVe
                 <div style={{ minWidth: 0 }}>
                   {titre}
                   {l.variante && <div style={{ fontSize: 12, color: '#a8926a', marginTop: 4 }}>{l.variante}</div>}
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 8 }}><span style={{ fontSize: 16, fontWeight: 700, color: c }}>{argent(l.prix)}</span><span style={{ fontSize: 12, color: '#a8926a' }}>/ unité</span></div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 8 }}><span style={{ fontSize: 16, fontWeight: 700, color: c }}>{argent(l.prix)}</span><span style={{ fontSize: 12, color: '#a8926a' }}>/ unité</span>{l.negocie && l.prix_normal ? <span style={{ fontSize: 13, color: '#a8926a', textDecoration: 'line-through', marginLeft: 6 }}>{argent(l.prix_normal)}</span> : null}{l.negocie && <span style={{ fontSize: 12, color: '#047857', fontWeight: 700, marginLeft: 8 }}>🤝 Prix négocié</span>}</div>
                   {l.erreur && <p style={{ fontSize: 12, color: '#b45309', margin: '6px 0 0' }}>⚠️ {l.erreur}</p>}
                 </div>
                 <div><p style={{ fontSize: 11, color: '#a8926a', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>Quantité</p>{Quantite(l)}</div>

@@ -43,6 +43,9 @@ async function authAcheteur(req, res, next) {
 }
 router.use(authAcheteur);
 
+// Add-on « Faire une offre » : offrir, mes offres, accepter une contre-offre, mettre l'offre acceptée au panier
+router.use('/negociations', require('./boutique_negociations_acheteur'));
+
 const wrap = (fn) => async (req, res) => {
   try { await fn(req, res); }
   catch (e) {
@@ -72,7 +75,8 @@ router.post('/panier', wrap(async (req, res) => {
   if (pb) return res.status(409).json({ message: `Cet article ${pb}.` });
   const c = C.prixEtStock(p, variante);
   if (c.erreur) return res.status(409).json({ message: c.erreur });
-  const deja = (await pool.query('SELECT quantite FROM boutique_panier WHERE acheteur_id = $1 AND produit_id = $2 AND variante = $3', [req.acheteurId, pid, variante])).rows[0];
+  const deja = (await pool.query('SELECT quantite, negociation_id FROM boutique_panier WHERE acheteur_id = $1 AND produit_id = $2 AND variante = $3', [req.acheteurId, pid, variante])).rows[0];
+  if (deja && deja.negociation_id) return res.status(409).json({ message: 'Cet article est déjà dans votre panier au prix négocié (quantité 1).' });
   const total = (deja ? deja.quantite : 0) + qte;
   if (total > c.stock) return res.status(409).json({ message: c.stock <= 0 ? 'Cet article est épuisé.' : `Stock insuffisant : il n'en reste que ${c.stock}.` });
   if (total > 99) return res.status(400).json({ message: 'Quantité maximale : 99.' });
@@ -119,6 +123,7 @@ router.post('/panier/:id/plus-tard', wrap(async (req, res) => {
   const id = entier(req.params.id);
   const l = (await pool.query('SELECT * FROM boutique_panier WHERE id = $1 AND acheteur_id = $2 AND gestionnaire_id = $3', [id, req.acheteurId, req.gid])).rows[0];
   if (!l) return res.status(404).json({ message: 'Article introuvable' });
+  if (l.negociation_id) return res.status(409).json({ message: 'Un article au prix négocié ne peut pas être mis de côté : payez-le ou retirez-le.' });
   await pool.query(
     `INSERT INTO boutique_panier_plus_tard (gestionnaire_id, acheteur_id, produit_id, variante, quantite) VALUES ($1,$2,$3,$4,$5)
      ON CONFLICT (acheteur_id, produit_id, variante) DO UPDATE SET quantite = EXCLUDED.quantite`, [req.gid, req.acheteurId, l.produit_id, l.variante, l.quantite]);
@@ -132,6 +137,7 @@ router.patch('/panier/:id', wrap(async (req, res) => {
   if (!id || !qte || qte > 99) return res.status(400).json({ message: 'Quantité invalide.' });
   const l = (await C.lireLignes(pool, req.gid, req.acheteurId)).find((x) => x.id === id);
   if (!l) return res.status(404).json({ message: 'Article introuvable' });
+  if (l.negocie) return res.status(409).json({ message: 'Article au prix négocié : la quantité est fixée à 1.' });
   if (qte > l.stock) return res.status(409).json({ message: l.stock <= 0 ? 'Cet article est épuisé.' : `Stock insuffisant : il n'en reste que ${l.stock}.` });
   await pool.query('UPDATE boutique_panier SET quantite = $1, updated_at = NOW() WHERE id = $2 AND acheteur_id = $3 AND gestionnaire_id = $4', [qte, id, req.acheteurId, req.gid]);
   res.json({ message: 'Quantité mise à jour' });

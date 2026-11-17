@@ -21,6 +21,7 @@ const DELAI_GRACE_MIN = 5;         // on ne balaie qu'après l'expiration + ce d
 const { ErreurCommande } = require('./boutique_commandes_erreur');
 const PROMOS = require('./boutique_promos');
 const OFFRES = require('./boutique_offres');   // add-on « Offres du jour » : prix d'offre choisi par le serveur
+const NEGO = require('./boutique_negociations');   // add-on « Faire une offre » : prix convenu, relu ici à chaque fois
 const refus = (m, s, c) => { throw new ErreurCommande(m, s, c); };
 const cents = (n) => Math.round(Number(n) * 100 + 1e-7);
 
@@ -80,24 +81,36 @@ async function ajusterStock(client, produitId, variante, delta) {
 async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
   if (verrou) {   // verrou des annonces du panier, toujours dans le même ordre (pas de blocage croisé)
     await db.query(`SELECT p.id FROM produits p WHERE p.collaborateur_id IS NULL AND p.id IN (SELECT produit_id FROM boutique_panier WHERE gestionnaire_id = $1 AND acheteur_id = $2) ORDER BY p.id FOR UPDATE`, [gid, acheteurId]);
+    // offres acceptées du panier : verrouillées aussi (une offre ne sert qu'une fois)
+    await db.query(`SELECT id FROM boutique_negociations WHERE id IN (SELECT negociation_id FROM boutique_panier WHERE gestionnaire_id = $1 AND acheteur_id = $2 AND negociation_id IS NOT NULL) ORDER BY id FOR UPDATE`, [gid, acheteurId]);
   }
   const r = await db.query(
-    `SELECT bp.id AS ligne_id, bp.produit_id, bp.variante, bp.quantite,
+    `SELECT bp.id AS ligne_id, bp.produit_id, bp.variante, bp.quantite, bp.negociation_id,
+            ng.statut AS ng_statut, ng.acheteur_id AS ng_acheteur, ng.produit_id AS ng_produit, ng.variante AS ng_variante, ng.prix_final AS ng_prix, (ng.expire_le > NOW()) AS ng_vivante,
+            (bp.negociation_id IS NOT NULL AND ${NEGO.sqlAddonOn('bp')}) AS ng_addon,
             p.id AS pid, p.titre, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, p.stock, p.variantes, p.statut, p.photo_principale, p.poids,
             p.quantite_min, p.date_parution, p.date_expiration
        FROM boutique_panier bp
+       LEFT JOIN boutique_negociations ng ON ng.id = bp.negociation_id AND ng.gestionnaire_id = bp.gestionnaire_id
        LEFT JOIN produits p ON p.id = bp.produit_id AND p.gestionnaire_id = bp.gestionnaire_id AND p.collaborateur_id IS NULL
       WHERE bp.gestionnaire_id = $1 AND bp.acheteur_id = $2
       ORDER BY bp.created_at, bp.id`, [gid, acheteurId]);
   return r.rows.map((x) => {
-    const ligne = { id: x.ligne_id, produit_id: x.produit_id, variante: x.variante || '', quantite: x.quantite,
+    const ligne = { id: x.ligne_id, produit_id: x.produit_id, variante: x.variante || '', quantite: x.quantite, negociation_id: x.negociation_id || null, negocie: !!x.negociation_id,
       titre: x.titre || 'Article retiré', image_url: x.photo_principale || null, poids: Number(x.poids) || 0, quantite_min: x.quantite_min || null,
       prix: 0, stock: 0, total_ligne: 0, erreur: null, _p: x.pid ? x : null };
     const pb = problemeDisponibilite(x.pid ? x : null);
     if (pb) { ligne.erreur = `« ${ligne.titre} » ${pb}. Retirez-le de votre panier.`; return ligne; }
     const c = prixEtStock(x, ligne.variante);
     if (c.erreur) { ligne.erreur = `« ${ligne.titre} » : ${c.erreur}`; return ligne; }
-    ligne.prix = c.prix; ligne.stock = c.stock; ligne.total_ligne = cents(c.prix) * x.quantite / 100;
+    ligne.prix = c.prix; ligne.stock = c.stock;
+    if (x.negociation_id) {   // offre acceptée : le serveur relit l'offre ; prix convenu (jamais au-dessus du prix actuel), quantité 1
+      const valide = x.ng_statut === 'acceptee' && x.ng_vivante && x.ng_addon && x.ng_acheteur === acheteurId && x.ng_produit === x.produit_id && (x.ng_variante || '') === (x.variante || '');
+      if (!valide) { ligne.erreur = `« ${ligne.titre} » : l'offre acceptée n'est plus valide (délai écoulé, retirée ou désactivée). Retirez cet article du panier et refaites une offre.`; return ligne; }
+      if (x.quantite !== 1) { ligne.erreur = `« ${ligne.titre} » : une offre acceptée porte sur 1 unité.`; return ligne; }
+      ligne.prix_normal = c.prix; ligne.prix = Math.min(Number(x.ng_prix), c.prix);
+    }
+    ligne.total_ligne = cents(ligne.prix) * x.quantite / 100;
     if (x.quantite > c.stock) ligne.erreur = c.stock <= 0 ? `« ${ligne.titre} » est épuisé.` : `« ${ligne.titre} » : il n'en reste que ${c.stock}.`;
     else if (x.quantite_min && x.quantite < x.quantite_min) ligne.erreur = `« ${ligne.titre} » : quantité minimum ${x.quantite_min}.`;
     return ligne;
@@ -239,7 +252,7 @@ async function creerCommande({ gid, acheteurId, adresse, facturation, methodeId,
       const f = m.methodes.find((x) => String(x.id) === String(methodeId));
       if (f) methode = { id: f.id, nom: f.nom || f.transporteur_nom || null, delais: f.delais_estime || null, frais: t.fraisC / 100 };
     }
-    const articles = lignes.map((l, i) => ({ produit_id: l.produit_id, titre: l.titre, variante: l.variante, quantite: l.quantite, prix: l.prix, image_url: l.image_url, ...(t.alloc[i] ? { rabais: t.alloc[i] / 100 } : {}) }));
+    const articles = lignes.map((l, i) => ({ produit_id: l.produit_id, titre: l.titre, variante: l.variante, quantite: l.quantite, prix: l.prix, image_url: l.image_url, ...(l.negociation_id ? { negociation_id: l.negociation_id } : {}), ...(t.alloc[i] ? { rabais: t.alloc[i] / 100 } : {}) }));
     const numero = `BQ-${gid}-${Date.now()}`;
     const expireLe = new Date(Date.now() + DUREE_SESSION_MIN * 60000);
     const ins = await client.query(
@@ -340,9 +353,13 @@ async function confirmer(gid, commandeId, { mode, reference, totalC, devise, ses
     `UPDATE boutique_commandes SET statut_paiement = 'paye', statut = 'confirmee', ${col} = $1, paye_le = NOW(), expire_le = NULL, stock_reserve = false, updated_at = NOW()
       WHERE id = $2 AND gestionnaire_id = $3 AND mode_paiement = $4 AND statut_paiement = 'en_attente' AND statut <> 'annulee'
         AND ROUND(total * 100) = $5 AND UPPER(devise) = UPPER($6) ${sessionId ? 'AND stripe_session_id = $7' : ''}
-      RETURNING id, numero_commande`,
+      RETURNING id, numero_commande, articles`,
     sessionId ? [reference, commandeId, gid, mode, totalC, devise, sessionId] : [reference, commandeId, gid, mode, totalC, devise]);
-  if (r.rows[0]) return { paye: true, commande: r.rows[0] };
+  if (r.rows[0]) {
+    // Offres « Faire une offre » utilisées par cette commande : passent à « payée » (ne peut plus servir)
+    try { await NEGO.marquerPayees(pool, gid, r.rows[0].id, r.rows[0].articles); } catch (e) { console.error('[boutique-commandes] offres payées :', e.message); }
+    return { paye: true, commande: { id: r.rows[0].id, numero_commande: r.rows[0].numero_commande } };
+  }
 
   const c = (await pool.query('SELECT statut, statut_paiement, total, devise, mode_paiement FROM boutique_commandes WHERE id = $1 AND gestionnaire_id = $2', [commandeId, gid])).rows[0];
   if (!c) { console.error(`[boutique-commandes] ⚠️ paiement ${mode} pour une commande inconnue (${commandeId})`); return { anomalie: true }; }
@@ -403,9 +420,10 @@ async function liberer(commandeId, { raison, annuler = true, par = 'systeme', re
       await ajusterStock(client, pid, a.variante || '', q);
       if (restaurerPanier) {
         await client.query(
-          `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite)
-           SELECT $1, $2, $3, $4, $5 WHERE EXISTS (SELECT 1 FROM produits WHERE id = $3 AND gestionnaire_id = $1)
-           ON CONFLICT (acheteur_id, produit_id, variante) DO NOTHING`, [cmd.gestionnaire_id, cmd.acheteur_id, pid, a.variante || '', q]);
+          `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, negociation_id)
+           SELECT $1, $2, $3, $4, $5, (SELECT n.id FROM boutique_negociations n WHERE n.id = $6::int AND n.gestionnaire_id = $1 AND n.acheteur_id = $2 AND n.statut = 'acceptee' AND n.expire_le > NOW())
+            WHERE EXISTS (SELECT 1 FROM produits WHERE id = $3 AND gestionnaire_id = $1)
+           ON CONFLICT (acheteur_id, produit_id, variante) DO NOTHING`, [cmd.gestionnaire_id, cmd.acheteur_id, pid, a.variante || '', q, parseInt(a.negociation_id, 10) || null]);
       }
     }
     if (annuler) {

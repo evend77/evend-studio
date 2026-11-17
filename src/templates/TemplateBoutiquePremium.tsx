@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AppAcheteurBoutique from '../AppAcheteurBoutique';
+import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-on « Faire une offre » : bloc de la fiche produit
 import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
 import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
 
@@ -333,7 +334,24 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     chargerCatalogue().then(()=>setCatalogueCharge(true));
   },[vendeurId,chargerCatalogue]);
   // Quand une offre se termine, on relit le catalogue : le serveur renvoie alors le vrai prix
-  const rechargerOffres = useCallback(()=>{ if(!configBrut?.__produits_demo__) chargerCatalogue(); },[chargerCatalogue,configBrut]);
+  const [nbOffres,setNbOffres] = useState(0);        // offres en cours (lien « Offres du jour » du menu)
+  const [versionOffres,setVersionOffres] = useState(0); // change quand une offre se termine : la page des offres se relit
+  const compterOffres = useCallback(()=>{ if(configBrut?.__produits_demo__) return; fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?offres=1&limit=1`).then(r=>r.ok?r.json():null).then(d=>{ if(d&&typeof d.total==='number') setNbOffres(d.total); }).catch(()=>{}); },[vendeurId,configBrut]);
+  useEffect(()=>{ compterOffres(); },[compterOffres]);
+  // Page « Offres du jour » : lue directement du serveur (?offres=1), paginée — indépendante des 100 premiers produits du catalogue
+  const OFFRES_PAR_PAGE=24;
+  const [offresListe,setOffresListe] = useState<Produit[]>([]);
+  const [offresTotal,setOffresTotal] = useState(0);
+  const [offresPg,setOffresPg] = useState(1);
+  const [offresCharge,setOffresCharge] = useState(false);
+  const [offresErr,setOffresErr] = useState(false);
+  useEffect(()=>{
+    if(page!=='offres'||configBrut?.__produits_demo__){ return; }
+    let annule=false; setOffresErr(false);
+    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?offres=1&limit=${OFFRES_PAR_PAGE}&offset=${(offresPg-1)*OFFRES_PAR_PAGE}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{ if(annule) return; setOffresListe(Array.isArray(d.produits)?d.produits:[]); setOffresTotal(Number(d.total)||0); setOffresCharge(true); }).catch(()=>{ if(!annule){ setOffresErr(true); setOffresCharge(true); } });
+    return ()=>{ annule=true; };
+  },[page,offresPg,versionOffres,vendeurId,configBrut]);
+  const rechargerOffres = useCallback(()=>{ if(!configBrut?.__produits_demo__) chargerCatalogue(); compterOffres(); setVersionOffres(v=>v+1); },[chargerCatalogue,compterOffres,configBrut]);
   const offreCtx = { heureServeur, onFini:()=>{ setTimeout(rechargerOffres,1200); } };
   useEffect(()=>{ setProduitActif(a=>{ if(!a) return a; const n=produits.find(x=>x.id===a.id); return n&&(n.prix_promo!==a.prix_promo||n.offre_fin!==a.offre_fin)?{...a,prix_promo:n.prix_promo,offre_fin:n.offre_fin}:a; }); },[produits]);
 
@@ -435,11 +453,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
   const produitsFiltres = produits.filter(p=>{ const mc=!filtreCat||p.categorie===filtreCat; const mr=!filtreRecherche||p.titre.toLowerCase().includes(filtreRecherche.toLowerCase()); const mn=!filtrePrixMin||p.prix>=parseFloat(filtrePrixMin); const mx=!filtrePrixMax||p.prix<=parseFloat(filtrePrixMax); return mc&&mr&&mn&&mx; }).sort((a,b)=>{ if(tri==='prix_asc') return (a.prix_promo||a.prix)-(b.prix_promo||b.prix); if(tri==='prix_desc') return (b.prix_promo||b.prix)-(a.prix_promo||a.prix); if(tri==='note') return (b.note_moyenne||0)-(a.note_moyenne||0); return 0; });
 
-  const produitsEnOffre = produits.filter(p=>!!p.offre_fin).sort((a,b)=>Date.parse(a.offre_fin!)-Date.parse(b.offre_fin!));   // offres en cours : celles qui finissent bientôt d'abord
   const styleInput:React.CSSProperties = { width:'100%',padding:'12px 16px',background:SURF,border:`1px solid #333`,borderRadius:10,fontSize:14,outline:'none',color:'#fff',fontFamily:'inherit',boxSizing:'border-box' };
   const styleBtn:React.CSSProperties  = { background:`linear-gradient(135deg,${cp},${OR2})`,color:'#000',border:'none',borderRadius:10,padding:'14px 28px',fontSize:14,fontWeight:800,cursor:'pointer',letterSpacing:'0.05em' };
 
-  const menuNav:string[][]=[['accueil','Accueil'],['catalogue','Catalogue'],...(produitsEnOffre.length>0?[['offres','🔥 Offres du jour']]:[]),['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']]
+  const menuNav:string[][]=[['accueil','Accueil'],['catalogue','Catalogue'],...(nbOffres>0?[['offres','🔥 Offres du jour']]:[]),['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']]
     .filter(([id])=>!(Array.isArray(raw?.menu?.masques)?raw.menu.masques:[]).includes(id)).map(([id,l])=>[id,tx('menu',id,l)]);
   const Nav = () => (
     <nav style={{ position:'sticky',top:0,zIndex:100,background:'rgba(10,10,10,0.92)',backdropFilter:'blur(16px)',borderBottom:`1px solid ${BORD}` }}>
@@ -616,18 +633,33 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     );
   };
 
-  const PageOffres = () => (
-    <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
-      <div style={{ marginBottom:32 }}>
-        <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>🔥 Offres du jour</div>
-        <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:'0 0 8px' }}>Des prix spéciaux, pour un temps limité</h1>
-        <p style={{ margin:0,color:'#888',fontSize:15 }}>Les offres qui se terminent bientôt sont en premier. Le prix revient à la normale dès la fin du compte à rebours.</p>
+  const PageOffres = () => {
+    const liste=offresListe, charge=offresCharge, err=offresErr, pg=offresPg, setPg=setOffresPg;
+    const PAR_PAGE=OFFRES_PAR_PAGE, total=offresTotal;
+    const pages=Math.max(1,Math.ceil(total/PAR_PAGE));
+    const btnPg=(actif:boolean,off=false):React.CSSProperties=>({ padding:'8px 14px',borderRadius:8,border:`1px solid ${actif?cp:'#333'}`,background:actif?cp:SURF,color:actif?'#000':off?'#555':'#ddd',fontWeight:actif?800:500,fontSize:13,cursor:off?'not-allowed':'pointer',opacity:off?0.5:1 });
+    return (
+      <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
+        <div style={{ marginBottom:32 }}>
+          <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>🔥 Offres du jour</div>
+          <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:'0 0 8px' }}>Des prix spéciaux, pour un temps limité</h1>
+          <p style={{ margin:0,color:'#888',fontSize:15 }}>Les offres qui se terminent bientôt sont en premier. Le prix revient à la normale dès la fin du compte à rebours.</p>
+        </div>
+        {!charge ? <p style={{ color:'#666' }}>Chargement…</p>
+          : err ? <p style={{ color:'#fca5a5' }}>Impossible de charger les offres. <button onClick={()=>setVersionOffres(v=>v+1)} style={{ background:'none',border:'none',color:cp,textDecoration:'underline',cursor:'pointer',fontSize:'inherit' }}>Réessayer</button></p>
+          : liste.length===0
+            ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>🔥</div><h3 style={{ color:'#777',fontWeight:600,marginBottom:16 }}>Aucune offre du jour pour le moment. Revenez bientôt !</h3><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'14px 32px' }}>Voir le catalogue →</button></div>
+            : <>
+              <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{liste.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>
+              {pages>1&&<div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginTop:32,flexWrap:'wrap' }}>
+                <button disabled={pg<=1} onClick={()=>{ setPg(pg-1); window.scrollTo({top:0,behavior:'smooth'}); }} style={btnPg(false,pg<=1)}>← Préc.</button>
+                {Array.from({length:pages},(_,k)=>k+1).filter(n=>n===1||n===pages||Math.abs(n-pg)<=1).map((n,i,a)=>(<span key={n} style={{ display:'inline-flex',alignItems:'center',gap:8 }}>{i>0&&n-a[i-1]>1&&<span style={{ color:'#666' }}>…</span>}<button onClick={()=>{ setPg(n); window.scrollTo({top:0,behavior:'smooth'}); }} style={btnPg(n===pg)}>{n}</button></span>))}
+                <button disabled={pg>=pages} onClick={()=>{ setPg(pg+1); window.scrollTo({top:0,behavior:'smooth'}); }} style={btnPg(false,pg>=pages)}>Suiv. →</button>
+              </div>}
+            </>}
       </div>
-      {produitsEnOffre.length===0
-        ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>🔥</div><h3 style={{ color:'#777',fontWeight:600,marginBottom:16 }}>Aucune offre du jour pour le moment. Revenez bientôt !</h3><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'14px 32px' }}>Voir le catalogue →</button></div>
-        : <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{produitsEnOffre.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>}
-    </div>
-  );
+    );
+  };
 
   const PageProduit = () => {
     const [nbVues] = useState(Math.floor(Math.random()*20)+3);
@@ -704,6 +736,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               <button onClick={()=>ajouterAuPanier(p)} disabled={p.stock===0} style={{ flex:1,...styleBtn,...styleBtnProduit,padding:'16px 24px',fontSize:15,opacity:p.stock===0?0.5:1,cursor:p.stock===0?'not-allowed':'pointer' }}>{p.stock===0?'ÉPUISÉ':'🛒 '+tx('ficheProduit','boutonLabel','Ajouter au panier').toUpperCase()}</button>
               {cfg.afficherWishlist&&<button onClick={()=>toggleWishlist(p.id)} style={{ width:50,height:50,borderRadius:10,border:`1px solid ${wishlist.includes(p.id)?'#ef4444':'#333'}`,background:wishlist.includes(p.id)?'rgba(239,68,68,0.15)':SURF,color:wishlist.includes(p.id)?'#ef4444':'#888',cursor:'pointer',fontSize:20,flexShrink:0 }}>{wishlist.includes(p.id)?'❤️':'🤍'}</button>}
             </div>
+
+            <FaireOffreBoutique gestionnaireId={vendeurId} produitId={p.id} prix={enPromo?p.prix_promo!:p.prix} variante={Object.values(varianteChoisie).join(' / ')}
+              varianteRequise={!!(p.variantes&&p.variantes.length&&p.variantes.some(v=>!varianteChoisie[v.nom]))} masque={p.stock===0} couleurAccent={cp} isDemo={modeDemo}
+              allerConnexion={()=>{ setAvisPanier('Connectez-vous pour faire une offre.'); naviguer('login'); }} onPanier={()=>{ setVueCompte('panier'); naviguer('compte'); }}/>
 
             <div style={{ background:SURF,border:`1px solid #222`,borderRadius:12,padding:'14px 16px',marginBottom:24 }}>
               {lst('ficheProduit','reassurance',DEMO.reassurance,x=>!!x.texte).slice(0,5).map(({ico,texte:txt}:any,i:number)=>(

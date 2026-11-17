@@ -83,6 +83,7 @@ import BoutiqueCreerAnnonce        from './pages/gestionnaire/BoutiqueCreerAnnon
 import BoutiquePlan                from './pages/gestionnaire/BoutiquePlan';
 import BoutiqueEffets              from './pages/gestionnaire/BoutiqueEffets';
 import BoutiqueOffres              from './pages/gestionnaire/BoutiqueOffres';
+import BoutiqueNegociations        from './pages/gestionnaire/BoutiqueNegociations';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
 import BoutiquePaiements          from './pages/gestionnaire/BoutiquePaiements';
@@ -558,6 +559,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [addonsMV, setAddonsMV] = useState<Record<string, boolean>>({});
   // Add-ons des templates boutique solo qui ajoutent une entrée de menu (Effets de boutique) : { code: true } pour ceux activés.
   const [addonsBoutique, setAddonsBoutique] = useState<Record<string, boolean>>({});
+  // Add-on « Faire une offre » : nombre d'offres qui attendent la réponse du gestionnaire (pastille du menu)
+  const [nbOffresPrix, setNbOffresPrix] = useState(0);
   useEffect(() => {
     if (!gestionnaire?.id) return;
     let actif = true;
@@ -573,6 +576,21 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       .catch(() => {});
     return () => { actif = false; };
   }, [gestionnaire?.id, pageActive]);
+  useEffect(() => {
+    if (!gestionnaire?.id || !addonsBoutique.faire_une_offre) { setNbOffresPrix(0); return; }
+    let actif = true;
+    const charger = () => {
+      const tk = localStorage.getItem('token');
+      fetch(`${API_BASE}/boutique/gestionnaire/negociations/compte`, { headers: { Authorization: `Bearer ${tk}` }, credentials: 'include' })
+        .then(r => (r.ok ? r.json() : null))
+        .then((d: any) => { if (actif && d && Number.isInteger(d.a_repondre)) setNbOffresPrix(d.a_repondre); })
+        .catch(() => {});
+    };
+    charger();
+    const t = setInterval(charger, 60000);
+    window.addEventListener('negociations-boutique-maj', charger);
+    return () => { actif = false; clearInterval(t); window.removeEventListener('negociations-boutique-maj', charger); };
+  }, [gestionnaire?.id, addonsBoutique.faire_une_offre, pageActive]);
   useEffect(() => {
     if (!gestionnaire?.id) return;
     let actif = true;
@@ -730,6 +748,14 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   // Ajoute « Effets de boutique » au menu CONFIG MES PAGES des templates boutique solo, seulement si l'add-on est activé
   // Add-on « Offres du jour » (boutique solo) : une entrée sous « Liste des produits » quand l'add-on est activé
   const avecOffres = (m: MenuItem): MenuItem => addonsBoutique.offres_du_jour ? { ...m, sousMenu: (m.sousMenu || []).flatMap(it => it.id === 'annonces-liste' ? [it, { id: 'annonces-offres', label: 'Offres du jour', icon: '🔥' }] : [it]) } : m;
+  // Add-on « Faire une offre » (boutique solo) : « Offres des acheteurs » sous « Liste des produits » (après « Offres du jour »), avec pastille des offres à répondre
+  const avecNegociations = (m: MenuItem): MenuItem => {
+    if (!addonsBoutique.faire_une_offre) return m;
+    const items = m.sousMenu || [];
+    const apres = items.some(x => x.id === 'annonces-offres') ? 'annonces-offres' : 'annonces-liste';
+    const pastille = nbOffresPrix > 0 ? nbOffresPrix : undefined;
+    return { ...m, badge: pastille, sousMenu: items.flatMap(it => it.id === apres ? [it, { id: 'annonces-negociations', label: 'Offres des acheteurs', icon: '🤝', badge: pastille }] : [it]) };
+  };
   const avecEffets = (m: MenuItem): MenuItem => addonsBoutique.effets_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-effets', label: 'Effets de boutique', icon: '✨' }] } : m;
 
   // ── Menus Studio (communs à tous) ────────────────────────────────────────
@@ -1181,7 +1207,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estSimplisse) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      avecOffres(menuVosAnnoncesSimplisse),
+      avecNegociations(avecOffres(menuVosAnnoncesSimplisse)),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1210,7 +1236,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estPremium) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      avecOffres(menuVosAnnoncesPremium),
+      avecNegociations(avecOffres(menuVosAnnoncesPremium)),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1239,7 +1265,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estSimplisseMode) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      avecOffres(menuVosAnnoncesMode),
+      avecNegociations(avecOffres(menuVosAnnoncesMode)),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1289,7 +1315,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estBeaute) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      avecOffres(menuVosAnnoncesBeaute),
+      avecNegociations(avecOffres(menuVosAnnoncesBeaute)),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1544,6 +1570,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         const initial = Number.isInteger(idOffre) && idOffre > 0 ? idOffre : null;
         return <BoutiqueOffres key={`offres-${initial || 0}`} gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} produitInitial={initial} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       }
+      if (pageActive === 'annonces-negociations') return <BoutiqueNegociations gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-creer' || pageActive === 'creer') return <BoutiqueCreerAnnonce key="nouvelle" produitId={null} {...propsCreer} />;
       if (pageActive.startsWith('modifier-annonce?id=')) {
         const idModif = parseInt(pageActive.replace('modifier-annonce?id=', ''), 10);
