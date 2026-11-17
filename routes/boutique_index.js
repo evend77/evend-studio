@@ -19,6 +19,7 @@ router.use('/gestionnaire/promos', require('./boutique_promos_config'));
 router.use('/gestionnaire/retours', require('./boutique_retours_gestionnaire'));
 router.use('/gestionnaire/addons', require('./boutique_addons_gestionnaire'));
 router.use('/gestionnaire/effets', require('./boutique_effets_gestionnaire'));
+router.use('/gestionnaire/offres', require('./boutique_offres_gestionnaire'));
 
 // Publics (sans connexion) — AVANT la zone connectée ci-dessous : catalogue de la boutique, inscription d'un acheteur
 router.use('/catalogue', require('./boutique_catalogue'));

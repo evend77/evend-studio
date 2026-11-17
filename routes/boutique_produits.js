@@ -250,17 +250,47 @@ router.post('/verifier-template', h(async (req, res) => {
 }));
 
 // ─── Liste ────────────────────────────────────────────────────────────────────
-router.get('/produits', h(async (req, res) => {
+// Origine d'une annonce : Studio (créée ici), eBay, Etsy ou e-Vend (importée). Les colonnes d'import peuvent ne pas exister : on s'adapte.
+const SOURCES = ['studio', 'ebay', 'etsy', 'evend'];
+let _colsSource = null;
+async function exprSource() {
+  if (!_colsSource) {
+    try {
+      const r = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name = 'produits' AND column_name IN ('ebay_item_id','etsy_listing_id','etsy_item_id','evend_produit_id')`);
+      const n = r.rows.map((x) => x.column_name);
+      _colsSource = { ebay: n.includes('ebay_item_id') ? 'ebay_item_id' : null, etsy: n.includes('etsy_listing_id') ? 'etsy_listing_id' : (n.includes('etsy_item_id') ? 'etsy_item_id' : null), evend: n.includes('evend_produit_id') ? 'evend_produit_id' : null };
+    } catch (e) { return "'studio'"; }
+  }
+  const c = _colsSource;
+  return c.ebay || c.etsy || c.evend
+    ? `CASE ${c.ebay ? `WHEN ${c.ebay} IS NOT NULL THEN 'ebay' ` : ''}${c.etsy ? `WHEN ${c.etsy} IS NOT NULL THEN 'etsy' ` : ''}${c.evend ? `WHEN ${c.evend} IS NOT NULL THEN 'evend' ` : ''}ELSE 'studio' END`
+    : "'studio'";
+}
+
+async function filtresListe(req) {
+  const expr = await exprSource();
   const where = [BASE]; const params = [req.gid];
   const m = motif(req.query.q);
   if (m) { params.push(m); where.push(`(titre ILIKE $${params.length} OR sku ILIKE $${params.length})`); }
   if (STATUTS.includes(req.query.statut)) { params.push(req.query.statut); where.push(`statut = $${params.length}`); }
   if (req.query.stock === 'rupture') where.push('stock = 0');
-  const W = where.join(' AND ');
+  if (SOURCES.includes(req.query.source)) { params.push(req.query.source); where.push(`(${expr}) = $${params.length}`); }
+  return { W: where.join(' AND '), params, expr };
+}
+
+// Identifiants de TOUS les produits qui correspondent aux filtres (« Sélectionner tous les produits »)
+router.get('/produits-ids', h(async (req, res) => {
+  const { W, params } = await filtresListe(req);
+  const r = await pool.query(`SELECT id FROM produits WHERE ${W} ORDER BY created_at DESC, id DESC LIMIT 1000`, params);
+  res.json({ ids: r.rows.map((x) => x.id) });
+}));
+
+router.get('/produits', h(async (req, res) => {
+  const { W, params, expr } = await filtresListe(req);
   const p = parseInt(req.query.page, 10);
   const page = Number.isInteger(p) && p > 0 && p < 100000 ? p : 1;
   const [liste, total, stats] = await Promise.all([
-    pool.query(`SELECT id, titre, prix, prix_promo, stock, sku, categorie, photo_principale, statut, created_at
+    pool.query(`SELECT id, titre, prix, prix_promo, stock, sku, categorie, photo_principale, statut, created_at, ${expr} AS source
                   FROM produits WHERE ${W} ORDER BY created_at DESC, id DESC LIMIT ${PAR_PAGE} OFFSET ${(page - 1) * PAR_PAGE}`, params),
     pool.query(`SELECT COUNT(*) AS n FROM produits WHERE ${W}`, params),
     pool.query(`SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE statut = 'actif') AS actifs, COUNT(*) FILTER (WHERE statut = 'brouillon') AS brouillons,

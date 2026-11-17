@@ -9,6 +9,7 @@
 const express = require('express');
 const pool = require('../db');
 const A = require('../services/boutique_addons');
+const O = require('../services/boutique_offres');
 const router = express.Router({ mergeParams: true });
 
 // Add-ons activés de la boutique (public — lu par le site). Réponse : { addons: { badge_evend_masquer: true, … } }
@@ -35,14 +36,18 @@ router.get('/:gid', async (req, res) => {
     const limite = Number.isInteger(l) && l > 0 ? Math.min(l, 200) : 100;
     const o = parseInt(req.query.offset, 10);
     const decalage = Number.isInteger(o) && o > 0 && o < 1000000 ? o : 0;
+    // Add-on « Offres du jour » : le prix d'offre remplace le prix promo tant que l'offre est en cours (décidé ICI, par le serveur).
+    // ?offres=1 → seulement les produits dont l'offre est en cours, ceux qui finissent bientôt d'abord.
+    const seulementOffres = req.query.offres === '1';
     const r = await pool.query(
-      `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, photo_principale, photos, variantes, created_at
-         FROM produits
-        WHERE gestionnaire_id = $1 AND collaborateur_id IS NULL AND statut = 'actif'
-          AND (date_parution IS NULL OR date_parution <= NOW()) AND (date_expiration IS NULL OR date_expiration > NOW())
-        ORDER BY created_at DESC, id DESC LIMIT ${limite} OFFSET ${decalage}`, [gid]);
+      `SELECT p.id, p.titre, p.description, p.prix, ${O.sqlPromo('p')} AS prix_promo, ${O.sqlFin('p')} AS offre_fin, p.stock, p.sku, p.categorie, p.photo_principale, p.photos, p.variantes, p.created_at
+         FROM produits p
+        WHERE p.gestionnaire_id = $1 AND p.collaborateur_id IS NULL AND p.statut = 'actif'
+          AND (p.date_parution IS NULL OR p.date_parution <= NOW()) AND (p.date_expiration IS NULL OR p.date_expiration > NOW())
+          ${seulementOffres ? `AND ${O.actif('p')}` : ''}
+        ORDER BY ${seulementOffres ? 'p.offre_fin ASC, ' : ''}p.created_at DESC, p.id DESC LIMIT ${limite} OFFSET ${decalage}`, [gid]);
     // NUMERIC revient en texte depuis Postgres : le template attend des nombres
-    res.json({ produits: r.rows.map((x) => ({ ...x, prix: Number(x.prix), prix_promo: x.prix_promo === null ? null : Number(x.prix_promo) })) });
+    res.json({ heure_serveur: new Date().toISOString(), produits: r.rows.map((x) => ({ ...x, prix: Number(x.prix), prix_promo: x.prix_promo === null ? null : Number(x.prix_promo) })) });
   } catch (err) {
     console.error('Erreur catalogue boutique:', err);
     res.status(500).json({ message: 'Erreur serveur' });

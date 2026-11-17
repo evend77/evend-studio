@@ -20,6 +20,7 @@ const DELAI_GRACE_MIN = 5;         // on ne balaie qu'après l'expiration + ce d
 
 const { ErreurCommande } = require('./boutique_commandes_erreur');
 const PROMOS = require('./boutique_promos');
+const OFFRES = require('./boutique_offres');   // add-on « Offres du jour » : prix d'offre choisi par le serveur
 const refus = (m, s, c) => { throw new ErreurCommande(m, s, c); };
 const cents = (n) => Math.round(Number(n) * 100 + 1e-7);
 
@@ -82,7 +83,7 @@ async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
   }
   const r = await db.query(
     `SELECT bp.id AS ligne_id, bp.produit_id, bp.variante, bp.quantite,
-            p.id AS pid, p.titre, p.prix, p.prix_promo, p.stock, p.variantes, p.statut, p.photo_principale, p.poids,
+            p.id AS pid, p.titre, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, p.stock, p.variantes, p.statut, p.photo_principale, p.poids,
             p.quantite_min, p.date_parution, p.date_expiration
        FROM boutique_panier bp
        LEFT JOIN produits p ON p.id = bp.produit_id AND p.gestionnaire_id = bp.gestionnaire_id AND p.collaborateur_id IS NULL

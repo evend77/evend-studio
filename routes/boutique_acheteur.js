@@ -11,6 +11,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const C = require('../services/boutique_commandes');
+const O = require('../services/boutique_offres');
 const R = require('../services/boutique_retours');
 const INSC = require('../services/boutique_inscription');
 const ADR = require('../services/boutique_adresses');
@@ -65,7 +66,7 @@ router.post('/panier', wrap(async (req, res) => {
   const variante = String(req.body.variante || '').trim().slice(0, 200);
   if (!pid || !qte || qte > 99) return res.status(400).json({ message: 'Quantité invalide.' });
   const p = (await pool.query(
-    `SELECT id, titre, prix, prix_promo, stock, variantes, statut, date_parution, date_expiration, quantite_min
+    `SELECT id, titre, prix, ${O.sqlPromo('produits')} AS prix_promo, stock, variantes, statut, date_parution, date_expiration, quantite_min
        FROM produits WHERE id = $1 AND gestionnaire_id = $2 AND collaborateur_id IS NULL`, [pid, req.gid])).rows[0];
   const pb = C.problemeDisponibilite(p);
   if (pb) return res.status(409).json({ message: `Cet article ${pb}.` });
@@ -84,7 +85,7 @@ router.post('/panier', wrap(async (req, res) => {
 // « Plus tard » : déclaré AVANT les routes avec :id
 router.get('/panier/plus-tard', wrap(async (req, res) => {
   const r = await pool.query(
-    `SELECT pt.id, pt.produit_id, pt.variante, pt.quantite, p.titre, p.prix, p.prix_promo, p.photo_principale AS image_url, p.statut
+    `SELECT pt.id, pt.produit_id, pt.variante, pt.quantite, p.titre, p.prix, ${O.sqlPromo('p')} AS prix_promo, p.photo_principale AS image_url, p.statut
        FROM boutique_panier_plus_tard pt JOIN produits p ON p.id = pt.produit_id AND p.gestionnaire_id = pt.gestionnaire_id AND p.collaborateur_id IS NULL
       WHERE pt.gestionnaire_id = $1 AND pt.acheteur_id = $2 ORDER BY pt.created_at DESC`, [req.gid, req.acheteurId]);
   res.json({ articles: r.rows.map((x) => ({ ...x, prix: C.prixEtStock(x, x.variante).prix ?? Number(x.prix) })) });
@@ -94,7 +95,7 @@ router.post('/panier/plus-tard/:id/remettre', wrap(async (req, res) => {
   const id = entier(req.params.id);
   const a = (await pool.query('SELECT * FROM boutique_panier_plus_tard WHERE id = $1 AND acheteur_id = $2 AND gestionnaire_id = $3', [id, req.acheteurId, req.gid])).rows[0];
   if (!a) return res.status(404).json({ message: 'Article introuvable' });
-  const p = (await pool.query('SELECT id, prix, prix_promo, stock, variantes, statut, date_parution, date_expiration FROM produits WHERE id = $1 AND gestionnaire_id = $2 AND collaborateur_id IS NULL', [a.produit_id, req.gid])).rows[0];
+  const p = (await pool.query(`SELECT id, prix, ${O.sqlPromo('produits')} AS prix_promo, stock, variantes, statut, date_parution, date_expiration FROM produits WHERE id = $1 AND gestionnaire_id = $2 AND collaborateur_id IS NULL`, [a.produit_id, req.gid])).rows[0];
   const pb = C.problemeDisponibilite(p);
   if (pb) return res.status(409).json({ message: `Cet article ${pb}.` });
   const c = C.prixEtStock(p, a.variante);

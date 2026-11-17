@@ -82,6 +82,7 @@ import BoutiqueListeProduits       from './pages/gestionnaire/BoutiqueListeProdu
 import BoutiqueCreerAnnonce        from './pages/gestionnaire/BoutiqueCreerAnnonce';
 import BoutiquePlan                from './pages/gestionnaire/BoutiquePlan';
 import BoutiqueEffets              from './pages/gestionnaire/BoutiqueEffets';
+import BoutiqueOffres              from './pages/gestionnaire/BoutiqueOffres';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
 import BoutiquePaiements          from './pages/gestionnaire/BoutiquePaiements';
@@ -727,6 +728,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const pagePlanSolo     = estPremium ? 'premium-plan' : estSimplisseMode ? 'mode-plan' : estBeaute ? 'beaute-plan' : 'simplisse-plan';
   const accentSolo       = estPremium ? '#c9a96e' : estBeaute ? '#ec4899' : estSimplisseMode ? '#0f766e' : '#4f46e5';
   // Ajoute « Effets de boutique » au menu CONFIG MES PAGES des templates boutique solo, seulement si l'add-on est activé
+  // Add-on « Offres du jour » (boutique solo) : une entrée sous « Liste des produits » quand l'add-on est activé
+  const avecOffres = (m: MenuItem): MenuItem => addonsBoutique.offres_du_jour ? { ...m, sousMenu: (m.sousMenu || []).flatMap(it => it.id === 'annonces-liste' ? [it, { id: 'annonces-offres', label: 'Offres du jour', icon: '🔥' }] : [it]) } : m;
   const avecEffets = (m: MenuItem): MenuItem => addonsBoutique.effets_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-effets', label: 'Effets de boutique', icon: '✨' }] } : m;
 
   // ── Menus Studio (communs à tous) ────────────────────────────────────────
@@ -1178,7 +1181,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estSimplisse) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      menuVosAnnoncesSimplisse,
+      avecOffres(menuVosAnnoncesSimplisse),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1207,7 +1210,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estPremium) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      menuVosAnnoncesPremium,
+      avecOffres(menuVosAnnoncesPremium),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1236,7 +1239,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estSimplisseMode) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      menuVosAnnoncesMode,
+      avecOffres(menuVosAnnoncesMode),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1286,7 +1289,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estBeaute) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      menuVosAnnoncesBeaute,
+      avecOffres(menuVosAnnoncesBeaute),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1535,7 +1538,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (estSolo) {
       const versListe = () => setPageActive('annonces-liste');
       const propsCreer = { gestionnaireId: gestionnaire.id, accent: accentSolo, isMobile, pagePlan: pagePlanSolo, naviguerVers: setPageActive, onRetour: versListe };
-      if (pageActive === 'annonces-liste') return <BoutiqueListeProduits gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
+      if (pageActive === 'annonces-liste') return <BoutiqueListeProduits gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} offresActif={!!addonsBoutique.offres_du_jour} naviguerVers={setPageActive} />;
+      if (pageActive === 'annonces-offres' || pageActive.startsWith('annonces-offres?id=')) {
+        const idOffre = parseInt(pageActive.replace('annonces-offres?id=', ''), 10);
+        const initial = Number.isInteger(idOffre) && idOffre > 0 ? idOffre : null;
+        return <BoutiqueOffres key={`offres-${initial || 0}`} gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} produitInitial={initial} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
+      }
       if (pageActive === 'annonces-creer' || pageActive === 'creer') return <BoutiqueCreerAnnonce key="nouvelle" produitId={null} {...propsCreer} />;
       if (pageActive.startsWith('modifier-annonce?id=')) {
         const idModif = parseInt(pageActive.replace('modifier-annonce?id=', ''), 10);

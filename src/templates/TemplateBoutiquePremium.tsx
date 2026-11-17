@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AppAcheteurBoutique from '../AppAcheteurBoutique';
+import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
 import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
 
 const OR    = '#c9a96e';
@@ -18,7 +19,8 @@ const BORD  = 'rgba(201,169,110,0.2)';
 const API_BASE = '/api';
 
 interface Produit {
-  id: number; titre: string; prix: number; prix_promo?: number;
+  id: number; titre: string; prix: number; prix_promo?: number|null;
+  offre_fin?: string|null;   // add-on « Offres du jour » : fin de l'offre en cours (le serveur n'envoie rien si l'add-on est inactif)
   photo_principale?: string; photos?: string[]; description?: string;
   stock?: number; categorie?: string; sku?: string; marque?: string;
   note_moyenne?: number; nb_avis?: number;
@@ -174,8 +176,8 @@ function NotifVente({ cp }: { cp:string }) {
   );
 }
 
-function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grille', opts }: {
-  opts?:{ prix:boolean; stock:boolean }; produit:Produit; cp:string; onClick:()=>void; onWishlist?:()=>void; inWishlist?:boolean; vue?:'grille'|'liste';
+function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grille', opts, offre }: {
+  offre?:{ heureServeur:string|null; onFini:()=>void }; opts?:{ prix:boolean; stock:boolean }; produit:Produit; cp:string; onClick:()=>void; onWishlist?:()=>void; inWishlist?:boolean; vue?:'grille'|'liste';
 }) {
   const [hovered,setHovered] = useState(false);
   const montrerPrix=opts?opts.prix:true, montrerStock=opts?opts.stock:true;
@@ -196,6 +198,7 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
       <div style={{ textAlign:'right',flexShrink:0 }}>
         {montrerPrix&&(enPromo ? (<><div style={{ fontSize:20,fontWeight:800,color:'#ef4444' }}>{px(produit.prix_promo!)}</div><div style={{ fontSize:13,color:'#555',textDecoration:'line-through' }}>{px(produit.prix)}</div></>) 
                  : <div style={{ fontSize:20,fontWeight:800,color:cp }}>{px(produit.prix)}</div>)}
+        {produit.offre_fin&&offre&&<OffreCompteur compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini}/>}
         <button onClick={e=>{e.stopPropagation();onClick();}} style={{ marginTop:8,padding:'6px 14px',background:cp,border:'none',borderRadius:6,color:'#000',fontSize:12,fontWeight:700,cursor:'pointer' }}>Voir</button>
       </div>
     </div>
@@ -222,6 +225,7 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
           {enPromo ? (<><span style={{ fontSize:17,fontWeight:800,color:'#ef4444' }}>{px(produit.prix_promo!)}</span><span style={{ fontSize:12,color:'#555',textDecoration:'line-through' }}>{px(produit.prix)}</span><span style={{ fontSize:10,color:'#ef4444',fontWeight:700 }}>-{Math.round((1-produit.prix_promo!/produit.prix)*100)}%</span></>)
                    : <span style={{ fontSize:17,fontWeight:800,color:cp }}>{px(produit.prix)}</span>}
         </div>}
+        {produit.offre_fin&&offre&&<OffreCompteur compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini}/>}
       </div>
     </div>
   );
@@ -265,9 +269,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const lienHttp=(u:any):string=>/^https?:\/\//i.test(String(u||''))?String(u):'';
   const cp  = cfg.couleurAccent || OR;
 
-  type PageId = 'accueil'|'catalogue'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'wishlist'|'compte'|'login'|'inscription'|'politique';
+  type PageId = 'accueil'|'catalogue'|'offres'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'wishlist'|'compte'|'login'|'inscription'|'politique';
   const [page,setPage]             = useState<PageId>('accueil');
   const [produitActif,setProduitActif] = useState<Produit|null>(null);
+  const [heureServeur,setHeureServeur] = useState<string|null>(null);   // heure du serveur (add-on « Offres du jour »)
   const [articleActif,setArticleActif] = useState<ArticleBlog|null>(null);
   const [isMobile,setIsMobile]     = useState(false);
   const [menuOuvert,setMenuOuvert] = useState(false);
@@ -321,11 +326,16 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   },[vendeurId]);
   useEffect(()=>{ if(cfg.afficherPopupPromo){ const t=setTimeout(()=>setPopupPromo(true),4000); return()=>clearTimeout(t); } },[cfg.afficherPopupPromo]);
 
+  const chargerCatalogue = useCallback(()=>fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`).then(r=>r.ok?r.json():null).then(data=>{ if(!data) return; const l:Produit[]=data.produits||data||[]; if(data.heure_serveur) setHeureServeur(String(data.heure_serveur)); if(l.length>0){ setProduitsDemo(false); setProduits(l); setCategories(Array.from(new Set(l.map(p=>p.categorie).filter(Boolean))) as string[]); } }).catch(()=>{}),[vendeurId]);
   useEffect(()=>{
     if(configBrut?.__produits_demo__){ setCatalogueCharge(true); setProduits(configBrut.__produits_demo__); setCategories(Array.from(new Set(configBrut.__produits_demo__.map((p:any)=>p.categorie).filter(Boolean))) as string[]); return; }
     setProduits(PRODUITS_DEMO); setCategories(Array.from(new Set(PRODUITS_DEMO.map(p=>p.categorie).filter(Boolean))) as string[]);
-    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`).then(r=>r.ok?r.json():null).then(data=>{ if(!data) return; const l:Produit[]=data.produits||data||[]; if(l.length>0){ setProduitsDemo(false); setProduits(l); setCategories(Array.from(new Set(l.map(p=>p.categorie).filter(Boolean))) as string[]); } }).catch(()=>{}).then(()=>setCatalogueCharge(true));
-  },[vendeurId]);
+    chargerCatalogue().then(()=>setCatalogueCharge(true));
+  },[vendeurId,chargerCatalogue]);
+  // Quand une offre se termine, on relit le catalogue : le serveur renvoie alors le vrai prix
+  const rechargerOffres = useCallback(()=>{ if(!configBrut?.__produits_demo__) chargerCatalogue(); },[chargerCatalogue,configBrut]);
+  const offreCtx = { heureServeur, onFini:()=>{ setTimeout(rechargerOffres,1200); } };
+  useEffect(()=>{ setProduitActif(a=>{ if(!a) return a; const n=produits.find(x=>x.id===a.id); return n&&(n.prix_promo!==a.prix_promo||n.offre_fin!==a.offre_fin)?{...a,prix_promo:n.prix_promo,offre_fin:n.offre_fin}:a; }); },[produits]);
 
   useEffect(()=>{ fetch(`${API_BASE}/blog/vendeur/${vendeurId}?publie=true&limit=20`).then(r=>r.ok?r.json():[]).then(data=>setArticles(Array.isArray(data)?data:data.articles||[])).catch(()=>{}); },[vendeurId]);
 
@@ -349,7 +359,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     if(slugPol){ politiqueEnCours.current=slugPol; setPolitique(null); setPolitiqueStatut('loading'); setPage('politique');
       fetch(`${API_BASE}/studio/politiques/${vendeurId}/public/${slugPol}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{ if(politiqueEnCours.current!==slugPol) return; const p=d&&d.politique; if(!p) throw new Error(); setPolitique({ slug:slugPol, titre:String(p.titre||''), contenu:typeof p.contenu==='string'?p.contenu:'' }); setPolitiqueStatut('idle'); }).catch(()=>{ if(politiqueEnCours.current===slugPol) setPolitiqueStatut('err'); });
       return; }
-    const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login',inscription:'inscription' };
+    const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',offres:'offres',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login',inscription:'inscription' };
     const cle=sansAccent(dest).replace(/\s+/g,'-'); if(map[cle]) setPage(map[cle]);
   },[vendeurId]);
 
@@ -425,10 +435,11 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
   const produitsFiltres = produits.filter(p=>{ const mc=!filtreCat||p.categorie===filtreCat; const mr=!filtreRecherche||p.titre.toLowerCase().includes(filtreRecherche.toLowerCase()); const mn=!filtrePrixMin||p.prix>=parseFloat(filtrePrixMin); const mx=!filtrePrixMax||p.prix<=parseFloat(filtrePrixMax); return mc&&mr&&mn&&mx; }).sort((a,b)=>{ if(tri==='prix_asc') return (a.prix_promo||a.prix)-(b.prix_promo||b.prix); if(tri==='prix_desc') return (b.prix_promo||b.prix)-(a.prix_promo||a.prix); if(tri==='note') return (b.note_moyenne||0)-(a.note_moyenne||0); return 0; });
 
+  const produitsEnOffre = produits.filter(p=>!!p.offre_fin).sort((a,b)=>Date.parse(a.offre_fin!)-Date.parse(b.offre_fin!));   // offres en cours : celles qui finissent bientôt d'abord
   const styleInput:React.CSSProperties = { width:'100%',padding:'12px 16px',background:SURF,border:`1px solid #333`,borderRadius:10,fontSize:14,outline:'none',color:'#fff',fontFamily:'inherit',boxSizing:'border-box' };
   const styleBtn:React.CSSProperties  = { background:`linear-gradient(135deg,${cp},${OR2})`,color:'#000',border:'none',borderRadius:10,padding:'14px 28px',fontSize:14,fontWeight:800,cursor:'pointer',letterSpacing:'0.05em' };
 
-  const menuNav:string[][]=[['accueil','Accueil'],['catalogue','Catalogue'],['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']]
+  const menuNav:string[][]=[['accueil','Accueil'],['catalogue','Catalogue'],...(produitsEnOffre.length>0?[['offres','🔥 Offres du jour']]:[]),['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']]
     .filter(([id])=>!(Array.isArray(raw?.menu?.masques)?raw.menu.masques:[]).includes(id)).map(([id,l])=>[id,tx('menu',id,l)]);
   const Nav = () => (
     <nav style={{ position:'sticky',top:0,zIndex:100,background:'rgba(10,10,10,0.92)',backdropFilter:'blur(16px)',borderBottom:`1px solid ${BORD}` }}>
@@ -505,7 +516,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             <button onClick={()=>naviguer('catalogue')} style={{ background:'none',border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 20px',color:cp,fontSize:13,fontWeight:600,cursor:'pointer',display:isMobile?'none':'block' }}>{tx('accueil','vedetteBouton','Voir tout →')}</button>
           </div>
           <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:isMobile?12:20 }}>
-            {vedette.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
+            {vedette.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
           </div>
         </div>}
 
@@ -597,13 +608,26 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             <div style={{ marginBottom:16,fontSize:13,color:'#666' }}><strong style={{ color:'#fff' }}>{produitsFiltres.length}</strong> produit{produitsFiltres.length>1?'s':''}</div>
             {produitsFiltres.length===0 ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>🔍</div><h3 style={{ color:'#777',fontWeight:600,marginBottom:8 }}>{tx('catalogue','videTitre','Aucun produit')}</h3><p>{tx('catalogue','videTexte','Modifiez vos filtres')}</p></div>
             : vueCatalogue==='grille'
-              ? <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{produitsFiltres.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>
-              : <div style={{ display:'flex',flexDirection:'column',gap:12 }}>{produitsFiltres.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} vue="liste" onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>}
+              ? <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{produitsFiltres.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>
+              : <div style={{ display:'flex',flexDirection:'column',gap:12 }}>{produitsFiltres.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} vue="liste" onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>}
           </div>
         </div>
       </div>
     );
   };
+
+  const PageOffres = () => (
+    <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
+      <div style={{ marginBottom:32 }}>
+        <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>🔥 Offres du jour</div>
+        <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:'0 0 8px' }}>Des prix spéciaux, pour un temps limité</h1>
+        <p style={{ margin:0,color:'#888',fontSize:15 }}>Les offres qui se terminent bientôt sont en premier. Le prix revient à la normale dès la fin du compte à rebours.</p>
+      </div>
+      {produitsEnOffre.length===0
+        ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>🔥</div><h3 style={{ color:'#777',fontWeight:600,marginBottom:16 }}>Aucune offre du jour pour le moment. Revenez bientôt !</h3><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'14px 32px' }}>Voir le catalogue →</button></div>
+        : <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{produitsEnOffre.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>}
+    </div>
+  );
 
   const PageProduit = () => {
     const [nbVues] = useState(Math.floor(Math.random()*20)+3);
@@ -647,6 +671,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             <h1 style={{ fontSize:isMobile?24:32,fontWeight:900,color:'#fff',marginBottom:16,lineHeight:1.15 }}>{p.titre}</h1>
             {on('ficheProduit','afficherAvis')&&p.note_moyenne&&<div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:20 }}><Etoiles note={p.note_moyenne} taille={16}/><span style={{ fontSize:13,color:'#888' }}>{p.note_moyenne.toFixed(1)} ({p.nb_avis} avis)</span><button onClick={()=>setOngletProduit('avis')} style={{ background:'none',border:'none',color:cp,fontSize:12,cursor:'pointer',textDecoration:'underline' }}>Voir les avis</button></div>}
 
+            {p.offre_fin&&<OffreCompteur fin={p.offre_fin} heureServeur={heureServeur} onFini={offreCtx.onFini}/>}
             <div style={{ display:'flex',alignItems:'baseline',gap:12,marginBottom:24 }}>
               {enPromo ? (<><span style={{ fontSize:36,fontWeight:900,color:'#ef4444' }}>{px(p.prix_promo!)}</span><span style={{ fontSize:20,color:'#555',textDecoration:'line-through' }}>{px(p.prix)}</span></>) : <span style={{ fontSize:36,fontWeight:900,color:cp }}>{px(p.prix)}</span>}
             </div>
@@ -740,7 +765,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('ficheProduit','similairesSurtitre','Vous aimerez aussi')}</div>
           <h2 style={{ fontSize:isMobile?24:32,fontWeight:900,color:'#fff',marginBottom:28 }}>{tx('ficheProduit','similairesTitre','Produits similaires')}</h2>
           <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(4,nbr('ficheProduit','similairesNombre',4,1,8))},1fr)`,gap:16 }}>
-            {similaires.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
+            {similaires.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
           </div>
         </div>}
       </div>
@@ -824,7 +849,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ LISTE D'ENVIES</div>
         <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:40 }}>{items.length} article{items.length>1?'s':''} sauvegardé{items.length>1?'s':''}</h1>
         {items.length===0 ? <div style={{ textAlign:'center',padding:'80px 0' }}><div style={{ fontSize:80,marginBottom:24 }}>🤍</div><h2 style={{ color:'#666',fontWeight:600,marginBottom:12 }}>Liste vide</h2><p style={{ color:'#555',marginBottom:24 }}>Cliquez sur ❤️ sur les produits que vous aimez.</p><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'14px 32px' }}>Découvrir nos produits →</button></div>
-        : <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:20 }}>{items.map(p=><CarteProduit opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={true}/>)}</div>}
+        : <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:20 }}>{items.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={true}/>)}</div>}
       </div>
     );
   };
@@ -1132,6 +1157,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       <main style={{ flex:1 }}>
         {page==='accueil'   && <PageAccueil/>}
         {page==='catalogue' && <PageCatalogue/>}
+        {page==='offres'    && <PageOffres/>}
         {page==='produit'   && <PageProduit/>}
         {page==='blog'      && <PageBlog/>}
         {page==='article'   && <PageArticle/>}
