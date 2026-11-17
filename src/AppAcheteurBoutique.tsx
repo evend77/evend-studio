@@ -11,6 +11,7 @@ import CommandeBoutique from './pages/boutique/CommandeBoutique';
 import CommandesBoutique, { statutCommande } from './pages/boutique/CommandesBoutique';
 import RetoursBoutique from './pages/boutique/RetoursBoutique';
 import MesOffresBoutique from './pages/boutique/MesOffresBoutique';
+import MesEncheresBoutique from './pages/boutique/MesEncheresBoutique';
 import { ba } from './pages/boutique/boutiqueAcheteurApi';
 import Notifications from './pages/acheteur/Notifications';
 import ProfilBoutique from './pages/boutique/ProfilBoutique';
@@ -21,7 +22,7 @@ import BanniereDashboard from './templates/shared/BanniereDashboard';
 const API_BASE = '/api';
 
 interface CompteAcheteur { id: number; prenom: string; nom: string; email: string; telephone?: string; }
-type PageDash = 'dashboard' | 'commandes' | 'retours' | 'offres' | 'panier' | 'checkout' | 'confirmation' | 'messagerie' | 'notifications' | 'profil';
+type PageDash = 'dashboard' | 'commandes' | 'retours' | 'offres' | 'encheres' | 'panier' | 'checkout' | 'confirmation' | 'messagerie' | 'notifications' | 'profil';
 interface Props { vendeurId?: number; config?: Record<string, any>; naviguerTemplate: (dest: any) => void; pageInitiale?: 'dashboard' | 'panier'; }
 
 function pageDepuisUrl(): PageDash {
@@ -48,6 +49,8 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
   const [nbPanier, setNbPanier] = useState(0);
   const [nbNotifs, setNbNotifs] = useState(0);
   const [offresActif, setOffresActif] = useState(false);   // add-on « Faire une offre » activé
+  const [encheresActif, setEncheresActif] = useState(false);   // add-on « Enchères » activé, ou l'acheteur a déjà des enchères
+  const [nbEncheres, setNbEncheres] = useState(0);              // enchères gagnées à payer
   const [nbOffres, setNbOffres] = useState(0);              // offres qui attendent une action de l'acheteur
   const [nbMessages, setNbMessages] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -85,9 +88,14 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
       if (p.ok) setNbPanier((p.data.articles || []).reduce((s: number, a: any) => s + (a.quantite || 0), 0));
       try {   // add-on « Faire une offre » : menu « Mes offres » seulement s'il est activé
         const ad = await fetch(`${API_BASE}/boutique/catalogue/${gestionnaireId}/addons`);
-        const actif = ad.ok ? !!((await ad.json()).addons || {}).faire_une_offre : false;
+        const adds = ad.ok ? ((await ad.json()).addons || {}) : {};
+        const actif = !!adds.faire_une_offre;
         setOffresActif(actif);
         if (actif) { const o = await ba(gestionnaireId, '/negociations/mes'); if (o.ok) setNbOffres(o.data.a_repondre || 0); }
+        const addonEnch = !!adds.encheres;
+        const en = await ba(gestionnaireId, '/encheres/mes');
+        setEncheresActif(addonEnch || (en.ok && (en.data.encheres || []).length > 0));
+        if (en.ok) setNbEncheres(en.data.a_payer || 0);
       } catch (e) { /* add-ons indisponibles : on affiche le reste */ }
       try {
         const opt = { credentials: 'include' as const };
@@ -132,6 +140,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
     { id: 'commandes', label: 'Mes commandes', icon: '📦' },
     { id: 'retours', label: 'Mes retours', icon: '🔄' },
     ...(offresActif ? [{ id: 'offres' as PageDash, label: 'Mes offres', icon: '🤝', badge: nbOffres }] : []),
+    ...(encheresActif ? [{ id: 'encheres' as PageDash, label: 'Mes enchères', icon: '🔨', badge: nbEncheres }] : []),
     { id: 'panier', label: 'Mon panier', icon: '🛒', badge: nbPanier },
     { id: 'messagerie', label: 'Messagerie', icon: '💬', badge: nbMessages },
     { id: 'notifications', label: 'Notifications', icon: '🔔', badge: nbNotifs },
@@ -183,6 +192,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
     }
     if (page === 'commandes') return <CommandesBoutique {...commun} naviguer={naviguer} demanderRetour={(n: string) => { setRetourCommande(n); naviguer('retours'); }} />;
     if (page === 'retours') return <RetoursBoutique key={retourCommande || 'r'} {...commun} commandeInitiale={retourCommande} />;
+    if (page === 'encheres') return <MesEncheresBoutique {...commun} naviguer={naviguer} onChange={() => { ba(gestionnaireId, '/encheres/mes').then(o => { if (o.ok) setNbEncheres(o.data.a_payer || 0); }); }} />;
     if (page === 'offres') return <MesOffresBoutique {...commun} naviguer={naviguer} onChange={() => { ba(gestionnaireId, '/negociations/mes').then(o => { if (o.ok) setNbOffres(o.data.a_repondre || 0); }); }} />;
     if (page === 'panier') return <div style={{ background: '#fff', color: '#111', borderRadius: 16 }}><PanierBoutique gestionnaireId={gestionnaireId} accent={couleurAccent === '#fbbf24' ? '#111827' : couleurAccent} naviguerVers={naviguer} /></div>;
     if (page === 'checkout') return <div style={{ background: '#fff', color: '#111', borderRadius: 16 }}><CaisseBoutique gestionnaireId={gestionnaireId} accent={couleurAccent === '#fbbf24' ? '#111827' : couleurAccent} naviguerVers={naviguer} /></div>;

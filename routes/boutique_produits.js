@@ -341,9 +341,14 @@ router.put('/produits/:id', h(async (req, res) => {
   const p = lireProduit(req);
   p.categorie = await nomCategorie(req, p.categorieId);
   await verifierMethodes(req, p);
-  const ancien = await pool.query(`SELECT statut FROM produits WHERE id = $2 AND ${BASE}`, [req.gid, id]);
+  const ancien = await pool.query(`SELECT statut, stock FROM produits WHERE id = $2 AND ${BASE}`, [req.gid, id]);
   if (!ancien.rows.length) bad('Produit introuvable', 404);
   if (p.statut === 'actif' && ancien.rows[0].statut !== 'actif') await L.verifierActivation(req.gid, 1);
+  // Add-on « Enchères » : une enchère retire 1 unité du stock ; modifier le stock en même temps la ferait déraper
+  if ((ancien.rows[0].stock === null ? null : Number(ancien.rows[0].stock)) !== (p.stock === null ? null : Number(p.stock))) {
+    const e = await pool.query(`SELECT 1 FROM boutique_encheres WHERE produit_id = $1 AND statut IN ('active','attente_paiement') LIMIT 1`, [id]);
+    if (e.rowCount) bad("Ce produit est aux enchères : le stock ne peut pas être modifié avant la fin de l'enchère.", 409);
+  }
   await pool.query(
     `UPDATE produits SET titre=$1, description=$2, prix=$3, prix_promo=$4, stock=$5, sku=$6, categorie=$7, categorie_id=$8,
             photo_principale=$9, photos=$10, variantes=$11, statut=$12, poids=$13, quantite_min=$14, prix_revient=$15, updated_at=NOW()
@@ -382,6 +387,8 @@ router.post('/produits/:id/dupliquer', h(async (req, res) => {
 router.delete('/produits/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
+  const enchere = await pool.query(`SELECT 1 FROM boutique_encheres WHERE produit_id = $1 AND gestionnaire_id = $2 AND statut IN ('active','attente_paiement') LIMIT 1`, [id, req.gid]);   // add-on « Enchères »
+  if (enchere.rowCount) bad("Ce produit est aux enchères : annulez d'abord l'enchère (ou attendez sa fin et le paiement du gagnant).", 409);
   const r = await pool.query('DELETE FROM produits WHERE id = $1 AND gestionnaire_id = $2 AND collaborateur_id IS NULL', [id, req.gid]);
   if (!r.rowCount) bad('Produit introuvable', 404);
   res.json({ success: true });
@@ -390,8 +397,10 @@ router.delete('/produits/:id', h(async (req, res) => {
 router.post('/produits/bulk/supprimer', h(async (req, res) => {
   const ids = Array.isArray(req.body && req.body.ids) ? req.body.ids.map(entier).filter(Boolean).slice(0, 100) : [];
   if (!ids.length) bad('Aucun produit sélectionné');
-  const r = await pool.query('DELETE FROM produits WHERE id = ANY($1::int[]) AND gestionnaire_id = $2 AND collaborateur_id IS NULL', [ids, req.gid]);
-  res.json({ supprimes: r.rowCount });
+  // Add-on « Enchères » : un produit aux enchères n'est jamais supprimé (les autres le sont)
+  const r = await pool.query(`DELETE FROM produits WHERE id = ANY($1::int[]) AND gestionnaire_id = $2 AND collaborateur_id IS NULL
+                                 AND NOT EXISTS (SELECT 1 FROM boutique_encheres en WHERE en.produit_id = produits.id AND en.statut IN ('active','attente_paiement'))`, [ids, req.gid]);
+  res.json({ supprimes: r.rowCount, ignores: ids.length - r.rowCount });
 }));
 
 module.exports = router;

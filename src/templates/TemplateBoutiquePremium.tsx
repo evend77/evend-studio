@@ -7,6 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import AppAcheteurBoutique from '../AppAcheteurBoutique';
 import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-on « Faire une offre » : bloc de la fiche produit
+import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
 import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
 import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
 
@@ -110,6 +111,16 @@ const CFG_DEF = {
 const POLITIQUES_SLUGS = ['retour-remboursement','confidentialite','conditions-service','expedition','coordonnees','mentions-legales'];
 const sansAccent = (t:string)=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
 // Reconnaît un lien de pied de page (ou un slug) qui désigne une politique : retourne son slug, sinon ''
+// Add-on « Enchères » : temps restant d'une carte de la page « Enchères » (heure du serveur, mise à jour chaque seconde)
+function ResteEnchere({ fin, decalage, couleur }: { fin:string; decalage:number; couleur:string }) {
+  const [t,setT]=useState(()=>Date.now());
+  useEffect(()=>{ const i=setInterval(()=>setT(Date.now()),1000); return ()=>clearInterval(i); },[]);
+  const ms=new Date(fin).getTime()-(t+decalage);
+  if(ms<=0) return <span style={{ color:'#888' }}>Terminée</span>;
+  const s=Math.floor(ms/1000), j=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  const txt=j>0?`${j} j ${h} h ${m} min`:h>0?`${h} h ${String(m).padStart(2,'0')} min`:`${m} min ${String(sec).padStart(2,'0')} s`;
+  return <span style={{ color:ms<300000?'#f87171':couleur,fontWeight:800 }}>⏱ {txt}</span>;
+}
 function slugPolitique(dest:string):string {
   const d=sansAccent(dest).replace(/[-_]+/g,' ');
   const t:Record<string,string>={ 'conditions':'conditions-service','conditions de service':'conditions-service','conditions service':'conditions-service','termes':'conditions-service','termes et conditions':'conditions-service',
@@ -270,7 +281,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const lienHttp=(u:any):string=>/^https?:\/\//i.test(String(u||''))?String(u):'';
   const cp  = cfg.couleurAccent || OR;
 
-  type PageId = 'accueil'|'catalogue'|'offres'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'wishlist'|'compte'|'login'|'inscription'|'politique';
+  type PageId = 'accueil'|'catalogue'|'offres'|'encheres'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'wishlist'|'compte'|'login'|'inscription'|'politique';
   const [page,setPage]             = useState<PageId>('accueil');
   const [produitActif,setProduitActif] = useState<Produit|null>(null);
   const [heureServeur,setHeureServeur] = useState<string|null>(null);   // heure du serveur (add-on « Offres du jour »)
@@ -338,6 +349,34 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [versionOffres,setVersionOffres] = useState(0); // change quand une offre se termine : la page des offres se relit
   const compterOffres = useCallback(()=>{ if(configBrut?.__produits_demo__) return; fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?offres=1&limit=1`).then(r=>r.ok?r.json():null).then(d=>{ if(d&&typeof d.total==='number') setNbOffres(d.total); }).catch(()=>{}); },[vendeurId,configBrut]);
   useEffect(()=>{ compterOffres(); },[compterOffres]);
+  // Add-on « Enchères » : lien « Enchères » du menu seulement s'il y a au moins une enchère en cours ; la page lit la liste au serveur
+  const [nbEncheres,setNbEncheres] = useState(0);
+  const [encheresListe,setEncheresListe] = useState<any[]>([]);
+  const [encheresProduits,setEncheresProduits] = useState<Record<number,Produit>>({});
+  const [encheresDec,setEncheresDec] = useState(0);
+  const [encheresCharge,setEncheresCharge] = useState(false);
+  const [encheresErr,setEncheresErr] = useState(false);
+  const [versionEncheres,setVersionEncheres] = useState(0);
+  useEffect(()=>{
+    if(configBrut?.__produits_demo__) return;
+    let annule=false;
+    const compter=()=>fetch(`${API_BASE}/boutique/encheres/${vendeurId}?limit=1`).then(r=>r.ok?r.json():null).then(d=>{ if(!annule&&d&&d.pagination&&typeof d.pagination.total==='number') setNbEncheres(d.pagination.total); }).catch(()=>{});
+    compter(); const t=setInterval(compter,60000);
+    return ()=>{ annule=true; clearInterval(t); };
+  },[vendeurId,configBrut]);
+  useEffect(()=>{
+    if(page!=='encheres'||configBrut?.__produits_demo__) return;
+    let annule=false; setEncheresErr(false);
+    const lire=()=>fetch(`${API_BASE}/boutique/encheres/${vendeurId}?limit=60`).then(r=>r.ok?r.json():Promise.reject()).then(async d=>{
+      if(annule) return;
+      const l:any[]=Array.isArray(d.encheres)?d.encheres:[];
+      setEncheresListe(l); setNbEncheres(d.pagination?Number(d.pagination.total)||0:l.length); if(d.maintenant) setEncheresDec(new Date(d.maintenant).getTime()-Date.now()); setEncheresCharge(true);
+      const ids=l.map(x=>x.produit_id).filter((x:number)=>Number.isInteger(x)).slice(0,50);
+      if(ids.length){ try{ const r2=await fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?ids=${ids.join(',')}&limit=50`); const c=r2.ok?await r2.json():null; if(!annule&&c&&Array.isArray(c.produits)){ const m:Record<number,Produit>={}; c.produits.forEach((x:Produit)=>{ m[Number(x.id)]=x; }); setEncheresProduits(m); } }catch{ /* la carte reste visible, sans ouverture de fiche */ } }
+    }).catch(()=>{ if(!annule){ setEncheresErr(true); setEncheresCharge(true); } });
+    lire(); const t=setInterval(lire,15000);
+    return ()=>{ annule=true; clearInterval(t); };
+  },[page,vendeurId,configBrut,versionEncheres]);
   // Page « Offres du jour » : lue directement du serveur (?offres=1), paginée — indépendante des 100 premiers produits du catalogue
   const OFFRES_PAR_PAGE=24;
   const [offresListe,setOffresListe] = useState<Produit[]>([]);
@@ -377,10 +416,12 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     if(slugPol){ politiqueEnCours.current=slugPol; setPolitique(null); setPolitiqueStatut('loading'); setPage('politique');
       fetch(`${API_BASE}/studio/politiques/${vendeurId}/public/${slugPol}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{ if(politiqueEnCours.current!==slugPol) return; const p=d&&d.politique; if(!p) throw new Error(); setPolitique({ slug:slugPol, titre:String(p.titre||''), contenu:typeof p.contenu==='string'?p.contenu:'' }); setPolitiqueStatut('idle'); }).catch(()=>{ if(politiqueEnCours.current===slugPol) setPolitiqueStatut('err'); });
       return; }
-    const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',offres:'offres',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login',inscription:'inscription' };
+    const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',offres:'offres',encheres:'encheres',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login',inscription:'inscription' };
     const cle=sansAccent(dest).replace(/\s+/g,'-'); if(map[cle]) setPage(map[cle]);
   },[vendeurId]);
 
+  // Ouvre la fiche d'un produit par son id : dans le catalogue déjà chargé, sinon lue au serveur (ex. : une enchère sur un produit au-delà des 100 premiers)
+  const ouvrirProduitParId = (id:number)=>{ const p=produits.find(x=>Number(x.id)===Number(id)); if(p){ voirProduit(p); return; } fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?ids=${Number(id)}&limit=1`).then(r=>r.ok?r.json():null).then(c=>{ const q=c&&Array.isArray(c.produits)?c.produits[0]:null; if(q) voirProduit(q); else naviguer('catalogue'); }).catch(()=>naviguer('catalogue')); };
   const voirProduit = (p:Produit)=>{ setProduitActif(p); setPhotoIdx(0); setQteChoisie(1); setVarianteChoisie({}); setOngletProduit('description'); setPage('produit'); window.scrollTo({top:0,behavior:'smooth'}); fetch(`${API_BASE}/avis/produit/${p.id}`).then(r=>r.ok?r.json():[]).then(data=>setAvisActif(Array.isArray(data)?data:[])).catch(()=>{}); };
   const voirArticle = (a:ArticleBlog)=>{ setArticleActif(a); setPage('article'); window.scrollTo({top:0,behavior:'smooth'}); };
 
@@ -456,7 +497,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const styleInput:React.CSSProperties = { width:'100%',padding:'12px 16px',background:SURF,border:`1px solid #333`,borderRadius:10,fontSize:14,outline:'none',color:'#fff',fontFamily:'inherit',boxSizing:'border-box' };
   const styleBtn:React.CSSProperties  = { background:`linear-gradient(135deg,${cp},${OR2})`,color:'#000',border:'none',borderRadius:10,padding:'14px 28px',fontSize:14,fontWeight:800,cursor:'pointer',letterSpacing:'0.05em' };
 
-  const menuNav:string[][]=[['accueil','Accueil'],['catalogue','Catalogue'],...(nbOffres>0?[['offres','🔥 Offres du jour']]:[]),['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']]
+  const menuNav:string[][]=[['accueil','Accueil'],['catalogue','Catalogue'],...(nbOffres>0?[['offres','🔥 Offres du jour']]:[]),...(nbEncheres>0?[['encheres','🔨 Enchères']]:[]),['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']]
     .filter(([id])=>!(Array.isArray(raw?.menu?.masques)?raw.menu.masques:[]).includes(id)).map(([id,l])=>[id,tx('menu',id,l)]);
   const Nav = () => (
     <nav style={{ position:'sticky',top:0,zIndex:100,background:'rgba(10,10,10,0.92)',backdropFilter:'blur(16px)',borderBottom:`1px solid ${BORD}` }}>
@@ -633,6 +674,33 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     );
   };
 
+  const PageEncheres = () => (
+    <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
+      <div style={{ marginBottom:32 }}>
+        <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>🔨 Enchères</div>
+        <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:'0 0 8px' }}>Misez sur des pièces uniques</h1>
+        <p style={{ margin:0,color:'#888',fontSize:15 }}>Les enchères qui se terminent bientôt sont en premier. Une mise est un engagement d'achat.</p>
+      </div>
+      {!encheresCharge ? <p style={{ color:'#666' }}>Chargement…</p>
+        : encheresErr ? <p style={{ color:'#fca5a5' }}>Impossible de charger les enchères. <button onClick={()=>setVersionEncheres(v=>v+1)} style={{ background:'none',border:'none',color:cp,textDecoration:'underline',cursor:'pointer',fontSize:'inherit' }}>Réessayer</button></p>
+        : encheresListe.length===0
+          ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>🔨</div><h3 style={{ color:'#777',fontWeight:600,marginBottom:16 }}>Aucune enchère en cours pour le moment. Revenez bientôt !</h3><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'12px 28px' }}>Voir le catalogue</button></div>
+          : <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>
+              {encheresListe.map((e:any)=>{ return (
+                <div key={e.id} onClick={()=>{ const p=encheresProduits[Number(e.produit_id)]; if(p) voirProduit(p); else ouvrirProduitParId(e.produit_id); }} style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:14,overflow:'hidden',cursor:'pointer' }}>
+                  <div style={{ aspectRatio:'1/1',background:'#111',display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden' }}>
+                    {e.image_url?<img src={e.image_url} alt={e.titre} loading="lazy" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>:<span style={{ fontSize:44,opacity:0.3 }}>🔨</span>}
+                  </div>
+                  <div style={{ padding:'12px 14px' }}>
+                    <div style={{ fontSize:14,fontWeight:700,color:'#fff',marginBottom:6,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{e.titre}</div>
+                    <div style={{ fontSize:20,fontWeight:900,color:cp }}>{px(e.mise_actuelle!==null?e.mise_actuelle:e.prix_depart)}</div>
+                    <div style={{ fontSize:12,color:'#888',margin:'2px 0 6px' }}>{e.mise_actuelle===null?'Prix de départ':`${e.nb_mises} mise${e.nb_mises>1?'s':''}`}{e.reserve&&e.reserve.atteinte?' · réserve atteinte':''}</div>
+                    <div style={{ fontSize:12 }}><ResteEnchere fin={e.date_fin} decalage={encheresDec} couleur={cp}/></div>
+                  </div>
+                </div>); })}
+            </div>}
+    </div>
+  );
   const PageOffres = () => {
     const liste=offresListe, charge=offresCharge, err=offresErr, pg=offresPg, setPg=setOffresPg;
     const PAR_PAGE=OFFRES_PAR_PAGE, total=offresTotal;
@@ -736,6 +804,9 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               <button onClick={()=>ajouterAuPanier(p)} disabled={p.stock===0} style={{ flex:1,...styleBtn,...styleBtnProduit,padding:'16px 24px',fontSize:15,opacity:p.stock===0?0.5:1,cursor:p.stock===0?'not-allowed':'pointer' }}>{p.stock===0?'ÉPUISÉ':'🛒 '+tx('ficheProduit','boutonLabel','Ajouter au panier').toUpperCase()}</button>
               {cfg.afficherWishlist&&<button onClick={()=>toggleWishlist(p.id)} style={{ width:50,height:50,borderRadius:10,border:`1px solid ${wishlist.includes(p.id)?'#ef4444':'#333'}`,background:wishlist.includes(p.id)?'rgba(239,68,68,0.15)':SURF,color:wishlist.includes(p.id)?'#ef4444':'#888',cursor:'pointer',fontSize:20,flexShrink:0 }}>{wishlist.includes(p.id)?'❤️':'🤍'}</button>}
             </div>
+
+            <BlocEnchereBoutique gestionnaireId={vendeurId} produitId={p.id} couleurAccent={cp} isDemo={modeDemo}
+              allerConnexion={()=>{ setAvisPanier('Connectez-vous pour miser.'); naviguer('login'); }}/>
 
             <FaireOffreBoutique gestionnaireId={vendeurId} produitId={p.id} prix={enPromo?p.prix_promo!:p.prix} variante={Object.values(varianteChoisie).join(' / ')}
               varianteRequise={!!(p.variantes&&p.variantes.length&&p.variantes.some(v=>!varianteChoisie[v.nom]))} masque={p.stock===0} couleurAccent={cp} isDemo={modeDemo}
@@ -1178,7 +1249,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   );
 
   // Espace acheteur : plein écran, comme AppAcheteur (MV) — il a son propre menu et son bouton « Retour à la boutique »
-  if(page==='compte') return <AppAcheteurBoutique key={vueCompte} vendeurId={vendeurId} pageInitiale={vueCompte} config={{ couleur_accent:cp, nom_boutique:cfg.nomBoutique, gestionnaire_id:vendeurId }} naviguerTemplate={(d:any)=>{ setVueCompte('dashboard'); if(d&&d.page==='produit'){ const p=produits.find(x=>Number(x.id)===Number(d.produitId)); if(p){ voirProduit(p); return; } naviguer('catalogue'); return; } naviguer(d&&d.page?d.page:'accueil'); }} />;
+  if(page==='compte') return <AppAcheteurBoutique key={vueCompte} vendeurId={vendeurId} pageInitiale={vueCompte} config={{ couleur_accent:cp, nom_boutique:cfg.nomBoutique, gestionnaire_id:vendeurId }} naviguerTemplate={(d:any)=>{ setVueCompte('dashboard'); if(d&&d.page==='produit'){ ouvrirProduitParId(d.produitId); return; } naviguer(d&&d.page?d.page:'accueil'); }} />;
 
   return (
     <div style={{ fontFamily:"'Inter',-apple-system,sans-serif",background:cfg.couleurFond,color:cfg.couleurTexte,minHeight:'100vh',display:'flex',flexDirection:'column' }}>
@@ -1194,6 +1265,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         {page==='accueil'   && <PageAccueil/>}
         {page==='catalogue' && <PageCatalogue/>}
         {page==='offres'    && <PageOffres/>}
+        {page==='encheres'  && <PageEncheres/>}
         {page==='produit'   && <PageProduit/>}
         {page==='blog'      && <PageBlog/>}
         {page==='article'   && <PageArticle/>}

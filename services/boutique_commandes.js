@@ -22,6 +22,7 @@ const { ErreurCommande } = require('./boutique_commandes_erreur');
 const PROMOS = require('./boutique_promos');
 const OFFRES = require('./boutique_offres');   // add-on « Offres du jour » : prix d'offre choisi par le serveur
 const NEGO = require('./boutique_negociations');   // add-on « Faire une offre » : prix convenu, relu ici à chaque fois
+const ENCH = require('./boutique_encheres');       // add-on « Enchères » : article gagné (prix = mise gagnante, quantité 1, stock déjà retiré à la création de l'enchère)
 const refus = (m, s, c) => { throw new ErreurCommande(m, s, c); };
 const cents = (n) => Math.round(Number(n) * 100 + 1e-7);
 
@@ -79,24 +80,27 @@ async function ajusterStock(client, produitId, variante, delta) {
 // ── Panier (lecture) ─────────────────────────────────────────────────────────
 // Toujours relu dans la base : le panier affiche le prix que le paiement facturera.
 async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
-  if (verrou) {   // verrou des annonces du panier, toujours dans le même ordre (pas de blocage croisé)
+  if (verrou) {   // verrous toujours dans le même ordre (pas de blocage croisé) : enchères gagnées → annonces du panier → offres acceptées
+    await db.query(`SELECT id FROM boutique_encheres WHERE id IN (SELECT enchere_id FROM boutique_panier WHERE gestionnaire_id = $1 AND acheteur_id = $2 AND enchere_id IS NOT NULL) ORDER BY id FOR UPDATE`, [gid, acheteurId]);
     await db.query(`SELECT p.id FROM produits p WHERE p.collaborateur_id IS NULL AND p.id IN (SELECT produit_id FROM boutique_panier WHERE gestionnaire_id = $1 AND acheteur_id = $2) ORDER BY p.id FOR UPDATE`, [gid, acheteurId]);
     // offres acceptées du panier : verrouillées aussi (une offre ne sert qu'une fois)
     await db.query(`SELECT id FROM boutique_negociations WHERE id IN (SELECT negociation_id FROM boutique_panier WHERE gestionnaire_id = $1 AND acheteur_id = $2 AND negociation_id IS NOT NULL) ORDER BY id FOR UPDATE`, [gid, acheteurId]);
   }
   const r = await db.query(
-    `SELECT bp.id AS ligne_id, bp.produit_id, bp.variante, bp.quantite, bp.negociation_id,
+    `SELECT bp.id AS ligne_id, bp.produit_id, bp.variante, bp.quantite, bp.negociation_id, bp.enchere_id,
+            en.statut AS en_statut, en.gagnant_id AS en_gagnant, en.produit_id AS en_produit, en.prix_final AS en_prix, (en.paiement_expire_le > NOW()) AS en_vivante,
             ng.statut AS ng_statut, ng.acheteur_id AS ng_acheteur, ng.produit_id AS ng_produit, ng.variante AS ng_variante, ng.prix_final AS ng_prix, (ng.expire_le > NOW()) AS ng_vivante,
             (bp.negociation_id IS NOT NULL AND ${NEGO.sqlAddonOn('bp')}) AS ng_addon,
             p.id AS pid, p.titre, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, p.stock, p.variantes, p.statut, p.photo_principale, p.poids,
             p.quantite_min, p.date_parution, p.date_expiration
        FROM boutique_panier bp
        LEFT JOIN boutique_negociations ng ON ng.id = bp.negociation_id AND ng.gestionnaire_id = bp.gestionnaire_id
+       LEFT JOIN boutique_encheres en ON en.id = bp.enchere_id AND en.gestionnaire_id = bp.gestionnaire_id
        LEFT JOIN produits p ON p.id = bp.produit_id AND p.gestionnaire_id = bp.gestionnaire_id AND p.collaborateur_id IS NULL
       WHERE bp.gestionnaire_id = $1 AND bp.acheteur_id = $2
       ORDER BY bp.created_at, bp.id`, [gid, acheteurId]);
   return r.rows.map((x) => {
-    const ligne = { id: x.ligne_id, produit_id: x.produit_id, variante: x.variante || '', quantite: x.quantite, negociation_id: x.negociation_id || null, negocie: !!x.negociation_id,
+    const ligne = { id: x.ligne_id, produit_id: x.produit_id, variante: x.variante || '', quantite: x.quantite, negociation_id: x.negociation_id || null, negocie: !!x.negociation_id, enchere_id: x.enchere_id || null, enchere: !!x.enchere_id,
       titre: x.titre || 'Article retiré', image_url: x.photo_principale || null, poids: Number(x.poids) || 0, quantite_min: x.quantite_min || null,
       prix: 0, stock: 0, total_ligne: 0, erreur: null, _p: x.pid ? x : null };
     const pb = problemeDisponibilite(x.pid ? x : null);
@@ -104,6 +108,13 @@ async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
     const c = prixEtStock(x, ligne.variante);
     if (c.erreur) { ligne.erreur = `« ${ligne.titre} » : ${c.erreur}`; return ligne; }
     ligne.prix = c.prix; ligne.stock = c.stock;
+    if (x.enchere_id) {   // article gagné aux enchères : le serveur relit l'enchère ; prix = mise gagnante, quantité 1 ; le stock est déjà retiré (pas de contrôle de stock ni de quantité minimum)
+      const valide = x.en_statut === 'attente_paiement' && x.en_vivante && x.en_gagnant === acheteurId && x.en_produit === x.produit_id && !(x.variante || '');
+      if (!valide) { ligne.erreur = `« ${ligne.titre} » : l'enchère gagnée n'est plus à payer (délai de paiement écoulé ou enchère annulée). Retirez cet article du panier.`; return ligne; }
+      if (x.quantite !== 1) { ligne.erreur = `« ${ligne.titre} » : un article gagné aux enchères porte sur 1 unité.`; return ligne; }
+      ligne.prix_normal = c.prix; ligne.prix = Number(x.en_prix); ligne.stock = 1; ligne.total_ligne = cents(ligne.prix) / 100;
+      return ligne;
+    }
     if (x.negociation_id) {   // offre acceptée : le serveur relit l'offre ; prix convenu (jamais au-dessus du prix actuel), quantité 1
       const valide = x.ng_statut === 'acceptee' && x.ng_vivante && x.ng_addon && x.ng_acheteur === acheteurId && x.ng_produit === x.produit_id && (x.ng_variante || '') === (x.variante || '');
       if (!valide) { ligne.erreur = `« ${ligne.titre} » : l'offre acceptée n'est plus valide (délai écoulé, retirée ou désactivée). Retirez cet article du panier et refaites une offre.`; return ligne; }
@@ -117,6 +128,8 @@ async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
   });
 }
 const publique = (l) => { const { _p, ...reste } = l; return reste; };
+// Base admissible à un code promo (en cents) : jamais les articles gagnés aux enchères (comme au MV)
+const baseRabaisC = (lignes) => lignes.reduce((s, l) => s + (l.enchere_id || l.erreur ? 0 : cents(l.prix) * l.quantite), 0);
 
 // ── Modes de paiement offerts ────────────────────────────────────────────────
 function modesDisponibles(cfg) {
@@ -161,7 +174,7 @@ function normaliserAdresse(a, quelle = 'livraison') {
 // Retourne { sousTotalC, fraisC, taxes, totalC, methode } ou lève ErreurCommande.
 async function calculerTotaux(db, gid, lignes, province, methodeId, rabaisC = 0) {
   const sousTotalC = lignes.reduce((s, l) => s + cents(l.prix) * l.quantite, 0);
-  const alloc = PROMOS.repartir(lignes, rabaisC);                                   // rabais par ligne
+  const alloc = PROMOS.repartir(lignes.map((l) => (l.enchere_id ? { ...l, quantite: 0 } : l)), rabaisC);   // rabais par ligne (jamais sur un article gagné aux enchères)
   const nets = lignes.map((l, i) => cents(l.prix) * l.quantite - alloc[i]);          // montant net de chaque ligne
   const sousNetC = sousTotalC - rabaisC;
   const exp = await EXP.fraisPourPaiement(db, {
@@ -191,7 +204,7 @@ async function apercu(gid, acheteurId, { province, methodeId, codePromo, pourboi
     try {
       let rabaisC = 0;
       if (codePromo && String(codePromo).trim()) {
-        try { const ev = await PROMOS.evaluer(pool, { gid, acheteurId, code: codePromo, sousTotalC: Math.round(sousTotal * 100) }); rabaisC = ev.rabaisC; out.code_promo = { code: ev.promo.code, rabais: rabaisC / 100 }; }
+        try { const baseC = baseRabaisC(lignes); if (baseC <= 0) refus("Ce code promo ne s'applique pas aux articles gagnés aux enchères.", 400); const ev = await PROMOS.evaluer(pool, { gid, acheteurId, code: codePromo, sousTotalC: baseC }); rabaisC = ev.rabaisC; out.code_promo = { code: ev.promo.code, rabais: rabaisC / 100 }; }
         catch (e) { if (!(e instanceof ErreurCommande)) throw e; out.code_erreur = e.message; }
       }
       const t = await calculerTotaux(pool, gid, lignes, prov, choix, rabaisC);
@@ -235,11 +248,13 @@ async function creerCommande({ gid, acheteurId, adresse, facturation, methodeId,
     if (!lignes.length) refus('Votre panier est vide.', 404);
     const bad = lignes.find((l) => l.erreur);
     if (bad) refus(bad.erreur, 409);
-    for (const l of lignes) if (!(await ajusterStock(client, l.produit_id, l.variante, -l.quantite))) refus(`« ${l.titre} » est épuisé.`, 409);
+    for (const l of lignes) if (!l.enchere_id && !(await ajusterStock(client, l.produit_id, l.variante, -l.quantite))) refus(`« ${l.titre} » est épuisé.`, 409);   // article d'enchère : stock déjà retiré à la création de l'enchère
     // Code promo : vérifié ICI, avec verrou, au moment de créer la commande (jamais cru sur parole)
     let promo = null, rabaisC = 0;
     if (codePromo && String(codePromo).trim()) {
-      const ev = await PROMOS.evaluer(client, { gid, acheteurId, code: codePromo, sousTotalC: lignes.reduce((s2, l) => s2 + cents(l.prix) * l.quantite, 0), verrou: true });
+      const baseC = baseRabaisC(lignes);
+      if (baseC <= 0) refus("Ce code promo ne s'applique pas aux articles gagnés aux enchères.", 400);
+      const ev = await PROMOS.evaluer(client, { gid, acheteurId, code: codePromo, sousTotalC: baseC, verrou: true });
       promo = ev.promo; rabaisC = ev.rabaisC;
     }
     const t = await calculerTotaux(pool, gid, lignes, adr.province, methodeId, rabaisC);   // lectures seules : pas besoin de la transaction
@@ -252,7 +267,7 @@ async function creerCommande({ gid, acheteurId, adresse, facturation, methodeId,
       const f = m.methodes.find((x) => String(x.id) === String(methodeId));
       if (f) methode = { id: f.id, nom: f.nom || f.transporteur_nom || null, delais: f.delais_estime || null, frais: t.fraisC / 100 };
     }
-    const articles = lignes.map((l, i) => ({ produit_id: l.produit_id, titre: l.titre, variante: l.variante, quantite: l.quantite, prix: l.prix, image_url: l.image_url, ...(l.negociation_id ? { negociation_id: l.negociation_id } : {}), ...(t.alloc[i] ? { rabais: t.alloc[i] / 100 } : {}) }));
+    const articles = lignes.map((l, i) => ({ produit_id: l.produit_id, titre: l.titre, variante: l.variante, quantite: l.quantite, prix: l.prix, image_url: l.image_url, ...(l.negociation_id ? { negociation_id: l.negociation_id } : {}), ...(l.enchere_id ? { enchere_id: l.enchere_id } : {}), ...(t.alloc[i] ? { rabais: t.alloc[i] / 100 } : {}) }));
     const numero = `BQ-${gid}-${Date.now()}`;
     const expireLe = new Date(Date.now() + DUREE_SESSION_MIN * 60000);
     const ins = await client.query(
@@ -358,6 +373,8 @@ async function confirmer(gid, commandeId, { mode, reference, totalC, devise, ses
   if (r.rows[0]) {
     // Offres « Faire une offre » utilisées par cette commande : passent à « payée » (ne peut plus servir)
     try { await NEGO.marquerPayees(pool, gid, r.rows[0].id, r.rows[0].articles); } catch (e) { console.error('[boutique-commandes] offres payées :', e.message); }
+    // Enchères gagnées utilisées par cette commande : passent à « payée »
+    try { await ENCH.marquerPayees(pool, gid, r.rows[0].id, r.rows[0].articles); } catch (e) { console.error('[boutique-commandes] enchères payées :', e.message); }
     return { paye: true, commande: { id: r.rows[0].id, numero_commande: r.rows[0].numero_commande } };
   }
 
@@ -417,6 +434,18 @@ async function liberer(commandeId, { raison, annuler = true, par = 'systeme', re
     for (const a of [...arts].sort((x, y) => x.produit_id - y.produit_id)) {
       const pid = parseInt(a.produit_id, 10), q = parseInt(a.quantite, 10);
       if (!(pid && q > 0)) continue;
+      const eid = parseInt(a.enchere_id, 10) || 0;
+      if (eid) {   // article d'enchère : AUCUN stock remis (l'unité reste retirée tant que l'enchère n'est pas expirée) ; il revient au panier du gagnant si son délai court encore
+        if (restaurerPanier) {
+          await client.query(
+            `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, enchere_id)
+             SELECT $1, $2, $3, '', 1, en.id FROM boutique_encheres en
+              WHERE en.id = $4 AND en.gestionnaire_id = $1 AND en.gagnant_id = $2 AND en.statut = 'attente_paiement' AND en.paiement_expire_le > NOW()
+             ON CONFLICT (acheteur_id, produit_id, variante) DO UPDATE SET quantite = 1, enchere_id = EXCLUDED.enchere_id, negociation_id = NULL, updated_at = NOW()`,
+            [cmd.gestionnaire_id, cmd.acheteur_id, pid, eid]);
+        }
+        continue;
+      }
       await ajusterStock(client, pid, a.variante || '', q);
       if (restaurerPanier) {
         await client.query(
@@ -474,6 +503,7 @@ function demarrerBalayage() {
   if (minuteur) return;
   minuteur = setInterval(() => { balayer().catch((e) => console.error('[boutique-commandes] balayage :', e.message)); }, 5 * 60 * 1000);
   if (minuteur.unref) minuteur.unref();
+  try { ENCH.demarrer(); } catch (e) { console.error('[boutique-commandes] minuteur des enchères :', e.message); }   // add-on « Enchères » : fin des enchères échues (toutes les 30 s)
 }
 
 module.exports = {

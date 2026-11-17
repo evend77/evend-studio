@@ -84,6 +84,7 @@ import BoutiquePlan                from './pages/gestionnaire/BoutiquePlan';
 import BoutiqueEffets              from './pages/gestionnaire/BoutiqueEffets';
 import BoutiqueOffres              from './pages/gestionnaire/BoutiqueOffres';
 import BoutiqueNegociations        from './pages/gestionnaire/BoutiqueNegociations';
+import BoutiqueEncheres            from './pages/gestionnaire/BoutiqueEncheres';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
 import BoutiquePaiements          from './pages/gestionnaire/BoutiquePaiements';
@@ -756,6 +757,13 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     const pastille = nbOffresPrix > 0 ? nbOffresPrix : undefined;
     return { ...m, badge: pastille, sousMenu: items.flatMap(it => it.id === apres ? [it, { id: 'annonces-negociations', label: 'Offres des acheteurs', icon: '🤝', badge: pastille }] : [it]) };
   };
+  // Add-on « Enchères » (boutique solo, Premium d'abord) : « Enchères » sous « Liste des produits » (après les entrées des autres add-ons de prix)
+  const avecEncheres = (m: MenuItem): MenuItem => {
+    if (!addonsBoutique.encheres) return m;
+    const items = m.sousMenu || [];
+    const apres = items.some(x => x.id === 'annonces-negociations') ? 'annonces-negociations' : items.some(x => x.id === 'annonces-offres') ? 'annonces-offres' : 'annonces-liste';
+    return { ...m, sousMenu: items.flatMap(it => it.id === apres ? [it, { id: 'annonces-encheres', label: 'Enchères', icon: '🔨' }] : [it]) };
+  };
   const avecEffets = (m: MenuItem): MenuItem => addonsBoutique.effets_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-effets', label: 'Effets de boutique', icon: '✨' }] } : m;
 
   // ── Menus Studio (communs à tous) ────────────────────────────────────────
@@ -1236,7 +1244,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estPremium) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      avecNegociations(avecOffres(menuVosAnnoncesPremium)),
+      avecEncheres(avecNegociations(avecOffres(menuVosAnnoncesPremium))),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1570,6 +1578,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         const initial = Number.isInteger(idOffre) && idOffre > 0 ? idOffre : null;
         return <BoutiqueOffres key={`offres-${initial || 0}`} gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} produitInitial={initial} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       }
+      if (pageActive === 'annonces-encheres') return <BoutiqueEncheres gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-negociations') return <BoutiqueNegociations gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-creer' || pageActive === 'creer') return <BoutiqueCreerAnnonce key="nouvelle" produitId={null} {...propsCreer} />;
       if (pageActive.startsWith('modifier-annonce?id=')) {

@@ -53,6 +53,8 @@ async function enregistrerOffre({ gid, produitId, prixOffre, debut, fin }) {
     const p = (await client.query(`SELECT id, prix, statut FROM produits WHERE id = $2 AND ${BASE} FOR UPDATE`, [gid, produitId])).rows[0];
     if (!p) refus('Produit introuvable.', 404);
     if (p.statut !== 'actif') refus('Seul un produit actif peut avoir une offre.');
+    const enchere = await client.query(`SELECT 1 FROM boutique_encheres WHERE produit_id = $1 AND statut IN ('active','attente_paiement') LIMIT 1`, [produitId]);   // add-on « Enchères »
+    if (enchere.rows.length) refus("Ce produit est aux enchères : on ne peut pas lui programmer d'offre du jour.", 409);
     const base = Number(p.prix) || 0;
     if (!(prix < base)) refus(`Le prix de l'offre doit être plus bas que le prix du produit (${base.toFixed(2)} $).`);
     await client.query('UPDATE produits SET offre_prix = $1, offre_debut = $2, offre_fin = $3 WHERE id = $4', [prix, d, f, produitId]);

@@ -39,12 +39,15 @@ router.get('/:gid', async (req, res) => {
     // Add-on « Offres du jour » : le prix d'offre remplace le prix promo tant que l'offre est en cours (décidé ICI, par le serveur).
     // ?offres=1 → seulement les produits dont l'offre est en cours, ceux qui finissent bientôt d'abord.
     const seulementOffres = req.query.offres === '1';
+    // ?ids=3,8,12 → seulement ces produits (la page « Enchères » et « Mes enchères » ouvrent une fiche qui n'est pas dans les 100 premiers)
+    const ids = typeof req.query.ids === 'string' ? req.query.ids.split(',').map((x) => parseInt(x, 10)).filter((x) => Number.isInteger(x) && x > 0 && x < 2147483647).slice(0, 50) : [];
+    const filtreIds = ids.length ? `AND p.id = ANY(ARRAY[${ids.join(',')}]::int[])` : '';
     const r = await pool.query(
       `SELECT p.id, p.titre, p.description, p.prix, ${O.sqlPromo('p')} AS prix_promo, ${O.sqlFin('p')} AS offre_fin, p.stock, p.sku, p.categorie, p.photo_principale, p.photos, p.variantes, p.created_at
          FROM produits p
         WHERE p.gestionnaire_id = $1 AND p.collaborateur_id IS NULL AND p.statut = 'actif'
           AND (p.date_parution IS NULL OR p.date_parution <= NOW()) AND (p.date_expiration IS NULL OR p.date_expiration > NOW())
-          ${seulementOffres ? `AND ${O.actif('p')}` : ''}
+          ${seulementOffres ? `AND ${O.actif('p')}` : ''} ${filtreIds}
         ORDER BY ${seulementOffres ? 'p.offre_fin ASC, ' : ''}p.created_at DESC, p.id DESC LIMIT ${limite} OFFSET ${decalage}`, [gid]);
     // NUMERIC revient en texte depuis Postgres : le template attend des nombres
     let totalOffres;
