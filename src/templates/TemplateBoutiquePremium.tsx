@@ -97,8 +97,8 @@ const CFG_DEF = {
     nomBoutique: 'Ma Boutique Premium', slogan: "L'excellence à votre portée",
     couleurFond: '#050505', couleurTexte: '#ffffff',
     reseaux: { facebook:'', instagram:'', tiktok:'', twitter:'', youtube:'', linkedin:'', pinterest:'' },
-    colonnes: { titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nFAQ', titre2:'Aide', liens2:'Contact\nRetours\nLivraison', titre3:'Légal', liens3:'Conditions\nConfidentialité' },
-    politiques: { afficherConditions:true, afficherConfidentialite:true, afficherRetours:true, afficherLivraison:true, afficherMentions:true },
+    colonnes: { titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nFAQ', titre2:'Aide', liens2:'Contact', titre3:'Légal', liens3:'' },
+    politiques: { afficherConditions:true, afficherConfidentialite:true, afficherRetours:true, afficherLivraison:true, afficherMentions:true, afficherCoordonnees:true },
     afficherPropulse: true,
   },
 };
@@ -109,7 +109,7 @@ const sansAccent = (t:string)=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'')
 // Reconnaît un lien de pied de page (ou un slug) qui désigne une politique : retourne son slug, sinon ''
 function slugPolitique(dest:string):string {
   const d=sansAccent(dest).replace(/[-_]+/g,' ');
-  const t:Record<string,string>={ 'conditions':'conditions-service','conditions de service':'conditions-service','termes':'conditions-service','termes et conditions':'conditions-service',
+  const t:Record<string,string>={ 'conditions':'conditions-service','conditions de service':'conditions-service','conditions service':'conditions-service','termes':'conditions-service','termes et conditions':'conditions-service',
     'confidentialite':'confidentialite','politique de confidentialite':'confidentialite','vie privee':'confidentialite',
     'retours':'retour-remboursement','retour':'retour-remboursement','remboursement':'retour-remboursement','remboursements':'retour-remboursement','retour et remboursement':'retour-remboursement','retours et remboursements':'retour-remboursement','retour remboursement':'retour-remboursement',
     'livraison':'expedition','expedition':'expedition','livraison et expedition':'expedition',
@@ -350,7 +350,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       fetch(`${API_BASE}/studio/politiques/${vendeurId}/public/${slugPol}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{ if(politiqueEnCours.current!==slugPol) return; const p=d&&d.politique; if(!p) throw new Error(); setPolitique({ slug:slugPol, titre:String(p.titre||''), contenu:typeof p.contenu==='string'?p.contenu:'' }); setPolitiqueStatut('idle'); }).catch(()=>{ if(politiqueEnCours.current===slugPol) setPolitiqueStatut('err'); });
       return; }
     const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login',inscription:'inscription' };
-    if(map[dest.toLowerCase()]) setPage(map[dest.toLowerCase()]);
+    const cle=sansAccent(dest).replace(/\s+/g,'-'); if(map[cle]) setPage(map[cle]);
   },[vendeurId]);
 
   const voirProduit = (p:Produit)=>{ setProduitActif(p); setPhotoIdx(0); setQteChoisie(1); setVarianteChoisie({}); setOngletProduit('description'); setPage('produit'); window.scrollTo({top:0,behavior:'smooth'}); fetch(`${API_BASE}/avis/produit/${p.id}`).then(r=>r.ok?r.json():[]).then(data=>setAvisActif(Array.isArray(data)?data:[])).catch(()=>{}); };
@@ -1062,7 +1062,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     const pol:any={ ...CFG_DEF.footer.politiques, ...(f.politiques||{}) };
     // Un lien légal n'apparaît que si le gestionnaire a rédigé cette politique (en démonstration : tous, pour l'aperçu)
     const polVisible=(slug:string)=>modeDemo||(politiquesRedigees?politiquesRedigees[slug]===true:false);
-    const liensPol=[['conditions-service','Conditions',pol.afficherConditions],['confidentialite','Confidentialité',pol.afficherConfidentialite],['retour-remboursement','Retours',pol.afficherRetours],['expedition','Livraison',pol.afficherLivraison],['mentions-legales','Mentions légales',pol.afficherMentions]].filter(([slug,,actif])=>actif!==false&&polVisible(slug as string));
+    const liensPol=[['retour-remboursement','Retour & remboursement',pol.afficherRetours],['confidentialite','Confidentialité',pol.afficherConfidentialite],['conditions-service','Conditions de service',pol.afficherConditions],['expedition','Expédition',pol.afficherLivraison],['coordonnees','Coordonnées',pol.afficherCoordonnees],['mentions-legales','Mentions légales',pol.afficherMentions]].filter(([slug,,actif])=>actif!==false&&polVisible(slug as string));
     const reseaux=Object.entries(f.reseaux).filter(([,v])=>v);
     const icos:Record<string,string>={ facebook:'f',instagram:'📸',tiktok:'♪',twitter:'𝕏',youtube:'▶',linkedin:'in',pinterest:'P' };
     return (
@@ -1077,20 +1077,18 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
                 {reseaux.map(([k,url])=><a key={k} href={url as string} target="_blank" rel="noopener noreferrer" style={{ width:36,height:36,borderRadius:8,background:`${cp}15`,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,color:'#fff',textDecoration:'none',fontWeight:700 }}>{icos[k]||k[0].toUpperCase()}</a>)}
               </div>}
             </div>
-            {['1','2','3'].map(n=>f.colonnes[`titre${n}`]?(
+            {['1','2','3'].map(n=>(f.colonnes[`titre${n}`]||(n==='3'&&liensPol.length>0))?(
               <div key={n}>
-                <div style={{ fontSize:11,fontWeight:700,color:cp,textTransform:'uppercase',letterSpacing:'0.15em',marginBottom:18 }}>{f.colonnes[`titre${n}`]}</div>
-                {f.colonnes[`liens${n}`].split('\n').filter((l:string)=>{ if(!l.trim()) return false; const sp=slugPolitique(l); return !sp||polVisible(sp); }).map((l:string,i:number)=>(
+                <div style={{ fontSize:11,fontWeight:700,color:cp,textTransform:'uppercase',letterSpacing:'0.15em',marginBottom:18 }}>{f.colonnes[`titre${n}`]||'Légal'}</div>
+                {(f.colonnes[`liens${n}`]||'').split('\n').filter((l:string)=>l.trim()&&!slugPolitique(l)).map((l:string,i:number)=>(
                   <div key={i} style={{ marginBottom:10 }}><button onClick={()=>naviguer(l.toLowerCase())} style={{ background:'none',border:'none',color:'#555',fontSize:13,cursor:'pointer',padding:0,textAlign:'left' }} onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.color=cp} onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.color='#555'}>{l}</button></div>
                 ))}
+                {n==='3'&&liensPol.map(([slug,label])=>(<div key={slug as string} style={{ marginBottom:10 }}><button onClick={()=>naviguer(slug as string)} style={{ background:'none',border:'none',color:'#555',fontSize:13,cursor:'pointer',padding:0,textAlign:'left' }} onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.color=cp} onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.color='#555'}>{label}</button></div>))}
               </div>
             ):null)}
           </div>
           <div style={{ borderTop:`1px solid rgba(201,169,110,0.1)`,padding:'20px 0',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12 }}>
             <div style={{ fontSize:12,color:'#333' }}>© {new Date().getFullYear()} {f.nomBoutique}. Tous droits réservés.</div>
-            <div style={{ display:'flex',gap:16,flexWrap:'wrap' }}>
-              {liensPol.map(([slug,label])=><button key={slug as string} onClick={()=>naviguer(slug as string)} style={{ background:'none',border:'none',color:'#444',fontSize:11,cursor:'pointer' }}>{label}</button>)}
-            </div>
             {f.afficherPropulse&&<a href="https://e-vend.ca" target="_blank" rel="noopener noreferrer" style={{ fontSize:10,color:'#2a2a2a',textDecoration:'none' }}>Propulsé par e-Vend Studio</a>}
           </div>
         </div>
@@ -1119,7 +1117,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   );
 
   // Espace acheteur : plein écran, comme AppAcheteur (MV) — il a son propre menu et son bouton « Retour à la boutique »
-  if(page==='compte') return <AppAcheteurBoutique key={vueCompte} vendeurId={vendeurId} pageInitiale={vueCompte} config={{ couleur_accent:cp, nom_boutique:cfg.nomBoutique, gestionnaire_id:vendeurId }} naviguerTemplate={(d:any)=>{ setVueCompte('dashboard'); naviguer(d&&d.page?d.page:'accueil'); }} />;
+  if(page==='compte') return <AppAcheteurBoutique key={vueCompte} vendeurId={vendeurId} pageInitiale={vueCompte} config={{ couleur_accent:cp, nom_boutique:cfg.nomBoutique, gestionnaire_id:vendeurId }} naviguerTemplate={(d:any)=>{ setVueCompte('dashboard'); if(d&&d.page==='produit'){ const p=produits.find(x=>Number(x.id)===Number(d.produitId)); if(p){ voirProduit(p); return; } naviguer('catalogue'); return; } naviguer(d&&d.page?d.page:'accueil'); }} />;
 
   return (
     <div style={{ fontFamily:"'Inter',-apple-system,sans-serif",background:cfg.couleurFond,color:cfg.couleurTexte,minHeight:'100vh',display:'flex',flexDirection:'column' }}>

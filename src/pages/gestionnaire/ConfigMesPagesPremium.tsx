@@ -123,7 +123,7 @@ const DEF = {
   blog: { titre: 'Notre univers', afficherAuteur: true, afficherDate: true, colonnes: 3, surtitre: '', videTitre: '' },
   inscription: INSCRIPTION_DEF,
   contact: { titre: 'Nous contacter', sousTitre: 'Une question ? Écrivez-nous !', adresse: '', telephone: '', courriel: '', heures: '', afficherCarte: false, urlCarte: '', surtitre: '', coordonneesTitre: '', succesTitre: '', succesTexte: '' },
-  footer: { nomBoutique: 'Ma Boutique Premium', slogan: "L'excellence à votre portée", couleurFond: '#050505', couleurTexte: '#ffffff', afficherPropulse: true, reseaux: { facebook: '', instagram: '', tiktok: '', twitter: '', youtube: '', linkedin: '', pinterest: '' }, colonnes: { titre1: 'Boutique', liens1: 'Accueil\nCatalogue\nBlog\nFAQ\nÀ propos', titre2: 'Aide', liens2: 'Contact\nRetours\nLivraison', titre3: 'Légal', liens3: 'Conditions\nConfidentialité' }, politiques: { afficherConditions: true, afficherConfidentialite: true, afficherRetours: true, afficherLivraison: true, afficherMentions: true } },
+  footer: { nomBoutique: 'Ma Boutique Premium', slogan: "L'excellence à votre portée", couleurFond: '#050505', couleurTexte: '#ffffff', afficherPropulse: true, reseaux: { facebook: '', instagram: '', tiktok: '', twitter: '', youtube: '', linkedin: '', pinterest: '' }, colonnes: { titre1: 'Boutique', liens1: 'Accueil\nCatalogue\nBlog\nFAQ\nÀ propos', titre2: 'Aide', liens2: 'Contact', titre3: 'Légal', liens3: '' }, politiques: { afficherConditions: true, afficherConfidentialite: true, afficherRetours: true, afficherLivraison: true, afficherMentions: true, afficherCoordonnees: true } },
 };
 
 // ─── Composants UI ────────────────────────────────────────────────────────────
@@ -707,12 +707,12 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
               </div>
             ))}
           </S>
-          <S titre="Liens légaux du bas de page">
-            <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.6 }}>Ces liens ouvrent vos politiques (Configuration → Mes politiques). Un lien n'apparaît que si la politique est rédigée.</p>
-            {([['afficherConditions', 'Conditions de service'], ['afficherConfidentialite', 'Confidentialité'], ['afficherRetours', 'Retour & remboursement'], ['afficherLivraison', 'Expédition'], ['afficherMentions', 'Mentions légales']] as const).map(([k, l]) => (
+          <S titre="Colonne « Légal » du bas de page">
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.6 }}>Vos politiques (Configuration → Mes politiques) sont regroupées automatiquement dans la colonne « Légal » du bas de page. Un lien n'apparaît que si la politique est rédigée.</p>
+            {([['afficherConditions', 'Conditions de service'], ['afficherConfidentialite', 'Confidentialité'], ['afficherRetours', 'Retour & remboursement'], ['afficherLivraison', 'Expédition'], ['afficherCoordonnees', 'Coordonnées'], ['afficherMentions', 'Mentions légales']] as const).map(([k, l]) => (
               <Toggle key={k} label={l} checked={(config.footer.politiques || {})[k] !== false} onChange={(v: boolean) => setFoot({ politiques: { ...(config.footer.politiques || {}), [k]: v } })} />
             ))}
-            <p style={{ fontSize: 12, color: '#888', margin: '8px 0 0', lineHeight: 1.6 }}>Astuce : dans les colonnes de liens ci-dessus, écrire « Retours », « Livraison », « Conditions », « Confidentialité », « Coordonnées » ou « Mentions légales » ouvre aussi la politique correspondante.</p>
+            <p style={{ fontSize: 12, color: '#888', margin: '8px 0 0', lineHeight: 1.6 }}>Les liens de politiques ne se saisissent pas dans les colonnes ci-dessus : ils s'ajoutent seuls dans la colonne « Légal » (le titre de la colonne 3 reste modifiable).</p>
           </S>
           <S titre="Branding e-Vend Studio">
             <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>

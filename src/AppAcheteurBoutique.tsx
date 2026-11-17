@@ -101,6 +101,9 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
 
   const naviguer = (dest: string) => {
     if (dest === 'boutique' || dest === 'accueil') { naviguerTemplate({ page: dest === 'boutique' ? 'catalogue' : 'accueil' }); return; }
+    // Depuis le panier : ouvrir la fiche d'une annonce, ou lire la politique de retour (le template les ouvre lui-même)
+    if (dest.startsWith('produit:')) { naviguerTemplate({ page: 'produit', produitId: Number(dest.slice(8)) }); return; }
+    if (dest === 'retour-remboursement') { naviguerTemplate({ page: dest }); return; }
     setPage((dest === 'caisse' ? 'checkout' : dest) as PageDash);
     if (isMobile) setMenuMobileOuvert(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
