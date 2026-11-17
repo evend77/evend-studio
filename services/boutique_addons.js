@@ -27,11 +27,15 @@ const CATEGORIE_IDS = new Set(CATEGORIES.map((c) => c.id));
 const nombre = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
 const arrondi = (n) => Math.round(n * 100) / 100;
 
-// Le gestionnaire a-t-il un site boutique (solo) ? Les add-ons ne servent qu'à ces templates.
+// Templates boutique SOLO (mêmes préfixes que le menu du gestionnaire) : Premium, Simplisse (et Mode), Beauté.
+// Les anciens templates « boutique-simple » et « boutique-complete » gardent leur menu « Branding & options ».
+const PREFIXES_SOLO = ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'];
+const estTemplateSolo = (t) => typeof t === 'string' && PREFIXES_SOLO.some((p) => t.startsWith(p));
+
+// Le gestionnaire a-t-il un site boutique solo ? Les add-ons ne servent qu'à ces templates.
 async function aSiteBoutique(gid, db) {
   const r = await (db || pool).query('SELECT template_id FROM sites WHERE gestionnaire_id = $1', [gid]);
-  const t = r.rows[0] && r.rows[0].template_id;
-  return typeof t === 'string' && t.startsWith('boutique-');
+  return estTemplateSolo(r.rows[0] && r.rows[0].template_id);
 }
 
 // État complet : add-ons offerts (ou déjà activés), avec prix, achat, total mensuel.
@@ -82,4 +86,14 @@ async function addonActif(gid, code, db) {
   return r.rowCount > 0;
 }
 
-module.exports = { CATEGORIES, etat, activer, desactiver, addonActif, aSiteBoutique };
+// Public (lu par le site de la boutique) : { code: true } pour chaque add-on activé ET encore offert. Rien d'autre n'est révélé.
+async function actifs(gid, db) {
+  const r = await (db || pool).query(
+    `SELECT x.code FROM boutique_addons_achetes x JOIN boutique_addons a ON a.code = x.code
+      WHERE x.gestionnaire_id = $1 AND a.actif = true AND a.branche = true`, [gid]);
+  const out = {};
+  for (const l of r.rows) out[l.code] = true;
+  return out;
+}
+
+module.exports = { CATEGORIES, PREFIXES_SOLO, estTemplateSolo, etat, activer, desactiver, addonActif, actifs, aSiteBoutique };

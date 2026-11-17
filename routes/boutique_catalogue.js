@@ -1,13 +1,29 @@
 // CHEMIN : routes/boutique_catalogue.js
 // e-Vend Studio — Catalogue PUBLIC d'une boutique solo (templates boutique). Monté par routes/boutique_index.js sur :
 //   GET /api/boutique/catalogue/:gid        (aucune connexion requise)
+//   GET /api/boutique/catalogue/:gid/addons (add-ons activés, aucune connexion requise)
 // Retourne les annonces ACTIVES du gestionnaire (table produits, collaborateur_id VIDE) — jamais celles du MV, jamais les brouillons.
 
 'use strict';
 
 const express = require('express');
 const pool = require('../db');
+const A = require('../services/boutique_addons');
 const router = express.Router({ mergeParams: true });
+
+// Add-ons activés de la boutique (public — lu par le site). Réponse : { addons: { badge_evend_masquer: true, … } }
+router.get('/:gid/addons', async (req, res) => {
+  try {
+    const gid = parseInt(req.params.gid, 10);
+    if (!Number.isInteger(gid) || gid <= 0) return res.status(404).json({ message: 'Boutique introuvable' });
+    const s = await pool.query('SELECT template_id FROM sites WHERE gestionnaire_id = $1', [gid]);
+    if (!s.rows.length || !A.estTemplateSolo(s.rows[0].template_id)) return res.json({ addons: {} });
+    res.json({ addons: await A.actifs(gid) });
+  } catch (err) {
+    console.error('Erreur add-ons boutique:', err);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
 
 router.get('/:gid', async (req, res) => {
   try {

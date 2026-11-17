@@ -46,8 +46,12 @@ import TemplateBoutiqueSimplisseMode  from '../templates/TemplateBoutiqueSimplis
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
+import { configPremiumAvecBadge }     from '../templates/shared/addons/badgeEvendMasquer';
 
 const API_BASE = '/api';
+
+// Templates boutique SOLO : leurs add-ons viennent de l'API boutique (Mon plan & limites). Les autres templates ne changent pas.
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p));
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -153,6 +157,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const [siteData, setSiteData] = useState<any>(null);
   const [configMV, setConfigMV] = useState<any>({});
   const [options, setOptions] = useState<any>({});
+  const [addonsBoutique, setAddonsBoutique] = useState<Record<string, boolean> | null>(null);   // add-ons boutique solo (null = pas encore chargés)
   const [loading, setLoading]   = useState(true);
   const [erreur, setErreur]     = useState('');
 
@@ -188,6 +193,17 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   useEffect(() => {
     if (siteData || (isDemo && forceTemplate)) window.scrollTo(0, 0);
   }, [siteData, isDemo, forceTemplate]);
+
+  // Add-ons de la boutique solo (route publique) — jamais en mode démo
+  useEffect(() => {
+    if (isDemo || !vendeurId || !estBoutiqueSolo(String(siteData?.template_id || ''))) return;
+    let actif = true;
+    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}/addons`)
+      .then(r => r.ok ? r.json() : { addons: {} })
+      .then(d => { if (actif) setAddonsBoutique((d && d.addons) || {}); })
+      .catch(() => { if (actif) setAddonsBoutique({}); });
+    return () => { actif = false; };
+  }, [siteData?.template_id, vendeurId, isDemo]);
 
   // Add-on Analytique — track le chargement du site, respecte le consentement
   // cookie du visiteur. Jamais actif en mode démo ni sans vendeurId.
@@ -243,7 +259,8 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       const configDemo = isDemo
         ? { ...config, __produits_demo__: DEMO_PRODUITS_PREMIUM }
         : config;
-      return <TemplateBoutiquePremium config={configDemo} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+      // Add-on « Cacher le branding » : badge « Propulsé par » masqué seulement si l'add-on est activé
+      return <TemplateBoutiquePremium config={isDemo ? configDemo : configPremiumAvecBadge(configDemo, addonsBoutique)} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId.startsWith('boutique-beaute')) {
       const DEMO_PRODUITS_BEAUTE = [
