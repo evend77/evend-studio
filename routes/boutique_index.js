@@ -17,7 +17,7 @@ router.use('/gestionnaire/taxes', require('./boutique_taxes_config'));
 router.use('/gestionnaire/commandes', require('./boutique_commandes_gestionnaire'));
 router.use('/gestionnaire/promos', require('./boutique_promos_config'));
 router.use('/gestionnaire/retours', require('./boutique_retours_gestionnaire'));
-router.use('/gestionnaire/acheteurs', require('./boutique_acheteurs_gestionnaire'));
+router.use('/gestionnaire/addons', require('./boutique_addons_gestionnaire'));
 
 // Publics (sans connexion) — AVANT la zone connectée ci-dessous : catalogue de la boutique, inscription d'un acheteur
 router.use('/catalogue', require('./boutique_catalogue'));

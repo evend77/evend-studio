@@ -1,11 +1,12 @@
 // CHEMIN : src/pages/gestionnaire/BoutiquePlan.tsx
 // e-Vend Studio — « Mon plan & limites » des templates boutique (solo : Premium, Simplisse, Mode, Beauté…).
 // Les paliers viennent de l'admin (page « Prix Template »). Un seul écran pour tous les templates solo.
-// API : GET/PUT /api/boutique/gestionnaire/plan
+// API : GET/PUT /api/boutique/gestionnaire/plan ; les add-ons (section du bas) : voir BoutiqueAddons.tsx
 
 import React, { useEffect, useState } from 'react';
 import { bq, messageErreur } from './boutiqueApi';
 import BoutiqueModale from './BoutiqueModale';
+import BoutiqueAddons from './BoutiqueAddons';
 
 interface Palier { label: string; limite: number; prix: string; plan_id: string; }
 interface EtatPlan { template_id: string; plan: string; limite: number | null; nb_actifs: number; palier_actuel: string | null; paliers: Palier[]; }
@@ -50,6 +51,7 @@ export default function BoutiquePlan({ accent, naviguerVers }: Props) {
         <div style={{ fontSize: 44, marginBottom: 10 }}>📊</div>
         <h2 style={{ margin: '0 0 8px', color: '#1a1a1a' }}>Mon plan & limites</h2>
         <p style={{ color: '#666', lineHeight: 1.6 }}>Votre template actuel n'a pas de limite d'annonces. Vous avez {etat.nb_actifs} annonce{etat.nb_actifs > 1 ? 's' : ''} active{etat.nb_actifs > 1 ? 's' : ''}.</p>
+        <div style={{ textAlign: 'left' }}><BoutiqueAddons accent={couleurBase} /></div>
       </div>
     );
   }
@@ -142,6 +144,8 @@ export default function BoutiquePlan({ accent, naviguerVers }: Props) {
       </button>
       <p style={{ fontSize: 12, color: '#888', textAlign: 'center', marginTop: 10 }}>Pour changer de template, rendez-vous dans « Choisir un template » : votre palier est ajusté automatiquement.</p>
       {naviguerVers && <div style={{ textAlign: 'center', marginTop: 4 }}><button onClick={() => naviguerVers('annonces-liste')} style={{ background: 'none', border: 'none', color: couleurBase, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>Voir mes annonces →</button></div>}
+
+      <BoutiqueAddons accent={couleurBase} />
 
       {confirmer && choix && (
         <BoutiqueModale type="confirmer" accent={couleurBase} enCours={enCours} titre="Changer de palier ?"
