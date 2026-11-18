@@ -49,6 +49,9 @@ router.use('/negociations', require('./boutique_negociations_acheteur'));
 // Add-on « Enchères » : miser, mes enchères, remettre l'article gagné au panier
 router.use('/encheres', require('./boutique_encheres_acheteur'));
 
+// Add-on « Questions sur le produit » : poser une question, signaler une question publiée
+router.use('/questions', require('./boutique_questions_acheteur'));
+
 const wrap = (fn) => async (req, res) => {
   try { await fn(req, res); }
   catch (e) {

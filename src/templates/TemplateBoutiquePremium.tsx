@@ -8,6 +8,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import AppAcheteurBoutique from '../AppAcheteurBoutique';
 import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-on « Faire une offre » : bloc de la fiche produit
 import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
+import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
 import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
 import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
 
@@ -866,6 +867,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             </div>
           )}
         </div>
+
+        {/* Add-on « Questions sur le produit » : bloc caché par le serveur si l'add-on ou l'interrupteur est coupé */}
+        <QuestionsProduitBoutique gestionnaireId={vendeurId} produitId={p.id} couleurAccent={cp} isDemo={modeDemo}
+          allerConnexion={()=>{ setAvisPanier('Connectez-vous pour poser une question.'); naviguer('login'); }}/>
 
         {/* Similaires */}
         {similaires.length>0&&<div style={{ marginTop:72,paddingTop:48,borderTop:`1px solid ${BORD}` }}>

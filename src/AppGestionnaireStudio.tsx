@@ -85,6 +85,7 @@ import BoutiqueEffets              from './pages/gestionnaire/BoutiqueEffets';
 import BoutiqueOffres              from './pages/gestionnaire/BoutiqueOffres';
 import BoutiqueNegociations        from './pages/gestionnaire/BoutiqueNegociations';
 import BoutiqueEncheres            from './pages/gestionnaire/BoutiqueEncheres';
+import BoutiqueQuestions           from './pages/gestionnaire/BoutiqueQuestions';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
 import BoutiquePaiements          from './pages/gestionnaire/BoutiquePaiements';
@@ -562,6 +563,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const [addonsBoutique, setAddonsBoutique] = useState<Record<string, boolean>>({});
   // Add-on « Faire une offre » : nombre d'offres qui attendent la réponse du gestionnaire (pastille du menu)
   const [nbOffresPrix, setNbOffresPrix] = useState(0);
+  // Add-on « Questions sur le produit » : questions à traiter (en attente + signalées) = pastille du menu
+  const [nbQuestions, setNbQuestions] = useState(0);
   useEffect(() => {
     if (!gestionnaire?.id) return;
     let actif = true;
@@ -592,6 +595,21 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     window.addEventListener('negociations-boutique-maj', charger);
     return () => { actif = false; clearInterval(t); window.removeEventListener('negociations-boutique-maj', charger); };
   }, [gestionnaire?.id, addonsBoutique.faire_une_offre, pageActive]);
+  useEffect(() => {
+    if (!gestionnaire?.id || !addonsBoutique.questions_produit) { setNbQuestions(0); return; }
+    let actif = true;
+    const charger = () => {
+      const tk = localStorage.getItem('token');
+      fetch(`${API_BASE}/boutique/gestionnaire/questions/compte`, { headers: { Authorization: `Bearer ${tk}` }, credentials: 'include' })
+        .then(r => (r.ok ? r.json() : null))
+        .then((d: any) => { if (actif && d && Number.isInteger(d.a_traiter)) setNbQuestions(d.a_traiter); })
+        .catch(() => {});
+    };
+    charger();
+    const t = setInterval(charger, 60000);
+    window.addEventListener('questions-boutique-maj', charger);
+    return () => { actif = false; clearInterval(t); window.removeEventListener('questions-boutique-maj', charger); };
+  }, [gestionnaire?.id, addonsBoutique.questions_produit, pageActive]);
   useEffect(() => {
     if (!gestionnaire?.id) return;
     let actif = true;
@@ -763,6 +781,14 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     const items = m.sousMenu || [];
     const apres = items.some(x => x.id === 'annonces-negociations') ? 'annonces-negociations' : items.some(x => x.id === 'annonces-offres') ? 'annonces-offres' : 'annonces-liste';
     return { ...m, sousMenu: items.flatMap(it => it.id === apres ? [it, { id: 'annonces-encheres', label: 'Enchères', icon: '🔨' }] : [it]) };
+  };
+  // Add-on « Questions sur le produit » (boutique solo, Premium d'abord) : « Questions des acheteurs » sous « Liste des produits » (après les entrées des autres add-ons), avec pastille des questions à traiter
+  const avecQuestions = (m: MenuItem): MenuItem => {
+    if (!addonsBoutique.questions_produit) return m;
+    const items = m.sousMenu || [];
+    const apres = ['annonces-encheres', 'annonces-negociations', 'annonces-offres'].find(id => items.some(x => x.id === id)) || 'annonces-liste';
+    const pastille = nbQuestions > 0 ? nbQuestions : undefined;
+    return { ...m, badge: ((m.badge || 0) + (pastille || 0)) || undefined, sousMenu: items.flatMap(it => it.id === apres ? [it, { id: 'annonces-questions', label: 'Questions des acheteurs', icon: '❓', badge: pastille }] : [it]) };
   };
   const avecEffets = (m: MenuItem): MenuItem => addonsBoutique.effets_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-effets', label: 'Effets de boutique', icon: '✨' }] } : m;
 
@@ -1244,7 +1270,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estPremium) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      avecEncheres(avecNegociations(avecOffres(menuVosAnnoncesPremium))),
+      avecQuestions(avecEncheres(avecNegociations(avecOffres(menuVosAnnoncesPremium)))),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1579,6 +1605,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         return <BoutiqueOffres key={`offres-${initial || 0}`} gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} produitInitial={initial} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       }
       if (pageActive === 'annonces-encheres') return <BoutiqueEncheres gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
+      if (pageActive === 'annonces-questions') return <BoutiqueQuestions gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-negociations') return <BoutiqueNegociations gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-creer' || pageActive === 'creer') return <BoutiqueCreerAnnonce key="nouvelle" produitId={null} {...propsCreer} />;
       if (pageActive.startsWith('modifier-annonce?id=')) {
