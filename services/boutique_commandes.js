@@ -22,6 +22,7 @@ const { ErreurCommande } = require('./boutique_commandes_erreur');
 const PROMOS = require('./boutique_promos');
 const OFFRES = require('./boutique_offres');   // add-on « Offres du jour » : prix d'offre choisi par le serveur
 const NEGO = require('./boutique_negociations');   // add-on « Faire une offre » : prix convenu, relu ici à chaque fois
+const PAL = require('./boutique_paliers');         // add-on « Prix par palier » : prix par unité selon la quantité, calculé ICI
 const ENCH = require('./boutique_encheres');       // add-on « Enchères » : article gagné (prix = mise gagnante, quantité 1, stock déjà retiré à la création de l'enchère)
 const refus = (m, s, c) => { throw new ErreurCommande(m, s, c); };
 const cents = (n) => Math.round(Number(n) * 100 + 1e-7);
@@ -92,7 +93,7 @@ async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
             ng.statut AS ng_statut, ng.acheteur_id AS ng_acheteur, ng.produit_id AS ng_produit, ng.variante AS ng_variante, ng.prix_final AS ng_prix, (ng.expire_le > NOW()) AS ng_vivante,
             (bp.negociation_id IS NOT NULL AND ${NEGO.sqlAddonOn('bp')}) AS ng_addon,
             p.id AS pid, p.titre, p.prix, ${OFFRES.sqlPromo('p')} AS prix_promo, p.stock, p.variantes, p.statut, p.photo_principale, p.poids,
-            p.quantite_min, p.date_parution, p.date_expiration
+            p.quantite_min, p.date_parution, p.date_expiration, p.paliers, ${PAL.sqlAddonOn('p')} AS paliers_on
        FROM boutique_panier bp
        LEFT JOIN boutique_negociations ng ON ng.id = bp.negociation_id AND ng.gestionnaire_id = bp.gestionnaire_id
        LEFT JOIN boutique_encheres en ON en.id = bp.enchere_id AND en.gestionnaire_id = bp.gestionnaire_id
@@ -120,6 +121,10 @@ async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
       if (!valide) { ligne.erreur = `« ${ligne.titre} » : l'offre acceptée n'est plus valide (délai écoulé, retirée ou désactivée). Retirez cet article du panier et refaites une offre.`; return ligne; }
       if (x.quantite !== 1) { ligne.erreur = `« ${ligne.titre} » : une offre acceptée porte sur 1 unité.`; return ligne; }
       ligne.prix_normal = c.prix; ligne.prix = Math.min(Number(x.ng_prix), c.prix);
+    }
+    if (!x.negociation_id && x.paliers_on && x.paliers) {   // add-on « Prix par palier » : prix par unité selon la quantité du panier (jamais pour une offre acceptée)
+      const pp = PAL.prixPourQuantite(x.paliers, ligne.variante, x.quantite, c.prix);
+      if (pp < c.prix) { ligne.prix_normal = c.prix; ligne.prix = pp; ligne.prix_palier = true; }
     }
     ligne.total_ligne = cents(ligne.prix) * x.quantite / 100;
     if (x.quantite > c.stock) ligne.erreur = c.stock <= 0 ? `« ${ligne.titre} » est épuisé.` : `« ${ligne.titre} » : il n'en reste que ${c.stock}.`;

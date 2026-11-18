@@ -10,6 +10,7 @@ const express = require('express');
 const pool = require('../db');
 const A = require('../services/boutique_addons');
 const O = require('../services/boutique_offres');
+const PAL = require('../services/boutique_paliers');
 const router = express.Router({ mergeParams: true });
 
 // Add-ons activés de la boutique (public — lu par le site). Réponse : { addons: { badge_evend_masquer: true, … } }
@@ -43,7 +44,7 @@ router.get('/:gid', async (req, res) => {
     const ids = typeof req.query.ids === 'string' ? req.query.ids.split(',').map((x) => parseInt(x, 10)).filter((x) => Number.isInteger(x) && x > 0 && x < 2147483647).slice(0, 50) : [];
     const filtreIds = ids.length ? `AND p.id = ANY(ARRAY[${ids.join(',')}]::int[])` : '';
     const r = await pool.query(
-      `SELECT p.id, p.titre, p.description, p.prix, ${O.sqlPromo('p')} AS prix_promo, ${O.sqlFin('p')} AS offre_fin, p.stock, p.sku, p.categorie, p.photo_principale, p.photos, p.variantes, p.created_at,
+      `SELECT p.id, p.titre, p.description, p.prix, ${O.sqlPromo('p')} AS prix_promo, ${O.sqlFin('p')} AS offre_fin, p.stock, p.sku, p.categorie, p.photo_principale, p.photos, p.variantes, p.created_at, p.paliers, ${PAL.sqlAddonOn('p')} AS paliers_on,
              en.date_fin AS ench_fin, COALESCE(en.mise_actuelle, en.prix_depart) AS ench_mise, en.nb_mises AS ench_nb
          FROM produits p
          LEFT JOIN LATERAL (SELECT e.date_fin, e.mise_actuelle, e.prix_depart, e.nb_mises FROM boutique_encheres e WHERE e.produit_id = p.id AND e.statut = 'active' AND e.date_fin > NOW() ORDER BY e.id DESC LIMIT 1) en ON TRUE
@@ -58,7 +59,10 @@ router.get('/:gid', async (req, res) => {
         `SELECT COUNT(*) AS n FROM produits p WHERE p.gestionnaire_id = $1 AND p.collaborateur_id IS NULL AND p.statut = 'actif'
             AND (p.date_parution IS NULL OR p.date_parution <= NOW()) AND (p.date_expiration IS NULL OR p.date_expiration > NOW()) AND ${O.actif('p')}`, [gid])).rows[0].n, 10);
     }
-    res.json({ heure_serveur: new Date().toISOString(), ...(seulementOffres ? { total: totalOffres } : {}), produits: r.rows.map((x) => ({ ...x, prix: Number(x.prix), prix_promo: x.prix_promo === null ? null : Number(x.prix_promo) })) });
+    res.json({ heure_serveur: new Date().toISOString(), ...(seulementOffres ? { total: totalOffres } : {}), produits: r.rows.map(({ paliers, paliers_on, ...x }) => ({
+      ...x, prix: Number(x.prix), prix_promo: x.prix_promo === null ? null : Number(x.prix_promo),
+      ...(paliers_on && paliers ? { paliers: PAL.pourAffichage(paliers) } : {}),   // add-on « Prix par palier » : envoyés seulement si l'add-on est actif
+    })) });
   } catch (err) {
     console.error('Erreur catalogue boutique:', err);
     res.status(500).json({ message: 'Erreur serveur' });

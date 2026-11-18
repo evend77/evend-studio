@@ -6,7 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ba, messageAcheteur, argent, paramUrl } from './boutiqueAcheteurApi';
 
-interface Ligne { id: number; produit_id: number; titre: string; variante: string; quantite: number; prix: number; stock: number; total_ligne: number; image_url: string | null; erreur: string | null; negocie?: boolean; enchere?: boolean; prix_normal?: number; }
+interface Ligne { id: number; produit_id: number; titre: string; variante: string; quantite: number; prix: number; stock: number; total_ligne: number; image_url: string | null; erreur: string | null; negocie?: boolean; enchere?: boolean; prix_normal?: number; prix_palier?: boolean; }
 interface PlusTard { id: number; produit_id: number; titre: string; variante: string; quantite: number; prix: number; image_url: string | null; }
 interface Props { gestionnaireId: number; accent?: string; naviguerVers: (page: string) => void; }
 
@@ -287,7 +287,7 @@ export default function PanierBoutique({ gestionnaireId: gid, accent, naviguerVe
                   <div style={{ flex: 1, minWidth: 0 }}>
                     {titre}
                     {l.variante && <div style={{ fontSize: 12, color: '#a8926a', marginTop: 2 }}>{l.variante}</div>}
-                    <p style={{ fontSize: 15, fontWeight: 700, color: c, margin: '6px 0 2px' }}>{argent(l.prix)} / unité{(l.negocie || l.enchere) && l.prix_normal ? <span style={{ fontSize: 12, color: '#a8926a', fontWeight: 400, textDecoration: 'line-through', marginLeft: 6 }}>{argent(l.prix_normal)}</span> : null}</p>{l.negocie && <p style={{ fontSize: 12, color: '#047857', fontWeight: 700, margin: '0 0 2px' }}>🤝 Prix négocié</p>}{l.enchere && <p style={{ fontSize: 12, color: '#047857', fontWeight: 700, margin: '0 0 2px' }}>🔨 Gagné aux enchères</p>}
+                    <p style={{ fontSize: 15, fontWeight: 700, color: c, margin: '6px 0 2px' }}>{argent(l.prix)} / unité{(l.negocie || l.enchere || l.prix_palier) && l.prix_normal ? <span style={{ fontSize: 12, color: '#a8926a', fontWeight: 400, textDecoration: 'line-through', marginLeft: 6 }}>{argent(l.prix_normal)}</span> : null}</p>{l.negocie && <p style={{ fontSize: 12, color: '#047857', fontWeight: 700, margin: '0 0 2px' }}>🤝 Prix négocié</p>}{l.enchere && <p style={{ fontSize: 12, color: '#047857', fontWeight: 700, margin: '0 0 2px' }}>🔨 Gagné aux enchères</p>}{l.prix_palier && <p style={{ fontSize: 12, color: '#047857', fontWeight: 700, margin: '0 0 2px' }}>💰 Prix de gros appliqué</p>}
                     <p style={{ fontSize: 14, fontWeight: 800, margin: 0 }}>Total : {total}{l.quantite > 1 && <span style={{ fontSize: 11, color: '#a8926a', fontWeight: 400, marginLeft: 4 }}>{l.quantite}×</span>}</p>
                     {l.erreur && <p style={{ fontSize: 12, color: '#b45309', margin: '6px 0 0' }}>⚠️ {l.erreur}</p>}
                   </div>
@@ -304,7 +304,7 @@ export default function PanierBoutique({ gestionnaireId: gid, accent, naviguerVe
                 <div style={{ minWidth: 0 }}>
                   {titre}
                   {l.variante && <div style={{ fontSize: 12, color: '#a8926a', marginTop: 4 }}>{l.variante}</div>}
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 8 }}><span style={{ fontSize: 16, fontWeight: 700, color: c }}>{argent(l.prix)}</span><span style={{ fontSize: 12, color: '#a8926a' }}>/ unité</span>{(l.negocie || l.enchere) && l.prix_normal ? <span style={{ fontSize: 13, color: '#a8926a', textDecoration: 'line-through', marginLeft: 6 }}>{argent(l.prix_normal)}</span> : null}{l.negocie && <span style={{ fontSize: 12, color: '#047857', fontWeight: 700, marginLeft: 8 }}>🤝 Prix négocié</span>}{l.enchere && <span style={{ fontSize: 12, color: '#047857', fontWeight: 700, marginLeft: 8 }}>🔨 Gagné aux enchères</span>}</div>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 8 }}><span style={{ fontSize: 16, fontWeight: 700, color: c }}>{argent(l.prix)}</span><span style={{ fontSize: 12, color: '#a8926a' }}>/ unité</span>{(l.negocie || l.enchere || l.prix_palier) && l.prix_normal ? <span style={{ fontSize: 13, color: '#a8926a', textDecoration: 'line-through', marginLeft: 6 }}>{argent(l.prix_normal)}</span> : null}{l.negocie && <span style={{ fontSize: 12, color: '#047857', fontWeight: 700, marginLeft: 8 }}>🤝 Prix négocié</span>}{l.enchere && <span style={{ fontSize: 12, color: '#047857', fontWeight: 700, marginLeft: 8 }}>🔨 Gagné aux enchères</span>}{l.prix_palier && <span style={{ fontSize: 12, color: '#047857', fontWeight: 700, marginLeft: 8 }}>💰 Prix de gros appliqué</span>}</div>
                   {l.erreur && <p style={{ fontSize: 12, color: '#b45309', margin: '6px 0 0' }}>⚠️ {l.erreur}</p>}
                 </div>
                 <div><p style={{ fontSize: 11, color: '#a8926a', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.5px', margin: '0 0 8px' }}>Quantité</p>{Quantite(l)}</div>

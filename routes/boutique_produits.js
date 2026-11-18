@@ -14,6 +14,7 @@ const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const L = require('../services/boutique_limites');
+const PAL = require('../services/boutique_paliers');   // add-on « Prix par palier »
 
 const router = express.Router();
 const PAR_PAGE = 50;
@@ -169,6 +170,8 @@ function lireProduit(req) {
     if (quantiteMin === 1) quantiteMin = null;
   }
   const prixRevient = nombre(b.prix_revient, 'Prix de revient', 0, 1000000, null);
+  // Add-on « Prix par palier » : undefined = on ne touche pas ; sinon validé plus bas (après vérification de l'add-on) avec le prix et les variantes
+  const paliersBruts = b.paliers;
   // Méthodes d'expédition choisies pour cette annonce (undefined = on ne touche pas aux choix existants)
   let methodes;
   if (b.methodes_expedition_ids !== undefined) {
@@ -176,7 +179,21 @@ function lireProduit(req) {
     methodes = Array.from(new Set(b.methodes_expedition_ids.map(entier)));
     if (methodes.some((x) => !x)) bad("Méthodes d'expédition invalides");
   }
-  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes, poids, quantiteMin, prixRevient, methodes };
+  return { titre, description, prix, prixPromo, stock, sku, categorieId, statut, photos, variantes, poids, quantiteMin, prixRevient, methodes, paliersBruts };
+}
+
+// Add-on « Prix par palier » : validé AVANT d'écrire l'annonce (une erreur n'enregistre rien). Retourne undefined = ne rien toucher
+// (champ absent, ou add-on non activé : les paliers existants sont conservés), null = effacer, tableau = paliers propres.
+async function preparerPaliers(req, p) {
+  if (p.paliersBruts === undefined) return undefined;
+  if (!(await PAL.actifPourBoutique(req.gid))) return undefined;
+  if (p.paliersBruts === null) return null;
+  if (!Array.isArray(p.paliersBruts)) bad('Paliers de prix invalides');
+  return PAL.valider(p.paliersBruts, p.prix, p.variantes);
+}
+async function ecrirePaliers(req, id, propres) {
+  if (propres === undefined) return;
+  await pool.query('UPDATE produits SET paliers = $1 WHERE id = $2 AND gestionnaire_id = $3 AND collaborateur_id IS NULL', [propres ? JSON.stringify(propres) : null, id, req.gid]);
 }
 
 // Les méthodes choisies doivent être des méthodes ACTIVES de ce gestionnaire ; une méthode au kg exige un poids
@@ -310,11 +327,11 @@ router.get('/produits/:id', h(async (req, res) => {
   const id = entier(req.params.id);
   if (!id) bad('Produit invalide');
   const r = await pool.query(
-    `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id, photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient
+    `SELECT id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id, photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient, paliers
        FROM produits WHERE id = $2 AND ${BASE}`, [req.gid, id]);
   if (!r.rows.length) bad('Produit introuvable', 404);
   const m = await pool.query('SELECT methode_id FROM boutique_produit_methodes_expedition WHERE produit_id = $1 ORDER BY methode_id', [id]);
-  res.json({ ...r.rows[0], methodes_expedition_ids: m.rows.map((x) => x.methode_id) });
+  res.json({ ...r.rows[0], paliers_actif: await PAL.actifPourBoutique(req.gid), methodes_expedition_ids: m.rows.map((x) => x.methode_id) });
 }));
 
 // ─── Création / modification ──────────────────────────────────────────────────
@@ -322,6 +339,7 @@ router.post('/produits', h(async (req, res) => {
   const p = lireProduit(req);
   p.categorie = await nomCategorie(req, p.categorieId);
   await verifierMethodes(req, p);
+  const paliers = await preparerPaliers(req, p);
   const n = await pool.query(`SELECT COUNT(*)::int AS n FROM produits WHERE ${BASE}`, [req.gid]);
   if (n.rows[0].n >= MAX_ANNONCES) bad(`Limite de ${MAX_ANNONCES} annonces atteinte`, 409);
   if (p.statut === 'actif') await L.verifierActivation(req.gid, 1);
@@ -332,6 +350,7 @@ router.post('/produits', h(async (req, res) => {
     [req.gid, p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
      p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, p.poids, p.quantiteMin, p.prixRevient]);
   await ecrireMethodes(r.rows[0].id, p);
+  await ecrirePaliers(req, r.rows[0].id, paliers);
   res.status(201).json({ id: r.rows[0].id, statut: p.statut });
 }));
 
@@ -341,6 +360,7 @@ router.put('/produits/:id', h(async (req, res) => {
   const p = lireProduit(req);
   p.categorie = await nomCategorie(req, p.categorieId);
   await verifierMethodes(req, p);
+  const paliers = await preparerPaliers(req, p);
   const ancien = await pool.query(`SELECT statut, stock FROM produits WHERE id = $2 AND ${BASE}`, [req.gid, id]);
   if (!ancien.rows.length) bad('Produit introuvable', 404);
   if (p.statut === 'actif' && ancien.rows[0].statut !== 'actif') await L.verifierActivation(req.gid, 1);
@@ -356,6 +376,7 @@ router.put('/produits/:id', h(async (req, res) => {
     [p.titre, p.description, p.prix, p.prixPromo, p.stock, p.sku || null, p.categorie || null, p.categorieId,
      p.photos[0] || null, JSON.stringify(p.photos), JSON.stringify(p.variantes), p.statut, p.poids, p.quantiteMin, p.prixRevient, id, req.gid]);
   await ecrireMethodes(id, p);
+  await ecrirePaliers(req, id, paliers);
   res.json({ success: true, statut: p.statut });
 }));
 
@@ -375,9 +396,9 @@ router.post('/produits/:id/dupliquer', h(async (req, res) => {
   if (!id) bad('Produit invalide');
   const r = await pool.query(
     `INSERT INTO produits (gestionnaire_id, collaborateur_id, titre, description, prix, prix_promo, stock, sku, categorie, categorie_id,
-                           photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient)
+                           photo_principale, photos, variantes, statut, poids, quantite_min, prix_revient, paliers)
      SELECT gestionnaire_id, NULL, LEFT('Copie de ' || titre, 150), description, prix, prix_promo, stock, NULL, categorie, categorie_id,
-            photo_principale, photos, variantes, 'brouillon', poids, quantite_min, prix_revient
+            photo_principale, photos, variantes, 'brouillon', poids, quantite_min, prix_revient, paliers
        FROM produits WHERE id = $2 AND ${BASE} RETURNING id`, [req.gid, id]);
   if (!r.rowCount) bad('Produit introuvable', 404);
   await pool.query('INSERT INTO boutique_produit_methodes_expedition (produit_id, methode_id) SELECT $1, methode_id FROM boutique_produit_methodes_expedition WHERE produit_id = $2', [r.rows[0].id, id]);

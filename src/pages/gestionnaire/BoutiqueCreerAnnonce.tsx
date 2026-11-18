@@ -8,6 +8,7 @@ import { BQ, bq, messageErreur, formaterArgent } from './boutiqueApi';
 import BoutiqueModale from './BoutiqueModale';
 
 interface Variante { nom: string; prix: string; stock: string; }
+interface LignePalier { id: number; qte: string; valeur: string; prixVariantes: Record<string, string>; }
 interface Categorie { id: number; nom: string; groupe_nom: string | null; }
 
 interface Props {
@@ -44,6 +45,11 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
   const [methodes, setMethodes] = useState<any[]>([]);
   const [methodesSel, setMethodesSel] = useState<number[]>([]);
   const [methodesChargees, setMethodesChargees] = useState(false);
+  // Add-on « Prix par palier de quantité » : un seul type par annonce, 5 paliers maximum
+  const [paliersActif, setPaliersActif] = useState(false);
+  const [paliersGuide, setPaliersGuide] = useState('');
+  const [palierType, setPalierType] = useState<'pourcentage' | 'fixe'>('pourcentage');
+  const [paliersLignes, setPaliersLignes] = useState<LignePalier[]>([]);
   const [chargement, setChargement] = useState(!!produitId);
   const [envoi, setEnvoi] = useState(false);
   const [sauvegarde, setSauvegarde] = useState(false);
@@ -54,6 +60,7 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
 
   useEffect(() => {
     bq('/categories').then(r => { if (r.ok && Array.isArray(r.data)) setCategories(r.data); });
+    bq('/addons').then(r => { if (r.ok && r.data && Array.isArray(r.data.addons)) { const g = r.data.addons.find((y: any) => y.code === 'prix_paliers'); if (g) { setPaliersActif(!!(g.achete && g.offert)); setPaliersGuide(g.guide_url || ''); } } });
     bq('/expedition/methodes/details').then(r => { if (r.ok && Array.isArray(r.data)) { setMethodes(r.data); setMethodesChargees(true); } });
   }, []);
 
@@ -79,6 +86,17 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
         prix: v.prix === null || v.prix === undefined ? '' : String(v.prix),
         stock: v.stock === null || v.stock === undefined ? '' : String(v.stock),
       })));
+      if (Array.isArray(p.paliers) && p.paliers.length) {
+        setPalierType(p.paliers[0].type === 'fixe' ? 'fixe' : 'pourcentage');
+        const parQte = new Map<number, LignePalier>();
+        p.paliers.forEach((x: any, i: number) => {
+          const q = Number(x.qte_min);
+          if (!parQte.has(q)) parQte.set(q, { id: i + 1, qte: String(q), valeur: '', prixVariantes: {} });
+          const l = parQte.get(q)!;
+          if (x.type === 'fixe' && x.variante) l.prixVariantes[x.variante] = String(x.valeur); else l.valeur = String(x.valeur);
+        });
+        setPaliersLignes(Array.from(parQte.values()).sort((a, b) => Number(a.qte) - Number(b.qte)));
+      }
       setChargement(false);
     })();
   }, [produitId]);
@@ -123,6 +141,35 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
     for (const v of variantes) {
       if (v.nom.trim() && v.prix !== '' && Number(v.prix) < 0.01) { setErreur(`Variante « ${v.nom.trim()} » : le prix doit être d'au moins 0,01 $`); return; }
     }
+    // Paliers de prix : lignes plates (une par palier, ou une par palier et variante pour les prix fixes). Envoyés seulement si l'add-on est actif.
+    const nomsVar = variantes.filter(v => v.nom.trim()).map(v => v.nom.trim());
+    const paliersEnvoi: any[] = [];
+    if (paliersActif) {
+      const vues = new Set<number>();
+      for (const l of paliersLignes) {
+        const q = Number(l.qte);
+        if (l.qte === '' || !Number.isInteger(q) || q < 2) { setErreur('Palier de prix : la quantité doit être un nombre entier de 2 ou plus.'); return; }
+        if (vues.has(q)) { setErreur(`Palier de prix : la quantité ${q} est en double.`); return; }
+        vues.add(q);
+        if (palierType === 'fixe' && nomsVar.length) {
+          let nb = 0;
+          for (const nom of nomsVar) {
+            const v = l.prixVariantes[nom];
+            if (v === undefined || v === '') continue;
+            if (!(Number(v) > 0)) { setErreur(`Palier de prix (${q}+) : prix invalide pour « ${nom} ».`); return; }
+            const vr = variantes.find(x => x.nom.trim() === nom);
+            const ref = vr && vr.prix !== '' ? Number(vr.prix) : Number(prix);
+            if (!(Number(v) < ref)) { setErreur(`Palier de prix (${q}+) : le prix de « ${nom} » doit être inférieur à ${ref.toFixed(2)} $.`); return; }
+            paliersEnvoi.push({ qte_min: q, type: 'fixe', valeur: Number(v), variante: nom }); nb++;
+          }
+          if (!nb) { setErreur(`Palier de prix (${q}+) : entrez un prix pour au moins une variante.`); return; }
+        } else {
+          if (palierType === 'pourcentage' && !(Number(l.valeur) > 0 && Number(l.valeur) < 100)) { setErreur(`Palier de prix (${q}+) : le rabais doit être entre 0 et 100 %.`); return; }
+          if (palierType === 'fixe' && !(Number(l.valeur) > 0 && Number(l.valeur) < Number(prix))) { setErreur(`Palier de prix (${q}+) : le prix doit être inférieur à ${Number(prix).toFixed(2)} $.`); return; }
+          paliersEnvoi.push({ qte_min: q, type: palierType, valeur: Number(l.valeur), variante: null });
+        }
+      }
+    }
     setSauvegarde(true);
     const r = await bq(produitId ? `/produits/${produitId}` : '/produits', {
       method: produitId ? 'PUT' : 'POST',
@@ -131,6 +178,7 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
         poids: poids === '' ? null : poids, categorie_id: categorieId || null, photos, statut,
         ...(methodesChargees ? { methodes_expedition_ids: methodesSel.filter(id => methodes.some(m => m.id === id)) } : {}),
         variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock })),
+        ...(paliersActif ? { paliers: paliersEnvoi } : {}),
       },
     });
     setSauvegarde(false);
@@ -271,6 +319,64 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
             <button onClick={() => setVariantes(a => a.filter((_, k) => k !== i))} style={{ border: 'none', background: 'none', color: T.danger, cursor: 'pointer', fontSize: 16 }}>✕</button>
           </div>
         ))}
+      </div>
+
+      <div style={carte}>
+        <label style={lbl}>💰 Prix par palier de quantité (optionnel)
+          {paliersGuide && <a href={paliersGuide} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: couleur, textDecoration: 'none', border: `1px solid ${couleur}`, borderRadius: 12, padding: '2px 10px', marginLeft: 10, textTransform: 'none' }}>📖 Guide</a>}
+        </label>
+        {!paliersActif ? (
+          <div>
+            <p style={{ fontSize: 12, color: T.light, margin: '0 0 10px' }}>Plus l'acheteur en prend, moins c'est cher : un tableau de prix s'affiche sur la fiche du produit. Cette option s'active dans « Mon plan & limites ».</p>
+            {pagePlan && naviguerVers && <button type="button" onClick={() => naviguerVers(pagePlan)} style={{ border: `1px solid ${couleur}`, background: '#fff', color: couleur, borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Voir « Mon plan & limites »</button>}
+          </div>
+        ) : (
+          <>
+            <p style={{ fontSize: 12, color: T.light, margin: '0 0 10px' }}>Plus l'acheteur en prend, moins c'est cher. Jusqu'à 5 paliers; le palier le plus élevé atteint s'applique. Laissez vide pour aucun palier.</p>
+            {paliersLignes.length > 0 && (() => {
+              const nomsV = variantes.filter(v => v.nom.trim()).map(v => v.nom.trim());
+              const fixeVar = palierType === 'fixe' && nomsV.length > 0;
+              const maj = (id: number, ch: Partial<LignePalier>) => setPaliersLignes(ls => ls.map(l => (l.id === id ? { ...l, ...ch } : l)));
+              return (
+                <>
+                  <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                    {([['pourcentage', 'Rabais en %'], ['fixe', 'Prix fixe par unité']] as const).map(([t, nom]) => (
+                      <button key={t} type="button" onClick={() => setPalierType(t)} style={{ border: `1px solid ${palierType === t ? couleur : T.border}`, background: palierType === t ? couleur : '#fff', color: palierType === t ? '#fff' : T.text, borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>{nom}</button>
+                    ))}
+                  </div>
+                  {paliersLignes.map(l => (
+                    <div key={l.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 10, padding: 10, border: `1px solid ${T.border}`, borderRadius: 10 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: T.light, marginBottom: 4 }}>À partir de (qté)</div>
+                        <input type="number" min="2" step="1" value={l.qte} onChange={e => maj(l.id, { qte: e.target.value })} placeholder="ex. 3" style={{ ...champ, maxWidth: 110 }} />
+                      </div>
+                      {!fixeVar ? (
+                        <div>
+                          <div style={{ fontSize: 11, color: T.light, marginBottom: 4 }}>{palierType === 'pourcentage' ? 'Rabais (%)' : 'Prix par unité'}</div>
+                          <input type="number" min="0" step={palierType === 'pourcentage' ? '1' : '0.01'} value={l.valeur} onChange={e => maj(l.id, { valeur: e.target.value })} placeholder={palierType === 'pourcentage' ? 'ex. 10' : 'ex. 18.00'} style={{ ...champ, maxWidth: 130 }} />
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                          {nomsV.map(nom => (
+                            <div key={nom}>
+                              <div style={{ fontSize: 11, color: T.light, marginBottom: 4 }}>{nom}</div>
+                              <input type="number" min="0" step="0.01" value={l.prixVariantes[nom] ?? ''} onChange={e => maj(l.id, { prixVariantes: { ...l.prixVariantes, [nom]: e.target.value } })} placeholder="Prix" style={{ ...champ, maxWidth: 110 }} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <button type="button" onClick={() => setPaliersLignes(ls => ls.filter(x => x.id !== l.id))} aria-label="Retirer ce palier" style={{ marginTop: 20, border: `1px solid ${T.border}`, background: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>✕</button>
+                    </div>
+                  ))}
+                  {fixeVar && <p style={{ fontSize: 11, color: T.light, margin: '0 0 8px' }}>Une variante sans prix pour un palier garde son prix normal. Chaque variante est comptée séparément dans le panier.</p>}
+                </>
+              );
+            })()}
+            {paliersLignes.length < 5 && (
+              <button type="button" onClick={() => setPaliersLignes(ls => [...ls, { id: Date.now(), qte: '', valeur: '', prixVariantes: {} }])} style={{ border: `1px dashed ${couleur}`, background: '#fff', color: couleur, borderRadius: 8, padding: '9px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>+ Ajouter un palier</button>
+            )}
+          </>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>

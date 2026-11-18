@@ -9,6 +9,7 @@ import AppAcheteurBoutique from '../AppAcheteurBoutique';
 import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-on « Faire une offre » : bloc de la fiche produit
 import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
 import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
+import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
 import AvisProduitBoutique, { useAvisProduit } from '../pages/boutique/AvisProduitBoutique';   // add-on « Avis clients » : onglet « Avis » et note moyenne de la fiche produit
 import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
 import { BoutiqueSouhaitBouton, BoutiqueSouhaitCarte, BoutiqueSouhaitProduit, BoutiqueSouhaitsAcces, BoutiqueFavorisToast, useCarteSuperposition } from '../components/BoutiqueFavoris';   // add-on « Favoris » : cœurs, icône d'en-tête, notifications
@@ -29,7 +30,8 @@ interface Produit {
   photo_principale?: string; photos?: string[]; description?: string;
   stock?: number; categorie?: string; sku?: string; marque?: string;
   note_moyenne?: number; nb_avis?: number;
-  variantes?: { nom: string; valeurs: string[] }[];
+  variantes?: { nom: string; valeurs?: string[]; prix?: number|string|null; stock?: number|string|null }[];   // démo : {nom, valeurs[]} ; vraies annonces : liste plate {nom, prix, stock}
+  paliers?: { qte_min:number; type:'pourcentage'|'fixe'; valeur:number; variante:string|null }[];   // add-on « Prix par palier » : le serveur n'envoie rien si l'add-on est inactif
   enchere?: { fin:string; mise:number; nb_mises:number; decalage?:number }|null;   // add-on « Enchères » : enchère en cours sur ce produit (null/absent sinon)
 }
 
@@ -477,6 +479,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const ajouterAuPanier = async (produit:Produit)=>{
     if(produitsDemo){ setAvisPanier('Produit de démonstration : publiez vos annonces pour vendre.'); return; }
     if(!acheteur){ setAvisPanier('Connectez-vous pour ajouter au panier.'); naviguer('login'); return; }
+    const plates=(produit.variantes||[]).filter(v=>v&&!Array.isArray(v.valeurs));
+    if(plates.length&&!varianteChoisie.__v){ setAvisPanier('Choisissez une variante.'); return; }
     const variante=Object.values(varianteChoisie).join(' / ');
     const r=await ajouterAuPanierServeur(vendeurId,produit.id,qteChoisie,variante);
     if(!r.ok){ setAvisPanier(messageAcheteur(r)); return; }
@@ -784,6 +788,15 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     if (!produitActif) return null;
     const p = produitActif;
     const enPromo = p.prix_promo && p.prix_promo < p.prix;
+    // Vraies variantes (liste plate {nom, prix, stock}) : un seul choix, le nom de la variante est envoyé tel quel au panier
+    const varsPlates=(p.variantes||[]).filter(v=>v&&!Array.isArray(v.valeurs));
+    const nomVar=varianteChoisie.__v||'';
+    const vSel=varsPlates.find(v=>v.nom===nomVar)||null;
+    const stockDe=(v:any):number|null=>v&&v.stock!==null&&v.stock!==undefined&&v.stock!==''?Math.max(0,Number(v.stock)):(p.stock!==undefined&&p.stock!==null?p.stock:null);
+    const stockMax=varsPlates.length?(vSel?stockDe(vSel):null):(p.stock!==undefined?p.stock:null);
+    const prixVar=vSel&&vSel.prix!==null&&vSel.prix!==undefined&&vSel.prix!==''&&Number(vSel.prix)>=0?Number(vSel.prix):null;
+    const varManquante=varsPlates.length>0&&!vSel;
+    const epuise=p.stock===0||(vSel!==null&&stockDe(vSel)===0);
     const photos = [p.photo_principale,...(p.photos||[])].filter(Boolean) as string[];
     const similaires = on('ficheProduit','afficherSimilaires')?produits.filter(pr=>pr.id!==p.id&&pr.categorie===p.categorie).slice(0,nbr('ficheProduit','similairesNombre',4,1,8)):[];
 
@@ -822,8 +835,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
             {p.offre_fin&&<OffreCompteur fin={p.offre_fin} heureServeur={heureServeur} onFini={offreCtx.onFini}/>}
             <div style={{ display:'flex',alignItems:'baseline',gap:12,marginBottom:24 }}>
-              {enPromo ? (<><span style={{ fontSize:36,fontWeight:900,color:'#ef4444' }}>{px(p.prix_promo!)}</span><span style={{ fontSize:20,color:'#555',textDecoration:'line-through' }}>{px(p.prix)}</span></>) : <span style={{ fontSize:36,fontWeight:900,color:cp }}>{px(p.prix)}</span>}
+              {prixVar!==null ? <span style={{ fontSize:36,fontWeight:900,color:cp }}>{px(prixVar)}</span> : enPromo ? (<><span style={{ fontSize:36,fontWeight:900,color:'#ef4444' }}>{px(p.prix_promo!)}</span><span style={{ fontSize:20,color:'#555',textDecoration:'line-through' }}>{px(p.prix)}</span></>) : <span style={{ fontSize:36,fontWeight:900,color:cp }}>{px(p.prix)}</span>}
             </div>
+
+            {p.paliers&&p.paliers.length>0&&<PaliersProduitBoutique produit={p as any} quantite={qteChoisie} variante={Object.values(varianteChoisie).join(' / ')} couleur={cp}/>}
 
             <div style={{ display:'flex',gap:16,marginBottom:20,flexWrap:'wrap' }}>
               {p.stock!==undefined&&p.stock!==null&&!(enchActive(p)&&p.stock===0)&&<span style={{ fontSize:12,fontWeight:600,color:p.stock>5?'#4ade80':p.stock>0?'#f59e0b':'#ef4444' }}>{enchActive(p)&&p.stock>0?`✓ En stock (${p.stock} disponible${p.stock>1?'s':''})`:p.stock>5?'✅ En stock':p.stock>0?`⚠️ Plus que ${p.stock} !`:'❌ Épuisé'}</span>}
@@ -832,11 +847,20 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               {p.sku&&<span style={{ fontSize:11,color:'#555' }}>SKU: {p.sku}</span>}
             </div>
 
-            {p.variantes&&p.variantes.map(v=>(
+            {varsPlates.length>0&&(
+              <div style={{ marginBottom:18 }}>
+                <div style={{ fontSize:12,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8 }}>Variante</div>
+                <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
+                  {varsPlates.map(v=>{ const sel=nomVar===v.nom; const out=stockDe(v)===0; const pv=v.prix!==null&&v.prix!==undefined&&v.prix!==''&&Number(v.prix)>=0?Number(v.prix):null;
+                    return <button key={v.nom} disabled={out} aria-pressed={sel} onClick={()=>{ setVarianteChoisie({__v:v.nom}); setQteChoisie(1); }} style={{ padding:'8px 18px',borderRadius:8,border:`2px solid ${sel?cp:'#333'}`,background:sel?`${cp}20`:'transparent',color:sel?cp:'#888',fontSize:13,fontWeight:600,cursor:out?'not-allowed':'pointer',opacity:out?0.4:1,textDecoration:out?'line-through':'none',transition:'all 0.15s' }}>{v.nom}{pv!==null&&<span style={{ marginLeft:8,fontWeight:400,fontSize:12 }}>{px(pv)}</span>}{out&&<span style={{ marginLeft:8,fontSize:11 }}>Épuisé</span>}</button>; })}
+                </div>
+              </div>
+            )}
+            {p.variantes&&p.variantes.filter(v=>Array.isArray(v.valeurs)).map(v=>(
               <div key={v.nom} style={{ marginBottom:18 }}>
                 <div style={{ fontSize:12,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8 }}>{v.nom}</div>
                 <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
-                  {v.valeurs.map(val=><button key={val} onClick={()=>setVarianteChoisie(prev=>({...prev,[v.nom]:val}))} style={{ padding:'8px 18px',borderRadius:8,border:`2px solid ${varianteChoisie[v.nom]===val?cp:'#333'}`,background:varianteChoisie[v.nom]===val?`${cp}20`:'transparent',color:varianteChoisie[v.nom]===val?cp:'#888',fontSize:13,fontWeight:600,cursor:'pointer',transition:'all 0.15s' }}>{val}</button>)}
+                  {(v.valeurs||[]).map(val=><button key={val} onClick={()=>setVarianteChoisie(prev=>({...prev,[v.nom]:val}))} style={{ padding:'8px 18px',borderRadius:8,border:`2px solid ${varianteChoisie[v.nom]===val?cp:'#333'}`,background:varianteChoisie[v.nom]===val?`${cp}20`:'transparent',color:varianteChoisie[v.nom]===val?cp:'#888',fontSize:13,fontWeight:600,cursor:'pointer',transition:'all 0.15s' }}>{val}</button>)}
                 </div>
               </div>
             ))}
@@ -846,21 +870,21 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               <div style={{ display:'flex',alignItems:'center',gap:12 }}>
                 <button onClick={()=>setQteChoisie(q=>Math.max(1,q-1))} style={{ width:42,height:42,borderRadius:8,border:`1px solid #333`,background:SURF,color:'#fff',cursor:'pointer',fontSize:18,fontWeight:700 }}>−</button>
                 <span style={{ fontSize:18,fontWeight:700,color:'#fff',minWidth:32,textAlign:'center' }}>{qteChoisie}</span>
-                <button onClick={()=>setQteChoisie(q=>p.stock!=null?Math.min(p.stock,q+1):q+1)} style={{ width:42,height:42,borderRadius:8,border:`1px solid #333`,background:SURF,color:'#fff',cursor:'pointer',fontSize:18,fontWeight:700,opacity:p.stock!=null&&qteChoisie>=p.stock?0.4:1 }}>+</button>
+                <button onClick={()=>setQteChoisie(q=>stockMax!=null?Math.min(Math.max(1,stockMax),q+1):q+1)} style={{ width:42,height:42,borderRadius:8,border:`1px solid #333`,background:SURF,color:'#fff',cursor:'pointer',fontSize:18,fontWeight:700,opacity:stockMax!=null&&qteChoisie>=stockMax?0.4:1 }}>+</button>
               </div>
             </div>}
 
             <div style={{ display:'flex',gap:10,marginBottom:20,flexWrap:'wrap' }}>
               <BoutiqueSouhaitProduit zone="avant_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo}/>
-              {!venteDirecteBloquee(p)&&<button onClick={()=>ajouterAuPanier(p)} disabled={p.stock===0} style={{ flex:1,...styleBtn,...styleBtnProduit,padding:'16px 24px',fontSize:15,opacity:p.stock===0?0.5:1,cursor:p.stock===0?'not-allowed':'pointer' }}>{p.stock===0?'ÉPUISÉ':'🛒 '+tx('ficheProduit','boutonLabel','Ajouter au panier').toUpperCase()}</button>}
+              {!venteDirecteBloquee(p)&&<button onClick={()=>ajouterAuPanier(p)} disabled={epuise} style={{ flex:1,...styleBtn,...styleBtnProduit,padding:'16px 24px',fontSize:15,opacity:epuise?0.5:1,cursor:epuise?'not-allowed':'pointer' }}>{epuise?'ÉPUISÉ':'🛒 '+tx('ficheProduit','boutonLabel','Ajouter au panier').toUpperCase()}</button>}
               <BoutiqueSouhaitProduit zone="apres_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo}/>
             </div>
 
             <BlocEnchereBoutique gestionnaireId={vendeurId} produitId={p.id} couleurAccent={cp} isDemo={modeDemo} onEtat={a=>{ if(enchereEtat[p.id]===true&&a===false) setTimeout(rechargerOffres,400); setEnchereEtat(m=>m[p.id]===a?m:{...m,[p.id]:a}); }}
               allerConnexion={()=>{ setAvisPanier('Connectez-vous pour miser.'); naviguer('login'); }}/>
 
-            <FaireOffreBoutique gestionnaireId={vendeurId} produitId={p.id} prix={enPromo?p.prix_promo!:p.prix} variante={Object.values(varianteChoisie).join(' / ')}
-              varianteRequise={!!(p.variantes&&p.variantes.length&&p.variantes.some(v=>!varianteChoisie[v.nom]))} masque={p.stock===0} couleurAccent={cp} isDemo={modeDemo}
+            <FaireOffreBoutique gestionnaireId={vendeurId} produitId={p.id} prix={prixVar!==null?prixVar:enPromo?p.prix_promo!:p.prix} variante={Object.values(varianteChoisie).join(' / ')}
+              varianteRequise={varManquante||!!(p.variantes&&p.variantes.some(v=>Array.isArray(v.valeurs)&&!varianteChoisie[v.nom]))} masque={p.stock===0} couleurAccent={cp} isDemo={modeDemo}
               allerConnexion={()=>{ setAvisPanier('Connectez-vous pour faire une offre.'); naviguer('login'); }} onPanier={()=>{ setVueCompte('panier'); naviguer('compte'); }}/>
 
             <div style={{ background:SURF,border:`1px solid #222`,borderRadius:12,padding:'14px 16px',marginBottom:24 }}>
