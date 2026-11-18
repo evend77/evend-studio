@@ -12,6 +12,8 @@ interface Produit {
   sku: string | null; categorie: string | null; photo_principale: string | null;
   statut: 'actif' | 'brouillon'; source?: 'studio' | 'ebay' | 'etsy' | 'evend';
 }
+interface EnchereVivante { id: number; produit_id: number; statut: string; nb_mises: number; mise_actuelle: number | null; }
+interface ReglEnch { duree_min_h: number; duree_max_jours: number; reserve_permise: boolean; increment_min: number; }
 interface Stats { total: number; actifs: number; brouillons: number; ruptures: number; }
 
 interface Props {
@@ -20,6 +22,7 @@ interface Props {
   isMobile?: boolean;
   pagePlan?: string;
   offresActif?: boolean;   // add-on « Offres du jour » activé : le menu ⋮ propose « 🔥 Offre du jour »
+  encheresActif?: boolean; // add-on « Enchères » activé : le menu ⋮ propose « 🔨 Mettre aux enchères »
   naviguerVers: (page: string) => void;
 }
 
@@ -77,7 +80,7 @@ function Pagination({ page, totalPages, onPageChange, accent, marginTop = 16 }: 
   );
 }
 
-export default function BoutiqueListeProduits({ accent, isMobile: mobileProp, pagePlan, offresActif, naviguerVers }: Props) {
+export default function BoutiqueListeProduits({ accent, isMobile: mobileProp, pagePlan, offresActif, encheresActif, naviguerVers }: Props) {
   const couleur = accent || '#4f46e5';
   const isMobile = !!mobileProp;
   const [produits, setProduits] = useState<Produit[]>([]);
@@ -101,6 +104,58 @@ export default function BoutiqueListeProduits({ accent, isMobile: mobileProp, pa
   const [erreurLimite, setErreurLimite] = useState('');
   const [menu, setMenu] = useState<{ p: Produit; x: number; y: number; haut: number } | null>(null);
   const minuterie = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Enchères (add-on) : même démarche que le MV — « 🔨 Mettre aux enchères » dans le menu ⋮ de la ligne ──
+  const [encheres, setEncheres] = useState<Record<number, EnchereVivante>>({});
+  const [reglEnch, setReglEnch] = useState<ReglEnch | null>(null);
+  const [modalEnch, setModalEnch] = useState<Produit | null>(null);
+  const [fDepart, setFDepart] = useState('');
+  const [fReserve, setFReserve] = useState('');
+  const [fDuree, setFDuree] = useState('24');
+  const [errEnch, setErrEnch] = useState('');
+  const [infoEnch, setInfoEnch] = useState('');
+  const [aAnnulerEnch, setAAnnulerEnch] = useState<{ p: Produit; e: EnchereVivante } | null>(null);
+  const chargerEncheres = useCallback(async () => {
+    const [a, b] = await Promise.all([bq('/encheres/mes?statut=active'), bq('/encheres/mes?statut=attente_paiement')]);
+    const m: Record<number, EnchereVivante> = {};
+    for (const r of [b, a]) if (r.ok) for (const e of (r.data.encheres || []) as EnchereVivante[]) m[e.produit_id] = e;
+    if (a.ok || b.ok) setEncheres(m);
+    const g = a.ok ? a.data.reglages : b.ok ? b.data.reglages : null;
+    if (g) setReglEnch({ duree_min_h: g.duree_min_h, duree_max_jours: g.duree_max_jours, reserve_permise: g.reserve_permise, increment_min: g.increment_min });
+  }, []);
+  useEffect(() => { chargerEncheres(); }, [chargerEncheres]);
+  const ouvrirEnchere = (p: Produit) => { setModalEnch(p); setFDepart(String(Number(p.prix_promo || p.prix) || '')); setFReserve(''); setFDuree('24'); setErrEnch(''); };
+  const lancerEnchere = async () => {
+    if (!modalEnch) return;
+    const depart = parseFloat(fDepart.replace(',', '.'));
+    const duree = parseFloat(fDuree.replace(',', '.'));
+    const reserve = fReserve.trim() ? parseFloat(fReserve.replace(',', '.')) : undefined;
+    if (!(depart > 0)) { setErrEnch('Entrez un prix de départ valide.'); return; }
+    if (!(duree > 0)) { setErrEnch('Entrez une durée valide (en heures).'); return; }
+    if (reserve !== undefined && !(reserve >= depart)) { setErrEnch('Le prix de réserve doit être égal ou supérieur au prix de départ.'); return; }
+    setOccupe(true); setErrEnch('');
+    const body: any = { produit_id: modalEnch.id, prix_depart: depart, duree_heures: duree };
+    if (reserve !== undefined) body.prix_reserve = reserve;
+    const r = await bq('/encheres', { method: 'POST', body });
+    setOccupe(false);
+    if (!r.ok) { setErrEnch(messageErreur(r)); return; }
+    setModalEnch(null); setInfoEnch("🔨 Enchère lancée ! Une unité est réservée pour l'enchère."); setTimeout(() => setInfoEnch(''), 6000);
+    charger(); chargerEncheres();
+  };
+  const annulerEnchere = async () => {
+    if (!aAnnulerEnch) return;
+    setOccupe(true);
+    const r = await bq(`/encheres/${aAnnulerEnch.e.id}/annuler`, { method: 'POST', body: {} });
+    setOccupe(false);
+    setAAnnulerEnch(null);
+    if (!r.ok) { setErreur(messageErreur(r)); return; }
+    setInfoEnch("Enchère annulée. L'unité est remise en stock."); setTimeout(() => setInfoEnch(''), 6000);
+    charger(); chargerEncheres();
+  };
+  const pastilleEnchere = (p: Produit) => {
+    const e = encheres[p.id];
+    if (!e || (e.statut === 'active' && e.nb_mises === 0)) return null;
+    return <span style={{ padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700, background: '#FEF3C7', color: '#92400E', marginLeft: 6, whiteSpace: 'nowrap' }}>🔨 {e.statut === 'active' ? `${e.nb_mises} mise${e.nb_mises > 1 ? 's' : ''}` : 'À payer'}</span>;
+  };
 
   const filtres = useCallback(() => {
     const p: string[] = [];
@@ -313,7 +368,7 @@ export default function BoutiqueListeProduits({ accent, isMobile: mobileProp, pa
                   · {p.stock === null ? 'Stock ∞' : p.stock === 0 ? 'Rupture' : `Stock ${p.stock}`}
                 </span>
                 {pastilleSource(p.source)}
-                <span style={{ ...badge(p.statut), marginLeft: 'auto' }}>{p.statut === 'actif' ? 'Actif' : 'Brouillon'}</span>
+                <span style={{ ...badge(p.statut), marginLeft: 'auto' }}>{p.statut === 'actif' ? 'Actif' : 'Brouillon'}</span>{pastilleEnchere(p)}
               </div>
             </div>
           ))}
@@ -330,7 +385,7 @@ export default function BoutiqueListeProduits({ accent, isMobile: mobileProp, pa
               <div>{pastilleSource(p.source)}</div>
               <div style={{ fontSize: 13 }}>{prixCellule(p)}</div>
               <div style={{ fontSize: 13, color: p.stock === 0 ? T.danger : T.text, fontWeight: p.stock === 0 ? 700 : 400 }}>{p.stock === null ? '∞' : p.stock === 0 ? 'Rupture' : p.stock}</div>
-              <div><span style={badge(p.statut)}>{p.statut === 'actif' ? 'Actif' : 'Brouillon'}</span></div>
+              <div><span style={badge(p.statut)}>{p.statut === 'actif' ? 'Actif' : 'Brouillon'}</span>{pastilleEnchere(p)}</div>
               <div>
                 <button disabled={occupe} aria-label="Actions" title="Actions"
                   onClick={(e) => { const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setMenu({ p, x: r.right, y: r.bottom, haut: r.top }); }}
@@ -344,11 +399,12 @@ export default function BoutiqueListeProduits({ accent, isMobile: mobileProp, pa
       {/* Menu ⋮ d'une ligne */}
       {menu && (() => {
         const p = menu.p;
+        const enc = encheres[p.id];
         const item = (label: string, onClick: () => void, c?: string) => (
           <button key={label} className="bq-mi" disabled={occupe} onClick={() => { setMenu(null); onClick(); }}
             style={{ display: 'block', width: '100%', textAlign: 'left', padding: isMobile ? '13px 18px' : '10px 16px', background: 'none', border: 'none', fontSize: isMobile ? 15 : 13, fontWeight: 600, color: c || T.text, cursor: 'pointer', fontFamily: 'inherit' }}>{label}</button>
         );
-        const hauteur = 44 * 6 + 20;
+        const hauteur = 44 * 7 + 20;
         const enHaut = menu.y + hauteur > window.innerHeight && menu.haut > hauteur;
         return (
           <>
@@ -361,7 +417,9 @@ export default function BoutiqueListeProduits({ accent, isMobile: mobileProp, pa
               {isMobile && <div style={{ padding: '6px 16px 8px', fontSize: 12, fontWeight: 700, color: T.light, borderBottom: `1px solid ${T.border}`, marginBottom: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.titre}</div>}
               {item('✏️ Modifier', () => naviguerVers(`modifier-annonce?id=${p.id}`))}
               {item(p.statut === 'actif' ? '⏸ Retirer de la vente' : '▶ Publier', () => changerStatut(p))}
-              {offresActif && p.statut === 'actif' && item('🔥 Offre du jour', () => naviguerVers(`annonces-offres?id=${p.id}`), '#c2410c')}
+              {enc && enc.statut === 'active' && item("🔨 Annuler l'enchère", () => setAAnnulerEnch({ p, e: enc }), '#b45309')}
+              {!enc && encheresActif && p.statut === 'actif' && (p.stock === null || p.stock > 0) && item('🔨 Mettre aux enchères', () => ouvrirEnchere(p), '#b45309')}
+              {offresActif && !enc && p.statut === 'actif' && item('🔥 Offre du jour', () => naviguerVers(`annonces-offres?id=${p.id}`), '#c2410c')}
               <div style={{ height: 1, background: T.border, margin: '4px 0' }} />
               {item('⧉ Dupliquer', () => dupliquer(p))}
               {item('🗑️ Supprimer', () => setASupprimer([p.id]), T.danger)}
@@ -377,6 +435,40 @@ export default function BoutiqueListeProduits({ accent, isMobile: mobileProp, pa
         </>
       )}
 
+      {infoEnch && <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#1a2332', color: '#fff', padding: '10px 18px', borderRadius: 10, fontSize: 13, zIndex: 3100 }}>{infoEnch}</div>}
+
+      {modalEnch && (
+        <div onClick={() => !occupe && setModalEnch(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 4000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={ev => ev.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: 24, maxWidth: 420, width: '100%', boxSizing: 'border-box' }}>
+            <h3 style={{ margin: '0 0 4px', color: T.text }}>🔨 Mettre aux enchères</h3>
+            <p style={{ margin: '0 0 14px', fontSize: 13, color: T.light }}>{modalEnch.titre}</p>
+            {[
+              { l: 'Prix de départ ($)', v: fDepart, f: setFDepart, ph: '', ok: true },
+              { l: 'Prix de réserve ($) — facultatif', v: fReserve, f: setFReserve, ph: "Sous ce prix, vous n'êtes pas obligé de vendre", ok: !reglEnch || reglEnch.reserve_permise },
+              { l: 'Durée (heures)', v: fDuree, f: setFDuree, ph: '24', ok: true },
+            ].filter(c => c.ok).map(c => (
+              <div key={c.l} style={{ marginBottom: 12 }}>
+                <label style={{ display: 'block', fontSize: 12, fontWeight: 700, color: T.text, marginBottom: 4 }}>{c.l}</label>
+                <input value={c.v} onChange={ev => c.f(ev.target.value)} placeholder={c.ph} inputMode="decimal" style={{ width: '100%', padding: '9px 11px', border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
+              </div>
+            ))}
+            <p style={{ fontSize: 12, color: T.light, margin: '0 0 12px', lineHeight: 1.5 }}>
+              Une unité est mise de côté pendant l'enchère. Le prix de réserve n'est jamais affiché aux acheteurs. Une mise dans les 2 dernières minutes prolonge l'enchère.
+              {reglEnch ? ` Durée permise : de ${reglEnch.duree_min_h} h à ${reglEnch.duree_max_jours} jour${reglEnch.duree_max_jours > 1 ? 's' : ''}.` : ''} Vous pouvez annuler l'enchère en tout temps.
+            </p>
+            {errEnch && <div style={{ background: '#FEE2E2', color: '#991B1B', padding: '8px 12px', borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{errEnch}</div>}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setModalEnch(null)} disabled={occupe} style={{ flex: 1, padding: 10, border: `1px solid ${T.border}`, background: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Annuler</button>
+              <button disabled={occupe} onClick={lancerEnchere} style={{ flex: 1, padding: 10, border: 'none', background: couleur, color: '#fff', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>{occupe ? '⏳…' : "Lancer l'enchère"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {aAnnulerEnch && (
+        <BoutiqueModale type="confirmer" accent="#b45309" titre="Annuler cette enchère ?" enCours={occupe} texteConfirmer="Annuler l'enchère" texteFermer="Garder"
+          message={`« ${aAnnulerEnch.p.titre} » — ${aAnnulerEnch.e.nb_mises > 0 ? `${aAnnulerEnch.e.nb_mises} mise${aAnnulerEnch.e.nb_mises > 1 ? 's seront annulées' : ' sera annulée'}. ` : ''}L'unité est remise en stock. Cette action est définitive.`}
+          onConfirmer={annulerEnchere} onFermer={() => { if (!occupe) setAAnnulerEnch(null); }} />
+      )}
       {aSupprimer && (
         <BoutiqueModale type="confirmer" accent="#dc2626" titre="Supprimer ?" enCours={occupe} texteConfirmer="Supprimer"
           message={aSupprimer.length === 1 ? 'Ce produit sera supprimé définitivement.' : `Ces ${aSupprimer.length} produits seront supprimés définitivement.`}

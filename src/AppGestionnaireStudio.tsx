@@ -1572,7 +1572,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (estSolo) {
       const versListe = () => setPageActive('annonces-liste');
       const propsCreer = { gestionnaireId: gestionnaire.id, accent: accentSolo, isMobile, pagePlan: pagePlanSolo, naviguerVers: setPageActive, onRetour: versListe };
-      if (pageActive === 'annonces-liste') return <BoutiqueListeProduits gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} offresActif={!!addonsBoutique.offres_du_jour} naviguerVers={setPageActive} />;
+      if (pageActive === 'annonces-liste') return <BoutiqueListeProduits gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} offresActif={!!addonsBoutique.offres_du_jour} encheresActif={!!addonsBoutique.encheres} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-offres' || pageActive.startsWith('annonces-offres?id=')) {
         const idOffre = parseInt(pageActive.replace('annonces-offres?id=', ''), 10);
         const initial = Number.isInteger(idOffre) && idOffre > 0 ? idOffre : null;
