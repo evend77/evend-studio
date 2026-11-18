@@ -88,6 +88,7 @@ import BoutiqueEncheres            from './pages/gestionnaire/BoutiqueEncheres';
 import BoutiqueQuestions           from './pages/gestionnaire/BoutiqueQuestions';
 import BoutiqueBlog                from './pages/gestionnaire/BoutiqueBlog';
 import BoutiqueChatbot             from './pages/gestionnaire/BoutiqueChatbot';
+import BoutiquePopupAnnonce        from './pages/gestionnaire/BoutiquePopupAnnonce';
 import BoutiqueConfigEncheres      from './pages/gestionnaire/BoutiqueConfigEncheres';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
@@ -803,8 +804,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     const entree = { id: 'boutique-config-encheres', label: 'Config enchère', icon: '⚙️' };
     return { ...m, sousMenu: apres >= 0 ? [...items.slice(0, apres + 1), entree, ...items.slice(apres + 1)] : [...items, entree] };
   };
-  // Chatbot : tout en bas de « CONFIG MES PAGES » (après « Mon plan & limites »), seulement si l'add-on est activé
+  // Chatbot puis Popup Annonce : tout en bas de « CONFIG MES PAGES » (après « Mon plan & limites »), chacun seulement si son add-on est activé
   const avecChatbot = (m: MenuItem): MenuItem => addonsBoutique.chatbot ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-chatbot', label: 'Chatbot', icon: '🤖' }] } : m;
+  const avecPopupAnnonce = (m: MenuItem): MenuItem => addonsBoutique.popup_annonce ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-popup-annonce', label: 'Popup Annonce', icon: '📢' }] } : m;
   const avecEffets = (m: MenuItem): MenuItem => addonsBoutique.effets_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-effets', label: 'Effets de boutique', icon: '✨' }] } : m;
 
   // ── Menus Studio (communs à tous) ────────────────────────────────────────
@@ -1294,7 +1296,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioPremium,
-      avecChatbot(avecConfigEncheres(avecEffets(menuConfigPremium))),
+      avecPopupAnnonce(avecChatbot(avecConfigEncheres(avecEffets(menuConfigPremium)))),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
@@ -1623,6 +1625,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       if (pageActive === 'boutique-config-encheres') return <BoutiqueConfigEncheres gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-mes-blogs') return <BoutiqueBlog gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} />;
       if (pageActive === 'boutique-chatbot' && addonsBoutique.chatbot) return <BoutiqueChatbot gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} />;
+      if (pageActive === 'boutique-popup-annonce' && addonsBoutique.popup_annonce) return <BoutiquePopupAnnonce gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} />;
       if (pageActive === 'annonces-questions') return <BoutiqueQuestions gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-negociations') return <BoutiqueNegociations gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-creer' || pageActive === 'creer') return <BoutiqueCreerAnnonce key="nouvelle" produitId={null} {...propsCreer} />;

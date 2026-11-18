@@ -85,9 +85,6 @@ const DEF = {
   description: "Fondée avec une passion pour l'excellence, notre boutique sélectionne rigoureusement chaque produit pour vous offrir ce qu'il y a de mieux.",
   afficherTicker: true,
   tickerTexte: '✦ LIVRAISON GRATUITE dès 100$ ✦ RETOUR 30 JOURS ✦ PAIEMENT SÉCURISÉ ✦',
-  afficherPopupPromo: false,
-  popupPromoTexte: 'Obtenez 10% de réduction sur votre première commande !',
-  popupPromoCode: 'BIENVENUE10',
   afficherBarreLivraison: true,
   seuilLivraisonGratuite: 100,
   afficherNotifVente: true,
@@ -105,7 +102,6 @@ const DEF = {
     afficherInfolettre: true, infolettreSurtitre: '', infolettreTitre: '', infolettreTexte: '', infolettreBouton: '',
   },
   menu: { accueil: '', catalogue: '', blog: '', faq: '', 'a-propos': '', contact: '', masques: [] as string[] },
-  popupPromoSurtitre: '', popupPromoBouton: '',
   aPropos: {
     titre: '', sousTitre: '', accroche: '',
     afficherValeurs: true, afficherChiffres: true, afficherEquipe: true, afficherCta: true,
@@ -310,13 +306,6 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
           <S titre="Ticker défilant">
             <Toggle label="Afficher le ticker" checked={config.afficherTicker} onChange={(v: boolean) => set('afficherTicker', v)} desc="Barre défilante en haut de page — idéal pour annonces et promotions" />
             {config.afficherTicker && <F label="Texte du ticker"><Inp value={config.tickerTexte} onChange={(v: string) => set('tickerTexte', v)} placeholder="✦ LIVRAISON GRATUITE dès 100$ ✦" /></F>}
-          </S>
-          <S titre="Popup promo">
-            <Toggle label="Activer le popup de bienvenue" checked={config.afficherPopupPromo} onChange={(v: boolean) => set('afficherPopupPromo', v)} desc="S'affiche automatiquement 4 secondes après l'arrivée sur le site" />
-            {config.afficherPopupPromo && <>
-              <F label="Message du popup"><Inp value={config.popupPromoTexte} onChange={(v: string) => set('popupPromoTexte', v)} placeholder="Obtenez 10% de réduction..." /></F>
-              <F label="Code promo à afficher"><Inp value={config.popupPromoCode} onChange={(v: string) => set('popupPromoCode', v)} placeholder="BIENVENUE10" /></F>
-            </>}
           </S>
           <S titre="Fonctionnalités avancées">
             <Toggle label="Barre livraison gratuite" checked={config.afficherBarreLivraison} onChange={(v: boolean) => set('afficherBarreLivraison', v)} desc="Barre de progression dans le panier vers la livraison gratuite" />
@@ -718,7 +707,7 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
             <div style={{ background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: 8, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
               <div>
                 <p style={{ fontSize: 12, fontWeight: 700, color: '#e5e5e5', margin: '0 0 3px' }}>Cacher "Propulsé par e-Vend Studio"</p>
-                <p style={{ fontSize: 11, color: '#666', margin: 0 }}>Activez l'add-on « Cacher le branding » dans <strong>Mon plan & limites</strong> (+2$/mois).</p>
+                <p style={{ fontSize: 11, color: '#666', margin: 0 }}>Gérez cette option depuis <strong>Branding & options</strong> (+2$/mois).</p>
               </div>
               <span style={{ fontSize: 18, flexShrink: 0 }}>⚙️</span>
             </div>
@@ -736,13 +725,6 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
             </div>
             <Toggle label="Ticker défilant en haut" checked={config.afficherTicker} onChange={(v: boolean) => set('afficherTicker', v)} desc="Barre de défilement pour annonces et promotions" />
             {config.afficherTicker && <F label="Texte de la bannière du haut (ticker)"><Textarea value={config.tickerTexte} onChange={(v: string) => set('tickerTexte', v)} placeholder="✦ LIVRAISON GRATUITE dès 100$ ✦ RETOUR 30 JOURS ✦" rows={2} /></F>}
-            <Toggle label="Popup promo au chargement" checked={config.afficherPopupPromo} onChange={(v: boolean) => set('afficherPopupPromo', v)} desc="Apparaît après 4 secondes — idéal pour les codes promo" />
-            {config.afficherPopupPromo && <>
-              <F label="Sur-titre du popup"><Inp value={config.popupPromoSurtitre} onChange={(v: string) => set('popupPromoSurtitre', v)} placeholder="Offre exclusive" /></F>
-              <F label="Message du popup"><Inp value={config.popupPromoTexte} onChange={(v: string) => set('popupPromoTexte', v)} placeholder="Obtenez 10% de réduction sur votre première commande !" /></F>
-              <F label="Code promo affiché"><Inp value={config.popupPromoCode} onChange={(v: string) => set('popupPromoCode', v)} placeholder="BIENVENUE10" /></F>
-              <F label="Texte du bouton"><Inp value={config.popupPromoBouton} onChange={(v: string) => set('popupPromoBouton', v)} placeholder="Profiter de l'offre →" /></F>
-            </>}
             <Toggle label="Notification dernière vente" checked={config.afficherNotifVente} onChange={(v: boolean) => set('afficherNotifVente', v)} desc="Démonstration seulement — sera une option payante (add-on). Jamais affiché sur une boutique avec de vraies annonces." />
             <Toggle label="Compteur de vues en temps réel" checked={config.afficherNbVues} onChange={(v: boolean) => set('afficherNbVues', v)} desc="Démonstration seulement — sera une option payante (add-on). Jamais affiché sur une boutique avec de vraies annonces." />
             <Toggle label="Barre de progression livraison" checked={config.afficherBarreLivraison} onChange={(v: boolean) => set('afficherBarreLivraison', v)} desc="Encourage les clients à ajouter plus d'articles" />

@@ -96,7 +96,7 @@ const CFG_DEF = {
   nomBoutique: 'Ma Boutique Premium', slogan: "L'excellence à votre portée",
   couleurAccent: OR, couleurFond: NOIR, couleurTexte: '#ffffff',
   afficherTicker: true, tickerTexte: '✦ LIVRAISON GRATUITE dès 100$ ✦ RETOUR 30 JOURS ✦ PAIEMENT SÉCURISÉ ✦',
-  afficherPopupPromo: false, popupPromoTexte: 'Obtenez 10% de réduction sur votre première commande !', popupPromoCode: 'BIENVENUE10',
+ 
   afficherBarreLivraison: true, seuilLivraisonGratuite: 100,
   afficherNotifVente: true, afficherNbVues: true, afficherWishlist: true, afficherAvis: true,
   logoUrl: '',
@@ -347,7 +347,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [tri,setTri]               = useState<'recent'|'prix_asc'|'prix_desc'|'note'>('recent');
   const [vueCatalogue,setVueCatalogue] = useState<'grille'|'liste'>('grille');
   const [colonnes,setColonnes]     = useState(()=>{ const n=Number(raw?.catalogue?.colonnes); return n>=2&&n<=4?Math.round(n):3; });
-  const [popupPromo,setPopupPromo] = useState(false);
   const [photoIdx,setPhotoIdx]     = useState(0);
   const [qteChoisie,setQteChoisie] = useState(1);
   const [varianteChoisie,setVarianteChoisie] = useState<Record<string,string>>({});
@@ -372,7 +371,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   useEffect(()=>{
     fetch(`${API_BASE}/studio/politiques/${vendeurId}/public`).then(r=>r.ok?r.json():null).then(d=>{ if(!d||!Array.isArray(d.politiques)) return; const m:Record<string,boolean>={}; d.politiques.forEach((p:any)=>{ m[p.slug]=typeof p.contenu==='string'&&p.contenu.trim().length>0; }); setPolitiquesRedigees(m); }).catch(()=>{});
   },[vendeurId]);
-  useEffect(()=>{ if(cfg.afficherPopupPromo){ const t=setTimeout(()=>setPopupPromo(true),4000); return()=>clearTimeout(t); } },[cfg.afficherPopupPromo]);
 
   const chargerCatalogue = useCallback(()=>fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`).then(r=>r.ok?r.json():null).then(data=>{ if(!data) return; const l:Produit[]=data.produits||data||[]; if(data.heure_serveur) setHeureServeur(String(data.heure_serveur)); const decSrv=data.heure_serveur?new Date(String(data.heure_serveur)).getTime()-Date.now():0; l.forEach((x:any)=>{ if(x.ench_fin){ x.enchere={ fin:x.ench_fin, mise:Number(x.ench_mise), nb_mises:Number(x.ench_nb)||0, decalage:decSrv }; } else x.enchere=null; delete x.ench_fin; delete x.ench_mise; delete x.ench_nb; }); if(l.length>0){ setProduitsDemo(false); setProduits(l); setCategories(Array.from(new Set(l.map(p=>p.categorie).filter(Boolean))) as string[]); } }).catch(()=>{}),[vendeurId]);
   useEffect(()=>{
@@ -1287,26 +1285,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     );
   };
 
-  const PopupPromo = () => (
-    <>
-      <div onClick={()=>setPopupPromo(false)} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.8)',zIndex:1000,backdropFilter:'blur(6px)' }}/>
-      <div style={{ position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',zIndex:1001,background:SURF,border:`1px solid ${BORD}`,borderRadius:20,width:'90%',maxWidth:440,overflow:'hidden',boxShadow:`0 32px 80px rgba(0,0,0,0.6)` }}>
-        <div style={{ padding:'36px 32px',textAlign:'center',position:'relative' }}>
-          <div style={{ fontSize:48,marginBottom:16 }}>🎁</div>
-          <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:12 }}>{(typeof raw.popupPromoSurtitre==='string'&&raw.popupPromoSurtitre.trim())||'Offre exclusive'}</div>
-          <h2 style={{ fontSize:26,fontWeight:900,color:'#fff',margin:'0 0 12px',lineHeight:1.2 }}>{cfg.popupPromoTexte}</h2>
-          <div style={{ display:'inline-block',background:`${cp}20`,border:`1px solid ${BORD}`,borderRadius:10,padding:'12px 24px',marginBottom:20 }}>
-            <span style={{ fontSize:22,fontWeight:900,color:cp,letterSpacing:'0.1em' }}>{cfg.popupPromoCode}</span>
-          </div>
-          <div style={{ display:'flex',gap:10 }}>
-            <button onClick={()=>{naviguer('catalogue');setPopupPromo(false);}} style={{ flex:1,background:`linear-gradient(135deg,${cp},${OR2})`,color:'#000',border:'none',borderRadius:10,padding:'14px',fontSize:14,fontWeight:800,cursor:'pointer' }}>{(typeof raw.popupPromoBouton==='string'&&raw.popupPromoBouton.trim())||"Profiter de l'offre →"}</button>
-            <button onClick={()=>setPopupPromo(false)} style={{ padding:'14px 16px',background:'none',border:`1px solid #333`,borderRadius:10,color:'#666',cursor:'pointer',fontSize:13,flexShrink:0 }}>Plus tard</button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-
   // Espace acheteur : plein écran, comme AppAcheteur (MV) — il a son propre menu et son bouton « Retour à la boutique »
   if(page==='compte') return <AppAcheteurBoutique key={vueCompte} vendeurId={vendeurId} pageInitiale={vueCompte} config={{ couleur_accent:cp, nom_boutique:cfg.nomBoutique, gestionnaire_id:vendeurId }} naviguerTemplate={(d:any)=>{ setVueCompte('dashboard'); if(d&&d.page==='produit'){ ouvrirProduitParId(d.produitId); return; } naviguer(d&&d.page?d.page:'accueil'); }} />;
 
@@ -1317,7 +1295,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       {cfg.afficherTicker&&<Ticker texte={cfg.tickerTexte} couleur={cp}/>}
       <Nav/>
       {avisPanier&&<div style={{ position:'fixed',top:84,left:'50%',transform:'translateX(-50%)',zIndex:300,background:SURF,border:`1px solid ${cp}`,color:'#fff',padding:'12px 20px',borderRadius:10,fontSize:13,fontWeight:600,boxShadow:'0 8px 30px rgba(0,0,0,0.5)' }}>{avisPanier}</div>}
-      {popupPromo&&<PopupPromo/>}
       {modeDemo&&cfg.afficherNotifVente&&page==='accueil'&&<NotifVente cp={cp}/>}
 
       <main style={{ flex:1 }}>

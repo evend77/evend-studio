@@ -10,6 +10,7 @@ import CookieBanner                   from '../components/CookieBanner';
 import { useAnalytics }               from '../hooks/useAnalytics';
 import ChatbotWidget                  from '../components/ChatbotWidget';
 import BoutiqueChatbotWidget           from '../components/BoutiqueChatbotWidget';
+import BoutiquePopupAnnonce            from '../components/BoutiquePopupAnnonce';
 import VerificateurAge                from '../components/VerificateurAge';
 import TemplateVitrine                from '../templates/TemplateVitrine';
 import TemplateReservation            from '../templates/TemplateReservation';
@@ -338,6 +339,10 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
           Le template Multi-vendeur Premium monte le sien (règle forfait/add-on) : on ne le double pas ici,
           sinon deux fenêtres s'empilent et il faut cliquer deux fois pour la fermer. */}
       {!isDemo && vendeurId && !templateId.startsWith('multi-vendeur-premium') && <VerificateurAge vendeurId={Number(vendeurId)} />}
+
+      {/* Popup Annonce — templates boutique (solo) : suit l'add-on « Popup Annonce » de la boutique (jamais options_gestionnaire), jamais en mode démo.
+          Placé avant le contenu : la bannière du haut se place dans la page, au-dessus du menu. */}
+      {!isDemo && vendeurId && estBoutiqueSolo(String(forceTemplate || siteData?.template_id || '')) && !!addonsBoutique?.popup_annonce && <BoutiquePopupAnnonce gestionnaireId={Number(vendeurId)} decalageBas={!hidePreviewBar ? 44 : 0} reserveChat={!!addonsBoutique?.chatbot} />}
 
       {/* Contenu */}
       <div style={{ paddingBottom: 44 }}>
