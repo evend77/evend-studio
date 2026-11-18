@@ -89,7 +89,6 @@ const DEF = {
   seuilLivraisonGratuite: 100,
   afficherNotifVente: true,
   afficherNbVues: true,
-  afficherWishlist: true,
   afficherAvis: true,
   catalogue: { colonnes: 3, afficherFiltres: true, afficherRecherche: true, afficherPrix: true, afficherStock: true, surtitre: '', titre: '', videTitre: '', videTexte: '' },
   ficheProduit: { afficherZoom: true, afficherAvis: true, afficherPartage: true, afficherSimilaires: true, similairesNombre: 4, boutonLabel: 'Ajouter au panier', boutonCouleur: CP, reassurance: [] as any[], livraisonInfos: [] as any[], similairesSurtitre: '', similairesTitre: '' },
@@ -312,7 +311,6 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
             {config.afficherBarreLivraison && <F label="Seuil livraison gratuite ($)"><Inp type="number" value={config.seuilLivraisonGratuite} onChange={(v: string) => set('seuilLivraisonGratuite', parseFloat(v))} placeholder="100" /></F>}
             <Toggle label="Notification dernière vente" checked={config.afficherNotifVente} onChange={(v: boolean) => set('afficherNotifVente', v)} desc="Démonstration seulement — sera une option payante (add-on). Jamais affiché sur une boutique avec de vraies annonces." />
             <Toggle label="Nombre de personnes qui regardent" checked={config.afficherNbVues} onChange={(v: boolean) => set('afficherNbVues', v)} desc="Démonstration seulement — sera une option payante (add-on). Jamais affiché sur une boutique avec de vraies annonces." />
-            <Toggle label="Wishlist (favoris)" checked={config.afficherWishlist} onChange={(v: boolean) => set('afficherWishlist', v)} desc="Bouton cœur sur les cartes produit et la fiche produit" />
             <Toggle label="Avis clients" checked={config.afficherAvis} onChange={(v: boolean) => set('afficherAvis', v)} desc="Étoiles, notes et commentaires sur les fiches produit" />
           </S>
 
@@ -728,7 +726,6 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
             <Toggle label="Notification dernière vente" checked={config.afficherNotifVente} onChange={(v: boolean) => set('afficherNotifVente', v)} desc="Démonstration seulement — sera une option payante (add-on). Jamais affiché sur une boutique avec de vraies annonces." />
             <Toggle label="Compteur de vues en temps réel" checked={config.afficherNbVues} onChange={(v: boolean) => set('afficherNbVues', v)} desc="Démonstration seulement — sera une option payante (add-on). Jamais affiché sur une boutique avec de vraies annonces." />
             <Toggle label="Barre de progression livraison" checked={config.afficherBarreLivraison} onChange={(v: boolean) => set('afficherBarreLivraison', v)} desc="Encourage les clients à ajouter plus d'articles" />
-            <Toggle label="Wishlist (liste d'envies)" checked={config.afficherWishlist} onChange={(v: boolean) => set('afficherWishlist', v)} desc="Permet aux clients de sauvegarder leurs produits préférés" />
             <Toggle label="Zoom image sur fiche produit" checked={config.ficheProduit.afficherZoom} onChange={(v: boolean) => setFP({ afficherZoom: v })} desc="Zoom fluide au survol de la souris — effet luxe garanti" />
           </S>
           {config.afficherBarreLivraison && (

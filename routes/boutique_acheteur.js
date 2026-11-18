@@ -52,6 +52,9 @@ router.use('/encheres', require('./boutique_encheres_acheteur'));
 // Add-on « Questions sur le produit » : poser une question, signaler une question publiée
 router.use('/questions', require('./boutique_questions_acheteur'));
 
+// Add-on « Favoris » : liste de souhaits de l'acheteur (lire, ajouter, retirer, transférer la liste d'un visiteur)
+router.use('/favoris', require('./boutique_favoris_acheteur'));
+
 const wrap = (fn) => async (req, res) => {
   try { await fn(req, res); }
   catch (e) {

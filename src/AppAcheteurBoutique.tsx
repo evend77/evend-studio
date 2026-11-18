@@ -13,6 +13,8 @@ import RetoursBoutique from './pages/boutique/RetoursBoutique';
 import MesOffresBoutique from './pages/boutique/MesOffresBoutique';
 import MesEncheresBoutique from './pages/boutique/MesEncheresBoutique';
 import { ba } from './pages/boutique/boutiqueAcheteurApi';
+import WishlistBoutique from './pages/boutique/WishlistBoutique';   // add-on « Favoris » : page « Liste de souhaits »
+import { synchroniserInvite } from './components/BoutiqueFavoris';
 import Notifications from './pages/acheteur/Notifications';
 import ProfilBoutique from './pages/boutique/ProfilBoutique';
 import MessagerieGestionnaire from './pages/acheteur/MessagerieGestionnaire';
@@ -22,8 +24,8 @@ import BanniereDashboard from './templates/shared/BanniereDashboard';
 const API_BASE = '/api';
 
 interface CompteAcheteur { id: number; prenom: string; nom: string; email: string; telephone?: string; }
-type PageDash = 'dashboard' | 'commandes' | 'retours' | 'offres' | 'encheres' | 'panier' | 'checkout' | 'confirmation' | 'messagerie' | 'notifications' | 'profil';
-interface Props { vendeurId?: number; config?: Record<string, any>; naviguerTemplate: (dest: any) => void; pageInitiale?: 'dashboard' | 'panier'; }
+type PageDash = 'dashboard' | 'wishlist' | 'commandes' | 'retours' | 'offres' | 'encheres' | 'panier' | 'checkout' | 'confirmation' | 'messagerie' | 'notifications' | 'profil';
+interface Props { vendeurId?: number; config?: Record<string, any>; naviguerTemplate: (dest: any) => void; pageInitiale?: 'dashboard' | 'panier' | 'wishlist'; }
 
 // Notifications d'enchères (écrites par services/boutique_encheres.js) montrées dans le bandeau orange du haut de l'espace client
 const TYPES_BANDEAU_ENCHERE = ['enchere_surpasse', 'enchere_gagnee', 'enchere_perdue', 'enchere_annulee', 'enchere_expiree', 'enchere_rappel'];
@@ -53,6 +55,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
   const [nbNotifs, setNbNotifs] = useState(0);
   const [notifsEnchere, setNotifsEnchere] = useState<{ id: number; titre: string; message: string; type: string; date: string }[]>([]);   // bandeau orange : notifications d'enchères non lues
   const [offresActif, setOffresActif] = useState(false);   // add-on « Faire une offre » activé
+  const [favorisActif, setFavorisActif] = useState(false);   // add-on « Favoris » activé : menu « Liste de souhaits »
   const [encheresActif, setEncheresActif] = useState(false);   // add-on « Enchères » activé, ou l'acheteur a déjà des enchères
   const [nbEncheres, setNbEncheres] = useState(0);              // enchères gagnées à payer
   const [nbOffres, setNbOffres] = useState(0);              // offres qui attendent une action de l'acheteur
@@ -69,6 +72,9 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
     try { token = localStorage.getItem(`mv_token_${gestionnaireId}`); } catch (e) { /* stockage indisponible */ }
     if (!token && compte === null) naviguerTemplate({ page: 'login' });
   }, [compte, gestionnaireId]);
+
+  // Add-on « Favoris » : les produits ajoutés en visiteur sont enregistrés dans le compte (rien à faire si la liste temporaire est vide)
+  useEffect(() => { if (compte && compte.id) synchroniserInvite(gestionnaireId).catch(() => { /* réessayé à la prochaine visite */ }); }, [compte, gestionnaireId]);
 
   // Session réellement valide ? (cookie) sinon on oublie le compte et on retourne au login
   useEffect(() => {
@@ -93,6 +99,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
       try {   // add-on « Faire une offre » : menu « Mes offres » seulement s'il est activé
         const ad = await fetch(`${API_BASE}/boutique/catalogue/${gestionnaireId}/addons`);
         const adds = ad.ok ? ((await ad.json()).addons || {}) : {};
+        setFavorisActif(!!adds.favoris);
         const actif = !!adds.faire_une_offre;
         setOffresActif(actif);
         if (actif) { const o = await ba(gestionnaireId, '/negociations/mes'); if (o.ok) setNbOffres(o.data.a_repondre || 0); }
@@ -146,6 +153,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
   const MENU: { id: PageDash; label: string; icon: string; badge?: number }[] = [
     { id: 'dashboard', label: 'Tableau de bord', icon: '📊' },
     { id: 'commandes', label: 'Mes commandes', icon: '📦' },
+    ...(favorisActif ? [{ id: 'wishlist' as PageDash, label: 'Liste de souhaits', icon: '❤️' }] : []),
     { id: 'retours', label: 'Mes retours', icon: '🔄' },
     ...(offresActif ? [{ id: 'offres' as PageDash, label: 'Mes offres', icon: '🤝', badge: nbOffres }] : []),
     ...(encheresActif ? [{ id: 'encheres' as PageDash, label: 'Mes enchères', icon: '🔨', badge: nbEncheres }] : []),
@@ -198,6 +206,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
         </div>
       );
     }
+    if (page === 'wishlist') return <WishlistBoutique {...commun} naviguer={naviguer} />;
     if (page === 'commandes') return <CommandesBoutique {...commun} naviguer={naviguer} demanderRetour={(n: string) => { setRetourCommande(n); naviguer('retours'); }} />;
     if (page === 'retours') return <RetoursBoutique key={retourCommande || 'r'} {...commun} commandeInitiale={retourCommande} />;
     if (page === 'encheres') return <MesEncheresBoutique {...commun} naviguer={naviguer} onChange={() => { ba(gestionnaireId, '/encheres/mes').then(o => { if (o.ok) setNbEncheres(o.data.a_payer || 0); }); }} />;

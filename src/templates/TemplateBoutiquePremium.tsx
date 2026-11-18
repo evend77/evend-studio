@@ -10,6 +10,7 @@ import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-
 import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
 import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
 import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
+import { BoutiqueSouhaitBouton, BoutiqueSouhaitCarte, BoutiqueSouhaitProduit, BoutiqueSouhaitsAcces, BoutiqueFavorisToast, useCarteSuperposition } from '../components/BoutiqueFavoris';   // add-on « Favoris » : cœurs, icône d'en-tête, notifications
 import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
 
 const OR    = '#c9a96e';
@@ -98,7 +99,7 @@ const CFG_DEF = {
   afficherTicker: true, tickerTexte: '✦ LIVRAISON GRATUITE dès 100$ ✦ RETOUR 30 JOURS ✦ PAIEMENT SÉCURISÉ ✦',
  
   afficherBarreLivraison: true, seuilLivraisonGratuite: 100,
-  afficherNotifVente: true, afficherNbVues: true, afficherWishlist: true, afficherAvis: true,
+  afficherNotifVente: true, afficherNbVues: true, afficherAvis: true,
   logoUrl: '',
   footer: {
     nomBoutique: 'Ma Boutique Premium', slogan: "L'excellence à votre portée",
@@ -202,10 +203,11 @@ function CompteurEnchere({ fin, decalage, onFini }: { fin:string; decalage:numbe
   const s=Math.floor(ms/1000), j=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60), sec=s%60;
   return <span>{j>0?`${j}j ${h}h ${m}m`:h>0?`${h}h ${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`:`${m}m ${String(sec).padStart(2,'0')}s`}</span>;
 }
-function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grille', opts, offre }: {
-  offre?:{ heureServeur:string|null; onFini:()=>void }; opts?:{ prix:boolean; stock:boolean }; produit:Produit; cp:string; onClick:()=>void; onWishlist?:()=>void; inWishlist?:boolean; vue?:'grille'|'liste';
+function CarteProduit({ produit, cp, onClick, gid, connecte, demo, vue='grille', opts, offre }: {
+  offre?:{ heureServeur:string|null; onFini:()=>void }; opts?:{ prix:boolean; stock:boolean }; produit:Produit; cp:string; onClick:()=>void; gid?:number; connecte?:boolean; demo?:boolean; vue?:'grille'|'liste';
 }) {
   const [hovered,setHovered] = useState(false);
+  const coeurSurImage=useCarteSuperposition(gid,connecte,demo);   // add-on « Favoris » : cœur en superposition sur l'image
   const montrerPrix=opts?opts.prix:true, montrerStock=opts?opts.stock:true;
   const enPromo = produit.prix_promo && produit.prix_promo < produit.prix;
   const ench = produit.enchere || null;
@@ -234,6 +236,7 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
         {produit.description && <p style={{ fontSize:13,color:'#888',margin:0,lineHeight:1.5,overflow:'hidden',textOverflow:'ellipsis',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical' as any }}>{produit.description}</p>}
       </div>
       <div style={{ textAlign:'right',flexShrink:0 }}>
+        {gid!==undefined&&<div style={{ display:'flex',justifyContent:'flex-end',marginBottom:6 }}><BoutiqueSouhaitBouton gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo} variante="carte"/></div>}
         {montrerPrix&&!venteBloquee&&(enPromo ? (<><div style={{ fontSize:20,fontWeight:800,color:'#ef4444' }}>{px(produit.prix_promo!)}</div><div style={{ fontSize:13,color:'#555',textDecoration:'line-through' }}>{px(produit.prix)}</div></>) 
                  : <div style={{ fontSize:20,fontWeight:800,color:cp }}>{px(produit.prix)}</div>)}
         {produit.offre_fin&&offre&&<OffreCompteur compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini}/>}
@@ -250,14 +253,15 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
         {produit.photo_principale ? <img src={produit.photo_principale} alt={produit.titre} style={{ width:'100%',height:'100%',objectFit:'cover',transition:'transform 0.4s ease',transform:hovered?'scale(1.08)':'scale(1)' }}/> : <span style={{ color:'#333' }}>📦</span>}
         {ench && <span style={{ position:'absolute',top:enPromo?34:10,left:10,background:cp,color:'#000',fontSize:10,fontWeight:800,padding:'3px 8px',borderRadius:6 }}>🔨 ENCHÈRE</span>}
         {enPromo && <span style={{ position:'absolute',top:10,left:10,background:'#ef4444',color:'#fff',fontSize:10,fontWeight:800,padding:'3px 8px',borderRadius:6 }}>SOLDE</span>}
-        {montrerStock && produit.stock!==undefined && produit.stock<=3 && produit.stock>0 && <span style={{ position:'absolute',top:10,right:onWishlist?44:10,background:'#f59e0b',color:'#000',fontSize:9,fontWeight:800,padding:'3px 7px',borderRadius:6 }}>Plus que {produit.stock}!</span>}
+        {montrerStock && produit.stock!==undefined && produit.stock<=3 && produit.stock>0 && <span style={{ position:'absolute',top:10,right:coeurSurImage?48:10,background:'#f59e0b',color:'#000',fontSize:9,fontWeight:800,padding:'3px 7px',borderRadius:6 }}>Plus que {produit.stock}!</span>}
         {produit.stock===0 && !ench && <div style={{ position:'absolute',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center' }}><span style={{ color:'#fff',fontSize:13,fontWeight:700,background:'#333',padding:'6px 14px',borderRadius:6 }}>Épuisé</span></div>}
-        {onWishlist && <button onClick={e=>{e.stopPropagation();onWishlist();}} style={{ position:'absolute',top:10,right:10,width:32,height:32,borderRadius:'50%',background:'rgba(0,0,0,0.6)',border:`1px solid ${inWishlist?'#ef4444':'#444'}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14 }}>{inWishlist?'❤️':'🤍'}</button>}
+        {gid!==undefined&&<BoutiqueSouhaitCarte zone="superposition" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo}/>}
         <div style={{ position:'absolute',bottom:0,left:0,right:0,padding:'12px',background:'linear-gradient(transparent,rgba(0,0,0,0.8))',opacity:hovered?1:0,transition:'opacity 0.25s ease' }}>
           <button onClick={e=>{e.stopPropagation();onClick();}} style={{ width:'100%',padding:'8px',background:cp,border:'none',borderRadius:7,color:'#000',fontSize:12,fontWeight:800,cursor:'pointer',letterSpacing:'0.04em' }}>VOIR LE PRODUIT</button>
         </div>
       </div>
       <div style={{ padding:'14px 16px' }}>
+        {gid!==undefined&&<BoutiqueSouhaitCarte zone="haut" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo}/>}
         {produit.categorie && <span style={{ fontSize:9,color:cp,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em' }}>{produit.categorie}</span>}
         <h3 style={{ fontSize:14,fontWeight:600,color:'#e5e5e5',margin:'4px 0 6px',lineHeight:1.3 }}>{produit.titre}</h3>
         {produit.note_moyenne && <div style={{ display:'flex',alignItems:'center',gap:4,marginBottom:8 }}><Etoiles note={produit.note_moyenne} taille={11}/><span style={{ fontSize:10,color:'#666' }}>({produit.nb_avis})</span></div>}
@@ -267,6 +271,7 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
         </div>}
         {produit.offre_fin&&offre&&<OffreCompteur compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini}/>}
         {bandeEnchere}
+        {gid!==undefined&&<BoutiqueSouhaitCarte zone="bas" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo}/>}
       </div>
     </div>
   );
@@ -310,7 +315,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const lienHttp=(u:any):string=>/^https?:\/\//i.test(String(u||''))?String(u):'';
   const cp  = cfg.couleurAccent || OR;
 
-  type PageId = 'accueil'|'catalogue'|'offres'|'encheres'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'wishlist'|'compte'|'login'|'inscription'|'politique';
+  type PageId = 'accueil'|'catalogue'|'offres'|'encheres'|'produit'|'blog'|'article'|'faq'|'a-propos'|'contact'|'panier'|'compte'|'login'|'inscription'|'politique';
   const [page,setPage]             = useState<PageId>('accueil');
   const [produitActif,setProduitActif] = useState<Produit|null>(null);
   const [heureServeur,setHeureServeur] = useState<string|null>(null);   // heure du serveur (add-on « Offres du jour »)
@@ -337,9 +342,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [avisActif,setAvisActif]   = useState<Avis[]>([]);
   const [acheteur,setAcheteur]     = useState<AcheteurUser|null>(null);
   const [nbPanier,setNbPanier] = useState(0);
-  const [vueCompte,setVueCompte] = useState<'dashboard'|'panier'>('dashboard');
+  const [vueCompte,setVueCompte] = useState<'dashboard'|'panier'|'wishlist'>('dashboard');
   const [avisPanier,setAvisPanier] = useState('');
-  const [wishlist,setWishlist]     = useState<number[]>([]);
   const [filtreCat,setFiltreCat]   = useState('');
   const [filtreRecherche,setFiltreRecherche] = useState('');
   const [filtrePrixMin,setFiltrePrixMin] = useState('');
@@ -454,7 +458,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     if(dest.toLowerCase()==='panier'){ setVueCompte('panier'); setPage('compte'); return; }
     const slugPol=slugPolitique(dest);
     if(slugPol){ ouvrirPolitique(slugPol); return; }
-    const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',offres:'offres',encheres:'encheres',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login',inscription:'inscription' };
+    const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',offres:'offres',encheres:'encheres',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',compte:'compte',login:'login',inscription:'inscription' };
     const cle=sansAccent(dest).replace(/\s+/g,'-'); if(map[cle]) setPage(map[cle]);
   },[vendeurId,ouvrirPolitique]);
 
@@ -482,7 +486,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   };
   const ouvrirCompte = ()=>{ setVueCompte('dashboard'); naviguer(acheteur?'compte':'login'); };
   const ouvrirPanier = ()=>{ if(!acheteur){ setAvisPanier('Connectez-vous pour voir votre panier.'); naviguer('login'); return; } setVueCompte('panier'); naviguer('compte'); };
-  const toggleWishlist = (id:number)=>setWishlist(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
+  // Add-on « Favoris » : la liste de souhaits est une page de l'espace client (connecté) ; sinon on invite à se connecter
+  const ouvrirSouhaits = ()=>{ if(!acheteur){ setAvisPanier('Connectez-vous pour voir votre liste de souhaits.'); naviguer('login'); return; } setVueCompte('wishlist'); naviguer('compte'); };
 
   const handleLogin = async()=>{
     setLoginStatut('loading'); setLoginErreur('');
@@ -559,7 +564,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             <button key={id} onClick={()=>naviguer(id)} style={{ background:'none',border:'none',color:page===id?cp:'rgba(255,255,255,0.7)',fontSize:13,fontWeight:page===id?700:500,cursor:'pointer',padding:'8px 14px',borderRadius:8,letterSpacing:'0.04em',transition:'color 0.2s' }}>{label}</button>
           ))}</div>}
         <div style={{ display:'flex',alignItems:'center',gap:8 }}>
-          {cfg.afficherWishlist&&<button onClick={()=>naviguer('wishlist')} style={{ position:'relative',background:'none',border:`1px solid #333`,borderRadius:10,width:40,height:40,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16 }}>🤍{wishlist.length>0&&<span style={{ position:'absolute',top:-4,right:-4,background:'#ef4444',color:'#fff',borderRadius:'50%',width:16,height:16,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,fontWeight:800 }}>{wishlist.length}</span>}</button>}
+          <BoutiqueSouhaitsAcces gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} ouvrir={ouvrirSouhaits} variante="entete"/>
           <button onClick={ouvrirCompte} style={{ background:'none',border:`1px solid #333`,borderRadius:10,width:40,height:40,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,position:'relative' }}>
             {acheteur?'👤':'🔑'}{acheteur&&<div style={{ position:'absolute',bottom:2,right:2,width:8,height:8,borderRadius:'50%',background:'#4ade80',border:'1.5px solid #0a0a0a' }}/>}
           </button>
@@ -621,7 +626,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             <button onClick={()=>naviguer('catalogue')} style={{ background:'none',border:`1px solid ${BORD}`,borderRadius:8,padding:'10px 20px',color:cp,fontSize:13,fontWeight:600,cursor:'pointer',display:isMobile?'none':'block' }}>{tx('accueil','vedetteBouton','Voir tout →')}</button>
           </div>
           <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:isMobile?12:20 }}>
-            {vedette.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
+            {vedette.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} gid={vendeurId} connecte={!!acheteur} demo={produitsDemo}/>)}
           </div>
         </div>}
 
@@ -713,8 +718,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             <div style={{ marginBottom:16,fontSize:13,color:'#666' }}><strong style={{ color:'#fff' }}>{produitsFiltres.length}</strong> produit{produitsFiltres.length>1?'s':''}</div>
             {produitsFiltres.length===0 ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>🔍</div><h3 style={{ color:'#777',fontWeight:600,marginBottom:8 }}>{tx('catalogue','videTitre','Aucun produit')}</h3><p>{tx('catalogue','videTexte','Modifiez vos filtres')}</p></div>
             : vueCatalogue==='grille'
-              ? <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{produitsFiltres.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>
-              : <div style={{ display:'flex',flexDirection:'column',gap:12 }}>{produitsFiltres.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} vue="liste" onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>}
+              ? <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{produitsFiltres.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} gid={vendeurId} connecte={!!acheteur} demo={produitsDemo}/>)}</div>
+              : <div style={{ display:'flex',flexDirection:'column',gap:12 }}>{produitsFiltres.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} vue="liste" gid={vendeurId} connecte={!!acheteur} demo={produitsDemo}/>)}</div>}
           </div>
         </div>
       </div>
@@ -765,7 +770,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           : liste.length===0
             ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>🔥</div><h3 style={{ color:'#777',fontWeight:600,marginBottom:16 }}>Aucune offre du jour pour le moment. Revenez bientôt !</h3><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'14px 32px' }}>Voir le catalogue →</button></div>
             : <>
-              <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{liste.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}</div>
+              <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${colonnes},1fr)`,gap:isMobile?12:20 }}>{liste.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} gid={vendeurId} connecte={!!acheteur} demo={produitsDemo}/>)}</div>
               {pages>1&&<div style={{ display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginTop:32,flexWrap:'wrap' }}>
                 <button disabled={pg<=1} onClick={()=>{ setPg(pg-1); window.scrollTo({top:0,behavior:'smooth'}); }} style={btnPg(false,pg<=1)}>← Préc.</button>
                 {Array.from({length:pages},(_,k)=>k+1).filter(n=>n===1||n===pages||Math.abs(n-pg)<=1).map((n,i,a)=>(<span key={n} style={{ display:'inline-flex',alignItems:'center',gap:8 }}>{i>0&&n-a[i-1]>1&&<span style={{ color:'#666' }}>…</span>}<button onClick={()=>{ setPg(n); window.scrollTo({top:0,behavior:'smooth'}); }} style={btnPg(n===pg)}>{n}</button></span>))}
@@ -803,7 +808,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
                 ? <img src={photos[photoIdx]} alt={p.titre} style={{ width:'100%',height:'100%',objectFit:'cover',transition:'transform 0.3s ease',transform:zoomActif?`scale(2) translate(${50-sourisPos.x}%,${50-sourisPos.y}%)`:'scale(1)',transformOrigin:`${sourisPos.x}% ${sourisPos.y}%` }}/>
                 : <div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:80,color:'#333' }}>📦</div>}
               {enPromo&&<span style={{ position:'absolute',top:16,left:16,background:'#ef4444',color:'#fff',fontSize:12,fontWeight:800,padding:'4px 12px',borderRadius:8 }}>SOLDE -{Math.round((1-p.prix_promo!/p.prix)*100)}%</span>}
-              {cfg.afficherWishlist&&<button onClick={e=>{e.stopPropagation();toggleWishlist(p.id);}} style={{ position:'absolute',top:16,right:16,width:40,height:40,borderRadius:'50%',background:'rgba(0,0,0,0.6)',border:`1px solid ${wishlist.includes(p.id)?'#ef4444':'#444'}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,backdropFilter:'blur(4px)' }}>{wishlist.includes(p.id)?'❤️':'🤍'}</button>}
               {on('ficheProduit','afficherZoom')&&<div style={{ position:'absolute',bottom:12,right:12,background:'rgba(0,0,0,0.6)',backdropFilter:'blur(4px)',borderRadius:6,padding:'4px 10px',fontSize:11,color:'#aaa' }}>{zoomActif?'🔍 Cliquer pour dézoomer':'🔍 Cliquer pour zoomer'}</div>}
             </div>
             {photos.length>1&&<div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
@@ -849,8 +853,9 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             </div>}
 
             <div style={{ display:'flex',gap:10,marginBottom:20,flexWrap:'wrap' }}>
+              <BoutiqueSouhaitProduit zone="avant_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo}/>
               {!venteDirecteBloquee(p)&&<button onClick={()=>ajouterAuPanier(p)} disabled={p.stock===0} style={{ flex:1,...styleBtn,...styleBtnProduit,padding:'16px 24px',fontSize:15,opacity:p.stock===0?0.5:1,cursor:p.stock===0?'not-allowed':'pointer' }}>{p.stock===0?'ÉPUISÉ':'🛒 '+tx('ficheProduit','boutonLabel','Ajouter au panier').toUpperCase()}</button>}
-              {cfg.afficherWishlist&&<button onClick={()=>toggleWishlist(p.id)} style={{ width:50,height:50,borderRadius:10,border:`1px solid ${wishlist.includes(p.id)?'#ef4444':'#333'}`,background:wishlist.includes(p.id)?'rgba(239,68,68,0.15)':SURF,color:wishlist.includes(p.id)?'#ef4444':'#888',cursor:'pointer',fontSize:20,flexShrink:0 }}>{wishlist.includes(p.id)?'❤️':'🤍'}</button>}
+              <BoutiqueSouhaitProduit zone="apres_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo}/>
             </div>
 
             <BlocEnchereBoutique gestionnaireId={vendeurId} produitId={p.id} couleurAccent={cp} isDemo={modeDemo} onEtat={a=>{ if(enchereEtat[p.id]===true&&a===false) setTimeout(rechargerOffres,400); setEnchereEtat(m=>m[p.id]===a?m:{...m,[p.id]:a}); }}
@@ -924,7 +929,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('ficheProduit','similairesSurtitre','Vous aimerez aussi')}</div>
           <h2 style={{ fontSize:isMobile?24:32,fontWeight:900,color:'#fff',marginBottom:28 }}>{tx('ficheProduit','similairesTitre','Produits similaires')}</h2>
           <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(4,nbr('ficheProduit','similairesNombre',4,1,8))},1fr)`,gap:16 }}>
-            {similaires.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={cfg.afficherWishlist?()=>toggleWishlist(p.id):undefined} inWishlist={wishlist.includes(p.id)}/>)}
+            {similaires.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} gid={vendeurId} connecte={!!acheteur} demo={produitsDemo}/>)}
           </div>
         </div>}
       </div>
@@ -1000,18 +1005,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       </div>
     </div>
   );
-
-  const PageWishlist = () => {
-    const items = produits.filter(p=>wishlist.includes(p.id));
-    return (
-      <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
-        <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ LISTE D'ENVIES</div>
-        <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:40 }}>{items.length} article{items.length>1?'s':''} sauvegardé{items.length>1?'s':''}</h1>
-        {items.length===0 ? <div style={{ textAlign:'center',padding:'80px 0' }}><div style={{ fontSize:80,marginBottom:24 }}>🤍</div><h2 style={{ color:'#666',fontWeight:600,marginBottom:12 }}>Liste vide</h2><p style={{ color:'#555',marginBottom:24 }}>Cliquez sur ❤️ sur les produits que vous aimez.</p><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'14px 32px' }}>Découvrir nos produits →</button></div>
-        : <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:20 }}>{items.map(p=><CarteProduit offre={offreCtx} opts={optsCarte} key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={true}/>)}</div>}
-      </div>
-    );
-  };
 
   const PageLogin = () => (
     <div style={{ minHeight:'70vh',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 24px' }}>
@@ -1296,6 +1289,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       <Nav/>
       {avisPanier&&<div style={{ position:'fixed',top:84,left:'50%',transform:'translateX(-50%)',zIndex:300,background:SURF,border:`1px solid ${cp}`,color:'#fff',padding:'12px 20px',borderRadius:10,fontSize:13,fontWeight:600,boxShadow:'0 8px 30px rgba(0,0,0,0.5)' }}>{avisPanier}</div>}
       {modeDemo&&cfg.afficherNotifVente&&page==='accueil'&&<NotifVente cp={cp}/>}
+      <BoutiqueSouhaitsAcces gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} ouvrir={ouvrirSouhaits} variante="flottant"/>
+      <BoutiqueFavorisToast gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo}/>
 
       <main style={{ flex:1 }}>
         {page==='accueil'   && <PageAccueil/>}
@@ -1309,7 +1304,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         {page==='a-propos'   && <PageAPropos/>}
         {page==='contact'   && <PageContact/>}
         {page==='politique' && PagePolitique()}
-        {page==='wishlist'  && <PageWishlist/>}
         {page==='login'     && PageLogin()}
         {page==='inscription' && PageInscription()}
       </main>
