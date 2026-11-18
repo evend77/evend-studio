@@ -50,6 +50,11 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
   const [paliersGuide, setPaliersGuide] = useState('');
   const [palierType, setPalierType] = useState<'pourcentage' | 'fixe'>('pourcentage');
   const [paliersLignes, setPaliersLignes] = useState<LignePalier[]>([]);
+  // Add-on « Parution future » : 'AAAA-MM-JJTHH:mm' en heure de Montréal, '' = en vente tout de suite
+  const [parutionActif, setParutionActif] = useState(false);
+  const [parutionGuide, setParutionGuide] = useState('');
+  const [dateParution, setDateParution] = useState('');
+  const [dateParutionInitiale, setDateParutionInitiale] = useState('');
   const [chargement, setChargement] = useState(!!produitId);
   const [envoi, setEnvoi] = useState(false);
   const [sauvegarde, setSauvegarde] = useState(false);
@@ -60,7 +65,7 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
 
   useEffect(() => {
     bq('/categories').then(r => { if (r.ok && Array.isArray(r.data)) setCategories(r.data); });
-    bq('/addons').then(r => { if (r.ok && r.data && Array.isArray(r.data.addons)) { const g = r.data.addons.find((y: any) => y.code === 'prix_paliers'); if (g) { setPaliersActif(!!(g.achete && g.offert)); setPaliersGuide(g.guide_url || ''); } } });
+    bq('/addons').then(r => { if (r.ok && r.data && Array.isArray(r.data.addons)) { const g = r.data.addons.find((y: any) => y.code === 'prix_paliers'); if (g) { setPaliersActif(!!(g.achete && g.offert)); setPaliersGuide(g.guide_url || ''); } const pf = r.data.addons.find((y: any) => y.code === 'parution_future'); if (pf) { setParutionActif(!!(pf.achete && pf.offert)); setParutionGuide(pf.guide_url || ''); } } });
     bq('/expedition/methodes/details').then(r => { if (r.ok && Array.isArray(r.data)) { setMethodes(r.data); setMethodesChargees(true); } });
   }, []);
 
@@ -86,6 +91,7 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
         prix: v.prix === null || v.prix === undefined ? '' : String(v.prix),
         stock: v.stock === null || v.stock === undefined ? '' : String(v.stock),
       })));
+      setDateParution(p.date_parution_local || ''); setDateParutionInitiale(p.date_parution_local || '');
       if (Array.isArray(p.paliers) && p.paliers.length) {
         setPalierType(p.paliers[0].type === 'fixe' ? 'fixe' : 'pourcentage');
         const parQte = new Map<number, LignePalier>();
@@ -179,6 +185,8 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
         ...(methodesChargees ? { methodes_expedition_ids: methodesSel.filter(id => methodes.some(m => m.id === id)) } : {}),
         variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock })),
         ...(paliersActif ? { paliers: paliersEnvoi } : {}),
+        // Parution future : envoyée seulement si l'add-on est actif (ou pour retirer une date existante)
+        ...((parutionActif || (dateParution === '' && dateParutionInitiale !== '')) ? { date_parution: dateParution === '' ? null : dateParution } : {}),
       },
     });
     setSauvegarde(false);
@@ -320,6 +328,35 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
           </div>
         ))}
       </div>
+
+      {(parutionActif || dateParutionInitiale) && (
+        <div style={carte}>
+          <label style={lbl}>📅 Date de parution (optionnel)
+            {parutionGuide && <a href={parutionGuide} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: couleur, textDecoration: 'none', border: `1px solid ${couleur}`, borderRadius: 12, padding: '2px 10px', marginLeft: 10, textTransform: 'none' }}>📖 Guide</a>}
+          </label>
+          {parutionActif ? (
+            <>
+              <input type="datetime-local" value={dateParution} onChange={e => setDateParution(e.target.value)} style={{ ...champ, maxWidth: 260 }} />
+              {dateParution && <button type="button" onClick={() => setDateParution('')} style={{ marginLeft: 10, border: `1px solid ${T.border}`, background: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>✕ Retirer la date</button>}
+              <p style={{ fontSize: 11, color: T.light, margin: '8px 0 0' }}>
+                Heure de Montréal. L'annonce est visible avec un compte à rebours, mais impossible à acheter avant cette date. La date doit être dans au moins 30 minutes. Laissez vide pour vendre tout de suite.
+              </p>
+            </>
+          ) : (
+            <div>
+              <p style={{ fontSize: 13, color: T.text, margin: '0 0 8px' }}>🔒 L'option « Parution future » n'est plus activée. Cette annonce reste cachée de la boutique jusqu'au <strong>{dateParutionInitiale.replace('T', ' à ')}</strong>.</p>
+              {dateParution && <button type="button" onClick={() => setDateParution('')} style={{ border: `1px solid ${T.border}`, background: '#fff', borderRadius: 8, padding: '9px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>✕ Retirer la date et vendre tout de suite</button>}
+            </div>
+          )}
+        </div>
+      )}
+      {!parutionActif && !dateParutionInitiale && (
+        <div style={carte}>
+          <label style={lbl}>📅 Date de parution (optionnel)</label>
+          <p style={{ fontSize: 12, color: T.light, margin: '0 0 10px' }}>Programmez la mise en vente : un compte à rebours s'affiche sur la fiche et l'achat s'ouvre à la date choisie. Cette option s'active dans « Mon plan & limites ».</p>
+          {pagePlan && naviguerVers && <button type="button" onClick={() => naviguerVers(pagePlan)} style={{ border: `1px solid ${couleur}`, background: '#fff', color: couleur, borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Voir « Mon plan & limites »</button>}
+        </div>
+      )}
 
       <div style={carte}>
         <label style={lbl}>💰 Prix par palier de quantité (optionnel)

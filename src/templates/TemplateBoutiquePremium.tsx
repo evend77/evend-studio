@@ -9,6 +9,7 @@ import AppAcheteurBoutique from '../AppAcheteurBoutique';
 import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-on « Faire une offre » : bloc de la fiche produit
 import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
 import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
+import BoutiqueParutionCountdown, { useConfigParution, formaterDateParution } from '../components/BoutiqueParutionCountdown';   // add-on « Parution future » : compte à rebours
 import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
 import AvisProduitBoutique, { useAvisProduit } from '../pages/boutique/AvisProduitBoutique';   // add-on « Avis clients » : onglet « Avis » et note moyenne de la fiche produit
 import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
@@ -31,6 +32,7 @@ interface Produit {
   stock?: number; categorie?: string; sku?: string; marque?: string;
   note_moyenne?: number; nb_avis?: number;
   variantes?: { nom: string; valeurs?: string[]; prix?: number|string|null; stock?: number|string|null }[];   // démo : {nom, valeurs[]} ; vraies annonces : liste plate {nom, prix, stock}
+  date_parution?: string|null;   // add-on « Parution future » : date d'ouverture de la vente (ISO) tant qu'elle n'est pas passée ; absente sinon
   paliers?: { qte_min:number; type:'pourcentage'|'fixe'; valeur:number; variante:string|null }[];   // add-on « Prix par palier » : le serveur n'envoie rien si l'add-on est inactif
   enchere?: { fin:string; mise:number; nb_mises:number; decalage?:number }|null;   // add-on « Enchères » : enchère en cours sur ce produit (null/absent sinon)
 }
@@ -238,6 +240,7 @@ function CarteProduit({ produit, cp, onClick, gid, connecte, demo, vue='grille',
         {montrerPrix&&!venteBloquee&&(enPromo ? (<><div style={{ fontSize:20,fontWeight:800,color:'#ef4444' }}>{px(produit.prix_promo!)}</div><div style={{ fontSize:13,color:'#555',textDecoration:'line-through' }}>{px(produit.prix)}</div></>) 
                  : <div style={{ fontSize:20,fontWeight:800,color:cp }}>{px(produit.prix)}</div>)}
         {produit.offre_fin&&offre&&<OffreCompteur compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini}/>}
+        {produit.date_parution&&<div style={{ marginTop:8 }}><BoutiqueParutionCountdown compact dateParution={produit.date_parution} gestionnaireId={gid} heureServeur={offre?offre.heureServeur:null}/></div>}
         {bandeEnchere}
         <button onClick={e=>{e.stopPropagation();onClick();}} style={{ marginTop:8,padding:'6px 14px',background:cp,border:'none',borderRadius:6,color:'#000',fontSize:12,fontWeight:700,cursor:'pointer' }}>Voir</button>
       </div>
@@ -268,6 +271,7 @@ function CarteProduit({ produit, cp, onClick, gid, connecte, demo, vue='grille',
                    : <span style={{ fontSize:17,fontWeight:800,color:cp }}>{px(produit.prix)}</span>}
         </div>}
         {produit.offre_fin&&offre&&<OffreCompteur compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini}/>}
+        {produit.date_parution&&<div style={{ marginTop:8 }}><BoutiqueParutionCountdown compact dateParution={produit.date_parution} gestionnaireId={gid} heureServeur={offre?offre.heureServeur:null}/></div>}
         {bandeEnchere}
         {gid!==undefined&&<BoutiqueSouhaitCarte zone="bas" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo}/>}
       </div>
@@ -354,6 +358,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [photoIdx,setPhotoIdx]     = useState(0);
   const [qteChoisie,setQteChoisie] = useState(1);
   const [varianteChoisie,setVarianteChoisie] = useState<Record<string,string>>({});
+  const [ouvertes,setOuvertes] = useState<Record<number,boolean>>({});   // Parution future : annonces dont le compte à rebours vient de finir
+  const cfgParution = useConfigParution(vendeurId);
   const [zoomActif,setZoomActif]   = useState(false);
   const [sourisPos,setSourisPos]   = useState({x:0,y:0});
   const [ongletProduit,setOngletProduit] = useState<'description'|'avis'|'livraison'>('description');
@@ -479,6 +485,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const ajouterAuPanier = async (produit:Produit)=>{
     if(produitsDemo){ setAvisPanier('Produit de démonstration : publiez vos annonces pour vendre.'); return; }
     if(!acheteur){ setAvisPanier('Connectez-vous pour ajouter au panier.'); naviguer('login'); return; }
+    if(produit.date_parution&&!ouvertes[produit.id]){ setAvisPanier(`Disponible le ${formaterDateParution(produit.date_parution)}`); return; }
     const plates=(produit.variantes||[]).filter(v=>v&&!Array.isArray(v.valeurs));
     if(plates.length&&!varianteChoisie.__v){ setAvisPanier('Choisissez une variante.'); return; }
     const variante=Object.values(varianteChoisie).join(' / ');
@@ -796,6 +803,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     const stockMax=varsPlates.length?(vSel?stockDe(vSel):null):(p.stock!==undefined?p.stock:null);
     const prixVar=vSel&&vSel.prix!==null&&vSel.prix!==undefined&&vSel.prix!==''&&Number(vSel.prix)>=0?Number(vSel.prix):null;
     const varManquante=varsPlates.length>0&&!vSel;
+    const parutionBloquee=!!p.date_parution&&!ouvertes[p.id];   // pas encore en vente : compte à rebours, aucun achat
     const epuise=p.stock===0||(vSel!==null&&stockDe(vSel)===0);
     const photos = [p.photo_principale,...(p.photos||[])].filter(Boolean) as string[];
     const similaires = on('ficheProduit','afficherSimilaires')?produits.filter(pr=>pr.id!==p.id&&pr.categorie===p.categorie).slice(0,nbr('ficheProduit','similairesNombre',4,1,8)):[];
@@ -834,20 +842,21 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             {on('ficheProduit','afficherAvis')&&resumeAvis(p)&&<div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:20 }}><Etoiles note={resumeAvis(p)!.note} taille={16}/><span style={{ fontSize:13,color:'#888' }}>{resumeAvis(p)!.note.toFixed(1)} ({resumeAvis(p)!.nb} avis)</span><button onClick={()=>setOngletProduit('avis')} style={{ background:'none',border:'none',color:cp,fontSize:12,cursor:'pointer',textDecoration:'underline' }}>Voir les avis</button></div>}
 
             {p.offre_fin&&<OffreCompteur fin={p.offre_fin} heureServeur={heureServeur} onFini={offreCtx.onFini}/>}
+            {p.date_parution&&<BoutiqueParutionCountdown dateParution={p.date_parution} gestionnaireId={vendeurId} heureServeur={heureServeur} onOuvert={()=>{ setOuvertes(m=>({...m,[p.id]:true})); setTimeout(()=>{ chargerCatalogue(); },1500); }}/>}
             <div style={{ display:'flex',alignItems:'baseline',gap:12,marginBottom:24 }}>
               {prixVar!==null ? <span style={{ fontSize:36,fontWeight:900,color:cp }}>{px(prixVar)}</span> : enPromo ? (<><span style={{ fontSize:36,fontWeight:900,color:'#ef4444' }}>{px(p.prix_promo!)}</span><span style={{ fontSize:20,color:'#555',textDecoration:'line-through' }}>{px(p.prix)}</span></>) : <span style={{ fontSize:36,fontWeight:900,color:cp }}>{px(p.prix)}</span>}
             </div>
 
-            {p.paliers&&p.paliers.length>0&&<PaliersProduitBoutique produit={p as any} quantite={qteChoisie} variante={Object.values(varianteChoisie).join(' / ')} couleur={cp}/>}
+            {!parutionBloquee&&p.paliers&&p.paliers.length>0&&<PaliersProduitBoutique produit={p as any} quantite={qteChoisie} variante={Object.values(varianteChoisie).join(' / ')} couleur={cp}/>}
 
-            <div style={{ display:'flex',gap:16,marginBottom:20,flexWrap:'wrap' }}>
+            {!parutionBloquee&&<div style={{ display:'flex',gap:16,marginBottom:20,flexWrap:'wrap' }}>
               {p.stock!==undefined&&p.stock!==null&&!(enchActive(p)&&p.stock===0)&&<span style={{ fontSize:12,fontWeight:600,color:p.stock>5?'#4ade80':p.stock>0?'#f59e0b':'#ef4444' }}>{enchActive(p)&&p.stock>0?`✓ En stock (${p.stock} disponible${p.stock>1?'s':''})`:p.stock>5?'✅ En stock':p.stock>0?`⚠️ Plus que ${p.stock} !`:'❌ Épuisé'}</span>}
               {enchActive(p)&&<span style={{ fontSize:12,fontWeight:600,color:'#f59e0b' }}>🔨 {p.stock===undefined||p.stock===null?'1 unité en vente aux enchères':'En stock (1 réservé enchère)'}</span>}
               {modeDemo&&cfg.afficherNbVues&&<span style={{ fontSize:12,color:'#555' }}>👁 {nbVues} personnes regardent</span>}
               {p.sku&&<span style={{ fontSize:11,color:'#555' }}>SKU: {p.sku}</span>}
-            </div>
+            </div>}
 
-            {varsPlates.length>0&&(
+            {!parutionBloquee&&varsPlates.length>0&&(
               <div style={{ marginBottom:18 }}>
                 <div style={{ fontSize:12,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8 }}>Variante</div>
                 <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
@@ -856,7 +865,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
                 </div>
               </div>
             )}
-            {p.variantes&&p.variantes.filter(v=>Array.isArray(v.valeurs)).map(v=>(
+            {!parutionBloquee&&p.variantes&&p.variantes.filter(v=>Array.isArray(v.valeurs)).map(v=>(
               <div key={v.nom} style={{ marginBottom:18 }}>
                 <div style={{ fontSize:12,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8 }}>{v.nom}</div>
                 <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
@@ -865,7 +874,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               </div>
             ))}
 
-            {!venteDirecteBloquee(p)&&<div style={{ marginBottom:20 }}>
+            {!parutionBloquee&&!venteDirecteBloquee(p)&&<div style={{ marginBottom:20 }}>
               <div style={{ fontSize:12,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8 }}>Quantité</div>
               <div style={{ display:'flex',alignItems:'center',gap:12 }}>
                 <button onClick={()=>setQteChoisie(q=>Math.max(1,q-1))} style={{ width:42,height:42,borderRadius:8,border:`1px solid #333`,background:SURF,color:'#fff',cursor:'pointer',fontSize:18,fontWeight:700 }}>−</button>
@@ -875,16 +884,19 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             </div>}
 
             <div style={{ display:'flex',gap:10,marginBottom:20,flexWrap:'wrap' }}>
-              <BoutiqueSouhaitProduit zone="avant_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo}/>
-              {!venteDirecteBloquee(p)&&<button onClick={()=>ajouterAuPanier(p)} disabled={epuise} style={{ flex:1,...styleBtn,...styleBtnProduit,padding:'16px 24px',fontSize:15,opacity:epuise?0.5:1,cursor:epuise?'not-allowed':'pointer' }}>{epuise?'ÉPUISÉ':'🛒 '+tx('ficheProduit','boutonLabel','Ajouter au panier').toUpperCase()}</button>}
-              <BoutiqueSouhaitProduit zone="apres_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo}/>
+              <BoutiqueSouhaitProduit zone="avant_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo} masque={parutionBloquee&&cfgParution.bloquer_wishlist}/>
+              {parutionBloquee&&(cfgParution.afficher_message_atc&&cfgParution.texte_atc_bloque
+                ? <div style={{ flex:1,padding:'14px 16px',borderRadius:12,background:'rgba(251,191,36,0.12)',border:'1px solid rgba(251,191,36,0.4)',color:'#fcd34d',fontSize:14,fontWeight:700,textAlign:'center' }}>{cfgParution.texte_atc_bloque}</div>
+                : <button disabled style={{ flex:1,...styleBtn,padding:'16px 24px',fontSize:15,opacity:0.5,cursor:'not-allowed' }}>⏳ Pas encore disponible</button>)}
+              {!parutionBloquee&&!venteDirecteBloquee(p)&&<button onClick={()=>ajouterAuPanier(p)} disabled={epuise} style={{ flex:1,...styleBtn,...styleBtnProduit,padding:'16px 24px',fontSize:15,opacity:epuise?0.5:1,cursor:epuise?'not-allowed':'pointer' }}>{epuise?'ÉPUISÉ':'🛒 '+tx('ficheProduit','boutonLabel','Ajouter au panier').toUpperCase()}</button>}
+              <BoutiqueSouhaitProduit zone="apres_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo} masque={parutionBloquee&&cfgParution.bloquer_wishlist}/>
             </div>
 
-            <BlocEnchereBoutique gestionnaireId={vendeurId} produitId={p.id} couleurAccent={cp} isDemo={modeDemo} onEtat={a=>{ if(enchereEtat[p.id]===true&&a===false) setTimeout(rechargerOffres,400); setEnchereEtat(m=>m[p.id]===a?m:{...m,[p.id]:a}); }}
-              allerConnexion={()=>{ setAvisPanier('Connectez-vous pour miser.'); naviguer('login'); }}/>
+            {!parutionBloquee&&<BlocEnchereBoutique gestionnaireId={vendeurId} produitId={p.id} couleurAccent={cp} isDemo={modeDemo} onEtat={a=>{ if(enchereEtat[p.id]===true&&a===false) setTimeout(rechargerOffres,400); setEnchereEtat(m=>m[p.id]===a?m:{...m,[p.id]:a}); }}
+              allerConnexion={()=>{ setAvisPanier('Connectez-vous pour miser.'); naviguer('login'); }}/>}
 
             <FaireOffreBoutique gestionnaireId={vendeurId} produitId={p.id} prix={prixVar!==null?prixVar:enPromo?p.prix_promo!:p.prix} variante={Object.values(varianteChoisie).join(' / ')}
-              varianteRequise={varManquante||!!(p.variantes&&p.variantes.some(v=>Array.isArray(v.valeurs)&&!varianteChoisie[v.nom]))} masque={p.stock===0} couleurAccent={cp} isDemo={modeDemo}
+              varianteRequise={varManquante||!!(p.variantes&&p.variantes.some(v=>Array.isArray(v.valeurs)&&!varianteChoisie[v.nom]))} masque={p.stock===0||parutionBloquee} couleurAccent={cp} isDemo={modeDemo}
               allerConnexion={()=>{ setAvisPanier('Connectez-vous pour faire une offre.'); naviguer('login'); }} onPanier={()=>{ setVueCompte('panier'); naviguer('compte'); }}/>
 
             <div style={{ background:SURF,border:`1px solid #222`,borderRadius:12,padding:'14px 16px',marginBottom:24 }}>
