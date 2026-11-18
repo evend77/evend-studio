@@ -178,6 +178,22 @@ async function creerEnchere({ gid, produitId, prixDepart, prixReserve, dureeH })
   } finally { client.release(); }
 }
 
+// ── Notifications à l'acheteur (marketplace_notifications : le bandeau orange et la page 🔔 de son espace client les lisent) ──
+// Jamais bloquant : si l'envoi échoue, l'enchère continue normalement. Pas de lien : l'espace client ouvre « Mes enchères » ou le panier selon le type.
+const argent = (n) => Number(n).toFixed(2).replace('.', ',') + ' $';
+const quandFr = (d) => { try { return new Date(d).toLocaleString('fr-CA', { timeZone: 'America/Toronto', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+async function notifier(gid, acheteurId, type, titre, message) {
+  try {
+    await pool.query(`INSERT INTO marketplace_notifications (gestionnaire_id, acheteur_id, titre, message, type) VALUES ($1,$2,$3,$4,$5)`, [gid, acheteurId, String(titre).slice(0, 160), message, type]);
+  } catch (e) { console.error('[boutique_encheres] notification', type, e && e.message ? e.message : e); }
+}
+async function notifierEncherisseurs(e, sauf, type, titre, message) {
+  try {
+    const r = await pool.query('SELECT DISTINCT acheteur_id FROM boutique_encheres_mises WHERE enchere_id = $1', [e.id]);
+    for (const x of r.rows) if (x.acheteur_id !== sauf) await notifier(e.gestionnaire_id, x.acheteur_id, type, titre, message);
+  } catch (err) { console.error('[boutique_encheres] notification', type, err && err.message ? err.message : err); }
+}
+
 // ── Mise ──
 async function miser({ gid, enchereId, acheteurId, montant }) {
   const m = arrondi(nombre(montant, NaN));
@@ -185,7 +201,7 @@ async function miser({ gid, enchereId, acheteurId, montant }) {
   await finaliser(enchereId);   // une enchère échue est terminée avant d'accepter quoi que ce soit
 
   const client = await pool.connect();
-  let e;
+  let e, ancienMeneur = null;
   try {
     await client.query('BEGIN');
     e = (await client.query('SELECT * FROM boutique_encheres WHERE id = $1 AND gestionnaire_id = $2 FOR UPDATE', [enchereId, gid])).rows[0];
@@ -193,6 +209,7 @@ async function miser({ gid, enchereId, acheteurId, montant }) {
     if (e.statut !== 'active' || new Date(e.date_fin) <= new Date()) refus('Cette enchère est terminée.', 409);
     const top = (await client.query('SELECT acheteur_id, montant FROM boutique_encheres_mises WHERE enchere_id = $1 ORDER BY montant DESC, id DESC LIMIT 1', [e.id])).rows[0];
     if (top && top.acheteur_id === acheteurId) refus('Vous avez déjà la mise la plus haute.', 409);
+    ancienMeneur = top ? top.acheteur_id : null;
     const min = prochaineMise(e);
     if (m < min) refus(`Votre mise doit être d'au moins ${min.toFixed(2)} $.`, 409);
 
@@ -208,6 +225,9 @@ async function miser({ gid, enchereId, acheteurId, montant }) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;
   } finally { client.release(); }
+  if (ancienMeneur && ancienMeneur !== acheteurId) {
+    await notifier(gid, ancienMeneur, 'enchere_surpasse', '🔨 Vous avez été surenchéri', `Quelqu'un a surenchéri sur « ${e.titre} » : mise actuelle ${argent(e.mise_actuelle)}. Misez à nouveau avant la fin de l'enchère.`);
+  }
   return { mise_actuelle: Number(e.mise_actuelle), prochaine_mise: prochaineMise(e), date_fin: e.date_fin, nb_mises: e.nb_mises, en_tete: true };
 }
 
@@ -224,7 +244,7 @@ async function finaliser(enchereId) {
     if (!top || !reserveOk) {
       await client.query(`UPDATE boutique_encheres SET statut = 'sans_gagnant', termine_le = NOW(), stock_reserve = false, updated_at = NOW() WHERE id = $1`, [e.id]);
       if (e.stock_reserve) await caisse().ajusterStock(client, e.produit_id, '', 1);
-      resultat = { type: 'sans_gagnant' };
+      resultat = { type: 'sans_gagnant', e };
     } else {
       const cfg = await reglages(e.gestionnaire_id, client);
       const expire = new Date(Date.now() + cfg.delaiPaiementH * 3600000);
@@ -236,13 +256,21 @@ async function finaliser(enchereId) {
         `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, enchere_id) VALUES ($1,$2,$3,'',1,$4)
          ON CONFLICT (acheteur_id, produit_id, variante) DO UPDATE SET quantite = 1, enchere_id = EXCLUDED.enchere_id, negociation_id = NULL, updated_at = NOW()`,
         [e.gestionnaire_id, top.acheteur_id, e.produit_id, e.id]);
-      resultat = { type: 'gagnee' };
+      resultat = { type: 'gagnee', e, gagnant: top.acheteur_id, prix: Number(top.montant), expire };
     }
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
     throw err;
   } finally { client.release(); }
+  if (resultat && resultat.type === 'gagnee') {
+    const e = resultat.e;
+    await notifier(e.gestionnaire_id, resultat.gagnant, 'enchere_gagnee', "🏆 Vous avez gagné l'enchère !", `Vous avez remporté « ${e.titre} » à ${argent(resultat.prix)}. L'article est dans votre panier : payez avant le ${quandFr(resultat.expire)}.`);
+    await notifierEncherisseurs(e, resultat.gagnant, 'enchere_perdue', '😕 Enchère terminée', `L'enchère sur « ${e.titre} » est terminée : vous n'avez pas remporté l'article.`);
+  } else if (resultat && resultat.type === 'sans_gagnant') {
+    const e = resultat.e;
+    await notifierEncherisseurs(e, null, 'enchere_perdue', '😕 Enchère terminée', `L'enchère sur « ${e.titre} » est terminée sans gagnant : vous n'avez pas remporté l'article.`);
+  }
   return resultat;
 }
 
@@ -263,6 +291,7 @@ async function expirerPaiement(enchereId) {
     await client.query('DELETE FROM boutique_panier WHERE enchere_id = $1', [e.id]);
     if (e.stock_reserve) await caisse().ajusterStock(client, e.produit_id, '', 1);
     await client.query('COMMIT');
+    if (e.gagnant_id) await notifier(e.gestionnaire_id, e.gagnant_id, 'enchere_expiree', '⌛ Délai de paiement écoulé', `Le délai de paiement est écoulé : l'enchère sur « ${e.titre} » est annulée et l'article n'est plus à vous.`);
     return true;
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -281,6 +310,7 @@ async function annulerEnchere({ gid, enchereId }) {
     await client.query(`UPDATE boutique_encheres SET statut = 'annulee', termine_le = NOW(), stock_reserve = false, updated_at = NOW() WHERE id = $1`, [e.id]);
     if (e.stock_reserve) await caisse().ajusterStock(client, e.produit_id, '', 1);
     await client.query('COMMIT');
+    await notifierEncherisseurs(e, null, 'enchere_annulee', '🚫 Enchère annulée', `L'enchère sur « ${e.titre} » a été annulée par le vendeur.`);
     return true;
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
@@ -451,6 +481,14 @@ async function traiterEcheances() {
     for (const r of f.rows) await finaliser(r.id).catch((x) => console.error('[boutique_encheres] finaliser', r.id, x.message));
     const x = await pool.query(`SELECT id FROM boutique_encheres WHERE statut = 'attente_paiement' AND paiement_expire_le <= NOW() ORDER BY paiement_expire_le LIMIT 50`);
     for (const r of x.rows) await expirerPaiement(r.id).catch((y) => console.error('[boutique_encheres] expirer', r.id, y.message));
+    // Rappel de paiement : un seul, environ 1 h avant l'échéance (seulement si le délai accordé dépasse 90 min)
+    const rp = await pool.query(
+      `UPDATE boutique_encheres SET rappel_envoye_le = NOW()
+        WHERE statut = 'attente_paiement' AND rappel_envoye_le IS NULL AND gagnant_id IS NOT NULL
+          AND paiement_expire_le > NOW() AND paiement_expire_le <= NOW() + INTERVAL '1 hour'
+          AND paiement_expire_le - termine_le > INTERVAL '90 minutes'
+        RETURNING gestionnaire_id, gagnant_id, titre, prix_final, paiement_expire_le`);
+    for (const e of rp.rows) await notifier(e.gestionnaire_id, e.gagnant_id, 'enchere_rappel', '⏰ Il reste moins d\'une heure pour payer', `Payez « ${e.titre} » (${argent(e.prix_final)}) avant le ${quandFr(e.paiement_expire_le)}, sinon l'enchère sera annulée.`);
   } catch (e) { console.error('[boutique_encheres] tâche de fond :', e.message); }
 }
 let minuteur = null;

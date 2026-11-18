@@ -25,6 +25,9 @@ interface CompteAcheteur { id: number; prenom: string; nom: string; email: strin
 type PageDash = 'dashboard' | 'commandes' | 'retours' | 'offres' | 'encheres' | 'panier' | 'checkout' | 'confirmation' | 'messagerie' | 'notifications' | 'profil';
 interface Props { vendeurId?: number; config?: Record<string, any>; naviguerTemplate: (dest: any) => void; pageInitiale?: 'dashboard' | 'panier'; }
 
+// Notifications d'enchères (écrites par services/boutique_encheres.js) montrées dans le bandeau orange du haut de l'espace client
+const TYPES_BANDEAU_ENCHERE = ['enchere_surpasse', 'enchere_gagnee', 'enchere_perdue', 'enchere_annulee', 'enchere_expiree', 'enchere_rappel'];
+
 function pageDepuisUrl(): PageDash {
   try {
     const v = new URLSearchParams(window.location.search).get('vue');
@@ -48,6 +51,7 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
   const [retourCommande, setRetourCommande] = useState<string | null>(null);
   const [nbPanier, setNbPanier] = useState(0);
   const [nbNotifs, setNbNotifs] = useState(0);
+  const [notifsEnchere, setNotifsEnchere] = useState<{ id: number; titre: string; message: string; type: string; date: string }[]>([]);   // bandeau orange : notifications d'enchères non lues
   const [offresActif, setOffresActif] = useState(false);   // add-on « Faire une offre » activé
   const [encheresActif, setEncheresActif] = useState(false);   // add-on « Enchères » activé, ou l'acheteur a déjà des enchères
   const [nbEncheres, setNbEncheres] = useState(0);              // enchères gagnées à payer
@@ -100,7 +104,11 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
       try {
         const opt = { credentials: 'include' as const };
         const [n, m] = await Promise.all([fetch(`${API_BASE}/acheteur/${gestionnaireId}/notifications`, opt), fetch(`${API_BASE}/acheteur/${gestionnaireId}/support/conversations`, opt)]);
-        if (n.ok) setNbNotifs(((await n.json()).notifications || []).filter((x: any) => !x.lu).length);
+        if (n.ok) {
+          const nl: any[] = (await n.json()).notifications || [];
+          setNbNotifs(nl.filter((x: any) => !x.lu).length);
+          setNotifsEnchere(nl.filter((x: any) => !x.lu && TYPES_BANDEAU_ENCHERE.includes(x.type)).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        }
         if (m.ok) { const l = await m.json(); setNbMessages((Array.isArray(l) ? l : []).reduce((s: number, t: any) => s + (t.non_lus || 0), 0)); }
       } catch (e) { /* messagerie indisponible : on affiche le reste */ }
       setLoading(false);
@@ -203,6 +211,19 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
     return null;
   };
 
+  // Bandeau orange : une notification d'enchère à la fois (la plus récente), « 1 sur N », ✕ = lue. Un clic ouvre le panier (gagnée / rappel) ou « Mes enchères ».
+  const notifActive = notifsEnchere[0] || null;
+  const marquerLue = (id: number) => {
+    setNotifsEnchere(l => l.filter(n => n.id !== id));
+    setNbNotifs(n => Math.max(0, n - 1));
+    fetch(`${API_BASE}/acheteur/${gestionnaireId}/notifications/${id}/lire`, { method: 'PUT', credentials: 'include' }).catch(() => { /* déjà retirée à l'écran */ });
+  };
+  const ouvrirNotif = () => {
+    if (!notifActive) return;
+    const dest = notifActive.type === 'enchere_gagnee' || notifActive.type === 'enchere_rappel' ? 'panier' : 'encheres';
+    marquerLue(notifActive.id); naviguer(dest);
+  };
+
   const actif: PageDash = page === 'checkout' || page === 'confirmation' ? 'panier' : page;
   return (
     <>
@@ -241,6 +262,15 @@ export default function AppAcheteurBoutique({ vendeurId, config = {}, naviguerTe
             <button onClick={() => naviguerTemplate({ page: 'accueil' })} style={{ background: `${couleurAccent}22`, border: `1px solid ${couleurAccent}44`, borderRadius: 8, color: couleurAccent, fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: '6px 12px' }}>← {isMobile ? 'Boutique' : 'Retour à la boutique'}</button>
           </div>
           <BanniereDashboard config={config} type="acheteur" />
+          {notifActive && (
+            <div role="status" style={{ width: '100%', background: 'linear-gradient(90deg,#f59e0b,#d97706)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: isMobile ? '10px 14px' : '10px 24px', fontSize: isMobile ? 12 : 14, fontWeight: 600, boxSizing: 'border-box' }}>
+              <button onClick={ouvrirNotif} title={notifActive.message} style={{ flex: 1, minWidth: 0, background: 'none', border: 'none', color: '#fff', font: 'inherit', textAlign: 'left', cursor: 'pointer', padding: 0, textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                {notifActive.message}
+              </button>
+              {notifsEnchere.length > 1 && <span title={`${notifsEnchere.length} notifications en attente`} style={{ flexShrink: 0, background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: '2px 10px', fontSize: 11, fontWeight: 800 }}>1 sur {notifsEnchere.length}</span>}
+              <button onClick={() => marquerLue(notifActive.id)} aria-label="Fermer la notification" style={{ flexShrink: 0, background: 'rgba(0,0,0,0.2)', border: 'none', color: '#fff', width: 26, height: 26, borderRadius: '50%', cursor: 'pointer', fontSize: 14, fontWeight: 800 }}>✕</button>
+            </div>
+          )}
           <main style={{ flex: 1, padding: isMobile ? 16 : 28, minWidth: 0 }}>{renderPage()}</main>
         </div>
       </div>

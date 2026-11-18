@@ -828,7 +828,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               <div style={{ display:'flex',alignItems:'center',gap:12 }}>
                 <button onClick={()=>setQteChoisie(q=>Math.max(1,q-1))} style={{ width:42,height:42,borderRadius:8,border:`1px solid #333`,background:SURF,color:'#fff',cursor:'pointer',fontSize:18,fontWeight:700 }}>−</button>
                 <span style={{ fontSize:18,fontWeight:700,color:'#fff',minWidth:32,textAlign:'center' }}>{qteChoisie}</span>
-                <button onClick={()=>setQteChoisie(q=>p.stock!==undefined?Math.min(p.stock,q+1):q+1)} style={{ width:42,height:42,borderRadius:8,border:`1px solid #333`,background:SURF,color:'#fff',cursor:'pointer',fontSize:18,fontWeight:700,opacity:p.stock!==undefined&&qteChoisie>=p.stock?0.4:1 }}>+</button>
+                <button onClick={()=>setQteChoisie(q=>p.stock!=null?Math.min(p.stock,q+1):q+1)} style={{ width:42,height:42,borderRadius:8,border:`1px solid #333`,background:SURF,color:'#fff',cursor:'pointer',fontSize:18,fontWeight:700,opacity:p.stock!=null&&qteChoisie>=p.stock?0.4:1 }}>+</button>
               </div>
             </div>}
 
