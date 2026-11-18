@@ -9,6 +9,7 @@ import Page404Public                  from './Page404Public';
 import CookieBanner                   from '../components/CookieBanner';
 import { useAnalytics }               from '../hooks/useAnalytics';
 import ChatbotWidget                  from '../components/ChatbotWidget';
+import BoutiqueChatbotWidget           from '../components/BoutiqueChatbotWidget';
 import VerificateurAge                from '../components/VerificateurAge';
 import TemplateVitrine                from '../templates/TemplateVitrine';
 import TemplateReservation            from '../templates/TemplateReservation';
@@ -47,7 +48,6 @@ import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
 import { configPremiumAvecBadge }     from '../templates/shared/addons/badgeEvendMasquer';
-import EffetsBoutiqueSolo                from '../components/EffetsBoutiqueSolo';
 
 const API_BASE = '/api';
 
@@ -330,10 +330,9 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       {!isDemo && vendeurId && <CookieBanner vendeurId={Number(vendeurId)} />}
 
       {/* Chatbot — actif seulement si l'add-on est activé, jamais en mode démo */}
-      {!isDemo && vendeurId && !!options?.chatbot && <ChatbotWidget gestionnaireId={Number(vendeurId)} />}
-
-      {/* Effets de boutique (add-on des templates boutique solo) — actif seulement si l'add-on est activé, jamais en mode démo */}
-      {!isDemo && vendeurId && estBoutiqueSolo(templateId) && !!addonsBoutique?.effets_boutique && <EffetsBoutiqueSolo gestionnaireId={Number(vendeurId)} />}
+      {/* Templates boutique (solo) : le chatbot suit l'add-on « Chatbot » de la boutique (jamais options_gestionnaire) ; les autres templates gardent leur comportement */}
+      {!isDemo && vendeurId && estBoutiqueSolo(String(forceTemplate || siteData?.template_id || '')) && !!addonsBoutique?.chatbot && <BoutiqueChatbotWidget gestionnaireId={Number(vendeurId)} />}
+      {!isDemo && vendeurId && !estBoutiqueSolo(String(forceTemplate || siteData?.template_id || '')) && !!options?.chatbot && <ChatbotWidget gestionnaireId={Number(vendeurId)} />}
 
       {/* Vérificateur d'âge — actif seulement si l'add-on est activé, jamais en mode démo.
           Le template Multi-vendeur Premium monte le sien (règle forfait/add-on) : on ne le double pas ici,

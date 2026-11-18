@@ -448,22 +448,31 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
   useEffect(()=>{ if(!avisPanier) return; const t=setTimeout(()=>setAvisPanier(''),4000); return()=>clearTimeout(t); },[avisPanier]);
 
+  const ouvrirPolitique = useCallback((slugPol:string)=>{ politiqueEnCours.current=slugPol; setPolitique(null); setPolitiqueStatut('loading'); setPage('politique');
+      fetch(`${API_BASE}/studio/politiques/${vendeurId}/public/${slugPol}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{ if(politiqueEnCours.current!==slugPol) return; const p=d&&d.politique; if(!p) throw new Error(); setPolitique({ slug:slugPol, titre:String(p.titre||''), contenu:typeof p.contenu==='string'?p.contenu:'' }); setPolitiqueStatut('idle'); }).catch(()=>{ if(politiqueEnCours.current===slugPol) setPolitiqueStatut('err'); });
+  },[vendeurId]);
   const naviguer = useCallback((dest:string)=>{
     setMenuOuvert(false); window.scrollTo({top:0,behavior:'smooth'});
     if(dest.toLowerCase()==='panier'){ setVueCompte('panier'); setPage('compte'); return; }
     const slugPol=slugPolitique(dest);
-    if(slugPol){ politiqueEnCours.current=slugPol; setPolitique(null); setPolitiqueStatut('loading'); setPage('politique');
-      fetch(`${API_BASE}/studio/politiques/${vendeurId}/public/${slugPol}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{ if(politiqueEnCours.current!==slugPol) return; const p=d&&d.politique; if(!p) throw new Error(); setPolitique({ slug:slugPol, titre:String(p.titre||''), contenu:typeof p.contenu==='string'?p.contenu:'' }); setPolitiqueStatut('idle'); }).catch(()=>{ if(politiqueEnCours.current===slugPol) setPolitiqueStatut('err'); });
-      return; }
+    if(slugPol){ ouvrirPolitique(slugPol); return; }
     const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',offres:'offres',encheres:'encheres',blog:'blog',faq:'faq','a-propos':'a-propos',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login',inscription:'inscription' };
     const cle=sansAccent(dest).replace(/\s+/g,'-'); if(map[cle]) setPage(map[cle]);
-  },[vendeurId]);
+  },[vendeurId,ouvrirPolitique]);
 
   // Ouvre la fiche d'un produit par son id : dans le catalogue déjà chargé, sinon lue au serveur (ex. : une enchère sur un produit au-delà des 100 premiers)
   const ouvrirProduitParId = (id:number)=>{ const p=produits.find(x=>Number(x.id)===Number(id)); if(p){ voirProduit(p); return; } fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?ids=${Number(id)}&limit=1`).then(r=>r.ok?r.json():null).then(c=>{ const q=c&&Array.isArray(c.produits)?c.produits[0]:null; if(q) voirProduit(q); else naviguer('catalogue'); }).catch(()=>naviguer('catalogue')); };
   const voirProduit = (p:Produit)=>{ setProduitActif(p); setPhotoIdx(0); setQteChoisie(1); setVarianteChoisie({}); setOngletProduit('description'); setPage('produit'); window.scrollTo({top:0,behavior:'smooth'}); fetch(`${API_BASE}/avis/produit/${p.id}`).then(r=>r.ok?r.json():[]).then(data=>setAvisActif(Array.isArray(data)?data:[])).catch(()=>{}); };
   const voirArticle = (a:ArticleBlog)=>{ setArticleActif(a); setArticleErreur(false); setPage('article'); window.scrollTo({top:0,behavior:'smooth'});
     if(a.contenu===undefined&&a.slug) fetch(`${API_BASE}/boutique/blog/${vendeurId}/article/${encodeURIComponent(a.slug)}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{ if(!d||!d.article) throw new Error(); setArticleActif(cur=>cur&&cur.id===a.id?{ ...cur,...versArticle(d.article),contenu:String(d.article.contenu||'') }:cur); }).catch(()=>setArticleErreur(true)); };
+  // Add-on « Chatbot » : le widget (monté par SitePreview) demande d'ouvrir une page du site ; ce template sait les ouvrir sans recharger
+  const navChatbot=useRef<(d:any)=>void>(()=>{});
+  navChatbot.current=(d:any)=>{ if(!d||typeof d!=='object') return; setMenuOuvert(false); window.scrollTo({top:0,behavior:'smooth'});
+    if(d.page==='produit'&&Number(d.produitId)>0){ ouvrirProduitParId(Number(d.produitId)); return; }
+    if(d.page==='article'&&typeof d.articleSlug==='string'){ voirArticle({ id:0,titre:'',slug:d.articleSlug }); return; }
+    if(d.page==='politique'&&typeof d.politiqueSlug==='string'&&POLITIQUES_SLUGS.includes(d.politiqueSlug)){ ouvrirPolitique(d.politiqueSlug); return; }
+    if(d.page==='faq'||d.page==='a-propos'||d.page==='blog') setPage(d.page); };
+  useEffect(()=>{ const f=(e:Event)=>navChatbot.current((e as CustomEvent).detail); window.addEventListener('boutique-chatbot-nav',f); return()=>window.removeEventListener('boutique-chatbot-nav',f); },[]);
 
   const ajouterAuPanier = async (produit:Produit)=>{
     if(produitsDemo){ setAvisPanier('Produit de démonstration : publiez vos annonces pour vendre.'); return; }
