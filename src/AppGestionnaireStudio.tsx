@@ -86,6 +86,7 @@ import BoutiqueOffres              from './pages/gestionnaire/BoutiqueOffres';
 import BoutiqueNegociations        from './pages/gestionnaire/BoutiqueNegociations';
 import BoutiqueEncheres            from './pages/gestionnaire/BoutiqueEncheres';
 import BoutiqueQuestions           from './pages/gestionnaire/BoutiqueQuestions';
+import BoutiqueBlog                from './pages/gestionnaire/BoutiqueBlog';
 import BoutiqueConfigEncheres      from './pages/gestionnaire/BoutiqueConfigEncheres';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
@@ -731,6 +732,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   // ── Item page 404 — commun à tous les menus CONFIGURATION ───────────────
   const itemPage404: SousMenuItem = { id: 'studio-page-404', label: 'Page 404', icon: '🔍' };
   const itemPolitiques: SousMenuItem = { id: 'studio-mes-politiques', label: 'Mes politiques', icon: '📜' };
+  // Templates boutique (solo) seulement : les articles du blog du site (jamais le MV ni les autres templates)
+  const itemMesBlogs: SousMenuItem = { id: 'boutique-mes-blogs', label: 'Mes blogs', icon: '📝' };
   const itemPages: SousMenuItem      = { id: 'studio-mes-pages',      label: 'Mes pages',             icon: '📄' };
   const itemSeo: SousMenuItem        = { id: 'studio-seo-site',        label: 'Référencement SEO',     icon: '🔍' };
   const itemCookies: SousMenuItem    = { id: 'studio-cookies-site',    label: 'Gestion des cookies',   icon: '🍪' };
@@ -1265,7 +1268,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
-        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        itemPage404,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
       ]},
@@ -1294,7 +1297,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
-        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        itemPage404,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
       ]},
@@ -1323,7 +1326,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
-        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        itemPage404,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
       ]},
@@ -1373,7 +1376,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
-        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        itemPage404,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
       ]},
@@ -1615,6 +1618,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       }
       if (pageActive === 'annonces-encheres') return <BoutiqueEncheres gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-config-encheres') return <BoutiqueConfigEncheres gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
+      if (pageActive === 'boutique-mes-blogs') return <BoutiqueBlog gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} />;
       if (pageActive === 'annonces-questions') return <BoutiqueQuestions gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-negociations') return <BoutiqueNegociations gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-creer' || pageActive === 'creer') return <BoutiqueCreerAnnonce key="nouvelle" produitId={null} {...propsCreer} />;

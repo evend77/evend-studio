@@ -34,6 +34,7 @@ interface Produit {
 interface ArticleBlog {
   id: number; titre: string; slug: string; resume?: string;
   photo?: string; auteur?: string; date_publication?: string; categorie?: string;
+  contenu?: string; tags?: string[]; vues?: number;   // contenu : seulement quand l'article est ouvert (la liste est légère)
 }
 
 interface Avis {
@@ -328,6 +329,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [catalogueCharge,setCatalogueCharge] = useState(false); // vrai quand la lecture des vraies annonces est terminée
   const modeDemo = catalogueCharge&&produitsDemo; // éléments de démonstration seulement (futurs add-ons payants) : jamais sur une boutique qui a de vraies annonces
   const [articles,setArticles]     = useState<ArticleBlog[]>([]);
+  const [blogPage,setBlogPage]     = useState(1);
+  const [blogPages,setBlogPages]   = useState(1);
+  const [blogCharge,setBlogCharge]  = useState(false);
+  const [articleErreur,setArticleErreur] = useState(false);
   const [categories,setCategories] = useState<string[]>([]);
   const [avisActif,setAvisActif]   = useState<Avis[]>([]);
   const [acheteur,setAcheteur]     = useState<AcheteurUser|null>(null);
@@ -425,7 +430,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const offreCtx = { heureServeur, onFini:()=>{ setTimeout(rechargerOffres,1200); } };
   useEffect(()=>{ setProduitActif(a=>{ if(!a) return a; const n=produits.find(x=>x.id===a.id); return n&&(n.prix_promo!==a.prix_promo||n.offre_fin!==a.offre_fin)?{...a,prix_promo:n.prix_promo,offre_fin:n.offre_fin}:a; }); },[produits]);
 
-  useEffect(()=>{ fetch(`${API_BASE}/blog/vendeur/${vendeurId}?publie=true&limit=20`).then(r=>r.ok?r.json():[]).then(data=>setArticles(Array.isArray(data)?data:data.articles||[])).catch(()=>{}); },[vendeurId]);
+  // Blog de la boutique (Configuration → Mes blogs) : liste légère et paginée ; l'article complet se charge à son ouverture
+  const versArticle=(x:any):ArticleBlog=>({ id:x.id,titre:x.titre,slug:x.slug,resume:x.extrait||undefined,photo:x.image_couverture||undefined,auteur:x.auteur||undefined,date_publication:x.date_publication||undefined,tags:Array.isArray(x.tags)?x.tags:[],vues:x.vues });
+  const chargerArticles=(p:number)=>{ if(!vendeurId){ setBlogCharge(true); return; } fetch(`${API_BASE}/boutique/blog/${vendeurId}?page=${p}&limite=12`).then(r=>r.ok?r.json():null).then(d=>{ if(!d||!Array.isArray(d.articles)) return; setBlogPage(d.page||p); setBlogPages(d.pages||1); setArticles(prev=>p===1?d.articles.map(versArticle):[...prev,...d.articles.map(versArticle)]); }).catch(()=>{}).finally(()=>setBlogCharge(true)); };
+  useEffect(()=>{ chargerArticles(1); },[vendeurId]);
 
   // Compte acheteur = celui du MV (mêmes clés que AppAcheteur)
   useEffect(()=>{
@@ -454,7 +462,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   // Ouvre la fiche d'un produit par son id : dans le catalogue déjà chargé, sinon lue au serveur (ex. : une enchère sur un produit au-delà des 100 premiers)
   const ouvrirProduitParId = (id:number)=>{ const p=produits.find(x=>Number(x.id)===Number(id)); if(p){ voirProduit(p); return; } fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?ids=${Number(id)}&limit=1`).then(r=>r.ok?r.json():null).then(c=>{ const q=c&&Array.isArray(c.produits)?c.produits[0]:null; if(q) voirProduit(q); else naviguer('catalogue'); }).catch(()=>naviguer('catalogue')); };
   const voirProduit = (p:Produit)=>{ setProduitActif(p); setPhotoIdx(0); setQteChoisie(1); setVarianteChoisie({}); setOngletProduit('description'); setPage('produit'); window.scrollTo({top:0,behavior:'smooth'}); fetch(`${API_BASE}/avis/produit/${p.id}`).then(r=>r.ok?r.json():[]).then(data=>setAvisActif(Array.isArray(data)?data:[])).catch(()=>{}); };
-  const voirArticle = (a:ArticleBlog)=>{ setArticleActif(a); setPage('article'); window.scrollTo({top:0,behavior:'smooth'}); };
+  const voirArticle = (a:ArticleBlog)=>{ setArticleActif(a); setArticleErreur(false); setPage('article'); window.scrollTo({top:0,behavior:'smooth'});
+    if(a.contenu===undefined&&a.slug) fetch(`${API_BASE}/boutique/blog/${vendeurId}/article/${encodeURIComponent(a.slug)}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{ if(!d||!d.article) throw new Error(); setArticleActif(cur=>cur&&cur.id===a.id?{ ...cur,...versArticle(d.article),contenu:String(d.article.contenu||'') }:cur); }).catch(()=>setArticleErreur(true)); };
 
   const ajouterAuPanier = async (produit:Produit)=>{
     if(produitsDemo){ setAvisPanier('Produit de démonstration : publiez vos annonces pour vendre.'); return; }
@@ -1020,7 +1029,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
       <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('blog','surtitre','Blogue')}</div>
       <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',marginBottom:40 }}>{tx('blog','titre','Notre univers')}</h1>
-      {articles.length===0 ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>📝</div><h3 style={{ color:'#666' }}>{tx('blog','videTitre','Aucun article')}</h3></div>
+      {articles.length===0 ? (!blogCharge ? <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}>…</div> : <div style={{ textAlign:'center',padding:'80px 0',color:'#555' }}><div style={{ fontSize:56,marginBottom:16 }}>📝</div><h3 style={{ color:'#666' }}>{tx('blog','videTitre','Aucun article')}</h3></div>)
       : <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':`repeat(${nbr('blog','colonnes',3,2,4)},1fr)`,gap:24 }}>
           {articles.map(a=>(
             <div key={a.id} onClick={()=>voirArticle(a)} style={{ background:SURF,border:`1px solid #222`,borderRadius:14,overflow:'hidden',cursor:'pointer',transition:'all 0.2s' }}
@@ -1041,6 +1050,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             </div>
           ))}
         </div>}
+      {blogPage<blogPages&&<div style={{ textAlign:'center',marginTop:36 }}><button onClick={()=>chargerArticles(blogPage+1)} style={{ background:'none',border:`1px solid ${cp}`,color:cp,borderRadius:10,padding:'12px 32px',fontSize:14,fontWeight:700,cursor:'pointer' }}>Voir plus d'articles</button></div>}
     </div>
   );
 
@@ -1058,7 +1068,11 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           {a.date_publication&&on('blog','afficherDate')&&<span>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA',{year:'numeric',month:'long',day:'numeric'})}</span>}
         </div>
         {a.resume&&<p style={{ fontSize:17,color:'#aaa',lineHeight:1.8,marginBottom:32,fontStyle:'italic',borderLeft:`3px solid ${cp}`,paddingLeft:20 }}>{a.resume}</p>}
-        <p style={{ fontSize:15,color:'#999',lineHeight:1.9 }}>Contenu disponible depuis le gestionnaire de blog.</p>
+        <style>{`.pm-article{font-size:16px;line-height:1.9;color:#bbb;overflow-wrap:anywhere}.pm-article h2{font-size:24px;font-weight:800;color:#fff;margin:1.8em 0 .6em;line-height:1.25}.pm-article h3{font-size:19px;font-weight:700;color:${cp};margin:1.5em 0 .5em}.pm-article h4{font-size:16px;font-weight:700;color:#fff;margin:1.3em 0 .4em}.pm-article p{margin:0 0 1.1em}.pm-article a{color:${cp};text-decoration:underline}.pm-article img{max-width:100%;height:auto;border-radius:12px;margin:14px 0}.pm-article blockquote{border-left:3px solid ${cp};margin:1.4em 0;padding:.4em 1.2em;background:rgba(255,255,255,.04);border-radius:0 8px 8px 0;font-style:italic}.pm-article ul,.pm-article ol{padding-left:1.5em;margin:0 0 1.1em}.pm-article ul{list-style:disc}.pm-article ol{list-style:decimal}.pm-article li{margin-bottom:.4em}.pm-article hr{border:none;border-top:1px solid #222;margin:2em 0}.pm-article table{width:100%;border-collapse:collapse;margin:1.4em 0;font-size:14px;display:block;overflow-x:auto}.pm-article th{color:${cp};text-align:left;padding:10px 12px;border-bottom:2px solid #333}.pm-article td{padding:9px 12px;border-bottom:1px solid #222}.pm-article pre,.pm-article code{background:#111;border-radius:6px;padding:2px 6px;font-size:.9em}.pm-article pre{padding:14px;overflow-x:auto}`}</style>
+        {a.contenu!==undefined?<div className="pm-article" dangerouslySetInnerHTML={{ __html:a.contenu||'<p>Contenu à venir…</p>' }}/>
+          :articleErreur?<p style={{ fontSize:15,color:'#999',lineHeight:1.9 }}>Cet article est introuvable ou n'est plus disponible.</p>
+          :<p style={{ fontSize:15,color:'#666' }}>Chargement…</p>}
+        {(a.tags||[]).length>0&&<div style={{ display:'flex',flexWrap:'wrap',gap:8,marginTop:36 }}>{(a.tags||[]).map(t=><span key={t} style={{ fontSize:12,color:'#888',border:'1px solid #222',borderRadius:20,padding:'4px 12px' }}>#{t}</span>)}</div>}
       </div>
     );
   };
