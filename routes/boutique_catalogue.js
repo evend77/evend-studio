@@ -43,8 +43,10 @@ router.get('/:gid', async (req, res) => {
     const ids = typeof req.query.ids === 'string' ? req.query.ids.split(',').map((x) => parseInt(x, 10)).filter((x) => Number.isInteger(x) && x > 0 && x < 2147483647).slice(0, 50) : [];
     const filtreIds = ids.length ? `AND p.id = ANY(ARRAY[${ids.join(',')}]::int[])` : '';
     const r = await pool.query(
-      `SELECT p.id, p.titre, p.description, p.prix, ${O.sqlPromo('p')} AS prix_promo, ${O.sqlFin('p')} AS offre_fin, p.stock, p.sku, p.categorie, p.photo_principale, p.photos, p.variantes, p.created_at
+      `SELECT p.id, p.titre, p.description, p.prix, ${O.sqlPromo('p')} AS prix_promo, ${O.sqlFin('p')} AS offre_fin, p.stock, p.sku, p.categorie, p.photo_principale, p.photos, p.variantes, p.created_at,
+             en.date_fin AS ench_fin, COALESCE(en.mise_actuelle, en.prix_depart) AS ench_mise, en.nb_mises AS ench_nb
          FROM produits p
+         LEFT JOIN LATERAL (SELECT e.date_fin, e.mise_actuelle, e.prix_depart, e.nb_mises FROM boutique_encheres e WHERE e.produit_id = p.id AND e.statut = 'active' AND e.date_fin > NOW() ORDER BY e.id DESC LIMIT 1) en ON TRUE
         WHERE p.gestionnaire_id = $1 AND p.collaborateur_id IS NULL AND p.statut = 'actif'
           AND (p.date_parution IS NULL OR p.date_parution <= NOW()) AND (p.date_expiration IS NULL OR p.date_expiration > NOW())
           ${seulementOffres ? `AND ${O.actif('p')}` : ''} ${filtreIds}

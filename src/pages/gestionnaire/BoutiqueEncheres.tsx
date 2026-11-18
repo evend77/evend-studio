@@ -2,7 +2,8 @@
 // e-Vend Studio — Add-on « Enchères » (templates boutique solo), côté gestionnaire. Adapté de StudioEncheres.tsx + StudioConfigMultivendeur.tsx (onglet Enchères) du MV :
 // le gestionnaire est le vendeur. Il lance une enchère sur un produit, suit les mises, peut annuler une enchère en cours, et règle l'add-on (durées, incrément, réserve, délai de paiement).
 // Une unité du produit est retirée du stock pendant l'enchère (remise en stock si l'enchère se termine sans vente).
-// API : /api/boutique/gestionnaire/encheres/(mes | produits | :id/annuler | reglages)
+// Les réglages (durées, incrément, réserve, paiement) et l'apparence du widget se modifient dans « Config enchère » (menu CONFIG MES PAGES).
+// API : /api/boutique/gestionnaire/encheres/(mes | produits | :id/annuler)
 
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
 import { bq, messageErreur, formaterArgent } from './boutiqueApi';
@@ -41,14 +42,6 @@ export default function BoutiqueEncheres({ accent, isMobile: mobileProp, pagePla
   const [occupe, setOccupe] = useState(false);
   const [aAnnuler, setAAnnuler] = useState<Enchere | null>(null);
   const [erreurModale, setErreurModale] = useState('');
-  // Réglages
-  const [reglOuvert, setReglOuvert] = useState(false);
-  const [actif, setActif] = useState(true);
-  const [dMin, setDMin] = useState('1');
-  const [dMax, setDMax] = useState('14');
-  const [incr, setIncr] = useState('1');
-  const [reserve, setReserve] = useState(true);
-  const [delai, setDelai] = useState('24');
   // Nouvelle enchère
   const [nouvelle, setNouvelle] = useState(false);
   const [recherche, setRecherche] = useState('');
@@ -66,11 +59,6 @@ export default function BoutiqueEncheres({ accent, isMobile: mobileProp, pagePla
   }, [page, statut]);
   useEffect(() => { charger(); const t = setInterval(charger, 30000); return () => clearInterval(t); }, [charger]);
 
-  useEffect(() => {
-    if (!data || reglOuvert) return;
-    const g = data.reglages;
-    setActif(g.actif); setDMin(String(g.duree_min_h)); setDMax(String(g.duree_max_jours)); setIncr(String(g.increment_min)); setReserve(g.reserve_permise); setDelai(String(g.delai_paiement_h));
-  }, [data, reglOuvert]);
 
   // Sélecteur de produits (recherche avec délai)
   useEffect(() => {
@@ -87,14 +75,6 @@ export default function BoutiqueEncheres({ accent, isMobile: mobileProp, pagePla
   const flash = (m: string) => { setMessage(m); setTimeout(() => setMessage(''), 4000); };
   const addonActif = !!(data && data.addon_actif);
   const g = data ? data.reglages : null;
-
-  const enregistrerReglages = async () => {
-    setOccupe(true); setErreur('');
-    const r = await bq('/encheres/reglages', { method: 'PUT', body: { actif, duree_min_h: Number(dMin), duree_max_jours: Number(dMax), increment_min: Number(String(incr).replace(',', '.')), reserve_permise: reserve, delai_paiement_h: Number(delai) } });
-    setOccupe(false);
-    if (!r.ok) { setErreurModale(messageErreur(r)); return; }
-    setReglOuvert(false); flash('Réglages enregistrés.'); charger();
-  };
 
   const ouvrirNouvelle = () => { setNouvelle(true); setChoisi(null); setRecherche(''); setProduits(null); setPrixDepart(''); setPrixReserve(''); setDuree('24'); setErreurNouvelle(''); };
   const lancer = async () => {
@@ -118,14 +98,6 @@ export default function BoutiqueEncheres({ accent, isMobile: mobileProp, pagePla
   const carte: CSSProperties = { background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: 14 };
   const champ: CSSProperties = { padding: '9px 11px', border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 14, color: T.text, background: '#fff', fontFamily: 'inherit', boxSizing: 'border-box' };
   const btn = (fond: string, texte: string, bordure?: string): CSSProperties => ({ padding: '8px 14px', borderRadius: 8, border: bordure ? `1px solid ${bordure}` : 'none', background: fond, color: texte, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' });
-  const champReglage = (libelle: string, aide: string, valeur: string, set: (v: string) => void, min: number, max: number) => (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13, color: T.text, fontWeight: 700, minWidth: 150, flex: 1 }}>
-      {libelle}
-      <input type="number" min={min} max={max} step="any" value={valeur} onChange={e => set(e.target.value)} style={{ ...champ, width: '100%' }} />
-      <span style={{ fontWeight: 500, fontSize: 11, color: T.light }}>{aide}</span>
-    </label>
-  );
-
   if (chargement && !data) return <div style={{ padding: 30, textAlign: 'center', color: T.light }}>Chargement…</div>;
   const compte = data ? data.compte : {};
   const nbTotal = Object.values(compte).reduce((s, n) => s + n, 0);
@@ -149,25 +121,8 @@ export default function BoutiqueEncheres({ accent, isMobile: mobileProp, pagePla
           <div style={{ ...carte, marginBottom: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <div style={{ fontSize: 14, fontWeight: 800, color: T.text }}>⚙️ Réglages <span style={{ fontWeight: 600, color: T.light, fontSize: 12 }}>— {g ? (g.actif ? `durée ${g.duree_min_h} h à ${g.duree_max_jours} j · incrément min. ${formaterArgent(g.increment_min)} · paiement sous ${g.delai_paiement_h} h` : 'enchères désactivées') : ''}</span></div>
-              <button onClick={() => setReglOuvert(!reglOuvert)} style={btn('#fff', T.text, T.border)}>{reglOuvert ? 'Fermer' : 'Modifier'}</button>
+              {naviguerVers && <button onClick={() => naviguerVers('boutique-config-encheres')} style={btn('#fff', T.text, T.border)}>⚙️ Config enchère</button>}
             </div>
-            {reglOuvert && (
-              <div style={{ marginTop: 14 }}>
-                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, color: T.text, cursor: 'pointer', marginBottom: 10 }}>
-                  <input type="checkbox" checked={actif} onChange={e => setActif(e.target.checked)} /> Autoriser le lancement de nouvelles enchères
-                </label>
-                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, color: T.text, cursor: 'pointer', marginBottom: 14 }}>
-                  <input type="checkbox" checked={reserve} onChange={e => setReserve(e.target.checked)} /> Permettre un prix de réserve (jamais montré aux acheteurs)
-                </label>
-                <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginBottom: 14 }}>
-                  {champReglage('Durée minimale (heures)', '1 à 720 h. Défaut : 1 h.', dMin, setDMin, 1, 720)}
-                  {champReglage('Durée maximale (jours)', '1 à 60 jours. Défaut : 14.', dMax, setDMax, 1, 60)}
-                  {champReglage('Incrément minimal ($)', 'Hausse minimale entre deux mises. Défaut : 1 $.', incr, setIncr, 0.01, 100000)}
-                  {champReglage('Délai de paiement (heures)', "Temps donné au gagnant pour payer. 1 à 24 h. Défaut : 24 h.", delai, setDelai, 1, 24)}
-                </div>
-                <button disabled={occupe} onClick={enregistrerReglages} style={btn(couleur, '#fff')}>Enregistrer</button>
-              </div>
-            )}
           </div>
           <div style={{ marginBottom: 14 }}><button onClick={ouvrirNouvelle} disabled={!!g && !g.actif} style={{ ...btn(couleur, '#fff'), opacity: g && !g.actif ? 0.5 : 1 }}>＋ Nouvelle enchère</button>{g && !g.actif && <span style={{ fontSize: 12, color: T.light, marginLeft: 10 }}>Lancement désactivé dans les réglages.</span>}</div>
         </>

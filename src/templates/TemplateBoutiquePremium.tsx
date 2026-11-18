@@ -28,6 +28,7 @@ interface Produit {
   stock?: number; categorie?: string; sku?: string; marque?: string;
   note_moyenne?: number; nb_avis?: number;
   variantes?: { nom: string; valeurs: string[] }[];
+  enchere?: { fin:string; mise:number; nb_mises:number; decalage?:number }|null;   // add-on « Enchères » : enchère en cours sur ce produit (null/absent sinon)
 }
 
 interface ArticleBlog {
@@ -189,12 +190,35 @@ function NotifVente({ cp }: { cp:string }) {
   );
 }
 
+// Add-on « Enchères » : compte à rebours d'une carte du catalogue (heure du serveur, pas celle de l'appareil)
+function CompteurEnchere({ fin, decalage, onFini }: { fin:string; decalage:number; onFini?:()=>void }) {
+  const [,setT] = useState(0);
+  useEffect(()=>{ const t=setInterval(()=>setT(x=>x+1),1000); return ()=>clearInterval(t); },[]);
+  const ms = new Date(fin).getTime() - (Date.now()+decalage);
+  const fini = useRef(false);
+  useEffect(()=>{ if(ms<=0 && !fini.current){ fini.current=true; if(onFini) onFini(); } });
+  if(ms<=0) return <span>Terminée</span>;
+  const s=Math.floor(ms/1000), j=Math.floor(s/86400), h=Math.floor((s%86400)/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  return <span>{j>0?`${j}j ${h}h ${m}m`:h>0?`${h}h ${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`:`${m}m ${String(sec).padStart(2,'0')}s`}</span>;
+}
 function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grille', opts, offre }: {
   offre?:{ heureServeur:string|null; onFini:()=>void }; opts?:{ prix:boolean; stock:boolean }; produit:Produit; cp:string; onClick:()=>void; onWishlist?:()=>void; inWishlist?:boolean; vue?:'grille'|'liste';
 }) {
   const [hovered,setHovered] = useState(false);
   const montrerPrix=opts?opts.prix:true, montrerStock=opts?opts.stock:true;
   const enPromo = produit.prix_promo && produit.prix_promo < produit.prix;
+  const ench = produit.enchere || null;
+  const venteBloquee = !!ench && produit.stock===0;   // seul exemplaire réservé à l'enchère : pas de vente directe
+  const bandeEnchere = ench && (
+    <div style={{ marginTop:8,padding:'8px 10px',borderRadius:8,border:`1px solid ${cp}55`,background:`${cp}12` }}>
+      <div style={{ display:'flex',justifyContent:'space-between',alignItems:'flex-end',gap:8 }}>
+        <div><div style={{ fontSize:9,fontWeight:700,color:'#999',textTransform:'uppercase',letterSpacing:'0.08em' }}>{ench.nb_mises>0?'Mise actuelle':'Mise de départ'}</div><div style={{ fontSize:17,fontWeight:800,color:cp }}>{px(ench.mise)}</div></div>
+        <div style={{ textAlign:'right' }}><div style={{ fontSize:9,fontWeight:700,color:'#999',textTransform:'uppercase' }}>Mises</div><div style={{ fontSize:15,fontWeight:800,color:'#fff' }}>{ench.nb_mises}</div></div>
+      </div>
+      <div style={{ marginTop:6,display:'inline-block',fontSize:11,fontWeight:800,color:cp,background:'rgba(0,0,0,0.35)',padding:'3px 8px',borderRadius:12 }}>⏱ <CompteurEnchere fin={ench.fin} decalage={ench.decalage||0} onFini={offre?offre.onFini:undefined}/></div>
+      <button onClick={e=>{e.stopPropagation();onClick();}} style={{ display:'block',width:'100%',marginTop:8,padding:'9px',background:cp,border:'none',borderRadius:7,color:'#000',fontSize:12,fontWeight:800,cursor:'pointer' }}>🔨 Participer aux enchères</button>
+    </div>
+  );
 
   if (vue==='liste') return (
     <div onClick={onClick} style={{ display:'flex',gap:20,padding:16,background:hovered?SURF2:SURF,border:`1px solid ${hovered?BORD:'#222'}`,borderRadius:12,cursor:'pointer',transition:'all 0.2s',alignItems:'center' }}
@@ -209,9 +233,10 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
         {produit.description && <p style={{ fontSize:13,color:'#888',margin:0,lineHeight:1.5,overflow:'hidden',textOverflow:'ellipsis',display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical' as any }}>{produit.description}</p>}
       </div>
       <div style={{ textAlign:'right',flexShrink:0 }}>
-        {montrerPrix&&(enPromo ? (<><div style={{ fontSize:20,fontWeight:800,color:'#ef4444' }}>{px(produit.prix_promo!)}</div><div style={{ fontSize:13,color:'#555',textDecoration:'line-through' }}>{px(produit.prix)}</div></>) 
+        {montrerPrix&&!venteBloquee&&(enPromo ? (<><div style={{ fontSize:20,fontWeight:800,color:'#ef4444' }}>{px(produit.prix_promo!)}</div><div style={{ fontSize:13,color:'#555',textDecoration:'line-through' }}>{px(produit.prix)}</div></>) 
                  : <div style={{ fontSize:20,fontWeight:800,color:cp }}>{px(produit.prix)}</div>)}
         {produit.offre_fin&&offre&&<OffreCompteur compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini}/>}
+        {bandeEnchere}
         <button onClick={e=>{e.stopPropagation();onClick();}} style={{ marginTop:8,padding:'6px 14px',background:cp,border:'none',borderRadius:6,color:'#000',fontSize:12,fontWeight:700,cursor:'pointer' }}>Voir</button>
       </div>
     </div>
@@ -222,9 +247,10 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
       onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)} onClick={onClick}>
       <div style={{ aspectRatio:'1',background:'#111',display:'flex',alignItems:'center',justifyContent:'center',fontSize:56,overflow:'hidden',position:'relative' }}>
         {produit.photo_principale ? <img src={produit.photo_principale} alt={produit.titre} style={{ width:'100%',height:'100%',objectFit:'cover',transition:'transform 0.4s ease',transform:hovered?'scale(1.08)':'scale(1)' }}/> : <span style={{ color:'#333' }}>📦</span>}
+        {ench && <span style={{ position:'absolute',top:enPromo?34:10,left:10,background:cp,color:'#000',fontSize:10,fontWeight:800,padding:'3px 8px',borderRadius:6 }}>🔨 ENCHÈRE</span>}
         {enPromo && <span style={{ position:'absolute',top:10,left:10,background:'#ef4444',color:'#fff',fontSize:10,fontWeight:800,padding:'3px 8px',borderRadius:6 }}>SOLDE</span>}
         {montrerStock && produit.stock!==undefined && produit.stock<=3 && produit.stock>0 && <span style={{ position:'absolute',top:10,right:onWishlist?44:10,background:'#f59e0b',color:'#000',fontSize:9,fontWeight:800,padding:'3px 7px',borderRadius:6 }}>Plus que {produit.stock}!</span>}
-        {produit.stock===0 && <div style={{ position:'absolute',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center' }}><span style={{ color:'#fff',fontSize:13,fontWeight:700,background:'#333',padding:'6px 14px',borderRadius:6 }}>Épuisé</span></div>}
+        {produit.stock===0 && !ench && <div style={{ position:'absolute',inset:0,background:'rgba(0,0,0,0.6)',display:'flex',alignItems:'center',justifyContent:'center' }}><span style={{ color:'#fff',fontSize:13,fontWeight:700,background:'#333',padding:'6px 14px',borderRadius:6 }}>Épuisé</span></div>}
         {onWishlist && <button onClick={e=>{e.stopPropagation();onWishlist();}} style={{ position:'absolute',top:10,right:10,width:32,height:32,borderRadius:'50%',background:'rgba(0,0,0,0.6)',border:`1px solid ${inWishlist?'#ef4444':'#444'}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14 }}>{inWishlist?'❤️':'🤍'}</button>}
         <div style={{ position:'absolute',bottom:0,left:0,right:0,padding:'12px',background:'linear-gradient(transparent,rgba(0,0,0,0.8))',opacity:hovered?1:0,transition:'opacity 0.25s ease' }}>
           <button onClick={e=>{e.stopPropagation();onClick();}} style={{ width:'100%',padding:'8px',background:cp,border:'none',borderRadius:7,color:'#000',fontSize:12,fontWeight:800,cursor:'pointer',letterSpacing:'0.04em' }}>VOIR LE PRODUIT</button>
@@ -234,11 +260,12 @@ function CarteProduit({ produit, cp, onClick, onWishlist, inWishlist, vue='grill
         {produit.categorie && <span style={{ fontSize:9,color:cp,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em' }}>{produit.categorie}</span>}
         <h3 style={{ fontSize:14,fontWeight:600,color:'#e5e5e5',margin:'4px 0 6px',lineHeight:1.3 }}>{produit.titre}</h3>
         {produit.note_moyenne && <div style={{ display:'flex',alignItems:'center',gap:4,marginBottom:8 }}><Etoiles note={produit.note_moyenne} taille={11}/><span style={{ fontSize:10,color:'#666' }}>({produit.nb_avis})</span></div>}
-        {montrerPrix&&<div style={{ display:'flex',alignItems:'baseline',gap:8 }}>
+        {montrerPrix&&!venteBloquee&&<div style={{ display:'flex',alignItems:'baseline',gap:8 }}>
           {enPromo ? (<><span style={{ fontSize:17,fontWeight:800,color:'#ef4444' }}>{px(produit.prix_promo!)}</span><span style={{ fontSize:12,color:'#555',textDecoration:'line-through' }}>{px(produit.prix)}</span><span style={{ fontSize:10,color:'#ef4444',fontWeight:700 }}>-{Math.round((1-produit.prix_promo!/produit.prix)*100)}%</span></>)
                    : <span style={{ fontSize:17,fontWeight:800,color:cp }}>{px(produit.prix)}</span>}
         </div>}
         {produit.offre_fin&&offre&&<OffreCompteur compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini}/>}
+        {bandeEnchere}
       </div>
     </div>
   );
@@ -286,6 +313,9 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [page,setPage]             = useState<PageId>('accueil');
   const [produitActif,setProduitActif] = useState<Produit|null>(null);
   const [heureServeur,setHeureServeur] = useState<string|null>(null);   // heure du serveur (add-on « Offres du jour »)
+  const [enchereEtat,setEnchereEtat] = useState<Record<number,boolean>>({});   // add-on « Enchères » : enchère en cours par produit, lu en direct par le bloc de la fiche
+  const enchActive=(x:Produit)=>enchereEtat[x.id]!==undefined?enchereEtat[x.id]:!!x.enchere;   // enchère en cours sur ce produit
+  const venteDirecteBloquee=(x:Produit)=>enchActive(x)&&x.stock===0;   // un seul exemplaire et il est réservé à l'enchère
   const [articleActif,setArticleActif] = useState<ArticleBlog|null>(null);
   const [isMobile,setIsMobile]     = useState(false);
   const [menuOuvert,setMenuOuvert] = useState(false);
@@ -339,7 +369,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   },[vendeurId]);
   useEffect(()=>{ if(cfg.afficherPopupPromo){ const t=setTimeout(()=>setPopupPromo(true),4000); return()=>clearTimeout(t); } },[cfg.afficherPopupPromo]);
 
-  const chargerCatalogue = useCallback(()=>fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`).then(r=>r.ok?r.json():null).then(data=>{ if(!data) return; const l:Produit[]=data.produits||data||[]; if(data.heure_serveur) setHeureServeur(String(data.heure_serveur)); if(l.length>0){ setProduitsDemo(false); setProduits(l); setCategories(Array.from(new Set(l.map(p=>p.categorie).filter(Boolean))) as string[]); } }).catch(()=>{}),[vendeurId]);
+  const chargerCatalogue = useCallback(()=>fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`).then(r=>r.ok?r.json():null).then(data=>{ if(!data) return; const l:Produit[]=data.produits||data||[]; if(data.heure_serveur) setHeureServeur(String(data.heure_serveur)); const decSrv=data.heure_serveur?new Date(String(data.heure_serveur)).getTime()-Date.now():0; l.forEach((x:any)=>{ if(x.ench_fin){ x.enchere={ fin:x.ench_fin, mise:Number(x.ench_mise), nb_mises:Number(x.ench_nb)||0, decalage:decSrv }; } else x.enchere=null; delete x.ench_fin; delete x.ench_mise; delete x.ench_nb; }); if(l.length>0){ setProduitsDemo(false); setProduits(l); setCategories(Array.from(new Set(l.map(p=>p.categorie).filter(Boolean))) as string[]); } }).catch(()=>{}),[vendeurId]);
   useEffect(()=>{
     if(configBrut?.__produits_demo__){ setCatalogueCharge(true); setProduits(configBrut.__produits_demo__); setCategories(Array.from(new Set(configBrut.__produits_demo__.map((p:any)=>p.categorie).filter(Boolean))) as string[]); return; }
     setProduits(PRODUITS_DEMO); setCategories(Array.from(new Set(PRODUITS_DEMO.map(p=>p.categorie).filter(Boolean))) as string[]);
@@ -778,7 +808,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             </div>
 
             <div style={{ display:'flex',gap:16,marginBottom:20,flexWrap:'wrap' }}>
-              {p.stock!==undefined&&<span style={{ fontSize:12,fontWeight:600,color:p.stock>5?'#4ade80':p.stock>0?'#f59e0b':'#ef4444' }}>{p.stock>5?'✅ En stock':p.stock>0?`⚠️ Plus que ${p.stock} !`:'❌ Épuisé'}</span>}
+              {p.stock!==undefined&&p.stock!==null&&!(enchActive(p)&&p.stock===0)&&<span style={{ fontSize:12,fontWeight:600,color:p.stock>5?'#4ade80':p.stock>0?'#f59e0b':'#ef4444' }}>{enchActive(p)&&p.stock>0?`✓ En stock (${p.stock} disponible${p.stock>1?'s':''})`:p.stock>5?'✅ En stock':p.stock>0?`⚠️ Plus que ${p.stock} !`:'❌ Épuisé'}</span>}
+              {enchActive(p)&&<span style={{ fontSize:12,fontWeight:600,color:'#f59e0b' }}>🔨 {p.stock===undefined||p.stock===null?'1 unité en vente aux enchères':'En stock (1 réservé enchère)'}</span>}
               {modeDemo&&cfg.afficherNbVues&&<span style={{ fontSize:12,color:'#555' }}>👁 {nbVues} personnes regardent</span>}
               {p.sku&&<span style={{ fontSize:11,color:'#555' }}>SKU: {p.sku}</span>}
             </div>
@@ -792,21 +823,21 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               </div>
             ))}
 
-            <div style={{ marginBottom:20 }}>
+            {!venteDirecteBloquee(p)&&<div style={{ marginBottom:20 }}>
               <div style={{ fontSize:12,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8 }}>Quantité</div>
               <div style={{ display:'flex',alignItems:'center',gap:12 }}>
                 <button onClick={()=>setQteChoisie(q=>Math.max(1,q-1))} style={{ width:42,height:42,borderRadius:8,border:`1px solid #333`,background:SURF,color:'#fff',cursor:'pointer',fontSize:18,fontWeight:700 }}>−</button>
                 <span style={{ fontSize:18,fontWeight:700,color:'#fff',minWidth:32,textAlign:'center' }}>{qteChoisie}</span>
                 <button onClick={()=>setQteChoisie(q=>p.stock!==undefined?Math.min(p.stock,q+1):q+1)} style={{ width:42,height:42,borderRadius:8,border:`1px solid #333`,background:SURF,color:'#fff',cursor:'pointer',fontSize:18,fontWeight:700,opacity:p.stock!==undefined&&qteChoisie>=p.stock?0.4:1 }}>+</button>
               </div>
-            </div>
+            </div>}
 
             <div style={{ display:'flex',gap:10,marginBottom:20,flexWrap:'wrap' }}>
-              <button onClick={()=>ajouterAuPanier(p)} disabled={p.stock===0} style={{ flex:1,...styleBtn,...styleBtnProduit,padding:'16px 24px',fontSize:15,opacity:p.stock===0?0.5:1,cursor:p.stock===0?'not-allowed':'pointer' }}>{p.stock===0?'ÉPUISÉ':'🛒 '+tx('ficheProduit','boutonLabel','Ajouter au panier').toUpperCase()}</button>
+              {!venteDirecteBloquee(p)&&<button onClick={()=>ajouterAuPanier(p)} disabled={p.stock===0} style={{ flex:1,...styleBtn,...styleBtnProduit,padding:'16px 24px',fontSize:15,opacity:p.stock===0?0.5:1,cursor:p.stock===0?'not-allowed':'pointer' }}>{p.stock===0?'ÉPUISÉ':'🛒 '+tx('ficheProduit','boutonLabel','Ajouter au panier').toUpperCase()}</button>}
               {cfg.afficherWishlist&&<button onClick={()=>toggleWishlist(p.id)} style={{ width:50,height:50,borderRadius:10,border:`1px solid ${wishlist.includes(p.id)?'#ef4444':'#333'}`,background:wishlist.includes(p.id)?'rgba(239,68,68,0.15)':SURF,color:wishlist.includes(p.id)?'#ef4444':'#888',cursor:'pointer',fontSize:20,flexShrink:0 }}>{wishlist.includes(p.id)?'❤️':'🤍'}</button>}
             </div>
 
-            <BlocEnchereBoutique gestionnaireId={vendeurId} produitId={p.id} couleurAccent={cp} isDemo={modeDemo}
+            <BlocEnchereBoutique gestionnaireId={vendeurId} produitId={p.id} couleurAccent={cp} isDemo={modeDemo} onEtat={a=>{ if(enchereEtat[p.id]===true&&a===false) setTimeout(rechargerOffres,400); setEnchereEtat(m=>m[p.id]===a?m:{...m,[p.id]:a}); }}
               allerConnexion={()=>{ setAvisPanier('Connectez-vous pour miser.'); naviguer('login'); }}/>
 
             <FaireOffreBoutique gestionnaireId={vendeurId} produitId={p.id} prix={enPromo?p.prix_promo!:p.prix} variante={Object.values(varianteChoisie).join(' / ')}

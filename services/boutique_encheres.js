@@ -75,6 +75,48 @@ async function ecrireReglages(gid, b) {
   return reglages(gid);
 }
 
+// ── Apparence du widget d'enchère (réglée par le gestionnaire ; valeurs par défaut = affichage d'origine) ──
+const MODELES = ['actuel', 'l1', 'l2', 'l3', 'l4', 'l5'];
+const APP_DEFAUT = { modele: 'actuel', secondes: true, format_date: null, nb_mises: true, meneur: false, evidence: false, confirmer: false, libelle_confirmer: null, prefill: false, reserve: true };
+async function apparence(gid, db) {
+  const r = (await (db || pool).query(
+    `SELECT enchere_widget_modele, enchere_aff_secondes, enchere_format_date, enchere_aff_nb_mises, enchere_aff_meneur, enchere_aff_evidence,
+            enchere_confirmer_mise, enchere_libelle_confirmer, enchere_prefill_mise, enchere_aff_reserve FROM boutique_reglages WHERE gestionnaire_id = $1`, [gid])).rows[0];
+  if (!r) return { ...APP_DEFAUT };
+  return {
+    modele: MODELES.includes(r.enchere_widget_modele) ? r.enchere_widget_modele : 'actuel',
+    secondes: r.enchere_aff_secondes !== false, format_date: r.enchere_format_date || null, nb_mises: r.enchere_aff_nb_mises !== false,
+    meneur: r.enchere_aff_meneur === true, evidence: r.enchere_aff_evidence === true, confirmer: r.enchere_confirmer_mise === true,
+    libelle_confirmer: r.enchere_libelle_confirmer || null, prefill: r.enchere_prefill_mise === true, reserve: r.enchere_aff_reserve !== false,
+  };
+}
+const bool = (v, def) => (v === undefined || v === null ? def : v === true || v === 'true');
+const texteCourt = (v, max, nom) => {
+  if (v === undefined || v === null) return null;
+  const t = String(v).replace(/[\u0000-\u001f\u007f<>]/g, '').trim();
+  if (t.length > max) refus(`${nom} : ${max} caractères maximum.`);
+  return t || null;
+};
+async function ecrireApparence(gid, b) {
+  b = b || {};
+  const base = await apparence(gid);
+  const modele = b.modele === undefined ? base.modele : b.modele;
+  if (!MODELES.includes(modele)) refus('Modèle de widget invalide.');
+  const fd = b.format_date === undefined ? base.format_date : texteCourt(b.format_date, 60, 'Le format de date');
+  const lib = b.libelle_confirmer === undefined ? base.libelle_confirmer : texteCourt(b.libelle_confirmer, 40, 'Le libellé de confirmation');
+  await pool.query(
+    `INSERT INTO boutique_reglages (gestionnaire_id, enchere_widget_modele, enchere_aff_secondes, enchere_format_date, enchere_aff_nb_mises, enchere_aff_meneur, enchere_aff_evidence,
+        enchere_confirmer_mise, enchere_libelle_confirmer, enchere_prefill_mise, enchere_aff_reserve, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW())
+     ON CONFLICT (gestionnaire_id) DO UPDATE SET enchere_widget_modele = EXCLUDED.enchere_widget_modele, enchere_aff_secondes = EXCLUDED.enchere_aff_secondes,
+        enchere_format_date = EXCLUDED.enchere_format_date, enchere_aff_nb_mises = EXCLUDED.enchere_aff_nb_mises, enchere_aff_meneur = EXCLUDED.enchere_aff_meneur,
+        enchere_aff_evidence = EXCLUDED.enchere_aff_evidence, enchere_confirmer_mise = EXCLUDED.enchere_confirmer_mise, enchere_libelle_confirmer = EXCLUDED.enchere_libelle_confirmer,
+        enchere_prefill_mise = EXCLUDED.enchere_prefill_mise, enchere_aff_reserve = EXCLUDED.enchere_aff_reserve, updated_at = NOW()`,
+    [gid, modele, bool(b.secondes, base.secondes), fd, bool(b.nb_mises, base.nb_mises), bool(b.meneur, base.meneur), bool(b.evidence, base.evidence),
+      bool(b.confirmer, base.confirmer), lib, bool(b.prefill, base.prefill), bool(b.reserve, base.reserve)]);
+  return apparence(gid);
+}
+
 // ── Création (par le gestionnaire, sur un de SES produits) ──
 async function creerEnchere({ gid, produitId, prixDepart, prixReserve, dureeH }) {
   // Sans l'add-on on ne peut plus CRÉER d'enchère (celles déjà en cours vont jusqu'au bout : mises, fin, paiement du gagnant)
@@ -298,7 +340,14 @@ async function infoProduit(gid, produitId, acheteurId) {
   const maintenant = new Date().toISOString();
   if (!e || e.statut !== 'active') return { enchere: null, maintenant };
   if (acheteurId) e.en_tete = e.meneur_id === acheteurId;
-  return { enchere: vue(e, !!acheteurId), maintenant };
+  const app = await apparence(gid);
+  const v = vue(e, !!acheteurId);
+  if (!app.reserve) v.reserve = null;
+  if (app.meneur && e.meneur_id) {
+    const m = (await pool.query('SELECT prenom FROM marketplace_acheteurs WHERE id = $1', [e.meneur_id])).rows[0];
+    v.meneur = (m && m.prenom ? String(m.prenom).trim().charAt(0).toUpperCase() : '?') + '***';
+  }
+  return { enchere: v, maintenant, apparence: app };
 }
 
 const TRIS = {
@@ -412,6 +461,6 @@ function demarrer() {
 }
 
 module.exports = {
-  CODE_ADDON, DEFAUTS, sqlEnchereVivante, actifPourBoutique, prochaineMise, reglages, ecrireReglages, creerEnchere, miser, finaliser, expirerPaiement, annulerEnchere,
+  CODE_ADDON, DEFAUTS, sqlEnchereVivante, actifPourBoutique, prochaineMise, reglages, ecrireReglages, apparence, ecrireApparence, MODELES, creerEnchere, miser, finaliser, expirerPaiement, annulerEnchere,
   remettreAuPanier, marquerPayees, vue, infoProduit, listePublique, mises, mesEncheres, listeGestionnaire, produitsPourEnchere, traiterEcheances, demarrer, $$,
 };

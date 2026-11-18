@@ -86,6 +86,7 @@ import BoutiqueOffres              from './pages/gestionnaire/BoutiqueOffres';
 import BoutiqueNegociations        from './pages/gestionnaire/BoutiqueNegociations';
 import BoutiqueEncheres            from './pages/gestionnaire/BoutiqueEncheres';
 import BoutiqueQuestions           from './pages/gestionnaire/BoutiqueQuestions';
+import BoutiqueConfigEncheres      from './pages/gestionnaire/BoutiqueConfigEncheres';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
 import BoutiquePaiements          from './pages/gestionnaire/BoutiquePaiements';
@@ -790,6 +791,14 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     const pastille = nbQuestions > 0 ? nbQuestions : undefined;
     return { ...m, badge: ((m.badge || 0) + (pastille || 0)) || undefined, sousMenu: items.flatMap(it => it.id === apres ? [it, { id: 'annonces-questions', label: 'Questions des acheteurs', icon: '❓', badge: pastille }] : [it]) };
   };
+  // Add-on « Enchères » : « Config enchère » dans CONFIG MES PAGES, juste sous « Mon plan & limites » (visible seulement si l'add-on est activé)
+  const avecConfigEncheres = (m: MenuItem): MenuItem => {
+    if (!addonsBoutique.encheres) return m;
+    const items = m.sousMenu || [];
+    const apres = items.findIndex(x => x.id === 'premium-plan');
+    const entree = { id: 'boutique-config-encheres', label: 'Config enchère', icon: '⚙️' };
+    return { ...m, sousMenu: apres >= 0 ? [...items.slice(0, apres + 1), entree, ...items.slice(apres + 1)] : [...items, entree] };
+  };
   const avecEffets = (m: MenuItem): MenuItem => addonsBoutique.effets_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-effets', label: 'Effets de boutique', icon: '✨' }] } : m;
 
   // ── Menus Studio (communs à tous) ────────────────────────────────────────
@@ -1279,7 +1288,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioPremium,
-      avecEffets(menuConfigPremium),
+      avecConfigEncheres(avecEffets(menuConfigPremium)),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
@@ -1605,6 +1614,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         return <BoutiqueOffres key={`offres-${initial || 0}`} gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} produitInitial={initial} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       }
       if (pageActive === 'annonces-encheres') return <BoutiqueEncheres gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
+      if (pageActive === 'boutique-config-encheres') return <BoutiqueConfigEncheres gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-questions') return <BoutiqueQuestions gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-negociations') return <BoutiqueNegociations gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-creer' || pageActive === 'creer') return <BoutiqueCreerAnnonce key="nouvelle" produitId={null} {...propsCreer} />;

@@ -5,6 +5,8 @@
 //   GET  /produits?q=         ses produits actifs, avec la raison si une enchère n'est pas possible (sélecteur)
 //   POST /                    { produit_id, prix_depart, prix_reserve?, duree_heures }   (add-on activé requis)
 //   POST /:id/annuler         annule une enchère EN COURS (même avec des mises) ; l'unité revient en stock
+//   GET  /config              { addon_actif, reglages, apparence }   (page « Config enchère »)
+//   PUT  /apparence           { modele, secondes, format_date, nb_mises, meneur, evidence, confirmer, libelle_confirmer, prefill, reserve }   (add-on activé requis)
 //   PUT  /reglages            { actif, duree_min_h, duree_max_jours, increment_min, reserve_permise, delai_paiement_h }   (add-on activé requis)
 // La liste reste lisible même si l'add-on est désactivé (les enchères déjà lancées vont jusqu'au bout).
 
@@ -67,6 +69,14 @@ router.post('/:id/annuler', h(async (req, res) => {
   if (!id) return res.status(400).json({ error: 'Enchère invalide.' });
   await E.annulerEnchere({ gid: req.gid, enchereId: id });
   res.json({ success: true });
+}));
+
+router.get('/config', h(async (req, res) => {
+  res.json({ addon_actif: await E.actifPourBoutique(req.gid), reglages: reglagesSortie(await E.reglages(req.gid)), apparence: await E.apparence(req.gid) });
+}));
+
+router.put('/apparence', exigerAddon, h(async (req, res) => {
+  res.json({ success: true, apparence: await E.ecrireApparence(req.gid, req.body) });
 }));
 
 router.put('/reglages', exigerAddon, h(async (req, res) => {
