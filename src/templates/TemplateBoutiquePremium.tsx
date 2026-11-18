@@ -9,6 +9,7 @@ import AppAcheteurBoutique from '../AppAcheteurBoutique';
 import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-on « Faire une offre » : bloc de la fiche produit
 import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
 import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
+import AvisProduitBoutique, { useAvisProduit } from '../pages/boutique/AvisProduitBoutique';   // add-on « Avis clients » : onglet « Avis » et note moyenne de la fiche produit
 import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
 import { BoutiqueSouhaitBouton, BoutiqueSouhaitCarte, BoutiqueSouhaitProduit, BoutiqueSouhaitsAcces, BoutiqueFavorisToast, useCarteSuperposition } from '../components/BoutiqueFavoris';   // add-on « Favoris » : cœurs, icône d'en-tête, notifications
 import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
@@ -36,11 +37,6 @@ interface ArticleBlog {
   id: number; titre: string; slug: string; resume?: string;
   photo?: string; auteur?: string; date_publication?: string; categorie?: string;
   contenu?: string; tags?: string[]; vues?: number;   // contenu : seulement quand l'article est ouvert (la liste est légère)
-}
-
-interface Avis {
-  id: number; note: number; commentaire: string;
-  prenom?: string; nom?: string; date_avis: string;
 }
 
 interface AcheteurUser {
@@ -332,6 +328,9 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [politiqueStatut,setPolitiqueStatut] = useState<'idle'|'loading'|'err'>('idle');
   const politiqueEnCours = useRef('');
   const [catalogueCharge,setCatalogueCharge] = useState(false); // vrai quand la lecture des vraies annonces est terminée
+  const avisProd = useAvisProduit(vendeurId||0,produitActif?.id,produitsDemo);   // add-on « Avis clients » : avis publiés du produit ouvert (rien si l'add-on est inactif)
+  const avisReel = !!(avisProd.etat&&avisProd.etat.actif&&avisProd.etat.total>0);
+  const resumeAvis = (p:Produit)=>{ if(produitsDemo) return p.note_moyenne?{ note:p.note_moyenne,nb:p.nb_avis||0 }:null; const e=avisProd.etat; return e&&e.actif&&e.total>0&&e.afficher_moyenne?{ note:e.moyenne,nb:e.total }:null; };
   const modeDemo = catalogueCharge&&produitsDemo; // éléments de démonstration seulement (futurs add-ons payants) : jamais sur une boutique qui a de vraies annonces
   const [articles,setArticles]     = useState<ArticleBlog[]>([]);
   const [blogPage,setBlogPage]     = useState(1);
@@ -339,10 +338,9 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [blogCharge,setBlogCharge]  = useState(false);
   const [articleErreur,setArticleErreur] = useState(false);
   const [categories,setCategories] = useState<string[]>([]);
-  const [avisActif,setAvisActif]   = useState<Avis[]>([]);
   const [acheteur,setAcheteur]     = useState<AcheteurUser|null>(null);
   const [nbPanier,setNbPanier] = useState(0);
-  const [vueCompte,setVueCompte] = useState<'dashboard'|'panier'|'wishlist'>('dashboard');
+  const [vueCompte,setVueCompte] = useState<'dashboard'|'panier'|'wishlist'|'avis'>('dashboard');
   const [avisPanier,setAvisPanier] = useState('');
   const [filtreCat,setFiltreCat]   = useState('');
   const [filtreRecherche,setFiltreRecherche] = useState('');
@@ -464,7 +462,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
   // Ouvre la fiche d'un produit par son id : dans le catalogue déjà chargé, sinon lue au serveur (ex. : une enchère sur un produit au-delà des 100 premiers)
   const ouvrirProduitParId = (id:number)=>{ const p=produits.find(x=>Number(x.id)===Number(id)); if(p){ voirProduit(p); return; } fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?ids=${Number(id)}&limit=1`).then(r=>r.ok?r.json():null).then(c=>{ const q=c&&Array.isArray(c.produits)?c.produits[0]:null; if(q) voirProduit(q); else naviguer('catalogue'); }).catch(()=>naviguer('catalogue')); };
-  const voirProduit = (p:Produit)=>{ setProduitActif(p); setPhotoIdx(0); setQteChoisie(1); setVarianteChoisie({}); setOngletProduit('description'); setPage('produit'); window.scrollTo({top:0,behavior:'smooth'}); fetch(`${API_BASE}/avis/produit/${p.id}`).then(r=>r.ok?r.json():[]).then(data=>setAvisActif(Array.isArray(data)?data:[])).catch(()=>{}); };
+  const voirProduit = (p:Produit)=>{ setProduitActif(p); setPhotoIdx(0); setQteChoisie(1); setVarianteChoisie({}); setOngletProduit('description'); setPage('produit'); window.scrollTo({top:0,behavior:'smooth'}); };
   const voirArticle = (a:ArticleBlog)=>{ setArticleActif(a); setArticleErreur(false); setPage('article'); window.scrollTo({top:0,behavior:'smooth'});
     if(a.contenu===undefined&&a.slug) fetch(`${API_BASE}/boutique/blog/${vendeurId}/article/${encodeURIComponent(a.slug)}`).then(r=>r.ok?r.json():Promise.reject()).then(d=>{ if(!d||!d.article) throw new Error(); setArticleActif(cur=>cur&&cur.id===a.id?{ ...cur,...versArticle(d.article),contenu:String(d.article.contenu||'') }:cur); }).catch(()=>setArticleErreur(true)); };
   // Add-on « Chatbot » : le widget (monté par SitePreview) demande d'ouvrir une page du site ; ce template sait les ouvrir sans recharger
@@ -820,7 +818,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             {p.categorie&&<div style={{ fontSize:10,color:cp,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.15em',marginBottom:8 }}>{p.categorie}</div>}
             {p.marque&&<div style={{ fontSize:11,color:'#666',marginBottom:6,textTransform:'uppercase',letterSpacing:'0.1em' }}>{p.marque}</div>}
             <h1 style={{ fontSize:isMobile?24:32,fontWeight:900,color:'#fff',marginBottom:16,lineHeight:1.15 }}>{p.titre}</h1>
-            {on('ficheProduit','afficherAvis')&&p.note_moyenne&&<div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:20 }}><Etoiles note={p.note_moyenne} taille={16}/><span style={{ fontSize:13,color:'#888' }}>{p.note_moyenne.toFixed(1)} ({p.nb_avis} avis)</span><button onClick={()=>setOngletProduit('avis')} style={{ background:'none',border:'none',color:cp,fontSize:12,cursor:'pointer',textDecoration:'underline' }}>Voir les avis</button></div>}
+            {on('ficheProduit','afficherAvis')&&resumeAvis(p)&&<div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:20 }}><Etoiles note={resumeAvis(p)!.note} taille={16}/><span style={{ fontSize:13,color:'#888' }}>{resumeAvis(p)!.note.toFixed(1)} ({resumeAvis(p)!.nb} avis)</span><button onClick={()=>setOngletProduit('avis')} style={{ background:'none',border:'none',color:cp,fontSize:12,cursor:'pointer',textDecoration:'underline' }}>Voir les avis</button></div>}
 
             {p.offre_fin&&<OffreCompteur fin={p.offre_fin} heureServeur={heureServeur} onFini={offreCtx.onFini}/>}
             <div style={{ display:'flex',alignItems:'baseline',gap:12,marginBottom:24 }}>
@@ -883,30 +881,18 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         {/* Onglets */}
         <div style={{ marginTop:56,borderTop:`1px solid ${BORD}`,paddingTop:40 }}>
           <div style={{ display:'flex',gap:0,borderBottom:`1px solid #222`,marginBottom:32 }}>
-            {([['description','Description'],['avis',`Avis (${avisActif.length})`],['livraison','Livraison']] as const).filter(([id])=>id!=='avis'||on('ficheProduit','afficherAvis')).map(([id,label])=>(
+            {([['description','Description'],['avis',avisReel?`Avis (${avisProd.etat!.total})`:'Avis'],['livraison','Livraison']] as const).filter(([id])=>id!=='avis'||(on('ficheProduit','afficherAvis')&&(produitsDemo||avisReel))).map(([id,label])=>(
               <button key={id} onClick={()=>setOngletProduit(id)} style={{ padding:'14px 24px',background:'none',border:'none',borderBottom:`2px solid ${ongletProduit===id?cp:'transparent'}`,color:ongletProduit===id?cp:'#666',fontSize:14,fontWeight:ongletProduit===id?700:500,cursor:'pointer',marginBottom:-1,transition:'all 0.2s',letterSpacing:'0.04em' }}>{label}</button>
             ))}
           </div>
           {ongletProduit==='description'&&<div style={{ maxWidth:760 }}>{p.description?<p style={{ fontSize:16,color:'#ccc',lineHeight:1.9,whiteSpace:'pre-wrap' }}>{p.description}</p>:<p style={{ color:'#555' }}>Aucune description disponible.</p>}</div>}
           {ongletProduit==='avis'&&(
-            <div>
-              {p.note_moyenne&&<div style={{ display:'flex',gap:32,marginBottom:40,flexWrap:'wrap' }}><div style={{ textAlign:'center' }}><div style={{ fontSize:64,fontWeight:900,color:cp,lineHeight:1 }}>{p.note_moyenne.toFixed(1)}</div><Etoiles note={p.note_moyenne} taille={20}/><div style={{ fontSize:13,color:'#666',marginTop:8 }}>{p.nb_avis} avis</div></div></div>}
-              {avisActif.length===0 ? <p style={{ color:'#555',fontStyle:'italic' }}>Aucun avis pour ce produit. Soyez le premier !</p>
-              : <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
-                  {avisActif.map((avis,i)=>(
-                    <div key={i} style={{ background:SURF,border:`1px solid #222`,borderRadius:12,padding:'20px 24px' }}>
-                      <div style={{ display:'flex',justifyContent:'space-between',marginBottom:10 }}>
-                        <div style={{ display:'flex',alignItems:'center',gap:10 }}>
-                          <div style={{ width:36,height:36,borderRadius:'50%',background:`${cp}20`,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:cp }}>{(avis.prenom||'?')[0]}</div>
-                          <div><div style={{ fontSize:14,fontWeight:700,color:'#fff' }}>{avis.prenom} {avis.nom}</div><Etoiles note={avis.note} taille={13}/></div>
-                        </div>
-                        <span style={{ fontSize:12,color:'#555' }}>{new Date(avis.date_avis).toLocaleDateString('fr-CA')}</span>
-                      </div>
-                      <p style={{ fontSize:14,color:'#aaa',lineHeight:1.7,margin:0 }}>{avis.commentaire}</p>
-                    </div>
-                  ))}
-                </div>}
-            </div>
+            produitsDemo
+              ? <div>
+                  {p.note_moyenne&&<div style={{ display:'flex',gap:32,marginBottom:40,flexWrap:'wrap' }}><div style={{ textAlign:'center' }}><div style={{ fontSize:64,fontWeight:900,color:cp,lineHeight:1 }}>{p.note_moyenne.toFixed(1)}</div><Etoiles note={p.note_moyenne} taille={20}/><div style={{ fontSize:13,color:'#666',marginTop:8 }}>{p.nb_avis} avis</div></div></div>}
+                  <p style={{ color:'#555',fontStyle:'italic' }}>Produit de démonstration : les avis de vos clients s'afficheront ici.</p>
+                </div>
+              : <AvisProduitBoutique donnees={avisProd} couleurAccent={cp} connecte={!!acheteur} isMobile={isMobile} ouvrirMesAvis={()=>{ if(!acheteur){ setAvisPanier('Connectez-vous pour laisser un avis.'); naviguer('login'); return; } setVueCompte('avis'); naviguer('compte'); }}/>
           )}
           {ongletProduit==='livraison'&&(
             <div style={{ maxWidth:560 }}>

@@ -55,6 +55,9 @@ router.use('/questions', require('./boutique_questions_acheteur'));
 // Add-on « Favoris » : liste de souhaits de l'acheteur (lire, ajouter, retirer, transférer la liste d'un visiteur)
 router.use('/favoris', require('./boutique_favoris_acheteur'));
 
+// Add-on « Avis clients » : produits à évaluer, déposer / modifier / supprimer un avis, envoyer une photo
+router.use('/avis', require('./boutique_avis_acheteur'));
+
 const wrap = (fn) => async (req, res) => {
   try { await fn(req, res); }
   catch (e) {

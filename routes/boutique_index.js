@@ -27,6 +27,7 @@ router.use('/gestionnaire/blog', require('./boutique_blog_gestionnaire'));
 router.use('/gestionnaire/chatbot', require('./boutique_chatbot_gestionnaire'));
 router.use('/gestionnaire/popup', require('./boutique_popup_gestionnaire'));
 router.use('/gestionnaire/favoris', require('./boutique_favoris_gestionnaire'));
+router.use('/gestionnaire/avis', require('./boutique_avis_gestionnaire'));
 
 // Publics (sans connexion) — AVANT la zone connectée ci-dessous : catalogue de la boutique, inscription d'un acheteur
 router.use('/catalogue', require('./boutique_catalogue'));
@@ -38,6 +39,7 @@ router.use('/blog', require('./boutique_blog_public'));
 router.use('/chatbot', require('./boutique_chatbot_public'));
 router.use('/popup', require('./boutique_popup_public'));
 router.use('/favoris', require('./boutique_favoris_public'));
+router.use('/avis', require('./boutique_avis_public'));
 router.use('/acheteur/:gid/inscription', require('./boutique_inscription'));
 
 // Acheteur connecté : panier, caisse, commandes (compte acheteur du MV réutilisé)
