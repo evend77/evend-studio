@@ -1,12 +1,13 @@
 // CHEMIN : services/boutique_etiquettes.js
-// e-Vend Studio — Add-ons « Étiquettes Shippo » et « Étiquettes EasyPost » des templates boutique (solo) : clés du gestionnaire, tarifs, achat d'étiquette, suivi automatique.
+// e-Vend Studio — Add-ons « Étiquettes Shippo », « Étiquettes EasyPost » et « Étiquettes Postes Canada » des templates boutique (solo) : clés du gestionnaire, tarifs, achat d'étiquette, suivi automatique.
 // Reprend la logique du MV (services/studio_etiquettes.js, collaborateurs) pour UN gestionnaire qui vend lui-même ; aucun fichier MV n'est modifié.
-// Les fournisseurs (services/transporteurs/shippo.js et easypost.js) sont utilisés tels quels. UN SEUL transporteur actif à la fois (boutique_etiquettes_config.provider_actif).
+// Les fournisseurs (services/transporteurs/shippo.js, easypost.js et postescanada.js) sont utilisés tels quels. UN SEUL transporteur actif à la fois (boutique_etiquettes_config.provider_actif).
 //
 // Modèle « bring your own token » : le gestionnaire colle SES clés ; elles sont chiffrées (src/utils/chiffrement) dans boutique_etiquettes_config
 // et ne sont JAMAIS renvoyées au navigateur. L'étiquette est facturée sur SON compte chez le transporteur ; l'expédition part de l'adresse de sa boutique (table gestionnaires).
 // Remboursement d'une étiquette achetée par erreur : directement dans le tableau de bord du transporteur (pas dans l'application).
-// Suivi automatique — Shippo : le webhook ne sert qu'à savoir QUELLE commande vérifier ; le vrai statut est redemandé à Shippo avec la clé du gestionnaire.
+// Suivi automatique — Postes Canada : pas de webhook ; un cron (routes/boutique_cron_suivi_postescanada.js) interroge l'API de repérage avec les identifiants du gestionnaire.
+//                   — Shippo : le webhook ne sert qu'à savoir QUELLE commande vérifier ; le vrai statut est redemandé à Shippo avec la clé du gestionnaire.
 //                   — EasyPost : le webhook est signé (HMAC-SHA256) avec le secret du gestionnaire ; sans secret ou signature valide il est rejeté.
 
 'use strict';
@@ -21,15 +22,20 @@ const crypto = require('crypto');
 const TRANSPORTEURS = {
   shippo:   { addon: 'etiquette_shippo',   nom: 'Shippo',   webhook: 'https://e-vendstudio.ca/api/boutique/etiquettes/webhook/shippo',           charger: () => require('./transporteurs/shippo') },
   easypost: { addon: 'etiquette_easypost', nom: 'EasyPost', webhook: 'https://e-vendstudio.ca/api/webhooks/boutique-etiquettes/easypost', charger: () => require('./transporteurs/easypost') },
+  postescanada: { addon: 'etiquette_postescanada', nom: 'Postes Canada', webhook: null, charger: () => require('./transporteurs/postescanada') },   // pas de webhook : cron de suivi
 };
 const TOKEN_RE = /^shippo_(test|live)_[A-Za-z0-9]+$/;
 const EASYPOST_RE = /^(EZTK|EZAK)[A-Za-z0-9]{16,200}$/;
 const ETAPES_PROTEGEES = new Set(['annulee', 'refusee']);
+const ETAPES_TERMINALES = new Set(['livree', 'livraison_echouee', 'retournee_expediteur']);
+const SOURCES_DERNIER_EVENEMENT = new Set(['postescanada']);   // ne donne que le DERNIER événement : on AJOUTE à l'historique au lieu de le remplacer
 
 const autorise = (gid, code, db) => A.addonActif(gid, TRANSPORTEURS[code].addon, db || pool);
 const refusAddon = (code) => refus(`L'option « Étiquettes ${TRANSPORTEURS[code].nom} » n'est pas activée pour votre boutique.`, 403, { addon_inactif: true });
 const refus = (m, s, extra) => { throw new ErreurBoutique(m, s || 400, extra); };
 const httpSure = (u) => (typeof u === 'string' && /^https?:\/\/\S+$/i.test(u) && u.length <= 2000 ? u : null);
+// Étiquette : lien https (Shippo, EasyPost) ou PDF en base64 (Postes Canada : son lien exige un jeton, le PDF est donc gardé tel quel)
+const etiquetteSure = (u) => (httpSure(u) || (typeof u === 'string' && u.length <= 4000000 && /^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/.test(u) ? u : null));
 
 // ── Configuration ──────────────────────────────────────────────────────────
 
@@ -75,6 +81,7 @@ async function etatConfig(gid) {
     { code: 'shippo', nom: 'Shippo', addon_actif: ajoutes[0], configure: !!r.shippo_token_chiffre, mode: r.shippo_mode || 'test', actif: r.provider_actif === 'shippo', webhook_url: TRANSPORTEURS.shippo.webhook },
     { code: 'easypost', nom: 'EasyPost', addon_actif: ajoutes[1], configure: !!(r.easypost_cle_test_chiffre || r.easypost_cle_prod_chiffre), mode: r.easypost_mode || 'test', actif: r.provider_actif === 'easypost', webhook_url: TRANSPORTEURS.easypost.webhook,
       cle_test: !!r.easypost_cle_test_chiffre, cle_prod: !!r.easypost_cle_prod_chiffre, secret_configure: !!r.easypost_webhook_secret_chiffre },
+    { code: 'postescanada', nom: 'Postes Canada', addon_actif: ajoutes[2], configure: !!(r.postes_cle_api_chiffre && r.postes_code_secret_chiffre && r.postes_numero_client), mode: r.postes_mode || 'test', actif: r.provider_actif === 'postescanada', webhook_url: null, numero_client: r.postes_numero_client || '' },
   ];
   const actifOk = liste.find((t) => t.actif && t.addon_actif && t.configure);
   return {
@@ -144,6 +151,52 @@ async function enregistrerEasyPost(gid, { cle, mode: modeDemande, actif, effacer
     [gid, provider, cleTest, cleProd, mode, secretCh]);
 }
 
+/** Postes Canada : clé API + code secret + numéro de client (+ mode). Activer Postes Canada désactive les autres transporteurs. */
+async function enregistrerPostesCanada(gid, { cle, secret, numeroClient, mode: modeDemande, actif, effacer }) {
+  if (!(await autorise(gid, 'postescanada'))) refusAddon('postescanada');
+  const row = await lireConfig(gid);
+  let cleCh = row ? row.postes_cle_api_chiffre : null;
+  let secretCh = row ? row.postes_code_secret_chiffre : null;
+  let numero = row ? row.postes_numero_client : null;
+  let mode = (row && row.postes_mode) || 'test';
+  let provider = row ? row.provider_actif : null;
+  if (effacer) { cleCh = null; secretCh = null; numero = null; mode = 'test'; if (provider === 'postescanada') provider = null; }
+  else {
+    if (typeof cle === 'string' && cle.trim()) {
+      const k = cle.trim();
+      if (k.length < 8 || k.length > 200 || /\s/.test(k)) refus('Clé API Postes Canada invalide : copiez-la en entier depuis le Portail des développeurs (sans espaces).');
+      cleCh = chiffrer(k);
+    }
+    if (typeof secret === 'string' && secret.trim()) {
+      const k = secret.trim();
+      if (k.length < 8 || k.length > 200 || /\s/.test(k)) refus('Code secret API invalide : copiez-le en entier depuis le Portail des développeurs (sans espaces).');
+      secretCh = chiffrer(k);
+    }
+    if (typeof numeroClient === 'string' && numeroClient.trim()) {
+      const n = numeroClient.trim();
+      if (!/^\d{6,12}$/.test(n)) refus("Numéro de client invalide : chiffres seulement (ex. 0009999999), tel qu'affiché en haut de votre tableau de bord Postes Canada.");
+      numero = n;
+    }
+    if (modeDemande === 'test' || modeDemande === 'production') mode = modeDemande;
+    if (actif === true) { if (!cleCh || !secretCh || !numero) refus('Remplissez les 3 champs : clé API, code secret API et numéro de client.'); provider = 'postescanada'; }
+    else if (actif === false && provider === 'postescanada') provider = null;
+  }
+  await pool.query(
+    `INSERT INTO boutique_etiquettes_config (gestionnaire_id, provider_actif, postes_cle_api_chiffre, postes_code_secret_chiffre, postes_numero_client, postes_mode, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,NOW())
+     ON CONFLICT (gestionnaire_id) DO UPDATE SET provider_actif = $2, postes_cle_api_chiffre = $3, postes_code_secret_chiffre = $4, postes_numero_client = $5, postes_mode = $6, updated_at = NOW()`,
+    [gid, provider, cleCh, secretCh, numero, mode]);
+}
+
+/** Identifiants Postes Canada déchiffrés (forme attendue par le provider), ou null si incomplets. */
+function configPostesCanada(row) {
+  if (!row || !row.postes_cle_api_chiffre || !row.postes_code_secret_chiffre || !row.postes_numero_client) return null;
+  try {
+    const cleApi = dechiffrer(row.postes_cle_api_chiffre), codeSecret = dechiffrer(row.postes_code_secret_chiffre);
+    return cleApi && codeSecret ? { provider: 'postescanada', cleApi, codeSecret, numeroClient: row.postes_numero_client, mode: row.postes_mode || 'test' } : null;
+  } catch (e) { return null; }
+}
+
 /** Transporteur ACTIF du gestionnaire avec sa clé déchiffrée (mode choisi pour EasyPost), ou null. */
 async function configActive(gid) {
   const row = await lireConfig(gid);
@@ -156,6 +209,7 @@ async function configActive(gid) {
       if (ch) return { provider: 'easypost', token: dechiffrer(ch), mode };
     }
   } catch (e) { return null; }
+  if (row.provider_actif === 'postescanada') return configPostesCanada(row);
   return null;
 }
 
@@ -208,7 +262,7 @@ async function colisDe(gid, cmd, body) {
 async function preparer(gid) {
   const cfg = await configActive(gid);
   if (!cfg && !(await Promise.all(Object.keys(TRANSPORTEURS).map((c) => autorise(gid, c)))).some(Boolean)) refus("Aucune option d'étiquettes d'expédition n'est activée pour votre boutique.", 403, { addon_inactif: true });
-  if (!cfg) refus("Aucun transporteur actif. Ajoutez votre clé (Shippo ou EasyPost) dans Config générale → Étiquettes d'expédition.");
+  if (!cfg) refus("Aucun transporteur actif. Ajoutez vos identifiants (Shippo, EasyPost ou Postes Canada) dans Config générale → Étiquettes d'expédition.");
   if (!(await autorise(gid, cfg.provider))) refusAddon(cfg.provider);
   return { cfg, mod: TRANSPORTEURS[cfg.provider].charger() };
 }
@@ -261,13 +315,20 @@ async function acheter(gid, id, body) {
     verifierExpediable(cmd);
     const { cfg, mod } = await preparer(gid);
     let achat;
-    try { achat = await mod.acheterEtiquette(cfg, { rateId, shipmentId: typeof body.shipment_id === 'string' ? body.shipment_id : undefined }); }
+    const params = { rateId, shipmentId: typeof body.shipment_id === 'string' ? body.shipment_id : undefined };
+    if (cfg.provider === 'postescanada') {
+      // Postes Canada n'a pas de « rate id » à retenir : il refait l'envoi complet à l'achat (service + adresses + colis)
+      params.colis = await colisDe(gid, cmd, body);
+      const { exp, liv } = await adressesOuErreur(gid, cmd);
+      params.adresseExpedition = exp; params.adresseLivraison = liv;
+    }
+    try { achat = await mod.acheterEtiquette(cfg, params); }
     catch (e) { throw erreurFournisseur(e); }
 
     const nom = String(typeof body.transporteur === 'string' && body.transporteur.trim() ? body.transporteur : TRANSPORTEURS[cfg.provider].nom).slice(0, 60);
     const suivi = achat.numeroSuivi ? String(achat.numeroSuivi).slice(0, 80) : null;
     const urlSuivi = httpSure(achat.urlSuivi);
-    const urlEtiquette = httpSure(achat.urlEtiquette);
+    const urlEtiquette = etiquetteSure(achat.urlEtiquette);
     const upd = await pool.query(
       `UPDATE boutique_commandes
           SET statut = 'expediee', numero_suivi = $1, transporteur_suivi = $2, url_suivi = $3, url_etiquette = $4,
@@ -307,7 +368,11 @@ async function appliquerSuivi(cmd, ev, source) {
   const applique = !!etape && etape !== cmd.etape_livraison && nouveau;
   if (applique) await pool.query('UPDATE boutique_commandes SET etape_livraison = $1, updated_at = NOW() WHERE id = $2', [etape, cmd.id]);
   if (recus.length > 0) {
-    const fusion = [...lireHistorique(cmd.historique_suivi).filter((e) => e.source !== source), ...recus]
+    const existants = lireHistorique(cmd.historique_suivi);
+    // Shippo / EasyPost donnent TOUT l'historique à chaque fois (on remplace leur part) ; Postes Canada ne donne que le DERNIER événement (on AJOUTE sans doublon)
+    const fusion = (SOURCES_DERNIER_EVENEMENT.has(source)
+      ? [...existants, ...recus.filter((e) => !existants.some((x) => x.source === source && x.date === e.date && x.statut === e.statut))]
+      : [...existants.filter((e) => e.source !== source), ...recus])
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     await pool.query('UPDATE boutique_commandes SET historique_suivi = $1::jsonb WHERE id = $2', [JSON.stringify(fusion), cmd.id]);
   }
@@ -389,6 +454,62 @@ async function traiterWebhookEasyPost(rawBuffer, enTeteSignature) {
   return { traitees, rejetees };
 }
 
+// ── Suivi Postes Canada (pas de webhook : un cron interroge l'API de repérage) ──────────────────────────
+let suiviPostesEnCours = false;
+
+/**
+ * Interroge Postes Canada pour chaque commande boutique suivie (étiquette Postes Canada, numéro de suivi) avec les identifiants de SON gestionnaire.
+ * Appelée par routes/boutique_cron_suivi_postescanada.js. Une commande terminée et CONFIRMÉE par le transporteur n'est plus interrogée ;
+ * une commande marquée « livrée » à la main reste vérifiée 14 jours. Add-on inactif ou transporteur changé : on saute.
+ */
+async function suivrePostesCanada() {
+  if (suiviPostesEnCours) return { ignore: 'déjà en cours' };
+  suiviPostesEnCours = true;
+  const bilan = { verifiees: 0, misesAJour: 0, erreurs: 0 };
+  try {
+    const mod = TRANSPORTEURS.postescanada.charger();
+    const r = await pool.query(
+      `SELECT id, statut, etape_livraison, historique_suivi, gestionnaire_id, numero_suivi, numero_commande
+         FROM boutique_commandes
+        WHERE etiquette_provider = 'postescanada' AND numero_suivi IS NOT NULL AND statut IN ('confirmee','expediee','livree')
+          AND (statut <> 'livree' OR updated_at > NOW() - INTERVAL '14 days')
+        ORDER BY gestionnaire_id, id LIMIT 1000`);
+    const configs = new Map();
+    for (const cmd of r.rows) {
+      if (!configs.has(cmd.gestionnaire_id)) {
+        let cfg = null;
+        try {
+          if (await autorise(cmd.gestionnaire_id, 'postescanada')) {
+            const row = await lireConfig(cmd.gestionnaire_id);
+            cfg = row && row.provider_actif === 'postescanada' ? configPostesCanada(row) : null;
+          }
+        } catch (e) { cfg = null; }
+        configs.set(cmd.gestionnaire_id, cfg);
+      }
+      const cfg = configs.get(cmd.gestionnaire_id);
+      if (!cfg) continue;
+      const dernierPC = lireHistorique(cmd.historique_suivi).find((e) => e.source === 'postescanada');
+      if (ETAPES_TERMINALES.has(cmd.etape_livraison) && dernierPC && dernierPC.etape === cmd.etape_livraison) continue;
+      try {
+        const ev = await mod.obtenirStatutSuivi(cfg, cmd.numero_suivi);
+        bilan.verifiees++;
+        if (!ev) continue;
+        const avant = cmd.etape_livraison;
+        await appliquerSuivi(cmd, {
+          etapeLivraison: ev.etapeLivraison,
+          historique: (ev.description || ev.statutBrut) ? [{ dateEvenement: ev.dateEvenement, description: ev.description || ev.statutBrut, ville: ev.ville }] : [],
+        }, 'postescanada');
+        if (ev.etapeLivraison && ev.etapeLivraison !== avant) bilan.misesAJour++;
+      } catch (e) {
+        bilan.erreurs++;
+        console.error(`⚠️ Cron suivi Postes Canada (boutique) — commande ${cmd.id} :`, e.message);
+      }
+    }
+  } finally { suiviPostesEnCours = false; }
+  return bilan;
+}
+
 module.exports = {
+  suivrePostesCanada, enregistrerPostesCanada,
   TRANSPORTEURS, etatConfig, enregistrerShippo, enregistrerEasyPost, configActive, apercu, tarifs, acheter, appliquerSuivi, traiterWebhookShippo, traiterWebhookEasyPost, verifierSignatureEasyPost, lireHistorique,
 };

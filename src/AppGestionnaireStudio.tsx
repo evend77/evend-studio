@@ -1650,7 +1650,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   };
 
   // Onglet « Étiquettes d'expédition » de la Config générale : boutique solo seulement, si au moins un add-on d'étiquettes est acheté
-  const ongletEtiquettesSolo = (estSolo && (addonsBoutique.etiquette_shippo || addonsBoutique.etiquette_easypost))
+  const ongletEtiquettesSolo = (estSolo && (addonsBoutique.etiquette_shippo || addonsBoutique.etiquette_easypost || addonsBoutique.etiquette_postescanada))
     ? <BoutiqueEtiquettes gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />
     : undefined;
   const renderPage = () => {

@@ -114,6 +114,8 @@ app.post('/api/webhooks-etiquettes/easypost', express.raw({ type: 'application/j
 app.use('/api/webhooks-etiquettes', require('./routes/webhooks_etiquettes'));
 // Suivi des colis Postes Canada (pas de webhook chez eux : un cron du VPS appelle cette route, protégée par CRON_SECRET)
 app.use('/api/cron-suivi-postescanada', require('./routes/cron_suivi_postescanada'));
+// Idem pour la boutique solo (ses commandes, identifiants du gestionnaire)
+app.use('/api/cron-suivi-postescanada-boutique', require('./routes/boutique_cron_suivi_postescanada'));
 // Retour d'eBay après la connexion d'un compte de collaborateur (adresse fixe, sans session)
 app.use('/api/ebay-connexion', require('./routes/ebay_connexion'));
 

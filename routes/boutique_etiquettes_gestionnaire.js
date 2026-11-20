@@ -3,6 +3,7 @@
 //   GET  /config                       → état par transporteur (add-on actif, clé configurée oui/non, mode, URL du webhook, adresse complète) — jamais une clé
 //   PUT  /shippo                       → { token?, actif?, effacer? } enregistre / active / désactive / efface la clé Shippo
 //   PUT  /easypost                     → { cle?, mode?, actif?, effacer?, secret?, effacer_secret? } clés EasyPost (EZTK test / EZAK production), mode, secret du webhook
+//   PUT  /postescanada                → { cle?, secret?, numero_client?, mode?, actif?, effacer? } identifiants Postes Canada (API + code secret + numéro de client)
 //   (un seul transporteur actif à la fois : activer l'un désactive l'autre)
 //   GET  /commandes/:id/apercu         → poids connu des articles + état de l'adresse d'expédition
 //   POST /commandes/:id/tarifs         → { poids_kg?, longueur_cm?, largeur_cm?, hauteur_cm? } → tarifs disponibles
@@ -47,6 +48,12 @@ router.put('/shippo', h(async (req, res) => {
 router.put('/easypost', h(async (req, res) => {
   const b = req.body || {};
   await E.enregistrerEasyPost(req.gid, { cle: b.cle, mode: b.mode, actif: typeof b.actif === 'boolean' ? b.actif : undefined, effacer: b.effacer === true, secret: b.secret, effacerSecret: b.effacer_secret === true });
+  res.json(await E.etatConfig(req.gid));
+}));
+
+router.put('/postescanada', h(async (req, res) => {
+  const b = req.body || {};
+  await E.enregistrerPostesCanada(req.gid, { cle: b.cle, secret: b.secret, numeroClient: b.numero_client, mode: b.mode, actif: typeof b.actif === 'boolean' ? b.actif : undefined, effacer: b.effacer === true });
   res.json(await E.etatConfig(req.gid));
 }));
 

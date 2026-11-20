@@ -1,6 +1,6 @@
 // CHEMIN : src/pages/gestionnaire/BoutiqueEtiquetteModal.tsx
-// e-Vend Studio — Add-on « Étiquettes Shippo » (boutique solo) : fenêtre de création d'étiquette depuis le détail d'une commande.
-// Étapes : dimensions/poids → tarifs Shippo → CONFIRMATION avec le prix (l'étiquette est facturée sur le compte Shippo du gestionnaire) → achat.
+// e-Vend Studio — Add-ons d'étiquettes Shippo / EasyPost / Postes Canada (boutique solo) : fenêtre de création d'étiquette depuis le détail d'une commande.
+// Étapes : dimensions/poids → tarifs du transporteur actif → CONFIRMATION avec le prix (l'étiquette est facturée sur le compte du gestionnaire chez ce transporteur) → achat.
 // API : /api/boutique/gestionnaire/etiquettes/commandes/:id/{apercu,tarifs,etiquette}. Aucun popup du navigateur (BoutiqueModale).
 
 import React, { useEffect, useState } from 'react';
@@ -16,6 +16,22 @@ interface Props {
 }
 
 export const urlHttpSure = (u: string | null | undefined) => (u && /^https?:\/\/\S+$/i.test(u) ? u : null);
+// Étiquette : lien https (Shippo, EasyPost) ou PDF en base64 (Postes Canada)
+export const urlEtiquetteSure = (u: string | null | undefined) => urlHttpSure(u) || (u && /^data:application\/pdf;base64,[A-Za-z0-9+/=]+$/.test(u) ? u : null);
+// Les navigateurs bloquent l'ouverture directe d'un PDF « data: » : on le convertit en Blob avant de l'ouvrir
+export function ouvrirPdf(u: string) {
+  try {
+    if (u.startsWith('data:')) {
+      const bin = atob(u.slice(u.indexOf(',') + 1));
+      const octets = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) octets[i] = bin.charCodeAt(i);
+      const url = URL.createObjectURL(new Blob([octets], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+    } else window.open(u, '_blank');
+  } catch (e) { /* PDF illisible : rien à ouvrir */ }
+}
+const NOMS_FOURNISSEURS: Record<string, string> = { shippo: 'Shippo', easypost: 'EasyPost', postescanada: 'Postes Canada' };
 
 export default function BoutiqueEtiquetteModal({ commandeId, numeroCommande, accent, isMobile, onFermer, onAchetee }: Props) {
   const [chargement, setChargement] = useState(true);
@@ -26,6 +42,7 @@ export default function BoutiqueEtiquetteModal({ commandeId, numeroCommande, acc
   const [occupe, setOccupe] = useState(false);
   const [aConfirmer, setAConfirmer] = useState<Tarif | null>(null);
   const [erreur, setErreur] = useState('');
+  const [fournisseur, setFournisseur] = useState('');
   const [diag, setDiag] = useState<any>(null);
 
   useEffect(() => {
@@ -51,16 +68,16 @@ export default function BoutiqueEtiquetteModal({ commandeId, numeroCommande, acc
     const r = await bq(`/etiquettes/commandes/${commandeId}/tarifs`, { method: 'POST', body: { poids_kg: num(f.poids), longueur_cm: num(f.l), largeur_cm: num(f.la), hauteur_cm: num(f.h) } });
     setOccupe(false);
     if (!r.ok) { setErreur(messageErreur(r)); setDiag(r.data && r.data.diagnostic ? r.data.diagnostic : null); setTarifs(null); return; }
-    setTarifs(r.data.tarifs || []);
+    setTarifs(r.data.tarifs || []); setFournisseur(typeof r.data.provider === 'string' ? r.data.provider : '');
   };
 
   const acheter = async () => {
     if (!aConfirmer) return;
     setOccupe(true);
-    const r = await bq(`/etiquettes/commandes/${commandeId}/etiquette`, { method: 'POST', body: { rate_id: aConfirmer.rateId, shipment_id: aConfirmer.shipmentId, transporteur: aConfirmer.transporteur } });
+    const r = await bq(`/etiquettes/commandes/${commandeId}/etiquette`, { method: 'POST', body: { rate_id: aConfirmer.rateId, shipment_id: aConfirmer.shipmentId, transporteur: aConfirmer.transporteur, poids_kg: num(f.poids), longueur_cm: num(f.l), largeur_cm: num(f.la), hauteur_cm: num(f.h) } });
     setOccupe(false); setAConfirmer(null);
     if (!r.ok) { setErreur(messageErreur(r)); return; }
-    onAchetee({ numero_suivi: r.data.numero_suivi || null, url_etiquette: urlHttpSure(r.data.url_etiquette) });
+    onAchetee({ numero_suivi: r.data.numero_suivi || null, url_etiquette: urlEtiquetteSure(r.data.url_etiquette) });
   };
 
   const champ: React.CSSProperties = { padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 13, boxSizing: 'border-box', width: '100%' };
@@ -116,7 +133,7 @@ export default function BoutiqueEtiquetteModal({ commandeId, numeroCommande, acc
       </div>
       {aConfirmer && (
         <BoutiqueModale type="confirmer" accent={accent} titre="Confirmer l'achat de l'étiquette" enCours={occupe}
-          message={`${aConfirmer.transporteur} — ${aConfirmer.service}\nPrix : ${formaterArgent(aConfirmer.montant, aConfirmer.devise)}\n\nCe montant sera facturé sur votre compte Shippo. Pour annuler ou faire rembourser une étiquette achetée par erreur, passez par votre tableau de bord Shippo.`}
+          message={`${aConfirmer.transporteur} — ${aConfirmer.service}\nPrix : ${formaterArgent(aConfirmer.montant, aConfirmer.devise)}\n\nCe montant sera facturé sur votre compte ${NOMS_FOURNISSEURS[fournisseur] || 'transporteur'}${fournisseur === 'postescanada' ? ' (carte de crédit enregistrée chez Postes Canada)' : ''}. Pour annuler ou faire rembourser une étiquette achetée par erreur, passez par votre tableau de bord ${NOMS_FOURNISSEURS[fournisseur] || 'transporteur'}.`}
           texteConfirmer={`Acheter · ${formaterArgent(aConfirmer.montant, aConfirmer.devise)}`} texteFermer="Retour" onFermer={() => { if (!occupe) setAConfirmer(null); }} onConfirmer={acheter} />
       )}
     </div>

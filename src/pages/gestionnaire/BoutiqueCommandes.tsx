@@ -5,7 +5,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { bq, messageErreur, formaterArgent } from './boutiqueApi';
 import BoutiqueModale from './BoutiqueModale';
-import BoutiqueEtiquetteModal, { urlHttpSure } from './BoutiqueEtiquetteModal';
+import BoutiqueEtiquetteModal, { urlHttpSure, urlEtiquetteSure, ouvrirPdf } from './BoutiqueEtiquetteModal';
 
 interface Props { gestionnaireId: number; accent?: string; isMobile?: boolean; naviguerVers?: (page: string) => void; }
 type Filtre = 'a_traiter' | 'expediees' | 'livrees' | 'attente' | 'annulees' | 'toutes';
@@ -122,7 +122,9 @@ export default function BoutiqueCommandes({ accent, isMobile }: Props) {
               <div>{c.mode_paiement === 'stripe' ? '💳 Carte (Stripe)' : '🅿️ PayPal'}{c.env === 'dev' ? ' — mode test' : ''}<br /><span style={{ color: '#6b7280', fontSize: 12 }}>Réf. {c.reference_paiement || '—'}{c.paye_le ? ` · ${date(c.paye_le)}` : ''}</span></div>
               {c.numero_suivi && <div style={{ marginTop: 10 }}>📮 Suivi : <strong>{c.numero_suivi}</strong>{c.transporteur_suivi ? ` (${c.transporteur_suivi})` : ''}
                 {urlHttpSure(c.url_suivi) && <><br /><a href={urlHttpSure(c.url_suivi) as string} target="_blank" rel="noopener noreferrer" style={{ color: couleur, fontWeight: 700 }}>Suivre le colis ↗</a></>}
-                {urlHttpSure(c.url_etiquette) && <><br /><a href={urlHttpSure(c.url_etiquette) as string} target="_blank" rel="noopener noreferrer" style={{ color: couleur, fontWeight: 700 }}>📄 Télécharger / imprimer l'étiquette ↗</a></>}
+                {urlEtiquetteSure(c.url_etiquette) && <><br />{String(c.url_etiquette).startsWith('data:')
+                  ? <button type="button" onClick={() => ouvrirPdf(c.url_etiquette)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: couleur, fontWeight: 700, fontSize: 'inherit' }}>📄 Télécharger / imprimer l'étiquette ↗</button>
+                  : <a href={urlHttpSure(c.url_etiquette) as string} target="_blank" rel="noopener noreferrer" style={{ color: couleur, fontWeight: 700 }}>📄 Télécharger / imprimer l'étiquette ↗</a>}</>}
                 {c.etape_livraison && <><br /><span style={{ color: '#6b7280' }}>Étape : {ETAPES[c.etape_livraison] || c.etape_livraison}</span></>}
               </div>}
               {Array.isArray(c.historique_suivi) && c.historique_suivi.length > 0 && (
