@@ -151,7 +151,7 @@ router.put('/', authenticateToken, async (req, res) => {
          updated_at                  = NOW()
        RETURNING *`,
       [
-        vendeurId,
+        gestionnaireId,
         actif ?? true,
         position ?? 'bas-gauche',
         titre ?? DEFAUTS.titre,

@@ -10,6 +10,7 @@ import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-
 import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
 import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
 import BoutiqueParutionCountdown, { useConfigParution, formaterDateParution } from '../components/BoutiqueParutionCountdown';   // add-on « Parution future » : compte à rebours
+import useBoutiqueAnalytique from '../hooks/useBoutiqueAnalytique';   // add-on « Analytique » : compte les pages vues (après consentement du visiteur)
 import BoutiqueBoutonInstallerApp from '../components/BoutiqueBoutonInstallerApp';   // add-on « App installable » : bouton « Installer l'app » (mobile)
 import BoutiqueVerificateurAge from '../components/BoutiqueVerificateurAge';   // add-on « Vérificateur d'âge » : fenêtre bloquante à l'arrivée
 import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
@@ -362,6 +363,14 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [varianteChoisie,setVarianteChoisie] = useState<Record<string,string>>({});
   const [ouvertes,setOuvertes] = useState<Record<number,boolean>>({});   // Parution future : annonces dont le compte à rebours vient de finir
   const cfgParution = useConfigParution(vendeurId);
+  const { trackPageView } = useBoutiqueAnalytique(vendeurId, vendeurId>0&&!configBrut?.__produits_demo__);   // add-on « Analytique » : rien n'est envoyé sans l'add-on, sans la bannière ou sans consentement
+  useEffect(()=>{
+    const noms:Record<string,[string,string]>={ accueil:['/','Accueil'], catalogue:['/catalogue','Catalogue'], offres:['/offres','Offres du jour'], encheres:['/encheres','Enchères'], blog:['/blog','Blogue'], faq:['/faq','FAQ'], 'a-propos':['/a-propos','À propos'], contact:['/contact','Contact'], panier:['/panier','Panier'], compte:['/compte','Mon compte'], login:['/connexion','Connexion'], inscription:['/inscription','Inscription'] };
+    if(page==='produit'){ if(produitActif) trackPageView('/produit/'+produitActif.id, produitActif.titre); return; }
+    if(page==='article'){ if(articleActif) trackPageView('/blog/'+(articleActif.slug||articleActif.id), articleActif.titre); return; }
+    if(page==='politique'){ trackPageView('/politique/'+(politiqueEnCours.current||'')); return; }
+    const n=noms[page]; if(n) trackPageView(n[0],n[1]);
+  },[page,produitActif?.id,articleActif?.id,trackPageView]);
   const [zoomActif,setZoomActif]   = useState(false);
   const [sourisPos,setSourisPos]   = useState({x:0,y:0});
   const [ongletProduit,setOngletProduit] = useState<'description'|'avis'|'livraison'>('description');

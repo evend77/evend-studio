@@ -95,6 +95,7 @@ import BoutiqueParutionFutur        from './pages/gestionnaire/BoutiqueParutionF
 import BoutiqueVerificateurAge     from './pages/gestionnaire/BoutiqueVerificateurAge';
 import BoutiqueFavicon             from './pages/gestionnaire/BoutiqueFavicon';
 import BoutiquePwa                from './pages/gestionnaire/BoutiquePwa';
+import BoutiqueAnalytique         from './pages/gestionnaire/BoutiqueAnalytique';
 import BoutiqueConfigEncheres      from './pages/gestionnaire/BoutiqueConfigEncheres';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
@@ -842,6 +843,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const avecParutionFutur = (m: MenuItem): MenuItem => addonsBoutique.parution_future ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-parution-futur', label: 'Parution future', icon: '📅' }] } : m;
   const avecVerificateurAge = (m: MenuItem): MenuItem => addonsBoutique.verificateur_age ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-verificateur-age', label: "Vérificateur d'âge", icon: '🔞' }] } : m;
   const avecFavicon = (m: MenuItem): MenuItem => addonsBoutique.favicon_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-favicon', label: 'Favicon', icon: '🖼️' }] } : m;
+  const avecAnalytique = (m: MenuItem): MenuItem => addonsBoutique.analytique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-analytique', label: 'Analytique', icon: '📊' }] } : m;
   const avecPwa = (m: MenuItem): MenuItem => addonsBoutique.pwa_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-pwa', label: 'App installable', icon: '📲' }] } : m;
   const avecEffets = (m: MenuItem): MenuItem => addonsBoutique.effets_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-effets', label: 'Effets de boutique', icon: '✨' }] } : m;
 
@@ -1332,7 +1334,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioPremium,
-      avecPwa(avecFavicon(avecVerificateurAge(avecParutionFutur(avecFavoris(avecPopupAnnonce(avecChatbot(avecConfigEncheres(avecEffets(menuConfigPremium))))))))),
+      avecAnalytique(avecPwa(avecFavicon(avecVerificateurAge(avecParutionFutur(avecFavoris(avecPopupAnnonce(avecChatbot(avecConfigEncheres(avecEffets(menuConfigPremium)))))))))),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
@@ -1666,6 +1668,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       if (pageActive === 'boutique-parution-futur' && addonsBoutique.parution_future) return <BoutiqueParutionFutur gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-verificateur-age' && addonsBoutique.verificateur_age) return <BoutiqueVerificateurAge gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-favicon' && addonsBoutique.favicon_boutique) return <BoutiqueFavicon gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
+      if (pageActive === 'boutique-analytique' && addonsBoutique.analytique) return <BoutiqueAnalytique gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-pwa' && addonsBoutique.pwa_boutique) return <BoutiquePwa gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-avis' && addonsBoutique.avis_clients) return <BoutiqueAvis gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-questions') return <BoutiqueQuestions gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
