@@ -96,6 +96,7 @@ import BoutiqueVerificateurAge     from './pages/gestionnaire/BoutiqueVerificate
 import BoutiqueFavicon             from './pages/gestionnaire/BoutiqueFavicon';
 import BoutiquePwa                from './pages/gestionnaire/BoutiquePwa';
 import BoutiqueAnalytique         from './pages/gestionnaire/BoutiqueAnalytique';
+import BoutiqueEtiquettes         from './pages/gestionnaire/BoutiqueEtiquettes';
 import BoutiqueConfigEncheres      from './pages/gestionnaire/BoutiqueConfigEncheres';
 import BoutiqueConfigPaiements     from './pages/gestionnaire/BoutiqueConfigPaiements';
 import BoutiqueCommandes          from './pages/gestionnaire/BoutiqueCommandes';
@@ -1338,6 +1339,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
+        ...(addonsBoutique.etiquette_shippo ? [{ id:'boutique-etiquettes',label:"Étiquettes d'expédition",icon:'🏷️' }] : []),
         { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
         itemPage404,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
@@ -1668,6 +1670,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       if (pageActive === 'boutique-parution-futur' && addonsBoutique.parution_future) return <BoutiqueParutionFutur gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-verificateur-age' && addonsBoutique.verificateur_age) return <BoutiqueVerificateurAge gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-favicon' && addonsBoutique.favicon_boutique) return <BoutiqueFavicon gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
+      if (pageActive === 'boutique-etiquettes' && addonsBoutique.etiquette_shippo) return <BoutiqueEtiquettes gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-analytique' && addonsBoutique.analytique) return <BoutiqueAnalytique gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-pwa' && addonsBoutique.pwa_boutique) return <BoutiquePwa gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-avis' && addonsBoutique.avis_clients) return <BoutiqueAvis gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;

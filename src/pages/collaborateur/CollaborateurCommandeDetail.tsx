@@ -119,11 +119,12 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
   const [diagnostic, setDiagnostic] = useState<unknown>(null);
   const [diagOuvert, setDiagOuvert] = useState(false);
   const [achatEnCours, setAchatEnCours] = useState<string | null>(null);
+  const [aConfirmer, setAConfirmer] = useState<Tarif | null>(null);   // tarif choisi : l'achat n'est lancé qu'après confirmation du prix
 
   const ouvrirEtiquette = () => {
     const kg = (d?.articles || []).reduce((s, a) => s + (parseFloat(String(a.poids ?? '')) || 0) * Number(a.quantite ?? 1), 0);
     setPoids(kg > 0 ? String(Math.round(kg * 100) / 100) : '');
-    setTarifs(null); setErreurEtiq(''); setDiagnostic(null); setDiagOuvert(false);
+    setTarifs(null); setErreurEtiq(''); setDiagnostic(null); setDiagOuvert(false); setAConfirmer(null);
     setModalEtiquette(true);
   };
   const corpsColis = () => ({
@@ -140,9 +141,10 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
     } catch { setErreurEtiq('Erreur de connexion au serveur'); }
     setChargementTarifs(false);
   };
-  // Le clic sur « Acheter » pour un tarif précis EST la confirmation (le prix et le service sont déjà affichés).
+  // « Acheter » n'achète rien : il ouvre une confirmation qui rappelle le prix (facturé sur le compte du transporteur du collaborateur) ; seul « Confirmer l'achat » appelle l'API.
   const acheterEtiquette = async (t: Tarif) => {
     setAchatEnCours(t.rateId); setErreurEtiq('');
+    setAConfirmer(null);
     try {
       const res = await fetch(`${base}/etiquette`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rate_id: t.rateId, shipment_id: t.shipmentId, transporteur: t.transporteur, service: t.service, ...corpsColis() }) });
@@ -619,7 +621,7 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                           <span style={{ fontSize: 15, fontWeight: 700, color: accent }}>{Number(t.montant).toFixed(2)} {t.devise}</span>
-                          <button onClick={() => acheterEtiquette(t)} disabled={achatEnCours !== null} style={{ ...btn(true), background: '#27AE60', padding: '8px 14px', fontSize: 12, opacity: achatEnCours !== null ? 0.6 : 1 }}>
+                          <button onClick={() => setAConfirmer(t)} disabled={achatEnCours !== null} style={{ ...btn(true), background: '#27AE60', padding: '8px 14px', fontSize: 12, opacity: achatEnCours !== null ? 0.6 : 1 }}>
                             {achatEnCours === t.rateId ? '⏳ Achat…' : '✓ Acheter'}
                           </button>
                         </div>
@@ -633,6 +635,22 @@ export default function CollaborateurCommandeDetail({ gestionnaireId, accent, is
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {modalEtiquette && aConfirmer && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.55)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+          <div role="alertdialog" aria-modal="true" style={{ background: '#fff', borderRadius: 14, padding: isMobile ? 20 : 26, width: 440, maxWidth: '100%', textAlign: 'center', boxShadow: '0 12px 40px rgba(0,0,0,.3)' }}>
+            <div style={{ width: 56, height: 56, borderRadius: '50%', background: '#e0e7ff', margin: '0 auto 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28 }}>🏷️</div>
+            <h3 style={{ margin: '0 0 8px', fontSize: 18, color: T.text }}>Confirmer l'achat de l'étiquette</h3>
+            <p style={{ margin: '0 0 4px', fontSize: 14, color: T.text }}><strong>{aConfirmer.transporteur}</strong> — {aConfirmer.service}</p>
+            <p style={{ margin: '0 0 12px', fontSize: 22, fontWeight: 800, color: accent }}>{Number(aConfirmer.montant).toFixed(2)} {aConfirmer.devise}</p>
+            <p style={{ margin: '0 0 18px', fontSize: 12, color: T.light, lineHeight: 1.55 }}>Ce montant sera facturé sur votre compte chez le transporteur. Pour annuler ou faire rembourser une étiquette achetée par erreur, passez directement par le tableau de bord de votre transporteur (Shippo, EasyPost ou Postes Canada) : ce n'est pas possible depuis l'application.</p>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => setAConfirmer(null)} disabled={achatEnCours !== null} style={btn(false)}>Retour</button>
+              <button onClick={() => acheterEtiquette(aConfirmer)} disabled={achatEnCours !== null} style={{ ...btn(true), background: '#27AE60', opacity: achatEnCours !== null ? 0.6 : 1 }}>{achatEnCours !== null ? '⏳ Achat…' : `Confirmer l'achat · ${Number(aConfirmer.montant).toFixed(2)} ${aConfirmer.devise}`}</button>
+            </div>
           </div>
         </div>
       )}

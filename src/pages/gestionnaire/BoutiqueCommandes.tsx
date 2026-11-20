@@ -5,6 +5,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { bq, messageErreur, formaterArgent } from './boutiqueApi';
 import BoutiqueModale from './BoutiqueModale';
+import BoutiqueEtiquetteModal, { urlHttpSure } from './BoutiqueEtiquetteModal';
 
 interface Props { gestionnaireId: number; accent?: string; isMobile?: boolean; naviguerVers?: (page: string) => void; }
 type Filtre = 'a_traiter' | 'expediees' | 'livrees' | 'attente' | 'annulees' | 'toutes';
@@ -22,6 +23,8 @@ export function badgeCommande(c: { statut: string; statut_paiement: string }): {
   return { texte: 'À traiter', couleur: '#4f46e5' };
 }
 
+const ETAPES: Record<string, string> = { etiquette_creer: 'Étiquette créée', transit: 'En transit', livree: 'Livrée', retournee_expediteur: "Retournée à l'expéditeur", livraison_echouee: 'Livraison échouée' };
+
 const date = (d: string | null) => (d ? new Date(d).toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 
 export default function BoutiqueCommandes({ accent, isMobile }: Props) {
@@ -36,6 +39,9 @@ export default function BoutiqueCommandes({ accent, isMobile }: Props) {
   const [suivi, setSuivi] = useState({ numero: '', transporteur: '' });
   const [rembModal, setRembModal] = useState<{ montant: string; stock: boolean; raison: string } | null>(null);
   const [confirmAnnul, setConfirmAnnul] = useState(false);
+  const [etiqPret, setEtiqPret] = useState(false);          // add-on « Étiquettes Shippo » actif + clé Shippo enregistrée et activée
+  const [modalEtiq, setModalEtiq] = useState(false);
+  useEffect(() => { (async () => { const r = await bq('/etiquettes/config'); setEtiqPret(!!(r.ok && r.data && r.data.pret)); })(); }, []);
 
   const charger = useCallback(async () => {
     const r = await bq(`/commandes?filtre=${filtre}&q=${encodeURIComponent(q)}&page=${page}`);
@@ -114,10 +120,25 @@ export default function BoutiqueCommandes({ accent, isMobile }: Props) {
               {c.note && <div style={{ marginTop: 8, background: '#f9fafb', borderRadius: 8, padding: 8 }}>💬 {c.note}</div>}
               <h3 style={{ margin: '14px 0 6px', fontSize: 15 }}>Paiement</h3>
               <div>{c.mode_paiement === 'stripe' ? '💳 Carte (Stripe)' : '🅿️ PayPal'}{c.env === 'dev' ? ' — mode test' : ''}<br /><span style={{ color: '#6b7280', fontSize: 12 }}>Réf. {c.reference_paiement || '—'}{c.paye_le ? ` · ${date(c.paye_le)}` : ''}</span></div>
-              {c.numero_suivi && <div style={{ marginTop: 10 }}>📮 Suivi : <strong>{c.numero_suivi}</strong>{c.transporteur_suivi ? ` (${c.transporteur_suivi})` : ''}</div>}
+              {c.numero_suivi && <div style={{ marginTop: 10 }}>📮 Suivi : <strong>{c.numero_suivi}</strong>{c.transporteur_suivi ? ` (${c.transporteur_suivi})` : ''}
+                {urlHttpSure(c.url_suivi) && <><br /><a href={urlHttpSure(c.url_suivi) as string} target="_blank" rel="noopener noreferrer" style={{ color: couleur, fontWeight: 700 }}>Suivre le colis ↗</a></>}
+                {urlHttpSure(c.url_etiquette) && <><br /><a href={urlHttpSure(c.url_etiquette) as string} target="_blank" rel="noopener noreferrer" style={{ color: couleur, fontWeight: 700 }}>📄 Télécharger / imprimer l'étiquette ↗</a></>}
+                {c.etape_livraison && <><br /><span style={{ color: '#6b7280' }}>Étape : {ETAPES[c.etape_livraison] || c.etape_livraison}</span></>}
+              </div>}
+              {Array.isArray(c.historique_suivi) && c.historique_suivi.length > 0 && (
+                <div style={{ marginTop: 8, borderTop: '1px solid #f3f4f6', paddingTop: 8, fontSize: 12 }}>
+                  {c.historique_suivi.slice(0, 6).map((e: any, i: number) => (
+                    <div key={i} style={{ padding: '2px 0', color: '#4b5563' }}><strong>{e.statut}</strong>{e.description ? ` — ${e.description}` : ''}<br /><span style={{ color: '#9ca3af' }}>{date(e.date)}</span></div>
+                  ))}
+                </div>
+              )}
             </div>
             {payee && c.statut !== 'annulee' && (
               <div style={{ ...carte, padding: 16, marginBottom: 14 }}>
+                {etiqPret && !c.etiquette_provider && (c.statut === 'confirmee' || c.statut === 'expediee') && (<>
+                  <h3 style={{ margin: '0 0 8px', fontSize: 15 }}>Étiquette d'expédition</h3>
+                  <button disabled={occupe} style={{ ...btn(true), width: '100%', marginBottom: 10 }} onClick={() => setModalEtiq(true)}>{c.numero_suivi ? '🏷️ Acheter une étiquette (remplace le suivi manuel)' : '🏷️ Créer une étiquette'}</button>
+                </>)}
                 {c.statut === 'confirmee' && (<>
                   <h3 style={{ margin: '0 0 8px', fontSize: 15 }}>Expédier</h3>
                   <input style={{ ...champ, marginBottom: 8 }} placeholder="Numéro de suivi (facultatif)" value={suivi.numero} onChange={e => setSuivi(s => ({ ...s, numero: e.target.value }))} />
@@ -156,6 +177,8 @@ export default function BoutiqueCommandes({ accent, isMobile }: Props) {
             </div>
           </div>
         )}
+        {modalEtiq && <BoutiqueEtiquetteModal commandeId={c.id} numeroCommande={c.numero_commande} accent={couleur} isMobile={isMobile} onFermer={() => setModalEtiq(false)}
+          onAchetee={async (r) => { setModalEtiq(false); await voir(c.id); charger(); setModale({ type: 'succes', message: `Étiquette achetée. Numéro de suivi : ${r.numero_suivi || '—'}. Le lien pour l'imprimer est dans la carte « Client » de la commande.` }); }} />}
         {confirmAnnul && <BoutiqueModale type="confirmer" accent={couleur} message="Annuler cette commande non payée ? Le stock réservé sera remis en vente." texteConfirmer="Oui, annuler" texteFermer="Non" enCours={occupe} onFermer={() => setConfirmAnnul(false)} onConfirmer={async () => { await agir('/annuler', 'POST', {}, 'Commande annulée.'); setConfirmAnnul(false); }} />}
         {modale && <BoutiqueModale type={modale.type} accent={couleur} message={modale.message} onFermer={() => setModale(null)} />}
       </div>
