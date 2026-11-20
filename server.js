@@ -1126,7 +1126,10 @@ if (process.env.NODE_ENV === 'production') {
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       // 🖼️ Add-on « Favicon personnalisé » : seulement sur l'adresse d'une boutique (jamais e-vendstudio.ca). Avant la PWA.
-      try { html = await require('./services/studio_favicon_boutique').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ Favicon boutique :', e.message); }
+      // 🖼️ Add-on « Favicon » des templates boutique (solo) : injecte d'abord et pose le repère <!--bq-favicon-->
+      try { html = await require('./services/boutique_favicon').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ Favicon boutique (solo) :', e.message); }
+      // 🖼️ Add-on « Favicon personnalisé » du multivendeur : pas pour une boutique solo (repère déjà posé)
+      if (!html.includes('<!--bq-favicon-->')) try { html = await require('./services/studio_favicon_boutique').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ Favicon boutique :', e.message); }
       // 📲 Add-on « App installable » : si ce domaine est une boutique avec la PWA active, on ajoute manifest + icône + script
       try { html = await require('./services/studio_pwa_boutique').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ PWA boutique :', e.message); }
       // 🛡️ Dissuade la copie des guides et politiques (e-vendstudio.ca seulement)

@@ -1,0 +1,253 @@
+// CHEMIN : src/pages/gestionnaire/BoutiqueFavicon.tsx
+// e-Vend Studio — Add-on « Favicon personnalisé » (boutique solo) : le gestionnaire téléverse la petite icône d'onglet de SA boutique.
+// + animation d'onglet (titre + favicon qui attirent le client qui a changé d'onglet) et compteur de retours.
+// API : /api/boutique/gestionnaire/favicon  (GET, POST, DELETE) et /animation (POST) — aucun lien avec le MV.
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { bq, BQ, messageErreur } from './boutiqueApi';
+import BoutiqueModale from './BoutiqueModale';
+
+const T = { accent: '#2d6a9f', border: '#e1e4e8', text: '#1a2332', light: '#6b7280', danger: '#dc2626', success: '#16a34a' };
+interface Anim { actif: boolean; declencheur: 'inactif' | 'panier' | 'toujours'; style: 'clignotant' | 'machine'; emoji: string; messages: string[] }
+interface Retours { jour: number; semaine: number; mois: number; total: number; total_avec_panier: number }
+const champ: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 14 };
+const etiquette: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 700, color: T.text, marginBottom: 6 };
+const GROUPES_EMOJIS: { titre: string; liste: string[] }[] = [
+  { titre: 'Magasinage', liste: ['🛒', '🛍️', '🎁', '🏷️', '💳', '💰', '🧾', '📦', '🚚', '🏪'] },
+  { titre: 'Attirer l\'attention', liste: ['✨', '🔥', '💡', '⚡', '⭐', '🌟', '💥', '🎉', '🎊', '❗', '❓', '🔔', '📣', '👀'] },
+  { titre: 'Urgence et offres', liste: ['⏰', '⏳', '🕐', '🚨', '💯', '🆕', '🆓', '🎯', '🏆', '🤑'] },
+  { titre: 'Sympathique', liste: ['👋', '😊', '😍', '🥰', '🤩', '😉', '🙏', '👍', '💛', '❤️', '💙', '💚', '💜', '🧡'] },
+  { titre: 'Noël et hiver', liste: ['🎅', '🤶', '🎄', '🦌', '⛄', '☃️', '❄️', '🎁', '🧦', '🔔', '🕯️', '🎿'] },
+  { titre: 'Pâques et printemps', liste: ['🐰', '🐇', '🥚', '🐣', '🐥', '🌷', '🌸', '🌼', '🌱', '🍫'] },
+  { titre: 'Halloween et automne', liste: ['🎃', '👻', '🦇', '🕷️', '💀', '🍂', '🍁', '🦃', '🌰', '🍎'] },
+  { titre: 'Été et vacances', liste: ['☀️', '😎', '🏖️', '🌴', '🍦', '🍉', '⛱️', '🚗', '✈️', '🎒'] },
+  { titre: 'Autres fêtes', liste: ['💘', '💝', '🌹', '💐', '🎂', '🥳', '🎈', '🎆', '🎇', '🇨🇦', '⚜️', '🍻'] },
+];
+const carte: React.CSSProperties = { background: '#fff', border: `1px solid ${T.border}`, borderRadius: 12, padding: 20, marginBottom: 16 };
+
+export default function BoutiqueFavicon({ accent, pagePlan, naviguerVers }: { gestionnaireId?: number; accent?: string; isMobile?: boolean; pagePlan?: string; naviguerVers?: (page: string) => void }) {
+  let token: string | null = null; try { token = localStorage.getItem('token'); } catch (e) { token = null; }
+  const auth: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+  const [addonActif, setAddonActif] = useState(true);
+  const [guide, setGuide] = useState('');
+  const [confirmerRetrait, setConfirmerRetrait] = useState(false);
+  const [url, setUrl] = useState<string | null>(null);
+  const [min, setMin] = useState(192);
+  const [max, setMax] = useState(1024);
+  const [chargement, setChargement] = useState(true);
+  const [enCours, setEnCours] = useState(false);
+  const [anim, setAnim] = useState<Anim>({ actif: false, declencheur: 'inactif', style: 'clignotant', emoji: '✨', messages: ['Revenez, on vous attend ! 🛍️'] });
+  const [retours, setRetours] = useState<Retours | null>(null);
+  const [saveAnim, setSaveAnim] = useState(false);
+  // Case « animer aussi le favicon » : décochée = seul le texte de l'onglet clignote, le favicon reste celui de la boutique
+  const [animFavicon, setAnimFavicon] = useState(true);
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; texte: string } | null>(null);
+  const fichier = useRef<HTMLInputElement>(null);
+
+  const charger = useCallback(async () => {
+    const [r, a] = await Promise.all([bq('/favicon'), bq('/addons')]);
+    if (!r.ok) { setMsg({ type: 'err', texte: messageErreur(r) }); }
+    else {
+      const d = r.data || {};
+      setUrl(d.favicon_url || null); if (d.min) setMin(d.min); if (d.max) setMax(d.max);
+      setAddonActif(d.addon_actif !== false);
+      if (d.animation) {
+        setAnim({ ...d.animation, emoji: d.animation.emoji || '✨', messages: d.animation.messages?.length ? d.animation.messages : [''] });
+        setAnimFavicon(!!d.animation.emoji || !d.animation.actif);
+      }
+      if (d.retours) setRetours(d.retours);
+    }
+    if (a.ok && a.data && Array.isArray(a.data.addons)) { const g = a.data.addons.find((y: any) => y.code === 'favicon_boutique'); if (g && g.guide_url) setGuide(g.guide_url); }
+    setChargement(false);
+  }, []);
+  useEffect(() => { charger(); }, [charger]);
+
+  const envoyer = async (f: File | undefined) => {
+    if (!f) return;
+    setMsg(null); setEnCours(true);
+    try {
+      const fd = new FormData(); fd.append('file', f);
+      const r = await fetch(`${BQ}/favicon`, { method: 'POST', credentials: 'include', headers: auth, body: fd });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) setMsg({ type: 'err', texte: d.error || 'Envoi impossible' });
+      else { setMsg({ type: 'ok', texte: 'Favicon enregistré. Il peut prendre quelques minutes à apparaître (videz le cache du navigateur si besoin).' }); await charger(); }
+    } catch { setMsg({ type: 'err', texte: 'Erreur réseau' }); }
+    if (fichier.current) fichier.current.value = '';
+    setEnCours(false);
+  };
+
+  const enregistrerAnim = async () => {
+    setMsg(null);
+    setSaveAnim(true);
+    const r = await bq('/favicon/animation', { method: 'POST', body: { actif: anim.actif, declencheur: anim.declencheur, style: anim.style, emoji: animFavicon ? anim.emoji : '', messages: anim.messages.filter(m => m.trim()) } });
+    if (!r.ok) setMsg({ type: 'err', texte: messageErreur(r) });
+    else { setMsg({ type: 'ok', texte: anim.actif ? "Animation enregistrée et active. Pour la voir, ouvrez votre boutique puis changez d'onglet." : 'Animation enregistrée (désactivée).' }); await charger(); }
+    setSaveAnim(false);
+  };
+  const majMessage = (i: number, v: string) => setAnim(a => ({ ...a, messages: a.messages.map((m, k) => (k === i ? v : m)) }));
+
+  const retirer = async () => {
+    setConfirmerRetrait(false); setMsg(null);
+    const r = await bq('/favicon', { method: 'DELETE' });
+    if (r.ok) { setMsg({ type: 'ok', texte: 'Favicon retiré.' }); await charger(); } else setMsg({ type: 'err', texte: messageErreur(r) });
+  };
+
+  if (chargement) return <div style={{ padding: 24, color: T.light }}>Chargement…</div>;
+
+  return (
+    <div style={{ maxWidth: 760, margin: '0 auto', padding: 20, color: T.text }}>
+      <h2 style={{ margin: '0 0 6px' }}>🖼️ Favicon personnalisé {guide && <a href={guide} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: T.accent, textDecoration: 'none', border: `1px solid ${T.accent}`, borderRadius: 12, padding: '2px 10px', marginLeft: 10, verticalAlign: 'middle' }}>📖 Guide</a>}</h2>
+      <p style={{ margin: '0 0 18px', color: T.light, fontSize: 14, lineHeight: 1.5 }}>
+        Le favicon est la petite icône qu'on voit dans l'onglet du navigateur et dans les favoris. Mettez la vôtre sur votre boutique, au lieu de celle de la plateforme.
+      </p>
+
+      {!addonActif && (
+        <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', borderRadius: 10, padding: '12px 16px', fontSize: 13, marginBottom: 16 }}>
+          🔒 L'add-on <strong>Favicon personnalisé</strong> n'est pas activé : vous pouvez regarder les réglages, mais l'envoi et l'enregistrement sont désactivés. Activez-le dans <strong>Mon plan &amp; limites</strong>.
+          {pagePlan && naviguerVers && <button type="button" onClick={() => naviguerVers(pagePlan)} style={{ marginLeft: 10, border: '1px solid #fdba74', background: '#fff', color: '#9a3412', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700 }}>Voir « Mon plan &amp; limites »</button>}
+        </div>
+      )}
+      {msg && <div style={{ ...carte, padding: 12, borderColor: msg.type === 'ok' ? T.success : T.danger, color: msg.type === 'ok' ? T.success : T.danger, fontSize: 14 }}>{msg.texte}</div>}
+
+      <div style={carte}>
+        <div style={{ display: 'flex', gap: 20, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ width: 96, height: 96, borderRadius: 12, border: `1px solid ${T.border}`, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', color: T.light, fontSize: 12, background: '#f9fafb' }}>
+              {url ? <img src={url} alt="Favicon" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : 'Aucun'}
+            </div>
+          </div>
+          {url && (
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#e5e7eb', borderRadius: '10px 10px 0 0', padding: '8px 14px', fontSize: 12, color: T.text }}>
+                <img src={url} alt="" style={{ width: 16, height: 16 }} /> Ma boutique
+              </div>
+              <div style={{ fontSize: 11, color: T.light, marginTop: 4 }}>Aperçu dans un onglet</div>
+            </div>
+          )}
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <input ref={fichier} type="file" accept="image/png" style={{ display: 'none' }} onChange={e => envoyer(e.target.files?.[0])} />
+            <button type="button" disabled={enCours || !addonActif} onClick={() => fichier.current?.click()}
+              style={{ background: T.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 16px', fontWeight: 700, cursor: addonActif ? 'pointer' : 'not-allowed', opacity: addonActif ? 1 : 0.5 }}>
+              {enCours ? 'Envoi…' : url ? 'Changer le favicon' : 'Téléverser le favicon'}
+            </button>
+            {url && (
+              <button type="button" onClick={() => setConfirmerRetrait(true)}
+                style={{ marginLeft: 8, background: '#fff', color: T.danger, border: `1px solid ${T.border}`, borderRadius: 8, padding: '10px 14px', fontWeight: 700, cursor: 'pointer' }}>Retirer</button>
+            )}
+            <p style={{ margin: '10px 0 0', fontSize: 12, color: T.light, lineHeight: 1.5 }}>
+              Image <b>PNG carrée</b> entre <b>{min} x {min}</b> et <b>{max} x {max}</b> pixels (max 2 Mo). Choisissez un dessin simple : il sera affiché très petit.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div style={carte}>
+        <h3 style={{ margin: '0 0 6px', fontSize: 16 }}>✨ Animation d'onglet</h3>
+        <p style={{ margin: '0 0 14px', fontSize: 13, color: T.light, lineHeight: 1.5 }}>
+          Quand un client quitte votre boutique pour un autre onglet, le titre de votre onglet et son icône s'animent pour le faire revenir. Rien ne s'affiche sur la page elle-même.
+        </p>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 14 }}>
+          <input type="checkbox" checked={anim.actif} onChange={e => setAnim(a => ({ ...a, actif: e.target.checked }))} style={{ width: 18, height: 18 }} />
+          Activer l'animation d'onglet
+        </label>
+
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <label style={etiquette}>Quand l'animation démarre</label>
+            <select style={champ} value={anim.declencheur} onChange={e => setAnim(a => ({ ...a, declencheur: e.target.value as Anim['declencheur'] }))}>
+              <option value="inactif">Quand le client change d'onglet</option>
+              <option value="panier">Seulement s'il a des articles dans son panier</option>
+              <option value="toujours">En permanence</option>
+            </select>
+          </div>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <label style={etiquette}>Style du texte</label>
+            <select style={champ} value={anim.style} onChange={e => setAnim(a => ({ ...a, style: e.target.value as Anim['style'] }))}>
+              <option value="clignotant">Clignotant (le message alterne avec le titre normal)</option>
+              <option value="machine">Machine à écrire (le message s'écrit lettre par lettre)</option>
+            </select>
+          </div>
+        </div>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14, fontWeight: 700, cursor: 'pointer', marginBottom: 10 }}>
+          <input type="checkbox" checked={animFavicon} onChange={e => setAnimFavicon(e.target.checked)} style={{ width: 18, height: 18 }} />
+          Faire aussi clignoter le favicon avec un émoji
+        </label>
+        {animFavicon ? (
+          <>
+            <label style={etiquette}>Émoji (alterne avec votre favicon)</label>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 10 }}>
+              <input style={{ ...champ, width: 90, textAlign: 'center', fontSize: 20 }} value={anim.emoji} maxLength={8} onChange={e => setAnim(a => ({ ...a, emoji: e.target.value }))} />
+              <span style={{ fontSize: 12, color: T.light }}>Choisissez dans la liste ou tapez le vôtre.</span>
+            </div>
+            <div style={{ maxHeight: 210, overflowY: 'auto', border: `1px solid ${T.border}`, borderRadius: 10, padding: '8px 12px', marginBottom: 14 }}>
+              {GROUPES_EMOJIS.map(g => (
+                <div key={g.titre} style={{ marginBottom: 8 }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: T.light, margin: '4px 0' }}>{g.titre}</div>
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    {g.liste.map(em => (
+                      <button key={em} type="button" onClick={() => setAnim(a => ({ ...a, emoji: em }))}
+                        style={{ border: `1px solid ${anim.emoji === em ? T.accent : T.border}`, background: anim.emoji === em ? '#eef5fb' : '#fff', borderRadius: 8, padding: '5px 9px', fontSize: 20, cursor: 'pointer' }}>{em}</button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p style={{ margin: '0 0 14px', fontSize: 12, color: T.light }}>Seul le texte de l'onglet va clignoter. Votre favicon ne change pas.</p>
+        )}
+
+        <label style={etiquette}>Messages affichés dans l'onglet (jusqu'à 5, 60 lettres max)</label>
+        {anim.messages.map((m, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+            <input style={champ} value={m} maxLength={60} placeholder="Ex. Votre panier vous attend 🛒" onChange={e => majMessage(i, e.target.value)} />
+            {anim.messages.length > 1 && (
+              <button type="button" onClick={() => setAnim(a => ({ ...a, messages: a.messages.filter((_, k) => k !== i) }))}
+                style={{ border: `1px solid ${T.border}`, background: '#fff', color: T.danger, borderRadius: 8, padding: '0 12px', cursor: 'pointer', fontWeight: 700 }}>✕</button>
+            )}
+          </div>
+        ))}
+        {anim.messages.length < 5 && (
+          <button type="button" onClick={() => setAnim(a => ({ ...a, messages: [...a.messages, ''] }))}
+            style={{ border: `1px dashed ${T.border}`, background: '#fff', color: T.accent, borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>+ Ajouter un message</button>
+        )}
+        <p style={{ margin: '10px 0 0', fontSize: 12, color: T.light, lineHeight: 1.5 }}>
+          Astuce : écrivez <code style={{ background: '#f3f4f6', padding: '1px 6px', borderRadius: 4 }}>{'{n}'}</code> pour afficher le nombre d'articles du panier du client. Ex. : « {'{n}'} article(s) vous attendent 🛒 ».
+        </p>
+
+        {anim.messages.some(m => m.trim()) && (
+          <div style={{ marginTop: 14 }}>
+            <div style={{ fontSize: 11, color: T.light, marginBottom: 4 }}>Aperçu (onglet en animation)</div>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: '#e5e7eb', borderRadius: '10px 10px 0 0', padding: '8px 14px', fontSize: 12, color: T.text, maxWidth: '100%' }}>
+              <span style={{ fontSize: 14 }}>{animFavicon ? (anim.emoji || '✨') : (url ? <img src={url} alt="" style={{ width: 14, height: 14, verticalAlign: 'middle' }} /> : '🌐')}</span>
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{(anim.messages.find(m => m.trim()) || '').replace(/\{n\}/g, '2')}</span>
+            </div>
+          </div>
+        )}
+
+        <button type="button" disabled={saveAnim || !addonActif} onClick={enregistrerAnim}
+          style={{ display: 'block', marginTop: 16, background: T.accent, color: '#fff', border: 'none', borderRadius: 8, padding: '10px 20px', fontWeight: 700, cursor: addonActif ? 'pointer' : 'not-allowed', opacity: addonActif ? 1 : 0.5 }}>
+          {saveAnim ? 'Enregistrement…' : "Enregistrer l'animation"}
+        </button>
+        <p style={{ margin: '10px 0 0', fontSize: 12, color: T.light }}>Si le client a demandé moins d'animations sur son appareil, l'animation ne s'affiche pas chez lui.</p>
+      </div>
+
+      {retours && (
+        <div style={carte}>
+          <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>Clients revenus grâce à l'animation</h3>
+          <p style={{ margin: '0 0 12px', fontSize: 12, color: T.light }}>Chaque fois qu'un client revient sur votre onglet après avoir vu l'animation pendant plus de 2 secondes.</p>
+          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+            {[['Aujourd\'hui', retours.jour], ['Semaine', retours.semaine], ['Mois', retours.mois], ['Total', retours.total], ['Dont avec un panier', retours.total_avec_panier]].map(([t, n]) => (
+              <div key={String(t)} style={{ flex: '1 1 120px', background: '#f3f4f6', borderRadius: 10, padding: '12px 14px', textAlign: 'center' }}>
+                <div style={{ fontSize: 22, fontWeight: 800 }}>{n as number}</div>
+                <div style={{ fontSize: 12, color: T.light }}>{t}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {confirmerRetrait && <BoutiqueModale type="confirmer" accent={accent} titre="Retirer votre favicon ?" message="Votre boutique reprendra celui de la plateforme." texteConfirmer="Retirer" onConfirmer={retirer} onFermer={() => setConfirmerRetrait(false)} />}
+    </div>
+  );
+}
