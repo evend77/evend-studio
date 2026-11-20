@@ -10,6 +10,7 @@ import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-
 import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
 import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
 import BoutiqueParutionCountdown, { useConfigParution, formaterDateParution } from '../components/BoutiqueParutionCountdown';   // add-on « Parution future » : compte à rebours
+import BoutiqueVerificateurAge from '../components/BoutiqueVerificateurAge';   // add-on « Vérificateur d'âge » : fenêtre bloquante à l'arrivée
 import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
 import AvisProduitBoutique, { useAvisProduit } from '../pages/boutique/AvisProduitBoutique';   // add-on « Avis clients » : onglet « Avis » et note moyenne de la fiche produit
 import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
@@ -1307,6 +1308,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     <div style={{ fontFamily:"'Inter',-apple-system,sans-serif",background:cfg.couleurFond,color:cfg.couleurTexte,minHeight:'100vh',display:'flex',flexDirection:'column' }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');*{box-sizing:border-box;margin:0;padding:0;}button{font-family:inherit;}::-webkit-scrollbar{width:5px;}::-webkit-scrollbar-track{background:${NOIR};}::-webkit-scrollbar-thumb{background:${BORD};border-radius:3px;}`}</style>
 
+      {vendeurId>0&&!configBrut?.__produits_demo__&&<BoutiqueVerificateurAge gid={vendeurId}/>}
       {cfg.afficherTicker&&<Ticker texte={cfg.tickerTexte} couleur={cp}/>}
       <Nav/>
       {avisPanier&&<div style={{ position:'fixed',top:84,left:'50%',transform:'translateX(-50%)',zIndex:300,background:SURF,border:`1px solid ${cp}`,color:'#fff',padding:'12px 20px',borderRadius:10,fontSize:13,fontWeight:600,boxShadow:'0 8px 30px rgba(0,0,0,0.5)' }}>{avisPanier}</div>}

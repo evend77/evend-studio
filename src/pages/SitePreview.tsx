@@ -338,7 +338,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       {/* Vérificateur d'âge — actif seulement si l'add-on est activé, jamais en mode démo.
           Le template Multi-vendeur Premium monte le sien (règle forfait/add-on) : on ne le double pas ici,
           sinon deux fenêtres s'empilent et il faut cliquer deux fois pour la fermer. */}
-      {!isDemo && vendeurId && !templateId.startsWith('multi-vendeur-premium') && <VerificateurAge vendeurId={Number(vendeurId)} />}
+      {!isDemo && vendeurId && !templateId.startsWith('multi-vendeur-premium') && !templateId.startsWith('boutique-premium') && <VerificateurAge vendeurId={Number(vendeurId)} />}
 
       {/* Popup Annonce — templates boutique (solo) : suit l'add-on « Popup Annonce » de la boutique (jamais options_gestionnaire), jamais en mode démo.
           Placé avant le contenu : la bannière du haut se place dans la page, au-dessus du menu. */}
