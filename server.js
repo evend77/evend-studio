@@ -104,6 +104,9 @@ app.post('/api/webhooks/boutique-stripe/:gestionnaireId', express.raw({ type: 'a
 app.use('/api/webhooks/boutique-stripe', require('./routes/boutique_webhook_stripe'));
 app.post('/api/webhooks/boutique-paypal/:gestionnaireId', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/boutique-paypal', require('./routes/boutique_webhook_paypal'));
+// ✅ Webhook de suivi EasyPost des étiquettes des templates boutique (solo) — signature HMAC sur le corps brut (avant express.json)
+app.post('/api/webhooks/boutique-etiquettes/easypost', express.raw({ type: 'application/json' }));
+app.use('/api/webhooks/boutique-etiquettes', require('./routes/boutique_webhook_etiquettes'));
 
 // ✅ Webhook de suivi des étiquettes d'expédition des collaborateurs (Shippo, EasyPost) — body brut (avant express.json)
 app.post('/api/webhooks-etiquettes/shippo', express.raw({ type: 'application/json' }));

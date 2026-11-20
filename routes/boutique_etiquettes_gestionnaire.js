@@ -1,7 +1,9 @@
 // CHEMIN : routes/boutique_etiquettes_gestionnaire.js
 // e-Vend Studio — Add-on « Étiquettes Shippo » (boutique solo), partie GESTIONNAIRE. Monté par routes/boutique_index.js sur /api/boutique/gestionnaire/etiquettes
-//   GET  /config                       → état (add-on actif, clé configurée oui/non, mode, URL du webhook, adresse complète) — jamais la clé
+//   GET  /config                       → état par transporteur (add-on actif, clé configurée oui/non, mode, URL du webhook, adresse complète) — jamais une clé
 //   PUT  /shippo                       → { token?, actif?, effacer? } enregistre / active / désactive / efface la clé Shippo
+//   PUT  /easypost                     → { cle?, mode?, actif?, effacer?, secret?, effacer_secret? } clés EasyPost (EZTK test / EZAK production), mode, secret du webhook
+//   (un seul transporteur actif à la fois : activer l'un désactive l'autre)
 //   GET  /commandes/:id/apercu         → poids connu des articles + état de l'adresse d'expédition
 //   POST /commandes/:id/tarifs         → { poids_kg?, longueur_cm?, largeur_cm?, hauteur_cm? } → tarifs disponibles
 //   POST /commandes/:id/etiquette      → { rate_id, transporteur? } achète l'étiquette et passe la commande à « expédiée »
@@ -39,6 +41,12 @@ router.get('/config', h(async (req, res) => { res.set('Cache-Control', 'no-store
 router.put('/shippo', h(async (req, res) => {
   const b = req.body || {};
   await E.enregistrerShippo(req.gid, { token: b.token, actif: typeof b.actif === 'boolean' ? b.actif : undefined, effacer: b.effacer === true });
+  res.json(await E.etatConfig(req.gid));
+}));
+
+router.put('/easypost', h(async (req, res) => {
+  const b = req.body || {};
+  await E.enregistrerEasyPost(req.gid, { cle: b.cle, mode: b.mode, actif: typeof b.actif === 'boolean' ? b.actif : undefined, effacer: b.effacer === true, secret: b.secret, effacerSecret: b.effacer_secret === true });
   res.json(await E.etatConfig(req.gid));
 }));
 

@@ -23,7 +23,7 @@ export function badgeCommande(c: { statut: string; statut_paiement: string }): {
   return { texte: 'À traiter', couleur: '#4f46e5' };
 }
 
-const ETAPES: Record<string, string> = { etiquette_creer: 'Étiquette créée', transit: 'En transit', livree: 'Livrée', retournee_expediteur: "Retournée à l'expéditeur", livraison_echouee: 'Livraison échouée' };
+const ETAPES: Record<string, string> = { etiquette_creer: 'Étiquette créée', transit: 'En transit', livree: 'Livrée', retournee_expediteur: "Retournée à l'expéditeur", livraison_echouee: 'Livraison échouée', livraison: 'En cours de livraison', prete_ramassage: 'Prête au ramassage' };
 
 const date = (d: string | null) => (d ? new Date(d).toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' }) : '');
 

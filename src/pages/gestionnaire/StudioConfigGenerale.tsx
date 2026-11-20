@@ -147,16 +147,17 @@ function CouleurInput({ value, onChange }: { value: string; onChange: (v: string
 }
 
 // ─── Composant principal ──────────────────────────────────────────────────────
-interface Props { gestionnaireId: number; }
+/** ongletEtiquettes : fourni SEULEMENT par les templates boutique (solo) qui ont un add-on d'étiquettes ; le multivendeur ne le passe pas → aucun changement pour lui. */
+interface Props { gestionnaireId: number; ongletEtiquettes?: React.ReactNode; }
 
-export default function StudioConfigGenerale({ gestionnaireId }: Props) {
+export default function StudioConfigGenerale({ gestionnaireId, ongletEtiquettes }: Props) {
   const token   = localStorage.getItem('token');
   const [siteId, setSiteId]     = useState<number | null>(null);
   const [config, setConfig]     = useState<ConfigGenerale>(DEFAUTS);
   const [original, setOriginal] = useState<ConfigGenerale>(DEFAUTS);
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
-  const [onglet, setOnglet]     = useState<'general' | 'banniere' | 'social' | 'avance'>('general');
+  const [onglet, setOnglet]     = useState<'general' | 'banniere' | 'social' | 'avance' | 'etiquettes'>('general');
   const [toast, setToast]       = useState<{ msg: string; type: 'ok' | 'err' } | null>(null);
   const logoRef                 = useRef<HTMLInputElement>(null);
   const banRef                  = useRef<HTMLInputElement>(null);
@@ -274,6 +275,7 @@ export default function StudioConfigGenerale({ gestionnaireId }: Props) {
     { id: 'banniere', label: '📢 Bannière' },
     { id: 'social',   label: '📱 Réseaux sociaux' },
     { id: 'avance',   label: '⚙️ Avancé' },
+    ...(ongletEtiquettes ? [{ id: 'etiquettes', label: "🏷️ Étiquettes d'expédition" } as const] : []),
   ] as const;
 
   return (
@@ -290,12 +292,12 @@ export default function StudioConfigGenerale({ gestionnaireId }: Props) {
             <p style={{ margin: 0, fontSize: '13px', color: C.textLight }}>Paramètres de base de votre site</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        {onglet !== 'etiquettes' && <div style={{ display: 'flex', gap: '10px' }}>
           {modifie && <button onClick={() => setConfig({ ...original })} style={{ padding: '9px 18px', background: '#fff', border: `1px solid ${C.border}`, borderRadius: '10px', fontSize: '13px', fontWeight: 600, cursor: 'pointer', color: C.textLight }}>Annuler</button>}
           <button onClick={sauvegarder} disabled={saving || !modifie} style={{ padding: '9px 22px', background: modifie ? 'linear-gradient(135deg, #c9a96e, #a07840)' : '#cbd5e1', border: 'none', borderRadius: '10px', fontSize: '13px', fontWeight: 700, color: modifie ? '#fff' : '#94a3b8', cursor: modifie ? 'pointer' : 'not-allowed', transition: 'all 0.15s' }}>
             {saving ? '⏳ Sauvegarde…' : modifie ? '💾 Sauvegarder' : '✅ À jour'}
           </button>
-        </div>
+        </div>}
       </div>
 
       {/* Onglets */}
@@ -471,6 +473,9 @@ export default function StudioConfigGenerale({ gestionnaireId }: Props) {
           </Section>
         </div>
       )}
+
+      {/* ── Onglet Étiquettes d'expédition (boutique solo seulement) : enregistre ses clés lui-même, séparément de « Sauvegarder » ── */}
+      {onglet === 'etiquettes' && ongletEtiquettes}
 
       {/* ── Onglet Avancé ── */}
       {onglet === 'avance' && (

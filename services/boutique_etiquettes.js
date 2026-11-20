@@ -1,12 +1,13 @@
 // CHEMIN : services/boutique_etiquettes.js
-// e-Vend Studio — Add-on « Étiquettes Shippo » des templates boutique (solo) : clé du gestionnaire, tarifs, achat d'étiquette, suivi automatique.
+// e-Vend Studio — Add-ons « Étiquettes Shippo » et « Étiquettes EasyPost » des templates boutique (solo) : clés du gestionnaire, tarifs, achat d'étiquette, suivi automatique.
 // Reprend la logique du MV (services/studio_etiquettes.js, collaborateurs) pour UN gestionnaire qui vend lui-même ; aucun fichier MV n'est modifié.
-// Le fournisseur (services/transporteurs/shippo.js) est utilisé tel quel.
+// Les fournisseurs (services/transporteurs/shippo.js et easypost.js) sont utilisés tels quels. UN SEUL transporteur actif à la fois (boutique_etiquettes_config.provider_actif).
 //
-// Modèle « bring your own token » : le gestionnaire colle SA clé Shippo ; elle est chiffrée (src/utils/chiffrement) dans boutique_etiquettes_config
-// et n'est JAMAIS renvoyée au navigateur. L'étiquette est facturée sur SON compte Shippo ; l'expédition part de l'adresse de sa boutique (table gestionnaires).
-// Remboursement d'une étiquette achetée par erreur : directement dans le tableau de bord Shippo (pas dans l'application).
-// Suivi automatique : le webhook ne sert qu'à savoir QUELLE commande vérifier ; le vrai statut est redemandé à Shippo avec la clé du gestionnaire.
+// Modèle « bring your own token » : le gestionnaire colle SES clés ; elles sont chiffrées (src/utils/chiffrement) dans boutique_etiquettes_config
+// et ne sont JAMAIS renvoyées au navigateur. L'étiquette est facturée sur SON compte chez le transporteur ; l'expédition part de l'adresse de sa boutique (table gestionnaires).
+// Remboursement d'une étiquette achetée par erreur : directement dans le tableau de bord du transporteur (pas dans l'application).
+// Suivi automatique — Shippo : le webhook ne sert qu'à savoir QUELLE commande vérifier ; le vrai statut est redemandé à Shippo avec la clé du gestionnaire.
+//                   — EasyPost : le webhook est signé (HMAC-SHA256) avec le secret du gestionnaire ; sans secret ou signature valide il est rejeté.
 
 'use strict';
 
@@ -15,13 +16,18 @@ const A = require('./boutique_addons');
 const { ErreurBoutique } = require('./boutique_limites');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
 
-const CODE_ADDON = 'etiquette_shippo';
-const WEBHOOK_URL = 'https://e-vendstudio.ca/api/boutique/etiquettes/webhook/shippo';
+const crypto = require('crypto');
+
+const TRANSPORTEURS = {
+  shippo:   { addon: 'etiquette_shippo',   nom: 'Shippo',   webhook: 'https://e-vendstudio.ca/api/boutique/etiquettes/webhook/shippo',           charger: () => require('./transporteurs/shippo') },
+  easypost: { addon: 'etiquette_easypost', nom: 'EasyPost', webhook: 'https://e-vendstudio.ca/api/webhooks/boutique-etiquettes/easypost', charger: () => require('./transporteurs/easypost') },
+};
 const TOKEN_RE = /^shippo_(test|live)_[A-Za-z0-9]+$/;
+const EASYPOST_RE = /^(EZTK|EZAK)[A-Za-z0-9]{16,200}$/;
 const ETAPES_PROTEGEES = new Set(['annulee', 'refusee']);
 
-const transporteur = { charger: () => require('./transporteurs/shippo') };   // remplaçable dans les tests
-const autorise = (gid, db) => A.addonActif(gid, CODE_ADDON, db || pool);
+const autorise = (gid, code, db) => A.addonActif(gid, TRANSPORTEURS[code].addon, db || pool);
+const refusAddon = (code) => refus(`L'option « Étiquettes ${TRANSPORTEURS[code].nom} » n'est pas activée pour votre boutique.`, 403, { addon_inactif: true });
 const refus = (m, s, extra) => { throw new ErreurBoutique(m, s || 400, extra); };
 const httpSure = (u) => (typeof u === 'string' && /^https?:\/\/\S+$/i.test(u) && u.length <= 2000 ? u : null);
 
@@ -60,26 +66,31 @@ async function adresseExpedition(gid) {
   };
 }
 
-/** État pour l'écran de configuration : JAMAIS de clé, seulement « configuré oui/non ». */
+/** État pour l'écran de configuration : JAMAIS de clé, seulement « configurée oui/non ». */
 async function etatConfig(gid) {
-  const [row, addon, exp] = await Promise.all([lireConfig(gid), autorise(gid), adresseExpedition(gid)]);
-  const configure = !!(row && row.shippo_token_chiffre);
-  const actif = !!(row && row.provider_actif === 'shippo');
+  const [row, exp] = await Promise.all([lireConfig(gid), adresseExpedition(gid)]);
+  const ajoutes = await Promise.all(Object.keys(TRANSPORTEURS).map((c) => autorise(gid, c)));
+  const r = row || {};
+  const liste = [
+    { code: 'shippo', nom: 'Shippo', addon_actif: ajoutes[0], configure: !!r.shippo_token_chiffre, mode: r.shippo_mode || 'test', actif: r.provider_actif === 'shippo', webhook_url: TRANSPORTEURS.shippo.webhook },
+    { code: 'easypost', nom: 'EasyPost', addon_actif: ajoutes[1], configure: !!(r.easypost_cle_test_chiffre || r.easypost_cle_prod_chiffre), mode: r.easypost_mode || 'test', actif: r.provider_actif === 'easypost', webhook_url: TRANSPORTEURS.easypost.webhook,
+      cle_test: !!r.easypost_cle_test_chiffre, cle_prod: !!r.easypost_cle_prod_chiffre, secret_configure: !!r.easypost_webhook_secret_chiffre },
+  ];
+  const actifOk = liste.find((t) => t.actif && t.addon_actif && t.configure);
   return {
-    addon_actif: addon, configure, actif, pret: addon && configure && actif,
-    mode: (row && row.shippo_mode) || 'test', webhook_url: WEBHOOK_URL,
+    transporteurs: liste, addon_actif: liste.some((t) => t.addon_actif), pret: !!actifOk, actif: actifOk ? actifOk.code : null,
     adresse_complete: exp.manque.length === 0, adresse_manque: exp.manque,
   };
 }
 
-/** Enregistre / active / désactive / efface la clé Shippo du gestionnaire. */
+/** Shippo : enregistre / active / désactive / efface la clé. Activer Shippo désactive EasyPost (un seul transporteur actif). */
 async function enregistrerShippo(gid, { token, actif, effacer }) {
-  if (!(await autorise(gid))) refus("L'option « Étiquettes Shippo » n'est pas activée pour votre boutique.", 403, { addon_inactif: true });
+  if (!(await autorise(gid, 'shippo'))) refusAddon('shippo');
   const row = await lireConfig(gid);
   let tokenChiffre = row ? row.shippo_token_chiffre : null;
   let mode = row ? row.shippo_mode : 'test';
   let provider = row ? row.provider_actif : null;
-  if (effacer) { tokenChiffre = null; mode = 'test'; provider = null; }
+  if (effacer) { tokenChiffre = null; mode = 'test'; if (provider === 'shippo') provider = null; }
   else {
     if (typeof token === 'string' && token.trim()) {
       const t = token.trim();
@@ -88,7 +99,7 @@ async function enregistrerShippo(gid, { token, actif, effacer }) {
       mode = t.startsWith('shippo_live_') ? 'production' : 'test';
     }
     if (actif === true) { if (!tokenChiffre) refus("Collez d'abord votre clé API Shippo."); provider = 'shippo'; }
-    else if (actif === false) provider = null;
+    else if (actif === false && provider === 'shippo') provider = null;
   }
   await pool.query(
     `INSERT INTO boutique_etiquettes_config (gestionnaire_id, provider_actif, shippo_token_chiffre, shippo_mode, updated_at)
@@ -97,12 +108,55 @@ async function enregistrerShippo(gid, { token, actif, effacer }) {
     [gid, provider, tokenChiffre, mode]);
 }
 
+/** EasyPost : clés test (EZTK) et production (EZAK), mode actif, secret webhook. Activer EasyPost désactive Shippo. */
+async function enregistrerEasyPost(gid, { cle, mode: modeDemande, actif, effacer, secret, effacerSecret }) {
+  if (!(await autorise(gid, 'easypost'))) refusAddon('easypost');
+  const row = await lireConfig(gid);
+  let cleTest = row ? row.easypost_cle_test_chiffre : null;
+  let cleProd = row ? row.easypost_cle_prod_chiffre : null;
+  let mode = (row && row.easypost_mode) || 'test';
+  let secretCh = row ? row.easypost_webhook_secret_chiffre : null;
+  let provider = row ? row.provider_actif : null;
+  if (effacer) { cleTest = null; cleProd = null; secretCh = null; mode = 'test'; if (provider === 'easypost') provider = null; }
+  else {
+    if (typeof cle === 'string' && cle.trim()) {
+      const k = cle.trim();
+      if (!EASYPOST_RE.test(k)) refus('Clé EasyPost invalide : elle doit commencer par « EZTK » (test) ou « EZAK » (production) — copiez-la en entier.');
+      if (k.startsWith('EZAK')) { cleProd = chiffrer(k); mode = 'production'; } else { cleTest = chiffrer(k); mode = 'test'; }
+    }
+    if (modeDemande === 'test' || modeDemande === 'production') {
+      if (!(modeDemande === 'production' ? cleProd : cleTest)) refus(`Aucune clé ${modeDemande === 'production' ? 'de production (EZAK…)' : 'de test (EZTK…)'} enregistrée : collez-la d'abord.`);
+      mode = modeDemande;
+    }
+    if (typeof secret === 'string' && secret.trim()) {
+      const sec = secret.trim();
+      if (sec.length < 8 || sec.length > 200 || /\s/.test(sec)) refus('Secret webhook invalide : copiez-le tel quel depuis EasyPost (sans espaces).');
+      secretCh = chiffrer(sec);
+    }
+    if (effacerSecret) secretCh = null;
+    if (actif === true) { if (!(mode === 'production' ? cleProd : cleTest)) refus("Collez d'abord votre clé API EasyPost pour le mode choisi."); provider = 'easypost'; }
+    else if (actif === false && provider === 'easypost') provider = null;
+  }
+  await pool.query(
+    `INSERT INTO boutique_etiquettes_config (gestionnaire_id, provider_actif, easypost_cle_test_chiffre, easypost_cle_prod_chiffre, easypost_mode, easypost_webhook_secret_chiffre, updated_at)
+     VALUES ($1,$2,$3,$4,$5,$6,NOW())
+     ON CONFLICT (gestionnaire_id) DO UPDATE SET provider_actif = $2, easypost_cle_test_chiffre = $3, easypost_cle_prod_chiffre = $4, easypost_mode = $5, easypost_webhook_secret_chiffre = $6, updated_at = NOW()`,
+    [gid, provider, cleTest, cleProd, mode, secretCh]);
+}
+
+/** Transporteur ACTIF du gestionnaire avec sa clé déchiffrée (mode choisi pour EasyPost), ou null. */
 async function configActive(gid) {
   const row = await lireConfig(gid);
-  if (!row || row.provider_actif !== 'shippo' || !row.shippo_token_chiffre) return null;
-  let token = null;
-  try { token = dechiffrer(row.shippo_token_chiffre); } catch (e) { return null; }
-  return token ? { provider: 'shippo', token, mode: row.shippo_mode || 'test' } : null;
+  if (!row) return null;
+  try {
+    if (row.provider_actif === 'shippo' && row.shippo_token_chiffre) return { provider: 'shippo', token: dechiffrer(row.shippo_token_chiffre), mode: row.shippo_mode || 'test' };
+    if (row.provider_actif === 'easypost') {
+      const mode = row.easypost_mode || 'test';
+      const ch = mode === 'production' ? row.easypost_cle_prod_chiffre : row.easypost_cle_test_chiffre;
+      if (ch) return { provider: 'easypost', token: dechiffrer(ch), mode };
+    }
+  } catch (e) { return null; }
+  return null;
 }
 
 // ── Commande, adresses, colis ───────────────────────────────────────────────
@@ -152,10 +206,11 @@ async function colisDe(gid, cmd, body) {
 }
 
 async function preparer(gid) {
-  if (!(await autorise(gid))) refus("L'option « Étiquettes Shippo » n'est pas activée pour votre boutique.", 403, { addon_inactif: true });
   const cfg = await configActive(gid);
-  if (!cfg) refus("Aucun transporteur actif. Ajoutez votre clé Shippo dans la page « Étiquettes d'expédition ».");
-  return { cfg, mod: transporteur.charger() };
+  if (!cfg && !(await Promise.all(Object.keys(TRANSPORTEURS).map((c) => autorise(gid, c)))).some(Boolean)) refus("Aucune option d'étiquettes d'expédition n'est activée pour votre boutique.", 403, { addon_inactif: true });
+  if (!cfg) refus("Aucun transporteur actif. Ajoutez votre clé (Shippo ou EasyPost) dans Config générale → Étiquettes d'expédition.");
+  if (!(await autorise(gid, cfg.provider))) refusAddon(cfg.provider);
+  return { cfg, mod: TRANSPORTEURS[cfg.provider].charger() };
 }
 
 function erreurFournisseur(e) {
@@ -189,7 +244,7 @@ async function tarifs(gid, id, body) {
   const { exp, liv } = await adressesOuErreur(gid, cmd);
   try {
     const r = await mod.obtenirTarifs(cfg, { adresseExpedition: exp, adresseLivraison: liv, colis });
-    return { provider: 'shippo', mode: cfg.mode, poids_kg: colis.poidsKg, tarifs: r.rates, diagnostic: r.diagnostic };
+    return { provider: cfg.provider, mode: cfg.mode, poids_kg: colis.poidsKg, tarifs: r.rates, diagnostic: r.diagnostic };
   } catch (e) { throw erreurFournisseur(e); }
 }
 
@@ -206,20 +261,20 @@ async function acheter(gid, id, body) {
     verifierExpediable(cmd);
     const { cfg, mod } = await preparer(gid);
     let achat;
-    try { achat = await mod.acheterEtiquette(cfg, { rateId, shipmentId: body.shipment_id }); }
+    try { achat = await mod.acheterEtiquette(cfg, { rateId, shipmentId: typeof body.shipment_id === 'string' ? body.shipment_id : undefined }); }
     catch (e) { throw erreurFournisseur(e); }
 
-    const nom = String(typeof body.transporteur === 'string' && body.transporteur.trim() ? body.transporteur : 'Shippo').slice(0, 60);
+    const nom = String(typeof body.transporteur === 'string' && body.transporteur.trim() ? body.transporteur : TRANSPORTEURS[cfg.provider].nom).slice(0, 60);
     const suivi = achat.numeroSuivi ? String(achat.numeroSuivi).slice(0, 80) : null;
     const urlSuivi = httpSure(achat.urlSuivi);
     const urlEtiquette = httpSure(achat.urlEtiquette);
     const upd = await pool.query(
       `UPDATE boutique_commandes
           SET statut = 'expediee', numero_suivi = $1, transporteur_suivi = $2, url_suivi = $3, url_etiquette = $4,
-              etiquette_provider = 'shippo', etape_livraison = 'etiquette_creer', expediee_le = COALESCE(expediee_le, NOW()), updated_at = NOW()
+              etiquette_provider = $7, etape_livraison = 'etiquette_creer', expediee_le = COALESCE(expediee_le, NOW()), updated_at = NOW()
         WHERE id = $5 AND gestionnaire_id = $6 AND statut IN ('confirmee','expediee') AND etiquette_provider IS NULL
         RETURNING id`,
-      [suivi, nom, urlSuivi, urlEtiquette, id, gid]);
+      [suivi, nom, urlSuivi, urlEtiquette, id, gid, cfg.provider]);
     if (!upd.rowCount) {
       console.error(`[boutique_etiquettes] ÉTIQUETTE ACHETÉE mais commande ${id} (gestionnaire ${gid}) non mise à jour. Suivi : ${suivi}`);
       refus("L'étiquette a été achetée, mais la commande a changé d'état entre-temps. Actualisez la page ; le numéro de suivi est : " + (suivi || 'inconnu'), 409);
@@ -268,7 +323,7 @@ const jeton = (v) => String(v || '').trim().toLowerCase().replace(/[^a-z0-9]+/g,
 
 /** Webhook Shippo (track_updated). Le contenu n'est JAMAIS cru : il sert seulement à retrouver la commande. */
 async function traiterWebhookShippo(payload) {
-  const mod = transporteur.charger();
+  const mod = TRANSPORTEURS.shippo.charger();
   const brut = mod.parserWebhook(payload);
   if (!brut || !brut.numeroSuivi) return { ignore: 'payload non reconnu' };
   const lignes = await pool.query(
@@ -277,9 +332,9 @@ async function traiterWebhookShippo(payload) {
   let traitees = 0;
   for (const cmd of lignes.rows) {
     if (ETAPES_PROTEGEES.has(cmd.etape_livraison) || cmd.statut === 'annulee') continue;
-    if (!(await autorise(cmd.gestionnaire_id))) continue;
+    if (!(await autorise(cmd.gestionnaire_id, 'shippo'))) continue;
     const cfg = await configActive(cmd.gestionnaire_id);                    // transporteur changé ou clé retirée : on ignore
-    if (!cfg) continue;
+    if (!cfg || cfg.provider !== 'shippo') continue;
     const candidats = [...new Set([jeton(cmd.transporteur_suivi), jeton(brut.transporteur)].filter(Boolean))];
     let verifie = null, derniereErreur = null;
     for (const carrier of candidats) {
@@ -293,6 +348,47 @@ async function traiterWebhookShippo(payload) {
   return { traitees };
 }
 
+// ── Webhook EasyPost (signature HMAC propre à chaque gestionnaire) ───────────
+// Reproduit Utils.validateWebhook() du SDK officiel @easypost/api (comme le MV) : normalisation NFKD du secret + correctif de sérialisation des poids entiers ("weight": 5 → 5.0).
+// Retourne le JSON signé (issu des octets EXACTS qui ont servi à la signature) ou null.
+function verifierSignatureEasyPost(rawBuffer, enTete, secret) {
+  if (!enTete || !secret || !Buffer.isBuffer(rawBuffer)) return null;
+  const corps = rawBuffer.toString('utf8').replace(/("weight":\s*)(\d+)(\s*)(?=,|\})/g, '$1$2.0');
+  const attendue = `hmac-sha256-hex=${crypto.createHmac('sha256', Buffer.from(secret.normalize('NFKD'), 'utf8')).update(corps, 'utf8').digest('hex')}`;
+  const recu = Buffer.from(String(enTete), 'utf8'); const att = Buffer.from(attendue, 'utf8');
+  if (recu.length !== att.length || !crypto.timingSafeEqual(recu, att)) return null;
+  try { return JSON.parse(corps); } catch (e) { return null; }
+}
+
+/** Webhook EasyPost (tracker.updated / tracker.created). Le contenu n'est cru QU'APRÈS vérification de la signature avec le secret du gestionnaire propriétaire de la commande. Sans secret : rejeté. */
+async function traiterWebhookEasyPost(rawBuffer, enTeteSignature) {
+  const mod = TRANSPORTEURS.easypost.charger();
+  let brut;
+  try { brut = mod.parserWebhook(JSON.parse(rawBuffer.toString('utf8'))); } catch (e) { return { ignore: 'JSON invalide' }; }
+  if (!brut || !brut.numeroSuivi) return { ignore: 'payload non reconnu' };   // lecture NON fiable : sert seulement à retrouver la commande
+  const lignes = await pool.query(
+    `SELECT id, statut, etape_livraison, historique_suivi, gestionnaire_id, numero_suivi
+       FROM boutique_commandes WHERE numero_suivi = $1 AND etiquette_provider = 'easypost'`, [String(brut.numeroSuivi).slice(0, 80)]);
+  let traitees = 0, rejetees = 0;
+  for (const cmd of lignes.rows) {
+    if (ETAPES_PROTEGEES.has(cmd.etape_livraison) || cmd.statut === 'annulee') continue;
+    if (!(await autorise(cmd.gestionnaire_id, 'easypost'))) continue;
+    const cfg = await configActive(cmd.gestionnaire_id);                    // transporteur changé ou clé retirée : on ignore
+    if (!cfg || cfg.provider !== 'easypost') continue;
+    const row = await lireConfig(cmd.gestionnaire_id);
+    let secret = null;
+    try { secret = row && row.easypost_webhook_secret_chiffre ? dechiffrer(row.easypost_webhook_secret_chiffre) : null; } catch (e) { secret = null; }
+    if (!secret) { rejetees++; console.log(`🔴 Webhook EasyPost boutique REJETÉ — aucun secret webhook configuré (commande ${cmd.id})`); continue; }
+    const valide = verifierSignatureEasyPost(rawBuffer, enTeteSignature, secret);
+    if (!valide) { rejetees++; console.log(`🔴 Webhook EasyPost boutique REJETÉ — signature invalide (commande ${cmd.id})`); continue; }
+    const ev = mod.parserWebhook(valide);
+    if (!ev || ev.numeroSuivi !== cmd.numero_suivi) continue;
+    await appliquerSuivi(cmd, ev, 'easypost');
+    traitees++;
+  }
+  return { traitees, rejetees };
+}
+
 module.exports = {
-  CODE_ADDON, WEBHOOK_URL, transporteur, etatConfig, enregistrerShippo, configActive, apercu, tarifs, acheter, appliquerSuivi, traiterWebhookShippo, lireHistorique,
+  TRANSPORTEURS, etatConfig, enregistrerShippo, enregistrerEasyPost, configActive, apercu, tarifs, acheter, appliquerSuivi, traiterWebhookShippo, traiterWebhookEasyPost, verifierSignatureEasyPost, lireHistorique,
 };
