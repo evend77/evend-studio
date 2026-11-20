@@ -34,6 +34,7 @@ router.use('/gestionnaire/favicon', require('./boutique_favicon_gestionnaire'));
 router.use('/gestionnaire/pwa', require('./boutique_pwa_gestionnaire'));
 router.use('/gestionnaire/analytique', require('./boutique_analytique_gestionnaire'));
 router.use('/gestionnaire/etiquettes', require('./boutique_etiquettes_gestionnaire'));
+router.use('/gestionnaire/ebay', require('./boutique_ebay_gestionnaire'));
 
 // Publics (sans connexion) — AVANT la zone connectée ci-dessous : catalogue de la boutique, inscription d'un acheteur
 router.use('/catalogue', require('./boutique_catalogue'));
@@ -52,6 +53,7 @@ router.use('/favicon', require('./boutique_favicon_public'));
 router.use('/pwa', require('./boutique_pwa_public'));
 router.use('/analytique', require('./boutique_analytique_public'));
 router.use('/etiquettes', require('./boutique_etiquettes_public'));
+router.use('/ebay', require('./boutique_ebay_public'));
 router.use('/acheteur/:gid/inscription', require('./boutique_inscription'));
 
 // Acheteur connecté : panier, caisse, commandes (compte acheteur du MV réutilisé)
