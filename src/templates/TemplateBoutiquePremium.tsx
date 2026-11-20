@@ -10,6 +10,7 @@ import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-
 import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
 import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
 import BoutiqueParutionCountdown, { useConfigParution, formaterDateParution } from '../components/BoutiqueParutionCountdown';   // add-on « Parution future » : compte à rebours
+import BoutiqueBoutonInstallerApp from '../components/BoutiqueBoutonInstallerApp';   // add-on « App installable » : bouton « Installer l'app » (mobile)
 import BoutiqueVerificateurAge from '../components/BoutiqueVerificateurAge';   // add-on « Vérificateur d'âge » : fenêtre bloquante à l'arrivée
 import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
 import AvisProduitBoutique, { useAvisProduit } from '../pages/boutique/AvisProduitBoutique';   // add-on « Avis clients » : onglet « Avis » et note moyenne de la fiche produit
@@ -1292,6 +1293,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               </div>
             ):null)}
           </div>
+          <BoutiqueBoutonInstallerApp couleur={cp}/>
           <div style={{ borderTop:`1px solid rgba(201,169,110,0.1)`,padding:'20px 0',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12 }}>
             <div style={{ fontSize:12,color:'#333' }}>© {new Date().getFullYear()} {f.nomBoutique}. Tous droits réservés.</div>
             {f.afficherPropulse&&<a href="https://e-vend.ca" target="_blank" rel="noopener noreferrer" style={{ fontSize:10,color:'#2a2a2a',textDecoration:'none' }}>Propulsé par e-Vend Studio</a>}

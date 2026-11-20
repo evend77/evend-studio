@@ -31,6 +31,7 @@ router.use('/gestionnaire/avis', require('./boutique_avis_gestionnaire'));
 router.use('/gestionnaire/parution', require('./boutique_parution_gestionnaire'));
 router.use('/gestionnaire/verificateur-age', require('./boutique_verificateur_age_gestionnaire'));
 router.use('/gestionnaire/favicon', require('./boutique_favicon_gestionnaire'));
+router.use('/gestionnaire/pwa', require('./boutique_pwa_gestionnaire'));
 
 // Publics (sans connexion) — AVANT la zone connectée ci-dessous : catalogue de la boutique, inscription d'un acheteur
 router.use('/catalogue', require('./boutique_catalogue'));
@@ -46,6 +47,7 @@ router.use('/avis', require('./boutique_avis_public'));
 router.use('/parution', require('./boutique_parution_public'));
 router.use('/verificateur-age', require('./boutique_verificateur_age_public'));
 router.use('/favicon', require('./boutique_favicon_public'));
+router.use('/pwa', require('./boutique_pwa_public'));
 router.use('/acheteur/:gid/inscription', require('./boutique_inscription'));
 
 // Acheteur connecté : panier, caisse, commandes (compte acheteur du MV réutilisé)
