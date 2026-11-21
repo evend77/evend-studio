@@ -153,11 +153,25 @@ function lireProduit(req) {
   if ((b.variantes || []).length > 20) bad('Maximum 20 variantes');
   const variantes = (b.variantes || []).map((v) => {
     if (!v || typeof v !== 'object') bad('Variante invalide');
-    return {
+    const sortie = {
       nom: texte(v.nom, 'Nom de variante', 60, true),
       prix: nombre(v.prix, 'Prix de variante', 0.01, 1000000, null),
       stock: v.stock === '' || v.stock === undefined || v.stock === null ? null : Math.trunc(nombre(v.stock, 'Stock de variante', 0, 1000000)),
     };
+    // Template Mono-produit : photo de la variante (une des photos de l'annonce) et ses options (ex. { Couleur: 'Noir', Taille: 'M' })
+    if (v.photo !== undefined && v.photo !== null && v.photo !== '') {
+      const ph = urlPhoto(req, v.photo);
+      if (!photos.includes(ph)) bad('Photo de variante invalide : choisissez une des photos de l\'annonce');
+      sortie.photo = ph;
+    }
+    if (v.options !== undefined && v.options !== null) {
+      if (typeof v.options !== 'object' || Array.isArray(v.options)) bad('Options de variante invalides');
+      const cles = Object.keys(v.options);
+      if (cles.length > 3) bad('Maximum 3 options par variante');
+      sortie.options = {};
+      for (const k of cles) sortie.options[texte(k, "Nom d'option", 30, true)] = texte(v.options[k], "Valeur d'option", 40, true);
+    }
+    return sortie;
   });
   let poids = null;
   if (b.poids !== undefined && b.poids !== null && b.poids !== '') {

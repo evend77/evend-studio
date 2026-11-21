@@ -7,7 +7,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { BQ, bq, messageErreur, formaterArgent } from './boutiqueApi';
 import BoutiqueModale from './BoutiqueModale';
 
-interface Variante { nom: string; prix: string; stock: string; }
+interface Variante { nom: string; prix: string; stock: string; photo?: string; options?: Record<string, string>; }
 interface LignePalier { id: number; qte: string; valeur: string; prixVariantes: Record<string, string>; }
 interface Categorie { id: number; nom: string; groupe_nom: string | null; }
 
@@ -40,6 +40,11 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
   const [categorieId, setCategorieId] = useState('');
   const [photos, setPhotos] = useState<string[]>([]);
   const [variantes, setVariantes] = useState<Variante[]>([]);
+  // Template Mono-produit : un seul produit, plusieurs variantes. Options (Couleur : Noir, Blanc…) → combinaisons avec prix, stock et photo.
+  const [mono, setMono] = useState(false);
+  const [retenuMono, setRetenuMono] = useState<number | null>(null);
+  const [optionsMono, setOptionsMono] = useState<{ nom: string; valeurs: string }[]>([{ nom: '', valeurs: '' }]);
+  useEffect(() => { bq('/mono-produit').then(r => { if (r.ok && r.data && r.data.mono) { setMono(true); setRetenuMono(r.data.retenu_id || null); } }); }, []);
   const [categories, setCategories] = useState<Categorie[]>([]);
   // Expédition : méthodes du gestionnaire (Config → Méthode d'expédition) offertes pour cette annonce
   const [methodes, setMethodes] = useState<any[]>([]);
@@ -90,7 +95,18 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
         nom: v.nom || '',
         prix: v.prix === null || v.prix === undefined ? '' : String(v.prix),
         stock: v.stock === null || v.stock === undefined ? '' : String(v.stock),
+        ...(v.photo ? { photo: String(v.photo) } : {}),
+        ...(v.options && typeof v.options === 'object' ? { options: v.options } : {}),
       })));
+      // Relit les options (Couleur, Taille…) des combinaisons enregistrées pour pouvoir les modifier
+      const optsLues: { nom: string; valeurs: string[] }[] = [];
+      for (const v of (Array.isArray(p.variantes) ? p.variantes : [])) {
+        for (const [k, val] of Object.entries(v.options || {})) {
+          let o = optsLues.find(x => x.nom === k); if (!o) { o = { nom: k, valeurs: [] }; optsLues.push(o); }
+          if (!o.valeurs.includes(String(val))) o.valeurs.push(String(val));
+        }
+      }
+      if (optsLues.length) setOptionsMono(optsLues.map(o => ({ nom: o.nom, valeurs: o.valeurs.join(', ') })));
       setDateParution(p.date_parution_local || ''); setDateParutionInitiale(p.date_parution_local || '');
       if (Array.isArray(p.paliers) && p.paliers.length) {
         setPalierType(p.paliers[0].type === 'fixe' ? 'fixe' : 'pourcentage');
@@ -132,6 +148,18 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
     if (j < 0 || j >= n.length) return p;
     const tmp = n[i]; n[i] = n[j]; n[j] = tmp; return n;
   });
+
+  // Génère toutes les combinaisons des options (max 20), en gardant le prix, le stock et la photo déjà saisis pour une même combinaison
+  const genererCombinaisons = () => {
+    const opts = optionsMono.map(o => ({ nom: o.nom.trim(), vals: Array.from(new Set(o.valeurs.split(',').map(x => x.trim()).filter(Boolean))) })).filter(o => o.nom && o.vals.length);
+    if (!opts.length) { setErreur('Ajoutez au moins une option, par exemple « Couleur » avec les valeurs « Noir, Blanc ».'); return; }
+    let combos: Record<string, string>[] = [{}];
+    for (const o of opts) combos = combos.flatMap(c => o.vals.map(v => ({ ...c, [o.nom]: v })));
+    if (combos.length > 20) { setErreur(`Ces options donnent ${combos.length} combinaisons : le maximum est 20. Réduisez le nombre de valeurs.`); return; }
+    const noms = combos.map(c => opts.map(o => c[o.nom]).join(' / '));
+    if (noms.some(n => n.length > 60)) { setErreur('Une combinaison dépasse 60 caractères : utilisez des valeurs plus courtes.'); return; }
+    setVariantes(combos.map((c, i) => { const ex = variantes.find(v => v.nom === noms[i]); return { nom: noms[i], prix: ex ? ex.prix : '', stock: ex ? ex.stock : '', ...(ex && ex.photo ? { photo: ex.photo } : {}), options: c }; }));
+  };
 
   const enregistrer = async (statut: 'actif' | 'brouillon') => {
     setErreur('');
@@ -183,7 +211,7 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
         titre, description, prix, prix_promo: prixPromo, stock, sku, quantite_min: quantiteMin, prix_revient: prixRevient,
         poids: poids === '' ? null : poids, categorie_id: categorieId || null, photos, statut,
         ...(methodesChargees ? { methodes_expedition_ids: methodesSel.filter(id => methodes.some(m => m.id === id)) } : {}),
-        variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock })),
+        variantes: variantes.filter(v => v.nom.trim()).map(v => ({ nom: v.nom, prix: v.prix, stock: v.stock, ...(v.photo && photos.includes(v.photo) ? { photo: v.photo } : {}), ...(v.options ? { options: v.options } : {}) })),
         ...(paliersActif ? { paliers: paliersEnvoi } : {}),
         // Parution future : envoyée seulement si l'add-on est actif (ou pour retirer une date existante)
         ...((parutionActif || (dateParution === '' && dateParutionInitiale !== '')) ? { date_parution: dateParution === '' ? null : dateParution } : {}),
@@ -214,6 +242,11 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
         <h2 style={{ margin: 0, fontSize: 20, color: T.text }}>{produitId ? "✏️ Modifier l'annonce" : '➕ Nouvelle annonce'}</h2>
       </div>
 
+      {mono && !produitId && retenuMono && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: '#92400e', marginBottom: 12, lineHeight: 1.6 }}>
+          ℹ️ Votre template <b>Mono-produit</b> vend un seul produit, et vous en avez déjà un en vente. Pour en proposer un autre, désactivez celui qui est en vente — ou modifiez-le et ajoutez-lui des variantes.
+        </div>
+      )}
       <div style={carte}>
         <label style={lbl}>Titre *</label>
         <input value={titre} onChange={e => setTitre(e.target.value)} maxLength={150} placeholder="Ex : Sac en cuir fait main" style={{ ...champ, marginBottom: 14 }} />
@@ -313,7 +346,38 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
         )}
       </div>
 
-      <div style={carte}>
+      {mono && (
+        <div style={carte}>
+          <label style={{ ...lbl, marginBottom: 6 }}>Options et variantes de votre produit</label>
+          <p style={{ fontSize: 12, color: T.light, margin: '0 0 12px', lineHeight: 1.6 }}>Votre template vend <b>un seul produit</b> : ajoutez ici ses options (couleur, taille…). Chaque combinaison peut avoir son prix, son stock et sa photo. Prix ou stock laissé vide = ceux du produit.</p>
+          {optionsMono.map((o, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 32px' : '1fr 2fr 32px', gap: 8, marginBottom: 8 }}>
+              <input value={o.nom} onChange={e => setOptionsMono(a => a.map((x, k) => (k === i ? { ...x, nom: e.target.value } : x)))} maxLength={30} placeholder="Option (ex : Couleur)" style={{ ...champ, gridColumn: mobile ? '1 / -1' : undefined }} />
+              <input value={o.valeurs} onChange={e => setOptionsMono(a => a.map((x, k) => (k === i ? { ...x, valeurs: e.target.value } : x)))} placeholder="Valeurs séparées par des virgules (ex : Noir, Blanc, Bleu)" style={{ ...champ, gridColumn: mobile ? '1 / -1' : undefined }} />
+              <button onClick={() => setOptionsMono(a => (a.length > 1 ? a.filter((_, k) => k !== i) : [{ nom: '', valeurs: '' }]))} style={{ border: 'none', background: 'none', color: T.danger, cursor: 'pointer', fontSize: 16 }}>✕</button>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+            {optionsMono.length < 3 && <button onClick={() => setOptionsMono(a => a.concat([{ nom: '', valeurs: '' }]))} style={{ border: `1px solid ${couleur}`, color: couleur, background: 'none', borderRadius: 6, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Ajouter une option</button>}
+            <button onClick={genererCombinaisons} style={{ border: 'none', color: '#fff', background: couleur, borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>⚙️ Générer les combinaisons</button>
+          </div>
+          {variantes.length === 0 && <p style={{ fontSize: 12, color: T.light, margin: 0 }}>Aucune combinaison : le produit est vendu tel quel (sans choix pour le client).</p>}
+          {variantes.map((v, i) => (
+            <div key={v.nom + i} style={{ display: 'grid', gridTemplateColumns: mobile ? '1fr 1fr' : '2fr 1fr 1fr 1.4fr 32px', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text, gridColumn: mobile ? '1 / -1' : undefined }}>{v.nom}</div>
+              <input type="number" min="0" step="0.01" value={v.prix} onChange={e => setVariantes(a => a.map((x, k) => (k === i ? { ...x, prix: e.target.value } : x)))} placeholder="Prix ($)" style={champ} />
+              <input type="number" min="0" step="1" value={v.stock} onChange={e => setVariantes(a => a.map((x, k) => (k === i ? { ...x, stock: e.target.value } : x)))} placeholder="Stock" style={champ} />
+              <select value={v.photo && photos.includes(v.photo) ? v.photo : ''} onChange={e => setVariantes(a => a.map((x, k) => (k === i ? { ...x, photo: e.target.value } : x)))} style={{ ...champ, gridColumn: mobile ? '1 / -1' : undefined }}>
+                <option value="">Photo du produit</option>
+                {photos.map((u, k) => <option key={u} value={u}>Photo {k + 1}</option>)}
+              </select>
+              <button onClick={() => setVariantes(a => a.filter((_, k) => k !== i))} style={{ border: 'none', background: 'none', color: T.danger, cursor: 'pointer', fontSize: 16 }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!mono && (<div style={carte}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <label style={{ ...lbl, margin: 0 }}>Variantes (taille, couleur…)</label>
           {variantes.length < 20 && <button onClick={() => setVariantes(v => v.concat([{ nom: '', prix: '', stock: '' }]))} style={{ border: `1px solid ${couleur}`, color: couleur, background: 'none', borderRadius: 6, padding: '4px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>+ Ajouter</button>}
@@ -327,7 +391,7 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
             <button onClick={() => setVariantes(a => a.filter((_, k) => k !== i))} style={{ border: 'none', background: 'none', color: T.danger, cursor: 'pointer', fontSize: 16 }}>✕</button>
           </div>
         ))}
-      </div>
+      </div>)}
 
       {(parutionActif || dateParutionInitiale) && (
         <div style={carte}>
@@ -423,8 +487,8 @@ export default function BoutiqueCreerAnnonce({ produitId, accent, isMobile, page
 
       {erreur && <BoutiqueModale type="erreur" message={erreur} onFermer={() => setErreur('')} />}
       {erreurLimite && (
-        <BoutiqueModale type="erreur" titre="Limite d'annonces atteinte" message={erreurLimite} accent={couleur} onFermer={() => setErreurLimite('')}
-          actionSecondaire={pagePlan && naviguerVers ? { texte: 'Voir mon plan', onClick: () => naviguerVers(pagePlan) } : undefined} />
+        <BoutiqueModale type="erreur" titre={mono ? 'Un seul produit' : "Limite d'annonces atteinte"} message={erreurLimite} accent={couleur} onFermer={() => setErreurLimite('')}
+          actionSecondaire={!mono && pagePlan && naviguerVers ? { texte: 'Voir mon plan', onClick: () => naviguerVers(pagePlan) } : undefined} />
       )}
       {succes && <BoutiqueModale type="succes" accent={couleur} message={succes} texteFermer="Voir mes annonces" onFermer={onRetour} />}
     </div>
