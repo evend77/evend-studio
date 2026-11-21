@@ -3,6 +3,7 @@
 // Pattern identique à ConfigTemplateFoodTruck : panneau gauche + aperçu droit
 // 100% mobile responsive
 
+import ArticlesBlogConfig, { useArticlesBlog } from '../../components/ArticlesBlogConfig';
 import { useState, useEffect, useCallback } from 'react';
 
 // ─── Couleur principale Simplisse ────────────────────────────────────────────
@@ -527,7 +528,7 @@ function EditeurChampInscription({ champ, index, total, ouvertParDefaut, onChang
 
 // ─── Aperçu visuel mini ────────────────────────────────────────────────────────
 
-function ApercuMini({ config, pageCourante }: { config: ConfigSimplisse; pageCourante: string }) {
+function ApercuMini({ config, pageCourante, articlesBlog }: { config: ConfigSimplisse; pageCourante: string; articlesBlog?: any }) {
   const acc = config.accueil;
   const foot = config.footer;
 
@@ -558,7 +559,7 @@ function ApercuMini({ config, pageCourante }: { config: ConfigSimplisse; pageCou
       <div style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '6px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 10, fontWeight: 700, color: acc.couleurPrimaire }}>{foot.nomBoutique || 'Ma Boutique'}</span>
         <div style={{ display: 'flex', gap: 6 }}>
-          {['Accueil','Catalogue','Blog','FAQ','Contact'].map(p => (
+          {([['accueil','Accueil'],['catalogue','Catalogue'],['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']] as string[][]).filter(([id]) => !(config.menu?.masques || []).includes(id)).map(([id, l]) => (config.menu?.[id] || '').trim() || l).map(p => (
             <span key={p} style={{ fontSize: 8, color: '#888' }}>{p}</span>
           ))}
         </div>
@@ -682,17 +683,24 @@ function ApercuMini({ config, pageCourante }: { config: ConfigSimplisse; pageCou
       {pageCourante === 'blog' && (
         <div style={{ padding: '8px 10px' }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>{config.blog.titre}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(config.blog.colonnes, 2)},1fr)`, gap: 5 }}>
-            {[...Array(Math.min(config.blog.colonnes, 4))].map((_, i) => (
-              <div key={i} style={{ background: '#f3f4f6', borderRadius: 5, overflow: 'hidden' }}>
-                <div style={{ height: 30, background: '#e5e7eb' }} />
-                <div style={{ padding: 4 }}>
-                  <div style={{ fontSize: 8, fontWeight: 600, color: '#1a1a1a' }}>Article {i + 1}</div>
-                  {config.blog.afficherDate && <div style={{ fontSize: 7, color: '#aaa' }}>15 juin 2025</div>}
-                </div>
+          {(() => {
+            // Vrais articles publiés (Mes blogs) ; aucun article publié : on le dit au lieu d'inventer des exemples
+            const pub = ((articlesBlog && articlesBlog.articles) || []).filter((a: any) => a.statut === 'publie').slice(0, 4);
+            if (articlesBlog && articlesBlog.charge && pub.length === 0) return <div style={{ fontSize: 8, color: '#888', padding: '6px 0' }}>Aucun article publié pour le moment.</div>;
+            return (
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(config.blog.colonnes, 2)},1fr)`, gap: 5 }}>
+                {pub.map((a: any) => (
+                  <div key={a.id} style={{ background: '#f3f4f6', borderRadius: 5, overflow: 'hidden' }}>
+                    {a.image_couverture ? <img src={a.image_couverture} alt="" style={{ width: '100%', height: 30, objectFit: 'cover', display: 'block' }} /> : <div style={{ height: 30, background: '#e5e7eb' }} />}
+                    <div style={{ padding: 4 }}>
+                      <div style={{ fontSize: 8, fontWeight: 600, color: '#1a1a1a' }}>{a.titre}</div>
+                      {config.blog.afficherDate && (a.date_publication || a.created_at) && <div style={{ fontSize: 7, color: '#aaa' }}>{new Date(a.date_publication || a.created_at).toLocaleDateString('fr-CA')}</div>}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            );
+          })()}
         </div>
       )}
 
@@ -770,6 +778,7 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
   const [page, setPage] = useState<PageOnglet>('accueil');
   const [sauv, setSauv] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
   const [modeApercu, setModeApercu] = useState<'desktop' | 'mobile'>('desktop');
+  const articlesBlog = useArticlesBlog(); // vrais articles de « Mes blogs » (onglet Blog + aperçu)
   const [panneauOuvert, setPanneauOuvert] = useState(false); // mobile: toggle config/aperçu
   const [isMobile, setIsMobile] = useState(false);
 
@@ -1055,6 +1064,9 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
           </S>
           <S titre="Bannière">
             <EditorBanniere banniere={config.blog.banniere} onChange={b => setBlog({ banniere: b })} />
+          </S>
+          <S titre="Mes articles (écrits dans « Mes blogs »)">
+            <ArticlesBlogConfig etat={articlesBlog} />
           </S>
           <S titre="Grille articles">
             <F label="Colonnes">
@@ -1439,7 +1451,7 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
               <div style={{ border: '1px solid #e5e7eb', borderTop: 'none', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
                 {page === 'inscription'
                   ? <div style={{ padding: 24, background: '#fff', fontSize: 12, color: '#666', lineHeight: 1.6, textAlign: 'center' }}>👤 La page « {config.inscription.titre || 'Créer un compte'} » n'a pas d'aperçu ici.<br />Enregistrez, puis ouvrez <strong>Aperçu de mon site</strong> → Connexion → Créer un compte.</div>
-                  : <ApercuMini config={config} pageCourante={page} />}
+                  : <ApercuMini config={config} pageCourante={page} articlesBlog={articlesBlog} />}
               </div>
             </div>
 

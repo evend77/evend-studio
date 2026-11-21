@@ -2,6 +2,7 @@
 // e-Vend Studio — Configuration du template Boutique Premium
 
 import { useState, useEffect, useCallback } from 'react';
+import ArticlesBlogConfig, { useArticlesBlog } from '../../components/ArticlesBlogConfig';
 
 const API_BASE = '/api';
 const CP = '#c9a96e';
@@ -242,6 +243,7 @@ function EditeurChampInscription({ champ, index, total, ouvertParDefaut, onChang
 }
 
 export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
+  const articlesBlog = useArticlesBlog(); // vrais articles de « Mes blogs » (onglet Blog)
   const [onglet, setOnglet]   = useState<PageOnglet>('accueil');
   const [config, setConfig]   = useState<any>(DEF);
   const [loading, setLoading] = useState(true);
@@ -556,6 +558,9 @@ export default function ConfigMesPagesPremium({ gestionnaireId }: Props) {
 
       case 'blog': return (
         <>
+          <S titre="Mes articles (écrits dans « Mes blogs »)">
+            <ArticlesBlogConfig etat={articlesBlog} sombre={true} />
+          </S>
           <S titre="Page blog">
             <F label="Titre de la page"><Inp value={config.blog.titre} onChange={(v: string) => set('blog', { ...config.blog, titre: v })} placeholder="Notre univers" /></F>
             <F label="Colonnes">

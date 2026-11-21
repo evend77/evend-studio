@@ -7,6 +7,7 @@
 'use strict';
 
 const pool = require('../db');
+const MONO = require('./boutique_mono');
 
 class ErreurBoutique extends Error {
   constructor(message, status, extra) { super(message); this.status = status || 400; this.extra = extra || {}; }
@@ -54,6 +55,13 @@ async function etat(gid, db) {
 
 // Appelé avant de publier une annonce (création active, brouillon → actif)
 async function verifierActivation(gid, ajout, db) {
+  // Mono-produit : UNE seule annonce vendue (les variantes sont dans l'annonce). Les anciennes annonces masquées ne comptent pas.
+  if (await MONO.estMono(gid, db)) {
+    if (await MONO.retenuActif(gid, db)) {
+      throw new ErreurBoutique("Le template Mono-produit vend un seul produit, et vous en avez déjà un en vente. Pour en vendre un autre, désactivez-le d'abord ou choisissez-le dans « Produit vendu ». Ajoutez plutôt des variantes à votre produit.", 403, { code: 'LIMITE_ANNONCES', limite: 1 });
+    }
+    return { limite: 1, mono: true };
+  }
   const e = await etat(gid, db);
   if (e.limite === null) return e;
   const nb = await compter(gid, db);
@@ -88,6 +96,7 @@ async function changerPalier(gid, limite) {
 async function appliquerChangementTemplate(gid, nouveauTemplateId) {
   // Seuls les templates boutique (solo) ont des paliers gérés ici : le MV et les autres ne sont jamais touchés
   if (!String(nouveauTemplateId || '').startsWith('boutique-')) return { ok: true };
+  if (MONO.estTemplateMono(nouveauTemplateId)) return { ok: true };   // Mono-produit : jamais bloqué ; seul le produit retenu est vendu, les autres annonces restent dans la liste
   const s = (await pool.query('SELECT template_id FROM sites WHERE gestionnaire_id = $1', [gid])).rows[0];
   if (s && s.template_id === nouveauTemplateId) return { ok: true };
   const paliers = await paliersDuTemplate(nouveauTemplateId);

@@ -16,6 +16,7 @@ const R = require('../services/boutique_retours');
 const INSC = require('../services/boutique_inscription');
 const ADR = require('../services/boutique_adresses');
 const PERSO = require('../services/boutique_perso');   // add-on « Produits personnalisés »
+const MONO = require('../services/boutique_mono');   // template Mono-produit : un seul produit vendu
 const bcrypt = require('bcrypt');
 
 const router = express.Router({ mergeParams: true });
@@ -89,6 +90,8 @@ router.post('/panier', wrap(async (req, res) => {
        FROM produits WHERE id = $1 AND gestionnaire_id = $2 AND collaborateur_id IS NULL`, [pid, req.gid])).rows[0];
   const pb = C.problemeDisponibilite(p);
   if (pb) return res.status(409).json({ message: `Cet article ${pb}.` });
+  const retenu = await MONO.retenuPour(req.gid);   // Mono-produit : seul le produit retenu se vend
+  if (retenu !== undefined && retenu !== pid) return res.status(409).json({ message: "Cet article n'est plus disponible." });
   const c = C.prixEtStock(p, variante);
   if (c.erreur) return res.status(409).json({ message: c.erreur });
   // Add-on « Produits personnalisés » : le serveur relit la config du produit et valide chaque réponse (jamais le navigateur)

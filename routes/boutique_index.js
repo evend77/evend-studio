@@ -38,6 +38,7 @@ router.use('/gestionnaire/ebay', require('./boutique_ebay_gestionnaire'));
 router.use('/gestionnaire/etsy', require('./boutique_etsy_gestionnaire'));
 router.use('/gestionnaire/infolettre', require('./boutique_infolettre_gestionnaire'));
 router.use('/gestionnaire/perso', require('./boutique_perso_gestionnaire'));
+router.use('/gestionnaire/mono-produit', require('./boutique_mono_gestionnaire'));
 
 // Publics (sans connexion) — AVANT la zone connectée ci-dessous : catalogue de la boutique, inscription d'un acheteur
 router.use('/catalogue', require('./boutique_catalogue'));

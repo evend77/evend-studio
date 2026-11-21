@@ -11,6 +11,7 @@
 'use strict';
 
 const pool = require('../db');
+const MONO = require('./boutique_mono');   // template Mono-produit : seul le produit retenu se vend
 const paiement = require('./boutique_paiement');
 const TAXES = require('./boutique_taxes');
 const EXP = require('./boutique_expedition');
@@ -100,11 +101,12 @@ async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
        LEFT JOIN produits p ON p.id = bp.produit_id AND p.gestionnaire_id = bp.gestionnaire_id AND p.collaborateur_id IS NULL
       WHERE bp.gestionnaire_id = $1 AND bp.acheteur_id = $2
       ORDER BY bp.created_at, bp.id`, [gid, acheteurId]);
+  const retenuMono = await MONO.retenuPour(gid, db);   // undefined = template multi-produits
   return r.rows.map((x) => {
     const ligne = { id: x.ligne_id, produit_id: x.produit_id, variante: x.variante || '', quantite: x.quantite, negociation_id: x.negociation_id || null, negocie: !!x.negociation_id, enchere_id: x.enchere_id || null, enchere: !!x.enchere_id,
       personnalisation: x.personnalisation || null, perso_cle: x.perso_cle || '', titre: x.titre || 'Article retiré', image_url: x.photo_principale || null, poids: Number(x.poids) || 0, quantite_min: x.quantite_min || null,
       prix: 0, stock: 0, total_ligne: 0, erreur: null, _p: x.pid ? x : null };
-    const pb = problemeDisponibilite(x.pid ? x : null);
+    const pb = problemeDisponibilite(x.pid ? x : null) || (retenuMono !== undefined && x.pid && x.pid !== retenuMono ? "n'est plus disponible" : null);
     if (pb) { ligne.erreur = `« ${ligne.titre} » ${pb}. Retirez-le de votre panier.`; return ligne; }
     const c = prixEtStock(x, ligne.variante);
     if (c.erreur) { ligne.erreur = `« ${ligne.titre} » : ${c.erreur}`; return ligne; }

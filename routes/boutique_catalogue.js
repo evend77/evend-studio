@@ -12,6 +12,7 @@ const A = require('../services/boutique_addons');
 const O = require('../services/boutique_offres');
 const PAL = require('../services/boutique_paliers');
 const PARU = require('../services/boutique_parution');
+const MONO = require('../services/boutique_mono');   // template Mono-produit : seul le produit retenu est servi
 const router = express.Router({ mergeParams: true });
 
 // Add-ons activés de la boutique (public — lu par le site). Réponse : { addons: { badge_evend_masquer: true, … } }
@@ -43,6 +44,10 @@ router.get('/:gid', async (req, res) => {
     const seulementOffres = req.query.offres === '1';
     // ?ids=3,8,12 → seulement ces produits (la page « Enchères » et « Mes enchères » ouvrent une fiche qui n'est pas dans les 100 premiers)
     const ids = typeof req.query.ids === 'string' ? req.query.ids.split(',').map((x) => parseInt(x, 10)).filter((x) => Number.isInteger(x) && x > 0 && x < 2147483647).slice(0, 50) : [];
+    // Mono-produit : le serveur ne sert QUE le produit retenu (les autres annonces du gestionnaire ne sont jamais exposées)
+    const retenu = await MONO.retenuPour(gid);
+    if (retenu === null) return res.json({ heure_serveur: new Date().toISOString(), produits: [] });
+    const filtreRetenu = retenu ? `AND p.id = ${parseInt(retenu, 10)}` : '';
     const filtreIds = ids.length ? `AND p.id = ANY(ARRAY[${ids.join(',')}]::int[])` : '';
     const r = await pool.query(
       `SELECT p.id, p.titre, p.description, p.prix, ${O.sqlPromo('p')} AS prix_promo, ${O.sqlFin('p')} AS offre_fin, p.stock, p.sku, p.categorie, p.photo_principale, p.photos, p.variantes, p.created_at, p.paliers, ${PAL.sqlAddonOn('p')} AS paliers_on, p.date_parution, (p.date_parution IS NOT NULL AND p.date_parution > NOW()) AS parution_future,
@@ -51,7 +56,7 @@ router.get('/:gid', async (req, res) => {
          LEFT JOIN LATERAL (SELECT e.date_fin, e.mise_actuelle, e.prix_depart, e.nb_mises FROM boutique_encheres e WHERE e.produit_id = p.id AND e.statut = 'active' AND e.date_fin > NOW() ORDER BY e.id DESC LIMIT 1) en ON TRUE
         WHERE p.gestionnaire_id = $1 AND p.collaborateur_id IS NULL AND p.statut = 'actif'
           AND (p.date_parution IS NULL OR p.date_parution <= NOW() ${seulementOffres ? '' : `OR ${PARU.sqlAddonOn('p')}`}) AND (p.date_expiration IS NULL OR p.date_expiration > NOW())
-          ${seulementOffres ? `AND ${O.actif('p')}` : ''} ${filtreIds}
+          ${seulementOffres ? `AND ${O.actif('p')}` : ''} ${filtreIds} ${filtreRetenu}
         ORDER BY ${seulementOffres ? 'p.offre_fin ASC, ' : ''}p.created_at DESC, p.id DESC LIMIT ${limite} OFFSET ${decalage}`, [gid]);
     // NUMERIC revient en texte depuis Postgres : le template attend des nombres
     let totalOffres;

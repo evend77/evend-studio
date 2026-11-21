@@ -10,6 +10,7 @@
 
 const pool = require('../db');
 const { ErreurBoutique } = require('./boutique_limites');
+const MONO = require('./boutique_mono');
 
 // Sections d'affichage, dans l'ordre (la catégorie « collaboration » du MV n'existe pas dans la boutique)
 const CATEGORIES = [
@@ -30,7 +31,8 @@ const arrondi = (n) => Math.round(n * 100) / 100;
 // Templates boutique SOLO (mêmes préfixes que le menu du gestionnaire) : Premium, Simplisse (et Mode), Beauté.
 // Les anciens templates « boutique-simple » et « boutique-complete » gardent leur menu « Branding & options ».
 const PREFIXES_SOLO = ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'];
-const estTemplateSolo = (t) => typeof t === 'string' && PREFIXES_SOLO.some((p) => t.startsWith(p));
+// Mono-produit (boutique-simple) : comparaison EXACTE — « boutique-simplisse » commence par « boutique-simple »
+const estTemplateSolo = (t) => typeof t === 'string' && (PREFIXES_SOLO.some((p) => t.startsWith(p)) || MONO.estTemplateMono(t));
 
 // Le gestionnaire a-t-il un site boutique solo ? Les add-ons ne servent qu'à ces templates.
 async function aSiteBoutique(gid, db) {
@@ -41,12 +43,14 @@ async function aSiteBoutique(gid, db) {
 // État complet : add-ons offerts (ou déjà activés), avec prix, achat, total mensuel.
 async function etat(gid, db) {
   const c = db || pool;
+  const mono = await MONO.estMono(gid, c);   // Mono-produit : les add-ons sans objet (enchères, offres du jour, eBay, Etsy) ne sont pas proposés
   const [cat, ach] = await Promise.all([
     c.query('SELECT code, nom, description, emoji, categorie, prix_ht, guide_url, ordre, actif, branche FROM boutique_addons ORDER BY ordre, code'),
     c.query('SELECT code, prix_ht, active_le FROM boutique_addons_achetes WHERE gestionnaire_id = $1', [gid]),
   ]);
   const achat = new Map(ach.rows.map((a) => [a.code, a]));
   const addons = cat.rows
+    .filter((a) => !(mono && MONO.ADDONS_EXCLUS.includes(a.code)))
     .filter((a) => (a.actif && a.branche) || achat.has(a.code))      // un add-on déjà activé reste visible même si on le retire du catalogue
     .map((a) => {
       const x = achat.get(a.code);
@@ -65,6 +69,7 @@ async function etat(gid, db) {
 async function activer(gid, code, db) {
   const c = db || pool;
   if (!(await aSiteBoutique(gid, c))) throw new ErreurBoutique('Les add-ons sont offerts aux templates boutique seulement.', 403);
+  if ((await MONO.estMono(gid, c)) && MONO.ADDONS_EXCLUS.includes(String(code || ''))) throw new ErreurBoutique("Cet add-on n'a pas de sens pour un template Mono-produit.", 403);
   const a = (await c.query('SELECT code, prix_ht, actif, branche FROM boutique_addons WHERE code = $1', [String(code || '')])).rows[0];
   if (!a || !a.actif || !a.branche) throw new ErreurBoutique('Add-on introuvable ou non disponible.', 404);
   const r = await c.query(
@@ -80,6 +85,7 @@ async function desactiver(gid, code, db) {
 
 // Pour le code de la boutique (vitrine, caisse…) : cet add-on est-il actif pour ce gestionnaire ?
 async function addonActif(gid, code, db) {
+  if (MONO.ADDONS_EXCLUS.includes(String(code || '')) && (await MONO.estMono(gid, db))) return false;
   const r = await (db || pool).query(
     `SELECT 1 FROM boutique_addons_achetes x JOIN boutique_addons a ON a.code = x.code
       WHERE x.gestionnaire_id = $1 AND x.code = $2 AND a.actif = true AND a.branche = true`, [gid, String(code || '')]);
@@ -88,11 +94,12 @@ async function addonActif(gid, code, db) {
 
 // Public (lu par le site de la boutique) : { code: true } pour chaque add-on activé ET encore offert. Rien d'autre n'est révélé.
 async function actifs(gid, db) {
+  const mono = await MONO.estMono(gid, db);
   const r = await (db || pool).query(
     `SELECT x.code FROM boutique_addons_achetes x JOIN boutique_addons a ON a.code = x.code
       WHERE x.gestionnaire_id = $1 AND a.actif = true AND a.branche = true`, [gid]);
   const out = {};
-  for (const l of r.rows) out[l.code] = true;
+  for (const l of r.rows) if (!(mono && MONO.ADDONS_EXCLUS.includes(l.code))) out[l.code] = true;
   return out;
 }
 

@@ -14,6 +14,7 @@ const sanitizeHtml = require('sanitize-html');
 const pool = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const L = require('../services/boutique_limites');
+const MONO = require('../services/boutique_mono');   // template Mono-produit : un seul produit vendu
 const PAL = require('../services/boutique_paliers');   // add-on « Prix par palier »
 const PARU = require('../services/boutique_parution');   // add-on « Parution future »
 
@@ -361,6 +362,7 @@ router.post('/produits', h(async (req, res) => {
   await ecrireMethodes(r.rows[0].id, p);
   await ecrirePaliers(req, r.rows[0].id, paliers);
   await ecrireParution(req, r.rows[0].id, parution);
+  if (p.statut === 'actif') await MONO.apresActivation(req.gid, r.rows[0].id);
   res.status(201).json({ id: r.rows[0].id, statut: p.statut });
 }));
 
@@ -389,6 +391,7 @@ router.put('/produits/:id', h(async (req, res) => {
   await ecrireMethodes(id, p);
   await ecrirePaliers(req, id, paliers);
   await ecrireParution(req, id, parution);
+  if (p.statut === 'actif') await MONO.apresActivation(req.gid, id);
   res.json({ success: true, statut: p.statut });
 }));
 
@@ -400,6 +403,7 @@ router.patch('/produits/:id/statut', h(async (req, res) => {
   if (!ancien.rows.length) bad('Produit introuvable', 404);
   if (statut === 'actif' && ancien.rows[0].statut !== 'actif') await L.verifierActivation(req.gid, 1);
   await pool.query(`UPDATE produits SET statut=$1, updated_at=NOW() WHERE id=$2 AND gestionnaire_id=$3 AND collaborateur_id IS NULL`, [statut, id, req.gid]);
+  if (statut === 'actif') await MONO.apresActivation(req.gid, id);
   res.json({ success: true, statut });
 }));
 
