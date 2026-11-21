@@ -37,6 +37,7 @@ router.use('/gestionnaire/etiquettes', require('./boutique_etiquettes_gestionnai
 router.use('/gestionnaire/ebay', require('./boutique_ebay_gestionnaire'));
 router.use('/gestionnaire/etsy', require('./boutique_etsy_gestionnaire'));
 router.use('/gestionnaire/infolettre', require('./boutique_infolettre_gestionnaire'));
+router.use('/gestionnaire/perso', require('./boutique_perso_gestionnaire'));
 
 // Publics (sans connexion) — AVANT la zone connectée ci-dessous : catalogue de la boutique, inscription d'un acheteur
 router.use('/catalogue', require('./boutique_catalogue'));
@@ -58,6 +59,7 @@ router.use('/etiquettes', require('./boutique_etiquettes_public'));
 router.use('/ebay', require('./boutique_ebay_public'));
 router.use('/etsy', require('./boutique_etsy_public'));
 router.use('/infolettre', require('./boutique_infolettre_public'));
+router.use('/perso', require('./boutique_perso_public'));
 router.use('/acheteur/:gid/inscription', require('./boutique_inscription'));
 
 // Acheteur connecté : panier, caisse, commandes (compte acheteur du MV réutilisé)

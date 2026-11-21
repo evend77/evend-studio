@@ -37,8 +37,21 @@ export function argent(n: number | string | null | undefined, devise?: string): 
 }
 
 // À appeler depuis la page d'une annonce (bouton « Ajouter au panier »)
-export function ajouterAuPanier(gid: number, produitId: number, quantite: number = 1, variante: string = ''): Promise<ReponseAcheteur> {
-  return ba(gid, '/panier', { method: 'POST', body: { produit_id: produitId, quantite, variante } });
+// `personnalisation` : réponses de l'acheteur (add-on « Produits personnalisés ») ; le serveur les relit et les valide
+export function ajouterAuPanier(gid: number, produitId: number, quantite: number = 1, variante: string = '', personnalisation?: Record<string, any>): Promise<ReponseAcheteur> {
+  return ba(gid, '/panier', { method: 'POST', body: { produit_id: produitId, quantite, variante, ...(personnalisation ? { personnalisation } : {}) } });
+}
+
+// Add-on « Produits personnalisés » : envoie une image (logo, photo) ; retourne { id, url, nom }
+export async function envoyerFichierPerso(gid: number, fichier: File): Promise<ReponseAcheteur> {
+  const fd = new FormData(); fd.append('file', fichier);
+  const headers: Record<string, string> = {};
+  const t = jeton(gid); if (t) headers.Authorization = `Bearer ${t}`;
+  try {
+    const r = await fetch(`/api/boutique/acheteur/${gid}/perso/fichier`, { method: 'POST', credentials: 'include', headers, body: fd });
+    let data: any = {}; try { data = await r.json(); } catch (e) { data = {}; }
+    return { ok: r.ok, status: r.status, data };
+  } catch (e) { return { ok: false, status: 0, data: { message: 'Erreur réseau. Vérifiez votre connexion.' } }; }
 }
 
 export const PROVINCES: { code: string; nom: string }[] = [

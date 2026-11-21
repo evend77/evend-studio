@@ -13,6 +13,7 @@ import BoutiqueParutionCountdown, { useConfigParution, formaterDateParution } fr
 import useBoutiqueAnalytique from '../hooks/useBoutiqueAnalytique';   // add-on « Analytique » : compte les pages vues (après consentement du visiteur)
 import BoutiqueBoutonInstallerApp from '../components/BoutiqueBoutonInstallerApp';   // add-on « App installable » : bouton « Installer l'app » (mobile)
 import BoutiqueInfolettre from '../components/BoutiqueInfolettre';   // add-on « Infolettre » : rangée d'inscription dans le pied de page
+import BoutiquePersonnalisation, { PersoRef } from '../components/BoutiquePersonnalisation';   // add-on « Produits personnalisés » : champs + aperçu sur la page produit
 import BoutiqueVerificateurAge from '../components/BoutiqueVerificateurAge';   // add-on « Vérificateur d'âge » : fenêtre bloquante à l'arrivée
 import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
 import AvisProduitBoutique, { useAvisProduit } from '../pages/boutique/AvisProduitBoutique';   // add-on « Avis clients » : onglet « Avis » et note moyenne de la fiche produit
@@ -364,6 +365,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [varianteChoisie,setVarianteChoisie] = useState<Record<string,string>>({});
   const [ouvertes,setOuvertes] = useState<Record<number,boolean>>({});   // Parution future : annonces dont le compte à rebours vient de finir
   const cfgParution = useConfigParution(vendeurId);
+  const persoRef = useRef<PersoRef|null>(null);   // add-on « Produits personnalisés » : réponses de l'acheteur, lues au clic sur « Ajouter au panier »
   const { trackPageView } = useBoutiqueAnalytique(vendeurId, vendeurId>0&&!configBrut?.__produits_demo__);   // add-on « Analytique » : rien n'est envoyé sans l'add-on, sans la bannière ou sans consentement
   useEffect(()=>{
     const noms:Record<string,[string,string]>={ accueil:['/','Accueil'], catalogue:['/catalogue','Catalogue'], offres:['/offres','Offres du jour'], encheres:['/encheres','Enchères'], blog:['/blog','Blogue'], faq:['/faq','FAQ'], 'a-propos':['/a-propos','À propos'], contact:['/contact','Contact'], panier:['/panier','Panier'], compte:['/compte','Mon compte'], login:['/connexion','Connexion'], inscription:['/inscription','Inscription'] };
@@ -501,7 +503,9 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     const plates=(produit.variantes||[]).filter(v=>v&&!Array.isArray(v.valeurs));
     if(plates.length&&!varianteChoisie.__v){ setAvisPanier('Choisissez une variante.'); return; }
     const variante=Object.values(varianteChoisie).join(' / ');
-    const r=await ajouterAuPanierServeur(vendeurId,produit.id,qteChoisie,variante);
+    let perso:Record<string,any>|undefined;
+    if(persoRef.current){ const pp=await persoRef.current.preparer(); if(!pp.ok){ setAvisPanier(pp.erreur||'Complétez la personnalisation.'); return; } perso=pp.personnalisation&&Object.keys(pp.personnalisation).length?pp.personnalisation:undefined; }
+    const r=await ajouterAuPanierServeur(vendeurId,produit.id,qteChoisie,variante,perso);
     if(!r.ok){ setAvisPanier(messageAcheteur(r)); return; }
     setVueCompte('panier'); naviguer('compte');
   };
@@ -885,6 +889,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
                 </div>
               </div>
             ))}
+
+            {!parutionBloquee&&!venteDirecteBloquee(p)&&vendeurId>0&&!modeDemo&&<BoutiquePersonnalisation key={p.id} gestionnaireId={vendeurId} produitId={p.id} couleur={cp} reference={persoRef}/>}
 
             {!parutionBloquee&&!venteDirecteBloquee(p)&&<div style={{ marginBottom:20 }}>
               <div style={{ fontSize:12,fontWeight:700,color:'#888',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8 }}>Quantité</div>

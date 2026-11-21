@@ -201,7 +201,7 @@ async function mettreAuPanier({ gid, acheteurId, id }) {
     // Une ligne existante du même produit (même variante) devient la ligne négociée : quantité 1, prix convenu
     await client.query(
       `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, negociation_id) VALUES ($1,$2,$3,$4,1,$5)
-       ON CONFLICT (acheteur_id, produit_id, variante) DO UPDATE SET quantite = 1, negociation_id = EXCLUDED.negociation_id, updated_at = NOW()`,
+       ON CONFLICT (acheteur_id, produit_id, variante, perso_cle) DO UPDATE SET quantite = 1, negociation_id = EXCLUDED.negociation_id, updated_at = NOW()`,
       [gid, acheteurId, n.produit_id, n.variante, id]);
     await client.query('COMMIT');
     return true;

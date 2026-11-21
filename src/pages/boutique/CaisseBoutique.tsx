@@ -7,9 +7,10 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { ba, messageAcheteur, argent } from './boutiqueAcheteurApi';
+import ResumePerso, { PersoCliche } from '../../components/ResumePerso';   // add-on « Produits personnalisés »
 import FormulaireAdresseBoutique, { AdresseCarnet, AdresseSaisie, adresseVide, ligneAdresse } from './FormulaireAdresseBoutique';
 
-interface Ligne { id: number; titre: string; variante: string; quantite: number; prix: number; total_ligne: number; image_url: string | null; }
+interface Ligne { id: number; titre: string; variante: string; quantite: number; prix: number; total_ligne: number; image_url: string | null; personnalisation?: PersoCliche | null; }
 interface Infos {
   lignes: Ligne[]; sous_total: number; devise: string;
   methodes_expedition: { id: number; nom?: string; transporteur_nom?: string; logo?: string; frais_calcule?: number; delais_estime?: string; detail_calcul?: string }[];
@@ -272,6 +273,7 @@ export default function CaisseBoutique({ gestionnaireId: gid, accent, naviguerVe
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 600 }}>{l.titre}</div>
                 {l.variante && <div style={{ fontSize: 12, color: '#a8926a' }}>{l.variante}</div>}
+                <ResumePerso perso={l.personnalisation} compact />
                 <div style={{ fontSize: 12, color: '#a8926a' }}>{argent(l.prix, dev)} / unité</div>
               </div>
               <strong style={{ fontSize: 14 }}>{argent(l.total_ligne, dev)}</strong>

@@ -33,7 +33,7 @@ async function lister(gid, { filtre = 'toutes', q = '', page = 1, limite = 25 } 
   const total = (await pool.query(`SELECT COUNT(*)::int n ${base}`, params)).rows[0].n;
   const r = await pool.query(
     `SELECT c.id, c.numero_commande, c.statut, c.statut_paiement, c.mode_paiement, c.devise, c.total, c.rembourse, c.created_at, c.paye_le, c.anomalie,
-            jsonb_array_length(c.articles) AS nb_lignes, c.adresse_livraison->>'nom' AS nom_livraison, a.email AS acheteur_email
+            jsonb_array_length(c.articles) AS nb_lignes, EXISTS (SELECT 1 FROM jsonb_array_elements(c.articles) x WHERE x ? 'personnalisation') AS personnalise, c.adresse_livraison->>'nom' AS nom_livraison, a.email AS acheteur_email
        ${base} ORDER BY c.created_at DESC LIMIT ${lim} OFFSET ${off}`, params);
   const cr = await pool.query(
     `SELECT COUNT(*) FILTER (WHERE statut_paiement = 'paye' AND statut = 'confirmee')::int AS a_traiter,

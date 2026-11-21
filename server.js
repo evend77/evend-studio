@@ -1172,6 +1172,8 @@ app.listen(port, () => {
   try { require('./services/boutique_ebay_import').demarrer(); } catch (e) { console.error('eBay import worker (boutique) :', e.message); }
   // Import des annonces Etsy de la boutique solo
   try { require('./services/boutique_etsy_import').demarrer(); } catch (e) { console.error('Etsy import worker (boutique) :', e.message); }
+  // Nettoyage des images de personnalisation jamais commandées (7 jours)
+  try { require('./services/boutique_perso').demarrerNettoyage(); } catch (e) { console.error('Nettoyage personnalisation (boutique) :', e.message); }
   console.log('\n🚀 ' + '='.repeat(50));
   console.log('🚀   e-Vend Studio API — Port ' + port + ' (proxy depuis React)');
   console.log('🚀 ' + '='.repeat(50));

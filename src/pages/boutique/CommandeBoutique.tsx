@@ -4,6 +4,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ba, messageAcheteur, argent, paramUrl } from './boutiqueAcheteurApi';
+import ResumePerso from '../../components/ResumePerso';   // add-on « Produits personnalisés »
 
 interface Props { gestionnaireId: number; accent?: string; numeroCommande?: string; naviguerVers: (page: string) => void; }
 
@@ -55,7 +56,7 @@ export default function CommandeBoutique({ gestionnaireId: gid, accent, numeroCo
       <h1 style={{ fontSize: 26, margin: '8px 0' }}>Merci pour votre commande !</h1>
       <p style={{ color: '#6b7280' }}>Commande <strong>{c.numero_commande}</strong> — total payé : <strong>{argent(c.total, c.devise)}</strong></p>
       <div style={{ textAlign: 'left', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 12, padding: 16, margin: '22px 0' }}>
-        {(c.articles || []).map((a: any, i: number) => <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 6 }}><span>{a.titre}{a.variante ? ` — ${a.variante}` : ''} × {a.quantite}</span><span>{argent(a.prix * a.quantite, c.devise)}</span></div>)}
+        {(c.articles || []).map((a: any, i: number) => <React.Fragment key={i}><div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 6 }}><span>{a.titre}{a.variante ? ` — ${a.variante}` : ''} × {a.quantite}</span><span>{argent(a.prix * a.quantite, c.devise)}</span></div><div style={{ marginBottom: 8 }}><ResumePerso perso={a.personnalisation} compact /></div></React.Fragment>)}
         {Number(c.rabais) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#047857' }}><span>Code {c.code_promo}</span><span>− {argent(c.rabais, c.devise)}</span></div>}
         {Number(c.frais_expedition) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#4b5563' }}><span>Expédition</span><span>{argent(c.frais_expedition, c.devise)}</span></div>}
         {c.taxes && Number(c.taxes.total_taxes) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, color: '#4b5563' }}><span>Taxes</span><span>{argent(c.taxes.total_taxes, c.devise)}</span></div>}

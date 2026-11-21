@@ -15,6 +15,7 @@ const O = require('../services/boutique_offres');
 const R = require('../services/boutique_retours');
 const INSC = require('../services/boutique_inscription');
 const ADR = require('../services/boutique_adresses');
+const PERSO = require('../services/boutique_perso');   // add-on « Produits personnalisés »
 const bcrypt = require('bcrypt');
 
 const router = express.Router({ mergeParams: true });
@@ -58,6 +59,9 @@ router.use('/favoris', require('./boutique_favoris_acheteur'));
 // Add-on « Avis clients » : produits à évaluer, déposer / modifier / supprimer un avis, envoyer une photo
 router.use('/avis', require('./boutique_avis_acheteur'));
 
+// Add-on « Produits personnalisés » : envoyer une image (logo, photo) à joindre à un article
+router.use('/perso', require('./boutique_perso_acheteur'));
+
 const wrap = (fn) => async (req, res) => {
   try { await fn(req, res); }
   catch (e) {
@@ -87,22 +91,26 @@ router.post('/panier', wrap(async (req, res) => {
   if (pb) return res.status(409).json({ message: `Cet article ${pb}.` });
   const c = C.prixEtStock(p, variante);
   if (c.erreur) return res.status(409).json({ message: c.erreur });
-  const deja = (await pool.query('SELECT quantite, negociation_id, enchere_id FROM boutique_panier WHERE acheteur_id = $1 AND produit_id = $2 AND variante = $3', [req.acheteurId, pid, variante])).rows[0];
+  // Add-on « Produits personnalisés » : le serveur relit la config du produit et valide chaque réponse (jamais le navigateur)
+  const pz = await PERSO.valider(req.gid, pid, req.body.personnalisation, req.acheteurId);
+  const deja = (await pool.query('SELECT quantite, negociation_id, enchere_id FROM boutique_panier WHERE acheteur_id = $1 AND produit_id = $2 AND variante = $3 AND perso_cle = $4', [req.acheteurId, pid, variante, pz.cle])).rows[0];
   if (deja && deja.negociation_id) return res.status(409).json({ message: 'Cet article est déjà dans votre panier au prix négocié (quantité 1).' });
   if (deja && deja.enchere_id) return res.status(409).json({ message: 'Cet article est déjà dans votre panier : vous l\'avez gagné aux enchères (quantité 1).' });
+  // Les autres versions (personnalisées autrement) du même article se partagent le même stock
+  const autres = +(await pool.query('SELECT COALESCE(SUM(quantite),0)::int AS n FROM boutique_panier WHERE acheteur_id = $1 AND produit_id = $2 AND variante = $3 AND perso_cle <> $4', [req.acheteurId, pid, variante, pz.cle])).rows[0].n;
   const total = (deja ? deja.quantite : 0) + qte;
-  if (total > c.stock) return res.status(409).json({ message: c.stock <= 0 ? 'Cet article est épuisé.' : `Stock insuffisant : il n'en reste que ${c.stock}.` });
+  if (total + autres > c.stock) return res.status(409).json({ message: c.stock <= 0 ? 'Cet article est épuisé.' : `Stock insuffisant : il n'en reste que ${c.stock}.` });
   if (total > 99) return res.status(400).json({ message: 'Quantité maximale : 99.' });
   await pool.query(
-    `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite) VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (acheteur_id, produit_id, variante) DO UPDATE SET quantite = $5, updated_at = NOW()`, [req.gid, req.acheteurId, pid, variante, total]);
+    `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, personnalisation, perso_cle) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)
+     ON CONFLICT (acheteur_id, produit_id, variante, perso_cle) DO UPDATE SET quantite = $5, updated_at = NOW()`, [req.gid, req.acheteurId, pid, variante, total, pz.perso ? JSON.stringify(pz.perso) : null, pz.cle]);
   res.status(201).json({ message: 'Ajouté au panier', quantite: total });
 }));
 
 // « Plus tard » : déclaré AVANT les routes avec :id
 router.get('/panier/plus-tard', wrap(async (req, res) => {
   const r = await pool.query(
-    `SELECT pt.id, pt.produit_id, pt.variante, pt.quantite, p.titre, p.prix, ${O.sqlPromo('p')} AS prix_promo, p.photo_principale AS image_url, p.statut
+    `SELECT pt.id, pt.produit_id, pt.variante, pt.quantite, pt.personnalisation, p.titre, p.prix, ${O.sqlPromo('p')} AS prix_promo, p.photo_principale AS image_url, p.statut
        FROM boutique_panier_plus_tard pt JOIN produits p ON p.id = pt.produit_id AND p.gestionnaire_id = pt.gestionnaire_id AND p.collaborateur_id IS NULL
       WHERE pt.gestionnaire_id = $1 AND pt.acheteur_id = $2 ORDER BY pt.created_at DESC`, [req.gid, req.acheteurId]);
   res.json({ articles: r.rows.map((x) => ({ ...x, prix: C.prixEtStock(x, x.variante).prix ?? Number(x.prix) })) });
@@ -117,13 +125,13 @@ router.post('/panier/plus-tard/:id/remettre', wrap(async (req, res) => {
   if (pb) return res.status(409).json({ message: `Cet article ${pb}.` });
   const c = C.prixEtStock(p, a.variante);
   if (c.erreur) return res.status(409).json({ message: c.erreur });
-  const deja = (await pool.query('SELECT quantite, negociation_id, enchere_id FROM boutique_panier WHERE acheteur_id = $1 AND produit_id = $2 AND variante = $3', [req.acheteurId, a.produit_id, a.variante])).rows[0];
+  const deja = (await pool.query('SELECT quantite, negociation_id, enchere_id FROM boutique_panier WHERE acheteur_id = $1 AND produit_id = $2 AND variante = $3 AND perso_cle = $4', [req.acheteurId, a.produit_id, a.variante, a.perso_cle])).rows[0];
   if (deja && (deja.negociation_id || deja.enchere_id)) return res.status(409).json({ message: 'Cet article est déjà dans votre panier à un prix verrouillé (offre ou enchère, quantité 1).' });
   const total = Math.min(99, (deja ? deja.quantite : 0) + a.quantite);
   if (total > c.stock) return res.status(409).json({ message: c.stock <= 0 ? 'Cet article est épuisé.' : `Stock insuffisant : il n'en reste que ${c.stock}.` });
   await pool.query(
-    `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite) VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (acheteur_id, produit_id, variante) DO UPDATE SET quantite = $5, updated_at = NOW()`, [req.gid, req.acheteurId, a.produit_id, a.variante, total]);
+    `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, personnalisation, perso_cle) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)
+     ON CONFLICT (acheteur_id, produit_id, variante, perso_cle) DO UPDATE SET quantite = $5, updated_at = NOW()`, [req.gid, req.acheteurId, a.produit_id, a.variante, total, a.personnalisation ? JSON.stringify(a.personnalisation) : null, a.perso_cle]);
   await pool.query('DELETE FROM boutique_panier_plus_tard WHERE id = $1', [id]);
   res.json({ message: 'Article remis au panier' });
 }));
@@ -140,8 +148,8 @@ router.post('/panier/:id/plus-tard', wrap(async (req, res) => {
   if (l.negociation_id) return res.status(409).json({ message: 'Un article au prix négocié ne peut pas être mis de côté : payez-le ou retirez-le.' });
   if (l.enchere_id) return res.status(409).json({ message: 'Un article gagné aux enchères ne peut pas être mis de côté : payez-le avant la fin du délai.' });
   await pool.query(
-    `INSERT INTO boutique_panier_plus_tard (gestionnaire_id, acheteur_id, produit_id, variante, quantite) VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (acheteur_id, produit_id, variante) DO UPDATE SET quantite = EXCLUDED.quantite`, [req.gid, req.acheteurId, l.produit_id, l.variante, l.quantite]);
+    `INSERT INTO boutique_panier_plus_tard (gestionnaire_id, acheteur_id, produit_id, variante, quantite, personnalisation, perso_cle) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7)
+     ON CONFLICT (acheteur_id, produit_id, variante, perso_cle) DO UPDATE SET quantite = EXCLUDED.quantite`, [req.gid, req.acheteurId, l.produit_id, l.variante, l.quantite, l.personnalisation ? JSON.stringify(l.personnalisation) : null, l.perso_cle]);
   await pool.query('DELETE FROM boutique_panier WHERE id = $1', [id]);
   res.json({ message: 'Article mis de côté' });
 }));

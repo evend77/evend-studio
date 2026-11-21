@@ -254,7 +254,7 @@ async function finaliser(enchereId) {
       // L'article gagné arrive dans le panier du gagnant (prix et quantité verrouillés). Une ligne existante du même produit devient la ligne de l'enchère.
       await client.query(
         `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, enchere_id) VALUES ($1,$2,$3,'',1,$4)
-         ON CONFLICT (acheteur_id, produit_id, variante) DO UPDATE SET quantite = 1, enchere_id = EXCLUDED.enchere_id, negociation_id = NULL, updated_at = NOW()`,
+         ON CONFLICT (acheteur_id, produit_id, variante, perso_cle) DO UPDATE SET quantite = 1, enchere_id = EXCLUDED.enchere_id, negociation_id = NULL, updated_at = NOW()`,
         [e.gestionnaire_id, top.acheteur_id, e.produit_id, e.id]);
       resultat = { type: 'gagnee', e, gagnant: top.acheteur_id, prix: Number(top.montant), expire };
     }
@@ -330,7 +330,7 @@ async function remettreAuPanier({ gid, enchereId, acheteurId }) {
   if (enCours.rows.length) refus('Un paiement est déjà en cours pour cet article.', 409);
   await pool.query(
     `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, enchere_id) VALUES ($1,$2,$3,'',1,$4)
-     ON CONFLICT (acheteur_id, produit_id, variante) DO UPDATE SET quantite = 1, enchere_id = EXCLUDED.enchere_id, negociation_id = NULL, updated_at = NOW()`,
+     ON CONFLICT (acheteur_id, produit_id, variante, perso_cle) DO UPDATE SET quantite = 1, enchere_id = EXCLUDED.enchere_id, negociation_id = NULL, updated_at = NOW()`,
     [e.gestionnaire_id, acheteurId, e.produit_id, e.id]);
   return { deja: false };
 }

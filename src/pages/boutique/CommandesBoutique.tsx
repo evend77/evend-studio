@@ -4,6 +4,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { ba, messageAcheteur, argent } from './boutiqueAcheteurApi';
+import ResumePerso from '../../components/ResumePerso';   // add-on « Produits personnalisés »
 
 interface Props { gestionnaireId: number; couleurAccent?: string; isMobile?: boolean; naviguer?: (p: string) => void; demanderRetour?: (numero: string) => void; }
 
@@ -63,7 +64,7 @@ export default function CommandesBoutique({ gestionnaireId: gid, couleurAccent, 
             {ouvert && (
               <div style={{ padding: '4px 18px 16px', borderTop: '1px solid rgba(255,255,255,0.06)', fontSize: 13 }}>
                 {(c.articles || []).map((a: any, i: number) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}><span>{a.titre}{a.variante ? ` — ${a.variante}` : ''} × {a.quantite}</span><span>{argent(a.prix * a.quantite, c.devise)}</span></div>
+                  <React.Fragment key={i}><div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0' }}><span>{a.titre}{a.variante ? ` — ${a.variante}` : ''} × {a.quantite}</span><span>{argent(a.prix * a.quantite, c.devise)}</span></div><ResumePerso perso={a.personnalisation} compact texte="#e5e5e5" doux="rgba(255,255,255,0.55)" /></React.Fragment>
                 ))}
                 <div style={{ display: 'flex', justifyContent: 'space-between', color: 'rgba(255,255,255,0.6)', padding: '4px 0' }}><span>Sous-total</span><span>{argent(c.sous_total, c.devise)}</span></div>
                 {Number(c.rabais) > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', color: '#34d399', padding: '4px 0' }}><span>Code {c.code_promo}</span><span>− {argent(c.rabais, c.devise)}</span></div>}

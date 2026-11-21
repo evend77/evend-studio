@@ -4,6 +4,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { bq, messageErreur, formaterArgent } from './boutiqueApi';
+import ResumePerso from '../../components/ResumePerso';   // add-on « Produits personnalisés » : textes, polices, images originales à télécharger
 import BoutiqueModale from './BoutiqueModale';
 import BoutiqueEtiquetteModal, { urlHttpSure, urlEtiquetteSure, ouvrirPdf } from './BoutiqueEtiquetteModal';
 
@@ -89,7 +90,7 @@ export default function BoutiqueCommandes({ accent, isMobile }: Props) {
             {(c.articles || []).map((a: any, i: number) => (
               <div key={i} style={{ display: 'flex', gap: 12, padding: '8px 0', borderBottom: '1px solid #f3f4f6', alignItems: 'center' }}>
                 <div style={{ width: 44, height: 44, borderRadius: 8, background: '#f3f4f6', overflow: 'hidden', flexShrink: 0 }}>{a.image_url && <img src={a.image_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
-                <div style={{ flex: 1, fontSize: 14 }}>{a.titre}{a.variante ? ` — ${a.variante}` : ''}<div style={{ color: '#6b7280', fontSize: 12 }}>{formaterArgent(a.prix, c.devise)} × {a.quantite}</div></div>
+                <div style={{ flex: 1, fontSize: 14 }}>{a.titre}{a.variante ? ` — ${a.variante}` : ''}<div style={{ color: '#6b7280', fontSize: 12 }}>{formaterArgent(a.prix, c.devise)} × {a.quantite}{a.supplement > 0 ? ` (dont ${formaterArgent(a.supplement, c.devise)} de personnalisation)` : ''}</div><ResumePerso perso={a.personnalisation} gestionnaire /></div>
                 <strong>{formaterArgent(a.prix * a.quantite, c.devise)}</strong>
               </div>
             ))}
@@ -212,7 +213,7 @@ export default function BoutiqueCommandes({ accent, isMobile }: Props) {
               <tbody>
                 {donnees.commandes.map((c: any) => { const b = badgeCommande(c); return (
                   <tr key={c.id} onClick={() => voir(c.id)} style={{ borderTop: '1px solid #f0f0f0', cursor: 'pointer' }}>
-                    <td style={{ padding: '10px 14px', fontWeight: 700 }}>{c.numero_commande}{c.anomalie ? ' ⚠️' : ''}</td>
+                    <td style={{ padding: '10px 14px', fontWeight: 700 }}>{c.numero_commande}{c.anomalie ? ' ⚠️' : ''}{c.personnalise ? <span title="Contient un article personnalisé"> 🎨</span> : null}</td>
                     <td>{date(c.created_at)}</td>
                     <td>{c.nom_livraison || c.acheteur_email}</td>
                     <td>{c.mode_paiement === 'stripe' ? '💳' : '🅿️'}</td>

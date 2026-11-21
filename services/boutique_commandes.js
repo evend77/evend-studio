@@ -88,7 +88,7 @@ async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
     await db.query(`SELECT id FROM boutique_negociations WHERE id IN (SELECT negociation_id FROM boutique_panier WHERE gestionnaire_id = $1 AND acheteur_id = $2 AND negociation_id IS NOT NULL) ORDER BY id FOR UPDATE`, [gid, acheteurId]);
   }
   const r = await db.query(
-    `SELECT bp.id AS ligne_id, bp.produit_id, bp.variante, bp.quantite, bp.negociation_id, bp.enchere_id,
+    `SELECT bp.id AS ligne_id, bp.produit_id, bp.variante, bp.quantite, bp.negociation_id, bp.enchere_id, bp.personnalisation, bp.perso_cle,
             en.statut AS en_statut, en.gagnant_id AS en_gagnant, en.produit_id AS en_produit, en.prix_final AS en_prix, (en.paiement_expire_le > NOW()) AS en_vivante,
             ng.statut AS ng_statut, ng.acheteur_id AS ng_acheteur, ng.produit_id AS ng_produit, ng.variante AS ng_variante, ng.prix_final AS ng_prix, (ng.expire_le > NOW()) AS ng_vivante,
             (bp.negociation_id IS NOT NULL AND ${NEGO.sqlAddonOn('bp')}) AS ng_addon,
@@ -102,7 +102,7 @@ async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
       ORDER BY bp.created_at, bp.id`, [gid, acheteurId]);
   return r.rows.map((x) => {
     const ligne = { id: x.ligne_id, produit_id: x.produit_id, variante: x.variante || '', quantite: x.quantite, negociation_id: x.negociation_id || null, negocie: !!x.negociation_id, enchere_id: x.enchere_id || null, enchere: !!x.enchere_id,
-      titre: x.titre || 'Article retiré', image_url: x.photo_principale || null, poids: Number(x.poids) || 0, quantite_min: x.quantite_min || null,
+      personnalisation: x.personnalisation || null, perso_cle: x.perso_cle || '', titre: x.titre || 'Article retiré', image_url: x.photo_principale || null, poids: Number(x.poids) || 0, quantite_min: x.quantite_min || null,
       prix: 0, stock: 0, total_ligne: 0, erreur: null, _p: x.pid ? x : null };
     const pb = problemeDisponibilite(x.pid ? x : null);
     if (pb) { ligne.erreur = `« ${ligne.titre} » ${pb}. Retirez-le de votre panier.`; return ligne; }
@@ -126,6 +126,9 @@ async function lireLignes(db, gid, acheteurId, { verrou = false } = {}) {
       const pp = PAL.prixPourQuantite(x.paliers, ligne.variante, x.quantite, c.prix);
       if (pp < c.prix) { ligne.prix_normal = c.prix; ligne.prix = pp; ligne.prix_palier = true; }
     }
+    // Add-on « Produits personnalisés » : supplément figé dans le cliché de la ligne par le serveur (jamais envoyé par le navigateur) ; s'ajoute au prix unitaire
+    const supC = x.personnalisation && !x.negociation_id ? cents(Number(x.personnalisation.supplement) || 0) : 0;
+    if (supC > 0) { ligne.prix_sans_supplement = ligne.prix; ligne.supplement = supC / 100; ligne.prix = (cents(ligne.prix) + supC) / 100; }
     ligne.total_ligne = cents(ligne.prix) * x.quantite / 100;
     if (x.quantite > c.stock) ligne.erreur = c.stock <= 0 ? `« ${ligne.titre} » est épuisé.` : `« ${ligne.titre} » : il n'en reste que ${c.stock}.`;
     else if (x.quantite_min && x.quantite < x.quantite_min) ligne.erreur = `« ${ligne.titre} » : quantité minimum ${x.quantite_min}.`;
@@ -272,7 +275,7 @@ async function creerCommande({ gid, acheteurId, adresse, facturation, methodeId,
       const f = m.methodes.find((x) => String(x.id) === String(methodeId));
       if (f) methode = { id: f.id, nom: f.nom || f.transporteur_nom || null, delais: f.delais_estime || null, frais: t.fraisC / 100 };
     }
-    const articles = lignes.map((l, i) => ({ produit_id: l.produit_id, titre: l.titre, variante: l.variante, quantite: l.quantite, prix: l.prix, image_url: l.image_url, ...(l.negociation_id ? { negociation_id: l.negociation_id } : {}), ...(l.enchere_id ? { enchere_id: l.enchere_id } : {}), ...(t.alloc[i] ? { rabais: t.alloc[i] / 100 } : {}) }));
+    const articles = lignes.map((l, i) => ({ produit_id: l.produit_id, titre: l.titre, variante: l.variante, quantite: l.quantite, prix: l.prix, image_url: l.image_url, ...(l.personnalisation ? { personnalisation: l.personnalisation, perso_cle: l.perso_cle, supplement: l.supplement || 0 } : {}), ...(l.negociation_id ? { negociation_id: l.negociation_id } : {}), ...(l.enchere_id ? { enchere_id: l.enchere_id } : {}), ...(t.alloc[i] ? { rabais: t.alloc[i] / 100 } : {}) }));
     const numero = `BQ-${gid}-${Date.now()}`;
     const expireLe = new Date(Date.now() + DUREE_SESSION_MIN * 60000);
     const ins = await client.query(
@@ -309,7 +312,7 @@ async function demarrerStripe(cmd, cfg, acheteur, urlSite) {
   const devise = cmd.devise.toLowerCase();
   const items = [];
   for (const l of (Array.isArray(cmd.articles) ? cmd.articles : [])) {
-    const nom = (String(l.titre) + (l.variante ? ` — ${l.variante}` : '')).slice(0, 120);
+    const nom = (String(l.titre) + (l.variante ? ` — ${l.variante}` : '') + (l.personnalisation ? ' (personnalisé)' : '')).slice(0, 120);
     const rabaisL = cents(l.rabais || 0);
     if (!rabaisL) { items.push({ quantity: l.quantite, price_data: { currency: devise, unit_amount: cents(l.prix), product_data: { name: nom } } }); continue; }
     // Ligne rabaissée : un seul montant exact (Stripe n'accepte ni montant négatif ni cents fractionnaires)
@@ -446,7 +449,7 @@ async function liberer(commandeId, { raison, annuler = true, par = 'systeme', re
             `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, enchere_id)
              SELECT $1, $2, $3, '', 1, en.id FROM boutique_encheres en
               WHERE en.id = $4 AND en.gestionnaire_id = $1 AND en.gagnant_id = $2 AND en.statut = 'attente_paiement' AND en.paiement_expire_le > NOW()
-             ON CONFLICT (acheteur_id, produit_id, variante) DO UPDATE SET quantite = 1, enchere_id = EXCLUDED.enchere_id, negociation_id = NULL, updated_at = NOW()`,
+             ON CONFLICT (acheteur_id, produit_id, variante, perso_cle) DO UPDATE SET quantite = 1, enchere_id = EXCLUDED.enchere_id, negociation_id = NULL, updated_at = NOW()`,
             [cmd.gestionnaire_id, cmd.acheteur_id, pid, eid]);
         }
         continue;
@@ -454,10 +457,10 @@ async function liberer(commandeId, { raison, annuler = true, par = 'systeme', re
       await ajusterStock(client, pid, a.variante || '', q);
       if (restaurerPanier) {
         await client.query(
-          `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, negociation_id)
-           SELECT $1, $2, $3, $4, $5, (SELECT n.id FROM boutique_negociations n WHERE n.id = $6::int AND n.gestionnaire_id = $1 AND n.acheteur_id = $2 AND n.statut = 'acceptee' AND n.expire_le > NOW())
+          `INSERT INTO boutique_panier (gestionnaire_id, acheteur_id, produit_id, variante, quantite, negociation_id, personnalisation, perso_cle)
+           SELECT $1, $2, $3, $4, $5, (SELECT n.id FROM boutique_negociations n WHERE n.id = $6::int AND n.gestionnaire_id = $1 AND n.acheteur_id = $2 AND n.statut = 'acceptee' AND n.expire_le > NOW()), $7::jsonb, $8
             WHERE EXISTS (SELECT 1 FROM produits WHERE id = $3 AND gestionnaire_id = $1)
-           ON CONFLICT (acheteur_id, produit_id, variante) DO NOTHING`, [cmd.gestionnaire_id, cmd.acheteur_id, pid, a.variante || '', q, parseInt(a.negociation_id, 10) || null]);
+           ON CONFLICT (acheteur_id, produit_id, variante, perso_cle) DO NOTHING`, [cmd.gestionnaire_id, cmd.acheteur_id, pid, a.variante || '', q, parseInt(a.negociation_id, 10) || null, a.personnalisation ? JSON.stringify(a.personnalisation) : null, typeof a.perso_cle === 'string' ? a.perso_cle : '']);
       }
     }
     if (annuler) {

@@ -97,6 +97,7 @@ import BoutiqueFavicon             from './pages/gestionnaire/BoutiqueFavicon';
 import BoutiqueEbay                from './pages/gestionnaire/BoutiqueEbay';
 import BoutiqueEtsy                from './pages/gestionnaire/BoutiqueEtsy';
 import BoutiqueInfolettre          from './pages/gestionnaire/BoutiqueInfolettre';
+import BoutiquePerso               from './pages/gestionnaire/BoutiquePerso';
 import BoutiquePwa                from './pages/gestionnaire/BoutiquePwa';
 import BoutiqueAnalytique         from './pages/gestionnaire/BoutiqueAnalytique';
 import BoutiqueEtiquettes         from './pages/gestionnaire/BoutiqueEtiquettes';
@@ -855,6 +856,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const avecEbay = (m: MenuItem): MenuItem => addonsBoutique.connecteur_ebay ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-ebay', label: 'Connecteur eBay', icon: '🏷️' }] } : m;
   const avecEtsy = (m: MenuItem): MenuItem => addonsBoutique.connecteur_etsy ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-etsy', label: 'Connecteur Etsy', icon: '🧶' }] } : m;
   const avecInfolettre = (m: MenuItem): MenuItem => addonsBoutique.infolettre ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-infolettre', label: 'Infolettre', icon: '📧' }] } : m;
+  const avecPerso = (m: MenuItem): MenuItem => addonsBoutique.personnalisation ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-perso', label: 'Produits personnalisés', icon: '🎨' }] } : m;
   const avecPwa = (m: MenuItem): MenuItem => addonsBoutique.pwa_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-pwa', label: 'App installable', icon: '📲' }] } : m;
   const avecEffets = (m: MenuItem): MenuItem => addonsBoutique.effets_boutique ? { ...m, sousMenu: [...(m.sousMenu || []), { id: 'boutique-effets', label: 'Effets de boutique', icon: '✨' }] } : m;
 
@@ -1345,7 +1347,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioPremium,
-      avecInfolettre(avecEtsy(avecEbay(avecAnalytique(avecPwa(avecFavicon(avecVerificateurAge(avecParutionFutur(avecFavoris(avecPopupAnnonce(avecChatbot(avecConfigEncheres(avecEffets(menuConfigPremium))))))))))))),
+      avecPerso(avecInfolettre(avecEtsy(avecEbay(avecAnalytique(avecPwa(avecFavicon(avecVerificateurAge(avecParutionFutur(avecFavoris(avecPopupAnnonce(avecChatbot(avecConfigEncheres(avecEffets(menuConfigPremium)))))))))))))),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
@@ -1687,6 +1689,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       if (pageActive === 'boutique-ebay' && addonsBoutique.connecteur_ebay) return <BoutiqueEbay gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-etsy' && addonsBoutique.connecteur_etsy) return <BoutiqueEtsy gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-infolettre' && addonsBoutique.infolettre) return <BoutiqueInfolettre gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
+      if (pageActive === 'boutique-perso' && addonsBoutique.personnalisation) return <BoutiquePerso gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-pwa' && addonsBoutique.pwa_boutique) return <BoutiquePwa gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-avis' && addonsBoutique.avis_clients) return <BoutiqueAvis gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-questions') return <BoutiqueQuestions gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
