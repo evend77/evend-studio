@@ -1,4 +1,4 @@
-// src/templates/TemplateBoutiquePremium.tsx
+// CHEMIN : src/templates/TemplateBoutiquePremium.tsx
 // e-Vend Studio — Template Boutique Premium
 // Style sombre luxueux avec accents dorés — le vrai Shopify killer
 // Pages : Accueil · Catalogue · Fiche produit · Blog · FAQ · Contact · Panier · Wishlist · Compte acheteur
@@ -29,6 +29,11 @@ const SURF  = '#1e1e1e';
 const SURF2 = '#252525';
 const BORD  = 'rgba(201,169,110,0.2)';
 const API_BASE = '/api';
+
+// ── Protection des champs : jamais de caractères de contrôle ni de balises, longueur limitée ──
+const limiterSaisie = (v: any, max = 200): string => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, max);
+const nettoyerEnvoi = (v: any, max = 200): string => limiterSaisie(v, max * 2).replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim().slice(0, max);
+const COURRIEL_OK = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']{2,}$/;
 
 interface Produit {
   id: number; titre: string; prix: number; prix_promo?: number|null;
@@ -381,6 +386,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [faqOuvert,setFaqOuvert]   = useState<number|null>(null);
   const [contactForm,setContactForm] = useState({nom:'',courriel:'',sujet:'',message:''});
   const [contactStatut,setContactStatut] = useState<'idle'|'loading'|'ok'|'err'>('idle');
+  const [contactPiege,setContactPiege] = useState('');   // anti-bot : champ piège du formulaire de contact
+  const [contactErr,setContactErr] = useState('');       // message d'erreur renvoyé par le serveur (ex. trop de messages)
+  const debutContact = useRef(Date.now());                // anti-bot : délai minimum avant l'envoi
+  useEffect(()=>{ if(page==='contact') debutContact.current=Date.now(); },[page]);
   const [loginForm,setLoginForm]   = useState({email:'',mdp:''});
   const [loginStatut,setLoginStatut] = useState<'idle'|'loading'|'err'>('idle');
   const [loginErreur,setLoginErreur] = useState('');
@@ -568,7 +577,22 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     } catch(e:any){ setInscErreur(e.message||'Erreur de connexion au serveur.'); setInscStatut('idle'); }
   };
 
-  const envoyerContact=async()=>{ setContactStatut('loading'); try{ const res=await fetch(`${API_BASE}/contact/vendeur/${vendeurId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(contactForm)}); if(!res.ok) throw new Error(); setContactStatut('ok'); setContactForm({nom:'',courriel:'',sujet:'',message:''}); } catch{ setContactStatut('err'); } setTimeout(()=>setContactStatut('idle'),4000); };
+  const envoyerContact=async()=>{
+    const fin=(e:'ok'|'err')=>{ setContactStatut(e); setTimeout(()=>setContactStatut('idle'),4000); };
+    const nom=nettoyerEnvoi(contactForm.nom,100), courriel=nettoyerEnvoi(contactForm.courriel,254), sujet=nettoyerEnvoi(contactForm.sujet,200), message=nettoyerEnvoi(contactForm.message,5000);
+    setContactErr('');
+    if(!nom||!COURRIEL_OK.test(courriel)){ fin('err'); return; }
+    if(message.length<10){ setContactErr('Message trop court (minimum 10 caractères).'); fin('err'); return; }
+    if(contactPiege){ setContactForm({nom:'',courriel:'',sujet:'',message:''}); fin('ok'); return; }   // champ piège rempli = robot : on fait semblant que c'est envoyé
+    if(Date.now()-debutContact.current<3000){ setContactErr('Veuillez patienter quelques secondes avant d\'envoyer.'); fin('err'); return; }
+    setContactStatut('loading');
+    try{
+      // Même route serveur que tous les templates : /api/studio/contact (anti-spam, quota et enregistrement dans Messagerie)
+      const res=await fetch(`${API_BASE}/studio/contact`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({nom_expediteur:nom,email_expediteur:courriel,sujet,message,vendeur_id:vendeurId,template_id:'boutique-premium',honeypot:'',form_start_time:debutContact.current})});
+      if(!res.ok){ try{ const j=await res.json(); if(j&&typeof j.message==='string') setContactErr(j.message.slice(0,200)); }catch{} throw new Error(); }
+      setContactForm({nom:'',courriel:'',sujet:'',message:''}); fin('ok');
+    } catch{ fin('err'); }
+  };
 
   const produitsFiltres = produits.filter(p=>{ const mc=!filtreCat||p.categorie===filtreCat; const mr=!filtreRecherche||p.titre.toLowerCase().includes(filtreRecherche.toLowerCase()); const mn=!filtrePrixMin||p.prix>=parseFloat(filtrePrixMin); const mx=!filtrePrixMax||p.prix<=parseFloat(filtrePrixMax); return mc&&mr&&mn&&mx; }).sort((a,b)=>{ if(tri==='prix_asc') return (a.prix_promo||a.prix)-(b.prix_promo||b.prix); if(tri==='prix_desc') return (b.prix_promo||b.prix)-(a.prix_promo||a.prix); if(tri==='note') return (b.note_moyenne||0)-(a.note_moyenne||0); return 0; });
 
@@ -697,7 +721,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             <h2 style={{ fontSize:isMobile?28:36,fontWeight:900,color:'#fff',marginBottom:12 }}>{tx('accueil','infolettreTitre','Restez dans la boucle')}</h2>
             <p style={{ fontSize:15,color:'#888',marginBottom:32,lineHeight:1.6 }}>{tx('accueil','infolettreTexte','Offres exclusives, nouvelles collections et avant-premières réservées à nos abonnés.')}</p>
             <div style={{ display:'flex',gap:10,flexWrap:'wrap',justifyContent:'center' }}>
-              <input type="email" placeholder="votre@courriel.com" style={{ flex:1,minWidth:220,padding:'14px 20px',background:SURF,border:`1px solid ${BORD}`,borderRadius:10,fontSize:14,color:'#fff',outline:'none' }}/>
+              <input type="email" maxLength={254} placeholder="votre@courriel.com" style={{ flex:1,minWidth:220,padding:'14px 20px',background:SURF,border:`1px solid ${BORD}`,borderRadius:10,fontSize:14,color:'#fff',outline:'none' }}/>
               <button style={{ ...styleBtn,padding:'14px 24px',fontSize:14,flexShrink:0 }}>{tx('accueil','infolettreBouton',"S'inscrire →")}</button>
             </div>
           </div>
@@ -714,7 +738,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         <div style={{ display:'flex',gap:12,marginBottom:24,alignItems:'center',flexWrap:'wrap' }}>
           {on('catalogue','afficherRecherche')&&<div style={{ flex:1,minWidth:200,position:'relative' }}>
             <span style={{ position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',color:'#555',fontSize:14 }}>🔍</span>
-            <input type="text" placeholder="Rechercher..." value={filtreRecherche} onChange={e=>setFiltreRecherche(e.target.value)} style={{ ...styleInput,paddingLeft:40,fontSize:13 }}/>
+            <input type="text" placeholder="Rechercher..." value={filtreRecherche} maxLength={100} onChange={e=>setFiltreRecherche(limiterSaisie(e.target.value,100))} style={{ ...styleInput,paddingLeft:40,fontSize:13 }}/>
           </div>}
           <select value={tri} onChange={e=>setTri(e.target.value as any)} style={{ padding:'12px 16px',background:SURF,border:`1px solid #333`,borderRadius:10,fontSize:13,color:'#fff',cursor:'pointer',outline:'none' }}>
             <option value="recent">Plus récents</option><option value="prix_asc">Prix croissant</option><option value="prix_desc">Prix décroissant</option><option value="note">Mieux notés</option>
@@ -736,8 +760,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             </div>
             <h3 style={{ fontSize:11,fontWeight:700,color:cp,textTransform:'uppercase',letterSpacing:'0.15em',margin:'0 0 16px' }}>Prix</h3>
             <div style={{ display:'flex',gap:8,marginBottom:24 }}>
-              <input type="number" placeholder="Min $" value={filtrePrixMin} onChange={e=>setFiltrePrixMin(e.target.value)} style={{ ...styleInput,padding:'8px 12px',fontSize:12,flex:1 }}/>
-              <input type="number" placeholder="Max $" value={filtrePrixMax} onChange={e=>setFiltrePrixMax(e.target.value)} style={{ ...styleInput,padding:'8px 12px',fontSize:12,flex:1 }}/>
+              <input type="number" placeholder="Min $" value={filtrePrixMin} onChange={e=>setFiltrePrixMin(limiterSaisie(e.target.value,10))} style={{ ...styleInput,padding:'8px 12px',fontSize:12,flex:1 }}/>
+              <input type="number" placeholder="Max $" value={filtrePrixMax} onChange={e=>setFiltrePrixMax(limiterSaisie(e.target.value,10))} style={{ ...styleInput,padding:'8px 12px',fontSize:12,flex:1 }}/>
             </div>
             {(filtreCat||filtreRecherche||filtrePrixMin||filtrePrixMax)&&<button onClick={()=>{setFiltreCat('');setFiltreRecherche('');setFiltrePrixMin('');setFiltrePrixMax('');}} style={{ width:'100%',padding:'10px',background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,color:'#ef4444',fontSize:13,cursor:'pointer',fontWeight:600 }}>✕ Effacer</button>}
           </div>}
@@ -981,10 +1005,10 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     <div key={cle} style={{ marginBottom:20 }}>
       <label style={{ fontSize:12,fontWeight:600,color:'#888',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>{libelle}{requis&&' *'}</label>
       {type==='textarea'
-        ? <textarea value={inscVal[cle]||''} onChange={e=>setInscVal(f=>({...f,[cle]:e.target.value}))} placeholder={ph} rows={3} style={{ ...styleInput,resize:'vertical' }}/>
+        ? <textarea value={inscVal[cle]||''} maxLength={1000} onChange={e=>setInscVal(f=>({...f,[cle]:limiterSaisie(e.target.value,1000)}))} placeholder={ph} rows={3} style={{ ...styleInput,resize:'vertical' }}/>
         : type==='select'
         ? <select value={inscVal[cle]||''} onChange={e=>setInscVal(f=>({...f,[cle]:e.target.value}))} style={styleInput}><option value="">— Choisir —</option>{(extra||[]).map((o:string)=><option key={o} value={o}>{o}</option>)}</select>
-        : <input type={type} value={inscVal[cle]||''} onChange={e=>setInscVal(f=>({...f,[cle]:e.target.value}))} placeholder={ph} style={styleInput} autoComplete={type==='password'?'new-password':undefined}/>}
+        : <input type={type} value={inscVal[cle]||''} maxLength={254} onChange={e=>setInscVal(f=>({...f,[cle]:limiterSaisie(e.target.value,254)}))} placeholder={ph} style={styleInput} autoComplete={type==='password'?'new-password':undefined}/>}
     </div>
   );
   const caseInsc = (cle:string,contenu:any,requis:boolean)=>(
@@ -1056,8 +1080,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           <p style={{ color:'#666',marginTop:10,fontSize:14 }}>Accédez à vos commandes, wishlist et bien plus</p>
         </div>
         <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:32 }}>
-          <div style={{ marginBottom:20 }}><label style={{ fontSize:12,fontWeight:600,color:'#888',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Courriel</label><input type="email" value={loginForm.email} onChange={e=>setLoginForm(f=>({...f,email:e.target.value}))} placeholder="votre@courriel.com" style={styleInput}/></div>
-          <div style={{ marginBottom:28 }}><label style={{ fontSize:12,fontWeight:600,color:'#888',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Mot de passe</label><input type="password" value={loginForm.mdp} onChange={e=>setLoginForm(f=>({...f,mdp:e.target.value}))} placeholder="••••••••" style={styleInput} onKeyDown={e=>e.key==='Enter'&&handleLogin()}/></div>
+          <div style={{ marginBottom:20 }}><label style={{ fontSize:12,fontWeight:600,color:'#888',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Courriel</label><input type="email" value={loginForm.email} maxLength={254} onChange={e=>setLoginForm(f=>({...f,email:limiterSaisie(e.target.value,254)}))} placeholder="votre@courriel.com" style={styleInput}/></div>
+          <div style={{ marginBottom:28 }}><label style={{ fontSize:12,fontWeight:600,color:'#888',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Mot de passe</label><input type="password" value={loginForm.mdp} maxLength={200} onChange={e=>setLoginForm(f=>({...f,mdp:limiterSaisie(e.target.value,200)}))} placeholder="••••••••" style={styleInput} onKeyDown={e=>e.key==='Enter'&&handleLogin()}/></div>
           {loginErreur&&<div style={{ background:'rgba(239,68,68,0.1)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,padding:'10px 14px',marginBottom:16,fontSize:13,color:'#ef4444' }}>❌ {loginErreur}</div>}
           <button onClick={handleLogin} disabled={loginStatut==='loading'} style={{ ...styleBtn,width:'100%',textAlign:'center',padding:'16px',fontSize:15 }}>{loginStatut==='loading'?'⏳ Connexion...':'Se connecter →'}</button>
           <div style={{ textAlign:'center',marginTop:20 }}><span style={{ fontSize:13,color:'#555' }}>Pas encore de compte ? </span><button onClick={()=>{ setInscStatut('idle'); setInscErreur(''); naviguer('inscription'); }} style={{ background:'none',border:'none',color:cp,fontSize:13,cursor:'pointer',fontWeight:600 }}>Créer un compte</button></div>
@@ -1275,12 +1299,13 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           {contactStatut==='ok' ? <div style={{ background:'rgba(74,222,128,0.1)',border:'1px solid rgba(74,222,128,0.3)',borderRadius:16,padding:40,textAlign:'center' }}><div style={{ fontSize:48,marginBottom:16 }}>✅</div><h3 style={{ color:'#4ade80',marginBottom:8 }}>{tx('contact','succesTitre','Message envoyé !')}</h3><p style={{ color:'#888' }}>{tx('contact','succesTexte','Nous vous répondrons sous peu.')}</p></div>
           : <div style={{ display:'flex',flexDirection:'column',gap:16 }}>
               <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14 }}>
-                <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Nom</label><input value={contactForm.nom} onChange={e=>setContactForm(f=>({...f,nom:e.target.value}))} style={styleInput} placeholder="Votre nom"/></div>
-                <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Courriel</label><input type="email" value={contactForm.courriel} onChange={e=>setContactForm(f=>({...f,courriel:e.target.value}))} style={styleInput} placeholder="votre@email.com"/></div>
+                <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Nom</label><input value={contactForm.nom} onChange={e=>setContactForm(f=>({...f,nom:limiterSaisie(e.target.value,100)}))} maxLength={100} style={styleInput} placeholder="Votre nom"/></div>
+                <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Courriel</label><input type="email" value={contactForm.courriel} onChange={e=>setContactForm(f=>({...f,courriel:limiterSaisie(e.target.value,254)}))} maxLength={254} style={styleInput} placeholder="votre@email.com"/></div>
               </div>
-              <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Sujet</label><input value={contactForm.sujet} onChange={e=>setContactForm(f=>({...f,sujet:e.target.value}))} style={styleInput} placeholder="Sujet de votre message"/></div>
-              <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Message</label><textarea value={contactForm.message} onChange={e=>setContactForm(f=>({...f,message:e.target.value}))} rows={5} style={{ ...styleInput,resize:'vertical',fontFamily:'inherit' }} placeholder="Votre message..."/></div>
-              {contactStatut==='err'&&<p style={{ color:'#ef4444',fontSize:13 }}>❌ Erreur. Veuillez réessayer.</p>}
+              <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Sujet</label><input value={contactForm.sujet} onChange={e=>setContactForm(f=>({...f,sujet:limiterSaisie(e.target.value,200)}))} maxLength={200} style={styleInput} placeholder="Sujet de votre message"/></div>
+              <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Message</label><textarea value={contactForm.message} onChange={e=>setContactForm(f=>({...f,message:limiterSaisie(e.target.value,5000)}))} maxLength={5000} rows={5} style={{ ...styleInput,resize:'vertical',fontFamily:'inherit' }} placeholder="Votre message..."/></div>
+              <div style={{ position:'absolute',left:-9999,top:-9999,opacity:0,pointerEvents:'none' }} aria-hidden="true"><input type="text" name="website" value={contactPiege} onChange={e=>setContactPiege(e.target.value)} tabIndex={-1} autoComplete="off"/></div>
+              {contactStatut==='err'&&<p style={{ color:'#ef4444',fontSize:13 }}>❌ {contactErr||'Erreur. Veuillez réessayer.'}</p>}
               <button onClick={envoyerContact} disabled={contactStatut==='loading'||!contactForm.nom||!contactForm.courriel||!contactForm.message} style={{ ...styleBtn,padding:'16px',fontSize:15,opacity:(!contactForm.nom||!contactForm.courriel||!contactForm.message)?0.5:1,cursor:(!contactForm.nom||!contactForm.courriel||!contactForm.message)?'not-allowed':'pointer' }}>{contactStatut==='loading'?'⏳ Envoi...':'Envoyer →'}</button>
             </div>}
         </div>

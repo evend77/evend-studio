@@ -1,4 +1,4 @@
-// src/templates/TemplateBoutiqueSimplisse.tsx
+// CHEMIN : src/templates/TemplateBoutiqueSimplisse.tsx
 // e-Vend Studio — Template Boutique Simplisse (multi-produit 1 vendeur)
 // Rendu public — lit config.simplisse + produits depuis l'API
 // Pages : Accueil · Catalogue · Fiche produit · Blog · FAQ · Contact
@@ -511,6 +511,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const [faqOuvert, setFaqOuvert]     = useState<number | null>(null);
   const [contactEnvoi, setContactEnvoi] = useState<'idle'|'loading'|'ok'|'err'>('idle');
   const [contactForm, setContactForm] = useState({ nom:'', courriel:'', message:'' });
+  const [contactErr, setContactErr] = useState('');   // message d'erreur renvoyé par le serveur (ex. trop de messages)
   const [contactPiege, setContactPiege] = useState('');   // anti-bot : champ piège du formulaire de contact
   const debutContact = useRef(Date.now());              // anti-bot : délai minimum avant l'envoi
   const [varianteChoisie, setVarianteChoisie] = useState<Record<string, string>>({});
@@ -794,18 +795,21 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const envoyerContact = async () => {
     const fin = (etat: 'ok' | 'err') => { setContactEnvoi(etat); setTimeout(() => setContactEnvoi('idle'), 4000); };
     const nom = nettoyerEnvoi(contactForm.nom, 100), courriel = nettoyerEnvoi(contactForm.courriel, 254), message = nettoyerEnvoi(contactForm.message, 5000);
-    if (!nom || !message || !COURRIEL_OK.test(courriel)) { fin('err'); return; }
+    setContactErr('');
+    if (!nom || !COURRIEL_OK.test(courriel)) { fin('err'); return; }
+    if (message.length < 10) { setContactErr('Message trop court (minimum 10 caractères).'); fin('err'); return; }
     if (contactPiege) { setContactForm({ nom: '', courriel: '', message: '' }); fin('ok'); return; }   // champ piège rempli = robot : on fait semblant que c'est envoyé
     const duree = Date.now() - debutContact.current;
-    if (duree < 3000) { fin('err'); return; }   // trop rapide pour un humain
+    if (duree < 3000) { setContactErr('Veuillez patienter quelques secondes avant d\'envoyer.'); fin('err'); return; }   // trop rapide pour un humain
     setContactEnvoi('loading');
     try {
-      const res = await fetch(`${API_BASE}/contact/vendeur/${vendeurId}`, {
+      // Même route serveur que tous les templates : /api/studio/contact (anti-spam, quota et enregistrement dans Messagerie)
+      const res = await fetch(`${API_BASE}/studio/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nom, courriel, message, website: '', duree_ms: duree }),
+        body: JSON.stringify({ nom_expediteur: nom, email_expediteur: courriel, message, vendeur_id: vendeurId, template_id: 'boutique-simplisse', honeypot: '', form_start_time: debutContact.current }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) { try { const j = await res.json(); if (j && typeof j.message === 'string') setContactErr(j.message.slice(0, 200)); } catch { /* réponse non JSON */ } throw new Error(); }
       setContactForm({ nom: '', courriel: '', message: '' });
       fin('ok');
     } catch {
@@ -1849,7 +1853,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
                   <textarea value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: limiterSaisie(e.target.value, 5000) }))} maxLength={5000} rows={5} placeholder="Décrivez votre question..." style={{ ...styleInput, resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
                 <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" value={contactPiege} onChange={e => setContactPiege(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
-                {contactEnvoi === 'err' && <p style={{ color: '#ef4444', fontSize: 14, margin: 0 }}>❌ Erreur — vérifiez les champs et réessayez.</p>}
+                {contactEnvoi === 'err' && <p style={{ color: '#ef4444', fontSize: 14, margin: 0 }}>❌ {contactErr || 'Erreur — vérifiez les champs et réessayez.'}</p>}
                 <button onClick={envoyerContact} disabled={contactEnvoi === 'loading' || !contactForm.nom || !contactForm.courriel || !contactForm.message}
                   style={{ ...styleBtn, opacity: (!contactForm.nom || !contactForm.courriel || !contactForm.message) ? 0.5 : 1 }}>
                   {contactEnvoi === 'loading' ? '⏳ Envoi...' : 'Envoyer le message →'}

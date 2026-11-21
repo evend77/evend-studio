@@ -1,4 +1,4 @@
-// routes/studio_contact.js
+// CHEMIN : routes/studio_contact.js
 // e-Vend Studio — Formulaire de contact des templates
 // Visiteur → email au propriétaire du site Studio
 // ReplyTo = email du visiteur → le propriétaire répond directement en cliquant Reply
@@ -34,7 +34,17 @@ const RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24 heures
 const MIN_TIME_MS       = 3000;                 // 3 secondes minimum
 const MAX_TIME_MS       = 30 * 60 * 1000;       // 30 minutes maximum
 
+const RATE_LIMIT_MAIL_MAX = 3;                  // messages / 24 h pour une même adresse courriel d'expéditeur
+
 const rateLimitStore = new Map();
+// Purge périodique : la table ne grossit pas indéfiniment
+setInterval(() => {
+  const now = Date.now();
+  for (const [k, v] of rateLimitStore) {
+    v.messages = v.messages.filter(t => now - t < RATE_LIMIT_WINDOW);
+    if (v.messages.length === 0) rateLimitStore.delete(k);
+  }
+}, 60 * 60 * 1000).unref();
 
 // La liste noire vit maintenant en base de données (table blacklist_mots_contact),
 // gérée par l'admin plateforme — voir routes/blacklist_contact.js
@@ -44,8 +54,9 @@ const TEMP_EMAIL_DOMAINS = [
   'throwaway','yopmail','temp-mail','mailnator',
 ];
 
+// Adresse stricte : pas d'espaces, de guillemets, de virgules, de chevrons ni de parenthèses (une seule adresse, jamais une liste)
 function validateEmail(email) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  return typeof email === 'string' && email.length <= 254 && /^[^\s@<>"',;:()\[\]\\]+@[^\s@<>"',;:()\[\]\\]+\.[^\s@<>"',;:()\[\]\\]{2,}$/.test(email);
 }
 
 function isTempEmail(email) {
@@ -60,17 +71,17 @@ async function containsBlacklist(text) {
   return mots.some(w => lower.includes(w));
 }
 
-function checkRateLimit(ip) {
+function checkRateLimit(ip, max = RATE_LIMIT_MAX) {
   const now  = Date.now();
   const data = rateLimitStore.get(ip) || { messages: [] };
   data.messages = data.messages.filter(t => now - t < RATE_LIMIT_WINDOW);
-  if (data.messages.length >= RATE_LIMIT_MAX) {
+  if (data.messages.length >= max) {
     const waitMinutes = Math.ceil((RATE_LIMIT_WINDOW - (now - data.messages[0])) / 60000);
     return { allowed: false, waitMinutes };
   }
   data.messages.push(now);
   rateLimitStore.set(ip, data);
-  return { allowed: true, remaining: RATE_LIMIT_MAX - data.messages.length };
+  return { allowed: true, remaining: max - data.messages.length };
 }
 
 function escapeHtml(str) {
@@ -83,11 +94,36 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+// Nettoyage de tout texte reçu : doit être une chaîne, sans caractères de contrôle, sans balises HTML, longueur limitée.
+// (multiligne = true pour le message : les sauts de ligne sont conservés ; sinon tout tient sur une ligne.)
+function nettoyerTexte(v, max, multiligne = false) {
+  if (typeof v !== 'string') return '';
+  let t = v.slice(0, max * 3).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\u2028\u2029]/g, '');
+  t = multiligne ? t.replace(/\r\n?/g, '\n') : t.replace(/[\r\n\t]+/g, ' ');
+  t = t.replace(/<[^>]*>/g, '');
+  return t.trim().slice(0, max);
+}
+
+// Champs supplémentaires propres au template : 10 maximum, étiquette ≤ 60, valeur ≤ 500, jamais d'objet imbriqué
+function nettoyerChampsExtra(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const c of v.slice(0, 10)) {
+    if (!c || typeof c !== 'object' || Array.isArray(c)) continue;
+    const label  = nettoyerTexte(c.label, 60);
+    const brut   = (typeof c.valeur === 'string' || typeof c.valeur === 'number' || typeof c.valeur === 'boolean') ? String(c.valeur) : '';
+    const valeur = nettoyerTexte(brut, 500);
+    if (label && valeur) out.push({ label, valeur });
+  }
+  return out;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ENVOI SES
 // ─────────────────────────────────────────────────────────────────────────────
 async function envoyerEmail({ to, subject, html, replyTo }) {
-  if (!to || !subject || !html) return false;
+  if (!to || !subject || !html || !validateEmail(to)) return false;
+  subject = String(subject).replace(/[\r\n\u0000-\u001F\u007F]+/g, ' ').slice(0, 300);   // objet sur une seule ligne : pas d'injection d'en-têtes
   try {
     const { SESClient, SendEmailCommand } = require('@aws-sdk/client-ses');
     const ses = new SESClient({
@@ -142,6 +178,10 @@ const TEMPLATE_BRANDING = {
   'vitrine-bistro':     { couleur: '#8b6914', fond: '#1a1005', nom: 'Bistro & Café',          icone: '☕' },
   'vitrine-boulangerie':{ couleur: '#8b4513', fond: '#1a0a05', nom: 'Boulangerie',            icone: '🥐' },
   'vitrine-foodtruck':  { couleur: '#ff6b00', fond: '#1a0800', nom: 'Food Truck',             icone: '🚚' },
+  // Templates boutique (e-commerce)
+  'boutique-simplisse': { couleur: '#2563eb', fond: '#0f172a', nom: 'Boutique Simplisse',     icone: '🛍' },
+  'boutique-simple':    { couleur: '#a855f7', fond: '#1a1030', nom: 'Boutique Mono-produit',  icone: '🎯' },
+  'boutique-premium':   { couleur: '#c9a96e', fond: '#0a0805', nom: 'Boutique Premium',       icone: '💎' },
 };
 
 const BRANDING_DEFAUT = { couleur: '#c9a96e', fond: '#1a1a2e', nom: 'e-Vend Studio', icone: '✨' };
@@ -223,7 +263,7 @@ function buildEmailProprietaire({ branding, nomProprietaire, nomSite, nomExpedit
 
       <!-- Bouton répondre -->
       <div style="text-align:center;margin-bottom:24px;">
-        <a href="mailto:${escapeHtml(emailExpediteur)}?subject=Re: Message de ${escapeHtml(nomExpediteur)}"
+        <a href="mailto:${escapeHtml(emailExpediteur)}?subject=${encodeURIComponent('Re: Message de ' + nomExpediteur)}"
            style="background:${branding.couleur};color:#fff;text-decoration:none;padding:14px 36px;border-radius:8px;font-size:15px;font-weight:700;display:inline-block;">
           ✉️ Répondre à ${escapeHtml(nomExpediteur)}
         </a>
@@ -296,189 +336,200 @@ function buildEmailCopieExpediteur({ branding, nomSite, nomExpediteur, nomPropri
 // POST /api/studio/contact
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/contact', async (req, res) => {
-  const {
-    nom_expediteur,
-    email_expediteur,
-    message,
-    sujet,
-    telephone,
-    champs_extra      = [],   // [{ label, valeur }] — champs spécifiques au template
-    vendeur_id,
-    template_id       = '',
-    copie_expediteur  = false,
-    honeypot,
-    form_start_time,
-  } = req.body;
+  try {
+    const b = (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) ? req.body : {};
+    const ip    = req.ip || 'unknown';
+    const now   = Date.now();
+    const annee = new Date().getFullYear();
 
-  const ip  = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
-  const now = Date.now();
-  const annee = new Date().getFullYear();
-
-  // ── 1. HONEYPOT ───────────────────────────────────────────────────────────
-  if (honeypot && honeypot.trim() !== '') {
-    console.log(`🤖 [studio/contact] Honeypot — IP: ${ip}`);
-    return res.status(200).json({ succes: true, message: 'Message envoyé avec succès.' });
-  }
-
-  // ── 2. TIMING ─────────────────────────────────────────────────────────────
-  if (form_start_time) {
-    const elapsed = now - parseInt(form_start_time);
-    if (elapsed < MIN_TIME_MS) {
-      console.log(`🤖 [studio/contact] Trop rapide (${elapsed}ms) — IP: ${ip}`);
+    // ── 1. HONEYPOT : tout contenu (même non texte) = robot ───────────────────
+    if (b.honeypot !== undefined && b.honeypot !== null && b.honeypot !== '' && !(typeof b.honeypot === 'string' && b.honeypot.trim() === '')) {
+      console.log(`🤖 [studio/contact] Honeypot — IP: ${ip}`);
       return res.status(200).json({ succes: true, message: 'Message envoyé avec succès.' });
     }
-    if (elapsed > MAX_TIME_MS) {
-      return res.status(400).json({ message: 'Formulaire expiré. Rafraîchissez la page et réessayez.' });
+
+    // ── 2. TIMING ─────────────────────────────────────────────────────────────
+    if (b.form_start_time !== undefined && b.form_start_time !== null && b.form_start_time !== '') {
+      const debut = Number(b.form_start_time);
+      if (!Number.isFinite(debut)) return res.status(400).json({ message: 'Formulaire invalide.' });
+      const elapsed = now - debut;
+      if (elapsed < MIN_TIME_MS) {
+        console.log(`🤖 [studio/contact] Trop rapide (${elapsed}ms) — IP: ${ip}`);
+        return res.status(200).json({ succes: true, message: 'Message envoyé avec succès.' });
+      }
+      if (elapsed > MAX_TIME_MS) {
+        return res.status(400).json({ message: 'Formulaire expiré. Rafraîchissez la page et réessayez.' });
+      }
     }
-  }
 
-  // ── 3. RATE LIMIT ─────────────────────────────────────────────────────────
-  const rate = checkRateLimit(ip);
-  if (!rate.allowed) {
-    return res.status(429).json({ message: `Trop de messages. Réessayez dans ${rate.waitMinutes} minutes.` });
-  }
-
-  // ── 4. VALIDATION ─────────────────────────────────────────────────────────
-  if (!nom_expediteur?.trim() || nom_expediteur.trim().length < 2 || nom_expediteur.trim().length > 100)
-    return res.status(400).json({ message: 'Nom invalide (2–100 caractères).' });
-
-  if (!email_expediteur?.trim() || !validateEmail(email_expediteur))
-    return res.status(400).json({ message: 'Adresse email invalide.' });
-
-  if (isTempEmail(email_expediteur))
-    return res.status(400).json({ message: 'Veuillez utiliser une adresse email permanente.' });
-
-  if (!message?.trim() || message.trim().length < 10)
-    return res.status(400).json({ message: 'Message trop court (minimum 10 caractères).' });
-
-  if (message.trim().length > 5000)
-    return res.status(400).json({ message: 'Message trop long (maximum 5000 caractères).' });
-
-  if (!vendeur_id)
-    return res.status(400).json({ message: 'Destinataire non spécifié.' });
-
-  // ── 5. BLACKLIST ──────────────────────────────────────────────────────────
-  if ((await containsBlacklist(message)) || (await containsBlacklist(sujet))) {
-    console.log(`⚠️ [studio/contact] Blacklist — IP: ${ip}`);
-    return res.status(400).json({ message: 'Message invalide.' });
-  }
-
-  // ── 6. CHARS RÉPÉTITIFS ───────────────────────────────────────────────────
-  const cleanMsg = message.trim().toLowerCase();
-  if (new Set(cleanMsg).size < 3 && cleanMsg.length > 15)
-    return res.status(400).json({ message: 'Message invalide.' });
-
-  // ── 7. RATIO CHIFFRES ─────────────────────────────────────────────────────
-  const letters = (message.match(/[a-zA-Z]/g) || []).length;
-  const digits  = (message.match(/[0-9]/g)    || []).length;
-  if (digits > letters * 2 && letters < 20)
-    return res.status(400).json({ message: 'Message invalide.' });
-
-  // ── 7.5 QUOTA MESSAGERIE ──────────────────────────────────────────────────
-  // Le formulaire de contact est gratuit et inclus, mais limité à un quota
-  // mensuel (100 messages + blocs achetés). Vérifié ici, PAS avant la
-  // validation anti-spam, pour ne jamais consommer de quota sur un spam bloqué.
-  let quotaInfo;
-  try {
-    quotaInfo = await verifierEtIncrementerQuota(vendeur_id);
-  } catch (err) {
-    console.error('[studio/contact] Erreur vérification quota:', err.message);
-    return res.status(500).json({ message: 'Erreur serveur.' });
-  }
-  if (!quotaInfo.autorise) {
-    console.log(`🚫 [studio/contact] Quota atteint — vendeur_id: ${vendeur_id} (${quotaInfo.utilises}/${quotaInfo.limite})`);
-    return res.status(403).json({
-      message: "Le formulaire de contact n'est pas disponible pour le moment.",
-      quota_atteint: true,
-    });
-  }
-
-  // ── 8. RÉCUPÉRER EMAIL + NOM DU PROPRIÉTAIRE EN BD ───────────────────────
-  let proprietaireEmail, proprietaireNom, nomSite;
-  try {
-    // On cherche d'abord l'email du vendeur
-    const resVendeur = await pool.query(
-      `SELECT v.email, COALESCE(v.nom_boutique, v.nom, v.email) AS nom_affiche,
-              COALESCE(s.config->>'nomSite', s.config->>'nomCoach', s.config->>'nomCommerce', s.config->>'nomBoutique', v.nom_boutique, v.nom) AS nom_site
-       FROM gestionnaires v
-       LEFT JOIN sites s ON s.gestionnaire_id = v.id
-       WHERE v.id = $1 AND v.statut = 'actif'`,
-      [vendeur_id]
-    );
-    if (resVendeur.rows.length === 0) {
-      console.warn(`[studio/contact] Vendeur introuvable: id=${vendeur_id}`);
-      return res.status(404).json({ message: 'Destinataire introuvable.' });
+    // ── 3. RATE LIMIT (par IP) ────────────────────────────────────────────────
+    const rate = checkRateLimit(ip);
+    if (!rate.allowed) {
+      return res.status(429).json({ message: `Trop de messages. Réessayez dans ${rate.waitMinutes} minutes.` });
     }
-    proprietaireEmail = resVendeur.rows[0].email;
-    proprietaireNom   = resVendeur.rows[0].nom_affiche;
-    nomSite           = resVendeur.rows[0].nom_site;
-  } catch (err) {
-    console.error('[studio/contact] Erreur BD:', err.message);
-    return res.status(500).json({ message: 'Erreur serveur.' });
-  }
 
-  // ── 9. BRANDING ───────────────────────────────────────────────────────────
-  const branding = TEMPLATE_BRANDING[template_id] || BRANDING_DEFAUT;
+    // ── 4. NETTOYAGE + VALIDATION (types, longueurs, caractères) ──────────────
+    const nom_expediteur   = nettoyerTexte(b.nom_expediteur, 100);
+    const email_expediteur = typeof b.email_expediteur === 'string' ? b.email_expediteur.trim().toLowerCase().slice(0, 254) : '';
+    const message          = nettoyerTexte(b.message, 5000, true);
+    const sujet            = nettoyerTexte(b.sujet, 200);
+    const telephone        = typeof b.telephone === 'string' ? b.telephone.replace(/[^0-9+()\-.\s#xX]/g, '').trim().slice(0, 30) : '';
+    const vendeur_id       = /^\d{1,10}$/.test(String(b.vendeur_id == null ? '' : b.vendeur_id).trim()) ? parseInt(String(b.vendeur_id).trim(), 10) : 0;
+    const template_id      = (typeof b.template_id === 'string' && /^[a-z0-9-]{1,60}$/.test(b.template_id)) ? b.template_id : '';
+    const copie_expediteur = b.copie_expediteur === true;
+    const champs_extra     = nettoyerChampsExtra(b.champs_extra);
 
-  // ── 10. ENVOI EMAIL AU PROPRIÉTAIRE ───────────────────────────────────────
-  const sujetEmail = sujet
-    ? `[${nomSite || branding.nom}] ${escapeHtml(sujet)} — de ${escapeHtml(nom_expediteur)}`
-    : `[${nomSite || branding.nom}] Nouveau message de ${escapeHtml(nom_expediteur)}`;
+    if (nom_expediteur.length < 2)
+      return res.status(400).json({ message: 'Nom invalide (2–100 caractères).' });
 
-  const htmlProprietaire = buildEmailProprietaire({
-    branding, nomProprietaire: proprietaireNom, nomSite,
-    nomExpediteur: nom_expediteur, emailExpediteur: email_expediteur,
-    telephone, sujet, message, champsExtra: champs_extra,
-    templateId: template_id, annee,
-  });
+    if (!email_expediteur || !validateEmail(email_expediteur))
+      return res.status(400).json({ message: 'Adresse email invalide.' });
 
-  try {
-    const ok = await envoyerEmail({
-      to:      proprietaireEmail,
-      subject: sujetEmail,
-      html:    htmlProprietaire,
-      replyTo: email_expediteur,   // Reply direct → visiteur
-    });
-    if (!ok) throw new Error('SES failed');
+    if (isTempEmail(email_expediteur))
+      return res.status(400).json({ message: 'Veuillez utiliser une adresse email permanente.' });
 
-    console.log(`📩 [studio/contact] → ${proprietaireEmail} | de: ${email_expediteur} | template: ${template_id} | IP: ${ip} | reste: ${rate.remaining}/${RATE_LIMIT_MAX}`);
+    if (message.length < 10)
+      return res.status(400).json({ message: 'Message trop court (minimum 10 caractères).' });
 
-    // ── 10.5 ENREGISTREMENT DU MESSAGE — visible dans Messagerie ─────────────
-    // Ne bloque jamais la réponse au visiteur si ça échoue — l'email est déjà parti.
+    if (typeof b.message === 'string' && b.message.trim().length > 5000)
+      return res.status(400).json({ message: 'Message trop long (maximum 5000 caractères).' });
+
+    if (!vendeur_id)
+      return res.status(400).json({ message: 'Destinataire non spécifié.' });
+
+    // ── 5. BLACKLIST (nom, sujet, message, champs supplémentaires) ────────────
+    const texteAVerifier = [nom_expediteur, sujet, message, ...champs_extra.map(c => `${c.label} ${c.valeur}`)];
+    for (const t of texteAVerifier) {
+      if (await containsBlacklist(t)) {
+        console.log(`⚠️ [studio/contact] Blacklist — IP: ${ip}`);
+        return res.status(400).json({ message: 'Message invalide.' });
+      }
+    }
+
+    // ── 6. CHARS RÉPÉTITIFS ───────────────────────────────────────────────────
+    const cleanMsg = message.trim().toLowerCase();
+    if (new Set(cleanMsg).size < 3 && cleanMsg.length > 15)
+      return res.status(400).json({ message: 'Message invalide.' });
+
+    // ── 7. RATIO CHIFFRES ─────────────────────────────────────────────────────
+    const letters = (message.match(/[a-zA-Z]/g) || []).length;
+    const digits  = (message.match(/[0-9]/g)    || []).length;
+    if (digits > letters * 2 && letters < 20)
+      return res.status(400).json({ message: 'Message invalide.' });
+
+    // ── 7.2 LIMITE PAR ADRESSE COURRIEL (évite d'utiliser le site pour inonder une boîte) ──
+    const rateMail = checkRateLimit('mail:' + email_expediteur, RATE_LIMIT_MAIL_MAX);
+    if (!rateMail.allowed) {
+      return res.status(429).json({ message: `Trop de messages avec cette adresse. Réessayez dans ${rateMail.waitMinutes} minutes.` });
+    }
+
+    // ── 8. RÉCUPÉRER EMAIL + NOM DU PROPRIÉTAIRE EN BD (avant le quota : un destinataire inexistant ne consomme rien) ──
+    let proprietaireEmail, proprietaireNom, nomSite;
     try {
-      const champsSupplementaires = Object.fromEntries(
-        (champs_extra || []).filter(c => c.label && c.valeur).map(c => [c.label, c.valeur])
+      const resVendeur = await pool.query(
+        `SELECT v.email, COALESCE(v.nom_boutique, v.nom, v.email) AS nom_affiche,
+                COALESCE(s.config->>'nomSite', s.config->>'nomCoach', s.config->>'nomCommerce', s.config->>'nomBoutique', v.nom_boutique, v.nom) AS nom_site
+         FROM gestionnaires v
+         LEFT JOIN sites s ON s.gestionnaire_id = v.id
+         WHERE v.id = $1 AND v.statut = 'actif'`,
+        [vendeur_id]
       );
-      await pool.query(
-        `INSERT INTO messages_contact (gestionnaire_id, nom, email, telephone, sujet, message, champs_supplementaires)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-        [vendeur_id, nom_expediteur, email_expediteur, telephone || null, sujet || null, message, JSON.stringify(champsSupplementaires)]
-      );
+      if (resVendeur.rows.length === 0) {
+        console.warn(`[studio/contact] Vendeur introuvable: id=${vendeur_id}`);
+        return res.status(404).json({ message: 'Destinataire introuvable.' });
+      }
+      proprietaireEmail = resVendeur.rows[0].email;
+      proprietaireNom   = resVendeur.rows[0].nom_affiche;
+      nomSite           = resVendeur.rows[0].nom_site;
     } catch (err) {
-      console.error('[studio/contact] Erreur enregistrement message (email envoyé quand même):', err.message);
+      console.error('[studio/contact] Erreur BD:', err.message);
+      return res.status(500).json({ message: 'Erreur serveur.' });
     }
 
-    // ── 11. COPIE EXPÉDITEUR (optionnel) ──────────────────────────────────
-    if (copie_expediteur && validateEmail(email_expediteur)) {
-      const htmlCopie = buildEmailCopieExpediteur({
-        branding, nomSite, nomExpediteur: nom_expediteur,
-        nomProprietaire: proprietaireNom, sujet, message,
-        champsExtra: champs_extra, annee,
+    // ── 8.5 QUOTA MESSAGERIE ──────────────────────────────────────────────────
+    // Le formulaire de contact est gratuit et inclus, mais limité à un quota mensuel (100 messages + blocs achetés).
+    // Vérifié ici, PAS avant la validation anti-spam, pour ne jamais consommer de quota sur un spam bloqué.
+    let quotaInfo;
+    try {
+      quotaInfo = await verifierEtIncrementerQuota(vendeur_id);
+    } catch (err) {
+      console.error('[studio/contact] Erreur vérification quota:', err.message);
+      return res.status(500).json({ message: 'Erreur serveur.' });
+    }
+    if (!quotaInfo.autorise) {
+      console.log(`🚫 [studio/contact] Quota atteint — vendeur_id: ${vendeur_id} (${quotaInfo.utilises}/${quotaInfo.limite})`);
+      return res.status(403).json({
+        message: "Le formulaire de contact n'est pas disponible pour le moment.",
+        quota_atteint: true,
       });
-      await envoyerEmail({
-        to:      email_expediteur,
-        subject: `[Copie] ${sujetEmail}`,
-        html:    htmlCopie,
-        replyTo: null,
-      });
-      console.log(`📋 [studio/contact] copie → ${email_expediteur}`);
     }
 
-    return res.status(200).json({ succes: true, message: 'Message envoyé avec succès.' });
+    // ── 9. BRANDING (recherche sûre : pas de clés héritées comme __proto__ / constructor) ──
+    const branding = Object.prototype.hasOwnProperty.call(TEMPLATE_BRANDING, template_id) ? TEMPLATE_BRANDING[template_id] : BRANDING_DEFAUT;
 
+    // ── 10. ENVOI EMAIL AU PROPRIÉTAIRE ───────────────────────────────────────
+    // L'objet est du texte brut (pas du HTML) : aucun échappement HTML ici, mais jamais de saut de ligne.
+    const sujetEmail = sujet
+      ? `[${nomSite || branding.nom}] ${sujet} — de ${nom_expediteur}`
+      : `[${nomSite || branding.nom}] Nouveau message de ${nom_expediteur}`;
+
+    const htmlProprietaire = buildEmailProprietaire({
+      branding, nomProprietaire: proprietaireNom, nomSite,
+      nomExpediteur: nom_expediteur, emailExpediteur: email_expediteur,
+      telephone, sujet, message, champsExtra: champs_extra,
+      templateId: template_id, annee,
+    });
+
+    try {
+      const ok = await envoyerEmail({
+        to:      proprietaireEmail,
+        subject: sujetEmail,
+        html:    htmlProprietaire,
+        replyTo: email_expediteur,   // Reply direct → visiteur
+      });
+      if (!ok) throw new Error('SES failed');
+
+      console.log(`📩 [studio/contact] → ${proprietaireEmail} | template: ${template_id} | IP: ${ip} | reste: ${rate.remaining}/${RATE_LIMIT_MAX}`);
+
+      // ── 10.5 ENREGISTREMENT DU MESSAGE — visible dans Messagerie ─────────────
+      // Ne bloque jamais la réponse au visiteur si ça échoue — l'email est déjà parti.
+      try {
+        const champsSupplementaires = Object.fromEntries(champs_extra.map(c => [c.label, c.valeur]));
+        await pool.query(
+          `INSERT INTO messages_contact (gestionnaire_id, nom, email, telephone, sujet, message, champs_supplementaires)
+           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+          [vendeur_id, nom_expediteur, email_expediteur, telephone || null, sujet || null, message, JSON.stringify(champsSupplementaires)]
+        );
+      } catch (err) {
+        console.error('[studio/contact] Erreur enregistrement message (email envoyé quand même):', err.message);
+      }
+
+      // ── 11. COPIE EXPÉDITEUR (optionnel) ──────────────────────────────────
+      if (copie_expediteur) {
+        const htmlCopie = buildEmailCopieExpediteur({
+          branding, nomSite, nomExpediteur: nom_expediteur,
+          nomProprietaire: proprietaireNom, sujet, message,
+          champsExtra: champs_extra, annee,
+        });
+        await envoyerEmail({
+          to:      email_expediteur,
+          subject: `[Copie] ${sujetEmail}`,
+          html:    htmlCopie,
+          replyTo: null,
+        });
+        console.log(`📋 [studio/contact] copie envoyée`);
+      }
+
+      return res.status(200).json({ succes: true, message: 'Message envoyé avec succès.' });
+
+    } catch (err) {
+      console.error('❌ [studio/contact] Erreur envoi:', err.message);
+      return res.status(500).json({ message: "Erreur lors de l'envoi. Veuillez réessayer." });
+    }
   } catch (err) {
-    console.error('❌ [studio/contact] Erreur envoi:', err.message);
-    return res.status(500).json({ message: "Erreur lors de l'envoi. Veuillez réessayer." });
+    // Filet de sécurité : aucune erreur imprévue ne doit planter le serveur ni laisser la requête en attente
+    console.error('❌ [studio/contact] Erreur inattendue:', err && err.message);
+    if (!res.headersSent) return res.status(500).json({ message: 'Erreur serveur.' });
   }
 });
 
