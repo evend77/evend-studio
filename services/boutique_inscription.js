@@ -15,7 +15,16 @@ const cfgMV = require('./studio_config_mv');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
 
 // Clés de config des templates solo (un site n'en utilise qu'une). Ajouter ici chaque nouveau template passé.
-const CLES_TEMPLATES = ['premium'];
+const CLES_TEMPLATES = ['premium', 'simplisse'];
+
+// Clé de config d'un template solo d'après son identifiant (null = inconnu : on cherche alors dans toutes les clés ci-dessus).
+// Simplisse-Mode et Beauté seront ajoutés ici quand leur config d'inscription existera.
+function cleDuTemplate(templateId) {
+  const t = String(templateId || '');
+  if (t.startsWith('boutique-premium')) return 'premium';
+  if (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) return 'simplisse';
+  return null;
+}
 
 const TYPES_CHAMP = ['text', 'email', 'tel', 'select', 'textarea', 'checkbox'];
 
@@ -50,7 +59,9 @@ async function configSite(gid, db) {
   if (!s || !String(s.template_id || '').startsWith('boutique-')) return null;
   const cfg = s.config && typeof s.config === 'object' ? s.config : {};
   let brut = null;
-  for (let i = 0; i < CLES_TEMPLATES.length; i++) {
+  const cle = cleDuTemplate(s.template_id);
+  if (cle) { const t0 = cfg[cle]; if (t0 && typeof t0 === 'object' && t0.inscription) brut = t0.inscription; }
+  else for (let i = 0; i < CLES_TEMPLATES.length; i++) {
     const t = cfg[CLES_TEMPLATES[i]];
     if (t && typeof t === 'object' && t.inscription) { brut = t.inscription; break; }
   }

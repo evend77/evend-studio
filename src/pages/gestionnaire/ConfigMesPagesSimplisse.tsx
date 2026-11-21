@@ -88,6 +88,8 @@ interface ConfigFooter {
     afficherConfidentialite: boolean;
     afficherRetours: boolean;
     afficherLivraison: boolean;
+    afficherMentions?: boolean;
+    afficherCoordonnees?: boolean;
   };
 }
 
@@ -310,7 +312,7 @@ const CONFIG_DEFAUT: ConfigSimplisse = {
     afficherPropulse: true,
     reseaux: { facebook:'', instagram:'', tiktok:'', twitter:'', youtube:'', linkedin:'', pinterest:'' },
     colonnes: { titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nContact', titre2:'Aide', liens2:'FAQ\nRetours\nLivraison\nContactez-nous', titre3:'Légal', liens3:'' },
-    politiques: { afficherConditions: true, afficherConfidentialite: true, afficherRetours: true, afficherLivraison: true },
+    politiques: { afficherConditions: true, afficherConfidentialite: true, afficherRetours: true, afficherLivraison: true, afficherMentions: true, afficherCoordonnees: true },
   },
   ficheProduit: { ...FICHE_PRODUIT_DEFAUT },
   inscription: INSCRIPTION_DEF,
@@ -1185,10 +1187,11 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
             ))}
           </S>
           <S titre="Politiques (liens dans le footer)">
-            <Toggle label="Conditions de service" checked={config.footer.politiques.afficherConditions} onChange={(v: boolean) => setFoot({ politiques: { ...config.footer.politiques, afficherConditions: v } })} />
-            <Toggle label="Politique de confidentialité" checked={config.footer.politiques.afficherConfidentialite} onChange={(v: boolean) => setFoot({ politiques: { ...config.footer.politiques, afficherConfidentialite: v } })} />
-            <Toggle label="Politique de retours" checked={config.footer.politiques.afficherRetours} onChange={(v: boolean) => setFoot({ politiques: { ...config.footer.politiques, afficherRetours: v } })} />
-            <Toggle label="Politique de livraison" checked={config.footer.politiques.afficherLivraison} onChange={(v: boolean) => setFoot({ politiques: { ...config.footer.politiques, afficherLivraison: v } })} />
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.6 }}>Ces liens ouvrent vos politiques (Configuration → Mes politiques). Un lien n'apparaît que si la politique est rédigée.</p>
+            {([['afficherConditions', 'Conditions de service'], ['afficherConfidentialite', 'Confidentialité'], ['afficherRetours', 'Retour & remboursement'], ['afficherLivraison', 'Expédition'], ['afficherCoordonnees', 'Coordonnées'], ['afficherMentions', 'Mentions légales']] as [string, string][]).map(([k, l]) => (
+              <Toggle key={k} label={l} checked={(config.footer.politiques as any)[k] !== false} onChange={(v: boolean) => setFoot({ politiques: { ...config.footer.politiques, [k]: v } })} />
+            ))}
+            <p style={{ fontSize: 12, color: '#888', margin: '8px 0 0', lineHeight: 1.6 }}>Astuce : dans les colonnes de liens ci-dessus, écrire « Retours », « Livraison », « Conditions », « Confidentialité », « Coordonnées » ou « Mentions légales » ouvre aussi la politique correspondante.</p>
           </S>
           <S titre="Branding e-Vend Studio">
             <div style={{ background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>

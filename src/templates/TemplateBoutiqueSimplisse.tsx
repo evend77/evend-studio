@@ -30,7 +30,7 @@ interface ConfigFooter {
   nomBoutique: string; slogan: string; couleurFond: string; couleurTexte: string; afficherPropulse: boolean;
   reseaux: { facebook:string; instagram:string; tiktok:string; twitter:string; youtube:string; linkedin:string; pinterest:string; };
   colonnes: { titre1:string; liens1:string; titre2:string; liens2:string; titre3:string; liens3:string; };
-  politiques: { afficherConditions:boolean; afficherConfidentialite:boolean; afficherRetours:boolean; afficherLivraison:boolean; };
+  politiques: { afficherConditions:boolean; afficherConfidentialite:boolean; afficherRetours:boolean; afficherLivraison:boolean; afficherMentions?:boolean; afficherCoordonnees?:boolean; };
 }
 interface ConfigAccueil {
   hero: ConfigHero; banniere: ConfigBanniere; sections: SectionPage[];
@@ -117,7 +117,7 @@ const CFG_DEF: ConfigSimplisse = {
   footer: { nomBoutique:'Ma Boutique', slogan:'', couleurFond:'#111827', couleurTexte:'#ffffff', afficherPropulse:true,
     reseaux:{ facebook:'', instagram:'', tiktok:'', twitter:'', youtube:'', linkedin:'', pinterest:'' },
     colonnes:{ titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nFAQ', titre2:'Aide', liens2:'Contact', titre3:'', liens3:'' },
-    politiques:{ afficherConditions:true, afficherConfidentialite:true, afficherRetours:true, afficherLivraison:true },
+    politiques:{ afficherConditions:true, afficherConfidentialite:true, afficherRetours:true, afficherLivraison:true, afficherMentions:true, afficherCoordonnees:true },
   },
 };
 
@@ -170,6 +170,33 @@ function merge<T>(def: T, override: any): T {
   if (!override || typeof override !== 'object') return def;
   return { ...def, ...override };
 }
+// ── Politiques légales du site : les 6 politiques fixes que le gestionnaire rédige (Configuration → Mes politiques) ──
+const POLITIQUES_SLUGS = ['retour-remboursement','confidentialite','conditions-service','expedition','coordonnees','mentions-legales'];
+const sansAccent = (t:string)=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+// Reconnaît un lien de pied de page (ou un slug) qui désigne une politique : retourne son slug, sinon ''
+function slugPolitique(dest:string):string {
+  const d=sansAccent(dest).replace(/[-_]+/g,' ');
+  const t:Record<string,string>={ 'conditions':'conditions-service','conditions de service':'conditions-service','conditions service':'conditions-service','termes':'conditions-service','termes et conditions':'conditions-service',
+    'confidentialite':'confidentialite','politique de confidentialite':'confidentialite','vie privee':'confidentialite',
+    'retours':'retour-remboursement','retour':'retour-remboursement','remboursement':'retour-remboursement','remboursements':'retour-remboursement','retour et remboursement':'retour-remboursement','retours et remboursements':'retour-remboursement','retour remboursement':'retour-remboursement',
+    'livraison':'expedition','expedition':'expedition','livraison et expedition':'expedition',
+    'coordonnees':'coordonnees','mentions legales':'mentions-legales' };
+  return t[d]||'';
+}
+// Nettoie le HTML d'une politique avant l'affichage (le serveur le nettoie déjà à l'enregistrement) : retire scripts, cadres, formulaires, gestionnaires d'événements et liens javascript:
+function htmlSur(h:string):string {
+  try {
+    const doc=new DOMParser().parseFromString('<div id="r">'+h+'</div>','text/html'); const racine=doc.getElementById('r'); if(!racine) return '';
+    racine.querySelectorAll('script,style,iframe,object,embed,form,link,meta,base,svg,math').forEach(e=>e.remove());
+    racine.querySelectorAll('*').forEach(e=>{
+      Array.from(e.attributes).forEach(a=>{ const n=a.name.toLowerCase(), v=a.value.replace(/[\s\u0000-\u001f]/g,'').toLowerCase();
+        if(n.startsWith('on')||n==='style'||((n==='href'||n==='src'||n==='xlink:href'||n==='action')&&!/^(https?:|mailto:|tel:|#|\/)/.test(v))) e.removeAttribute(a.name); });
+      if(e.tagName==='A'){ e.setAttribute('target','_blank'); e.setAttribute('rel','noopener noreferrer'); }
+    });
+    return racine.innerHTML;
+  } catch { return ''; }
+}
+
 function prix(n: number | string) { return Number(n || 0).toFixed(2).replace('.', ',') + ' $'; }
 
 // ─── Composant Bannière ───────────────────────────────────────────────────────
@@ -309,7 +336,7 @@ function CarteProduit({ produit, cp, afficherPrix, onClick, extras }: { produit:
 }
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
-function Footer({ cfg, onNaviguer, cacherPropulse, extra }: { cfg: ConfigFooter; onNaviguer: (p: string) => void; cacherPropulse: boolean; extra?: React.ReactNode }) {
+function Footer({ cfg, onNaviguer, liensPol, extra }: { cfg: ConfigFooter; onNaviguer: (p: string) => void; liensPol: string[][]; extra?: React.ReactNode }) {
   const reseauxActifs = Object.entries(cfg.reseaux).filter(([, v]) => v);
   const iconeReseau: Record<string, string> = { facebook:'f', instagram:'📸', tiktok:'♪', twitter:'𝕏', youtube:'▶', linkedin:'in', pinterest:'P' };
   return (
@@ -336,7 +363,7 @@ function Footer({ cfg, onNaviguer, cacherPropulse, extra }: { cfg: ConfigFooter;
           {cfg.colonnes.titre1 && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, opacity: 0.9 }}>{cfg.colonnes.titre1}</div>
-              {cfg.colonnes.liens1.split('\n').filter(Boolean).map((l, i) => (
+              {cfg.colonnes.liens1.split('\n').filter(l => l.trim() && !slugPolitique(l)).map((l, i) => (
                 <div key={i} style={{ marginBottom: 8 }}>
                   <button onClick={() => onNaviguer(l.toLowerCase())} style={{ background: 'none', border: 'none', color: cfg.couleurTexte, opacity: 0.65, fontSize: 14, cursor: 'pointer', padding: 0, textAlign: 'left' }}>{l}</button>
                 </div>
@@ -347,7 +374,7 @@ function Footer({ cfg, onNaviguer, cacherPropulse, extra }: { cfg: ConfigFooter;
           {cfg.colonnes.titre2 && (
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, opacity: 0.9 }}>{cfg.colonnes.titre2}</div>
-              {cfg.colonnes.liens2.split('\n').filter(Boolean).map((l, i) => (
+              {cfg.colonnes.liens2.split('\n').filter(l => l.trim() && !slugPolitique(l)).map((l, i) => (
                 <div key={i} style={{ marginBottom: 8 }}>
                   <button onClick={() => onNaviguer(l.toLowerCase())} style={{ background: 'none', border: 'none', color: cfg.couleurTexte, opacity: 0.65, fontSize: 14, cursor: 'pointer', padding: 0, textAlign: 'left' }}>{l}</button>
                 </div>
@@ -373,12 +400,9 @@ function Footer({ cfg, onNaviguer, cacherPropulse, extra }: { cfg: ConfigFooter;
         <div style={{ borderTop: `1px solid rgba(255,255,255,0.12)`, padding: '20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ fontSize: 13, opacity: 0.5 }}>© {new Date().getFullYear()} {cfg.nomBoutique}</div>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-            {cfg.politiques.afficherConditions      && <button onClick={() => onNaviguer('conditions')}      style={{ background:'none', border:'none', color:cfg.couleurTexte, opacity:0.55, fontSize:12, cursor:'pointer' }}>Conditions de service</button>}
-            {cfg.politiques.afficherConfidentialite && <button onClick={() => onNaviguer('confidentialite')} style={{ background:'none', border:'none', color:cfg.couleurTexte, opacity:0.55, fontSize:12, cursor:'pointer' }}>Confidentialité</button>}
-            {cfg.politiques.afficherRetours         && <button onClick={() => onNaviguer('retours')}         style={{ background:'none', border:'none', color:cfg.couleurTexte, opacity:0.55, fontSize:12, cursor:'pointer' }}>Retours</button>}
-            {cfg.politiques.afficherLivraison       && <button onClick={() => onNaviguer('livraison')}       style={{ background:'none', border:'none', color:cfg.couleurTexte, opacity:0.55, fontSize:12, cursor:'cursor' }}>Livraison</button>}
+            {liensPol.map(([slug, label]) => <button key={slug} onClick={() => onNaviguer(slug)} style={{ background:'none', border:'none', color:cfg.couleurTexte, opacity:0.55, fontSize:12, cursor:'pointer' }}>{label}</button>)}
           </div>
-          {!cacherPropulse && (
+          {cfg.afficherPropulse !== false && (
             <a href="https://e-vend.ca" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, opacity: 0.35, color: cfg.couleurTexte, textDecoration: 'none' }}>
               Propulsé par e-Vend Studio
             </a>
@@ -409,7 +433,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const cs = cfg.accueil.couleurSecondaire || '#666'; // couleur secondaire (config → Accueil) : sous-titres et textes d'appoint
 
   // ── State navigation interne ──────────────────────────────────────────────
-  type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'contact' | 'login' | 'inscription' | 'compte' | 'offres' | 'encheres';
+  type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'contact' | 'login' | 'inscription' | 'compte' | 'offres' | 'encheres' | 'politique';
   const [page, setPage]               = useState<PageId>('accueil');
   const [produitActif, setProduitActif] = useState<Produit | null>(null);
   const [articleActif, setArticleActif] = useState<ArticleBlog | null>(null);
@@ -423,6 +447,10 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const [blogPages, setBlogPages]     = useState(1);
   const [blogCharge, setBlogCharge]   = useState(false);
   const [articleErreur, setArticleErreur] = useState(false);
+  const [politiquesRedigees, setPolitiquesRedigees] = useState<Record<string, boolean> | null>(null);   // slug → rédigée ? (null = pas encore lu)
+  const [politique, setPolitique] = useState<{ slug: string; titre: string; contenu: string } | null>(null);
+  const [politiqueStatut, setPolitiqueStatut] = useState<'idle' | 'loading' | 'err'>('idle');
+  const politiqueEnCours = useRef('');
   const [categories, setCategories]   = useState<string[]>([]);
   const [filtreCat, setFiltreCat]     = useState('');
   const [filtreRecherche, setFiltreRecherche] = useState('');
@@ -462,8 +490,6 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const [varianteChoisie, setVarianteChoisie] = useState<Record<string, string>>({});
   const [qteChoisie, setQteChoisie]   = useState(1);
 
-  // ── Branding — lu depuis options_gestionnaire en BD (source de vérité) ────
-  const [cacherPropulse, setCacherPropulse] = useState(false);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -472,12 +498,13 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Charger options branding depuis la BD
+  // Politiques légales (Configuration → Mes politiques) : lesquelles sont rédigées (un lien n'apparaît que si la politique l'est)
   useEffect(() => {
-    fetch(`${API_BASE}/gestionnaires/${vendeurId}/options`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data) setCacherPropulse(data.cacher_propulse === true); })
-      .catch(() => {});
+    fetch(`${API_BASE}/studio/politiques/${vendeurId}/public`).then(r => r.ok ? r.json() : null).then(d => {
+      if (!d || !Array.isArray(d.politiques)) return;
+      const m: Record<string, boolean> = {}; d.politiques.forEach((p: any) => { m[p.slug] = typeof p.contenu === 'string' && p.contenu.trim().length > 0; });
+      setPolitiquesRedigees(m);
+    }).catch(() => {});
   }, [vendeurId]);
 
   // Catalogue réel du serveur (prix en texte → nombres ; enchères, offres du jour et parutions incluses)
@@ -603,21 +630,32 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   // Add-on « Analytique » : une page vue par changement de vue
   useEffect(() => {
     if (page === 'produit') { if (produitActif) trackPageView('/produit/' + produitActif.id, produitActif.titre); return; }
+    if (page === 'politique') { trackPageView('/politique/' + (politiqueEnCours.current || '')); return; }
     if (page === 'article') { if (articleActif) trackPageView('/blog/' + (articleActif.slug || articleActif.id), articleActif.titre); return; }
     const noms: Record<string, [string, string]> = { accueil: ['/', 'Accueil'], catalogue: ['/catalogue', 'Catalogue'], blog: ['/blog', 'Blogue'], faq: ['/faq', 'FAQ'], contact: ['/contact', 'Contact'], offres: ['/offres', 'Offres du jour'], encheres: ['/encheres', 'Enchères'], login: ['/connexion', 'Connexion'], inscription: ['/inscription', 'Inscription'], compte: ['/compte', 'Compte'] };
     const n = noms[page]; if (n) trackPageView(n[0], n[1]);
   }, [page, produitActif?.id, articleActif?.id, trackPageView]);
 
   // ── Navigation ────────────────────────────────────────────────────────────
+  const ouvrirPolitique = useCallback((slugPol: string) => {
+    politiqueEnCours.current = slugPol; setPolitique(null); setPolitiqueStatut('loading'); setPage('politique');
+    fetch(`${API_BASE}/studio/politiques/${vendeurId}/public/${slugPol}`).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+      if (politiqueEnCours.current !== slugPol) return;
+      const p = d && d.politique; if (!p) throw new Error();
+      setPolitique({ slug: slugPol, titre: String(p.titre || ''), contenu: typeof p.contenu === 'string' ? p.contenu : '' }); setPolitiqueStatut('idle');
+    }).catch(() => { if (politiqueEnCours.current === slugPol) setPolitiqueStatut('err'); });
+  }, [vendeurId]);
+
   const naviguer = useCallback((dest: string) => {
     setMenuOuvert(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (dest.toLowerCase() === 'panier') { setVueCompte('panier'); setPage('compte'); return; }
-    const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', contact:'contact', compte:'compte', login:'login', inscription:'inscription', offres:'offres', encheres:'encheres' };
-    if (map[dest.toLowerCase()]) {
-      setPage(map[dest.toLowerCase()]);
-    }
-  }, []);
+    const slugPol = slugPolitique(dest);
+    if (slugPol) { ouvrirPolitique(slugPol); return; }
+    const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', contact:'contact', compte:'compte', login:'login', inscription:'inscription', offres:'offres', encheres:'encheres', connexion:'login' };
+    const cle = sansAccent(dest).replace(/\s+/g, '-');
+    if (map[cle]) setPage(map[cle]);
+  }, [ouvrirPolitique]);
 
   const voirProduit = (p: Produit) => {
     setProduitActif(p);
@@ -639,6 +677,17 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
       }).catch(() => setArticleErreur(true));
     }
   };
+
+  // Add-on « Chatbot » : le widget (monté par SitePreview) demande d'ouvrir une page du site ; ce template sait les ouvrir sans recharger
+  const navChatbot = useRef<(d: any) => void>(() => {});
+  navChatbot.current = (d: any) => {
+    if (!d || typeof d !== 'object') return; setMenuOuvert(false); window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (d.page === 'produit' && Number(d.produitId) > 0) { const pr = produits.find(x => Number(x.id) === Number(d.produitId)); if (pr) voirProduit(pr); else naviguer('catalogue'); return; }
+    if (d.page === 'article' && typeof d.articleSlug === 'string') { voirArticle({ id: 0, titre: '', slug: d.articleSlug }); return; }
+    if (d.page === 'politique' && typeof d.politiqueSlug === 'string' && POLITIQUES_SLUGS.includes(d.politiqueSlug)) { ouvrirPolitique(d.politiqueSlug); return; }
+    if (d.page === 'faq' || d.page === 'blog' || d.page === 'contact' || d.page === 'catalogue') setPage(d.page);
+  };
+  useEffect(() => { const f = (e: Event) => navChatbot.current((e as CustomEvent).detail); window.addEventListener('boutique-chatbot-nav', f); return () => window.removeEventListener('boutique-chatbot-nav', f); }, []);
 
   // ── Panier (panier du serveur ; le compte acheteur est obligatoire) ───────
   const ajouterAuPanier = async (produit: Produit) => {
@@ -1392,6 +1441,30 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     );
   };
 
+  // PAGE POLITIQUE (pages légales rédigées dans Configuration → Mes politiques)
+  const PagePolitique = () => {
+    const contenu = politique && politique.contenu.trim() ? htmlSur(politique.contenu) : '';
+    const demoPol = !!configBrut?.__produits_demo__;
+    const polCfg: any = { ...CFG_DEF.footer.politiques, ...(cfg.footer.politiques || {}) };
+    const polOk = (slug: string) => demoPol || (politiquesRedigees ? politiquesRedigees[slug] === true : false);
+    const ongletsPol = ([['conditions-service','Conditions de service',polCfg.afficherConditions],['confidentialite','Confidentialité',polCfg.afficherConfidentialite],['retour-remboursement','Retour & remboursement',polCfg.afficherRetours],['expedition','Expédition',polCfg.afficherLivraison],['coordonnees','Coordonnées',polCfg.afficherCoordonnees],['mentions-legales','Mentions légales',polCfg.afficherMentions]] as [string, string, any][]).filter(([slug, , actif]) => actif !== false && (polOk(slug) || slug === (politique && politique.slug)));
+    const titreAffiche = politique && politique.titre && !/<h1[\s>]/i.test(contenu) ? politique.titre : '';
+    return (
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: '40px 24px' }}>
+        <style>{`.pol-contenu h1{font-size:30px;font-weight:800;color:#1a1a1a;margin:0 0 20px;line-height:1.2}.pol-contenu h2{font-size:20px;font-weight:800;color:#1a1a1a;margin:32px 0 10px}.pol-contenu h3{font-size:16px;font-weight:700;color:#1a1a1a;margin:22px 0 8px}.pol-contenu p{color:#444;line-height:1.9;margin:0 0 14px;font-size:15px}.pol-contenu ul,.pol-contenu ol{color:#444;padding-left:22px;margin:0 0 14px}.pol-contenu li{line-height:1.8;margin-bottom:6px;font-size:15px}.pol-contenu a{color:${cp};text-decoration:underline}.pol-contenu strong{color:#1a1a1a}.pol-contenu blockquote{border-left:3px solid ${cp};padding:8px 18px;margin:16px 0;color:#555}.pol-contenu hr{border:0;border-top:1px solid #e5e7eb;margin:24px 0}`}</style>
+        <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', color: cp, fontSize: 14, cursor: 'pointer', marginBottom: 20, padding: 0 }}>← Retour à l'accueil</button>
+        {ongletsPol.length > 1 && <nav aria-label="Pages légales" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
+          {ongletsPol.map(([slug, nom]) => { const actif = politique ? politique.slug === slug : politiqueEnCours.current === slug; return <button key={slug} onClick={() => { if (!actif) ouvrirPolitique(slug); }} aria-current={actif ? 'page' : undefined} style={{ padding: '8px 16px', borderRadius: 20, border: `1px solid ${actif ? cp : '#d1d5db'}`, background: actif ? cp : 'transparent', color: actif ? '#fff' : '#444', fontSize: 13, fontWeight: actif ? 800 : 600, cursor: actif ? 'default' : 'pointer' }}>{nom}</button>; })}
+        </nav>}
+        {politiqueStatut === 'loading' && <p style={{ color: '#888' }}>Chargement…</p>}
+        {politiqueStatut === 'err' && <p style={{ color: '#dc2626' }}>Impossible de charger cette page. Veuillez réessayer.</p>}
+        {politiqueStatut === 'idle' && politique && (contenu
+          ? <>{titreAffiche && <h1 style={{ fontSize: 30, fontWeight: 800, color: '#1a1a1a', margin: '0 0 20px', lineHeight: 1.2 }}>{titreAffiche}</h1>}<div className="pol-contenu" dangerouslySetInnerHTML={{ __html: contenu }} /></>
+          : <><h1 style={{ fontSize: 30, fontWeight: 800, color: '#1a1a1a', marginBottom: 16 }}>{politique.titre}</h1><p style={{ color: '#777' }}>Cette page n'a pas encore été rédigée.</p></>)}
+      </div>
+    );
+  };
+
   // ══════════════════════════════════════════════════════════════════════════
   // CONNEXION / INSCRIPTION (thème clair)
   // ══════════════════════════════════════════════════════════════════════════
@@ -1653,6 +1726,11 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   // RENDU PRINCIPAL
   // ══════════════════════════════════════════════════════════════════════════
   // Espace acheteur : plein écran (panier, caisse, commandes) ; il a son propre menu et son bouton « Retour à la boutique »
+  // Liens légaux du pied de page : seulement les politiques rédigées et affichées (en démonstration : toutes)
+  const polFooter: any = { ...CFG_DEF.footer.politiques, ...(cfg.footer.politiques || {}) };
+  const polVisible = (slug: string) => !!configBrut?.__produits_demo__ || (politiquesRedigees ? politiquesRedigees[slug] === true : false);
+  const liensPol: string[][] = [['retour-remboursement','Retour & remboursement',polFooter.afficherRetours],['confidentialite','Confidentialité',polFooter.afficherConfidentialite],['conditions-service','Conditions de service',polFooter.afficherConditions],['expedition','Expédition',polFooter.afficherLivraison],['coordonnees','Coordonnées',polFooter.afficherCoordonnees],['mentions-legales','Mentions légales',polFooter.afficherMentions]].filter(([slug, , actif]) => (actif as any) !== false && polVisible(slug as string)).map(([slug, label]) => [slug as string, label as string]);
+
   if (page === 'compte') return <AppAcheteurBoutique key={vueCompte} vendeurId={vendeurId} pageInitiale={vueCompte} config={{ couleur_accent: cp, nom_boutique: cfg.footer.nomBoutique, gestionnaire_id: vendeurId }} naviguerTemplate={(d: any) => { setVueCompte('dashboard'); if (d && d.page === 'produit') { const pr = produits.find(x => Number(x.id) === Number(d.produitId)); if (pr) { voirProduit(pr); return; } } naviguer(d && d.page ? d.page : 'accueil'); }} />;
 
   return (
@@ -1670,6 +1748,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         {page === 'catalogue' && <PageCatalogue />}
         {page === 'produit'   && PageProduit()}
         {page === 'blog'      && <PageBlog />}
+        {page === 'politique' && <PagePolitique />}
         {page === 'article'   && <PageArticle />}
         {page === 'faq'       && <PageFaq />}
         {page === 'contact'   && <PageContact />}
@@ -1679,7 +1758,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         {page === 'inscription' && PageInscription()}
       </main>
 
-      <Footer cfg={cfg.footer} onNaviguer={naviguer} cacherPropulse={cacherPropulse} extra={vendeurId > 0 && !configBrut?.__produits_demo__ ? (
+      <Footer cfg={cfg.footer} onNaviguer={naviguer} liensPol={liensPol} extra={vendeurId > 0 && !configBrut?.__produits_demo__ ? (
         <>
           <BoutiqueInfolettre gestionnaireId={vendeurId} couleur={cp} theme={{ titre: cfg.footer.couleurTexte, doux: hexVersRgba(cfg.footer.couleurTexte, 0.65), bord: hexVersRgba(cfg.footer.couleurTexte, 0.14), champFond: hexVersRgba(cfg.footer.couleurTexte, 0.08), champBord: hexVersRgba(cfg.footer.couleurTexte, 0.25), champTexte: cfg.footer.couleurTexte, boutonTexte: '#fff' }} />
           <BoutiqueBoutonInstallerApp couleur={cp} texte={cfg.footer.couleurTexte} texteDoux={hexVersRgba(cfg.footer.couleurTexte, 0.75)} />

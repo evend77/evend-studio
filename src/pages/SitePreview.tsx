@@ -48,11 +48,14 @@ import TemplateBoutiqueSimplisseMode  from '../templates/TemplateBoutiqueSimplis
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge }     from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
 
 // Templates boutique SOLO : leurs add-ons viennent de l'API boutique (Mon plan & limites). Les autres templates ne changent pas.
+// Simplisse (pas Simplisse-Mode) : le template monte lui-même l'Analytique et le Vérificateur d'âge (add-ons boutique)
+const estSimplisseSeul = (t: string) => t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode');
 const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p));
 
 interface SitePreviewProps {
@@ -209,7 +212,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
 
   // Add-on Analytique — track le chargement du site, respecte le consentement
   // cookie du visiteur. Jamais actif en mode démo ni sans vendeurId.
-  useAnalytics(vendeurId, !isDemo && !!options?.analytique && !(forceTemplate || siteData?.template_id || '').startsWith('multi-vendeur-premium') && !(forceTemplate || siteData?.template_id || '').startsWith('boutique-premium'));   // le template Multi-vendeur Premium suit ses pages internes lui-même ; la boutique Premium utilise son propre add-on Analytique (useBoutiqueAnalytique)
+  useAnalytics(vendeurId, !isDemo && !!options?.analytique && !(forceTemplate || siteData?.template_id || '').startsWith('multi-vendeur-premium') && !(forceTemplate || siteData?.template_id || '').startsWith('boutique-premium') && !estSimplisseSeul(forceTemplate || siteData?.template_id || ''));   // le template Multi-vendeur Premium suit ses pages internes lui-même ; la boutique Premium utilise son propre add-on Analytique (useBoutiqueAnalytique)
 
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'sans-serif', flexDirection: 'column', gap: 16, background: '#0d0d0d' }}>
@@ -289,7 +292,8 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       const configDemo = isDemo
         ? { ...config, __produits_demo__: DEMO_PRODUITS_SIMPLISSE }
         : config;
-      return <TemplateBoutiqueSimplisse config={configDemo} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+      // Add-on « Cacher le branding » : badge « Propulsé par » masqué seulement si l'add-on est activé
+      return <TemplateBoutiqueSimplisse config={isDemo ? configDemo : configSimplisseAvecBadge(configDemo, addonsBoutique)} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId.startsWith('cagnotte-'))        return <TemplateCagnottePro config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'reservation-spectacle')    return <TemplateSpectacle config={config} siteId={siteId} />;
@@ -338,11 +342,14 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       {/* Vérificateur d'âge — actif seulement si l'add-on est activé, jamais en mode démo.
           Le template Multi-vendeur Premium monte le sien (règle forfait/add-on) : on ne le double pas ici,
           sinon deux fenêtres s'empilent et il faut cliquer deux fois pour la fermer. */}
-      {!isDemo && vendeurId && !templateId.startsWith('multi-vendeur-premium') && !templateId.startsWith('boutique-premium') && <VerificateurAge vendeurId={Number(vendeurId)} />}
+      {!isDemo && vendeurId && !templateId.startsWith('multi-vendeur-premium') && !templateId.startsWith('boutique-premium') && !estSimplisseSeul(templateId) && <VerificateurAge vendeurId={Number(vendeurId)} />}
 
       {/* Popup Annonce — templates boutique (solo) : suit l'add-on « Popup Annonce » de la boutique (jamais options_gestionnaire), jamais en mode démo.
           Placé avant le contenu : la bannière du haut se place dans la page, au-dessus du menu. */}
       {!isDemo && vendeurId && estBoutiqueSolo(String(forceTemplate || siteData?.template_id || '')) && !!addonsBoutique?.popup_annonce && <BoutiquePopupAnnonce gestionnaireId={Number(vendeurId)} decalageBas={!hidePreviewBar ? 44 : 0} reserveChat={!!addonsBoutique?.chatbot} />}
+
+      {/* Effets de boutique — templates boutique (solo) : suit l'add-on « Effets de boutique », jamais en mode démo */}
+      {!isDemo && vendeurId && estBoutiqueSolo(String(forceTemplate || siteData?.template_id || '')) && !!addonsBoutique?.effets_boutique && <EffetsBoutiqueSolo gestionnaireId={Number(vendeurId)} />}
 
       {/* Contenu */}
       <div style={{ paddingBottom: 44 }}>

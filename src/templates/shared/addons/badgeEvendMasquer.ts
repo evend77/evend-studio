@@ -13,3 +13,9 @@ export function configPremiumAvecBadge(config: any, addons: Record<string, boole
   const premium = (config && config.premium) || {};
   return { ...config, premium: { ...premium, footer: { ...(premium.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse : le pied de page se lit dans config.simplisse.footer.afficherPropulse
+export function configSimplisseAvecBadge(config: any, addons: Record<string, boolean> | null | undefined): any {
+  const simplisse = (config && config.simplisse) || {};
+  return { ...config, simplisse: { ...simplisse, footer: { ...(simplisse.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
