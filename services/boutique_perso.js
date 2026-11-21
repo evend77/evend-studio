@@ -15,7 +15,8 @@ const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/cl
 
 const CODE_ADDON = 'personnalisation';
 const MEDIA_URL = 'https://media.e-vend.ca';
-const TYPES = ['texte', 'texte_long', 'liste', 'case', 'image'];
+const TYPES = ['texte', 'texte_long', 'liste', 'case', 'image', 'date', 'nombre', 'couleur'];
+const TYPES_TEXTE = ['texte', 'texte_long', 'date', 'nombre'];   // s'impriment dans une zone de l'aperçu avec police et couleur
 const FORMES = ['rect', 'arrondi', 'rond'];
 const MAX_CHAMPS = 12, MAX_FACES = 4, MAX_ZONES = 6, MAX_OPTIONS = 20, MAX_COULEURS = 12, SUPPLEMENT_MAX = 1000;
 const MAX_FICHIER = 5 * 1024 * 1024;
@@ -50,6 +51,13 @@ function nettoyerTexte(v, max, { lignes = false } = {}) {
 const nombre = (v, min, max, def) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def; };
 const argent2 = (v) => Math.round(nombre(v, 0, SUPPLEMENT_MAX, 0) * 100) / 100;
 const idCourt = (v) => { const s = typeof v === 'string' ? v.trim() : ''; return /^[a-z0-9_]{1,16}$/i.test(s) ? s : crypto.randomBytes(4).toString('hex'); };
+const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+function dateIso(v) {   // 'AAAA-MM-JJ' réelle (le 31 février est refusé) ou null
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return null;
+  const [a, m, j] = v.split('-').map(Number); const d = new Date(Date.UTC(a, m - 1, j));
+  return d.getUTCFullYear() === a && d.getUTCMonth() === m - 1 && d.getUTCDate() === j && a >= 1900 && a <= 2200 ? v : null;
+}
+const dateLongue = (v) => { const [a, m, j] = v.split('-').map(Number); return `${j === 1 ? '1er' : j} ${MOIS[m - 1]} ${a}`; };
 const hex = (v) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim()) ? v.trim().toLowerCase() : null);
 
 // Photos de faces : envoyées par CE gestionnaire (même règle que les photos de produits)
@@ -81,15 +89,24 @@ function normaliserConfig(gid, b) {
     faces.push({ id, nom: nettoyerTexte(f.nom, 30) || `Face ${faces.length + 1}`, photo_url: urlPhoto(gid, f.photo_url), zones: zs });
   }
   const champsIn = Array.isArray(b.champs) ? b.champs.slice(0, MAX_CHAMPS) : [];
-  const champs = []; const ids = new Set();
+  const champs = []; const ids = new Set(); const idMap = new Map();
   for (const c of champsIn) {
     if (!c || typeof c !== 'object' || !TYPES.includes(c.type)) refus('Type de champ invalide.');
     const libelle = nettoyerTexte(c.libelle, 80);
     if (!libelle) refus('Chaque champ doit avoir un libellé.');
     let id = idCourt(c.id); while (ids.has(id)) id = crypto.randomBytes(4).toString('hex'); ids.add(id);
     const out = { id, type: c.type, libelle, aide: nettoyerTexte(c.aide, 200), obligatoire: c.obligatoire === true };
-    if (c.type === 'texte' || c.type === 'texte_long') {
-      out.max = Math.round(nombre(c.max, 1, 500, c.type === 'texte' ? 40 : 300));
+    if (TYPES_TEXTE.includes(c.type)) {
+      if (c.type === 'texte' || c.type === 'texte_long') out.max = Math.round(nombre(c.max, 1, 500, c.type === 'texte' ? 40 : 300));
+      if (c.type === 'date') {
+        out.min = dateIso(c.min) || ''; out.max = dateIso(c.max) || '';
+        if (out.min && out.max && out.min > out.max) refus(`Le champ « ${libelle} » : la date minimale doit précéder la date maximale.`);
+      }
+      if (c.type === 'nombre') {
+        out.entier = c.entier !== false;
+        out.min = Math.round(nombre(c.min, -1000000, 1000000, 0) * 100) / 100; out.max = Math.round(nombre(c.max, -1000000, 1000000, 9999) * 100) / 100;
+        if (out.min > out.max) refus(`Le champ « ${libelle} » : le minimum doit être inférieur au maximum.`);
+      }
       const polices = (Array.isArray(c.polices) ? c.polices : []).filter((k) => typeof k === 'string' && POLICES[k]);
       out.polices = polices.length ? [...new Set(polices)] : ['sans'];
       const couleurs = [...new Set((Array.isArray(c.couleurs) ? c.couleurs : []).map(hex).filter(Boolean))].slice(0, MAX_COULEURS);
@@ -104,14 +121,39 @@ function normaliserConfig(gid, b) {
       }
       if (opts.length < 2) refus(`Le champ « ${libelle} » doit avoir au moins 2 choix.`);
       out.options = opts;
+    } else if (c.type === 'couleur') {
+      if (champs.some((x) => x.type === 'couleur')) refus('Un seul champ « Couleur du produit » par produit.');
+      const opts = [];
+      for (const o of (Array.isArray(c.options) ? c.options.slice(0, MAX_COULEURS) : [])) {
+        const l = nettoyerTexte(o && o.libelle, 40); if (!l) continue;
+        let oid = idCourt(o.id); while (opts.some((x) => x.id === oid)) oid = crypto.randomBytes(3).toString('hex');
+        const photos = {};
+        if (o.photos && typeof o.photos === 'object' && !Array.isArray(o.photos)) for (const fid of Object.keys(o.photos)) { if (idsFaces.has(fid) && o.photos[fid]) photos[fid] = urlPhoto(gid, o.photos[fid]); }
+        opts.push({ id: oid, libelle: l, hex: hex(o.hex) || '#cccccc', supplement: argent2(o.supplement), photos });
+      }
+      if (opts.length < 2) refus(`Le champ « ${libelle} » doit avoir au moins 2 couleurs.`);
+      out.options = opts;
     } else if (c.type === 'case') { out.supplement = argent2(c.supplement); }
     else if (c.type === 'image') { out.supplement = argent2(c.supplement); }
-    if (c.type === 'texte' || c.type === 'texte_long' || c.type === 'image') {
+    if (TYPES_TEXTE.includes(c.type) || c.type === 'image') {
       const z = typeof c.zone === 'string' ? c.zone : '';
       out.zone = z && zones.has(z) ? z : null;
     }
+    if (c.si && typeof c.si === 'object') out.__si = c.si;
+    idMap.set(typeof c.id === 'string' ? c.id.trim() : '', id);
     champs.push(out);
   }
+  // Affichage conditionnel : « afficher seulement si <champ précédent> = <valeur> » (un champ ne peut dépendre que d'un champ placé AVANT lui : pas de boucle possible)
+  champs.forEach((c, i) => {
+    const si = c.__si; delete c.__si; if (!si) return;
+    const ref = champs.slice(0, i).find((x) => x.id === idMap.get(typeof si.champ === 'string' ? si.champ.trim() : ''));
+    if (!ref) refus(`Le champ « ${c.libelle} » dépend d'un champ qui doit se trouver avant lui.`);
+    let valeur;
+    if (ref.type === 'case') valeur = 'oui';
+    else if (ref.type === 'liste' || ref.type === 'couleur') { if (!ref.options.some((o) => o.id === si.valeur)) refus(`Le champ « ${c.libelle} » : choix de condition invalide.`); valeur = si.valeur; }
+    else valeur = '*';
+    c.si = { champ: ref.id, valeur };
+  });
   return { actif: b.actif !== false, champs, faces };
 }
 
@@ -239,43 +281,60 @@ async function valider(gid, produitId, reponses, acheteurId, db) {
   const cfg = (await db.query('SELECT actif, champs, faces FROM boutique_perso_config WHERE produit_id = $1 AND gestionnaire_id = $2', [produitId, gid])).rows[0];
   if (!cfg || !cfg.actif || !Array.isArray(cfg.champs) || !cfg.champs.length) return { perso: null, cle: '', supplementC: 0 };
   const rep = reponses && typeof reponses === 'object' && !Array.isArray(reponses) ? reponses : {};
-  const sortie = []; let supC = 0;
+  const sortie = []; let supC = 0; const etatChamp = {}; let faces = cfg.faces;
   for (const c of cfg.champs) {
+    if (c.si) { const e = etatChamp[c.si.champ]; if (!(c.si.valeur === '*' ? e !== undefined : e === c.si.valeur)) continue; }   // champ masqué : ignoré (même obligatoire)
     const r = rep[c.id] && typeof rep[c.id] === 'object' ? rep[c.id] : {};
     const manque = () => refusAcheteur(`Le champ « ${c.libelle} » est requis.`);
     const base = { id: c.id, type: c.type, libelle: c.libelle, zone: c.zone || null };
+    const typo = () => ({ police: c.polices.includes(r.police) ? r.police : c.polices[0], couleur: c.couleurs.includes(hex(r.couleur)) ? hex(r.couleur) : c.couleurs[0] });
+    const sup = () => { const x = Number(c.supplement) || 0; supC += Math.round(x * 100); return x; };
     if (c.type === 'texte' || c.type === 'texte_long') {
       const v = nettoyerTexte(r.valeur, c.max || (c.type === 'texte' ? 40 : 300), { lignes: c.type === 'texte_long' });
       if (!v) { if (c.obligatoire) manque(); continue; }
-      const police = c.polices.includes(r.police) ? r.police : c.polices[0];
-      const couleur = c.couleurs.includes(hex(r.couleur)) ? hex(r.couleur) : c.couleurs[0];
-      const sup = Number(c.supplement) || 0; supC += Math.round(sup * 100);
-      sortie.push({ ...base, affichage: v, police, couleur, supplement: sup });
-    } else if (c.type === 'liste') {
+      const t = typo(); const x = sup(); etatChamp[c.id] = '*';
+      sortie.push({ ...base, affichage: v, ...t, supplement: x });
+    } else if (c.type === 'date') {
+      if (r.valeur === undefined || r.valeur === null || r.valeur === '') { if (c.obligatoire) manque(); continue; }
+      const d = dateIso(r.valeur); if (!d) refusAcheteur(`La date du champ « ${c.libelle} » est invalide.`);
+      if ((c.min && d < c.min) || (c.max && d > c.max)) refusAcheteur(`La date du champ « ${c.libelle} » doit être ${c.min && c.max ? `entre le ${dateLongue(c.min)} et le ${dateLongue(c.max)}` : c.min ? `à partir du ${dateLongue(c.min)}` : `au plus tard le ${dateLongue(c.max)}`}.`);
+      const t = typo(); const x = sup(); etatChamp[c.id] = '*';
+      sortie.push({ ...base, affichage: dateLongue(d), ...t, supplement: x });
+    } else if (c.type === 'nombre') {
+      if (r.valeur === undefined || r.valeur === null || String(r.valeur).trim() === '') { if (c.obligatoire) manque(); continue; }
+      const n = Number(String(r.valeur).trim().replace(',', '.'));
+      if (!Number.isFinite(n) || (c.entier !== false && !Number.isInteger(n))) refusAcheteur(`Le champ « ${c.libelle} » doit être ${c.entier !== false ? 'un nombre entier' : 'un nombre'}.`);
+      if (n < c.min || n > c.max) refusAcheteur(`Le champ « ${c.libelle} » doit être entre ${c.min} et ${c.max}.`);
+      const t = typo(); const x = sup(); etatChamp[c.id] = '*';
+      sortie.push({ ...base, affichage: String(Math.round(n * 100) / 100), ...t, supplement: x });
+    } else if (c.type === 'liste' || c.type === 'couleur') {
       const o = c.options.find((x) => x.id === r.valeur);
       if (!o) { if (c.obligatoire) manque(); continue; }
-      const sup = Number(o.supplement) || 0; supC += Math.round(sup * 100);
-      sortie.push({ ...base, affichage: o.libelle, option: o.id, supplement: sup });
+      const x = Number(o.supplement) || 0; supC += Math.round(x * 100); etatChamp[c.id] = o.id;
+      if (c.type === 'couleur') {
+        faces = cfg.faces.map((f) => (o.photos && o.photos[f.id] ? { ...f, photo_url: o.photos[f.id] } : f));   // le cliché garde la photo de la couleur choisie
+        sortie.push({ ...base, affichage: o.libelle, option: o.id, hex: o.hex, supplement: x });
+      } else sortie.push({ ...base, affichage: o.libelle, option: o.id, supplement: x });
     } else if (c.type === 'case') {
       if (r.valeur !== true) { if (c.obligatoire) refusAcheteur(`Veuillez cocher « ${c.libelle} ».`); continue; }
-      const sup = Number(c.supplement) || 0; supC += Math.round(sup * 100);
-      sortie.push({ ...base, affichage: 'Oui', supplement: sup });
+      const x = sup(); etatChamp[c.id] = 'oui';
+      sortie.push({ ...base, affichage: 'Oui', supplement: x });
     } else if (c.type === 'image') {
       const fid = typeof r.fichier === 'string' && /^[a-f0-9]{32}$/.test(r.fichier) ? r.fichier : null;
       if (!fid) { if (c.obligatoire) manque(); continue; }
       const f = (await db.query('SELECT id, url, nom_original FROM boutique_perso_fichiers WHERE id = $1 AND gestionnaire_id = $2 AND acheteur_id = $3', [fid, gid, acheteurId])).rows[0];
       if (!f) refusAcheteur(`L'image du champ « ${c.libelle} » est introuvable. Envoyez-la de nouveau.`);
-      const sup = Number(c.supplement) || 0; supC += Math.round(sup * 100);
-      sortie.push({ ...base, affichage: f.nom_original || 'image', fichier: f.id, url: f.url, dx: nombre(r.dx, -100, 100, 0), dy: nombre(r.dy, -100, 100, 0), zoom: nombre(r.zoom, 0.3, 4, 1), supplement: sup });
+      const x = sup(); etatChamp[c.id] = '*';
+      sortie.push({ ...base, affichage: f.nom_original || 'image', fichier: f.id, url: f.url, dx: nombre(r.dx, -100, 100, 0), dy: nombre(r.dy, -100, 100, 0), zoom: nombre(r.zoom, 0.3, 4, 1), supplement: x });
     }
   }
   if (!sortie.length) return { perso: null, cle: '', supplementC: 0 };
   const cle = crypto.createHash('sha256').update(JSON.stringify(sortie.map((s) => [s.id, s.affichage, s.police || '', s.couleur || '', s.fichier || '', s.dx || 0, s.dy || 0, s.zoom || 1]))).digest('hex').slice(0, 32);
-  const perso = { v: 1, champs: sortie, faces: cfg.faces, supplement: supC / 100 };
+  const perso = { v: 1, champs: sortie, faces, supplement: supC / 100 };
   return { perso, cle, supplementC: supC };
 }
 
 module.exports = {
-  CODE_ADDON, POLICES, TYPES, autorise, exigerAddon, etat, lireConfig, enregistrerConfig, supprimerConfig, configPublique,
+  CODE_ADDON, POLICES, TYPES, TYPES_TEXTE, autorise, exigerAddon, etat, lireConfig, enregistrerConfig, supprimerConfig, configPublique,
   televerser, nettoyer, demarrerNettoyage, valider, nettoyerTexte, extensionSelonContenu, normaliserConfig, _limites: compteurs,
 };

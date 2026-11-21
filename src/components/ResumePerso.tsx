@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import ApercuPerso, { FacePerso, ValeurApercu } from './ApercuPerso';
 
-export interface PersoCliche { v?: number; supplement?: number; faces?: FacePerso[]; champs: { id: string; type: string; libelle: string; affichage: string; zone?: string | null; police?: string; couleur?: string; url?: string; dx?: number; dy?: number; zoom?: number; supplement?: number }[] }
+export interface PersoCliche { v?: number; supplement?: number; faces?: FacePerso[]; champs: { id: string; type: string; libelle: string; affichage: string; zone?: string | null; police?: string; couleur?: string; url?: string; dx?: number; dy?: number; zoom?: number; supplement?: number; hex?: string }[] }
 
 const urlSure = (u?: string) => !!u && /^https:\/\/media\.e-vend\.ca\//.test(u);
 
@@ -27,8 +27,9 @@ export default function ResumePerso({ perso, gestionnaire = false, couleur = '#b
                 <a href={c.url} target="_blank" rel="noopener noreferrer" style={{ color: couleur, fontWeight: 700 }}>{gestionnaire ? '⬇ Ouvrir l’original' : 'Voir l’image'}</a>
                 <span style={{ color: doux }}> ({c.affichage})</span>
               </span>
-            : <strong style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{c.affichage}</strong>}
-          {(c.type === 'texte' || c.type === 'texte_long') && gestionnaire && c.police && c.couleur && (
+            : <strong style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {c.type === 'couleur' && c.hex && /^#[0-9a-f]{6}$/i.test(c.hex) && <span style={{ display: 'inline-block', width: 12, height: 12, borderRadius: '50%', background: c.hex, border: '1px solid #999', verticalAlign: 'middle', marginRight: 6 }} />}{c.affichage}</strong>}
+          {['texte', 'texte_long', 'date', 'nombre'].includes(c.type) && gestionnaire && c.police && c.couleur && (
             <span style={{ marginLeft: 8, fontSize: 11, color: doux }}>
               <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: /^#[0-9a-f]{6}$/i.test(c.couleur) ? c.couleur : '#000', border: '1px solid #999', verticalAlign: 'middle', marginRight: 4 }} />{c.couleur} · {c.police}
             </span>

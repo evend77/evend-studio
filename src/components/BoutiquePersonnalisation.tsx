@@ -8,8 +8,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import ApercuPerso, { FacePerso, ValeurApercu } from './ApercuPerso';
 import { envoyerFichierPerso } from '../pages/boutique/boutiqueAcheteurApi';
 
-interface Option { id: string; libelle: string; supplement: number }
-interface Champ { id: string; type: 'texte' | 'texte_long' | 'liste' | 'case' | 'image'; libelle: string; aide?: string; obligatoire?: boolean; max?: number; zone?: string | null; supplement?: number; options?: Option[]; polices?: string[]; couleurs?: string[] }
+interface Option { id: string; libelle: string; supplement: number; hex?: string; photos?: Record<string, string> }
+interface Champ { id: string; type: 'texte' | 'texte_long' | 'liste' | 'case' | 'image' | 'date' | 'nombre' | 'couleur'; libelle: string; aide?: string; obligatoire?: boolean; zone?: string | null; supplement?: number; options?: Option[]; polices?: string[]; couleurs?: string[]; min?: string | number; max?: string | number; entier?: boolean; si?: { champ: string; valeur: string } }
 interface ConfigPerso { champs: Champ[]; faces: FacePerso[]; polices: Record<string, string> }
 interface Val { valeur?: string | boolean; police?: string; couleur?: string; fichier?: File; apercu?: string; dx?: number; dy?: number; zoom?: number }
 export interface PersoPrepare { ok: boolean; personnalisation?: Record<string, any>; erreur?: string }
@@ -17,6 +17,18 @@ export interface PersoRef { preparer: () => Promise<PersoPrepare> }
 export interface ThemePerso { fond: string; texte: string; doux: string; bord: string }
 
 const THEME_SOMBRE: ThemePerso = { fond: '#111', texte: '#fff', doux: '#888', bord: '#333' };
+const TEXTUEL = ['texte', 'texte_long', 'date', 'nombre'];
+const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const dateLongue = (v: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v); return m ? `${Number(m[3]) === 1 ? '1er' : Number(m[3])} ${MOIS[Number(m[2]) - 1]} ${m[1]}` : ''; };
+// Affichage conditionnel : un champ n'existe que si son champ de référence (placé avant lui) a la valeur demandée
+const estVisible = (c: Champ, vs: Record<string, Val>, champs: Champ[]): boolean => {
+  if (!c.si) return true;
+  const ref = champs.find(x => x.id === c.si!.champ); if (!ref || !estVisible(ref, vs, champs)) return false;
+  const v = vs[ref.id] || {};
+  if (c.si.valeur === 'oui') return v.valeur === true;
+  if (c.si.valeur === '*') return ref.type === 'image' ? !!v.fichier : (typeof v.valeur === 'string' && v.valeur.trim() !== '');
+  return v.valeur === c.si.valeur;
+};
 const fmt = (n: number) => `${n.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
 
 export default function BoutiquePersonnalisation({ gestionnaireId, produitId, couleur = '#c9a96e', theme = THEME_SOMBRE, reference, onChangement }: {
@@ -35,7 +47,7 @@ export default function BoutiquePersonnalisation({ gestionnaireId, produitId, co
       if (c && Array.isArray(c.champs) && c.champs.length) {
         setCfg(c);
         const init: Record<string, Val> = {};
-        c.champs.forEach(ch => { if (ch.type === 'texte' || ch.type === 'texte_long') init[ch.id] = { valeur: '', police: (ch.polices || ['sans'])[0], couleur: (ch.couleurs || ['#000000'])[0] }; else if (ch.type === 'image') init[ch.id] = { dx: 0, dy: 0, zoom: 1 }; else if (ch.type === 'case') init[ch.id] = { valeur: false }; else init[ch.id] = { valeur: '' }; });
+        c.champs.forEach(ch => { if (TEXTUEL.includes(ch.type)) init[ch.id] = { valeur: '', police: (ch.polices || ['sans'])[0], couleur: (ch.couleurs || ['#000000'])[0] }; else if (ch.type === 'image') init[ch.id] = { dx: 0, dy: 0, zoom: 1 }; else if (ch.type === 'case') init[ch.id] = { valeur: false }; else init[ch.id] = { valeur: '' }; });
         setVals(init);
       } else if (onChangement) onChangement({ actif: false, supplement: 0 });
     }).catch(() => {});
@@ -48,11 +60,12 @@ export default function BoutiquePersonnalisation({ gestionnaireId, produitId, co
   const supplement = (() => {
     if (!cfg) return 0; let s = 0;
     for (const c of cfg.champs) {
+      if (!estVisible(c, vals, cfg.champs)) continue;
       const v = vals[c.id] || {};
-      if ((c.type === 'texte' || c.type === 'texte_long') && typeof v.valeur === 'string' && v.valeur.trim()) s += c.supplement || 0;
+      if (TEXTUEL.includes(c.type) && typeof v.valeur === 'string' && v.valeur.trim()) s += c.supplement || 0;
       else if (c.type === 'case' && v.valeur === true) s += c.supplement || 0;
       else if (c.type === 'image' && v.fichier) s += c.supplement || 0;
-      else if (c.type === 'liste' && v.valeur) { const o = (c.options || []).find(x => x.id === v.valeur); if (o) s += o.supplement || 0; }
+      else if ((c.type === 'liste' || c.type === 'couleur') && v.valeur) { const o = (c.options || []).find(x => x.id === v.valeur); if (o) s += o.supplement || 0; }
     }
     return Math.round(s * 100) / 100;
   })();
@@ -74,12 +87,13 @@ export default function BoutiquePersonnalisation({ gestionnaireId, produitId, co
         const c = cfgRef.current; if (!c) return { ok: true };
         const v = valsRef.current; const rep: Record<string, any> = {};
         for (const ch of c.champs) {
+          if (!estVisible(ch, v, c.champs)) continue;
           const x = v[ch.id] || {};
-          if (ch.type === 'texte' || ch.type === 'texte_long') {
+          if (TEXTUEL.includes(ch.type)) {
             const t = typeof x.valeur === 'string' ? x.valeur.trim() : '';
             if (!t) { if (ch.obligatoire) return { ok: false, erreur: `Le champ « ${ch.libelle} » est requis.` }; continue; }
             rep[ch.id] = { valeur: t, police: x.police, couleur: x.couleur };
-          } else if (ch.type === 'liste') {
+          } else if (ch.type === 'liste' || ch.type === 'couleur') {
             if (!x.valeur) { if (ch.obligatoire) return { ok: false, erreur: `Choisissez une option pour « ${ch.libelle} ».` }; continue; }
             rep[ch.id] = { valeur: x.valeur };
           } else if (ch.type === 'case') {
@@ -99,11 +113,16 @@ export default function BoutiquePersonnalisation({ gestionnaireId, produitId, co
   }, [gestionnaireId, reference]);
 
   if (!cfg) return null;
-  const valeursApercu: ValeurApercu[] = cfg.champs.filter(c => c.zone).map(c => {
+  const visibles = cfg.champs.filter(c => estVisible(c, vals, cfg.champs));
+  const valeursApercu: ValeurApercu[] = visibles.filter(c => c.zone).map(c => {
     const v = vals[c.id] || {};
     if (c.type === 'image') return { id: c.id, type: 'image', zone: c.zone, url: v.apercu, dx: v.dx, dy: v.dy, zoom: v.zoom };
-    return { id: c.id, type: c.type, zone: c.zone, affichage: typeof v.valeur === 'string' ? v.valeur : '', police: v.police, couleur: v.couleur };
+    const brut = typeof v.valeur === 'string' ? v.valeur : '';
+    return { id: c.id, type: c.type === 'date' || c.type === 'nombre' ? 'texte' : c.type, zone: c.zone, affichage: c.type === 'date' ? dateLongue(brut) : brut, police: v.police, couleur: v.couleur };
   });
+  // Couleur du produit choisie → l'aperçu affiche la photo de cette couleur (face par face), sinon la photo de base
+  const champCouleur = visibles.find(c => c.type === 'couleur'); const optCouleur = champCouleur ? (champCouleur.options || []).find(o => o.id === (vals[champCouleur.id] || {}).valeur) : null;
+  const facesAffichees: FacePerso[] = optCouleur && optCouleur.photos ? cfg.faces.map(f => (optCouleur.photos![f.id] ? { ...f, photo_url: optCouleur.photos![f.id] } : f)) : cfg.faces;
   const champ: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 8, border: `1px solid ${theme.bord}`, background: theme.fond, color: theme.texte, fontSize: 14, fontFamily: 'inherit' };
   const etiq: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, color: theme.doux, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 };
   const avecSup = (s?: number) => (s && s > 0 ? <span style={{ color: couleur, fontWeight: 700, marginLeft: 6, textTransform: 'none', letterSpacing: 0 }}>+ {fmt(s)}</span> : null);
@@ -113,18 +132,20 @@ export default function BoutiquePersonnalisation({ gestionnaireId, produitId, co
       <div style={{ fontSize: 15, fontWeight: 800, color: theme.texte, marginBottom: 12 }}>🎨 Personnalisez votre produit</div>
       {cfg.faces.length > 0 && (
         <div style={{ marginBottom: 16, maxWidth: 420 }}>
-          <ApercuPerso faces={cfg.faces} valeurs={valeursApercu} polices={cfg.polices} accent={couleur} texteOnglet={theme.texte} fondOnglet="transparent" />
+          <ApercuPerso faces={facesAffichees} valeurs={valeursApercu} polices={cfg.polices} accent={couleur} texteOnglet={theme.texte} fondOnglet="transparent" />
           <div style={{ fontSize: 11, color: theme.doux, marginTop: 6 }}>Aperçu approximatif : le rendu final peut légèrement différer.</div>
         </div>
       )}
-      {cfg.champs.map(c => {
+      {visibles.map(c => {
         const v = vals[c.id] || {};
         return (
           <div key={c.id} style={{ marginBottom: 16 }}>
-            {c.type !== 'case' && <label style={etiq} htmlFor={`perso-${c.id}`}>{c.libelle}{c.obligatoire ? ' *' : ''}{c.type !== 'liste' && avecSup(c.supplement)}</label>}
-            {c.type === 'texte' && <input id={`perso-${c.id}`} value={(v.valeur as string) || ''} maxLength={c.max || 40} onChange={e => maj(c.id, { valeur: e.target.value })} style={champ} />}
-            {c.type === 'texte_long' && <textarea id={`perso-${c.id}`} value={(v.valeur as string) || ''} maxLength={c.max || 300} rows={3} onChange={e => maj(c.id, { valeur: e.target.value })} style={{ ...champ, resize: 'vertical' }} />}
-            {(c.type === 'texte' || c.type === 'texte_long') && (
+            {c.type !== 'case' && <label style={etiq} htmlFor={`perso-${c.id}`}>{c.libelle}{c.obligatoire ? ' *' : ''}{c.type !== 'liste' && c.type !== 'couleur' && avecSup(c.supplement)}</label>}
+            {c.type === 'date' && <input id={`perso-${c.id}`} type="date" value={(v.valeur as string) || ''} min={c.min ? String(c.min) : undefined} max={c.max ? String(c.max) : undefined} onChange={e => maj(c.id, { valeur: e.target.value })} style={{ ...champ, colorScheme: theme.fond === '#111' ? 'dark' : 'light' }} />}
+            {c.type === 'nombre' && <input id={`perso-${c.id}`} type="number" inputMode="decimal" value={(v.valeur as string) || ''} min={Number(c.min)} max={Number(c.max)} step={c.entier === false ? 'any' : 1} onChange={e => maj(c.id, { valeur: e.target.value })} style={champ} />}
+            {c.type === 'texte' && <input id={`perso-${c.id}`} value={(v.valeur as string) || ''} maxLength={Number(c.max) || 40} onChange={e => maj(c.id, { valeur: e.target.value })} style={champ} />}
+            {c.type === 'texte_long' && <textarea id={`perso-${c.id}`} value={(v.valeur as string) || ''} maxLength={Number(c.max) || 300} rows={3} onChange={e => maj(c.id, { valeur: e.target.value })} style={{ ...champ, resize: 'vertical' }} />}
+            {TEXTUEL.includes(c.type) && (
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 8 }}>
                 {(c.polices || []).length > 1 && (
                   <select aria-label="Police" value={v.police} onChange={e => maj(c.id, { police: e.target.value })} style={{ ...champ, width: 'auto', padding: '6px 10px', fontSize: 13 }}>
@@ -143,6 +164,15 @@ export default function BoutiquePersonnalisation({ gestionnaireId, produitId, co
                 <option value="">— Choisir —</option>
                 {(c.options || []).map(o => <option key={o.id} value={o.id}>{o.libelle}{o.supplement > 0 ? ` (+ ${fmt(o.supplement)})` : ''}</option>)}
               </select>
+            )}
+            {c.type === 'couleur' && (
+              <div role="radiogroup" aria-label={c.libelle} style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                {(c.options || []).map(o => (
+                  <button key={o.id} type="button" role="radio" aria-checked={v.valeur === o.id} aria-label={o.libelle} title={`${o.libelle}${o.supplement > 0 ? ` (+ ${fmt(o.supplement)})` : ''}`} onClick={() => maj(c.id, { valeur: v.valeur === o.id && !c.obligatoire ? '' : o.id })}
+                    style={{ width: 34, height: 34, borderRadius: '50%', background: o.hex || '#ccc', border: v.valeur === o.id ? `3px solid ${couleur}` : `2px solid ${theme.bord}`, boxShadow: v.valeur === o.id ? `0 0 0 2px ${theme.fond}` : 'none', cursor: 'pointer', padding: 0, outline: 'none' }} />
+                ))}
+                <span style={{ fontSize: 13, color: theme.texte }}>{(() => { const o = (c.options || []).find(x => x.id === v.valeur); return o ? <>{o.libelle}{avecSup(o.supplement)}</> : <span style={{ color: theme.doux }}>Choisissez une couleur</span>; })()}</span>
+              </div>
             )}
             {c.type === 'case' && (
               <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, color: theme.texte, cursor: 'pointer' }}>

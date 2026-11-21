@@ -9,9 +9,10 @@ import BoutiqueModale from './BoutiqueModale';
 import ApercuPerso, { FacePerso, ZonePerso, ValeurApercu, PILES_POLICES } from '../../components/ApercuPerso';
 
 const T = { border: '#e1e4e8', text: '#1a2332', light: '#6b7280', ok: '#16a34a', warn: '#b45309', danger: '#dc2626' };
-type TypeChamp = 'texte' | 'texte_long' | 'liste' | 'case' | 'image';
-interface Option { id: string; libelle: string; supplement: number }
-interface Champ { id: string; type: TypeChamp; libelle: string; aide: string; obligatoire: boolean; max?: number; zone?: string | null; supplement?: number; options?: Option[]; polices?: string[]; couleurs?: string[] }
+type TypeChamp = 'texte' | 'texte_long' | 'liste' | 'case' | 'image' | 'date' | 'nombre' | 'couleur';
+const TEXTUEL: TypeChamp[] = ['texte', 'texte_long', 'date', 'nombre'];
+interface Option { id: string; libelle: string; supplement: number; hex?: string; photos?: Record<string, string> }
+interface Champ { id: string; type: TypeChamp; libelle: string; aide: string; obligatoire: boolean; max?: number | string; min?: number | string; entier?: boolean; si?: { champ: string; valeur: string } | null; zone?: string | null; supplement?: number; options?: Option[]; polices?: string[]; couleurs?: string[] }
 interface Config { actif: boolean; champs: Champ[]; faces: FacePerso[] }
 interface ProduitLigne { id: number; titre: string; photo_principale: string | null; statut: string; perso_actif: boolean | null; nb_champs: number }
 interface Police { cle: string; nom: string; pile: string }
@@ -20,7 +21,15 @@ const carte: React.CSSProperties = { background: '#fff', border: `1px solid ${T.
 const champCss: React.CSSProperties = { width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 14, fontFamily: 'inherit' };
 const lbl: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 700, color: T.light, textTransform: 'uppercase', marginBottom: 5 };
 const uid = () => Math.random().toString(36).slice(2, 8);
-const LIBELLE_TYPE: Record<TypeChamp, string> = { texte: 'Texte court', texte_long: 'Texte long', liste: 'Liste de choix', case: 'Case à cocher', image: 'Image (logo, photo)' };
+const LIBELLE_TYPE: Record<TypeChamp, string> = { texte: 'Texte court', texte_long: 'Texte long', liste: 'Liste de choix', case: 'Case à cocher', image: 'Image (logo, photo)', date: 'Date', nombre: 'Nombre', couleur: 'Couleur du produit' };
+// Une condition ne peut viser qu'un champ placé AVANT (et un choix qui existe encore) : sinon elle est retirée
+const nettoyerSi = (champs: Champ[]): Champ[] => champs.map((c, i) => {
+  if (!c.si) return c;
+  const j = champs.findIndex(x => x.id === c.si!.champ); const ref = champs[j];
+  if (!ref || j >= i) return { ...c, si: null };
+  if ((ref.type === 'liste' || ref.type === 'couleur') && !(ref.options || []).some(o => o.id === c.si!.valeur)) return { ...c, si: null };
+  return c;
+});
 const clamp = (n: number, a: number, b: number) => Math.min(b, Math.max(a, n));
 
 export default function BoutiquePerso({ accent, isMobile, pagePlan, naviguerVers }: { gestionnaireId?: number; accent?: string; isMobile?: boolean; pagePlan?: string; naviguerVers?: (page: string) => void }) {
@@ -57,7 +66,7 @@ export default function BoutiquePerso({ accent, isMobile, pagePlan, naviguerVers
     setProd(p); setCfg(r.data.config); setExiste(!!r.data.existe); setFaceId(r.data.config.faces[0] ? r.data.config.faces[0].id : ''); setZoneId(null); setModifie(false);
   };
   const fermerEditeur = () => { if (modifie) { setModale({ type: 'confirmer', titre: 'Quitter sans enregistrer ?', message: 'Vos changements non enregistrés seront perdus.', texte: 'Quitter', action: () => { setProd(null); setCfg(null); } }); } else { setProd(null); setCfg(null); } };
-  const maj = (f: (c: Config) => Config) => { setCfg(prev => (prev ? f(prev) : prev)); setModifie(true); };
+  const maj = (f: (c: Config) => Config) => { setCfg(prev => { if (!prev) return prev; const n = f(prev); return { ...n, champs: nettoyerSi(n.champs) }; }); setModifie(true); };
 
   const enregistrer = async () => {
     if (!prod || !cfg) return;
@@ -126,6 +135,8 @@ export default function BoutiquePerso({ accent, isMobile, pagePlan, naviguerVers
     window.addEventListener('pointermove', mv); window.addEventListener('pointerup', fin);
   };
 
+  // Photo du produit dans une couleur donnée, pour une face
+  const photoCouleur = (champId: string, optId: string, faceId: string, url: string | null) => maj(c => ({ ...c, champs: c.champs.map(ch => ch.id !== champId ? ch : { ...ch, options: (ch.options || []).map(o => { if (o.id !== optId) return o; const ph = { ...(o.photos || {}) }; if (url) ph[faceId] = url; else delete ph[faceId]; return { ...o, photos: ph }; }) }) }));
   // ── Champs ──
   const ajouterChamp = (type: TypeChamp) => {
     if (!cfg || cfg.champs.length >= 12) return;
@@ -133,6 +144,9 @@ export default function BoutiquePerso({ accent, isMobile, pagePlan, naviguerVers
     if (type === 'texte') Object.assign(base, { max: 40, polices: ['sans'], couleurs: ['#000000', '#ffffff'], libelle: 'Texte à imprimer' });
     if (type === 'texte_long') Object.assign(base, { max: 200, polices: ['sans'], couleurs: ['#000000', '#ffffff'], libelle: 'Message' });
     if (type === 'liste') Object.assign(base, { libelle: 'Taille', options: [{ id: uid(), libelle: 'Petit', supplement: 0 }, { id: uid(), libelle: 'Grand', supplement: 0 }] });
+    if (type === 'date') Object.assign(base, { libelle: 'Date', min: '', max: '', polices: ['sans'], couleurs: ['#000000', '#ffffff'] });
+    if (type === 'nombre') Object.assign(base, { libelle: 'Numéro', min: 0, max: 99, entier: true, polices: ['sans'], couleurs: ['#000000', '#ffffff'] });
+    if (type === 'couleur') Object.assign(base, { libelle: 'Couleur du produit', options: [{ id: uid(), libelle: 'Noir', hex: '#000000', supplement: 0, photos: {} }, { id: uid(), libelle: 'Blanc', hex: '#ffffff', supplement: 0, photos: {} }] });
     if (type === 'case') base.libelle = 'Emballage cadeau';
     if (type === 'image') base.libelle = 'Votre logo';
     maj(c => ({ ...c, champs: [...c.champs, base] }));
@@ -191,7 +205,7 @@ export default function BoutiquePerso({ accent, isMobile, pagePlan, naviguerVers
   // ── Éditeur d'un produit ──
   const face = cfg.faces.find(f => f.id === faceId) || cfg.faces[0];
   const toutesZones = cfg.faces.flatMap(f => f.zones.map(z => ({ id: z.id, etiquette: `${f.nom} — ${z.nom || 'Zone'}` })));
-  const exemple: ValeurApercu[] = cfg.champs.filter(c => c.zone && (c.type === 'texte' || c.type === 'texte_long')).map(c => ({ id: c.id, type: c.type, zone: c.zone, affichage: c.type === 'texte' ? 'Votre texte' : 'Votre message ici', police: (c.polices || ['sans'])[0], couleur: (c.couleurs || ['#000000'])[0] }));
+  const exemple: ValeurApercu[] = cfg.champs.filter(c => c.zone && TEXTUEL.includes(c.type)).map(c => ({ id: c.id, type: c.type === 'texte_long' ? 'texte_long' : 'texte', zone: c.zone, affichage: c.type === 'texte' ? 'Votre texte' : c.type === 'date' ? '12 mars 2026' : c.type === 'nombre' ? '23' : 'Votre message ici', police: (c.polices || ['sans'])[0], couleur: (c.couleurs || ['#000000'])[0] }));
   const zoneSel = face && zoneId ? face.zones.find(z => z.id === zoneId) : null;
   const grille = (n: number): React.CSSProperties => ({ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${n}, 1fr)`, gap: 10 });
 
@@ -277,10 +291,10 @@ export default function BoutiquePerso({ accent, isMobile, pagePlan, naviguerVers
             </div>
             <div style={{ ...grille(3), marginTop: 10, alignItems: 'end' }}>
               <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer', paddingBottom: 8 }}><input type="checkbox" checked={c.obligatoire} onChange={e => majChamp(c.id, { obligatoire: e.target.checked })} /> Obligatoire</label>
-              {c.type !== 'liste' && <div><label style={lbl}>Supplément ($ / article)</label><input type="number" min={0} max={1000} step={0.5} value={c.supplement || 0} onChange={e => majChamp(c.id, { supplement: clamp(Number(e.target.value) || 0, 0, 1000) })} style={champCss} /></div>}
-              {(c.type === 'texte' || c.type === 'texte_long') && <div><label style={lbl}>Longueur maximale</label><input type="number" min={1} max={500} value={c.max || 40} onChange={e => majChamp(c.id, { max: clamp(Math.round(Number(e.target.value) || 1), 1, 500) })} style={champCss} /></div>}
+              {c.type !== 'liste' && c.type !== 'couleur' && <div><label style={lbl}>Supplément ($ / article)</label><input type="number" min={0} max={1000} step={0.5} value={c.supplement || 0} onChange={e => majChamp(c.id, { supplement: clamp(Number(e.target.value) || 0, 0, 1000) })} style={champCss} /></div>}
+              {(c.type === 'texte' || c.type === 'texte_long') && <div><label style={lbl}>Longueur maximale</label><input type="number" min={1} max={500} value={Number(c.max) || 40} onChange={e => majChamp(c.id, { max: clamp(Math.round(Number(e.target.value) || 1), 1, 500) })} style={champCss} /></div>}
             </div>
-            {(c.type === 'texte' || c.type === 'texte_long' || c.type === 'image') && (
+            {(TEXTUEL.includes(c.type) || c.type === 'image') && (
               <div style={{ marginTop: 10 }}>
                 <label style={lbl}>Zone de l'aperçu</label>
                 <select value={c.zone || ''} onChange={e => majChamp(c.id, { zone: e.target.value || null })} style={{ ...champCss, background: '#fff', maxWidth: 360 }}>
@@ -289,7 +303,20 @@ export default function BoutiquePerso({ accent, isMobile, pagePlan, naviguerVers
                 </select>
               </div>
             )}
-            {(c.type === 'texte' || c.type === 'texte_long') && (
+            {c.type === 'date' && (
+              <div style={{ ...grille(2), marginTop: 10 }}>
+                <div><label style={lbl}>Date minimale (facultatif)</label><input type="date" value={(c.min as string) || ''} onChange={e => majChamp(c.id, { min: e.target.value })} style={champCss} /></div>
+                <div><label style={lbl}>Date maximale (facultatif)</label><input type="date" value={(c.max as string) || ''} onChange={e => majChamp(c.id, { max: e.target.value })} style={champCss} /></div>
+              </div>
+            )}
+            {c.type === 'nombre' && (
+              <div style={{ ...grille(3), marginTop: 10, alignItems: 'end' }}>
+                <div><label style={lbl}>Minimum</label><input type="number" value={c.min as number} onChange={e => majChamp(c.id, { min: Number(e.target.value) || 0 })} style={champCss} /></div>
+                <div><label style={lbl}>Maximum</label><input type="number" value={c.max as number} onChange={e => majChamp(c.id, { max: Number(e.target.value) || 0 })} style={champCss} /></div>
+                <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer', paddingBottom: 8 }}><input type="checkbox" checked={c.entier !== false} onChange={e => majChamp(c.id, { entier: e.target.checked })} /> Nombre entier seulement</label>
+              </div>
+            )}
+            {TEXTUEL.includes(c.type) && (
               <div style={{ marginTop: 10 }}>
                 <label style={lbl}>Polices proposées</label>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -324,11 +351,64 @@ export default function BoutiquePerso({ accent, isMobile, pagePlan, naviguerVers
                 {(c.options || []).length < 20 && <button type="button" onClick={() => majChamp(c.id, { options: [...(c.options || []), { id: uid(), libelle: '', supplement: 0 }] })} style={btn()}>+ Ajouter un choix</button>}
               </div>
             )}
+            {c.type === 'couleur' && (
+              <div style={{ marginTop: 10 }}>
+                <label style={lbl}>Couleurs du produit ({(c.options || []).length}/12) — pastille, supplément et photo par face</label>
+                {(c.options || []).map(o => (
+                  <div key={o.id} style={{ border: `1px solid ${T.border}`, borderRadius: 8, padding: 8, marginBottom: 8 }}>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <input type="color" aria-label="Couleur de la pastille" value={o.hex || '#cccccc'} onChange={e => majChamp(c.id, { options: (c.options || []).map(x => (x.id === o.id ? { ...x, hex: e.target.value.toLowerCase() } : x)) })} style={{ width: 36, height: 32, border: 'none', background: 'none', cursor: 'pointer' }} />
+                      <input value={o.libelle} maxLength={40} aria-label="Nom de la couleur" onChange={e => majChamp(c.id, { options: (c.options || []).map(x => (x.id === o.id ? { ...x, libelle: e.target.value } : x)) })} style={{ ...champCss, flex: 1, minWidth: 120 }} />
+                      <input type="number" min={0} max={1000} step={0.5} aria-label="Supplément" value={o.supplement} onChange={e => majChamp(c.id, { options: (c.options || []).map(x => (x.id === o.id ? { ...x, supplement: clamp(Number(e.target.value) || 0, 0, 1000) } : x)) })} style={{ ...champCss, width: 100 }} />
+                      <button type="button" aria-label="Retirer la couleur" onClick={() => majChamp(c.id, { options: (c.options || []).filter(x => x.id !== o.id) })} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 15 }}>🗑</button>
+                    </div>
+                    {cfg.faces.length === 0 && <div style={{ fontSize: 11, color: T.light, marginTop: 6 }}>Ajoutez d'abord une face (section 1) pour envoyer une photo par couleur.</div>}
+                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 8 }}>
+                      {cfg.faces.map(f => {
+                        const u = (o.photos || {})[f.id];
+                        return (
+                          <div key={f.id} style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
+                            <div style={{ width: 36, height: 36, borderRadius: 6, background: '#f3f4f6', overflow: 'hidden' }}>{u && <img src={u} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}</div>
+                            <label style={{ ...btn(), padding: '5px 10px', fontSize: 12, display: 'inline-block' }}>{u ? `Changer ${f.nom}` : `Photo ${f.nom}`}
+                              <input type="file" accept="image/jpeg,image/png,image/webp" style={{ display: 'none' }} onChange={async e => { const fi = e.target.files && e.target.files[0]; e.target.value = ''; if (!fi) return; setOccupe('photo'); const url = await televerser(fi); setOccupe(''); if (url) photoCouleur(c.id, o.id, f.id, url); }} />
+                            </label>
+                            {u && <button type="button" aria-label={`Retirer la photo ${f.nom}`} onClick={() => photoCouleur(c.id, o.id, f.id, null)} style={{ border: 'none', background: 'none', cursor: 'pointer' }}>×</button>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {(c.options || []).length < 12 && <button type="button" onClick={() => majChamp(c.id, { options: [...(c.options || []), { id: uid(), libelle: '', hex: '#cccccc', supplement: 0, photos: {} }] })} style={btn()}>+ Ajouter une couleur</button>}
+                <div style={{ fontSize: 11, color: T.light, marginTop: 6 }}>Sans photo pour une face, l'aperçu garde la photo de base. Le stock reste celui du produit (pour un stock par couleur, utilisez les variantes du produit).</div>
+              </div>
+            )}
+            {i > 0 && (() => {
+              const avant = cfg.champs.slice(0, i); const ref = c.si ? avant.find(x => x.id === c.si!.champ) : null;
+              return (
+                <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${T.border}` }}>
+                  <label style={lbl}>Afficher ce champ seulement si… (facultatif)</label>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <select aria-label="Condition : champ" value={c.si ? c.si.champ : ''} onChange={e => { const r = avant.find(x => x.id === e.target.value); majChamp(c.id, { si: r ? { champ: r.id, valeur: r.type === 'case' ? 'oui' : (r.type === 'liste' || r.type === 'couleur') ? ((r.options || [])[0] ? (r.options || [])[0].id : '') : '*' } : null }); }} style={{ ...champCss, background: '#fff', width: 'auto', minWidth: 220 }}>
+                      <option value="">— Toujours affiché —</option>
+                      {avant.map(x => <option key={x.id} value={x.id}>{x.libelle || LIBELLE_TYPE[x.type]}</option>)}
+                    </select>
+                    {ref && (ref.type === 'liste' || ref.type === 'couleur') && (
+                      <select aria-label="Condition : choix" value={c.si ? c.si.valeur : ''} onChange={e => majChamp(c.id, { si: { champ: ref.id, valeur: e.target.value } })} style={{ ...champCss, background: '#fff', width: 'auto', minWidth: 160 }}>
+                        {(ref.options || []).map(o => <option key={o.id} value={o.id}>est « {o.libelle} »</option>)}
+                      </select>
+                    )}
+                    {ref && ref.type === 'case' && <span style={{ alignSelf: 'center', fontSize: 13 }}>est cochée</span>}
+                    {ref && ref.type !== 'case' && ref.type !== 'liste' && ref.type !== 'couleur' && <span style={{ alignSelf: 'center', fontSize: 13 }}>est rempli</span>}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         ))}
         {cfg.champs.length < 12 && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {(Object.keys(LIBELLE_TYPE) as TypeChamp[]).map(t => <button key={t} type="button" onClick={() => ajouterChamp(t)} style={btn()}>+ {LIBELLE_TYPE[t]}</button>)}
+            {(Object.keys(LIBELLE_TYPE) as TypeChamp[]).filter(t => t !== 'couleur' || !cfg.champs.some(x => x.type === 'couleur')).map(t => <button key={t} type="button" onClick={() => ajouterChamp(t)} style={btn()}>+ {LIBELLE_TYPE[t]}</button>)}
           </div>
         )}
       </div>
