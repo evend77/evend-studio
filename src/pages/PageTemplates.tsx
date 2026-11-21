@@ -114,8 +114,8 @@ export const TEMPLATES: Template[] = [
     id: 'boutique-premium',
     nom: 'Premium',
     groupe: 'boutique-generique',
-    description: 'La boutique haut de gamme — style sombre luxueux avec accents dorés. Zoom image, wishlist, avis clients, ticker défilant, popup promo, compte acheteur intégré.',
-    fonctionnalites: ['Zoom image & wishlist', 'Avis clients & ticker défilant', 'Popup promo & notif. dernière vente', 'Compte acheteur intégré'],
+    description: 'La boutique haut de gamme — style sombre luxueux avec accents dorés. Zoom sur les photos, ticker défilant, page À propos, blog, FAQ, compte acheteur et panier intégrés.',
+    fonctionnalites: ['Zoom sur les photos produit', 'Ticker défilant & page À propos', 'Blog & FAQ intégrés', 'Compte acheteur et panier intégrés'],
     disponible: true, nouveau: true, couleur: '#c9a96e',
   },
   {

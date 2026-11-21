@@ -393,6 +393,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [enregistrementPlan, setEnregistrementPlan] = useState(false);
   const [modalResetOuvert, setModalResetOuvert] = useState(false);
   const [prixParTemplate, setPrixParTemplate] = useState<Record<string, string>>({});
+  // Paliers réels (Prix Template, dashboard admin) : prix de départ et nombre maximal de produits affichés sur les cartes Simplisse / Premium
+  const [infoPaliers, setInfoPaliers] = useState<Record<string, { prixMin: string; limiteMax: number }>>({});
 
   // Prix configurés dans le dashboard admin — si l'appel échoue, on retombe
   // simplement sur le prix codé en dur (ou "Gratuit") comme avant.
@@ -409,6 +411,17 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           map[t.id] = surcharge || defautCategorie || 'Gratuit';
         }
         setPrixParTemplate(map);
+        const info: Record<string, { prixMin: string; limiteMax: number }> = {};
+        for (const id of ['boutique-simplisse', 'boutique-premium']) {
+          let pal: any = data.templates[id]?.prix_paliers;
+          if (typeof pal === 'string') { try { pal = JSON.parse(pal); } catch { pal = null; } }
+          if (!Array.isArray(pal) || pal.length === 0) continue;
+          const ok = pal.map((x: any) => ({ prix: String(x?.prix || ''), n: parseFloat(String(x?.prix || '').replace(/[^0-9,.]/g, '').replace(',', '.')), limite: parseInt(x?.limite, 10) })).filter((x: any) => x.prix && Number.isFinite(x.n) && Number.isInteger(x.limite) && x.limite > 0);
+          if (!ok.length) continue;
+          const min = ok.reduce((a: any, b: any) => (b.n < a.n ? b : a));
+          info[id] = { prixMin: min.prix, limiteMax: Math.max(...ok.map((x: any) => x.limite)) };
+        }
+        setInfoPaliers(info);
       })
       .catch(() => { /* silencieux — fallback sur les prix codés en dur */ });
   }, []);
@@ -539,11 +552,11 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
               id: 'boutique-simplisse', titre: 'Simplisse',
               desc: "La boutique complète, propre et professionnelle. Page d'accueil, catalogue avec filtres, page produit, blog, FAQ, contact et footer configurable. L'équivalent d'un Shopify sans le code.",
               icone: '🛍', couleur: '#2563eb', disponible: true, badge: 'Nouveau', badgeCouleur: '#2563eb',
-              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'Contact'],
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
             },
             {
               id: 'boutique-premium', titre: 'Premium',
-              desc: "La boutique haut de gamme — style sombre luxueux avec accents dorés. Tout ce que Simplisse offre, plus : zoom image, wishlist, avis clients, ticker défilant, popup promo, notification dernière vente, barre livraison gratuite, compte acheteur intégré.",
+              desc: "La boutique haut de gamme — style sombre luxueux avec accents dorés. Accueil animé, catalogue, fiche produit avec zoom sur les photos, blog, FAQ, page À propos, contact, ticker défilant en haut de page et footer configurable. Compte acheteur et panier intégrés.",
               icone: '💎', couleur: '#c9a96e', disponible: true, badge: 'Premium', badgeCouleur: '#c9a96e',
               pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'À propos', 'Contact', 'Panier', 'Wishlist', 'Compte'],
             },
@@ -1164,17 +1177,23 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           </div>
                         )}
 
-                        {estSimplisse && (
-                          <div style={{ marginBottom: 14, background: `${COULEUR_MP}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${COULEUR_MP}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              ✅ Géré depuis le tableau de bord — sans code<br />
-                              ✅ Jusqu'à 200 produits · Catégories · Variantes · Promos<br />
-                              ✅ Panier & paiement Stripe intégré<br />
-                              ✅ Footer configurable · Bannière promo · Blog · FAQ<br />
-                              💰 Dès <strong style={{ color: C.text }}>15,99$/mois</strong> + taxes
-                            </p>
-                          </div>
-                        )}
+                        {(estSimplisse || estPremium) && (() => {
+                          // Valeurs de départ = paliers affichés dans la fenêtre de choix (repli si le dashboard admin ne répond pas)
+                          const rep = estPremium ? { prixMin: '18,99$', limiteMax: 500 } : { prixMin: '15,99$', limiteMax: 200 };
+                          const inf = infoPaliers[t.id] || rep;
+                          const lignes = estPremium
+                            ? ['✅ Géré depuis le tableau de bord — sans code', `✅ Jusqu'à ${inf.limiteMax} produits · Catégories · Variantes · Promos`, '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Footer configurable · Ticker défilant · Zoom image · Blog · FAQ · À propos', '🧩 Add-ons au choix : enchères, offres du jour, avis, favoris, infolettre…']
+                            : ['✅ Géré depuis le tableau de bord — sans code', `✅ Jusqu'à ${inf.limiteMax} produits · Catégories · Variantes · Promos`, '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Footer configurable · Bannière promo · Blog · FAQ', '🧩 Add-ons au choix : enchères, offres du jour, avis, favoris, infolettre…'];
+                          const coul = estPremium ? t.couleur : COULEUR_MP;
+                          return (
+                            <div style={{ marginBottom: 14, background: `${coul}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${coul}30` }}>
+                              <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
+                                {lignes.map((l, i) => <span key={i}>{l}<br /></span>)}
+                                💰 Dès <strong style={{ color: C.text }}>{inf.prixMin}/mois</strong> + taxes
+                              </p>
+                            </div>
+                          );
+                        })()}
 
                         {t.disponible && (
                           <div style={{ display: 'flex', gap: 8 }}>
