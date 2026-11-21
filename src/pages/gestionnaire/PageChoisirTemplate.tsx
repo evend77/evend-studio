@@ -1,4 +1,4 @@
-// src/pages/gestionnaire/PageChoisirTemplate.tsx
+// CHEMIN : src/pages/gestionnaire/PageChoisirTemplate.tsx
 // e-Vend Studio — Choix de template au premier login ou depuis le menu
 
 import { useState, useEffect } from 'react';
@@ -560,7 +560,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
               icone: '💎', couleur: '#c9a96e', disponible: true, badge: 'Premium', badgeCouleur: '#c9a96e',
               pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'À propos', 'Contact', 'Panier', 'Wishlist', 'Compte'],
             },
-            { id: 'boutique-simple',    titre: 'Mono-produit',      desc: 'Une seule page de vente pour UN produit (avec ses variantes), paiement Stripe ou PayPal intégré.',             icone: '🎯', couleur: '#a855f7', disponible: true  },
+            {
+              id: 'boutique-simple', titre: 'Mono-produit',
+              desc: "Une seule page de vente pour UN produit (avec ses variantes et options), pensée pour convaincre : accroches, vidéo de présentation, phrase défilante, valeurs, chronologie, tableau comparatif, avis et FAQ. Vous choisissez les blocs, leur ordre et ce qui est affiché. Paiement Stripe ou PayPal intégré.",
+              icone: '🎯', couleur: '#a855f7', disponible: true,
+              pages: ['Page de vente', 'Blog', 'FAQ', 'À propos', 'Contact', 'Panier', 'Compte'],
+            },
             { id: 'boutique-complete',  titre: 'Boutique Complète', desc: 'Catalogue, panier, compte acheteur et historique des achats.',                  icone: '🏪', couleur: '#16a34a', disponible: true  },
             { id: 'boutique-catalogue', titre: 'Catalogue Avancé',  desc: 'Grille produits avec filtres avancés et pages produit. Bientôt.',                icone: '🗂️', couleur: '#0ea5e9', disponible: false },
           ]
@@ -1109,6 +1114,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                     const estSimplisse     = t.id === 'boutique-simplisse';
                     const estPremium       = t.id === 'boutique-premium';
                     const estSimplisseMode = t.id === 'boutique-simplisse-mode';
+                    const estMonoProduit   = t.id === 'boutique-simple';
                     return (
                       <div key={t.id} className="template-card"
                         onClick={() => {
@@ -1174,6 +1180,14 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                                 </span>
                               ))}
                             </div>
+                          </div>
+                        )}
+
+                        {estMonoProduit && (
+                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
+                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
+                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Un produit vendu, avec ses variantes et options (couleur, taille…) et leurs photos', '✅ Page de vente en blocs : ordre, affichage et contenu réglables', '✅ Accroches multiples · Vidéo YouTube ou Vimeo · Phrase défilante · Citation · Valeurs · Chronologie · Tableau comparatif', '✅ Bénéfices · Détails · Avis · FAQ · Appel final · Bannière promo', '✅ Panier & paiement Stripe ou PayPal intégré · Barre d\'achat fixe sur mobile', '✅ Footer configurable · Blog · À propos · Contact · Compte acheteur', '🧩 Add-ons au choix : avis, favoris, infolettre, analytique…'].map((l, i) => <span key={i}>{l}<br /></span>)}
+                            </p>
                           </div>
                         )}
 

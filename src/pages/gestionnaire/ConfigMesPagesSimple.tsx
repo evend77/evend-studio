@@ -337,7 +337,7 @@ const CONFIG_DEFAUT: ConfigSimplisse = {
   menu: { accueil: '', catalogue: '', blog: '', faq: '', 'a-propos': '', contact: '', masques: [] as string[] },
 };
 
-type ConfigSimple = ConfigSimplisse & { vente: any };
+type ConfigSimple = ConfigSimplisse & { vente: any; blocs?: any[] };
 const CONFIG_DEFAUT_SIMPLE: ConfigSimple = {
   ...CONFIG_DEFAUT,
   vente: VENTE_DEFAUT,
@@ -347,16 +347,16 @@ const CONFIG_DEFAUT_SIMPLE: ConfigSimple = {
 
 // ─── Composants utilitaires (même style que FoodTruck) ───────────────────────
 
-const Inp = ({ value, onChange, placeholder, type = 'text' }: any) => (
-  <input type={type} value={value ?? ''} placeholder={placeholder}
+const Inp = ({ value, onChange, placeholder, type = 'text', max }: any) => (
+  <input type={type} value={value ?? ''} placeholder={placeholder} maxLength={max}
     onChange={e => onChange(e.target.value)}
     style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, outline: 'none', background: '#fff', color: '#1a1a1a', boxSizing: 'border-box', fontFamily: 'inherit' }}
     onFocus={e => (e.target.style.borderColor = CP)}
     onBlur={e => (e.target.style.borderColor = '#e5e7eb')} />
 );
 
-const Txt = ({ value, onChange, placeholder, rows = 3 }: any) => (
-  <textarea value={value ?? ''} placeholder={placeholder} rows={rows}
+const Txt = ({ value, onChange, placeholder, rows = 3, max }: any) => (
+  <textarea value={value ?? ''} placeholder={placeholder} rows={rows} maxLength={max}
     onChange={e => onChange(e.target.value)}
     style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, outline: 'none', resize: 'vertical', fontFamily: 'inherit', background: '#fff', color: '#1a1a1a', boxSizing: 'border-box', lineHeight: 1.5 }}
     onFocus={e => (e.target.style.borderColor = CP)}
@@ -554,6 +554,370 @@ interface Props {
   gestionnaireId: number;
 }
 
+// ─── Blocs de la page de vente (config.simple.blocs) ─────────────────────────────────────────────────────────────
+// Chaque bloc : { id, type, actif, ordre, fond, ...contenu }. Les boutiques déjà configurées sont migrées depuis l'ancienne page de vente.
+const INFO_BLOC: Record<string, { label: string; icone: string; unique?: boolean; desc: string }> = {
+  hero:        { label: 'Accroche (hero)',           icone: '🖼️', desc: 'Grand titre + texte + bouton, avec une photo, un collage de photos ou une image de fond. Vous pouvez en ajouter plusieurs.' },
+  confiance:   { label: 'Bandeau de confiance',      icone: '🛡️', desc: 'Vos engagements en une ligne (livraison, retours, paiement…).' },
+  produit:     { label: 'Produit à acheter',         icone: '🛒', unique: true, desc: 'Photos, options, quantité et bouton panier. Ce bloc est obligatoire : vous pouvez le déplacer mais pas le supprimer.' },
+  video:       { label: 'Vidéo de présentation',     icone: '▶️', desc: 'Une vidéo YouTube ou Vimeo pour présenter le produit.' },
+  defilant:    { label: 'Phrase défilante',          icone: '↔️', desc: 'Une phrase qui défile : vitesse, police et effets réglables.' },
+  citation:    { label: 'Grande citation',           icone: '❝',  desc: 'Une phrase forte, en grand.' },
+  piliers:     { label: 'Valeurs / piliers',         icone: '🧱', desc: 'Cartes avec photo et titre ; un clic sur « + » affiche le texte.' },
+  chronologie: { label: 'Chronologie',               icone: '🕰️', desc: 'Les grandes dates de votre histoire, avec photo et texte.' },
+  comparatif:  { label: 'Tableau comparatif',        icone: '⚖️', desc: 'Comparez votre produit aux autres avec des ✓ et des ✗.' },
+  benefices:   { label: 'Bénéfices',                 icone: '✨', desc: 'Ce que le produit apporte au client (3 est idéal).' },
+  details:     { label: 'Détails texte + photo',     icone: '📖', desc: 'Sections texte et photo qui s\'alternent.' },
+  avis:        { label: 'Avis clients',              icone: '⭐', desc: 'De vrais commentaires de vos clients.' },
+  faq:         { label: 'Questions fréquentes',      icone: '❓', unique: true, desc: 'Les questions s\'écrivent dans l\'onglet FAQ.' },
+  cta:         { label: 'Appel final',               icone: '📣', desc: 'Dernier titre + bouton en bas de page.' },
+};
+const ORDRE_TYPES_AJOUT = ['hero', 'video', 'defilant', 'citation', 'piliers', 'chronologie', 'comparatif', 'confiance', 'benefices', 'details', 'avis', 'faq', 'cta'];
+const POLICES_DEFIL_LABELS: [string, string][] = [['sans', 'Moderne (sans empattement)'], ['serif', 'Élégante (serif)'], ['mono', 'Machine à écrire'], ['arrondie', 'Arrondie'], ['condensee', 'Condensée'], ['manuscrite', 'Manuscrite']];
+const POLICES_DEFIL_CSS: Record<string, string> = { sans: 'Inter, system-ui, sans-serif', serif: 'Georgia, "Times New Roman", serif', mono: 'ui-monospace, Menlo, Consolas, monospace', arrondie: '"Trebuchet MS", "Segoe UI", sans-serif', condensee: '"Arial Narrow", "Helvetica Neue", Arial, sans-serif', manuscrite: '"Brush Script MT", "Segoe Script", cursive' };
+const limB = (v: any, max: number): string => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, max);
+
+const analyserVideoCfg = (u: any): 'youtube' | 'vimeo' | null => {
+  const t = String(u == null ? '' : u).trim().slice(0, 300);
+  if (/^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)[A-Za-z0-9_-]{11}(?:[?&#/].*)?$/i.test(t)) return 'youtube';
+  if (/^https?:\/\/(?:www\.)?(?:vimeo\.com\/(?:video\/)?|player\.vimeo\.com\/video\/)\d{6,12}(?:\/[a-f0-9]{6,20})?(?:[/?#].*)?$/i.test(t)) return 'vimeo';
+  return null;
+};
+
+function blocsDefautCfg(rv: any, accueil: any): any[] {
+  const r = rv || {};
+  const l: any[] = [
+    { id: 'hero', type: 'hero', actif: r.afficherHero !== false, surtitre: r.heroSurtitre || '', titre: r.heroTitre || '', sousTitre: r.heroSousTitre || '', bouton: (typeof r.heroBouton === 'string' && r.heroBouton.trim()) ? r.heroBouton : 'Acheter maintenant', lien: '', photo: r.heroPhoto || '', photos: [], disposition: 'photo', afficherPrix: true, fond: 'auto' },
+    { id: 'confiance', type: 'confiance', actif: r.afficherConfiance !== false, items: Array.isArray(accueil?.avantages) ? accueil.avantages : [], fond: 'auto' },
+    { id: 'produit', type: 'produit', actif: true, fond: 'auto' },
+    { id: 'benefices', type: 'benefices', actif: r.afficherBenefices !== false, surtitre: r.beneficesSurtitre || '', titre: r.beneficesTitre || "Pourquoi vous allez l'adorer", items: Array.isArray(r.benefices) ? r.benefices : [], fond: 'auto' },
+    { id: 'details', type: 'details', actif: r.afficherDetails !== false, items: Array.isArray(r.details) ? r.details : [], fond: 'auto' },
+    { id: 'avis', type: 'avis', actif: r.afficherAvis !== false, titre: r.avisTitre || 'Ce que disent nos clients', items: Array.isArray(accueil?.temoignages) ? accueil.temoignages : [], fond: 'auto' },
+    { id: 'faq', type: 'faq', actif: r.afficherFaq !== false, titre: r.faqTitre || 'Questions fréquentes', fond: 'auto' },
+    { id: 'cta', type: 'cta', actif: r.afficherCta !== false, titre: r.ctaTitre || '', texte: r.ctaTexte || '', bouton: (typeof r.ctaBouton === 'string' && r.ctaBouton.trim()) ? r.ctaBouton : 'Acheter maintenant', lien: '', fond: 'auto' },
+  ];
+  return l.map((b, i) => ({ ...b, ordre: i * 10 }));
+}
+
+function nouveauBloc(type: string): any {
+  const id = type + '-' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+  const base: any = { id, type, actif: true, ordre: 0, fond: 'auto' };
+  switch (type) {
+    case 'hero':        return { ...base, surtitre: '', titre: '', sousTitre: '', bouton: '', lien: '', photo: '', photos: ['', '', ''], disposition: 'collage', afficherPrix: false };
+    case 'confiance':   return { ...base, items: [] };
+    case 'video':       return { ...base, surtitre: '', titre: '', texte: '', url: '' };
+    case 'defilant':    return { ...base, texte: '', vitesse: 5, direction: 'gauche', police: 'sans', taille: 56, style: 'contour', separateur: '✦', couleurTexte: '', couleur2: '#8b5cf6', gras: true, italique: false, majuscules: true, espacement: 2, incline: false, pauseSurvol: true };
+    case 'citation':    return { ...base, texte: '', auteur: '', role: '', taille: 34, police: 'serif' };
+    case 'piliers':     return { ...base, surtitre: '', titre: '', colonnes: 3, items: [] };
+    case 'chronologie': return { ...base, surtitre: '', titre: '', items: [] };
+    case 'comparatif':  return { ...base, surtitre: '', titre: '', colonnes: ['Nous', 'Les autres'], lignes: [] };
+    case 'benefices':   return { ...base, surtitre: '', titre: '', items: [] };
+    case 'details':     return { ...base, items: [] };
+    case 'avis':        return { ...base, titre: 'Ce que disent nos clients', items: [] };
+    case 'faq':         return { ...base, titre: 'Questions fréquentes' };
+    case 'cta':         return { ...base, titre: '', texte: '', bouton: 'Acheter maintenant', lien: '' };
+    default:            return base;
+  }
+}
+
+const Sel = ({ value, onChange, options }: { value: any; onChange: (v: string) => void; options: [string, string][] }) => (
+  <select value={value ?? ''} onChange={e => onChange(e.target.value)}
+    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, background: '#fff', color: '#1a1a1a', boxSizing: 'border-box', fontFamily: 'inherit' }}>
+    {options.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+  </select>
+);
+
+const Rng = ({ value, onChange, min, max, gauche, droite }: { value: number; onChange: (v: number) => void; min: number; max: number; gauche?: string; droite?: string }) => (
+  <div>
+    <input type="range" min={min} max={max} value={value} onChange={e => onChange(Number(e.target.value))} style={{ width: '100%' }} />
+    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888' }}><span>{gauche ?? min}</span><strong style={{ color: '#333' }}>{value}</strong><span>{droite ?? max}</span></div>
+  </div>
+);
+
+// Liste d'éléments (ajouter, supprimer, monter, descendre)
+function Liste({ items, max, onChange, nouveau, nom, ajout, rendu }: { items: any; max: number; onChange: (l: any[]) => void; nouveau: () => any; nom: string; ajout: string; rendu: (it: any, maj: (p: any) => void, i: number) => any }) {
+  const l: any[] = Array.isArray(items) ? items : [];
+  const bt: React.CSSProperties = { border: '1px solid #ddd', borderRadius: 5, background: '#fff', cursor: 'pointer', fontSize: 11, padding: '3px 8px', color: '#555' };
+  const deplacer = (i: number, d: number) => { const a = [...l]; const j = i + d; if (j < 0 || j >= a.length) return; const t = a[i]; a[i] = a[j]; a[j] = t; onChange(a); };
+  return (
+    <div>
+      {l.map((it, i) => (
+        <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 10, background: '#fff' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>{nom} {i + 1}</span>
+            <div style={{ display: 'flex', gap: 5 }}>
+              <button onClick={() => deplacer(i, -1)} disabled={i === 0} style={{ ...bt, opacity: i === 0 ? 0.4 : 1 }}>▲</button>
+              <button onClick={() => deplacer(i, 1)} disabled={i === l.length - 1} style={{ ...bt, opacity: i === l.length - 1 ? 0.4 : 1 }}>▼</button>
+              <button onClick={() => onChange(l.filter((_, k) => k !== i))} style={{ ...bt, background: '#fef2f2', borderColor: '#fecaca', color: '#dc2626' }}>🗑️</button>
+            </div>
+          </div>
+          {rendu(it, (p: any) => { const a = [...l]; a[i] = { ...a[i], ...p }; onChange(a); }, i)}
+        </div>
+      ))}
+      {l.length < max && (
+        <button onClick={() => onChange([...l, nouveau()])} style={{ width: '100%', padding: '10px', border: `2px dashed ${CP}40`, borderRadius: 8, background: `${CP}05`, color: CP, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{ajout}</button>
+      )}
+    </div>
+  );
+}
+
+// Éditeur du contenu d'un bloc selon son type
+function EditeurBloc({ b, maj }: { b: any; maj: (p: any) => void }) {
+  const c = (cle: string, max: number) => ({ value: b[cle], onChange: (v: string) => maj({ [cle]: limB(v, max) }), max });
+  const ci = (cle: string, max: number) => (it: any, m: (p: any) => void) => ({ value: it[cle], onChange: (v: string) => m({ [cle]: limB(v, max) }), max });
+  const note = (t: string) => <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.6 }}>{t}</p>;
+  const FONDS: [string, string][] = [['auto', 'Automatique'], ['blanc', 'Fond de la page'], ['gris', 'Gris clair'], ['couleur', 'Couleur du site'], ['sombre', 'Sombre']];
+  const selFond = (b.type !== 'hero' && b.type !== 'produit') ? <F label="Couleur de fond de ce bloc"><Sel value={b.fond || 'auto'} onChange={(v: string) => maj({ fond: v })} options={FONDS} /></F> : null;
+  switch (b.type) {
+    case 'produit': return <>{note("Les photos, les options (taille, couleur…), la quantité et le bouton panier viennent du produit choisi dans « Produit vendu ». Rien à régler ici : déplacez le bloc avec ▲▼ pour changer sa place.")}</>;
+    case 'hero': return (
+      <>
+        <F label="Présentation"><Sel value={b.disposition || 'photo'} onChange={(v: string) => maj({ disposition: v })} options={[['photo', 'Texte + une photo'], ['collage', 'Texte + collage de photos (jusqu\'à 3)'], ['centre', 'Texte centré seul'], ['fond', 'Photo en fond + texte centré']]} /></F>
+        <F label="Petit texte au-dessus du titre" desc="Optionnel."><Inp {...c('surtitre', 80)} placeholder="Ex : Notre histoire" /></F>
+        <F label="Titre" desc="Pour la première accroche, vide = le nom de votre produit."><Inp {...c('titre', 160)} /></F>
+        <F label="Texte" desc="Optionnel."><Txt {...c('sousTitre', 400)} rows={3} /></F>
+        <F label="Texte du bouton" desc="Vide = aucun bouton."><Inp {...c('bouton', 40)} placeholder="Acheter maintenant" /></F>
+        <F label="Lien du bouton" desc="Vide = descend vers le produit à acheter. Sinon : https://… ou /page"><Inp {...c('lien', 600)} placeholder="https://..." /></F>
+        {(b.disposition === 'photo' || b.disposition === 'fond' || !b.disposition) && <F label="Photo (URL)" desc="Pour la première accroche, vide = la photo principale du produit."><Inp {...c('photo', 600)} placeholder="https://..." /></F>}
+        {b.disposition === 'collage' && [0, 1, 2].map(i => (
+          <F key={i} label={`Photo ${i + 1} du collage (URL)`}><Inp value={(b.photos || [])[i] || ''} max={600} placeholder="https://..." onChange={(v: string) => { const a = [...(b.photos || ['', '', ''])]; while (a.length < 3) a.push(''); a[i] = limB(v, 600); maj({ photos: a }); }} /></F>
+        ))}
+        <Toggle label="Afficher le prix et la note" desc="Prix du produit, prix barré et note moyenne sous le texte." checked={!!b.afficherPrix} onChange={(x: boolean) => maj({ afficherPrix: x })} />
+      </>
+    );
+    case 'confiance': return (
+      <>
+        {selFond}
+        {note("Vos vrais engagements. Tant qu'il n'y en a aucun, le bandeau n'apparaît pas sur votre site.")}
+        <Liste items={b.items} max={6} nom="Engagement" ajout="+ Ajouter un engagement" nouveau={() => ({ ico: '✅', titre: '', desc: '' })} onChange={(l: any[]) => maj({ items: l })}
+          rendu={(it: any, m: any) => (<div style={{ display: 'flex', gap: 8 }}><div style={{ width: 60 }}><Inp {...ci('ico', 8)(it, m)} placeholder="🚚" /></div><Inp {...ci('titre', 60)(it, m)} placeholder="Titre" /><Inp {...ci('desc', 120)(it, m)} placeholder="Détail" /></div>)} />
+      </>
+    );
+    case 'video': {
+      const typeV = analyserVideoCfg(b.url);
+      return (
+        <>
+          {selFond}
+          <F label="Lien de la vidéo" desc="Collez le lien de votre vidéo YouTube ou Vimeo.">
+            <Inp {...c('url', 300)} placeholder="https://www.youtube.com/watch?v=..." />
+            {b.url ? <p style={{ fontSize: 12, margin: '6px 0 0', color: typeV ? '#16a34a' : '#dc2626', fontWeight: 600 }}>{typeV ? `✓ Lien ${typeV === 'youtube' ? 'YouTube' : 'Vimeo'} reconnu` : '⚠ Lien non reconnu : seuls YouTube et Vimeo sont acceptés. Tant que le lien est invalide, le bloc n\'apparaît pas.'}</p> : null}
+          </F>
+          <F label="Petit texte au-dessus du titre" desc="Optionnel."><Inp {...c('surtitre', 80)} /></F>
+          <F label="Titre" desc="Optionnel."><Inp {...c('titre', 140)} /></F>
+          <F label="Texte sous le titre" desc="Optionnel."><Txt {...c('texte', 400)} rows={2} /></F>
+        </>
+      );
+    }
+    case 'defilant': return (
+      <>
+        {selFond}
+        <div style={{ background: b.fond === 'sombre' ? '#111827' : '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '12px 10px', marginBottom: 14, overflow: 'hidden', whiteSpace: 'nowrap' }} aria-label="Aperçu du style">
+          {(() => {
+            const col = (typeof b.couleurTexte === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(b.couleurTexte)) ? b.couleurTexte : CP;
+            const st: any = { fontFamily: POLICES_DEFIL_CSS[b.police] || POLICES_DEFIL_CSS.sans, fontSize: 28, fontWeight: b.gras !== false ? 900 : 400, fontStyle: b.italique ? 'italic' : 'normal', textTransform: b.majuscules !== false ? 'uppercase' : 'none', letterSpacing: `${(b.espacement ?? 2) / 20}em`,
+              ...(b.style === 'contour' ? { color: 'transparent', WebkitTextStroke: `1px ${col}` } : b.style === 'degrade' ? { backgroundImage: `linear-gradient(90deg, ${col}, ${b.couleur2 || '#8b5cf6'})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' } : { color: col }) };
+            return <span style={st}>{b.texte || 'Votre phrase'} {b.separateur || '✦'} {b.texte || 'Votre phrase'}</span>;
+          })()}
+        </div>
+        <F label="Phrase" desc="Elle se répète automatiquement."><Inp {...c('texte', 200)} placeholder="Ex : Fait main • Livraison rapide" /></F>
+        <F label="Vitesse"><Rng value={b.vitesse ?? 5} min={1} max={10} gauche="Lent" droite="Rapide" onChange={(v: number) => maj({ vitesse: v })} /></F>
+        <F label="Direction"><Sel value={b.direction || 'gauche'} onChange={(v: string) => maj({ direction: v })} options={[['gauche', '← Vers la gauche'], ['droite', '→ Vers la droite']]} /></F>
+        <F label="Police"><Sel value={b.police || 'sans'} onChange={(v: string) => maj({ police: v })} options={POLICES_DEFIL_LABELS} /></F>
+        <F label="Taille du texte (ordinateur)"><Rng value={b.taille ?? 56} min={16} max={140} onChange={(v: number) => maj({ taille: v })} /></F>
+        <F label="Effet du texte"><Sel value={b.style || 'plein'} onChange={(v: string) => maj({ style: v })} options={[['plein', 'Plein (couleur unie)'], ['contour', 'Contour (lettres creuses)'], ['degrade', 'Dégradé de deux couleurs']]} /></F>
+        <Couleur label="Couleur du texte (vide = couleur du site)" value={b.couleurTexte} onChange={(v: string) => maj({ couleurTexte: limB(v, 9) })} />
+        {b.style === 'degrade' && <Couleur label="Deuxième couleur du dégradé" value={b.couleur2} onChange={(v: string) => maj({ couleur2: limB(v, 9) })} />}
+        <F label="Séparateur entre les phrases"><Inp {...c('separateur', 6)} placeholder="✦" /></F>
+        <F label="Espacement des lettres"><Rng value={b.espacement ?? 2} min={0} max={20} onChange={(v: number) => maj({ espacement: v })} /></F>
+        <Toggle label="Texte en gras" checked={b.gras !== false} onChange={(x: boolean) => maj({ gras: x })} />
+        <Toggle label="Texte en italique" checked={!!b.italique} onChange={(x: boolean) => maj({ italique: x })} />
+        <Toggle label="Tout en majuscules" checked={b.majuscules !== false} onChange={(x: boolean) => maj({ majuscules: x })} />
+        <Toggle label="Bandeau légèrement incliné" checked={!!b.incline} onChange={(x: boolean) => maj({ incline: x })} />
+        <Toggle label="Pause quand la souris passe dessus" checked={b.pauseSurvol !== false} onChange={(x: boolean) => maj({ pauseSurvol: x })} />
+        {note("Pour les visiteurs qui ont désactivé les animations sur leur appareil, la phrase reste fixe.")}
+      </>
+    );
+    case 'citation': return (
+      <>
+        {selFond}
+        <F label="Citation"><Txt {...c('texte', 400)} rows={3} /></F>
+        <F label="Auteur" desc="Optionnel."><Inp {...c('auteur', 80)} /></F>
+        <F label="Fonction" desc="Optionnel."><Inp {...c('role', 80)} /></F>
+        <F label="Police"><Sel value={b.police || 'serif'} onChange={(v: string) => maj({ police: v })} options={POLICES_DEFIL_LABELS} /></F>
+        <F label="Taille du texte (ordinateur)"><Rng value={b.taille ?? 34} min={18} max={64} onChange={(v: number) => maj({ taille: v })} /></F>
+      </>
+    );
+    case 'piliers': return (
+      <>
+        {selFond}
+        <F label="Petit texte au-dessus du titre" desc="Optionnel."><Inp {...c('surtitre', 80)} /></F>
+        <F label="Titre" desc="Optionnel."><Inp {...c('titre', 140)} /></F>
+        <F label="Cartes par ligne (ordinateur)"><Sel value={String(b.colonnes ?? 3)} onChange={(v: string) => maj({ colonnes: Number(v) })} options={[['2', '2'], ['3', '3'], ['4', '4']]} /></F>
+        {note("Chaque carte : une photo, un titre et un « + » qui affiche le texte. Une carte vide n'apparaît pas.")}
+        <Liste items={b.items} max={8} nom="Carte" ajout="+ Ajouter une carte" nouveau={() => ({ titre: '', texte: '', photo: '' })} onChange={(l: any[]) => maj({ items: l })}
+          rendu={(it: any, m: any) => (<><F label="Titre"><Inp {...ci('titre', 80)(it, m)} /></F><F label="Texte (affiché au clic sur +)"><Txt {...ci('texte', 500)(it, m)} rows={3} /></F><F label="Photo (URL)" desc="Optionnel."><Inp {...ci('photo', 600)(it, m)} placeholder="https://..." /></F></>)} />
+      </>
+    );
+    case 'chronologie': return (
+      <>
+        {selFond}
+        <F label="Petit texte au-dessus du titre" desc="Optionnel."><Inp {...c('surtitre', 80)} /></F>
+        <F label="Titre" desc="Optionnel."><Inp {...c('titre', 140)} /></F>
+        <Liste items={b.items} max={12} nom="Date" ajout="+ Ajouter une date" nouveau={() => ({ annee: '', titre: '', texte: '', photo: '' })} onChange={(l: any[]) => maj({ items: l })}
+          rendu={(it: any, m: any) => (<><F label="Année ou date"><Inp {...ci('annee', 12)(it, m)} placeholder="2021" /></F><F label="Titre"><Inp {...ci('titre', 80)(it, m)} /></F><F label="Texte"><Txt {...ci('texte', 500)(it, m)} rows={3} /></F><F label="Photo (URL)" desc="Optionnel."><Inp {...ci('photo', 600)(it, m)} placeholder="https://..." /></F></>)} />
+      </>
+    );
+    case 'comparatif': {
+      const cols: string[] = Array.isArray(b.colonnes) && b.colonnes.length >= 2 ? b.colonnes : ['Nous', 'Les autres'];
+      const lignes: any[] = Array.isArray(b.lignes) ? b.lignes : [];
+      const majCols = (nc: string[], nl: any[]) => maj({ colonnes: nc, lignes: nl.map(l => ({ ...l, valeurs: nc.map((_, i) => Array.isArray(l.valeurs) ? l.valeurs[i] === true : false) })) });
+      return (
+        <>
+          {selFond}
+          <F label="Petit texte au-dessus du titre" desc="Optionnel."><Inp {...c('surtitre', 80)} /></F>
+          <F label="Titre" desc="Optionnel."><Inp {...c('titre', 140)} /></F>
+          <F label="Colonnes" desc="La première colonne (votre produit) est mise en avant.">
+            {cols.map((nom, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                <Inp value={nom} max={40} onChange={(v: string) => { const a = [...cols]; a[i] = limB(v, 40); majCols(a, lignes); }} placeholder={i === 0 ? 'Nous' : 'Autre'} />
+                {cols.length > 2 && i > 0 && <button onClick={() => majCols(cols.filter((_, k) => k !== i), lignes.map(l => ({ ...l, valeurs: (l.valeurs || []).filter((_: any, k: number) => k !== i) })))} style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>✕</button>}
+              </div>
+            ))}
+            {cols.length < 4 && <button onClick={() => majCols([...cols, ''], lignes)} style={{ padding: '6px 12px', border: `1px dashed ${CP}60`, borderRadius: 7, background: 'transparent', color: CP, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>+ Ajouter une colonne</button>}
+          </F>
+          <F label="Lignes du tableau" desc="Cochez ✓ quand le critère s'applique à la colonne.">
+            <Liste items={lignes} max={12} nom="Critère" ajout="+ Ajouter une ligne" nouveau={() => ({ critere: '', valeurs: cols.map(() => false) })} onChange={(l: any[]) => maj({ lignes: l })}
+              rendu={(it: any, m: any) => (
+                <>
+                  <F label="Critère"><Inp {...ci('critere', 100)(it, m)} /></F>
+                  <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+                    {cols.map((nom, i) => (
+                      <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#333', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={Array.isArray(it.valeurs) && it.valeurs[i] === true} onChange={e => { const v = cols.map((_, k) => Array.isArray(it.valeurs) ? it.valeurs[k] === true : false); v[i] = e.target.checked; m({ valeurs: v }); }} />
+                        {nom || `Colonne ${i + 1}`}
+                      </label>
+                    ))}
+                  </div>
+                </>
+              )} />
+          </F>
+        </>
+      );
+    }
+    case 'benefices': return (
+      <>
+        {selFond}
+        <F label="Petit texte au-dessus du titre" desc="Optionnel."><Inp {...c('surtitre', 80)} /></F>
+        <F label="Titre"><Inp {...c('titre', 140)} /></F>
+        <Liste items={b.items} max={6} nom="Bénéfice" ajout="+ Ajouter un bénéfice" nouveau={() => ({ ico: '✨', titre: '', desc: '' })} onChange={(l: any[]) => maj({ items: l })}
+          rendu={(it: any, m: any) => (<><div style={{ display: 'flex', gap: 8, marginBottom: 8 }}><div style={{ width: 70 }}><Inp {...ci('ico', 8)(it, m)} placeholder="✨" /></div><Inp {...ci('titre', 80)(it, m)} placeholder="Titre" /></div><Txt {...ci('desc', 300)(it, m)} rows={2} placeholder="Description" /></>)} />
+      </>
+    );
+    case 'details': return (
+      <>
+        {selFond}
+        {note("Sections texte + photo qui s'alternent : fabrication, utilisation, matériaux, histoire…")}
+        <Liste items={b.items} max={6} nom="Détail" ajout="+ Ajouter un détail" nouveau={() => ({ titre: '', texte: '', photo: '' })} onChange={(l: any[]) => maj({ items: l })}
+          rendu={(it: any, m: any) => (<><F label="Titre"><Inp {...ci('titre', 120)(it, m)} /></F><F label="Texte"><Txt {...ci('texte', 1200)(it, m)} rows={4} /></F><F label="Photo (URL)" desc="Optionnel."><Inp {...ci('photo', 600)(it, m)} placeholder="https://..." /></F></>)} />
+      </>
+    );
+    case 'avis': return (
+      <>
+        {selFond}
+        <F label="Titre"><Inp {...c('titre', 140)} /></F>
+        {note("Écrivez de vrais commentaires de vos clients. Tant qu'il n'y en a aucun, la section n'apparaît pas.")}
+        <Liste items={b.items} max={6} nom="Témoignage" ajout="+ Ajouter un témoignage" nouveau={() => ({ texte: '', auteur: '', note: 5 })} onChange={(l: any[]) => maj({ items: l })}
+          rendu={(it: any, m: any) => (<><F label="Commentaire"><Txt {...ci('texte', 600)(it, m)} rows={3} /></F><F label="Nom du client"><Inp {...ci('auteur', 60)(it, m)} /></F><F label="Note (1 à 5)"><Inp type="number" value={String(it.note ?? 5)} onChange={(v: string) => m({ note: Math.max(1, Math.min(5, parseInt(v, 10) || 5)) })} /></F></>)} />
+      </>
+    );
+    case 'faq': return (
+      <>
+        {selFond}
+        <F label="Titre de la section"><Inp {...c('titre', 140)} /></F>
+        {note("Les questions et les réponses s'écrivent dans l'onglet « FAQ » de cette page. Tant qu'il n'y en a aucune, la section n'apparaît pas.")}
+      </>
+    );
+    case 'cta': return (
+      <>
+        {selFond}
+        <F label="Titre" desc="Vide = le nom de votre produit."><Inp {...c('titre', 160)} /></F>
+        <F label="Texte" desc="Optionnel."><Txt {...c('texte', 300)} rows={2} /></F>
+        <F label="Texte du bouton" desc="Vide = aucun bouton."><Inp {...c('bouton', 40)} placeholder="Acheter maintenant" /></F>
+        <F label="Lien du bouton" desc="Vide = descend vers le produit à acheter. Sinon : https://… ou /page"><Inp {...c('lien', 600)} placeholder="https://..." /></F>
+      </>
+    );
+    default: return null;
+  }
+}
+
+// Gestionnaire de blocs : activer/désactiver, réordonner (▲▼), modifier, supprimer, ajouter
+function BlocsManager({ blocs, onChange }: { blocs: any[]; onChange: (l: any[]) => void }) {
+  const [ouvert, setOuvert] = useState<string | null>(null);
+  const [aSupprimer, setASupprimer] = useState<string | null>(null);
+  const [ajoutOuvert, setAjoutOuvert] = useState(false);
+  const l = [...blocs].sort((a, b) => a.ordre - b.ordre);
+  const emettre = (a: any[]) => onChange(a.map((b, i) => ({ ...b, ordre: i * 10 })));
+  const deplacer = (i: number, d: number) => { const a = [...l]; const j = i + d; if (j < 0 || j >= a.length) return; const t = a[i]; a[i] = a[j]; a[j] = t; emettre(a); };
+  const maj = (id: string, patch: any) => emettre(l.map(b => b.id === id ? { ...b, ...patch } : b));
+  const present = (t: string) => l.some(b => b.type === t);
+  const bt = (off: boolean): React.CSSProperties => ({ width: 26, height: 22, border: '1px solid #ddd', borderRadius: 4, background: off ? '#f5f5f5' : '#fff', cursor: off ? 'default' : 'pointer', fontSize: 10, color: off ? '#ccc' : '#555' });
+  return (
+    <div>
+      <div style={{ background: `${CP}10`, border: `1px solid ${CP}30`, borderRadius: 8, padding: 10, fontSize: 12, color: '#333', marginBottom: 12, lineHeight: 1.6 }}>
+        <strong>Blocs de la page</strong> — Réordonnez avec ▲▼, cachez avec l'interrupteur, cliquez sur ✎ pour modifier le contenu. Un bloc sans contenu n'apparaît pas sur votre site.
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {l.map((b, i) => {
+          const info = INFO_BLOC[b.type] || { label: b.type, icone: '▫️', desc: '' };
+          const est = ouvert === b.id;
+          const oblig = b.type === 'produit';
+          const resume = (b.titre || b.texte || b.url || '').toString().slice(0, 38);
+          return (
+            <div key={b.id} style={{ border: `2px solid ${b.actif ? CP : '#e5e7eb'}`, borderRadius: 10, background: b.actif ? `${CP}06` : '#fafafa', opacity: b.actif ? 1 : 0.75 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px' }}>
+                <span style={{ fontSize: 18, width: 24, textAlign: 'center' }}>{info.icone}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: b.actif ? '#1a1a1a' : '#999' }}>{info.label}</div>
+                  {resume && <div style={{ fontSize: 11, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{resume}</div>}
+                </div>
+                {oblig
+                  ? <span style={{ fontSize: 10, color: '#666', background: '#eef2ff', borderRadius: 10, padding: '2px 8px', flexShrink: 0 }}>Obligatoire</span>
+                  : <button onClick={() => maj(b.id, { actif: !b.actif })} aria-label={b.actif ? 'Cacher ce bloc' : 'Afficher ce bloc'} style={{ width: 40, height: 20, borderRadius: 10, border: 'none', cursor: 'pointer', background: b.actif ? CP : '#d1d5db', position: 'relative', flexShrink: 0 }}><div style={{ position: 'absolute', top: 2, left: b.actif ? 22 : 2, width: 16, height: 16, borderRadius: '50%', background: '#fff', transition: 'left .2s' }} /></button>}
+                <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+                  <button onClick={() => deplacer(i, -1)} disabled={i === 0} aria-label="Monter" style={bt(i === 0)}>▲</button>
+                  <button onClick={() => deplacer(i, 1)} disabled={i === l.length - 1} aria-label="Descendre" style={bt(i === l.length - 1)}>▼</button>
+                </div>
+                <button onClick={() => setOuvert(est ? null : b.id)} aria-label="Modifier" style={{ ...bt(false), width: 30, color: CP, borderColor: `${CP}60` }}>{est ? '✕' : '✎'}</button>
+                {!oblig && (aSupprimer === b.id
+                  ? <button onClick={() => { setASupprimer(null); if (ouvert === b.id) setOuvert(null); emettre(l.filter(x => x.id !== b.id)); }} style={{ background: '#dc2626', color: '#fff', border: 'none', borderRadius: 5, padding: '4px 8px', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>Supprimer ?</button>
+                  : <button onClick={() => { setASupprimer(b.id); setTimeout(() => setASupprimer(x => x === b.id ? null : x), 3500); }} aria-label="Supprimer ce bloc" style={{ ...bt(false), color: '#dc2626', borderColor: '#fecaca', background: '#fef2f2' }}>🗑️</button>)}
+              </div>
+              {est && <div style={{ padding: '4px 14px 14px', borderTop: '1px solid #e5e7eb', background: '#fff', borderRadius: '0 0 8px 8px' }}><p style={{ fontSize: 12, color: '#888', margin: '10px 0 12px', lineHeight: 1.6 }}>{info.desc}</p><EditeurBloc b={b} maj={(p: any) => maj(b.id, p)} /></div>}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <button onClick={() => setAjoutOuvert(o => !o)} style={{ width: '100%', padding: '11px', border: `2px dashed ${CP}60`, borderRadius: 8, background: `${CP}06`, color: CP, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>{ajoutOuvert ? '✕ Fermer' : '+ Ajouter un bloc'}</button>
+        {ajoutOuvert && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 8, marginTop: 10 }}>
+            {ORDRE_TYPES_AJOUT.map(t => { const info = INFO_BLOC[t]; const deja = info.unique && present(t); return (
+              <button key={t} disabled={deja} onClick={() => { const nb = nouveauBloc(t); const a = [...l, nb]; emettre(a); setOuvert(nb.id); setAjoutOuvert(false); }}
+                style={{ textAlign: 'left', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, background: deja ? '#f9fafb' : '#fff', cursor: deja ? 'default' : 'pointer', opacity: deja ? 0.5 : 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{info.icone} {info.label}</div>
+                <div style={{ fontSize: 11, color: '#777', marginTop: 4, lineHeight: 1.4 }}>{deja ? 'Déjà sur la page' : info.desc}</div>
+              </button>
+            ); })}
+          </div>
+        )}
+      </div>
+      <div style={{ marginTop: 10, padding: '6px 10px', background: '#f5f5f5', borderRadius: 6, fontSize: 11, color: '#666' }}>
+        <strong>{l.filter(b => b.actif).length}</strong> bloc(s) affiché(s) sur {l.length}
+      </div>
+    </div>
+  );
+}
+
 export default function ConfigMesPagesSimple({ gestionnaireId }: Props) {
   const [config, setConfig] = useState<ConfigSimple>(CONFIG_DEFAUT_SIMPLE);
   const [page, setPage] = useState<PageOnglet>('accueil');
@@ -579,7 +943,7 @@ export default function ConfigMesPagesSimple({ gestionnaireId }: Props) {
       .then(data => {
         if (data?.config?.simple) {
           const sv = data.config.simple;
-          setConfig(prev => ({ ...prev, ...sv, inscription: fusionInscription(sv.inscription), aPropos: { ...CONFIG_DEFAUT.aPropos, ...(sv.aPropos || {}) }, menu: { ...CONFIG_DEFAUT.menu, ...(sv.menu || {}) }, vente: { ...VENTE_DEFAUT, ...(sv.vente || {}) } }));
+          setConfig(prev => ({ ...prev, ...sv, inscription: fusionInscription(sv.inscription), aPropos: { ...CONFIG_DEFAUT.aPropos, ...(sv.aPropos || {}) }, menu: { ...CONFIG_DEFAUT.menu, ...(sv.menu || {}) }, vente: { ...VENTE_DEFAUT, ...(sv.vente || {}) }, accueil: { ...CONFIG_DEFAUT.accueil, ...(sv.accueil || {}), banniere: { ...CONFIG_DEFAUT.accueil.banniere, ...((sv.accueil || {}).banniere || {}) } } }));
         }
       })
       .catch(() => {});
@@ -633,18 +997,11 @@ export default function ConfigMesPagesSimple({ gestionnaireId }: Props) {
     switch (page) {
 
       case 'accueil': {
-        const v: any = config.vente || VENTE_DEFAUT;
-        const setV = (patch: any) => setConfig(c => ({ ...c, vente: { ...VENTE_DEFAUT, ...(c as any).vente, ...patch } }));
-        const lst = (cle: string): any[] => Array.isArray(v[cle]) ? v[cle] : [];
-        const majL = (cle: string, i: number, patch: any) => { const a = [...lst(cle)]; a[i] = { ...a[i], ...patch }; setV({ [cle]: a }); };
-        const retL = (cle: string, i: number) => setV({ [cle]: lst(cle).filter((_: any, k: number) => k !== i) });
-        const btnAj = (txt: string, fn: () => void) => <button onClick={fn} style={{ width: '100%', padding: '10px', border: `2px dashed ${CP}40`, borderRadius: 8, background: `${CP}05`, color: CP, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>{txt}</button>;
-        const btnX = (fn: () => void) => <button onClick={fn} style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>🗑️</button>;
-        const note = (t: string) => <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.6 }}>{t}</p>;
+        const blocsEdit: any[] = Array.isArray(config.blocs) ? config.blocs : blocsDefautCfg(config.vente, config.accueil);
         return (
         <>
-          <S titre="Comment fonctionne cette page">
-            {note("Votre boutique est une seule page : accroche, produit à acheter, puis les sections ci-dessous. Chaque section peut être cachée. Une section sans contenu n'apparaît pas sur votre site. Le produit affiché est celui choisi dans « Produit vendu » (menu Vos annonces).")}
+          <S titre="Blocs de la page de vente">
+            <BlocsManager blocs={blocsEdit} onChange={(l: any[]) => setConfig(c => ({ ...c, blocs: l }))} />
           </S>
           <S titre="Menu du haut">
             <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.6 }}>Renommez les liens du menu ou cachez les pages dont vous n'avez pas besoin. Vide = nom par défaut.</p>
@@ -667,87 +1024,6 @@ export default function ConfigMesPagesSimple({ gestionnaireId }: Props) {
           <S titre="Bannière promotionnelle">
             <EditorBanniere banniere={config.accueil.banniere} onChange={b => setAcc({ banniere: b })} />
           </S>
-          <S titre="Accroche (haut de la page)">
-            <Toggle label="Afficher l'accroche" checked={v.afficherHero !== false} onChange={(x: boolean) => setV({ afficherHero: x })} />
-            <F label="Petit texte au-dessus du titre" desc="Optionnel."><Inp value={v.heroSurtitre} onChange={(x: string) => setV({ heroSurtitre: x })} placeholder="Ex : Nouveau" /></F>
-            <F label="Titre" desc="Vide = le nom de votre produit."><Inp value={v.heroTitre} onChange={(x: string) => setV({ heroTitre: x })} /></F>
-            <F label="Sous-titre" desc="Optionnel."><Txt value={v.heroSousTitre} onChange={(x: string) => setV({ heroSousTitre: x })} rows={2} /></F>
-            <F label="Texte du bouton"><Inp value={v.heroBouton} onChange={(x: string) => setV({ heroBouton: x })} placeholder="Acheter maintenant" /></F>
-            <F label="Photo de l'accroche (URL)" desc="Vide = la photo principale du produit."><Inp value={v.heroPhoto} onChange={(x: string) => setV({ heroPhoto: x })} placeholder="https://..." /></F>
-          </S>
-          <S titre="Bandeau de confiance (sous l'accroche)">
-            <Toggle label="Afficher le bandeau" checked={v.afficherConfiance !== false} onChange={(x: boolean) => setV({ afficherConfiance: x })} />
-            <p style={{ fontSize: 12, color: '#888', margin: '0 0 10px', lineHeight: 1.6 }}>Vos vrais engagements (livraison, retours, paiement…). Tant qu'il n'y en a aucun, le bandeau n'apparaît pas sur votre site.</p>
-            {(config.accueil.avantages || []).map((a, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                <div style={{ width: 60 }}><Inp value={a.ico} onChange={(v: string) => { const l = [...(config.accueil.avantages || [])]; l[i] = { ...l[i], ico: v }; setAcc({ avantages: l }); }} placeholder="🚚" /></div>
-                <Inp value={a.titre} onChange={(v: string) => { const l = [...(config.accueil.avantages || [])]; l[i] = { ...l[i], titre: v }; setAcc({ avantages: l }); }} placeholder="Titre" />
-                <Inp value={a.desc} onChange={(v: string) => { const l = [...(config.accueil.avantages || [])]; l[i] = { ...l[i], desc: v }; setAcc({ avantages: l }); }} placeholder="Détail" />
-                <button onClick={() => { const l = [...(config.accueil.avantages || [])]; l.splice(i, 1); setAcc({ avantages: l }); }} style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>✕</button>
-              </div>
-            ))}
-            {(config.accueil.avantages || []).length < 6 && (
-              <button onClick={() => setAcc({ avantages: [...(config.accueil.avantages || []), { ico: '✅', titre: '', desc: '' }] })}
-                style={{ width: '100%', padding: '8px', border: `2px dashed ${CP}40`, borderRadius: 7, background: `${CP}05`, color: CP, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                + Ajouter un avantage
-              </button>
-            )}
-          </S>
-          <S titre="Bénéfices">
-            <Toggle label="Afficher les bénéfices" checked={v.afficherBenefices !== false} onChange={(x: boolean) => setV({ afficherBenefices: x })} />
-            <F label="Titre de la section"><Inp value={v.beneficesTitre} onChange={(x: string) => setV({ beneficesTitre: x })} /></F>
-            {note("Ce que votre produit apporte au client (3 est idéal).")}
-            {lst('benefices').map((b: any, i: number) => (
-              <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}><span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>Bénéfice {i + 1}</span>{btnX(() => retL('benefices', i))}</div>
-                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}><div style={{ width: 70 }}><Inp value={b.ico} onChange={(x: string) => majL('benefices', i, { ico: x })} placeholder="✨" /></div><Inp value={b.titre} onChange={(x: string) => majL('benefices', i, { titre: x })} placeholder="Titre" /></div>
-                <Txt value={b.desc} onChange={(x: string) => majL('benefices', i, { desc: x })} rows={2} placeholder="Description" />
-              </div>
-            ))}
-            {lst('benefices').length < 6 && btnAj('+ Ajouter un bénéfice', () => setV({ benefices: [...lst('benefices'), { ico: '✨', titre: '', desc: '' }] }))}
-          </S>
-          <S titre="Détails du produit">
-            <Toggle label="Afficher les détails" checked={v.afficherDetails !== false} onChange={(x: boolean) => setV({ afficherDetails: x })} />
-            {note("Sections texte + photo qui s'alternent : fabrication, utilisation, matériaux, histoire…")}
-            {lst('details').map((d: any, i: number) => (
-              <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}><span style={{ fontSize: 12, fontWeight: 700, color: '#555' }}>Détail {i + 1}</span>{btnX(() => retL('details', i))}</div>
-                <F label="Titre"><Inp value={d.titre} onChange={(x: string) => majL('details', i, { titre: x })} /></F>
-                <F label="Texte"><Txt value={d.texte} onChange={(x: string) => majL('details', i, { texte: x })} rows={4} /></F>
-                <F label="Photo (URL)" desc="Optionnel."><Inp value={d.photo} onChange={(x: string) => majL('details', i, { photo: x })} placeholder="https://..." /></F>
-              </div>
-            ))}
-            {lst('details').length < 6 && btnAj('+ Ajouter un détail', () => setV({ details: [...lst('details'), { titre: '', texte: '', photo: '' }] }))}
-          </S>
-          <S titre="Avis clients">
-            <Toggle label="Afficher les avis" checked={v.afficherAvis !== false} onChange={(x: boolean) => setV({ afficherAvis: x })} />
-            <F label="Titre de la section"><Inp value={v.avisTitre} onChange={(x: string) => setV({ avisTitre: x })} /></F>
-            <p style={{ fontSize: 12, color: '#888', margin: '0 0 10px', lineHeight: 1.6 }}>Écrivez ici de vrais commentaires de vos clients. Tant qu'il n'y en a aucun, la section n'apparaît pas sur votre site.</p>
-            {(config.accueil.temoignages || []).map((t, i) => (
-              <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 10, marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#555' }}>Témoignage {i + 1}</span>
-                  <button onClick={() => { const a = [...(config.accueil.temoignages || [])]; a.splice(i, 1); setAcc({ temoignages: a }); }}
-                    style={{ background: '#fef2f2', border: 'none', borderRadius: 4, padding: '2px 7px', fontSize: 10, color: '#dc2626', cursor: 'pointer' }}>✕</button>
-                </div>
-                <F label="Commentaire"><Txt value={t.texte} onChange={(v: string) => { const a = [...(config.accueil.temoignages || [])]; a[i] = { ...a[i], texte: v }; setAcc({ temoignages: a }); }} rows={3} /></F>
-                <F label="Nom du client"><Inp value={t.auteur} onChange={(v: string) => { const a = [...(config.accueil.temoignages || [])]; a[i] = { ...a[i], auteur: v }; setAcc({ temoignages: a }); }} /></F>
-                <F label="Note (1 à 5)"><Inp type="number" value={String(t.note ?? 5)} onChange={(v: string) => { const a = [...(config.accueil.temoignages || [])]; a[i] = { ...a[i], note: Math.max(1, Math.min(5, parseInt(v, 10) || 5)) }; setAcc({ temoignages: a }); }} /></F>
-              </div>
-            ))}
-            {(config.accueil.temoignages || []).length < 6 && (
-              <button onClick={() => setAcc({ temoignages: [...(config.accueil.temoignages || []), { texte: '', auteur: '', note: 5 }] })}
-                style={{ width: '100%', padding: '8px', border: `2px dashed ${CP}40`, borderRadius: 7, background: `${CP}05`, color: CP, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                + Ajouter un témoignage
-              </button>
-            )}
-          </S>
-          <S titre="Appel final (bas de la page)">
-            <Toggle label="Afficher l'appel final" checked={v.afficherCta !== false} onChange={(x: boolean) => setV({ afficherCta: x })} />
-            <F label="Titre" desc="Vide = le nom de votre produit."><Inp value={v.ctaTitre} onChange={(x: string) => setV({ ctaTitre: x })} /></F>
-            <F label="Texte" desc="Optionnel."><Txt value={v.ctaTexte} onChange={(x: string) => setV({ ctaTexte: x })} rows={2} /></F>
-            <F label="Texte du bouton"><Inp value={v.ctaBouton} onChange={(x: string) => setV({ ctaBouton: x })} placeholder="Acheter maintenant" /></F>
-          </S>
         </>
         );
       }
@@ -755,8 +1031,7 @@ export default function ConfigMesPagesSimple({ gestionnaireId }: Props) {
       case 'faq': return (
         <>
           <S titre="Questions fréquentes (sur la page de vente)">
-            <Toggle label="Afficher la section" checked={(config.vente || VENTE_DEFAUT).afficherFaq !== false} onChange={(x: boolean) => setConfig(c => ({ ...c, vente: { ...VENTE_DEFAUT, ...(c as any).vente, afficherFaq: x } }))} />
-            <F label="Titre de la section"><Inp value={(config.vente || VENTE_DEFAUT).faqTitre} onChange={(x: string) => setConfig(c => ({ ...c, vente: { ...VENTE_DEFAUT, ...(c as any).vente, faqTitre: x } }))} /></F>
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.6 }}>Le titre de la section, sa couleur de fond, son emplacement et sa visibilité se règlent dans l'onglet « Page de vente » (bloc « Questions fréquentes »).</p>
             <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.6 }}>Tant qu'il n'y a aucune question, la section n'apparaît pas sur votre site.</p>
             {config.faq.items.map((item, i) => (
               <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 10 }}>
@@ -765,8 +1040,8 @@ export default function ConfigMesPagesSimple({ gestionnaireId }: Props) {
                   <button onClick={() => { const a = [...config.faq.items]; a.splice(i, 1); setFaq({ items: a }); }}
                     style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>🗑️</button>
                 </div>
-                <F label="Question"><Inp value={item.question} onChange={(v: string) => { const a = [...config.faq.items]; a[i] = { ...a[i], question: v }; setFaq({ items: a }); }} /></F>
-                <F label="Réponse"><Txt value={item.reponse} onChange={(v: string) => { const a = [...config.faq.items]; a[i] = { ...a[i], reponse: v }; setFaq({ items: a }); }} rows={3} /></F>
+                <F label="Question"><Inp max={200} value={item.question} onChange={(v: string) => { const a = [...config.faq.items]; a[i] = { ...a[i], question: limB(v, 200) }; setFaq({ items: a }); }} /></F>
+                <F label="Réponse"><Txt max={2000} value={item.reponse} onChange={(v: string) => { const a = [...config.faq.items]; a[i] = { ...a[i], reponse: limB(v, 2000) }; setFaq({ items: a }); }} rows={3} /></F>
               </div>
             ))}
             <button onClick={() => setFaq({ items: [...config.faq.items, { question: '', reponse: '' }] })}

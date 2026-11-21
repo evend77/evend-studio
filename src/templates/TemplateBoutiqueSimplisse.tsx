@@ -174,6 +174,15 @@ const FICHE_DEF: ConfigFicheProduit = {
 
 
 // ─── Props ────────────────────────────────────────────────────────────────────
+// ── Protection des saisies et des liens (tous les champs du site public) ──────────────────────────
+// À la frappe : retire les caractères de contrôle et limite la longueur. À l'envoi : retire les balises HTML, les < >, les espaces en trop.
+// (React échappe déjà tout ce qui s'affiche ; le serveur nettoie et valide de son côté — ceci est la première barrière.)
+const limiterSaisie = (v: any, max = 200): string => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, max);
+const nettoyerEnvoi = (v: any, max = 200): string => limiterSaisie(v, max * 2).replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim().slice(0, max);
+const COURRIEL_OK = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']{2,}$/;
+// Liens venant de la configuration : seulement http(s) ou chemin interne — jamais javascript:, data:, vbscript:
+const urlSure = (u: any): string => { const t = String(u == null ? '' : u).trim(); return /^(https?:\/\/|\/(?!\/))/i.test(t) ? t : ''; };
+
 interface Props {
   config: any;   // config brute de la BD — contient config.simplisse
   siteId?: number;
@@ -221,7 +230,7 @@ function Banniere({ cfg }: { cfg: ConfigBanniere }) {
     <div style={{ background: cfg.couleurFond, color: cfg.couleurTexte, padding: '10px 20px', textAlign: 'center', fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
       <span>{cfg.texte}</span>
       {cfg.lien && cfg.labelLien && (
-        <a href={cfg.lien} style={{ color: cfg.couleurTexte, fontWeight: 700, textDecoration: 'underline', fontSize: 13 }}>{cfg.labelLien} →</a>
+        <a href={urlSure(cfg.lien) || '#'} style={{ color: cfg.couleurTexte, fontWeight: 700, textDecoration: 'underline', fontSize: 13 }}>{cfg.labelLien} →</a>
       )}
     </div>
   );
@@ -366,7 +375,7 @@ function Footer({ cfg, onNaviguer, liensPol, extra }: { cfg: ConfigFooter; onNav
             {reseauxActifs.length > 0 && (
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 {reseauxActifs.map(([k, url]) => (
-                  <a key={k} href={url as string} target="_blank" rel="noopener noreferrer"
+                  <a key={k} href={urlSure(url) || '#'} target="_blank" rel="noopener noreferrer"
                     style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: cfg.couleurTexte, textDecoration: 'none', fontWeight: 700 }}>
                     {iconeReseau[k] || k[0].toUpperCase()}
                   </a>
@@ -502,6 +511,8 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const [faqOuvert, setFaqOuvert]     = useState<number | null>(null);
   const [contactEnvoi, setContactEnvoi] = useState<'idle'|'loading'|'ok'|'err'>('idle');
   const [contactForm, setContactForm] = useState({ nom:'', courriel:'', message:'' });
+  const [contactPiege, setContactPiege] = useState('');   // anti-bot : champ piège du formulaire de contact
+  const debutContact = useRef(Date.now());              // anti-bot : délai minimum avant l'envoi
   const [varianteChoisie, setVarianteChoisie] = useState<Record<string, string>>({});
   const [qteChoisie, setQteChoisie]   = useState(1);
 
@@ -632,6 +643,9 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   }, [acheteur, vendeurId, page, vueCompte]);
 
   useEffect(() => { if (!avisPanier) return; const t = setTimeout(() => setAvisPanier(''), 4000); return () => clearTimeout(t); }, [avisPanier]);
+
+  // Anti-bot du formulaire de contact : le délai se compte depuis l'ouverture de la page Contact
+  useEffect(() => { if (page === 'contact') debutContact.current = Date.now(); }, [page]);
 
   // Anti-bot de l'inscription : champ piège + délai minimum + mouvement de souris
   useEffect(() => {
@@ -778,20 +792,25 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
 
   // ── Envoi formulaire contact ──────────────────────────────────────────────
   const envoyerContact = async () => {
+    const fin = (etat: 'ok' | 'err') => { setContactEnvoi(etat); setTimeout(() => setContactEnvoi('idle'), 4000); };
+    const nom = nettoyerEnvoi(contactForm.nom, 100), courriel = nettoyerEnvoi(contactForm.courriel, 254), message = nettoyerEnvoi(contactForm.message, 5000);
+    if (!nom || !message || !COURRIEL_OK.test(courriel)) { fin('err'); return; }
+    if (contactPiege) { setContactForm({ nom: '', courriel: '', message: '' }); fin('ok'); return; }   // champ piège rempli = robot : on fait semblant que c'est envoyé
+    const duree = Date.now() - debutContact.current;
+    if (duree < 3000) { fin('err'); return; }   // trop rapide pour un humain
     setContactEnvoi('loading');
     try {
       const res = await fetch(`${API_BASE}/contact/vendeur/${vendeurId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(contactForm),
+        body: JSON.stringify({ nom, courriel, message, website: '', duree_ms: duree }),
       });
       if (!res.ok) throw new Error();
-      setContactEnvoi('ok');
       setContactForm({ nom: '', courriel: '', message: '' });
+      fin('ok');
     } catch {
-      setContactEnvoi('err');
+      fin('err');
     }
-    setTimeout(() => setContactEnvoi('idle'), 4000);
   };
 
   // ── Styles communs ────────────────────────────────────────────────────────
@@ -1057,7 +1076,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           {(cfg.catalogue.afficherRecherche || cfg.catalogue.afficherFiltres) && (
             <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap', alignItems: 'center' }}>
               {cfg.catalogue.afficherRecherche && (
-                <input type="text" placeholder="🔍 Rechercher un produit..." value={filtreRecherche} onChange={e => setFiltreRecherche(e.target.value)}
+                <input type="text" placeholder="🔍 Rechercher un produit..." value={filtreRecherche} onChange={e => setFiltreRecherche(limiterSaisie(e.target.value, 100))} maxLength={100}
                   style={{ ...styleInput, maxWidth: 320, flex: 1 }} />
               )}
               {cfg.catalogue.afficherFiltres && categories.length > 0 && (
@@ -1506,10 +1525,10 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     <div key={cle} style={{ marginBottom: 18 }}>
       <label style={styleLabel}>{libelle}{requis && ' *'}</label>
       {type === 'textarea'
-        ? <textarea value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} placeholder={ph} rows={3} style={{ ...styleInput, resize: 'vertical' }} />
+        ? <textarea value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} placeholder={ph} rows={3} style={{ ...styleInput, resize: 'vertical' }} />
         : type === 'select'
-        ? <select value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} style={styleInput}><option value="">— Choisir —</option>{(extra || []).map((o: string) => <option key={o} value={o}>{o}</option>)}</select>
-        : <input type={type} value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} placeholder={ph} style={styleInput} autoComplete={type === 'password' ? 'new-password' : undefined} />}
+        ? <select value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} style={styleInput}><option value="">— Choisir —</option>{(extra || []).map((o: string) => <option key={o} value={o}>{o}</option>)}</select>
+        : <input type={type} value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} placeholder={ph} style={styleInput} autoComplete={type === 'password' ? 'new-password' : undefined} />}
     </div>
   );
   const caseInsc = (cle: string, contenu: any, requis: boolean) => (
@@ -1561,7 +1580,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
             {ins.infolettre.affiche && caseInsc('infolettre', ins.infolettre.texte, false)}
             {ins.age.affiche && caseInsc('age', String(ins.age.texte).replace('{age}', String(ins.age.minimum)), true)}
             {ins.termes.affiche && caseInsc('termes', /^https?:\/\//i.test(ins.termes.url || '')
-              ? <a href={ins.termes.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: cp, textDecoration: 'underline' }}>{ins.termes.texte}</a>
+              ? <a href={urlSure(ins.termes.url) || undefined} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: cp, textDecoration: 'underline' }}>{ins.termes.texte}</a>
               : ins.termes.texte, true)}
             {inscErreur && <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>⚠️ {inscErreur}</div>}
             <button onClick={handleInscription} disabled={inscStatut === 'loading'} style={styleBtn}>{inscStatut === 'loading' ? '⏳ Création en cours…' : ins.boutonTexte}</button>
@@ -1579,8 +1598,8 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>Accédez à votre panier, vos commandes et votre compte</p>
         </div>
         <div style={carteAuth}>
-          <div style={{ marginBottom: 18 }}><label style={styleLabel}>Courriel</label><input type="email" value={loginForm.email} onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))} placeholder="votre@courriel.com" style={styleInput} /></div>
-          <div style={{ marginBottom: 24 }}><label style={styleLabel}>Mot de passe</label><input type="password" value={loginForm.mdp} onChange={e => setLoginForm(f => ({ ...f, mdp: e.target.value }))} placeholder="••••••••" style={styleInput} onKeyDown={e => e.key === 'Enter' && handleLogin()} /></div>
+          <div style={{ marginBottom: 18 }}><label style={styleLabel}>Courriel</label><input type="email" value={loginForm.email} onChange={e => setLoginForm(f => ({ ...f, email: limiterSaisie(e.target.value, 254) }))} maxLength={254} placeholder="votre@courriel.com" style={styleInput} /></div>
+          <div style={{ marginBottom: 24 }}><label style={styleLabel}>Mot de passe</label><input type="password" value={loginForm.mdp} onChange={e => setLoginForm(f => ({ ...f, mdp: limiterSaisie(e.target.value, 200) }))} maxLength={200} placeholder="••••••••" style={styleInput} onKeyDown={e => e.key === 'Enter' && handleLogin()} /></div>
           {loginErreur && <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>❌ {loginErreur}</div>}
           <button onClick={handleLogin} disabled={loginStatut === 'loading'} style={styleBtn}>{loginStatut === 'loading' ? '⏳ Connexion…' : 'Se connecter →'}</button>
           <div style={{ textAlign: 'center', marginTop: 18 }}><span style={{ fontSize: 13, color: '#6b7280' }}>Pas encore de compte ? </span><button onClick={() => { setInscStatut('idle'); setInscErreur(''); naviguer('inscription'); }} style={{ background: 'none', border: 'none', color: cp, fontSize: 13, cursor: 'pointer', fontWeight: 700 }}>Créer un compte</button></div>
@@ -1800,9 +1819,9 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
               </div>
             )}
           </div>
-          {cfg.contact.afficherCarte && cfg.contact.urlCarte && (
+          {cfg.contact.afficherCarte && urlSure(cfg.contact.urlCarte) && (
             <div style={{ marginTop: 28, borderRadius: 12, overflow: 'hidden', height: 260 }}>
-              <iframe src={cfg.contact.urlCarte} width="100%" height="100%" style={{ border: 0 }} loading="lazy" title="Carte" />
+              <iframe src={urlSure(cfg.contact.urlCarte)} width="100%" height="100%" style={{ border: 0 }} loading="lazy" title="Carte" />
             </div>
           )}
         </div>
@@ -1819,17 +1838,18 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre nom</label>
-                  <input value={contactForm.nom} onChange={e => setContactForm(f => ({ ...f, nom: e.target.value }))} placeholder="Jean Tremblay" style={styleInput} />
+                  <input value={contactForm.nom} onChange={e => setContactForm(f => ({ ...f, nom: limiterSaisie(e.target.value, 100) }))} maxLength={100} placeholder="Jean Tremblay" style={styleInput} />
                 </div>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre courriel</label>
-                  <input type="email" value={contactForm.courriel} onChange={e => setContactForm(f => ({ ...f, courriel: e.target.value }))} placeholder="jean@exemple.ca" style={styleInput} />
+                  <input type="email" value={contactForm.courriel} onChange={e => setContactForm(f => ({ ...f, courriel: limiterSaisie(e.target.value, 254) }))} maxLength={254} placeholder="jean@exemple.ca" style={styleInput} />
                 </div>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre message</label>
-                  <textarea value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: e.target.value }))} rows={5} placeholder="Décrivez votre question..." style={{ ...styleInput, resize: 'vertical', fontFamily: 'inherit' }} />
+                  <textarea value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: limiterSaisie(e.target.value, 5000) }))} maxLength={5000} rows={5} placeholder="Décrivez votre question..." style={{ ...styleInput, resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
-                {contactEnvoi === 'err' && <p style={{ color: '#ef4444', fontSize: 14, margin: 0 }}>❌ Erreur — veuillez réessayer.</p>}
+                <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" value={contactPiege} onChange={e => setContactPiege(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
+                {contactEnvoi === 'err' && <p style={{ color: '#ef4444', fontSize: 14, margin: 0 }}>❌ Erreur — vérifiez les champs et réessayez.</p>}
                 <button onClick={envoyerContact} disabled={contactEnvoi === 'loading' || !contactForm.nom || !contactForm.courriel || !contactForm.message}
                   style={{ ...styleBtn, opacity: (!contactForm.nom || !contactForm.courriel || !contactForm.message) ? 0.5 : 1 }}>
                   {contactEnvoi === 'loading' ? '⏳ Envoi...' : 'Envoyer le message →'}

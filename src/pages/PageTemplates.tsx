@@ -1,4 +1,4 @@
-// src/pages/PageTemplates.tsx
+// CHEMIN : src/pages/PageTemplates.tsx
 // e-Vend Studio — Galerie publique des templates disponibles
 
 import { useState, useEffect } from 'react';
@@ -122,8 +122,8 @@ export const TEMPLATES: Template[] = [
     id: 'boutique-simple',
     nom: 'Mono-produit',
     groupe: 'boutique-generique',
-    description: 'Une seule page de vente pour un seul produit : accroche, achat, bénéfices, détails, avis et FAQ.',
-    fonctionnalites: ['Page de vente tout-en-un', 'Variantes et options (couleur, taille…) avec photo', 'Paiement Stripe ou PayPal', 'Compte acheteur et panier intégrés'],
+    description: 'Une seule page de vente pour un seul produit, avec ses variantes et options. Vous composez la page avec des blocs réordonnables : accroches, vidéo de présentation, phrase défilante, valeurs, chronologie, tableau comparatif, bénéfices, avis et FAQ.',
+    fonctionnalites: ['Page de vente en blocs : vous choisissez l\'ordre et ce qui s\'affiche', 'Vidéo YouTube ou Vimeo, phrase défilante, chronologie, tableau comparatif', 'Variantes et options (couleur, taille…) avec photo', 'Paiement Stripe ou PayPal', 'Compte acheteur et panier intégrés', 'Blog, FAQ, À propos et contact'],
     disponible: true, nouveau: false, couleur: '#a855f7',
   },
   {

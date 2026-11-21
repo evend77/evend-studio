@@ -188,6 +188,128 @@ const FICHE_DEF: ConfigFicheProduit = {
 export * from './TemplateBoutiqueSimpleAncien';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
+// ── Protection des saisies et des liens (tous les champs du site public) ──────────────────────────
+// À la frappe : retire les caractères de contrôle et limite la longueur. À l'envoi : retire les balises HTML, les < >, les espaces en trop.
+// (React échappe déjà tout ce qui s'affiche ; le serveur nettoie et valide de son côté — ceci est la première barrière.)
+const limiterSaisie = (v: any, max = 200): string => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, max);
+const nettoyerEnvoi = (v: any, max = 200): string => limiterSaisie(v, max * 2).replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim().slice(0, max);
+const COURRIEL_OK = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']{2,}$/;
+// Liens venant de la configuration : seulement http(s) ou chemin interne — jamais javascript:, data:, vbscript:
+const urlSure = (u: any): string => { const t = String(u == null ? '' : u).trim(); return /^(https?:\/\/|\/(?!\/))/i.test(t) ? t : ''; };
+
+// ── Blocs de la page de vente (config.simple.blocs) : ordre, visibilité et contenu réglés dans Config Mes pages ──
+// Chaque bloc : { id, type, actif, ordre, fond, ...contenu }. Tout est nettoyé ici avant l'affichage (texte limité, liens sûrs, valeurs bornées).
+const TYPES_BLOC = ['hero', 'confiance', 'produit', 'video', 'defilant', 'citation', 'piliers', 'chronologie', 'comparatif', 'benefices', 'details', 'avis', 'faq', 'cta'];
+const FONDS_BLOC = ['auto', 'blanc', 'gris', 'couleur', 'sombre'];
+const FOND_DEFAUT_BLOC: Record<string, string> = { hero: 'blanc', confiance: 'gris', produit: 'blanc', video: 'blanc', defilant: 'blanc', citation: 'gris', piliers: 'blanc', chronologie: 'sombre', comparatif: 'blanc', benefices: 'gris', details: 'blanc', avis: 'gris', faq: 'blanc', cta: 'couleur' };
+const POLICES_DEFIL: Record<string, string> = {
+  sans: 'Inter, system-ui, -apple-system, "Segoe UI", sans-serif',
+  serif: 'Georgia, "Times New Roman", serif',
+  mono: 'ui-monospace, Menlo, Consolas, monospace',
+  arrondie: '"Trebuchet MS", "Segoe UI", sans-serif',
+  condensee: '"Arial Narrow", "Helvetica Neue", Arial, sans-serif',
+  manuscrite: '"Brush Script MT", "Segoe Script", cursive',
+};
+const enm = (v: any, liste: string[], def: string): string => (typeof v === 'string' && liste.includes(v)) ? v : def;
+const nbr = (v: any, mn: number, mx: number, def: number): number => { const n = Number(v); return Number.isFinite(n) ? Math.max(mn, Math.min(mx, n)) : def; };
+const txtB = (v: any, max: number): string => typeof v === 'string' ? limiterSaisie(v, max) : '';
+const lienB = (v: any): string => urlSure(limiterSaisie(v, 600));
+const couleurB = (v: any): string => (typeof v === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(v.trim())) ? v.trim() : '';
+const listeB = (v: any, max: number): any[] => (Array.isArray(v) ? v : []).filter(x => x && typeof x === 'object').slice(0, max);
+
+// Vidéo : seulement YouTube ou Vimeo (adresse analysée, jamais insérée telle quelle)
+const analyserVideo = (u: any): { src: 'youtube' | 'vimeo'; id: string; h?: string } | null => {
+  const t = String(u == null ? '' : u).trim().slice(0, 300);
+  let m = t.match(/^https?:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{11})(?:[?&#/].*)?$/i);
+  if (m) return { src: 'youtube', id: m[1] };
+  m = t.match(/^https?:\/\/(?:www\.)?(?:vimeo\.com\/(?:video\/)?|player\.vimeo\.com\/video\/)(\d{6,12})(?:\/([a-f0-9]{6,20}))?(?:[/?#].*)?$/i);
+  if (m) return { src: 'vimeo', id: m[1], h: m[2] };
+  return null;
+};
+
+function normBloc(b: any): any | null {
+  if (!b || typeof b !== 'object' || !TYPES_BLOC.includes(b.type)) return null;
+  const base: any = { id: txtB(b.id, 40).replace(/[^A-Za-z0-9_-]/g, '') || ('b-' + b.type), type: b.type, actif: b.actif !== false, ordre: nbr(b.ordre, 0, 99999, 0), fond: enm(b.fond, FONDS_BLOC, 'auto') };
+  switch (b.type) {
+    case 'hero':
+      return { ...base, surtitre: txtB(b.surtitre, 80), titre: txtB(b.titre, 160), sousTitre: txtB(b.sousTitre, 400), bouton: txtB(b.bouton, 40), lien: lienB(b.lien),
+        disposition: enm(b.disposition, ['photo', 'collage', 'centre', 'fond'], 'photo'), photo: lienB(b.photo), photos: (Array.isArray(b.photos) ? b.photos : []).slice(0, 3).map(lienB), afficherPrix: b.afficherPrix === true };
+    case 'confiance':
+      return { ...base, items: listeB(b.items, 6).map(x => ({ ico: txtB(x.ico, 8), titre: txtB(x.titre, 60), desc: txtB(x.desc, 120) })) };
+    case 'produit':
+      return { ...base, actif: true };
+    case 'video':
+      return { ...base, surtitre: txtB(b.surtitre, 80), titre: txtB(b.titre, 140), texte: txtB(b.texte, 400), url: txtB(b.url, 300) };
+    case 'defilant':
+      return { ...base, texte: txtB(b.texte, 200), vitesse: nbr(b.vitesse, 1, 10, 5), direction: enm(b.direction, ['gauche', 'droite'], 'gauche'), police: enm(b.police, Object.keys(POLICES_DEFIL), 'sans'),
+        taille: nbr(b.taille, 16, 140, 56), style: enm(b.style, ['plein', 'contour', 'degrade'], 'plein'), separateur: txtB(b.separateur, 6) || '✦', couleurTexte: couleurB(b.couleurTexte), couleur2: couleurB(b.couleur2) || '#8b5cf6',
+        gras: b.gras !== false, italique: b.italique === true, majuscules: b.majuscules !== false, espacement: nbr(b.espacement, 0, 20, 2), incline: b.incline === true, pauseSurvol: b.pauseSurvol !== false };
+    case 'citation':
+      return { ...base, texte: txtB(b.texte, 400), auteur: txtB(b.auteur, 80), role: txtB(b.role, 80), taille: nbr(b.taille, 18, 64, 34), police: enm(b.police, Object.keys(POLICES_DEFIL), 'serif') };
+    case 'piliers':
+      return { ...base, surtitre: txtB(b.surtitre, 80), titre: txtB(b.titre, 140), colonnes: nbr(b.colonnes, 2, 4, 3), items: listeB(b.items, 8).map(x => ({ titre: txtB(x.titre, 80), texte: txtB(x.texte, 500), photo: lienB(x.photo) })) };
+    case 'chronologie':
+      return { ...base, surtitre: txtB(b.surtitre, 80), titre: txtB(b.titre, 140), items: listeB(b.items, 12).map(x => ({ annee: txtB(x.annee, 12), titre: txtB(x.titre, 80), texte: txtB(x.texte, 500), photo: lienB(x.photo) })) };
+    case 'comparatif': {
+      const colonnes = (Array.isArray(b.colonnes) ? b.colonnes : []).slice(0, 4).map((c: any) => txtB(c, 40));
+      const cols = colonnes.length >= 2 ? colonnes : ['Nous', 'Les autres'];
+      return { ...base, surtitre: txtB(b.surtitre, 80), titre: txtB(b.titre, 140), colonnes: cols,
+        lignes: listeB(b.lignes, 12).map(x => ({ critere: txtB(x.critere, 100), valeurs: cols.map((_: any, i: number) => Array.isArray(x.valeurs) ? x.valeurs[i] === true : false) })) };
+    }
+    case 'benefices':
+      return { ...base, surtitre: txtB(b.surtitre, 80), titre: txtB(b.titre, 140), items: listeB(b.items, 6).map(x => ({ ico: txtB(x.ico, 8), titre: txtB(x.titre, 80), desc: txtB(x.desc, 300) })) };
+    case 'details':
+      return { ...base, items: listeB(b.items, 6).map(x => ({ titre: txtB(x.titre, 120), texte: txtB(x.texte, 1200), photo: lienB(x.photo) })) };
+    case 'avis':
+      return { ...base, titre: txtB(b.titre, 140), items: listeB(b.items, 6).map(x => ({ texte: txtB(x.texte, 600), auteur: txtB(x.auteur, 60), note: nbr(x.note, 1, 5, 5) })) };
+    case 'faq':
+      return { ...base, titre: txtB(b.titre, 140) };
+    case 'cta':
+      return { ...base, titre: txtB(b.titre, 160), texte: txtB(b.texte, 300), bouton: txtB(b.bouton, 40), lien: lienB(b.lien) };
+  }
+  return null;
+}
+
+// Liste par défaut = l'ancienne page de vente (champs config.simple.vente / accueil), pour les boutiques déjà configurées.
+function blocsDefaut(rv: any, accueil: any, demo: boolean): any[] {
+  const r = rv || {};
+  const l: any[] = [
+    { id: 'hero', type: 'hero', actif: r.afficherHero !== false, surtitre: r.heroSurtitre, titre: r.heroTitre, sousTitre: r.heroSousTitre, bouton: (typeof r.heroBouton === 'string' && r.heroBouton.trim()) ? r.heroBouton : 'Acheter maintenant', photo: r.heroPhoto, disposition: 'photo', afficherPrix: true },
+    { id: 'confiance', type: 'confiance', actif: r.afficherConfiance !== false, items: accueil?.avantages },
+    { id: 'produit', type: 'produit', actif: true },
+    { id: 'benefices', type: 'benefices', actif: r.afficherBenefices !== false, surtitre: r.beneficesSurtitre, titre: r.beneficesTitre || "Pourquoi vous allez l'adorer", items: r.benefices },
+    { id: 'details', type: 'details', actif: r.afficherDetails !== false, items: r.details },
+    { id: 'avis', type: 'avis', actif: r.afficherAvis !== false, titre: r.avisTitre || 'Ce que disent nos clients', items: accueil?.temoignages },
+    { id: 'faq', type: 'faq', actif: r.afficherFaq !== false, titre: r.faqTitre || 'Questions fréquentes' },
+    { id: 'cta', type: 'cta', actif: r.afficherCta !== false, titre: r.ctaTitre, texte: r.ctaTexte, bouton: (typeof r.ctaBouton === 'string' && r.ctaBouton.trim()) ? r.ctaBouton : 'Acheter maintenant' },
+  ];
+  if (demo) {   // démonstration seulement : exemples des nouveaux blocs (jamais sur une vraie boutique)
+    l.splice(4, 0,
+      { id: 'demo-defilant', type: 'defilant', actif: true, texte: 'Votre phrase qui défile ici', style: 'contour', taille: 64 },
+      { id: 'demo-citation', type: 'citation', actif: true, texte: 'Exemple : une phrase forte qui résume votre histoire ou votre promesse.', auteur: 'Votre nom', role: 'Fondateur' },
+      { id: 'demo-piliers', type: 'piliers', actif: true, titre: 'Nos valeurs', items: [{ titre: 'Valeur 1', texte: 'Exemple de texte qui s\'affiche en cliquant sur le +.' }, { titre: 'Valeur 2', texte: 'Exemple de texte.' }, { titre: 'Valeur 3', texte: 'Exemple de texte.' }] },
+      { id: 'demo-chrono', type: 'chronologie', actif: true, titre: 'Notre histoire', items: [{ annee: '2020', titre: 'Le début', texte: 'Exemple de texte.' }, { annee: '2022', titre: 'La croissance', texte: 'Exemple de texte.' }, { annee: '2024', titre: 'Aujourd\'hui', texte: 'Exemple de texte.' }] },
+      { id: 'demo-comparatif', type: 'comparatif', actif: true, titre: 'Pourquoi nous choisir', colonnes: ['Nous', 'Les autres'], lignes: [{ critere: 'Exemple de critère 1', valeurs: [true, false] }, { critere: 'Exemple de critère 2', valeurs: [true, true] }, { critere: 'Exemple de critère 3', valeurs: [true, false] }] },
+    );
+  }
+  return l.map((b, i) => ({ ...b, ordre: i * 10 }));
+}
+
+function normBlocs(raw: any, rv: any, accueil: any, demo: boolean): any[] {
+  const source = Array.isArray(raw) ? raw : blocsDefaut(rv, accueil, demo);
+  const vus: Record<string, boolean> = {};
+  let l: any[] = [];
+  source.forEach((b: any, i: number) => {
+    const n = normBloc(b); if (!n) return;
+    if ((n.type === 'produit' || n.type === 'faq') && l.some(x => x.type === n.type)) return;   // un seul bloc « produit » et un seul « FAQ »
+    let id = n.id; let k = 2; while (vus[id]) id = n.id + '-' + (k++);
+    vus[id] = true; l.push({ ...n, id, _i: i });
+  });
+  l.sort((a, b) => a.ordre - b.ordre || a._i - b._i);
+  if (!l.some(b => b.type === 'produit')) l.splice(Math.min(2, l.length), 0, { ...normBloc({ id: 'produit', type: 'produit' }), _i: -1 });   // le produit à acheter ne peut jamais manquer
+  return l;
+}
+
 interface Props {
   config: any;   // config brute de la BD — contient config.simple
   siteId?: number;
@@ -236,7 +358,7 @@ function Banniere({ cfg }: { cfg: ConfigBanniere }) {
     <div style={{ background: cfg.couleurFond, color: cfg.couleurTexte, padding: '10px 20px', textAlign: 'center', fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
       <span>{cfg.texte}</span>
       {cfg.lien && cfg.labelLien && (
-        <a href={cfg.lien} style={{ color: cfg.couleurTexte, fontWeight: 700, textDecoration: 'underline', fontSize: 13 }}>{cfg.labelLien} →</a>
+        <a href={urlSure(cfg.lien) || '#'} style={{ color: cfg.couleurTexte, fontWeight: 700, textDecoration: 'underline', fontSize: 13 }}>{cfg.labelLien} →</a>
       )}
     </div>
   );
@@ -381,7 +503,7 @@ function Footer({ cfg, onNaviguer, liensPol, extra }: { cfg: ConfigFooter; onNav
             {reseauxActifs.length > 0 && (
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                 {reseauxActifs.map(([k, url]) => (
-                  <a key={k} href={url as string} target="_blank" rel="noopener noreferrer"
+                  <a key={k} href={urlSure(url) || '#'} target="_blank" rel="noopener noreferrer"
                     style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: cfg.couleurTexte, textDecoration: 'none', fontWeight: 700 }}>
                     {iconeReseau[k] || k[0].toUpperCase()}
                   </a>
@@ -516,8 +638,11 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
   const resumeAvis = () => { const e = avisProd.etat; return e && e.actif && e.total > 0 && e.afficher_moyenne ? { note: e.moyenne, nb: e.total } : null; };
   const { trackPageView } = useBoutiqueAnalytique(vendeurId, vendeurId > 0 && !configBrut?.__produits_demo__);   // add-on « Analytique » : rien n'est envoyé sans l'add-on, sans la bannière ou sans consentement
   const [faqOuvert, setFaqOuvert]     = useState<number | null>(null);
+  const [blocOuvert, setBlocOuvert]   = useState<Record<string, boolean>>({});   // blocs de la page de vente : vidéo lancée, cartes « + » ouvertes
   const [contactEnvoi, setContactEnvoi] = useState<'idle'|'loading'|'ok'|'err'>('idle');
   const [contactForm, setContactForm] = useState({ nom:'', courriel:'', message:'' });
+  const [contactPiege, setContactPiege] = useState('');   // anti-bot : champ piège du formulaire de contact
+  const debutContact = useRef(Date.now());              // anti-bot : délai minimum avant l'envoi
   const [varianteChoisie, setVarianteChoisie] = useState<Record<string, string>>({});
   const [qteChoisie, setQteChoisie]   = useState(1);
   const [optSel, setOptSel]           = useState<Record<string, string>>({});   // Mono-produit : valeur choisie pour chaque option (Couleur, Taille…)
@@ -652,6 +777,9 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
   }, [acheteur, vendeurId, page, vueCompte]);
 
   useEffect(() => { if (!avisPanier) return; const t = setTimeout(() => setAvisPanier(''), 4000); return () => clearTimeout(t); }, [avisPanier]);
+
+  // Anti-bot du formulaire de contact : le délai se compte depuis l'ouverture de la page Contact
+  useEffect(() => { if (page === 'contact') debutContact.current = Date.now(); }, [page]);
 
   // Anti-bot de l'inscription : champ piège + délai minimum + mouvement de souris
   useEffect(() => {
@@ -801,20 +929,25 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
 
   // ── Envoi formulaire contact ──────────────────────────────────────────────
   const envoyerContact = async () => {
+    const fin = (etat: 'ok' | 'err') => { setContactEnvoi(etat); setTimeout(() => setContactEnvoi('idle'), 4000); };
+    const nom = nettoyerEnvoi(contactForm.nom, 100), courriel = nettoyerEnvoi(contactForm.courriel, 254), message = nettoyerEnvoi(contactForm.message, 5000);
+    if (!nom || !message || !COURRIEL_OK.test(courriel)) { fin('err'); return; }
+    if (contactPiege) { setContactForm({ nom: '', courriel: '', message: '' }); fin('ok'); return; }   // champ piège rempli = robot : on fait semblant que c'est envoyé
+    const duree = Date.now() - debutContact.current;
+    if (duree < 3000) { fin('err'); return; }   // trop rapide pour un humain
     setContactEnvoi('loading');
     try {
       const res = await fetch(`${API_BASE}/contact/vendeur/${vendeurId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(contactForm),
+        body: JSON.stringify({ nom, courriel, message, website: '', duree_ms: duree }),
       });
       if (!res.ok) throw new Error();
-      setContactEnvoi('ok');
       setContactForm({ nom: '', courriel: '', message: '' });
+      fin('ok');
     } catch {
-      setContactEnvoi('err');
+      fin('err');
     }
-    setTimeout(() => setContactEnvoi('idle'), 4000);
   };
 
   // ── Styles communs ────────────────────────────────────────────────────────
@@ -1235,7 +1368,7 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
 
 
   // ══════════════════════════════════════════════════════════════════════════
-  // MONO-PRODUIT — PAGE DE VENTE (tout sur une page : accroche, produit à acheter, bénéfices, détails, avis, FAQ, appel final)
+  // MONO-PRODUIT — PAGE DE VENTE (blocs configurables : ordre, visibilité et contenu réglés dans Config Mes pages → config.simple.blocs)
   // Contenu saisi dans Config Mes pages (config.simple.vente / accueil / faq). Aucun contenu inventé sur une vraie boutique :
   // un bloc vide n'est pas affiché ; les exemples n'apparaissent qu'en démonstration.
   // ══════════════════════════════════════════════════════════════════════════
@@ -1243,20 +1376,7 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
     const rv: any = (rawSimplisse as any).vente || {};
     const demoV = !!configBrut?.__produits_demo__;
     const p = produitActif;
-    const t = (cle: string, defaut: string) => (typeof rv[cle] === 'string' && rv[cle].trim()) ? rv[cle].trim() : defaut;
-    const liste = (cle: string, ex: any[], ok: (x: any) => boolean) => { const l = (Array.isArray(rv[cle]) ? rv[cle] : []).filter((x: any) => x && typeof x === 'object' && ok(x)); return l.length > 0 ? l : (demoV ? ex : []); };
-    const benefices = liste('benefices', VENTE_DEMO.benefices, x => !!(x.titre || x.desc));
-    const details = liste('details', VENTE_DEMO.details, x => !!(x.titre || x.texte));
-    const saisiAvis = (Array.isArray(cfg.accueil.temoignages) ? cfg.accueil.temoignages : []).filter(x => x && typeof x.texte === 'string' && x.texte.trim());
-    const avis = saisiAvis.length > 0 ? saisiAvis : (demoV ? VENTE_DEMO.avis : []);
-    const saisiFaq = (Array.isArray((rawSimplisse as any).faq?.items) ? (rawSimplisse as any).faq.items : []).filter((x: any) => x && x.question && x.reponse);
-    const faq = saisiFaq.length > 0 ? saisiFaq : (demoV ? VENTE_DEMO.faq : []);
-    const avantages = (Array.isArray(cfg.accueil.avantages) ? cfg.accueil.avantages : []).filter(a => a && (a.titre || a.desc));
-    const confiance = avantages.length > 0 ? avantages : (demoV ? [{ ico: '🚚', titre: 'Livraison rapide', desc: 'Exemple' }, { ico: '🔒', titre: 'Paiement sécurisé', desc: 'Stripe ou PayPal' }, { ico: '🔄', titre: 'Retours faciles', desc: 'Exemple' }] : []);
     const allerAcheter = () => { const el = document.getElementById('acheter'); if (el) el.scrollIntoView({ behavior: 'smooth' }); };
-    const photoHero = (typeof rv.heroPhoto === 'string' && /^https?:\/\//i.test(rv.heroPhoto)) ? rv.heroPhoto : (p ? (p.photo_principale || '') : '');
-    const lbl: React.CSSProperties = { fontSize: 12, color: cp, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 };
-    const titreSec = (cle: string, def: string) => <h2 style={{ fontSize: isMobile ? 24 : 32, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{t(cle, def)}</h2>;
     if (!p) return (
       <div style={{ maxWidth: 640, margin: '0 auto', padding: '96px 24px', textAlign: 'center' }}>
         <div style={{ fontSize: 56, marginBottom: 14 }}>📦</div>
@@ -1264,132 +1384,366 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
         <p style={{ fontSize: 15, color: cs }}>Revenez très bientôt.</p>
       </div>
     );
+    const blocs = normBlocs((rawSimplisse as any).blocs, rv, cfg.accueil, demoV);
     const enPromo = p.prix_promo && p.prix_promo < p.prix;
     const vars = (p.variantes || []).filter((v: any) => v && !Array.isArray(v.valeurs));
     const prixBas = (() => { const base = enPromo ? p.prix_promo! : p.prix; const pv = vars.map((v: any) => (v.prix !== null && v.prix !== undefined && v.prix !== '' ? Number(v.prix) : base)).filter((n: number) => n >= 0); return pv.length ? Math.min(base, ...pv) : base; })();
     const resume = resumeAvis();
-    return (
-      <div>
-        {(cfg.accueil.banniere && cfg.accueil.banniere.actif) && <Banniere cfg={cfg.accueil.banniere} />}
+    const premierHero = blocs.findIndex((b: any) => b.type === 'hero' && b.actif);
+    const pad = isMobile ? '48px 20px' : '72px 24px';
+    const theme = (b: any) => {
+      const f = b.fond === 'auto' ? FOND_DEFAUT_BLOC[b.type] : b.fond;
+      if (f === 'sombre')  return { bg: '#111827', fg: '#ffffff', fg2: 'rgba(255,255,255,0.72)', card: 'rgba(255,255,255,0.06)', bord: 'rgba(255,255,255,0.16)', accent: '#ffffff', sombre: true };
+      if (f === 'couleur') return { bg: cp, fg: '#ffffff', fg2: 'rgba(255,255,255,0.85)', card: 'rgba(255,255,255,0.12)', bord: 'rgba(255,255,255,0.3)', accent: '#ffffff', sombre: true };
+      if (f === 'gris')    return { bg: '#f8fafc', fg: '#1a1a1a', fg2: '#555555', card: '#ffffff', bord: '#e5e7eb', accent: cp, sombre: false };
+      return { bg: 'transparent', fg: '#1a1a1a', fg2: '#555555', card: '#ffffff', bord: '#e5e7eb', accent: cp, sombre: false };
+    };
+    const entete = (b: any, th: any, mb = 36) => (b.surtitre || b.titre) ? (
+      <div style={{ textAlign: 'center', marginBottom: mb }}>
+        {b.surtitre && <div style={{ fontSize: 12, color: th.accent, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>{b.surtitre}</div>}
+        {b.titre && <h2 style={{ fontSize: isMobile ? 24 : 32, fontWeight: 800, color: th.fg, margin: 0, lineHeight: 1.2 }}>{b.titre}</h2>}
+      </div>
+    ) : null;
+    const bouton = (texte: string, lien: string, fond: string, couleur: string) => {
+      if (!texte) return null;
+      const st: React.CSSProperties = { display: 'inline-block', background: fond, color: couleur, border: 'none', borderRadius: 12, padding: '16px 36px', fontSize: 17, fontWeight: 800, cursor: 'pointer', textDecoration: 'none', boxShadow: '0 10px 24px -12px rgba(0,0,0,0.5)' };
+      if (lien) return <a href={lien} target={/^https?:/i.test(lien) ? '_blank' : undefined} rel="noopener noreferrer" style={st}>{texte} →</a>;
+      return <button onClick={allerAcheter} style={st}>{texte} →</button>;
+    };
+    let h1Pris = false;
 
-        {/* 1. Accroche */}
-        {rv.afficherHero !== false && (
-          <section style={{ background: `linear-gradient(135deg, ${cp}0f, ${cp}03)`, borderBottom: '1px solid #e5e7eb' }}>
-            <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '36px 20px' : '72px 24px', display: 'grid', gridTemplateColumns: isMobile || !photoHero ? '1fr' : '1.05fr 1fr', gap: isMobile ? 28 : 56, alignItems: 'center' }}>
-              <div>
-                {t('heroSurtitre', '') && <div style={lbl}>{t('heroSurtitre', '')}</div>}
-                <h1 style={{ fontSize: isMobile ? 32 : 52, fontWeight: 900, color: '#1a1a1a', lineHeight: 1.08, margin: '0 0 16px', letterSpacing: '-0.02em' }}>{t('heroTitre', p.titre)}</h1>
-                {t('heroSousTitre', '') && <p style={{ fontSize: isMobile ? 16 : 19, color: cs, lineHeight: 1.6, margin: '0 0 24px', maxWidth: 520 }}>{t('heroSousTitre', '')}</p>}
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 30, fontWeight: 800, color: '#1a1a1a' }}>{vars.length > 1 && prixBas !== (enPromo ? p.prix_promo! : p.prix) ? 'Dès ' : ''}{prix(prixBas)}</span>
-                  {enPromo && <span style={{ fontSize: 18, color: '#9ca3af', textDecoration: 'line-through' }}>{prix(p.prix)}</span>}
-                  {resume && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#6b7280' }}><EtoilesAvis clair note={resume.note} taille={16} />{resume.note.toFixed(1)} ({resume.nb} avis)</span>}
-                </div>
-                <button onClick={allerAcheter} style={{ background: cp, color: '#fff', border: 'none', borderRadius: 12, padding: '16px 36px', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: `0 10px 24px -10px ${cp}` }}>{t('heroBouton', 'Acheter maintenant')} →</button>
+    const rendreBloc = (b: any, idx: number): React.ReactNode => {
+      const th = theme(b);
+      const sec = (contenu: React.ReactNode, largeur = 1100, padding = pad) => (
+        <section key={b.id} style={{ background: th.bg, color: th.fg, padding, overflowWrap: 'anywhere' }}><div style={{ maxWidth: largeur, margin: '0 auto' }}>{contenu}</div></section>
+      );
+
+      // ── Hero ──
+      if (b.type === 'hero') {
+        const premier = idx === premierHero;
+        const titre = b.titre || (premier ? p.titre : '');
+        const collage = b.disposition === 'collage' ? b.photos.filter((x: string) => x) : [];
+        const photo = (b.disposition === 'photo' || b.disposition === 'fond') ? (b.photo || (premier ? (p.photo_principale || '') : '')) : '';
+        if (!titre && !b.sousTitre && !b.surtitre && !photo && collage.length === 0) return null;
+        const Titre: any = !h1Pris ? 'h1' : 'h2'; h1Pris = true;
+        const fond = b.disposition === 'fond' && !!photo;
+        const couleurTexte = fond ? '#fff' : '#1a1a1a';
+        const couleurSous = fond ? 'rgba(255,255,255,0.85)' : cs;
+        const centre = b.disposition === 'centre' || fond;
+        const avecVisuel = !centre && (!!photo || collage.length > 0);
+        const textes = (
+          <div style={{ textAlign: centre ? 'center' : 'left', maxWidth: centre ? 760 : undefined, margin: centre ? '0 auto' : undefined }}>
+            {b.surtitre && <div style={{ fontSize: 12, color: fond ? '#fff' : cp, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 }}>{b.surtitre}</div>}
+            {titre && <Titre style={{ fontSize: isMobile ? 32 : 52, fontWeight: 900, color: couleurTexte, lineHeight: 1.08, margin: '0 0 16px', letterSpacing: '-0.02em' }}>{titre}</Titre>}
+            {b.sousTitre && <p style={{ fontSize: isMobile ? 16 : 19, color: couleurSous, lineHeight: 1.6, margin: '0 0 24px', maxWidth: centre ? 640 : 520, marginLeft: centre ? 'auto' : undefined, marginRight: centre ? 'auto' : undefined, whiteSpace: 'pre-line' }}>{b.sousTitre}</p>}
+            {b.afficherPrix && (
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap', justifyContent: centre ? 'center' : 'flex-start' }}>
+                <span style={{ fontSize: 30, fontWeight: 800, color: couleurTexte }}>{vars.length > 1 && prixBas !== (enPromo ? p.prix_promo! : p.prix) ? 'Dès ' : ''}{prix(prixBas)}</span>
+                {enPromo && <span style={{ fontSize: 18, color: '#9ca3af', textDecoration: 'line-through' }}>{prix(p.prix)}</span>}
+                {resume && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, color: fond ? '#fff' : '#6b7280' }}><EtoilesAvis clair note={resume.note} taille={16} />{resume.note.toFixed(1)} ({resume.nb} avis)</span>}
               </div>
-              {photoHero && <div style={{ borderRadius: 20, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '1', boxShadow: '0 24px 60px -24px rgba(0,0,0,0.35)' }}><img src={photoHero} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
+            )}
+            {bouton(b.bouton, b.lien, fond ? '#fff' : cp, fond ? cp : '#fff')}
+          </div>
+        );
+        const visuel = collage.length > 0 ? (
+          <div style={{ display: 'grid', gridTemplateColumns: collage.length === 1 ? '1fr' : '1fr 1fr', gridTemplateRows: collage.length === 3 ? '1fr 1fr' : '1fr', gap: 12, aspectRatio: '1' }}>
+            {collage.map((src: string, i: number) => (
+              <div key={i} style={{ borderRadius: 18, overflow: 'hidden', background: '#f3f4f6', gridRow: collage.length === 3 && i === 0 ? '1 / span 2' : undefined, boxShadow: '0 18px 40px -22px rgba(0,0,0,0.4)' }}>
+                <img src={src} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              </div>
+            ))}
+          </div>
+        ) : (photo && !fond ? <div style={{ borderRadius: 20, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '1', boxShadow: '0 24px 60px -24px rgba(0,0,0,0.35)' }}><img src={photo} alt={premier ? p.titre : (titre || '')} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div> : null);
+        return (
+          <section key={b.id} style={{ position: 'relative', overflow: 'hidden', overflowWrap: 'anywhere', background: fond ? '#111827' : `linear-gradient(135deg, ${cp}0f, ${cp}03)`, borderBottom: '1px solid #e5e7eb' }}>
+            {fond && <><img src={photo} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} /><div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)' }} /></>}
+            <div style={{ position: 'relative', maxWidth: 1200, margin: '0 auto', padding: isMobile ? '36px 20px' : (fond ? '110px 24px' : '72px 24px'), display: 'grid', gridTemplateColumns: isMobile || !avecVisuel ? '1fr' : '1.05fr 1fr', gap: isMobile ? 28 : 56, alignItems: 'center' }}>
+              {textes}
+              {avecVisuel && visuel}
             </div>
           </section>
-        )}
+        );
+      }
 
-        {/* 2. Bandeau de confiance */}
-        {rv.afficherConfiance !== false && confiance.length > 0 && (
-          <div style={{ background: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
+      // ── Bandeau de confiance ──
+      if (b.type === 'confiance') {
+        const items = b.items.filter((a: any) => a.titre || a.desc);
+        const liste = items.length > 0 ? items : (demoV ? [{ ico: '🚚', titre: 'Livraison rapide', desc: 'Exemple' }, { ico: '🔒', titre: 'Paiement sécurisé', desc: 'Stripe ou PayPal' }, { ico: '🔄', titre: 'Retours faciles', desc: 'Exemple' }] : []);
+        if (liste.length === 0) return null;
+        return (
+          <div key={b.id} style={{ background: th.bg === 'transparent' ? '#ffffff' : th.bg, color: th.fg, borderBottom: '1px solid #e5e7eb' }}>
             <div style={{ maxWidth: 1200, margin: '0 auto', padding: '18px 24px', display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 44, flexWrap: 'wrap' }}>
-              {confiance.map((a: any, i: number) => (
+              {liste.map((a: any, i: number) => (
                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 160 }}>
                   <span style={{ fontSize: 24 }}>{a.ico}</span>
-                  <div><div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{a.titre}</div><div style={{ fontSize: 12, color: '#888' }}>{a.desc}</div></div>
+                  <div><div style={{ fontSize: 13, fontWeight: 700, color: th.fg }}>{a.titre}</div><div style={{ fontSize: 12, color: th.fg2 }}>{a.desc}</div></div>
                 </div>
               ))}
             </div>
           </div>
-        )}
+        );
+      }
 
-        {/* 3. Le produit : choix des options, quantité, ajout au panier (zone d'achat) */}
-        <div id="acheter">{PageProduit()}</div>
+      // ── Le produit à acheter (choix des options, quantité, panier) ──
+      if (b.type === 'produit') return <div key={b.id} id="acheter">{PageProduit()}</div>;
 
-        {/* 4. Bénéfices */}
-        {rv.afficherBenefices !== false && benefices.length > 0 && (
-          <section style={{ background: '#f8fafc', padding: isMobile ? '48px 20px' : '72px 24px' }}>
-            <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-              <div style={{ textAlign: 'center', marginBottom: 36 }}>{t('beneficesSurtitre', '') && <div style={lbl}>{t('beneficesSurtitre', '')}</div>}{titreSec('beneficesTitre', 'Pourquoi vous allez l\'adorer')}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(benefices.length, 3)},1fr)`, gap: 20 }}>
-                {benefices.map((b: any, i: number) => (
-                  <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '28px 24px' }}>
-                    {b.ico && <div style={{ width: 52, height: 52, borderRadius: 14, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, marginBottom: 16 }}>{b.ico}</div>}
-                    <h3 style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>{b.titre}</h3>
-                    <p style={{ fontSize: 14, color: '#666', lineHeight: 1.7, margin: 0 }}>{b.desc}</p>
-                  </div>
-                ))}
+      // ── Vidéo de présentation (YouTube / Vimeo) ──
+      if (b.type === 'video') {
+        const v = analyserVideo(b.url);
+        if (!v) return null;
+        const lu = !!blocOuvert['v:' + b.id];
+        const src = v.src === 'youtube'
+          ? `https://www.youtube-nocookie.com/embed/${v.id}?autoplay=1&rel=0`
+          : `https://player.vimeo.com/video/${v.id}?autoplay=1${v.h ? '&h=' + v.h : ''}`;
+        return sec(
+          <>
+            {entete(b, th, 24)}
+            {b.texte && <p style={{ fontSize: 16, color: th.fg2, lineHeight: 1.7, textAlign: 'center', maxWidth: 680, margin: '-8px auto 24px', whiteSpace: 'pre-line' }}>{b.texte}</p>}
+            <div style={{ position: 'relative', paddingTop: '56.25%', borderRadius: 16, overflow: 'hidden', background: '#000', boxShadow: '0 24px 60px -28px rgba(0,0,0,0.5)' }}>
+              {lu ? (
+                <iframe src={src} title={b.titre || 'Vidéo de présentation'} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0 }} />
+              ) : (
+                <button onClick={() => setBlocOuvert(o => ({ ...o, ['v:' + b.id]: true }))} aria-label="Lire la vidéo" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 0, padding: 0, cursor: 'pointer', background: 'linear-gradient(135deg,#111827,#374151)' }}>
+                  {v.src === 'youtube' && <img src={`https://i.ytimg.com/vi/${v.id}/hqdefault.jpg`} alt="" loading="lazy" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />}
+                  <span style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 76, height: 76, borderRadius: '50%', background: cp, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+                    <span style={{ width: 0, height: 0, borderTop: '14px solid transparent', borderBottom: '14px solid transparent', borderLeft: '22px solid #fff', marginLeft: 5 }} />
+                  </span>
+                </button>
+              )}
+            </div>
+          </>, 960);
+      }
+
+      // ── Phrase défilante ──
+      if (b.type === 'defilant') {
+        if (!b.texte) return null;
+        const taille = Math.round(b.taille * (isMobile ? 0.6 : 1));
+        const unite = (b.texte.length + b.separateur.length + 4) * taille * (b.majuscules ? 0.7 : 0.58) + b.espacement * b.texte.length;
+        const reps = Math.max(1, Math.min(12, Math.ceil(1800 / Math.max(unite, 60))));
+        const pxParSec = b.vitesse * 25 + 15;
+        const duree = Math.max(4, Math.min(400, Math.round((unite * reps) / pxParSec)));
+        const couleur = b.couleurTexte || (th.sombre ? '#ffffff' : cp);
+        const styleTexte: React.CSSProperties = {
+          fontFamily: POLICES_DEFIL[b.police], fontSize: taille, lineHeight: 1.1, fontWeight: b.gras ? 900 : 400, fontStyle: b.italique ? 'italic' : 'normal',
+          textTransform: b.majuscules ? 'uppercase' : 'none', letterSpacing: `${b.espacement / 20}em`, whiteSpace: 'nowrap', padding: `0 ${Math.round(taille * 0.35)}px`,
+          ...(b.style === 'contour' ? { color: 'transparent', WebkitTextStroke: `${Math.max(1, Math.round(taille / 28))}px ${couleur}` } as React.CSSProperties
+            : b.style === 'degrade' ? { backgroundImage: `linear-gradient(90deg, ${couleur}, ${b.couleur2})`, WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent', WebkitTextFillColor: 'transparent' } as React.CSSProperties
+            : { color: couleur }),
+        };
+        const groupe = (cle: string) => (
+          <div key={cle} aria-hidden="true" style={{ display: 'flex', flexShrink: 0, alignItems: 'center' }}>
+            {Array.from({ length: reps }).map((_, k) => <span key={k} style={{ display: 'inline-flex', alignItems: 'center' }}><span style={styleTexte}>{b.texte}</span><span style={styleTexte}>{b.separateur}</span></span>)}
+          </div>
+        );
+        return (
+          <section key={b.id} aria-label={b.texte} style={{ background: th.bg, overflow: 'hidden', padding: `${Math.round(taille * 0.3)}px 0`, transform: b.incline ? 'rotate(-1.5deg)' : undefined, margin: b.incline ? '24px -20px' : undefined }}>
+            <style>{`@keyframes mono-defil-g{from{transform:translateX(0)}to{transform:translateX(-50%)}}@keyframes mono-defil-d{from{transform:translateX(-50%)}to{transform:translateX(0)}}.mono-defil-pause:hover .mono-defil-piste{animation-play-state:paused}@media (prefers-reduced-motion:reduce){.mono-defil-piste{animation:none!important}}`}</style>
+            <div className={b.pauseSurvol ? 'mono-defil-pause' : undefined}>
+              <div className="mono-defil-piste" style={{ display: 'flex', width: 'max-content', animation: `${b.direction === 'droite' ? 'mono-defil-d' : 'mono-defil-g'} ${duree}s linear infinite` }}>
+                {groupe('a')}{groupe('b')}
               </div>
             </div>
           </section>
-        )}
+        );
+      }
 
-        {/* 5. Détails : sections texte / photo en alternance */}
-        {rv.afficherDetails !== false && details.length > 0 && (
-          <section style={{ padding: isMobile ? '48px 20px' : '72px 24px' }}>
-            <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: isMobile ? 40 : 72 }}>
-              {details.map((d: any, i: number) => { const photo = /^https?:\/\//i.test(d.photo || '') ? d.photo : ''; return (
-                <div key={i} style={{ display: 'grid', gridTemplateColumns: isMobile || !photo ? '1fr' : '1fr 1fr', gap: isMobile ? 20 : 56, alignItems: 'center' }}>
-                  <div style={{ order: !isMobile && i % 2 === 1 ? 2 : 1 }}>
-                    <h2 style={{ fontSize: isMobile ? 24 : 32, fontWeight: 800, color: '#1a1a1a', margin: '0 0 14px', lineHeight: 1.2 }}>{d.titre}</h2>
-                    <p style={{ fontSize: 16, color: '#555', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-line' }}>{d.texte}</p>
-                  </div>
-                  {photo && <div style={{ order: !isMobile && i % 2 === 1 ? 1 : 2, borderRadius: 18, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '4/3' }}><img src={photo} alt={d.titre || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
+      // ── Grande citation ──
+      if (b.type === 'citation') {
+        if (!b.texte) return null;
+        return sec(
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: isMobile ? 56 : 80, lineHeight: 0.6, color: th.accent, opacity: 0.5, fontFamily: 'Georgia, serif', marginBottom: 12 }}>“</div>
+            <p style={{ fontFamily: POLICES_DEFIL[b.police], fontSize: Math.round(b.taille * (isMobile ? 0.68 : 1)), fontWeight: 700, lineHeight: 1.3, color: th.fg, margin: 0, whiteSpace: 'pre-line' }}>{b.texte}</p>
+            {(b.auteur || b.role) && <div style={{ marginTop: 22, fontSize: 14, color: th.fg2 }}>{b.auteur && <strong style={{ color: th.fg }}>{b.auteur}</strong>}{b.auteur && b.role ? ' — ' : ''}{b.role}</div>}
+          </div>, 900, isMobile ? '56px 20px' : '88px 24px');
+      }
+
+      // ── Piliers / valeurs : cartes photo + titre + « + » ──
+      if (b.type === 'piliers') {
+        const items = b.items.filter((x: any) => x.titre || x.texte || x.photo);
+        if (items.length === 0) return null;
+        const cols = isMobile ? 1 : Math.min(b.colonnes, items.length > 1 ? items.length : 1);
+        return sec(
+          <>
+            {entete(b, th)}
+            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${cols},1fr)`, gap: 20, alignItems: 'start' }}>
+              {items.map((it: any, i: number) => { const cle = 'p:' + b.id + ':' + i; const ouvert = !!blocOuvert[cle]; return (
+                <div key={i} style={{ background: th.card, border: `1px solid ${th.bord}`, borderRadius: 18, overflow: 'hidden' }}>
+                  {it.photo && <div style={{ aspectRatio: '4/3', background: '#e5e7eb' }}><img src={it.photo} alt={it.titre || ''} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /></div>}
+                  <button onClick={() => it.texte && setBlocOuvert(o => ({ ...o, [cle]: !o[cle] }))} aria-expanded={it.texte ? ouvert : undefined} disabled={!it.texte}
+                    style={{ width: '100%', background: 'none', border: 'none', padding: '18px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, cursor: it.texte ? 'pointer' : 'default', textAlign: 'left', color: th.fg }}>
+                    <span style={{ fontSize: 18, fontWeight: 800, lineHeight: 1.3 }}>{it.titre}</span>
+                    {it.texte && <span style={{ width: 34, height: 34, borderRadius: '50%', border: `1.5px solid ${th.bord}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: th.accent, flexShrink: 0, transition: 'transform .2s', transform: ouvert ? 'rotate(45deg)' : 'none' }}>+</span>}
+                  </button>
+                  {ouvert && it.texte && <div style={{ padding: '0 20px 20px', fontSize: 15, color: th.fg2, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{it.texte}</div>}
                 </div>
               ); })}
             </div>
-          </section>
-        )}
+          </>);
+      }
 
-        {/* 6. Avis des clients */}
-        {rv.afficherAvis !== false && avis.length > 0 && (
-          <section style={{ background: '#f8fafc', padding: isMobile ? '48px 20px' : '72px 24px' }}>
-            <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-              <div style={{ textAlign: 'center', marginBottom: 32 }}>{titreSec('avisTitre', 'Ce que disent nos clients')}</div>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(avis.length, 3)},1fr)`, gap: 20 }}>
-                {avis.map((a: any, i: number) => (
-                  <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '24px' }}>
-                    <div style={{ color: '#f59e0b', fontSize: 16, marginBottom: 10 }}>{'★'.repeat(Math.max(1, Math.min(5, Number(a.note) || 5)))}</div>
-                    <p style={{ fontSize: 15, color: '#444', lineHeight: 1.7, margin: '0 0 14px' }}>« {a.texte} »</p>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{a.auteur}</div>
-                  </div>
-                ))}
-              </div>
+      // ── Chronologie ──
+      if (b.type === 'chronologie') {
+        const items = b.items.filter((x: any) => x.annee || x.titre || x.texte);
+        if (items.length === 0) return null;
+        const contenu = (it: any, droite: boolean) => (
+          <div style={{ paddingBottom: isMobile ? 36 : 48, textAlign: droite ? 'right' : 'left' }}>
+            {it.annee && <div style={{ fontSize: isMobile ? 32 : 44, fontWeight: 900, color: th.fg, lineHeight: 1, marginBottom: 10, letterSpacing: '-0.02em' }}>{it.annee}</div>}
+            {it.titre && <div style={{ fontSize: 18, fontWeight: 800, color: th.fg, marginBottom: 6 }}>{it.titre}</div>}
+            {it.texte && <p style={{ fontSize: 15, color: th.fg2, lineHeight: 1.7, margin: 0, whiteSpace: 'pre-line' }}>{it.texte}</p>}
+            {it.photo && <img src={it.photo} alt={it.titre || ''} loading="lazy" style={{ width: '100%', maxWidth: 360, borderRadius: 14, marginTop: 14, display: 'block', marginLeft: droite ? 'auto' : 0 }} />}
+          </div>
+        );
+        const rail = (dernier: boolean) => (
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: '50%', top: 0, bottom: dernier ? 'auto' : 0, height: dernier ? 14 : undefined, width: 2, marginLeft: -1, background: th.bord }} />
+            <span style={{ position: 'absolute', left: '50%', top: 6, width: 14, height: 14, marginLeft: -7, borderRadius: '50%', background: th.accent, boxShadow: `0 0 0 4px ${th.bg === 'transparent' ? '#fff' : th.bg}` }} />
+          </div>
+        );
+        return sec(
+          <>
+            {entete(b, th, 44)}
+            <div>
+              {items.map((it: any, i: number) => {
+                const dernier = i === items.length - 1;
+                if (isMobile) return <div key={i} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 12 }}>{rail(dernier)}{contenu(it, false)}</div>;
+                const gauche = i % 2 === 0;
+                return <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 48px 1fr', gap: 24 }}><div>{gauche ? contenu(it, true) : null}</div>{rail(dernier)}<div>{!gauche ? contenu(it, false) : null}</div></div>;
+              })}
             </div>
-          </section>
-        )}
+          </>, 960);
+      }
 
-        {/* 7. Questions fréquentes */}
-        {rv.afficherFaq !== false && faq.length > 0 && (
-          <section style={{ padding: isMobile ? '48px 20px' : '72px 24px' }}>
-            <div style={{ maxWidth: 780, margin: '0 auto' }}>
-              <div style={{ textAlign: 'center', marginBottom: 28 }}>{titreSec('faqTitre', 'Questions fréquentes')}</div>
-              {faq.map((item: any, i: number) => (
-                <div key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                  <button onClick={() => setFaqOuvert(faqOuvert === i ? null : i)} style={{ width: '100%', background: 'none', border: 'none', padding: '20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 16, textAlign: 'left' }}>
-                    <span style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.4 }}>{item.question}</span>
-                    <span style={{ fontSize: 22, color: cp, flexShrink: 0, transition: 'transform 0.2s', transform: faqOuvert === i ? 'rotate(45deg)' : 'none' }}>+</span>
-                  </button>
-                  {faqOuvert === i && <div style={{ paddingBottom: 20, fontSize: 15, color: '#555', lineHeight: 1.7 }}>{item.reponse}</div>}
+      // ── Tableau comparatif ──
+      if (b.type === 'comparatif') {
+        const lignes = b.lignes.filter((x: any) => x.critere);
+        if (lignes.length === 0) return null;
+        const cell: React.CSSProperties = { padding: '14px 16px', borderBottom: `1px solid ${th.bord}`, fontSize: 15, textAlign: 'center' };
+        return sec(
+          <>
+            {entete(b, th)}
+            <div style={{ overflowX: 'auto', borderRadius: 16, border: `1px solid ${th.bord}`, background: th.card }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: Math.max(320, 160 + b.colonnes.length * 110) }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...cell, textAlign: 'left', color: th.fg2 }} />
+                    {b.colonnes.map((c: string, i: number) => <th key={i} style={{ ...cell, fontWeight: 800, color: i === 0 ? '#fff' : th.fg, background: i === 0 ? cp : 'transparent' }}>{c}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {lignes.map((l: any, r: number) => (
+                    <tr key={r}>
+                      <td style={{ ...cell, textAlign: 'left', fontWeight: 600, color: th.fg }}>{l.critere}</td>
+                      {l.valeurs.map((ok: boolean, i: number) => <td key={i} style={{ ...cell, background: i === 0 ? `${cp}10` : 'transparent', color: ok ? '#16a34a' : '#dc2626', fontSize: 20, fontWeight: 800 }} aria-label={ok ? 'Oui' : 'Non'}>{ok ? '✓' : '✗'}</td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>, 900);
+      }
+
+      // ── Bénéfices ──
+      if (b.type === 'benefices') {
+        const saisi = b.items.filter((x: any) => x.titre || x.desc);
+        const items = saisi.length > 0 ? saisi : (demoV ? VENTE_DEMO.benefices : []);
+        if (items.length === 0) return null;
+        return sec(
+          <>
+            {entete(b, th)}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(items.length, 3)},1fr)`, gap: 20 }}>
+              {items.map((x: any, i: number) => (
+                <div key={i} style={{ background: th.card, border: `1px solid ${th.bord}`, borderRadius: 16, padding: '28px 24px' }}>
+                  {x.ico && <div style={{ width: 52, height: 52, borderRadius: 14, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, marginBottom: 16 }}>{x.ico}</div>}
+                  <h3 style={{ fontSize: 18, fontWeight: 800, color: th.fg, margin: '0 0 8px' }}>{x.titre}</h3>
+                  <p style={{ fontSize: 14, color: th.fg2, lineHeight: 1.7, margin: 0 }}>{x.desc}</p>
                 </div>
               ))}
             </div>
-          </section>
-        )}
+          </>);
+      }
 
-        {/* 8. Appel final */}
-        {rv.afficherCta !== false && (
-          <section style={{ background: cp, padding: isMobile ? '48px 20px' : '72px 24px', textAlign: 'center' }}>
+      // ── Détails : texte / photo en alternance ──
+      if (b.type === 'details') {
+        const saisi = b.items.filter((x: any) => x.titre || x.texte);
+        const items = saisi.length > 0 ? saisi : (demoV ? VENTE_DEMO.details : []);
+        if (items.length === 0) return null;
+        return sec(
+          <div style={{ display: 'flex', flexDirection: 'column', gap: isMobile ? 40 : 72 }}>
+            {items.map((d: any, i: number) => { const photo = urlSure(d.photo || ''); return (
+              <div key={i} style={{ display: 'grid', gridTemplateColumns: isMobile || !photo ? '1fr' : '1fr 1fr', gap: isMobile ? 20 : 56, alignItems: 'center' }}>
+                <div style={{ order: !isMobile && i % 2 === 1 ? 2 : 1 }}>
+                  <h2 style={{ fontSize: isMobile ? 24 : 32, fontWeight: 800, color: th.fg, margin: '0 0 14px', lineHeight: 1.2 }}>{d.titre}</h2>
+                  <p style={{ fontSize: 16, color: th.fg2, lineHeight: 1.8, margin: 0, whiteSpace: 'pre-line' }}>{d.texte}</p>
+                </div>
+                {photo && <div style={{ order: !isMobile && i % 2 === 1 ? 1 : 2, borderRadius: 18, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '4/3' }}><img src={photo} alt={d.titre || ''} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
+              </div>
+            ); })}
+          </div>);
+      }
+
+      // ── Avis des clients ──
+      if (b.type === 'avis') {
+        const saisi = b.items.filter((x: any) => x.texte);
+        const items = saisi.length > 0 ? saisi : (demoV ? VENTE_DEMO.avis : []);
+        if (items.length === 0) return null;
+        return sec(
+          <>
+            {entete(b, th, 32)}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(items.length, 3)},1fr)`, gap: 20 }}>
+              {items.map((a: any, i: number) => (
+                <div key={i} style={{ background: th.card, border: `1px solid ${th.bord}`, borderRadius: 16, padding: '24px' }}>
+                  <div style={{ color: '#f59e0b', fontSize: 16, marginBottom: 10 }}>{'★'.repeat(Math.max(1, Math.min(5, Number(a.note) || 5)))}</div>
+                  <p style={{ fontSize: 15, color: th.fg2, lineHeight: 1.7, margin: '0 0 14px' }}>« {a.texte} »</p>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: th.fg }}>{a.auteur}</div>
+                </div>
+              ))}
+            </div>
+          </>);
+      }
+
+      // ── Questions fréquentes (les questions s'écrivent dans l'onglet FAQ) ──
+      if (b.type === 'faq') {
+        const saisi = (Array.isArray((rawSimplisse as any).faq?.items) ? (rawSimplisse as any).faq.items : []).filter((x: any) => x && x.question && x.reponse).slice(0, 30).map((x: any) => ({ question: limiterSaisie(x.question, 200), reponse: limiterSaisie(x.reponse, 2000) }));
+        const items = saisi.length > 0 ? saisi : (demoV ? VENTE_DEMO.faq : []);
+        if (items.length === 0) return null;
+        return sec(
+          <>
+            {entete(b, th, 28)}
+            {items.map((item: any, i: number) => (
+              <div key={i} style={{ borderBottom: `1px solid ${th.bord}` }}>
+                <button onClick={() => setFaqOuvert(faqOuvert === i ? null : i)} aria-expanded={faqOuvert === i} style={{ width: '100%', background: 'none', border: 'none', padding: '20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 16, textAlign: 'left' }}>
+                  <span style={{ fontSize: 16, fontWeight: 600, color: th.fg, lineHeight: 1.4 }}>{item.question}</span>
+                  <span style={{ fontSize: 22, color: th.accent, flexShrink: 0, transition: 'transform 0.2s', transform: faqOuvert === i ? 'rotate(45deg)' : 'none' }}>+</span>
+                </button>
+                {faqOuvert === i && <div style={{ paddingBottom: 20, fontSize: 15, color: th.fg2, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{item.reponse}</div>}
+              </div>
+            ))}
+          </>, 780);
+      }
+
+      // ── Appel final ──
+      if (b.type === 'cta') {
+        const inverse = th.bg === cp;
+        return (
+          <section key={b.id} style={{ background: th.bg, padding: pad, textAlign: 'center', overflowWrap: 'anywhere' }}>
             <div style={{ maxWidth: 640, margin: '0 auto' }}>
-              <h2 style={{ fontSize: isMobile ? 26 : 36, fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>{t('ctaTitre', p.titre)}</h2>
-              {t('ctaTexte', '') && <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', margin: '0 0 24px', lineHeight: 1.6 }}>{t('ctaTexte', '')}</p>}
-              <button onClick={allerAcheter} style={{ background: '#fff', color: cp, border: 'none', borderRadius: 12, padding: '16px 36px', fontSize: 17, fontWeight: 800, cursor: 'pointer' }}>{t('ctaBouton', 'Acheter maintenant')} →</button>
+              <h2 style={{ fontSize: isMobile ? 26 : 36, fontWeight: 900, color: th.fg, margin: '0 0 12px' }}>{b.titre || p.titre}</h2>
+              {b.texte && <p style={{ fontSize: 16, color: th.fg2, margin: '0 0 24px', lineHeight: 1.6, whiteSpace: 'pre-line' }}>{b.texte}</p>}
+              {bouton(b.bouton, b.lien, inverse ? '#fff' : cp, inverse ? cp : '#fff')}
             </div>
           </section>
-        )}
+        );
+      }
+      return null;
+    };
+
+    return (
+      <div>
+        {(cfg.accueil.banniere && cfg.accueil.banniere.actif) && <Banniere cfg={cfg.accueil.banniere} />}
+
+        {blocs.map((b: any, i: number) => (b.actif || b.type === 'produit') ? rendreBloc(b, i) : null)}
 
         {/* Mobile : barre d'achat collée en bas */}
         {isMobile && (
@@ -1439,10 +1793,10 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
     <div key={cle} style={{ marginBottom: 18 }}>
       <label style={styleLabel}>{libelle}{requis && ' *'}</label>
       {type === 'textarea'
-        ? <textarea value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} placeholder={ph} rows={3} style={{ ...styleInput, resize: 'vertical' }} />
+        ? <textarea value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} placeholder={ph} rows={3} style={{ ...styleInput, resize: 'vertical' }} />
         : type === 'select'
-        ? <select value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} style={styleInput}><option value="">— Choisir —</option>{(extra || []).map((o: string) => <option key={o} value={o}>{o}</option>)}</select>
-        : <input type={type} value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} placeholder={ph} style={styleInput} autoComplete={type === 'password' ? 'new-password' : undefined} />}
+        ? <select value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} style={styleInput}><option value="">— Choisir —</option>{(extra || []).map((o: string) => <option key={o} value={o}>{o}</option>)}</select>
+        : <input type={type} value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} placeholder={ph} style={styleInput} autoComplete={type === 'password' ? 'new-password' : undefined} />}
     </div>
   );
   const caseInsc = (cle: string, contenu: any, requis: boolean) => (
@@ -1494,7 +1848,7 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
             {ins.infolettre.affiche && caseInsc('infolettre', ins.infolettre.texte, false)}
             {ins.age.affiche && caseInsc('age', String(ins.age.texte).replace('{age}', String(ins.age.minimum)), true)}
             {ins.termes.affiche && caseInsc('termes', /^https?:\/\//i.test(ins.termes.url || '')
-              ? <a href={ins.termes.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: cp, textDecoration: 'underline' }}>{ins.termes.texte}</a>
+              ? <a href={urlSure(ins.termes.url) || undefined} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: cp, textDecoration: 'underline' }}>{ins.termes.texte}</a>
               : ins.termes.texte, true)}
             {inscErreur && <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>⚠️ {inscErreur}</div>}
             <button onClick={handleInscription} disabled={inscStatut === 'loading'} style={styleBtn}>{inscStatut === 'loading' ? '⏳ Création en cours…' : ins.boutonTexte}</button>
@@ -1512,8 +1866,8 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
           <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>Accédez à votre panier, vos commandes et votre compte</p>
         </div>
         <div style={carteAuth}>
-          <div style={{ marginBottom: 18 }}><label style={styleLabel}>Courriel</label><input type="email" value={loginForm.email} onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))} placeholder="votre@courriel.com" style={styleInput} /></div>
-          <div style={{ marginBottom: 24 }}><label style={styleLabel}>Mot de passe</label><input type="password" value={loginForm.mdp} onChange={e => setLoginForm(f => ({ ...f, mdp: e.target.value }))} placeholder="••••••••" style={styleInput} onKeyDown={e => e.key === 'Enter' && handleLogin()} /></div>
+          <div style={{ marginBottom: 18 }}><label style={styleLabel}>Courriel</label><input type="email" value={loginForm.email} onChange={e => setLoginForm(f => ({ ...f, email: limiterSaisie(e.target.value, 254) }))} maxLength={254} placeholder="votre@courriel.com" style={styleInput} /></div>
+          <div style={{ marginBottom: 24 }}><label style={styleLabel}>Mot de passe</label><input type="password" value={loginForm.mdp} onChange={e => setLoginForm(f => ({ ...f, mdp: limiterSaisie(e.target.value, 200) }))} maxLength={200} placeholder="••••••••" style={styleInput} onKeyDown={e => e.key === 'Enter' && handleLogin()} /></div>
           {loginErreur && <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>❌ {loginErreur}</div>}
           <button onClick={handleLogin} disabled={loginStatut === 'loading'} style={styleBtn}>{loginStatut === 'loading' ? '⏳ Connexion…' : 'Se connecter →'}</button>
           <div style={{ textAlign: 'center', marginTop: 18 }}><span style={{ fontSize: 13, color: '#6b7280' }}>Pas encore de compte ? </span><button onClick={() => { setInscStatut('idle'); setInscErreur(''); naviguer('inscription'); }} style={{ background: 'none', border: 'none', color: cp, fontSize: 13, cursor: 'pointer', fontWeight: 700 }}>Créer un compte</button></div>
@@ -1733,9 +2087,9 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
               </div>
             )}
           </div>
-          {cfg.contact.afficherCarte && cfg.contact.urlCarte && (
+          {cfg.contact.afficherCarte && urlSure(cfg.contact.urlCarte) && (
             <div style={{ marginTop: 28, borderRadius: 12, overflow: 'hidden', height: 260 }}>
-              <iframe src={cfg.contact.urlCarte} width="100%" height="100%" style={{ border: 0 }} loading="lazy" title="Carte" />
+              <iframe src={urlSure(cfg.contact.urlCarte)} width="100%" height="100%" style={{ border: 0 }} loading="lazy" title="Carte" />
             </div>
           )}
         </div>
@@ -1752,17 +2106,18 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre nom</label>
-                  <input value={contactForm.nom} onChange={e => setContactForm(f => ({ ...f, nom: e.target.value }))} placeholder="Jean Tremblay" style={styleInput} />
+                  <input value={contactForm.nom} onChange={e => setContactForm(f => ({ ...f, nom: limiterSaisie(e.target.value, 100) }))} maxLength={100} placeholder="Jean Tremblay" style={styleInput} />
                 </div>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre courriel</label>
-                  <input type="email" value={contactForm.courriel} onChange={e => setContactForm(f => ({ ...f, courriel: e.target.value }))} placeholder="jean@exemple.ca" style={styleInput} />
+                  <input type="email" value={contactForm.courriel} onChange={e => setContactForm(f => ({ ...f, courriel: limiterSaisie(e.target.value, 254) }))} maxLength={254} placeholder="jean@exemple.ca" style={styleInput} />
                 </div>
                 <div>
                   <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre message</label>
-                  <textarea value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: e.target.value }))} rows={5} placeholder="Décrivez votre question..." style={{ ...styleInput, resize: 'vertical', fontFamily: 'inherit' }} />
+                  <textarea value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: limiterSaisie(e.target.value, 5000) }))} maxLength={5000} rows={5} placeholder="Décrivez votre question..." style={{ ...styleInput, resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
-                {contactEnvoi === 'err' && <p style={{ color: '#ef4444', fontSize: 14, margin: 0 }}>❌ Erreur — veuillez réessayer.</p>}
+                <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" value={contactPiege} onChange={e => setContactPiege(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
+                {contactEnvoi === 'err' && <p style={{ color: '#ef4444', fontSize: 14, margin: 0 }}>❌ Erreur — vérifiez les champs et réessayez.</p>}
                 <button onClick={envoyerContact} disabled={contactEnvoi === 'loading' || !contactForm.nom || !contactForm.courriel || !contactForm.message}
                   style={{ ...styleBtn, opacity: (!contactForm.nom || !contactForm.courriel || !contactForm.message) ? 0.5 : 1 }}>
                   {contactEnvoi === 'loading' ? '⏳ Envoi...' : 'Envoyer le message →'}
