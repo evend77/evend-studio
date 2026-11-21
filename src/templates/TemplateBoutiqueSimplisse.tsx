@@ -39,7 +39,7 @@ interface ConfigAccueil {
 interface ConfigCatalogue {
   titre: string; sousTitre: string; colonnes: 2|3|4;
   afficherFiltres: boolean; afficherRecherche: boolean; afficherPrix: boolean; afficherStock: boolean;
-  hero: ConfigHero; sections: SectionPage[];
+  hero: ConfigHero; banniere: ConfigBanniere; sections: SectionPage[];
 }
 interface ConfigFaq     { titre: string; sousTitre: string; hero: ConfigHero; banniere: ConfigBanniere; items: { question:string; reponse:string }[]; }
 interface ConfigBlog    { titre: string; sousTitre: string; hero: ConfigHero; banniere: ConfigBanniere; afficherAuteur: boolean; afficherDate: boolean; colonnes: 2|3; }
@@ -86,6 +86,7 @@ interface AcheteurUser {
 interface ArticleBlog {
   id: number; titre: string; slug: string; resume?: string; photo?: string;
   auteur?: string; date_publication?: string; categorie?: string;
+  contenu?: string; tags?: string[]; vues?: number;
 }
 
 // ─── Config par défaut (fallback si BD vide) ──────────────────────────────────
@@ -105,7 +106,7 @@ const CFG_DEF: ConfigSimplisse = {
     { id:'newsletter',label:'Infolettre',icone:'📧',actif:false,ordre:9 },
     { id:'blog-apercu',label:'Blog',  icone:'📝', actif:false, ordre:10 },
   ], couleurPrimaire:CP, couleurSecondaire:'#64748b', couleurFondPage:'#ffffff', couleurTexte:'#1a1a1a', police:'Inter' },
-  catalogue: { titre:'Notre catalogue', sousTitre:'Tous nos produits disponibles.', colonnes:3, afficherFiltres:true, afficherRecherche:true, afficherPrix:true, afficherStock:true, hero:HERO_DEF, sections:[] },
+  catalogue: { titre:'Notre catalogue', sousTitre:'Tous nos produits disponibles.', colonnes:3, afficherFiltres:true, afficherRecherche:true, afficherPrix:true, afficherStock:true, banniere:BAN_DEF, hero:HERO_DEF, sections:[] },
   faq: { titre:'Questions fréquentes', sousTitre:'Trouvez rapidement les réponses à vos questions.', hero:HERO_DEF, banniere:BAN_DEF, items:[
     { question:'Quels sont vos délais de livraison ?', reponse:'Les commandes sont expédiées sous 24–48h ouvrables.' },
     { question:'Puis-je retourner un article ?', reponse:'Oui, sous 30 jours suivant la réception.' },
@@ -185,8 +186,17 @@ function Banniere({ cfg }: { cfg: ConfigBanniere }) {
 }
 
 // ─── Composant Hero ───────────────────────────────────────────────────────────
-function Hero({ cfg, cp, onNaviguer }: { cfg: ConfigHero; cp: string; onNaviguer: (p: string) => void }) {
+function Hero({ cfg, cp, onNaviguer, cs }: { cfg: ConfigHero; cp: string; onNaviguer: (p: string) => void; cs?: string }) {
   const isFond = cfg.style === 'image-fond' && cfg.photo;
+  // Lien du bouton (config) : page interne (/catalogue, /blog, /faq, /contact, /offres, /encheres, /connexion…) ou adresse complète (https://…). Vide : catalogue.
+  const allerBouton = () => {
+    const l = String(cfg.boutonLien || '').trim();
+    if (!l) { onNaviguer('catalogue'); return; }
+    if (/^(https?:)?\/\//i.test(l) || /^(mailto|tel):/i.test(l)) { window.location.href = l; return; }
+    const cle = l.replace(/^\/+/, '').split(/[?#]/)[0].toLowerCase();
+    const alias: Record<string, string> = { connexion: 'login', 'a-propos': 'faq' };
+    onNaviguer(alias[cle] || cle || 'catalogue');
+  };
   const isGauche = cfg.style === 'gauche';
   return (
     <div style={{
@@ -203,8 +213,8 @@ function Hero({ cfg, cp, onNaviguer }: { cfg: ConfigHero; cp: string; onNaviguer
           <div style={{ display: 'flex', gap: 40, alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 200 }}>
               <h1 style={{ fontSize: 'clamp(28px,5vw,52px)', fontWeight: 800, color: isFond ? '#fff' : cfg.couleurTitre, lineHeight: 1.15, marginBottom: 16 }}>{cfg.titre}</h1>
-              <p style={{ fontSize: 18, color: isFond ? 'rgba(255,255,255,0.85)' : '#555', marginBottom: 28, lineHeight: 1.6 }}>{cfg.sousTitre}</p>
-              <button onClick={() => onNaviguer('catalogue')} style={{ background: cfg.couleurBouton, color: '#fff', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>{cfg.boutonLabel} →</button>
+              <p style={{ fontSize: 18, color: isFond ? 'rgba(255,255,255,0.85)' : (cs || '#555'), marginBottom: 28, lineHeight: 1.6 }}>{cfg.sousTitre}</p>
+              <button onClick={allerBouton} style={{ background: cfg.couleurBouton, color: '#fff', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>{cfg.boutonLabel} →</button>
             </div>
             <img src={cfg.photo} alt="" style={{ width: 280, height: 220, objectFit: 'cover', borderRadius: 16, flexShrink: 0 }} />
           </div>
@@ -212,8 +222,8 @@ function Hero({ cfg, cp, onNaviguer }: { cfg: ConfigHero; cp: string; onNaviguer
         {(isFond || !cfg.photo || (!isFond && !isGauche)) && (
           <>
             <h1 style={{ fontSize: 'clamp(28px,5vw,56px)', fontWeight: 800, color: isFond ? '#fff' : cfg.couleurTitre, lineHeight: 1.15, marginBottom: 16 }}>{cfg.titre}</h1>
-            <p style={{ fontSize: 18, color: isFond ? 'rgba(255,255,255,0.85)' : '#555', marginBottom: 28, lineHeight: 1.6 }}>{cfg.sousTitre}</p>
-            <button onClick={() => onNaviguer('catalogue')} style={{ background: cfg.couleurBouton, color: '#fff', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>{cfg.boutonLabel} →</button>
+            <p style={{ fontSize: 18, color: isFond ? 'rgba(255,255,255,0.85)' : (cs || '#555'), marginBottom: 28, lineHeight: 1.6 }}>{cfg.sousTitre}</p>
+            <button onClick={allerBouton} style={{ background: cfg.couleurBouton, color: '#fff', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>{cfg.boutonLabel} →</button>
           </>
         )}
       </div>
@@ -396,6 +406,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   };
 
   const cp = cfg.accueil.couleurPrimaire || CP;
+  const cs = cfg.accueil.couleurSecondaire || '#666'; // couleur secondaire (config → Accueil) : sous-titres et textes d'appoint
 
   // ── State navigation interne ──────────────────────────────────────────────
   type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'contact' | 'login' | 'inscription' | 'compte' | 'offres' | 'encheres';
@@ -408,6 +419,10 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   // ── State données ─────────────────────────────────────────────────────────
   const [produits, setProduits]       = useState<Produit[]>([]);
   const [articles, setArticles]       = useState<ArticleBlog[]>([]);
+  const [blogPage, setBlogPage]       = useState(1);
+  const [blogPages, setBlogPages]     = useState(1);
+  const [blogCharge, setBlogCharge]   = useState(false);
+  const [articleErreur, setArticleErreur] = useState(false);
   const [categories, setCategories]   = useState<string[]>([]);
   const [filtreCat, setFiltreCat]     = useState('');
   const [filtreRecherche, setFiltreRecherche] = useState('');
@@ -551,13 +566,17 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     return () => { annule = true; clearInterval(t); };
   }, [page, vendeurId, produitsDemo, versionEncheres]);
 
-  // Charger articles blog
-  useEffect(() => {
-    fetch(`${API_BASE}/blog/vendeur/${vendeurId}?publie=true&limit=20`)
-      .then(r => r.ok ? r.json() : [])
-      .then(data => setArticles(Array.isArray(data) ? data : data.articles || []))
-      .catch(() => {});
-  }, [vendeurId]);
+  // Blog de la boutique (Configuration → Mes blogs) : liste légère et paginée ; l'article complet se charge à son ouverture
+  const versArticle = (x: any): ArticleBlog => ({ id: x.id, titre: x.titre, slug: x.slug, resume: x.extrait || undefined, photo: x.image_couverture || undefined, auteur: x.auteur || undefined, date_publication: x.date_publication || undefined, tags: Array.isArray(x.tags) ? x.tags : [], vues: x.vues });
+  const chargerArticles = (p: number) => {
+    if (!vendeurId) { setBlogCharge(true); return; }
+    fetch(`${API_BASE}/boutique/blog/${vendeurId}?page=${p}&limite=12`).then(r => r.ok ? r.json() : null).then(d => {
+      if (!d || !Array.isArray(d.articles)) return;
+      setBlogPage(d.page || p); setBlogPages(d.pages || 1);
+      setArticles(prev => p === 1 ? d.articles.map(versArticle) : [...prev, ...d.articles.map(versArticle)]);
+    }).catch(() => {}).finally(() => setBlogCharge(true));
+  };
+  useEffect(() => { chargerArticles(1); }, [vendeurId]);
 
   // Compte acheteur = celui du MV (mêmes clés que AppAcheteur)
   useEffect(() => {
@@ -610,9 +629,15 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   };
 
   const voirArticle = (a: ArticleBlog) => {
-    setArticleActif(a);
+    setArticleActif(a); setArticleErreur(false);
     setPage('article');
     window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (a.contenu === undefined && a.slug) {
+      fetch(`${API_BASE}/boutique/blog/${vendeurId}/article/${encodeURIComponent(a.slug)}`).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+        if (!d || !d.article) throw new Error();
+        setArticleActif(cur => cur && cur.id === a.id ? { ...cur, ...versArticle(d.article), contenu: String(d.article.contenu || '') } : cur);
+      }).catch(() => setArticleErreur(true));
+    }
   };
 
   // ── Panier (panier du serveur ; le compte acheteur est obligatoire) ───────
@@ -788,7 +813,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           return <Banniere key={sec.id} cfg={cfg.accueil.banniere} />;
 
         case 'hero':
-          return <Hero key={sec.id} cfg={cfg.accueil.hero} cp={cp} onNaviguer={naviguer} />;
+          return <Hero key={sec.id} cfg={cfg.accueil.hero} cp={cp} onNaviguer={naviguer} cs={cs} />;
 
         case 'avantages':
           return (
@@ -938,13 +963,13 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     const colMap: Record<number, string> = { 2: 'repeat(auto-fill,minmax(300px,1fr))', 3: 'repeat(auto-fill,minmax(220px,1fr))', 4: 'repeat(auto-fill,minmax(180px,1fr))' };
     return (
       <div style={{ minHeight: '60vh' }}>
-        {cfg.catalogue.sections?.find(s => s.id === 'banniere' && s.actif) && <Banniere cfg={cfg.catalogue.sections?.find(s=>s.id==='banniere')?.actif ? BAN_DEF : BAN_DEF} />}
+        {(cfg.catalogue.sections || []).find(x => x.id === 'banniere')?.actif !== false && <Banniere cfg={cfg.catalogue.banniere} />}
 
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
           {/* En-tête */}
           <div style={{ marginBottom: 32 }}>
             <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.catalogue.titre}</h1>
-            {cfg.catalogue.sousTitre && <p style={{ fontSize: 16, color: '#666' }}>{cfg.catalogue.sousTitre}</p>}
+            {cfg.catalogue.sousTitre && <p style={{ fontSize: 16, color: cs }}>{cfg.catalogue.sousTitre}</p>}
           </div>
 
           {/* Filtres */}
@@ -1463,8 +1488,10 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
       <Banniere cfg={cfg.blog.banniere} />
       <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.blog.titre}</h1>
-      {cfg.blog.sousTitre && <p style={{ fontSize: 16, color: '#666', marginBottom: 36 }}>{cfg.blog.sousTitre}</p>}
-      {articles.length === 0
+      {cfg.blog.sousTitre && <p style={{ fontSize: 16, color: cs, marginBottom: 36 }}>{cfg.blog.sousTitre}</p>}
+      {articles.length === 0 && !blogCharge
+        ? <div style={{ textAlign: 'center', padding: '80px 0', color: '#aaa' }}>…</div>
+        : articles.length === 0
         ? <div style={{ textAlign: 'center', padding: '80px 0', color: '#aaa' }}>
             <div style={{ fontSize: 56, marginBottom: 16 }}>📝</div>
             <h2 style={{ fontSize: 20, color: '#555', marginBottom: 8 }}>Aucun article pour l'instant</h2>
@@ -1490,6 +1517,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
             ))}
           </div>
       }
+      {blogPage < blogPages && <div style={{ textAlign: 'center', marginTop: 36 }}><button onClick={() => chargerArticles(blogPage + 1)} style={{ background: 'none', border: `2px solid ${cp}`, color: cp, borderRadius: 10, padding: '12px 32px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Voir plus d'articles</button></div>}
     </div>
   );
 
@@ -1512,9 +1540,13 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           {cfg.blog.afficherDate && a.date_publication && <span>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })}</span>}
         </div>
         {a.resume && <p style={{ fontSize: 18, color: '#555', lineHeight: 1.8, marginBottom: 32, fontStyle: 'italic', borderLeft: `4px solid ${cp}`, paddingLeft: 20 }}>{a.resume}</p>}
-        <div style={{ fontSize: 16, color: '#333', lineHeight: 1.9 }}>
-          <p>Contenu de l'article disponible depuis le gestionnaire de blog.</p>
-        </div>
+        <style>{`.sp-article{font-size:16px;line-height:1.9;color:#333;overflow-wrap:anywhere}.sp-article h2{font-size:24px;font-weight:800;color:#1a1a1a;margin:1.8em 0 .6em;line-height:1.25}.sp-article h3{font-size:19px;font-weight:700;color:${cp};margin:1.5em 0 .5em}.sp-article h4{font-size:16px;font-weight:700;color:#1a1a1a;margin:1.3em 0 .4em}.sp-article p{margin:0 0 1.1em}.sp-article a{color:${cp};text-decoration:underline}.sp-article img{max-width:100%;height:auto;border-radius:12px;margin:14px 0}.sp-article blockquote{border-left:3px solid ${cp};margin:1.4em 0;padding:.4em 1.2em;background:#f8fafc;border-radius:0 8px 8px 0;font-style:italic}.sp-article ul,.sp-article ol{padding-left:1.5em;margin:0 0 1.1em}.sp-article ul{list-style:disc}.sp-article ol{list-style:decimal}.sp-article li{margin-bottom:.4em}.sp-article hr{border:none;border-top:1px solid #e5e7eb;margin:2em 0}.sp-article table{width:100%;border-collapse:collapse;margin:1.4em 0;font-size:14px;display:block;overflow-x:auto}.sp-article th{color:${cp};text-align:left;padding:10px 12px;border-bottom:2px solid #e5e7eb}.sp-article td{padding:9px 12px;border-bottom:1px solid #e5e7eb}.sp-article pre,.sp-article code{background:#f3f4f6;border-radius:6px;padding:2px 6px;font-size:.9em}.sp-article pre{padding:14px;overflow-x:auto}`}</style>
+        {a.contenu !== undefined
+          ? <div className="sp-article" dangerouslySetInnerHTML={{ __html: a.contenu || '<p>Contenu à venir…</p>' }} />
+          : articleErreur
+            ? <p style={{ fontSize: 15, color: '#666', lineHeight: 1.9 }}>Cet article est introuvable ou n'est plus disponible.</p>
+            : <p style={{ fontSize: 15, color: '#999' }}>Chargement…</p>}
+        {(a.tags || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 36 }}>{(a.tags || []).map(t => <span key={t} style={{ fontSize: 12, color: '#666', border: '1px solid #e5e7eb', borderRadius: 20, padding: '4px 12px' }}>#{t}</span>)}</div>}
       </div>
     );
   };
@@ -1526,7 +1558,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     <div style={{ maxWidth: 780, margin: '0 auto', padding: '40px 24px' }}>
       <Banniere cfg={cfg.faq.banniere} />
       <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.faq.titre}</h1>
-      {cfg.faq.sousTitre && <p style={{ fontSize: 16, color: '#666', marginBottom: 40 }}>{cfg.faq.sousTitre}</p>}
+      {cfg.faq.sousTitre && <p style={{ fontSize: 16, color: cs, marginBottom: 40 }}>{cfg.faq.sousTitre}</p>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
         {cfg.faq.items.map((item, i) => (
           <div key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
@@ -1551,7 +1583,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
       <Banniere cfg={cfg.contact.banniere} />
       <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.contact.titre}</h1>
-      {cfg.contact.sousTitre && <p style={{ fontSize: 16, color: '#666', marginBottom: 40 }}>{cfg.contact.sousTitre}</p>}
+      {cfg.contact.sousTitre && <p style={{ fontSize: 16, color: cs, marginBottom: 40 }}>{cfg.contact.sousTitre}</p>}
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 48 }}>
         {/* Coordonnées */}
         <div>

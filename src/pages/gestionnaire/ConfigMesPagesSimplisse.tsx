@@ -48,6 +48,7 @@ interface ConfigCatalogue {
   afficherPrix: boolean;
   afficherStock: boolean;
   hero: ConfigHero;
+  banniere: ConfigBanniere;
   sections: SectionPage[];
 }
 
@@ -267,6 +268,7 @@ const CONFIG_DEFAUT: ConfigSimplisse = {
     afficherPrix:     true,
     afficherStock:    true,
     hero: { ...HERO_DEFAUT, titre: 'Notre catalogue', actif: false } as any,
+    banniere: { ...BANNIERE_DEFAUT },
     sections: SECTIONS_CATALOGUE,
   },
   faq: {
@@ -532,10 +534,11 @@ function ApercuMini({ config, pageCourante }: { config: ConfigSimplisse; pageCou
     : config.contact.hero;
 
   const banniere = pageCourante === 'accueil' ? acc.banniere
-    : pageCourante === 'catalogue' ? { actif: false } as any
+    : pageCourante === 'catalogue' ? config.catalogue.banniere
     : pageCourante === 'faq' ? config.faq.banniere
     : pageCourante === 'blog' ? config.blog.banniere
-    : config.contact.banniere;
+    : pageCourante === 'contact' ? config.contact.banniere
+    : { actif: false } as any; // fiche produit, compte, footer : pas de bannière sur le site
 
   const mini: React.CSSProperties = { fontSize: 9, padding: '3px 7px', borderRadius: 4, textAlign: 'center' };
 
@@ -860,7 +863,7 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
             <Toggle label="Afficher le stock" checked={config.catalogue.afficherStock} onChange={(v: boolean) => setCat({ afficherStock: v })} />
           </S>
           <S titre="Bannière promotionnelle">
-            <EditorBanniere banniere={config.faq.banniere} onChange={b => setFaq({ banniere: b })} />
+            <EditorBanniere banniere={config.catalogue.banniere || BANNIERE_DEFAUT} onChange={b => setCat({ banniere: b })} />
           </S>
           <S titre="Sections de la page">
             <SectionsManager sections={config.catalogue.sections} onChange={s => setCat({ sections: s })} couleur={config.accueil.couleurPrimaire || CP} />
