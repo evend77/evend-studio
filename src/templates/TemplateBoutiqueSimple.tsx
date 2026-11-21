@@ -191,7 +191,8 @@ export * from './TemplateBoutiqueSimpleAncien';
 interface Props {
   config: any;   // config brute de la BD — contient config.simple
   siteId?: number;
-  vendeurId: number;
+  vendeurId?: number;
+  isPreviewMobile?: boolean;   // compatibilité : passée par l'aperçu de la config générique « Modifier mon site » (non utilisée ici)
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -443,7 +444,7 @@ function Footer({ cfg, onNaviguer, liensPol, extra }: { cfg: ConfigFooter; onNav
 }
 
 // ─── Composant principal ──────────────────────────────────────────────────────
-export default function TemplateBoutiqueSimple({ config: configBrut, siteId, vendeurId }: Props) {
+export default function TemplateBoutiqueSimple({ config: configBrut, siteId, vendeurId = 0 }: Props) {
   const mono = true;   // ce template est toujours en mode mono-produit (le code multi-produit hérité reste inactif)
   // Extraire config.simplisse de la BD et merger avec les défauts
   const rawSimplisse = configBrut?.simple || {};   // config du mono-produit : sites.config.simple
@@ -887,235 +888,6 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
       )}
     </nav>
   );
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // PAGE ACCUEIL
-  // ══════════════════════════════════════════════════════════════════════════
-  const PageAccueil = () => {
-    const produitsVedette  = produits.filter((_, i) => i < 4);
-    const produitsNouveaux = produits.filter((_, i) => i < 4);
-    const produitsPromo    = produits.filter(p => p.prix_promo && p.prix_promo < p.prix).slice(0, 4);
-
-    const renderSection = (sec: SectionPage) => {
-      switch (sec.id) {
-        case 'banniere':
-          return <Banniere key={sec.id} cfg={cfg.accueil.banniere} />;
-
-        case 'hero':
-          return <Hero key={sec.id} cfg={cfg.accueil.hero} cp={cp} onNaviguer={naviguer} cs={cs} />;
-
-        case 'avantages': {
-          // Avantages saisis par le gestionnaire (Config → Accueil). Les exemples ne s'affichent qu'en démonstration : jamais de promesse inventée sur une vraie boutique.
-          const avSaisis = (Array.isArray(cfg.accueil.avantages) ? cfg.accueil.avantages : []).filter(a => a && (a.titre || a.desc));
-          const avExemples = [{ ico: '🚚', titre: 'Livraison rapide', desc: '24–48h ouvrables' }, { ico: '🔒', titre: 'Paiement sécurisé', desc: 'Stripe ou PayPal' }, { ico: '🔄', titre: 'Retours faciles', desc: 'Sous 30 jours' }, { ico: '💬', titre: 'Support client', desc: 'Réponse rapide' }];
-          const avListe = avSaisis.length > 0 ? avSaisis : (configBrut?.__produits_demo__ ? avExemples : []);
-          if (avListe.length === 0) return null;
-          return (
-            <div key={sec.id} style={{ background: '#f8fafc', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
-              <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px', display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 40, flexWrap: 'wrap' }}>
-                {avListe.map(({ ico, titre, desc }, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 160 }}>
-                    <span style={{ fontSize: 24 }}>{ico}</span>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{titre}</div>
-                      <div style={{ fontSize: 12, color: '#888' }}>{desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        }
-
-        case 'vedette':
-          if (produitsVedette.length === 0) return null;
-          return (
-            <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>⭐ Produits en vedette</h2>
-                <button onClick={() => naviguer('catalogue')} style={{ background: 'none', border: `2px solid ${cp}`, borderRadius: 8, color: cp, fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '8px 18px' }}>Voir tout →</button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
-                {produitsVedette.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
-              </div>
-            </div>
-          );
-
-        case 'categories':
-          if (categories.length === 0) return null;
-          return (
-            <div key={sec.id} style={{ background: '#f8fafc', padding: '56px 24px' }}>
-              <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 32, textAlign: 'center' }}>Nos catégories</h2>
-                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
-                  {categories.map(cat => (
-                    <button key={cat} onClick={() => { setFiltreCat(cat); naviguer('catalogue'); }}
-                      style={{ background: '#fff', border: `2px solid ${cp}30`, borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, color: '#1a1a1a', cursor: 'pointer', transition: 'all 0.2s' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = cp; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; (e.currentTarget as HTMLButtonElement).style.color = '#1a1a1a'; }}>
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
-
-        case 'nouveautes':
-          if (produitsNouveaux.length === 0) return null;
-          return (
-            <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 24px' }}>
-              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 32 }}>🆕 Nouveautés</h2>
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
-                {produitsNouveaux.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
-              </div>
-            </div>
-          );
-
-        case 'promo':
-          if (produitsPromo.length === 0) return null;
-          return (
-            <div key={sec.id} style={{ background: '#fef2f2', padding: '56px 24px' }}>
-              <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#ef4444', marginBottom: 32 }}>🏷 Offres spéciales</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
-                  {produitsPromo.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
-                </div>
-              </div>
-            </div>
-          );
-
-        case 'temoignages': {
-          // Témoignages saisis par le gestionnaire (Config → Accueil). Les exemples ne s'affichent qu'en démonstration : jamais de faux avis sur une vraie boutique.
-          const saisis = (Array.isArray(cfg.accueil.temoignages) ? cfg.accueil.temoignages : []).filter(t => t && typeof t.texte === 'string' && t.texte.trim());
-          const exemples = [
-            { texte: 'Produits excellents et livraison ultra rapide ! Je recommande à 100%.', auteur: 'Marie L.', note: 5 },
-            { texte: 'Service client impeccable. Mes commandes arrivent toujours en parfait état.', auteur: 'Jean-Pierre M.', note: 5 },
-            { texte: 'Qualité au rendez-vous, prix compétitifs. Ma boutique préférée!', auteur: 'Sophie R.', note: 5 },
-          ];
-          const liste = saisis.length > 0 ? saisis : (configBrut?.__produits_demo__ ? exemples : []);
-          if (liste.length === 0) return null;
-          return (
-            <div key={sec.id} style={{ background: '#f8fafc', padding: '56px 24px' }}>
-              <div style={{ maxWidth: 1200, margin: '0 auto', textAlign: 'center' }}>
-                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 40 }}>💬 Ce que disent nos clients</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 24 }}>
-                  {liste.slice(0, 6).map((t, i) => (
-                    <div key={i} style={{ background: '#fff', borderRadius: 16, padding: '28px', border: '1px solid #e5e7eb', textAlign: 'left' }}>
-                      <div style={{ color: '#f59e0b', fontSize: 18, marginBottom: 12 }}>{'★'.repeat(Math.max(1, Math.min(5, Math.round(Number(t.note) || 5))))}</div>
-                      <p style={{ fontSize: 15, color: '#555', lineHeight: 1.7, marginBottom: 16, fontStyle: 'italic' }}>"{t.texte}"</p>
-                      {t.auteur && <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>— {t.auteur}</p>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          );
-        }
-
-        case 'newsletter':
-          // Vraie inscription = add-on « Infolettre » (rangée du pied de page). Ce bloc d'exemple (sans envoi) ne sert qu'en démonstration.
-          if (!configBrut?.__produits_demo__) return null;
-          return (
-            <div key={sec.id} style={{ background: cp, padding: '56px 24px' }}>
-              <div style={{ maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
-                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#fff', marginBottom: 12 }}>📧 Restez informé</h2>
-                <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.8)', marginBottom: 28 }}>Recevez nos offres exclusives et nouveautés en avant-première.</p>
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-                  <input type="email" placeholder="votre@courriel.com" style={{ flex: 1, minWidth: 220, padding: '13px 18px', borderRadius: 10, border: 'none', fontSize: 15, outline: 'none' }} />
-                  <button style={{ background: '#fff', color: cp, border: 'none', borderRadius: 10, padding: '13px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>S'inscrire →</button>
-                </div>
-              </div>
-            </div>
-          );
-
-        case 'blog-apercu':
-          if (articles.length === 0) return null;
-          return (
-            <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
-                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>📝 Notre blogue</h2>
-                <button onClick={() => naviguer('blog')} style={{ background: 'none', border: `2px solid ${cp}`, borderRadius: 8, color: cp, fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '8px 18px' }}>Tous les articles →</button>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 20 }}>
-                {articles.slice(0, 3).map(a => (
-                  <div key={a.id} onClick={() => voirArticle(a)} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden', cursor: 'pointer' }}>
-                    {a.photo && <img src={a.photo} alt="" style={{ width: '100%', height: 180, objectFit: 'cover' }} />}
-                    <div style={{ padding: 20 }}>
-                      <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 8, lineHeight: 1.4 }}>{a.titre}</h3>
-                      {a.resume && <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6 }}>{a.resume}</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-
-        default:
-          return null;
-      }
-    };
-
-    return <>{sectionsAccueil.map(renderSection)}</>;
-  };
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // PAGE CATALOGUE
-  // ══════════════════════════════════════════════════════════════════════════
-  const PageCatalogue = () => {
-    const colMap: Record<number, string> = { 2: 'repeat(auto-fill,minmax(300px,1fr))', 3: 'repeat(auto-fill,minmax(220px,1fr))', 4: 'repeat(auto-fill,minmax(180px,1fr))' };
-    return (
-      <div style={{ minHeight: '60vh' }}>
-        {(cfg.catalogue.sections || []).find(x => x.id === 'banniere')?.actif !== false && <Banniere cfg={cfg.catalogue.banniere} />}
-
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
-          {/* En-tête */}
-          <div style={{ marginBottom: 32 }}>
-            <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.catalogue.titre}</h1>
-            {cfg.catalogue.sousTitre && <p style={{ fontSize: 16, color: cs }}>{cfg.catalogue.sousTitre}</p>}
-          </div>
-
-          {/* Filtres */}
-          {(cfg.catalogue.afficherRecherche || cfg.catalogue.afficherFiltres) && (
-            <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap', alignItems: 'center' }}>
-              {cfg.catalogue.afficherRecherche && (
-                <input type="text" placeholder="🔍 Rechercher un produit..." value={filtreRecherche} onChange={e => setFiltreRecherche(e.target.value)}
-                  style={{ ...styleInput, maxWidth: 320, flex: 1 }} />
-              )}
-              {cfg.catalogue.afficherFiltres && categories.length > 0 && (
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button onClick={() => setFiltreCat('')}
-                    style={{ background: !filtreCat ? cp : '#f3f4f6', color: !filtreCat ? '#fff' : '#555', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                    Tous
-                  </button>
-                  {categories.map(cat => (
-                    <button key={cat} onClick={() => setFiltreCat(cat === filtreCat ? '' : cat)}
-                      style={{ background: filtreCat === cat ? cp : '#f3f4f6', color: filtreCat === cat ? '#fff' : '#555', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Résultats */}
-          <div style={{ marginBottom: 12, fontSize: 13, color: '#888' }}>{produitsFiltres.length} produit(s)</div>
-
-          {produitsFiltres.length === 0
-            ? <div style={{ textAlign: 'center', padding: '80px 0', color: '#aaa' }}>
-                <div style={{ fontSize: 56, marginBottom: 16 }}>📦</div>
-                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#555', marginBottom: 8 }}>Aucun produit trouvé</h2>
-                <p>Essayez de modifier vos filtres.</p>
-              </div>
-            : <div style={{ display: 'grid', gridTemplateColumns: colMap[cfg.catalogue.colonnes] || colMap[3], gap: 20 }}>
-                {produitsFiltres.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
-              </div>
-          }
-        </div>
-      </div>
-    );
-  };
 
   // ══════════════════════════════════════════════════════════════════════════
   // PAGE FICHE PRODUIT — config dynamique via fp (ConfigFicheProduit)
@@ -1634,62 +1406,6 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
   // ══════════════════════════════════════════════════════════════════════════
   // PAGE BLOG
   // ══════════════════════════════════════════════════════════════════════════
-  // ══════════════════════════════════════════════════════════════════════════
-  // OFFRES DU JOUR / ENCHÈRES (thème clair)
-  // ══════════════════════════════════════════════════════════════════════════
-  const colsGrille = isMobile ? 'repeat(2,1fr)' : `repeat(${Math.min(4, Math.max(2, Number(cfg.catalogue.colonnes) || 3))},1fr)`;
-  const lienReessayer: React.CSSProperties = { background: 'none', border: 'none', color: cp, textDecoration: 'underline', cursor: 'pointer', fontSize: 'inherit' };
-  const PageEncheres = () => (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
-      <div style={{ marginBottom: 28 }}>
-        <h1 style={{ fontSize: isMobile ? 26 : 34, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>🔨 Enchères</h1>
-        <p style={{ margin: 0, color: '#6b7280', fontSize: 15 }}>Les enchères qui se terminent bientôt sont en premier. Une mise est un engagement d'achat.</p>
-      </div>
-      {!encheresCharge ? <p style={{ color: '#6b7280' }}>Chargement…</p>
-        : encheresErr ? <p style={{ color: '#b91c1c' }}>Impossible de charger les enchères. <button onClick={() => setVersionEncheres(v => v + 1)} style={lienReessayer}>Réessayer</button></p>
-        : encheresListe.length === 0
-          ? <div style={{ textAlign: 'center', padding: '70px 0', color: '#6b7280' }}><div style={{ fontSize: 52, marginBottom: 14 }}>🔨</div><h3 style={{ fontWeight: 600, marginBottom: 16 }}>Aucune enchère en cours pour le moment. Revenez bientôt !</h3><button onClick={() => naviguer('catalogue')} style={{ ...styleBtn, width: 'auto', padding: '12px 28px' }}>Voir le catalogue</button></div>
-          : <div style={{ display: 'grid', gridTemplateColumns: colsGrille, gap: isMobile ? 12 : 20 }}>
-              {encheresListe.map((e: any) => (
-                <div key={e.id} onClick={() => { const pr = encheresProduits[Number(e.produit_id)]; if (pr) voirProduit(pr); else { const dans = produits.find(x => Number(x.id) === Number(e.produit_id)); if (dans) voirProduit(dans); } }} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', cursor: 'pointer' }}>
-                  <div style={{ aspectRatio: '1/1', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                    {e.image_url ? <img src={e.image_url} alt={e.titre} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 44, opacity: 0.3 }}>🔨</span>}
-                  </div>
-                  <div style={{ padding: '12px 14px' }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.titre}</div>
-                    <div style={{ fontSize: 20, fontWeight: 900, color: cp }}>{prix(e.mise_actuelle !== null ? e.mise_actuelle : e.prix_depart)}</div>
-                    <div style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 6px' }}>{e.mise_actuelle === null ? 'Prix de départ' : `${e.nb_mises} mise${e.nb_mises > 1 ? 's' : ''}`}{e.reserve && e.reserve.atteinte ? ' · réserve atteinte' : ''}</div>
-                    <div style={{ fontSize: 12 }}><ResteEnchere fin={e.date_fin} decalage={encheresDec} couleur={cp} /></div>
-                  </div>
-                </div>))}
-            </div>}
-    </div>
-  );
-  const PageOffres = () => {
-    const pages = Math.max(1, Math.ceil(offresTotal / OFFRES_PAR_PAGE));
-    const btnPg = (actif: boolean, off = false): React.CSSProperties => ({ padding: '8px 14px', borderRadius: 8, border: `1px solid ${actif ? cp : '#d1d5db'}`, background: actif ? cp : '#fff', color: actif ? '#fff' : off ? '#9ca3af' : '#374151', fontWeight: actif ? 800 : 500, fontSize: 13, cursor: off ? 'not-allowed' : 'pointer', opacity: off ? 0.5 : 1 });
-    return (
-      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
-        <div style={{ marginBottom: 28 }}>
-          <h1 style={{ fontSize: isMobile ? 26 : 34, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>🔥 Offres du jour</h1>
-          <p style={{ margin: 0, color: '#6b7280', fontSize: 15 }}>Les offres qui se terminent bientôt sont en premier. Le prix revient à la normale dès la fin du compte à rebours.</p>
-        </div>
-        {!offresCharge ? <p style={{ color: '#6b7280' }}>Chargement…</p>
-          : offresErr ? <p style={{ color: '#b91c1c' }}>Impossible de charger les offres. <button onClick={() => setVersionOffres(v => v + 1)} style={lienReessayer}>Réessayer</button></p>
-          : offresListe.length === 0
-            ? <div style={{ textAlign: 'center', padding: '70px 0', color: '#6b7280' }}><div style={{ fontSize: 52, marginBottom: 14 }}>🔥</div><h3 style={{ fontWeight: 600, marginBottom: 16 }}>Aucune offre du jour pour le moment. Revenez bientôt !</h3><button onClick={() => naviguer('catalogue')} style={{ ...styleBtn, width: 'auto', padding: '12px 28px' }}>Voir le catalogue →</button></div>
-            : <>
-              <div style={{ display: 'grid', gridTemplateColumns: colsGrille, gap: isMobile ? 12 : 20 }}>{offresListe.map(pr => <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(pr)} />)}</div>
-              {pages > 1 && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 32, flexWrap: 'wrap' }}>
-                <button disabled={offresPg <= 1} onClick={() => { setOffresPg(offresPg - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(false, offresPg <= 1)}>← Préc.</button>
-                {Array.from({ length: pages }, (_, k) => k + 1).filter(n => n === 1 || n === pages || Math.abs(n - offresPg) <= 1).map((n, i, a) => (<span key={n} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>{i > 0 && n - a[i - 1] > 1 && <span style={{ color: '#9ca3af' }}>…</span>}<button onClick={() => { setOffresPg(n); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(n === offresPg)}>{n}</button></span>))}
-                <button disabled={offresPg >= pages} onClick={() => { setOffresPg(offresPg + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(false, offresPg >= pages)}>Suiv. →</button>
-              </div>}
-            </>}
-      </div>
-    );
-  };
-
   // PAGE POLITIQUE (pages légales rédigées dans Configuration → Mes politiques)
   const PagePolitique = () => {
     const contenu = politique && politique.contenu.trim() ? htmlSur(politique.contenu) : '';
@@ -2080,17 +1796,13 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
       {avisPanier && <div role="status" style={{ position: 'fixed', top: 76, left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: '#fff', border: `1px solid ${cp}`, color: '#1a1a1a', padding: '12px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 30px rgba(0,0,0,0.18)', maxWidth: '92vw' }}>{avisPanier}</div>}
 
       <main style={{ flex: 1 }}>
-        {page === 'accueil'   && (mono ? PageVente() : <PageAccueil />)}
-        {page === 'catalogue' && <PageCatalogue />}
-        {page === 'produit'   && PageProduit()}
+        {page === 'accueil'   && PageVente()}
         {page === 'blog'      && <PageBlog />}
         {page === 'politique' && <PagePolitique />}
         {page === 'article'   && <PageArticle />}
         {page === 'faq'       && <PageFaq />}
         {page === 'a-propos'  && <PageAPropos />}
         {page === 'contact'   && <PageContact />}
-        {page === 'offres'    && PageOffres()}
-        {page === 'encheres'  && PageEncheres()}
         {page === 'login'     && PageLogin()}
         {page === 'inscription' && PageInscription()}
       </main>
