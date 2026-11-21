@@ -159,7 +159,10 @@ export default function BoutiquePerso({ accent, isMobile, pagePlan, naviguerVers
   const btn = (fort?: boolean, rouge?: boolean): React.CSSProperties => ({ border: fort ? 'none' : `1px solid ${rouge ? '#fca5a5' : T.border}`, background: fort ? couleur : '#fff', color: fort ? '#fff' : rouge ? '#b91c1c' : '#374151', borderRadius: 8, padding: '9px 16px', fontSize: 13, fontWeight: 700, cursor: occupe ? 'wait' : 'pointer', opacity: occupe ? 0.7 : 1 });
   const entete = (
     <div style={{ marginBottom: 14 }}>
-      <h2 style={{ margin: '0 0 6px', fontSize: isMobile ? 20 : 24 }}>🎨 Produits personnalisés {guide && <a href={guide} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, fontWeight: 700, color: couleur, textDecoration: 'none', border: `1px solid ${couleur}`, borderRadius: 12, padding: '2px 10px', marginLeft: 10, verticalAlign: 'middle' }}>📖 Guide</a>}</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
+        <h2 style={{ margin: 0, fontSize: isMobile ? 20 : 24 }}>🎨 Produits personnalisés</h2>
+        {guide && <a href={guide} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', background: couleur, color: '#fff', textDecoration: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 700 }}>📖 Voir le guide</a>}
+      </div>
       <p style={{ margin: 0, fontSize: 14, color: T.light, lineHeight: 1.6 }}>Laissez l'acheteur personnaliser un produit avant de l'ajouter au panier : chandail imprimé, porte-clés, gravure… Ses réponses apparaissent dans la commande, avec l'image originale à télécharger.</p>
     </div>
   );
