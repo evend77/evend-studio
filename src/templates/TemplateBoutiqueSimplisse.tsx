@@ -2,9 +2,18 @@
 // e-Vend Studio — Template Boutique Simplisse (multi-produit 1 vendeur)
 // Rendu public — lit config.simplisse + produits depuis l'API
 // Pages : Accueil · Catalogue · Fiche produit · Blog · FAQ · Contact
+// Compte acheteur + panier/caisse/commandes (AppAcheteurBoutique) · Add-ons : Produits personnalisés, Infolettre, Prix par palier, Vérificateur d'âge, Analytique, App installable
 // 100% mobile responsive
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import AppAcheteurBoutique from '../AppAcheteurBoutique';   // espace acheteur (panier, caisse, commandes) partagé avec Premium
+import useBoutiqueAnalytique from '../hooks/useBoutiqueAnalytique';   // add-on « Analytique » : compte les pages vues (après consentement du visiteur)
+import BoutiqueBoutonInstallerApp from '../components/BoutiqueBoutonInstallerApp';   // add-on « App installable » : bouton « Installer l'app » (mobile)
+import BoutiqueInfolettre from '../components/BoutiqueInfolettre';   // add-on « Infolettre » : rangée d'inscription dans le pied de page
+import BoutiquePersonnalisation, { PersoRef, ThemePerso } from '../components/BoutiquePersonnalisation';   // add-on « Produits personnalisés » : champs + aperçu sur la page produit
+import BoutiqueVerificateurAge from '../components/BoutiqueVerificateurAge';   // add-on « Vérificateur d'âge » : fenêtre bloquante à l'arrivée
+import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
+import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
 
 // ─── Types (miroir de ConfigMesPagesSimplisse) ────────────────────────────────
 interface SectionPage  { id: string; actif: boolean; ordre: number; label: string; icone: string; }
@@ -55,7 +64,13 @@ interface ConfigFicheProduit {
 interface Produit {
   id: number; titre: string; prix: number; prix_promo?: number; photo_principale?: string;
   photos?: string[]; description?: string; stock?: number; categorie?: string; sku?: string;
-  variantes?: { nom: string; valeurs: string[] }[];
+  variantes?: { nom: string; valeurs?: string[]; prix?: number|string|null; stock?: number|string|null }[];   // démo : {nom, valeurs[]} ; vraies annonces : liste plate {nom, prix, stock}
+  paliers?: { qte_min:number; type:'pourcentage'|'fixe'; valeur:number; variante:string|null }[];   // add-on « Prix par palier » : le serveur n'envoie rien si l'add-on est inactif
+}
+
+interface AcheteurUser {
+  id: number; prenom: string; nom: string; email: string;
+  telephone?: string; adresse?: string; ville?: string; province?: string; code_postal?: string;
 }
 
 interface ArticleBlog {
@@ -97,6 +112,25 @@ const CFG_DEF: ConfigSimplisse = {
 
 const API_BASE = '/api';
 
+// ── Inscription acheteur : défauts, fusionnés avec config.simplisse.inscription si elle existe ──
+type ChampInsc = { id:string; type:'text'|'email'|'tel'|'select'|'textarea'|'checkbox'; label:string; placeholder?:string; options?:string[]; requis?:boolean };
+const INSC_DEF = {
+  titre:'Créer un compte', sousTitre:'', boutonTexte:'Créer mon compte',
+  messageSuccesTitre:'Compte créé avec succès !', messageSuccesTexte:'Vous pouvez maintenant vous connecter.',
+  libelles:{ prenom:'Prénom', nom:'Nom', email:'Courriel', mot_de_passe:'Mot de passe', confirmation:'Confirmez le mot de passe' },
+  telephone:{ mode:'cache' }, adresse:{ mode:'obligatoire' }, infolettre:{ affiche:false, texte:'Je veux recevoir les nouveautés par courriel' },
+  age:{ affiche:true, minimum:16, texte:'Je déclare avoir {age} ans ou + (consentement parental pour les mineurs)' },
+  termes:{ affiche:true, texte:"J'accepte les termes et conditions de la boutique", url:'' },
+};
+function fusionInsc(b:any){
+  const x=b&&typeof b==='object'?b:{}; const sous=(k:'libelles'|'telephone'|'adresse'|'infolettre'|'age'|'termes')=>({...INSC_DEF[k],...(x[k]&&typeof x[k]==='object'?x[k]:{})});
+  return { ...INSC_DEF, ...x, libelles:sous('libelles'), telephone:sous('telephone'), adresse:sous('adresse'), infolettre:sous('infolettre'), age:sous('age'), termes:sous('termes'), champs:(Array.isArray(x.champs)?x.champs:[]) as ChampInsc[] };
+}
+// Thème clair de la personnalisation (la boutique Simplisse est blanche)
+const THEME_CLAIR_PERSO: ThemePerso = { fond: '#f9fafb', texte: '#1a1a1a', doux: '#6b7280', bord: '#e5e7eb' };
+// Couleur hex (#rrggbb) → rgba, pour les textes du pied de page (la couleur du texte est choisie par le gestionnaire)
+const hexVersRgba = (hex: string, a: number) => { const m = /^#([0-9a-f]{6})$/i.exec(String(hex || '').trim()); if (!m) return `rgba(255,255,255,${a})`; const n = parseInt(m[1], 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
+
 const FICHE_DEF: ConfigFicheProduit = {
   layout: 'image-gauche', photosMiniatures: 'dessous', descriptionPosition: 'droite',
   descriptionTronquee: false, afficherBreadcrumb: true, afficherStock: true,
@@ -125,7 +159,7 @@ function merge<T>(def: T, override: any): T {
   if (!override || typeof override !== 'object') return def;
   return { ...def, ...override };
 }
-function prix(n: number) { return n?.toFixed(2).replace('.', ',') + ' $'; }
+function prix(n: number | string) { return Number(n || 0).toFixed(2).replace('.', ',') + ' $'; }
 
 // ─── Composant Bannière ───────────────────────────────────────────────────────
 function Banniere({ cfg }: { cfg: ConfigBanniere }) {
@@ -212,7 +246,7 @@ function CarteProduit({ produit, cp, afficherPrix, onClick }: { produit: Produit
 }
 
 // ─── Footer ───────────────────────────────────────────────────────────────────
-function Footer({ cfg, onNaviguer, cacherPropulse }: { cfg: ConfigFooter; onNaviguer: (p: string) => void; cacherPropulse: boolean }) {
+function Footer({ cfg, onNaviguer, cacherPropulse, extra }: { cfg: ConfigFooter; onNaviguer: (p: string) => void; cacherPropulse: boolean; extra?: React.ReactNode }) {
   const reseauxActifs = Object.entries(cfg.reseaux).filter(([, v]) => v);
   const iconeReseau: Record<string, string> = { facebook:'f', instagram:'📸', tiktok:'♪', twitter:'𝕏', youtube:'▶', linkedin:'in', pinterest:'P' };
   return (
@@ -270,6 +304,8 @@ function Footer({ cfg, onNaviguer, cacherPropulse }: { cfg: ConfigFooter; onNavi
           )}
         </div>
 
+        {extra}
+
         {/* Bas du footer */}
         <div style={{ borderTop: `1px solid rgba(255,255,255,0.12)`, padding: '20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
           <div style={{ fontSize: 13, opacity: 0.5 }}>© {new Date().getFullYear()} {cfg.nomBoutique}</div>
@@ -309,7 +345,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const cp = cfg.accueil.couleurPrimaire || CP;
 
   // ── State navigation interne ──────────────────────────────────────────────
-  type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'contact';
+  type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'contact' | 'login' | 'inscription' | 'compte';
   const [page, setPage]               = useState<PageId>('accueil');
   const [produitActif, setProduitActif] = useState<Produit | null>(null);
   const [articleActif, setArticleActif] = useState<ArticleBlog | null>(null);
@@ -322,8 +358,26 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const [categories, setCategories]   = useState<string[]>([]);
   const [filtreCat, setFiltreCat]     = useState('');
   const [filtreRecherche, setFiltreRecherche] = useState('');
-  const [panier, setPanier]           = useState<{ produit: Produit; qte: number; variante?: string }[]>([]);
-  const [panierOuvert, setPanierOuvert] = useState(false);
+  const [acheteur, setAcheteur]     = useState<AcheteurUser | null>(null);
+  const [nbPanier, setNbPanier]       = useState(0);
+  const [vueCompte, setVueCompte]     = useState<'dashboard'|'panier'|'wishlist'|'avis'>('dashboard');
+  const [avisPanier, setAvisPanier]   = useState('');
+  const [loginForm, setLoginForm]     = useState({ email: '', mdp: '' });
+  const [loginStatut, setLoginStatut] = useState<'idle'|'loading'|'err'>('idle');
+  const [loginErreur, setLoginErreur] = useState('');
+  const [inscVal, setInscVal]         = useState<Record<string, any>>({});
+  const [inscStatut, setInscStatut]   = useState<'idle'|'loading'|'ok'>('idle');
+  const [inscErreur, setInscErreur]   = useState('');
+  const [honeypot, setHoneypot]       = useState('');
+  const [sourisBougee, setSourisBougee] = useState(false);
+  const debutInscription = useRef<number>(Date.now());
+  const persoRef = useRef<PersoRef | null>(null);   // add-on « Produits personnalisés » : réponses de l'acheteur, lues au clic sur « Ajouter au panier »
+  // Page produit : ces états sont ici (et non dans PageProduit) pour ne pas être remis à zéro quand la page se redessine
+  const [photoIdx, setPhotoIdx]       = useState(0);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [ongletActif, setOngletActif] = useState<'description'|'details'|'livraison'>('description');
+  const ins = fusionInsc((rawSimplisse as any).inscription);
+  const { trackPageView } = useBoutiqueAnalytique(vendeurId, vendeurId > 0 && !configBrut?.__produits_demo__);   // add-on « Analytique » : rien n'est envoyé sans l'add-on, sans la bannière ou sans consentement
   const [faqOuvert, setFaqOuvert]     = useState<number | null>(null);
   const [contactEnvoi, setContactEnvoi] = useState<'idle'|'loading'|'ok'|'err'>('idle');
   const [contactForm, setContactForm] = useState({ nom:'', courriel:'', message:'' });
@@ -357,10 +411,11 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
       setCategories(cats);
       return;
     }
-    fetch(`${API_BASE}/produits/vendeur/${vendeurId}?limit=100`)
+    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`)
       .then(r => r.ok ? r.json() : { produits: [] })
       .then(data => {
-        const liste: Produit[] = data.produits || data || [];
+        // Le catalogue envoie les prix en texte (« 30.00 ») : on les convertit en nombres une fois pour toutes
+        const liste: Produit[] = (data.produits || data || []).map((x: any) => ({ ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo !== null && x.prix_promo !== undefined && x.prix_promo !== '' ? Number(x.prix_promo) : undefined, stock: x.stock !== null && x.stock !== undefined && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined, variantes: Array.isArray(x.variantes) ? x.variantes : [], paliers: Array.isArray(x.paliers) ? x.paliers : undefined }));
         setProduits(liste);
         const cats = Array.from(new Set(liste.map(p => p.categorie).filter(Boolean))) as string[];
         setCategories(cats);
@@ -376,12 +431,42 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
       .catch(() => {});
   }, [vendeurId]);
 
+  // Compte acheteur = celui du MV (mêmes clés que AppAcheteur)
+  useEffect(() => {
+    try { const u = localStorage.getItem(`mv_compte_${vendeurId}`), t = localStorage.getItem(`mv_token_${vendeurId}`); setAcheteur(u && t ? JSON.parse(u) : null); } catch { setAcheteur(null); }
+  }, [vendeurId, page]);
+
+  // Pastille du panier (panier du serveur)
+  useEffect(() => {
+    if (!acheteur) { setNbPanier(0); return; }
+    ba(vendeurId, '/panier').then(r => { if (r.ok) setNbPanier((r.data.articles || []).reduce((s: number, a: any) => s + (a.quantite || 0), 0)); });
+  }, [acheteur, vendeurId, page, vueCompte]);
+
+  useEffect(() => { if (!avisPanier) return; const t = setTimeout(() => setAvisPanier(''), 4000); return () => clearTimeout(t); }, [avisPanier]);
+
+  // Anti-bot de l'inscription : champ piège + délai minimum + mouvement de souris
+  useEffect(() => {
+    if (page !== 'inscription') return;
+    debutInscription.current = Date.now(); setSourisBougee(false);
+    const bouge = () => setSourisBougee(true);
+    window.addEventListener('mousemove', bouge, { once: true });
+    return () => window.removeEventListener('mousemove', bouge);
+  }, [page]);
+
+  // Add-on « Analytique » : une page vue par changement de vue
+  useEffect(() => {
+    if (page === 'produit') { if (produitActif) trackPageView('/produit/' + produitActif.id, produitActif.titre); return; }
+    if (page === 'article') { if (articleActif) trackPageView('/blog/' + (articleActif.slug || articleActif.id), articleActif.titre); return; }
+    const noms: Record<string, [string, string]> = { accueil: ['/', 'Accueil'], catalogue: ['/catalogue', 'Catalogue'], blog: ['/blog', 'Blogue'], faq: ['/faq', 'FAQ'], contact: ['/contact', 'Contact'], login: ['/connexion', 'Connexion'], inscription: ['/inscription', 'Inscription'], compte: ['/compte', 'Compte'] };
+    const n = noms[page]; if (n) trackPageView(n[0], n[1]);
+  }, [page, produitActif?.id, articleActif?.id, trackPageView]);
+
   // ── Navigation ────────────────────────────────────────────────────────────
   const naviguer = useCallback((dest: string) => {
     setMenuOuvert(false);
-    setPanierOuvert(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', contact:'contact' };
+    if (dest.toLowerCase() === 'panier') { setVueCompte('panier'); setPage('compte'); return; }
+    const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', contact:'contact', compte:'compte', login:'login', inscription:'inscription' };
     if (map[dest.toLowerCase()]) {
       setPage(map[dest.toLowerCase()]);
     }
@@ -391,6 +476,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     setProduitActif(p);
     setQteChoisie(1);
     setVarianteChoisie({});
+    setPhotoIdx(0); setDescExpanded(false); setOngletActif('description');
     setPage('produit');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -401,19 +487,64 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // ── Panier ────────────────────────────────────────────────────────────────
-  const ajouterAuPanier = (produit: Produit) => {
-    const variante = Object.values(varianteChoisie).join(' / ') || undefined;
-    setPanier(prev => {
-      const existant = prev.find(i => i.produit.id === produit.id && i.variante === variante);
-      if (existant) return prev.map(i => i.produit.id === produit.id && i.variante === variante ? { ...i, qte: i.qte + qteChoisie } : i);
-      return [...prev, { produit, qte: qteChoisie, variante }];
-    });
-    setPanierOuvert(true);
+  // ── Panier (panier du serveur ; le compte acheteur est obligatoire) ───────
+  const ajouterAuPanier = async (produit: Produit) => {
+    if (configBrut?.__produits_demo__) { setAvisPanier('Produit de démonstration : publiez vos annonces pour vendre.'); return; }
+    if (!acheteur) { setAvisPanier('Connectez-vous pour ajouter au panier.'); naviguer('login'); return; }
+    const plates = (produit.variantes || []).filter(v => v && !Array.isArray(v.valeurs));
+    if (plates.length && !varianteChoisie.__v) { setAvisPanier('Choisissez une variante.'); return; }
+    const variante = Object.values(varianteChoisie).join(' / ');
+    let perso: Record<string, any> | undefined;
+    if (persoRef.current) { const pp = await persoRef.current.preparer(); if (!pp.ok) { setAvisPanier(pp.erreur || 'Complétez la personnalisation.'); return; } perso = pp.personnalisation && Object.keys(pp.personnalisation).length ? pp.personnalisation : undefined; }
+    const r = await ajouterAuPanierServeur(vendeurId, produit.id, qteChoisie, variante, perso);
+    if (!r.ok) { setAvisPanier(messageAcheteur(r)); return; }
+    setVueCompte('panier'); naviguer('compte');
+  };
+  const ouvrirCompte = () => { setVueCompte('dashboard'); naviguer(acheteur ? 'compte' : 'login'); };
+  const ouvrirPanier = () => { if (!acheteur) { setAvisPanier('Connectez-vous pour voir votre panier.'); naviguer('login'); return; } setVueCompte('panier'); naviguer('compte'); };
+
+  const handleLogin = async () => {
+    setLoginStatut('loading'); setLoginErreur('');
+    try {
+      const res = await fetch(`${API_BASE}/marketplace/${vendeurId}/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'acheteur', email: loginForm.email, password: loginForm.mdp }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Erreur');
+      try { localStorage.setItem(`mv_token_${vendeurId}`, data.token); localStorage.setItem(`mv_compte_${vendeurId}`, JSON.stringify(data.compte)); } catch {}
+      setAcheteur(data.compte);
+      setLoginStatut('idle'); naviguer('compte');
+    } catch (e: any) { setLoginErreur(e.message || 'Erreur'); setLoginStatut('err'); }
   };
 
-  const totalPanier = panier.reduce((s, i) => s + (i.produit.prix_promo || i.produit.prix) * i.qte, 0);
-  const nbPanier = panier.reduce((s, i) => s + i.qte, 0);
+  const handleInscription = async () => {
+    setInscErreur('');
+    const v = inscVal;
+    if (v.mdp && v.mdp2 && v.mdp !== v.mdp2) return setInscErreur('Les mots de passe ne correspondent pas.');
+    if (!(v.prenom || '').trim() || !(v.nom || '').trim()) return setInscErreur('Prénom et nom obligatoires.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v.email || '').trim())) return setInscErreur('Adresse courriel invalide.');
+    if ((v.mdp || '').length < 8) return setInscErreur('Le mot de passe doit contenir au moins 8 caractères.');
+    const tel = (v.telephone || '').trim();
+    if (ins.telephone.mode === 'obligatoire' && !tel) return setInscErreur('Téléphone : obligatoire.');
+    if (ins.telephone.mode !== 'cache' && tel && !/^(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$/.test(tel)) return setInscErreur('Numéro de téléphone invalide (ex: 514-555-0100).');
+    if (ins.adresse.mode !== 'cache') {
+      const a = (v.adresse || '').trim(), vi = (v.ville || '').trim(), cpo = (v.code_postal || '').trim();
+      if (ins.adresse.mode === 'obligatoire' || a || vi || cpo) {
+        if (a.length < 3) return setInscErreur('Adresse invalide.');
+        if (vi.length < 2) return setInscErreur('Ville invalide.');
+        if (!/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(cpo)) return setInscErreur('Code postal invalide (ex: H2X 1Y4).');
+      }
+    }
+    const champs: Record<string, any> = {}; ins.champs.forEach((c: ChampInsc) => { champs[c.id] = v['c_' + c.id]; });
+    setInscStatut('loading');
+    try {
+      const res = await fetch(`${API_BASE}/boutique/acheteur/${vendeurId}/inscription`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        prenom: v.prenom || '', nom: v.nom || '', email: v.email || '', mot_de_passe: v.mdp || '', confirmation: v.mdp2 || '',
+        telephone: v.telephone || '', adresse: v.adresse || '', ville: v.ville || '', code_postal: v.code_postal || '', province: v.province || 'QC', infolettre: v.infolettre === true, age_confirme: v.age === true, termes_acceptes: v.termes === true, champs,
+        duree_ms: Date.now() - debutInscription.current, souris: sourisBougee, website: honeypot }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Erreur lors de l'inscription.");
+      setLoginForm({ email: (v.email || '').trim(), mdp: '' }); setInscStatut('ok');
+    } catch (e: any) { setInscErreur(e.message || 'Erreur de connexion au serveur.'); setInscStatut('idle'); }
+  };
 
   // ── Produits filtrés ──────────────────────────────────────────────────────
   const produitsFiltres = produits.filter(p => {
@@ -473,13 +604,16 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         {/* Droite */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Panier */}
-          <button onClick={() => setPanierOuvert(!panierOuvert)}
+          <button onClick={ouvrirCompte} aria-label={acheteur ? 'Mon compte' : 'Se connecter'}
+            style={{ background: 'none', border: 'none', borderRadius: 10, padding: '9px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#555', fontWeight: 600, fontSize: 14 }}>
+            👤{!isMobile && <span>{acheteur ? (acheteur.prenom || 'Mon compte') : 'Connexion'}</span>}
+          </button>
+          <button onClick={ouvrirPanier} aria-label="Panier"
             style={{ position: 'relative', background: `${cp}12`, border: 'none', borderRadius: 10, padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: cp, fontWeight: 700, fontSize: 14 }}>
             🛒
             {nbPanier > 0 && (
               <span style={{ position: 'absolute', top: -6, right: -6, background: cp, color: '#fff', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>{nbPanier}</span>
             )}
-            {!isMobile && <span>{prix(totalPanier)}</span>}
           </button>
 
           {/* Burger mobile */}
@@ -504,63 +638,6 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         </div>
       )}
     </nav>
-  );
-
-  // ══════════════════════════════════════════════════════════════════════════
-  // TIROIR PANIER
-  // ══════════════════════════════════════════════════════════════════════════
-  const TiroirPanier = () => (
-    <>
-      {panierOuvert && <div onClick={() => setPanierOuvert(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 199 }} />}
-      <div style={{ position: 'fixed', top: 0, right: panierOuvert ? 0 : '-420px', width: Math.min(420, window.innerWidth), height: '100vh', background: '#fff', zIndex: 200, boxShadow: '-4px 0 24px rgba(0,0,0,0.15)', display: 'flex', flexDirection: 'column', transition: 'right 0.3s ease' }}>
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>🛒 Votre panier ({nbPanier})</h2>
-          <button onClick={() => setPanierOuvert(false)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 8, width: 36, height: 36, cursor: 'pointer', fontSize: 18 }}>✕</button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px' }}>
-          {panier.length === 0
-            ? <div style={{ textAlign: 'center', padding: '60px 0', color: '#aaa' }}>
-                <div style={{ fontSize: 48, marginBottom: 12 }}>🛒</div>
-                <p>Votre panier est vide.</p>
-                <button onClick={() => { naviguer('catalogue'); }} style={{ ...styleBtn, width: 'auto', padding: '10px 24px', marginTop: 8 }}>Voir le catalogue</button>
-              </div>
-            : panier.map((item, i) => (
-                <div key={i} style={{ display: 'flex', gap: 14, padding: '14px 0', borderBottom: '1px solid #f0f0f0', alignItems: 'center' }}>
-                  <div style={{ width: 64, height: 64, borderRadius: 8, background: '#f3f4f6', overflow: 'hidden', flexShrink: 0 }}>
-                    {item.produit.photo_principale
-                      ? <img src={item.produit.photo_principale} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>📦</div>}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: '0 0 4px', fontSize: 14, fontWeight: 600, color: '#1a1a1a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.produit.titre}</p>
-                    {item.variante && <p style={{ margin: '0 0 4px', fontSize: 12, color: '#888' }}>{item.variante}</p>}
-                    <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: cp }}>{prix((item.produit.prix_promo || item.produit.prix) * item.qte)}</p>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={() => setPanier(prev => prev.map((it, j) => j === i ? { ...it, qte: Math.max(1, it.qte - 1) } : it))}
-                      style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 14 }}>−</button>
-                    <span style={{ fontSize: 14, fontWeight: 600, minWidth: 20, textAlign: 'center' }}>{item.qte}</span>
-                    <button onClick={() => setPanier(prev => prev.map((it, j) => j === i ? { ...it, qte: it.qte + 1 } : it))}
-                      style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 14 }}>+</button>
-                    <button onClick={() => setPanier(prev => prev.filter((_, j) => j !== i))}
-                      style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: '#fef2f2', color: '#ef4444', cursor: 'pointer', fontSize: 14 }}>✕</button>
-                  </div>
-                </div>
-              ))
-          }
-        </div>
-        {panier.length > 0 && (
-          <div style={{ padding: '20px 24px', borderTop: '1px solid #e5e7eb' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-              <span style={{ fontSize: 16, fontWeight: 600 }}>Total</span>
-              <span style={{ fontSize: 20, fontWeight: 800, color: cp }}>{prix(totalPanier)}</span>
-            </div>
-            <button style={styleBtn}>Passer à la caisse →</button>
-            <button onClick={() => setPanier([])} style={{ width: '100%', background: 'none', border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px', marginTop: 8, fontSize: 14, color: '#888', cursor: 'pointer' }}>Vider le panier</button>
-          </div>
-        )}
-      </div>
-    </>
   );
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -782,15 +859,19 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   // PAGE FICHE PRODUIT — config dynamique via fp (ConfigFicheProduit)
   // ══════════════════════════════════════════════════════════════════════════
   const PageProduit = () => {
-    const [photoIdx, setPhotoIdx] = useState(0);
-    const [descExpanded, setDescExpanded] = useState(false);
-    const [ongletActif, setOngletActif] = useState<'description'|'details'|'livraison'>('description');
-
     if (!produitActif) return null;
     const p = produitActif;
     const enPromo = p.prix_promo && p.prix_promo < p.prix;
     const photos = [p.photo_principale, ...(p.photos || [])].filter(Boolean) as string[];
     const btnCouleur = fp.boutonCouleur || cp;
+    const varsPlates = (p.variantes || []).filter(v => v && !Array.isArray(v.valeurs));
+    const nomVar = varianteChoisie.__v || '';
+    const vSel = varsPlates.find(v => v.nom === nomVar) || null;
+    const stockDe = (v: any): number | null => v && v.stock !== null && v.stock !== undefined && v.stock !== '' ? Math.max(0, Number(v.stock)) : (p.stock !== undefined && p.stock !== null ? p.stock : null);
+    const stockMax = varsPlates.length ? (vSel ? stockDe(vSel) : null) : (p.stock !== undefined ? p.stock : null);
+    const prixVar = vSel && vSel.prix !== null && vSel.prix !== undefined && vSel.prix !== '' && Number(vSel.prix) >= 0 ? Number(vSel.prix) : null;
+    const epuise = p.stock === 0 || (vSel !== null && stockDe(vSel) === 0);
+    const modeDemo = !!configBrut?.__produits_demo__;
 
     // Galerie component
     const GalerieBlock = () => (
@@ -842,7 +923,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
 
         {/* Prix */}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 20 }}>
-          {enPromo ? (
+          {prixVar !== null ? <span style={{ fontSize: 32, fontWeight: 800, color: btnCouleur }}>{prix(prixVar)}</span> : enPromo ? (
             <>
               <span style={{ fontSize: 32, fontWeight: 800, color: '#ef4444' }}>{prix(p.prix_promo!)}</span>
               <span style={{ fontSize: 20, color: '#aaa', textDecoration: 'line-through' }}>{prix(p.prix)}</span>
@@ -862,12 +943,29 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           </div>
         )}
 
-        {/* Variantes */}
-        {p.variantes && p.variantes.map(v => (
+        {/* Paliers de prix (add-on « Prix par palier ») */}
+        {p.paliers && p.paliers.length > 0 && <PaliersProduitBoutique produit={p as any} quantite={qteChoisie} variante={Object.values(varianteChoisie).join(' / ')} couleur={btnCouleur} fond="#f9fafb" bordure="#e5e7eb" texte="#1a1a1a" texteDiscret="#6b7280" />}
+
+        {/* Variantes (vraies annonces : liste plate) */}
+        {varsPlates.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>Variante</div>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {varsPlates.map(v => { const sel = nomVar === v.nom; const out = stockDe(v) === 0; const pv = v.prix !== null && v.prix !== undefined && v.prix !== '' && Number(v.prix) >= 0 ? Number(v.prix) : null;
+                return <button key={v.nom} disabled={out} aria-pressed={sel} onClick={() => { setVarianteChoisie({ __v: v.nom }); setQteChoisie(1); }}
+                  style={{ padding: '7px 14px', borderRadius: 7, border: `2px solid ${sel ? btnCouleur : '#e5e7eb'}`, background: sel ? `${btnCouleur}12` : '#fff', color: sel ? btnCouleur : '#333', fontSize: 13, fontWeight: 600, cursor: out ? 'not-allowed' : 'pointer', opacity: out ? 0.4 : 1, textDecoration: out ? 'line-through' : 'none' }}>
+                  {v.nom}{pv !== null && <span style={{ marginLeft: 8, fontWeight: 400, fontSize: 12 }}>{prix(pv)}</span>}{out && <span style={{ marginLeft: 8, fontSize: 11 }}>Épuisé</span>}
+                </button>; })}
+            </div>
+          </div>
+        )}
+
+        {/* Variantes (démo : nom + valeurs) */}
+        {p.variantes && p.variantes.filter(v => Array.isArray(v.valeurs)).map(v => (
           <div key={v.nom} style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>{v.nom}</div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
-              {v.valeurs.map(val => (
+              {(v.valeurs || []).map(val => (
                 <button key={val} onClick={() => setVarianteChoisie(prev => ({ ...prev, [v.nom]: val }))}
                   style={{ padding: '7px 14px', borderRadius: 7, border: `2px solid ${varianteChoisie[v.nom] === val ? btnCouleur : '#e5e7eb'}`, background: varianteChoisie[v.nom] === val ? `${btnCouleur}12` : '#fff', color: varianteChoisie[v.nom] === val ? btnCouleur : '#333', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                   {val}
@@ -877,6 +975,9 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           </div>
         ))}
 
+        {/* Produits personnalisés (add-on) */}
+        {vendeurId > 0 && !modeDemo && <BoutiquePersonnalisation key={p.id} gestionnaireId={vendeurId} produitId={p.id} couleur={btnCouleur} theme={THEME_CLAIR_PERSO} reference={persoRef} />}
+
         {/* Quantité */}
         {fp.afficherQte && (
           <div style={{ marginBottom: 16 }}>
@@ -885,16 +986,16 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
               <button onClick={() => setQteChoisie(q => Math.max(1, q - 1))}
                 style={{ width: 38, height: 38, borderRadius: 7, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 17, fontWeight: 700 }}>−</button>
               <span style={{ fontSize: 17, fontWeight: 700, minWidth: 28, textAlign: 'center' }}>{qteChoisie}</span>
-              <button onClick={() => setQteChoisie(q => q + 1)} disabled={p.stock !== undefined && qteChoisie >= p.stock}
-                style={{ width: 38, height: 38, borderRadius: 7, border: '1.5px solid #e5e7eb', background: '#fff', cursor: p.stock !== undefined && qteChoisie >= p.stock ? 'not-allowed' : 'pointer', fontSize: 17, fontWeight: 700, opacity: p.stock !== undefined && qteChoisie >= p.stock ? 0.4 : 1 }}>+</button>
+              <button onClick={() => setQteChoisie(q => stockMax != null ? Math.min(Math.max(1, stockMax), q + 1) : q + 1)} disabled={stockMax != null && qteChoisie >= stockMax}
+                style={{ width: 38, height: 38, borderRadius: 7, border: '1.5px solid #e5e7eb', background: '#fff', cursor: stockMax != null && qteChoisie >= stockMax ? 'not-allowed' : 'pointer', fontSize: 17, fontWeight: 700, opacity: stockMax != null && qteChoisie >= stockMax ? 0.4 : 1 }}>+</button>
             </div>
           </div>
         )}
 
         {/* Bouton */}
-        <button onClick={() => ajouterAuPanier(p)} disabled={p.stock === 0}
-          style={{ width: '100%', padding: '14px 24px', background: p.stock === 0 ? '#e5e7eb' : btnCouleur, color: p.stock === 0 ? '#aaa' : '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: p.stock === 0 ? 'not-allowed' : 'pointer', marginBottom: 14 }}>
-          {p.stock === 0 ? 'Épuisé' : `🛒 ${fp.boutonLabel}`}
+        <button onClick={() => ajouterAuPanier(p)} disabled={epuise}
+          style={{ width: '100%', padding: '14px 24px', background: epuise ? '#e5e7eb' : btnCouleur, color: epuise ? '#aaa' : '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: epuise ? 'not-allowed' : 'pointer', marginBottom: 14 }}>
+          {epuise ? 'Épuisé' : `🛒 ${fp.boutonLabel}`}
         </button>
 
         {/* Réassurance */}
@@ -981,8 +1082,8 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
               <span>›</span><span style={{ color: '#333' }}>{p.titre}</span>
             </div>
           )}
-          <div style={{ marginBottom: 36 }}><GalerieBlock /></div>
-          <InfoBlock />
+          <div style={{ marginBottom: 36 }}>{GalerieBlock()}</div>
+          {InfoBlock()}
           <DescriptionBas />
           {fp.afficherSimilaires && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
             <div style={{ marginTop: 56, paddingTop: 40, borderTop: '1px solid #e5e7eb' }}>
@@ -999,8 +1100,8 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     }
 
     // Layout gauche/droite (défaut + mobile)
-    const imageCol = <GalerieBlock />;
-    const infoCol  = <InfoBlock />;
+    const imageCol = GalerieBlock();
+    const infoCol  = InfoBlock();
     const isInverse = !isMobile && fp.layout === 'image-droite';
 
     return (
@@ -1033,6 +1134,98 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   // ══════════════════════════════════════════════════════════════════════════
   // PAGE BLOG
   // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONNEXION / INSCRIPTION (thème clair)
+  // ══════════════════════════════════════════════════════════════════════════
+  const styleLabel: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 7, letterSpacing: '0.05em', textTransform: 'uppercase' };
+  const carteAuth: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: isMobile ? 22 : 32, boxShadow: '0 2px 12px rgba(0,0,0,0.05)' };
+  const champInsc = (cle: string, libelle: string, type: string, ph: string, requis: boolean, extra?: any) => (
+    <div key={cle} style={{ marginBottom: 18 }}>
+      <label style={styleLabel}>{libelle}{requis && ' *'}</label>
+      {type === 'textarea'
+        ? <textarea value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} placeholder={ph} rows={3} style={{ ...styleInput, resize: 'vertical' }} />
+        : type === 'select'
+        ? <select value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} style={styleInput}><option value="">— Choisir —</option>{(extra || []).map((o: string) => <option key={o} value={o}>{o}</option>)}</select>
+        : <input type={type} value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} placeholder={ph} style={styleInput} autoComplete={type === 'password' ? 'new-password' : undefined} />}
+    </div>
+  );
+  const caseInsc = (cle: string, contenu: any, requis: boolean) => (
+    <div key={cle} onClick={() => setInscVal(f => ({ ...f, [cle]: !f[cle] }))} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 14 }}>
+      <div style={{ width: 20, height: 20, minWidth: 20, borderRadius: 5, border: `2px solid ${inscVal[cle] ? cp : '#9ca3af'}`, background: inscVal[cle] ? `${cp}22` : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: cp, fontSize: 12, marginTop: 2 }}>{inscVal[cle] && '✓'}</div>
+      <span style={{ fontSize: 13, color: '#444', lineHeight: 1.5 }}>{contenu}{requis && <span style={{ color: '#ef4444' }}> *</span>}</span>
+    </div>
+  );
+
+  const PageInscription = () => (
+    <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+      <div style={{ width: '100%', maxWidth: 480 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{ins.titre}</h1>
+          {ins.sousTitre && <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>{ins.sousTitre}</p>}
+          <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>Vous avez déjà un compte ? <button onClick={() => naviguer('login')} style={{ background: 'none', border: 'none', color: cp, fontSize: 14, cursor: 'pointer', fontWeight: 700 }}>Se connecter</button></p>
+        </div>
+        {inscStatut === 'ok' ? (
+          <div style={{ ...carteAuth, textAlign: 'center' }}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>🎉</div>
+            <h2 style={{ color: '#1a1a1a', fontSize: 20, fontWeight: 800, margin: '0 0 8px' }}>{ins.messageSuccesTitre}</h2>
+            <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 22px' }}>{ins.messageSuccesTexte}</p>
+            <button onClick={() => naviguer('login')} style={styleBtn}>→ Se connecter</button>
+          </div>
+        ) : (
+          <div style={carteAuth}>
+            <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" value={honeypot} onChange={e => setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
+            {champInsc('prenom', ins.libelles.prenom, 'text', '', true)}
+            {champInsc('nom', ins.libelles.nom, 'text', '', true)}
+            {champInsc('email', ins.libelles.email, 'email', 'votre@courriel.com', true)}
+            {ins.telephone.mode !== 'cache' && champInsc('telephone', 'Téléphone', 'tel', '', ins.telephone.mode === 'obligatoire')}
+            {ins.adresse.mode !== 'cache' && <>
+              {champInsc('adresse', 'Adresse', 'text', 'Numéro et rue', ins.adresse.mode === 'obligatoire')}
+              {champInsc('ville', 'Ville', 'text', '', ins.adresse.mode === 'obligatoire')}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {champInsc('code_postal', 'Code postal', 'text', 'H2X 1Y4', ins.adresse.mode === 'obligatoire')}
+                <div style={{ marginBottom: 18 }}>
+                  <label style={styleLabel}>Province{ins.adresse.mode === 'obligatoire' ? ' *' : ''}</label>
+                  <select value={inscVal.province || 'QC'} onChange={e => setInscVal(f => ({ ...f, province: e.target.value }))} style={styleInput}>{PROVINCES.map(pv => <option key={pv.code} value={pv.code}>{pv.nom}</option>)}</select>
+                </div>
+              </div>
+            </>}
+            {champInsc('mdp', ins.libelles.mot_de_passe, 'password', 'Minimum 8 caractères', true)}
+            {champInsc('mdp2', ins.libelles.confirmation, 'password', '', true)}
+            {inscVal.mdp2 && inscVal.mdp !== inscVal.mdp2 && <div style={{ fontSize: 12, color: '#ef4444', margin: '-10px 0 14px' }}>⚠️ Les mots de passe ne correspondent pas.</div>}
+            {ins.champs.map((c: ChampInsc) => c.type === 'checkbox'
+              ? caseInsc('c_' + c.id, c.label, !!c.requis)
+              : champInsc('c_' + c.id, c.label, c.type, c.placeholder || '', !!c.requis, c.options))}
+            {ins.infolettre.affiche && caseInsc('infolettre', ins.infolettre.texte, false)}
+            {ins.age.affiche && caseInsc('age', String(ins.age.texte).replace('{age}', String(ins.age.minimum)), true)}
+            {ins.termes.affiche && caseInsc('termes', /^https?:\/\//i.test(ins.termes.url || '')
+              ? <a href={ins.termes.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: cp, textDecoration: 'underline' }}>{ins.termes.texte}</a>
+              : ins.termes.texte, true)}
+            {inscErreur && <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>⚠️ {inscErreur}</div>}
+            <button onClick={handleInscription} disabled={inscStatut === 'loading'} style={styleBtn}>{inscStatut === 'loading' ? '⏳ Création en cours…' : ins.boutonTexte}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const PageLogin = () => (
+    <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+      <div style={{ width: '100%', maxWidth: 440 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Connexion</h1>
+          <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>Accédez à votre panier, vos commandes et votre compte</p>
+        </div>
+        <div style={carteAuth}>
+          <div style={{ marginBottom: 18 }}><label style={styleLabel}>Courriel</label><input type="email" value={loginForm.email} onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))} placeholder="votre@courriel.com" style={styleInput} /></div>
+          <div style={{ marginBottom: 24 }}><label style={styleLabel}>Mot de passe</label><input type="password" value={loginForm.mdp} onChange={e => setLoginForm(f => ({ ...f, mdp: e.target.value }))} placeholder="••••••••" style={styleInput} onKeyDown={e => e.key === 'Enter' && handleLogin()} /></div>
+          {loginErreur && <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>❌ {loginErreur}</div>}
+          <button onClick={handleLogin} disabled={loginStatut === 'loading'} style={styleBtn}>{loginStatut === 'loading' ? '⏳ Connexion…' : 'Se connecter →'}</button>
+          <div style={{ textAlign: 'center', marginTop: 18 }}><span style={{ fontSize: 13, color: '#6b7280' }}>Pas encore de compte ? </span><button onClick={() => { setInscStatut('idle'); setInscErreur(''); naviguer('inscription'); }} style={{ background: 'none', border: 'none', color: cp, fontSize: 13, cursor: 'pointer', fontWeight: 700 }}>Créer un compte</button></div>
+        </div>
+      </div>
+    </div>
+  );
+
   const PageBlog = () => (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
       <Banniere cfg={cfg.blog.banniere} />
@@ -1194,24 +1387,35 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   // ══════════════════════════════════════════════════════════════════════════
   // RENDU PRINCIPAL
   // ══════════════════════════════════════════════════════════════════════════
+  // Espace acheteur : plein écran (panier, caisse, commandes) ; il a son propre menu et son bouton « Retour à la boutique »
+  if (page === 'compte') return <AppAcheteurBoutique key={vueCompte} vendeurId={vendeurId} pageInitiale={vueCompte} config={{ couleur_accent: cp, nom_boutique: cfg.footer.nomBoutique, gestionnaire_id: vendeurId }} naviguerTemplate={(d: any) => { setVueCompte('dashboard'); if (d && d.page === 'produit') { const pr = produits.find(x => Number(x.id) === Number(d.produitId)); if (pr) { voirProduit(pr); return; } } naviguer(d && d.page ? d.page : 'accueil'); }} />;
+
   return (
     <div style={{ fontFamily: `'${cfg.accueil.police || 'Inter'}', -apple-system, sans-serif`, background: cfg.accueil.couleurFondPage, color: cfg.accueil.couleurTexte, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'); * { box-sizing: border-box; margin: 0; padding: 0; } button { font-family: inherit; }`}</style>
 
+      {vendeurId > 0 && !configBrut?.__produits_demo__ && <BoutiqueVerificateurAge gid={vendeurId} />}
       <Nav />
-      <TiroirPanier />
+      {avisPanier && <div role="status" style={{ position: 'fixed', top: 76, left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: '#fff', border: `1px solid ${cp}`, color: '#1a1a1a', padding: '12px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 30px rgba(0,0,0,0.18)', maxWidth: '92vw' }}>{avisPanier}</div>}
 
       <main style={{ flex: 1 }}>
         {page === 'accueil'   && <PageAccueil />}
         {page === 'catalogue' && <PageCatalogue />}
-        {page === 'produit'   && <PageProduit />}
+        {page === 'produit'   && PageProduit()}
         {page === 'blog'      && <PageBlog />}
         {page === 'article'   && <PageArticle />}
         {page === 'faq'       && <PageFaq />}
         {page === 'contact'   && <PageContact />}
+        {page === 'login'     && PageLogin()}
+        {page === 'inscription' && PageInscription()}
       </main>
 
-      <Footer cfg={cfg.footer} onNaviguer={naviguer} cacherPropulse={cacherPropulse} />
+      <Footer cfg={cfg.footer} onNaviguer={naviguer} cacherPropulse={cacherPropulse} extra={vendeurId > 0 && !configBrut?.__produits_demo__ ? (
+        <>
+          <BoutiqueInfolettre gestionnaireId={vendeurId} couleur={cp} theme={{ titre: cfg.footer.couleurTexte, doux: hexVersRgba(cfg.footer.couleurTexte, 0.65), bord: hexVersRgba(cfg.footer.couleurTexte, 0.14), champFond: hexVersRgba(cfg.footer.couleurTexte, 0.08), champBord: hexVersRgba(cfg.footer.couleurTexte, 0.25), champTexte: cfg.footer.couleurTexte, boutonTexte: '#fff' }} />
+          <BoutiqueBoutonInstallerApp couleur={cp} texte={cfg.footer.couleurTexte} texteDoux={hexVersRgba(cfg.footer.couleurTexte, 0.75)} />
+        </>
+      ) : undefined} />
     </div>
   );
 }

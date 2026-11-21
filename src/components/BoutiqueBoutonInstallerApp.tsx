@@ -5,7 +5,8 @@
 
 import React, { useState, useEffect } from 'react';
 
-export default function BoutiqueBoutonInstallerApp({ couleur = '#c9a96e' }: { couleur?: string }) {
+// `texte` : couleur du texte (blanc par défaut = gabarits sombres ; passer une couleur foncée pour un fond clair).
+export default function BoutiqueBoutonInstallerApp({ couleur = '#c9a96e', texte = '#fff', texteDoux = 'rgba(255,255,255,0.75)' }: { couleur?: string; texte?: string; texteDoux?: string }) {
   const info = (window as any).__pwaBoutique as { nom?: string; theme?: string } | undefined;
   const [installEvent, setInstallEvent] = useState<any>((window as any).__pwaInstallEvent || null);
   const [appInstallee, setAppInstallee] = useState(false);
@@ -40,11 +41,11 @@ export default function BoutiqueBoutonInstallerApp({ couleur = '#c9a96e' }: { co
     <div className="bq-install-mobile" style={{ width: '100%', padding: '0 0 24px', boxSizing: 'border-box' }}>
       <style>{`.bq-install-mobile{display:none}@media (max-width:768px){.bq-install-mobile{display:block}}`}</style>
       <button type="button" onClick={installer}
-        style={{ width: '100%', padding: '14px 20px', background: `${couleur}22`, color: '#fff', border: `1.5px solid ${couleur}`, borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer', textAlign: 'center', fontFamily: 'inherit' }}>
+        style={{ width: '100%', padding: '14px 20px', background: `${couleur}22`, color: texte, border: `1.5px solid ${couleur}`, borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer', textAlign: 'center', fontFamily: 'inherit' }}>
         {`📲 Installer l'app ${info.nom || ''}`.trim()}
       </button>
       {aideIOS && (
-        <p style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.5, color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>
+        <p style={{ margin: '10px 0 0', fontSize: 13, lineHeight: 1.5, color: texteDoux, textAlign: 'center' }}>
           {"Sur iPhone : touchez le bouton Partager (le carré avec une flèche), puis « Sur l'écran d'accueil »."}
         </p>
       )}

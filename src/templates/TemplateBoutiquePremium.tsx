@@ -365,6 +365,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const [varianteChoisie,setVarianteChoisie] = useState<Record<string,string>>({});
   const [ouvertes,setOuvertes] = useState<Record<number,boolean>>({});   // Parution future : annonces dont le compte à rebours vient de finir
   const cfgParution = useConfigParution(vendeurId);
+  const [nbVues] = useState(()=>Math.floor(Math.random()*20)+3);   // « personnes regardent » : au niveau du template (PageProduit est appelée comme fonction, sans hooks)
   const persoRef = useRef<PersoRef|null>(null);   // add-on « Produits personnalisés » : réponses de l'acheteur, lues au clic sur « Ajouter au panier »
   const { trackPageView } = useBoutiqueAnalytique(vendeurId, vendeurId>0&&!configBrut?.__produits_demo__);   // add-on « Analytique » : rien n'est envoyé sans l'add-on, sans la bannière ou sans consentement
   useEffect(()=>{
@@ -807,7 +808,6 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   };
 
   const PageProduit = () => {
-    const [nbVues] = useState(Math.floor(Math.random()*20)+3);
     if (!produitActif) return null;
     const p = produitActif;
     const enPromo = p.prix_promo && p.prix_promo < p.prix;
@@ -1348,7 +1348,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         {page==='catalogue' && <PageCatalogue/>}
         {page==='offres'    && <PageOffres/>}
         {page==='encheres'  && <PageEncheres/>}
-        {page==='produit'   && <PageProduit/>}
+        {page==='produit'   && PageProduit()}   {/* appelée comme fonction : le bloc de personnalisation garde ce que l'acheteur a saisi quand la quantité ou la variante change */}
         {page==='blog'      && <PageBlog/>}
         {page==='article'   && <PageArticle/>}
         {page==='faq'       && <PageFaq/>}
