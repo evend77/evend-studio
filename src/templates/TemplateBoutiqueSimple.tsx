@@ -3,6 +3,10 @@
 // Réutilise le moteur de TemplateBoutiqueSimplisse en mode `mono` ; la configuration est lue dans config.simple.
 import TemplateBoutiqueSimplisse from './TemplateBoutiqueSimplisse';
 
+// Compatibilité : la config générique « Modifier mon site » (ancien mono-produit) importe encore ces éléments depuis ce fichier.
+export { DEFAUTS_PAR_TYPE, CONFIG_BOUTIQUE_SIMPLE_DEFAUT } from './TemplateBoutiqueSimpleAncien';
+export type { TypeBoutique, VarianteProduit, ConfigBoutiqueSimple } from './TemplateBoutiqueSimpleAncien';
+
 interface Props { config: any; siteId?: string; vendeurId?: number; }
 
 export default function TemplateBoutiqueSimple({ config, siteId, vendeurId }: Props) {
