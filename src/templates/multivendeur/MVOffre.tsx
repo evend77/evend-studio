@@ -24,9 +24,10 @@ interface Props {
   heureServeur?: string | null;
   compact?: boolean;                 // petite ligne pour les cartes
   onFini?: () => void;               // appelé une fois à la fin (la page recharge alors le vrai prix)
+  clair?: boolean;                   // thème clair (boutique à fond blanc) ; absent = comme avant
 }
 
-export default function MVOffreCompteur({ fin, heureServeur, compact, onFini }: Props) {
+export default function MVOffreCompteur({ fin, heureServeur, compact, onFini, clair }: Props) {
   const reste = useReste(fin, heureServeur);
   const [fini, setFini] = useState(reste <= 0);
   useEffect(() => { if (reste <= 0 && !fini) { setFini(true); onFini && onFini(); } }, [reste]);   // eslint-disable-line react-hooks/exhaustive-deps
@@ -47,12 +48,12 @@ export default function MVOffreCompteur({ fin, heureServeur, compact, onFini }: 
   return (
     <div style={{ margin: '0 0 16px', padding: '14px 16px', borderRadius: 14, border: `2px solid ${urgent ? '#ef4444' : '#f97316'}`, background: 'linear-gradient(135deg,rgba(249,115,22,0.16),rgba(239,68,68,0.10))' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#fff' }}>🔥 Offre du jour <span style={{ fontWeight: 600, color: 'rgba(255,255,255,0.7)', fontSize: 13 }}>· se termine dans</span></div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: clair ? '#1a1a1a' : '#fff' }}>🔥 Offre du jour <span style={{ fontWeight: 600, color: clair ? '#6b7280' : 'rgba(255,255,255,0.7)', fontSize: 13 }}>· se termine dans</span></div>
         <div style={{ display: 'flex', gap: 6 }}>
           {([['j', j], ['h', h], ['min', m], ['s', s]] as [string, number][]).map(([l, v]) => (
-            <div key={l} style={{ minWidth: 48, textAlign: 'center', padding: '6px 6px', borderRadius: 8, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.14)' }}>
-              <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{p2(v)}</div>
-              <div style={{ fontSize: 9, textTransform: 'uppercase', color: 'rgba(255,255,255,0.65)' }}>{l}</div>
+            <div key={l} style={{ minWidth: 48, textAlign: 'center', padding: '6px 6px', borderRadius: 8, background: clair ? '#fff' : 'rgba(0,0,0,0.35)', border: clair ? '1px solid #fdba74' : '1px solid rgba(255,255,255,0.14)' }}>
+              <div style={{ fontSize: 20, fontWeight: 800, color: clair ? '#1a1a1a' : '#fff', fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{p2(v)}</div>
+              <div style={{ fontSize: 9, textTransform: 'uppercase', color: clair ? '#6b7280' : 'rgba(255,255,255,0.65)' }}>{l}</div>
             </div>
           ))}
         </div>

@@ -14,6 +14,13 @@ import BoutiquePersonnalisation, { PersoRef, ThemePerso } from '../components/Bo
 import BoutiqueVerificateurAge from '../components/BoutiqueVerificateurAge';   // add-on « Vérificateur d'âge » : fenêtre bloquante à l'arrivée
 import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
 import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
+import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-on « Faire une offre » : bloc de la fiche produit
+import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
+import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
+import AvisProduitBoutique, { useAvisProduit, EtoilesAvis } from '../pages/boutique/AvisProduitBoutique';   // add-on « Avis clients » : avis publiés de la fiche produit
+import BoutiqueParutionCountdown, { useConfigParution, formaterDateParution } from '../components/BoutiqueParutionCountdown';   // add-on « Parution future » : compte à rebours
+import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
+import { BoutiqueSouhaitBouton, BoutiqueSouhaitCarte, BoutiqueSouhaitProduit, BoutiqueSouhaitsAcces, BoutiqueFavorisToast } from '../components/BoutiqueFavoris';   // add-on « Favoris » : cœurs, icône d'en-tête, notifications
 
 // ─── Types (miroir de ConfigMesPagesSimplisse) ────────────────────────────────
 interface SectionPage  { id: string; actif: boolean; ordre: number; label: string; icone: string; }
@@ -66,6 +73,9 @@ interface Produit {
   photos?: string[]; description?: string; stock?: number; categorie?: string; sku?: string;
   variantes?: { nom: string; valeurs?: string[]; prix?: number|string|null; stock?: number|string|null }[];   // démo : {nom, valeurs[]} ; vraies annonces : liste plate {nom, prix, stock}
   paliers?: { qte_min:number; type:'pourcentage'|'fixe'; valeur:number; variante:string|null }[];   // add-on « Prix par palier » : le serveur n'envoie rien si l'add-on est inactif
+  offre_fin?: string | null;   // add-on « Offres du jour » : fin de l'offre en cours (le serveur décide du prix)
+  date_parution?: string | null;   // add-on « Parution future » : date d'ouverture de la vente tant qu'elle n'est pas passée
+  enchere?: { fin: string; mise: number; nb_mises: number; decalage?: number } | null;   // add-on « Enchères » : enchère en cours sur ce produit
 }
 
 interface AcheteurUser {
@@ -212,8 +222,35 @@ function Hero({ cfg, cp, onNaviguer }: { cfg: ConfigHero; cp: string; onNaviguer
 }
 
 // ─── Carte produit ────────────────────────────────────────────────────────────
-function CarteProduit({ produit, cp, afficherPrix, onClick }: { produit: Produit; cp: string; afficherPrix: boolean; onClick: () => void }) {
+// Add-on « Enchères » : temps restant d'une carte (heure du serveur, pas celle de l'appareil)
+function CompteurEnchere({ fin, decalage, onFini }: { fin: string; decalage: number; onFini?: () => void }) {
+  const [, setT] = useState(0);
+  useEffect(() => { const t = setInterval(() => setT(x => x + 1), 1000); return () => clearInterval(t); }, []);
+  const ms = new Date(fin).getTime() - (Date.now() + decalage);
+  const fini = useRef(false);
+  useEffect(() => { if (ms <= 0 && !fini.current) { fini.current = true; if (onFini) onFini(); } });
+  if (ms <= 0) return <span>Terminée</span>;
+  const sec = Math.floor(ms / 1000), j = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), r = sec % 60;
+  return <span>{j > 0 ? `${j}j ${h}h ${m}m` : h > 0 ? `${h}h ${String(m).padStart(2, '0')}m ${String(r).padStart(2, '0')}s` : `${m}m ${String(r).padStart(2, '0')}s`}</span>;
+}
+// Add-on « Enchères » : temps restant d'une carte de la page « Enchères »
+function ResteEnchere({ fin, decalage, couleur }: { fin: string; decalage: number; couleur: string }) {
+  const [t, setT] = useState(() => Date.now());
+  useEffect(() => { const i = setInterval(() => setT(Date.now()), 1000); return () => clearInterval(i); }, []);
+  const ms = new Date(fin).getTime() - (t + decalage);
+  if (ms <= 0) return <span style={{ color: '#6b7280' }}>Terminée</span>;
+  const s2 = Math.floor(ms / 1000), j = Math.floor(s2 / 86400), h = Math.floor((s2 % 86400) / 3600), m = Math.floor((s2 % 3600) / 60), sec = s2 % 60;
+  const txt = j > 0 ? `${j} j ${h} h ${m} min` : h > 0 ? `${h} h ${String(m).padStart(2, '0')} min` : `${m} min ${String(sec).padStart(2, '0')} s`;
+  return <span style={{ color: ms < 300000 ? '#dc2626' : couleur, fontWeight: 800 }}>⏱ {txt}</span>;
+}
+
+interface CarteExtras { gid?: number; connecte?: boolean; demo?: boolean; offre?: { heureServeur: string | null; onFini: () => void } }
+
+function CarteProduit({ produit, cp, afficherPrix, onClick, extras }: { produit: Produit; cp: string; afficherPrix: boolean; onClick: () => void; extras?: CarteExtras }) {
+  const gid = extras?.gid, connecte = extras?.connecte, demo = extras?.demo, offre = extras?.offre;
   const enPromo = produit.prix_promo && produit.prix_promo < produit.prix;
+  const ench = produit.enchere || null;
+  const venteBloquee = !!ench && produit.stock === 0;   // seul exemplaire réservé à l'enchère : pas de vente directe
   return (
     <div onClick={onClick} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s ease' }}
       onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 24px ${cp}20`; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'; }}
@@ -224,12 +261,15 @@ function CarteProduit({ produit, cp, afficherPrix, onClick }: { produit: Produit
           : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, color: '#d1d5db' }}>📦</div>
         }
         {enPromo && <span style={{ position: 'absolute', top: 10, left: 10, background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>SOLDE</span>}
-        {produit.stock === 0 && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ background: '#111', color: '#fff', padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 700 }}>Épuisé</span></div>}
+        {ench && <span style={{ position: 'absolute', top: enPromo ? 36 : 10, left: 10, background: cp, color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>🔨 ENCHÈRE</span>}
+        {produit.stock === 0 && !ench && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ background: '#111', color: '#fff', padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 700 }}>Épuisé</span></div>}
+        {gid !== undefined && <BoutiqueSouhaitCarte zone="superposition" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo} />}
       </div>
       <div style={{ padding: '14px 16px' }}>
+        {gid !== undefined && <BoutiqueSouhaitCarte zone="haut" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo} />}
         {produit.categorie && <span style={{ fontSize: 11, color: cp, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{produit.categorie}</span>}
         <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', margin: '4px 0 8px', lineHeight: 1.3 }}>{produit.titre}</h3>
-        {afficherPrix && (
+        {afficherPrix && !venteBloquee && (
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
             {enPromo
               ? <>
@@ -240,6 +280,19 @@ function CarteProduit({ produit, cp, afficherPrix, onClick }: { produit: Produit
             }
           </div>
         )}
+        {produit.offre_fin && offre && <OffreCompteur clair compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini} />}
+        {produit.date_parution && <div style={{ marginTop: 8 }}><BoutiqueParutionCountdown compact dateParution={produit.date_parution} gestionnaireId={gid} heureServeur={offre ? offre.heureServeur : null} /></div>}
+        {ench && (
+          <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${cp}55`, background: `${cp}0f` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>
+              <div><div style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{ench.nb_mises > 0 ? 'Mise actuelle' : 'Mise de départ'}</div><div style={{ fontSize: 17, fontWeight: 800, color: cp }}>{prix(ench.mise)}</div></div>
+              <div style={{ textAlign: 'right' }}><div style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Mises</div><div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a' }}>{ench.nb_mises}</div></div>
+            </div>
+            <div style={{ marginTop: 6, display: 'inline-block', fontSize: 11, fontWeight: 800, color: cp, background: `${cp}15`, padding: '3px 8px', borderRadius: 12 }}>⏱ <CompteurEnchere fin={ench.fin} decalage={ench.decalage || 0} onFini={offre ? offre.onFini : undefined} /></div>
+            <button onClick={e => { e.stopPropagation(); onClick(); }} style={{ display: 'block', width: '100%', marginTop: 8, padding: '9px', background: cp, border: 'none', borderRadius: 7, color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>🔨 Participer aux enchères</button>
+          </div>
+        )}
+        {gid !== undefined && <BoutiqueSouhaitCarte zone="bas" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo} />}
       </div>
     </div>
   );
@@ -345,7 +398,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const cp = cfg.accueil.couleurPrimaire || CP;
 
   // ── State navigation interne ──────────────────────────────────────────────
-  type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'contact' | 'login' | 'inscription' | 'compte';
+  type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'contact' | 'login' | 'inscription' | 'compte' | 'offres' | 'encheres';
   const [page, setPage]               = useState<PageId>('accueil');
   const [produitActif, setProduitActif] = useState<Produit | null>(null);
   const [articleActif, setArticleActif] = useState<ArticleBlog | null>(null);
@@ -377,6 +430,16 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const [descExpanded, setDescExpanded] = useState(false);
   const [ongletActif, setOngletActif] = useState<'description'|'details'|'livraison'>('description');
   const ins = fusionInsc((rawSimplisse as any).inscription);
+  const produitsDemo = !!configBrut?.__produits_demo__;
+  const [heureServeur, setHeureServeur] = useState<string | null>(null);   // heure du serveur (offres du jour, parution, enchères)
+  const [enchereEtat, setEnchereEtat] = useState<Record<number, boolean>>({});   // add-on « Enchères » : enchère en cours par produit, lu en direct par le bloc de la fiche
+  const enchActive = (x: Produit) => enchereEtat[x.id] !== undefined ? enchereEtat[x.id] : !!x.enchere;
+  const venteDirecteBloquee = (x: Produit) => enchActive(x) && x.stock === 0;   // un seul exemplaire et il est réservé à l'enchère
+  const [ouvertes, setOuvertes] = useState<Record<number, boolean>>({});   // Parution future : annonces dont le compte à rebours vient de finir
+  const cfgParution = useConfigParution(vendeurId);
+  const avisProd = useAvisProduit(vendeurId || 0, produitActif?.id, produitsDemo);   // add-on « Avis clients » : avis publiés du produit ouvert
+  const avisReel = !!(avisProd.etat && avisProd.etat.actif && avisProd.etat.total > 0);
+  const resumeAvis = () => { const e = avisProd.etat; return e && e.actif && e.total > 0 && e.afficher_moyenne ? { note: e.moyenne, nb: e.total } : null; };
   const { trackPageView } = useBoutiqueAnalytique(vendeurId, vendeurId > 0 && !configBrut?.__produits_demo__);   // add-on « Analytique » : rien n'est envoyé sans l'add-on, sans la bannière ou sans consentement
   const [faqOuvert, setFaqOuvert]     = useState<number | null>(null);
   const [contactEnvoi, setContactEnvoi] = useState<'idle'|'loading'|'ok'|'err'>('idle');
@@ -402,6 +465,24 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
       .catch(() => {});
   }, [vendeurId]);
 
+  // Catalogue réel du serveur (prix en texte → nombres ; enchères, offres du jour et parutions incluses)
+  const chargerCatalogue = useCallback(() => fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data) return;
+      if (data.heure_serveur) setHeureServeur(String(data.heure_serveur));
+      const decSrv = data.heure_serveur ? new Date(String(data.heure_serveur)).getTime() - Date.now() : 0;
+      const liste: Produit[] = (data.produits || data || []).map((x: any) => ({
+        ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo !== null && x.prix_promo !== undefined && x.prix_promo !== '' ? Number(x.prix_promo) : undefined,
+        stock: x.stock !== null && x.stock !== undefined && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined,
+        variantes: Array.isArray(x.variantes) ? x.variantes : [], paliers: Array.isArray(x.paliers) ? x.paliers : undefined,
+        offre_fin: x.offre_fin || null, date_parution: x.date_parution || null,
+        enchere: x.ench_fin ? { fin: x.ench_fin, mise: Number(x.ench_mise), nb_mises: Number(x.ench_nb) || 0, decalage: decSrv } : null,
+      }));
+      setProduits(liste);
+      setCategories(Array.from(new Set(liste.map(p => p.categorie).filter(Boolean))) as string[]);
+    }).catch(() => {}), [vendeurId]);
+
   // Charger produits — si démo hardcodée présente, l'utiliser directement
   useEffect(() => {
     if (configBrut?.__produits_demo__) {
@@ -411,17 +492,64 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
       setCategories(cats);
       return;
     }
-    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`)
-      .then(r => r.ok ? r.json() : { produits: [] })
-      .then(data => {
-        // Le catalogue envoie les prix en texte (« 30.00 ») : on les convertit en nombres une fois pour toutes
-        const liste: Produit[] = (data.produits || data || []).map((x: any) => ({ ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo !== null && x.prix_promo !== undefined && x.prix_promo !== '' ? Number(x.prix_promo) : undefined, stock: x.stock !== null && x.stock !== undefined && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined, variantes: Array.isArray(x.variantes) ? x.variantes : [], paliers: Array.isArray(x.paliers) ? x.paliers : undefined }));
-        setProduits(liste);
-        const cats = Array.from(new Set(liste.map(p => p.categorie).filter(Boolean))) as string[];
-        setCategories(cats);
-      })
-      .catch(() => {});
-  }, [vendeurId]);
+    chargerCatalogue();
+  }, [vendeurId, chargerCatalogue]);
+
+  // Quand une offre se termine, la fiche ouverte reprend le vrai prix
+  useEffect(() => { setProduitActif(a => { if (!a) return a; const n = produits.find(x => x.id === a.id); return n && (n.prix_promo !== a.prix_promo || n.offre_fin !== a.offre_fin) ? { ...a, prix_promo: n.prix_promo, offre_fin: n.offre_fin } : a; }); }, [produits]);
+
+  // Add-on « Offres du jour » : lien du menu seulement s'il y a des offres en cours ; la page est lue au serveur (?offres=1), paginée
+  const [nbOffres, setNbOffres] = useState(0);
+  const [versionOffres, setVersionOffres] = useState(0);
+  const compterOffres = useCallback(() => { if (produitsDemo) return; fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?offres=1&limit=1`).then(r => r.ok ? r.json() : null).then(d => { if (d && typeof d.total === 'number') setNbOffres(d.total); }).catch(() => {}); }, [vendeurId, produitsDemo]);
+  useEffect(() => { compterOffres(); }, [compterOffres]);
+  const OFFRES_PAR_PAGE = 24;
+  const [offresListe, setOffresListe] = useState<Produit[]>([]);
+  const [offresTotal, setOffresTotal] = useState(0);
+  const [offresPg, setOffresPg] = useState(1);
+  const [offresCharge, setOffresCharge] = useState(false);
+  const [offresErr, setOffresErr] = useState(false);
+  useEffect(() => {
+    if (page !== 'offres' || produitsDemo) return;
+    let annule = false; setOffresErr(false);
+    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?offres=1&limit=${OFFRES_PAR_PAGE}&offset=${(offresPg - 1) * OFFRES_PAR_PAGE}`).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+      if (annule) return;
+      const l: Produit[] = (Array.isArray(d.produits) ? d.produits : []).map((x: any) => ({ ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo !== null && x.prix_promo !== undefined && x.prix_promo !== '' ? Number(x.prix_promo) : undefined, stock: x.stock !== null && x.stock !== undefined && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined, variantes: Array.isArray(x.variantes) ? x.variantes : [], offre_fin: x.offre_fin || null, date_parution: x.date_parution || null, enchere: null }));
+      setOffresListe(l); setOffresTotal(Number(d.total) || 0); setOffresCharge(true);
+    }).catch(() => { if (!annule) { setOffresErr(true); setOffresCharge(true); } });
+    return () => { annule = true; };
+  }, [page, offresPg, versionOffres, vendeurId, produitsDemo]);
+  const rechargerOffres = useCallback(() => { if (!produitsDemo) chargerCatalogue(); compterOffres(); setVersionOffres(v => v + 1); }, [chargerCatalogue, compterOffres, produitsDemo]);
+  const offreCtx = { heureServeur, onFini: () => { setTimeout(rechargerOffres, 1200); } };
+
+  // Add-on « Enchères » : lien du menu seulement s'il y a au moins une enchère en cours ; la page lit la liste au serveur
+  const [nbEncheres, setNbEncheres] = useState(0);
+  const [encheresListe, setEncheresListe] = useState<any[]>([]);
+  const [encheresProduits, setEncheresProduits] = useState<Record<number, Produit>>({});
+  const [encheresDec, setEncheresDec] = useState(0);
+  const [encheresCharge, setEncheresCharge] = useState(false);
+  const [encheresErr, setEncheresErr] = useState(false);
+  const [versionEncheres, setVersionEncheres] = useState(0);
+  useEffect(() => {
+    if (produitsDemo) return;
+    let annule = false;
+    const compter = () => fetch(`${API_BASE}/boutique/encheres/${vendeurId}?limit=1`).then(r => r.ok ? r.json() : null).then(d => { if (!annule && d && d.pagination && typeof d.pagination.total === 'number') setNbEncheres(d.pagination.total); }).catch(() => {});
+    compter(); const t = setInterval(compter, 60000);
+    return () => { annule = true; clearInterval(t); };
+  }, [vendeurId, produitsDemo]);
+  useEffect(() => {
+    if (page !== 'encheres' || produitsDemo) return;
+    let annule = false; setEncheresErr(false);
+    const lire = () => fetch(`${API_BASE}/boutique/encheres/${vendeurId}?limit=60`).then(r => r.ok ? r.json() : Promise.reject()).then(async d => {
+      if (annule) return;
+      const l: any[] = Array.isArray(d.encheres) ? d.encheres : [];
+      setEncheresListe(l); setNbEncheres(d.pagination ? Number(d.pagination.total) || 0 : l.length); if (d.maintenant) setEncheresDec(new Date(d.maintenant).getTime() - Date.now()); setEncheresCharge(true);
+      const ids = l.map(x => x.produit_id).filter((x: number) => Number.isInteger(x)).slice(0, 50);
+      if (ids.length) { try { const r2 = await fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?ids=${ids.join(',')}&limit=50`); const c = r2.ok ? await r2.json() : null; if (!annule && c && Array.isArray(c.produits)) { const m: Record<number, Produit> = {}; c.produits.forEach((x: any) => { m[Number(x.id)] = { ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo != null && x.prix_promo !== '' ? Number(x.prix_promo) : undefined, stock: x.stock != null && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined, variantes: Array.isArray(x.variantes) ? x.variantes : [], enchere: null }; }); setEncheresProduits(m); } } catch { /* la carte reste visible, sans ouverture de fiche */ } }
+    }).catch(() => { if (!annule) { setEncheresErr(true); setEncheresCharge(true); } });
+    lire(); const t = setInterval(lire, 15000);
+    return () => { annule = true; clearInterval(t); };
+  }, [page, vendeurId, produitsDemo, versionEncheres]);
 
   // Charger articles blog
   useEffect(() => {
@@ -457,7 +585,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   useEffect(() => {
     if (page === 'produit') { if (produitActif) trackPageView('/produit/' + produitActif.id, produitActif.titre); return; }
     if (page === 'article') { if (articleActif) trackPageView('/blog/' + (articleActif.slug || articleActif.id), articleActif.titre); return; }
-    const noms: Record<string, [string, string]> = { accueil: ['/', 'Accueil'], catalogue: ['/catalogue', 'Catalogue'], blog: ['/blog', 'Blogue'], faq: ['/faq', 'FAQ'], contact: ['/contact', 'Contact'], login: ['/connexion', 'Connexion'], inscription: ['/inscription', 'Inscription'], compte: ['/compte', 'Compte'] };
+    const noms: Record<string, [string, string]> = { accueil: ['/', 'Accueil'], catalogue: ['/catalogue', 'Catalogue'], blog: ['/blog', 'Blogue'], faq: ['/faq', 'FAQ'], contact: ['/contact', 'Contact'], offres: ['/offres', 'Offres du jour'], encheres: ['/encheres', 'Enchères'], login: ['/connexion', 'Connexion'], inscription: ['/inscription', 'Inscription'], compte: ['/compte', 'Compte'] };
     const n = noms[page]; if (n) trackPageView(n[0], n[1]);
   }, [page, produitActif?.id, articleActif?.id, trackPageView]);
 
@@ -466,7 +594,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     setMenuOuvert(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
     if (dest.toLowerCase() === 'panier') { setVueCompte('panier'); setPage('compte'); return; }
-    const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', contact:'contact', compte:'compte', login:'login', inscription:'inscription' };
+    const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', contact:'contact', compte:'compte', login:'login', inscription:'inscription', offres:'offres', encheres:'encheres' };
     if (map[dest.toLowerCase()]) {
       setPage(map[dest.toLowerCase()]);
     }
@@ -491,6 +619,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const ajouterAuPanier = async (produit: Produit) => {
     if (configBrut?.__produits_demo__) { setAvisPanier('Produit de démonstration : publiez vos annonces pour vendre.'); return; }
     if (!acheteur) { setAvisPanier('Connectez-vous pour ajouter au panier.'); naviguer('login'); return; }
+    if (produit.date_parution && !ouvertes[produit.id]) { setAvisPanier(`Disponible le ${formaterDateParution(produit.date_parution)}`); return; }
     const plates = (produit.variantes || []).filter(v => v && !Array.isArray(v.valeurs));
     if (plates.length && !varianteChoisie.__v) { setAvisPanier('Choisissez une variante.'); return; }
     const variante = Object.values(varianteChoisie).join(' / ');
@@ -501,6 +630,8 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     setVueCompte('panier'); naviguer('compte');
   };
   const ouvrirCompte = () => { setVueCompte('dashboard'); naviguer(acheteur ? 'compte' : 'login'); };
+  // Add-on « Favoris » : la liste de souhaits est une page de l'espace client (connecté) ; sinon on invite à se connecter
+  const ouvrirSouhaits = () => { if (!acheteur) { setAvisPanier('Connectez-vous pour voir votre liste de souhaits.'); naviguer('login'); return; } setVueCompte('wishlist'); naviguer('compte'); };
   const ouvrirPanier = () => { if (!acheteur) { setAvisPanier('Connectez-vous pour voir votre panier.'); naviguer('login'); return; } setVueCompte('panier'); naviguer('compte'); };
 
   const handleLogin = async () => {
@@ -581,6 +712,8 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   // ══════════════════════════════════════════════════════════════════════════
   // NAV
   // ══════════════════════════════════════════════════════════════════════════
+  const extras: CarteExtras = { gid: vendeurId > 0 ? vendeurId : undefined, connecte: !!acheteur, demo: produitsDemo, offre: offreCtx };
+  const liensNav: string[][] = [['accueil', 'Accueil'], ['catalogue', 'Catalogue'], ...(nbOffres > 0 ? [['offres', '🔥 Offres du jour']] : []), ...(nbEncheres > 0 ? [['encheres', '🔨 Enchères']] : []), ['blog', 'Blog'], ['faq', 'FAQ'], ['contact', 'Contact']];
   const Nav = () => (
     <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fff', borderBottom: '1px solid #e5e7eb', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -592,7 +725,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         {/* Liens desktop */}
         {!isMobile && (
           <div style={{ display: 'flex', gap: 6 }}>
-            {[['accueil','Accueil'],['catalogue','Catalogue'],['blog','Blog'],['faq','FAQ'],['contact','Contact']].map(([id, label]) => (
+            {liensNav.map(([id, label]) => (
               <button key={id} onClick={() => naviguer(id)}
                 style={{ background: page === id ? `${cp}12` : 'none', border: 'none', borderRadius: 8, color: page === id ? cp : '#555', fontSize: 14, fontWeight: page === id ? 700 : 500, cursor: 'pointer', padding: '8px 14px' }}>
                 {label}
@@ -604,6 +737,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         {/* Droite */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           {/* Panier */}
+          {vendeurId > 0 && <BoutiqueSouhaitsAcces clair gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} ouvrir={ouvrirSouhaits} variante="entete" />}
           <button onClick={ouvrirCompte} aria-label={acheteur ? 'Mon compte' : 'Se connecter'}
             style={{ background: 'none', border: 'none', borderRadius: 10, padding: '9px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#555', fontWeight: 600, fontSize: 14 }}>
             👤{!isMobile && <span>{acheteur ? (acheteur.prenom || 'Mon compte') : 'Connexion'}</span>}
@@ -629,7 +763,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
       {/* Menu mobile déroulant */}
       {isMobile && menuOuvert && (
         <div style={{ background: '#fff', borderTop: '1px solid #e5e7eb', padding: '12px 20px' }}>
-          {[['accueil','Accueil'],['catalogue','Catalogue'],['blog','Blog'],['faq','FAQ'],['contact','Contact']].map(([id, label]) => (
+          {liensNav.map(([id, label]) => (
             <button key={id} onClick={() => naviguer(id)}
               style={{ display: 'block', width: '100%', textAlign: 'left', background: page === id ? `${cp}10` : 'none', border: 'none', borderRadius: 8, color: page === id ? cp : '#333', fontSize: 16, fontWeight: page === id ? 700 : 500, cursor: 'pointer', padding: '12px 14px', marginBottom: 4 }}>
               {label}
@@ -682,7 +816,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
                 <button onClick={() => naviguer('catalogue')} style={{ background: 'none', border: `2px solid ${cp}`, borderRadius: 8, color: cp, fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '8px 18px' }}>Voir tout →</button>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
-                {produitsVedette.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} onClick={() => voirProduit(p)} />)}
+                {produitsVedette.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
               </div>
             </div>
           );
@@ -713,7 +847,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
             <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 24px' }}>
               <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 32 }}>🆕 Nouveautés</h2>
               <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
-                {produitsNouveaux.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} onClick={() => voirProduit(p)} />)}
+                {produitsNouveaux.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
               </div>
             </div>
           );
@@ -725,7 +859,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
               <div style={{ maxWidth: 1200, margin: '0 auto' }}>
                 <h2 style={{ fontSize: 28, fontWeight: 800, color: '#ef4444', marginBottom: 32 }}>🏷 Offres spéciales</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
-                  {produitsPromo.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} onClick={() => voirProduit(p)} />)}
+                  {produitsPromo.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
                 </div>
               </div>
             </div>
@@ -847,7 +981,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
                 <p>Essayez de modifier vos filtres.</p>
               </div>
             : <div style={{ display: 'grid', gridTemplateColumns: colMap[cfg.catalogue.colonnes] || colMap[3], gap: 20 }}>
-                {produitsFiltres.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} onClick={() => voirProduit(p)} />)}
+                {produitsFiltres.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
               </div>
           }
         </div>
@@ -870,8 +1004,11 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     const stockDe = (v: any): number | null => v && v.stock !== null && v.stock !== undefined && v.stock !== '' ? Math.max(0, Number(v.stock)) : (p.stock !== undefined && p.stock !== null ? p.stock : null);
     const stockMax = varsPlates.length ? (vSel ? stockDe(vSel) : null) : (p.stock !== undefined ? p.stock : null);
     const prixVar = vSel && vSel.prix !== null && vSel.prix !== undefined && vSel.prix !== '' && Number(vSel.prix) >= 0 ? Number(vSel.prix) : null;
-    const epuise = p.stock === 0 || (vSel !== null && stockDe(vSel) === 0);
+    const epuise = (p.stock === 0 && !enchActive(p)) || (vSel !== null && stockDe(vSel) === 0);
     const modeDemo = !!configBrut?.__produits_demo__;
+    const parutionBloquee = !!p.date_parution && !ouvertes[p.id];   // pas encore en vente : compte à rebours, aucun achat
+    const bloque = parutionBloquee || venteDirecteBloquee(p);
+    const resume = resumeAvis();
 
     // Galerie component
     const GalerieBlock = () => (
@@ -934,8 +1071,14 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           ) : <span style={{ fontSize: 32, fontWeight: 800, color: btnCouleur }}>{prix(p.prix)}</span>}
         </div>
 
+        {resume && <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}><EtoilesAvis clair note={resume.note} taille={16} /><span style={{ fontSize: 13, color: '#6b7280' }}>{resume.note.toFixed(1)} ({resume.nb} avis)</span><button onClick={() => { const el = document.getElementById('simplisse-avis'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }} style={{ background: 'none', border: 'none', color: btnCouleur, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Voir les avis</button></div>}
+
+        {p.offre_fin && <OffreCompteur clair fin={p.offre_fin} heureServeur={heureServeur} onFini={offreCtx.onFini} />}
+        {p.date_parution && <BoutiqueParutionCountdown dateParution={p.date_parution} gestionnaireId={vendeurId} heureServeur={heureServeur} onOuvert={() => { setOuvertes(m => ({ ...m, [p.id]: true })); setTimeout(() => { chargerCatalogue(); }, 1500); }} />}
+
         {/* Stock */}
-        {fp.afficherStock && p.stock !== undefined && (
+        {enchActive(p) && <div style={{ marginBottom: 16 }}><span style={{ fontSize: 13, color: '#b45309', fontWeight: 600 }}>🔨 {p.stock === undefined || p.stock === null || p.stock === 0 ? '1 unité en vente aux enchères' : 'En stock (1 réservé enchère)'}</span></div>}
+        {!parutionBloquee && fp.afficherStock && p.stock !== undefined && !(enchActive(p) && p.stock === 0) && (
           <div style={{ marginBottom: 16 }}>
             {p.stock > 0
               ? <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✅ En stock ({p.stock} disponible{p.stock > 1 ? 's' : ''})</span>
@@ -944,10 +1087,10 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         )}
 
         {/* Paliers de prix (add-on « Prix par palier ») */}
-        {p.paliers && p.paliers.length > 0 && <PaliersProduitBoutique produit={p as any} quantite={qteChoisie} variante={Object.values(varianteChoisie).join(' / ')} couleur={btnCouleur} fond="#f9fafb" bordure="#e5e7eb" texte="#1a1a1a" texteDiscret="#6b7280" />}
+        {!parutionBloquee && p.paliers && p.paliers.length > 0 && <PaliersProduitBoutique produit={p as any} quantite={qteChoisie} variante={Object.values(varianteChoisie).join(' / ')} couleur={btnCouleur} fond="#f9fafb" bordure="#e5e7eb" texte="#1a1a1a" texteDiscret="#6b7280" />}
 
         {/* Variantes (vraies annonces : liste plate) */}
-        {varsPlates.length > 0 && (
+        {!parutionBloquee && varsPlates.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>Variante</div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
@@ -961,7 +1104,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         )}
 
         {/* Variantes (démo : nom + valeurs) */}
-        {p.variantes && p.variantes.filter(v => Array.isArray(v.valeurs)).map(v => (
+        {!parutionBloquee && p.variantes && p.variantes.filter(v => Array.isArray(v.valeurs)).map(v => (
           <div key={v.nom} style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>{v.nom}</div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
@@ -976,10 +1119,10 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         ))}
 
         {/* Produits personnalisés (add-on) */}
-        {vendeurId > 0 && !modeDemo && <BoutiquePersonnalisation key={p.id} gestionnaireId={vendeurId} produitId={p.id} couleur={btnCouleur} theme={THEME_CLAIR_PERSO} reference={persoRef} />}
+        {!bloque && vendeurId > 0 && !modeDemo && <BoutiquePersonnalisation key={p.id} gestionnaireId={vendeurId} produitId={p.id} couleur={btnCouleur} theme={THEME_CLAIR_PERSO} reference={persoRef} />}
 
         {/* Quantité */}
-        {fp.afficherQte && (
+        {!bloque && fp.afficherQte && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>Quantité</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -992,11 +1135,28 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           </div>
         )}
 
-        {/* Bouton */}
-        <button onClick={() => ajouterAuPanier(p)} disabled={epuise}
-          style={{ width: '100%', padding: '14px 24px', background: epuise ? '#e5e7eb' : btnCouleur, color: epuise ? '#aaa' : '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: epuise ? 'not-allowed' : 'pointer', marginBottom: 14 }}>
-          {epuise ? 'Épuisé' : `🛒 ${fp.boutonLabel}`}
-        </button>
+        {/* Bouton (+ liste de souhaits avant / après selon le réglage du gestionnaire) */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+          <BoutiqueSouhaitProduit clair zone="avant_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
+          {parutionBloquee
+            ? (cfgParution.afficher_message_atc && cfgParution.texte_atc_bloque
+                ? <div style={{ flex: 1, minWidth: 180, padding: '14px 16px', borderRadius: 12, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 14, fontWeight: 700, textAlign: 'center' }}>{cfgParution.texte_atc_bloque}</div>
+                : <button disabled style={{ flex: 1, minWidth: 180, padding: '14px 24px', background: btnCouleur, color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, opacity: 0.5, cursor: 'not-allowed' }}>⏳ Pas encore disponible</button>)
+            : !venteDirecteBloquee(p) && (
+                <button onClick={() => ajouterAuPanier(p)} disabled={epuise}
+                  style={{ flex: 1, minWidth: 180, padding: '14px 24px', background: epuise ? '#e5e7eb' : btnCouleur, color: epuise ? '#aaa' : '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: epuise ? 'not-allowed' : 'pointer' }}>
+                  {epuise ? 'Épuisé' : `🛒 ${fp.boutonLabel}`}
+                </button>)}
+          <BoutiqueSouhaitProduit clair zone="apres_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
+        </div>
+
+        {/* Enchère et « Faire une offre » (add-ons) */}
+        {!parutionBloquee && <BlocEnchereBoutique clair gestionnaireId={vendeurId} produitId={p.id} couleurAccent={btnCouleur} isDemo={modeDemo}
+          onEtat={a => { if (enchereEtat[p.id] === true && a === false) setTimeout(rechargerOffres, 400); setEnchereEtat(m => m[p.id] === a ? m : { ...m, [p.id]: a }); }}
+          allerConnexion={() => { setAvisPanier('Connectez-vous pour miser.'); naviguer('login'); }} />}
+        <FaireOffreBoutique clair gestionnaireId={vendeurId} produitId={p.id} prix={prixVar !== null ? prixVar : enPromo ? p.prix_promo! : p.prix} variante={Object.values(varianteChoisie).join(' / ')}
+          varianteRequise={varsPlates.length > 0 && !vSel || !!(p.variantes && p.variantes.some(v => Array.isArray(v.valeurs) && !varianteChoisie[v.nom]))} masque={p.stock === 0 || parutionBloquee} couleurAccent={btnCouleur} isDemo={modeDemo}
+          allerConnexion={() => { setAvisPanier('Connectez-vous pour faire une offre.'); naviguer('login'); }} onPanier={() => { setVueCompte('panier'); naviguer('compte'); }} />
 
         {/* Réassurance */}
         {fp.afficherReassurance && fp.reassuranceItems.length > 0 && (
@@ -1071,6 +1231,21 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
       </div>
     ) : null;
 
+    // Questions et avis (add-ons) : sous la description, avant les produits similaires
+    const blocsBas = (vendeurId > 0 && !modeDemo) ? (
+      <div style={{ marginTop: 40 }}>
+        <QuestionsProduitBoutique clair gestionnaireId={vendeurId} produitId={p.id} couleurAccent={btnCouleur} isDemo={modeDemo}
+          allerConnexion={() => { setAvisPanier('Connectez-vous pour poser une question.'); naviguer('login'); }} />
+        {avisReel && (
+          <div id="simplisse-avis" style={{ marginTop: 40 }}>
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', margin: '0 0 16px' }}>⭐ Avis clients ({avisProd.etat!.total})</h3>
+            <AvisProduitBoutique clair donnees={avisProd} couleurAccent={btnCouleur} connecte={!!acheteur} isMobile={isMobile}
+              ouvrirMesAvis={() => { if (!acheteur) { setAvisPanier('Connectez-vous pour laisser un avis.'); naviguer('login'); return; } setVueCompte('avis'); naviguer('compte'); }} />
+          </div>
+        )}
+      </div>
+    ) : null;
+
     // Layout image-haut
     if (!isMobile && fp.layout === 'image-haut') {
       return (
@@ -1085,12 +1260,13 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           <div style={{ marginBottom: 36 }}>{GalerieBlock()}</div>
           {InfoBlock()}
           <DescriptionBas />
+          {blocsBas}
           {fp.afficherSimilaires && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
             <div style={{ marginTop: 56, paddingTop: 40, borderTop: '1px solid #e5e7eb' }}>
               <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', marginBottom: 20 }}>{fp.similairesTitre}</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
                 {produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).slice(0, fp.similairesNombre).map(pr => (
-                  <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} onClick={() => voirProduit(pr)} />
+                  <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(pr)} />
                 ))}
               </div>
             </div>
@@ -1117,12 +1293,13 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           {isInverse ? <>{infoCol}{imageCol}</> : <>{imageCol}{infoCol}</>}
         </div>
         <DescriptionBas />
+        {blocsBas}
         {fp.afficherSimilaires && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
           <div style={{ marginTop: 56, paddingTop: 40, borderTop: '1px solid #e5e7eb' }}>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', marginBottom: 20 }}>{fp.similairesTitre}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
               {produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).slice(0, fp.similairesNombre).map(pr => (
-                <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} onClick={() => voirProduit(pr)} />
+                <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(pr)} />
               ))}
             </div>
           </div>
@@ -1134,6 +1311,62 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   // ══════════════════════════════════════════════════════════════════════════
   // PAGE BLOG
   // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
+  // OFFRES DU JOUR / ENCHÈRES (thème clair)
+  // ══════════════════════════════════════════════════════════════════════════
+  const colsGrille = isMobile ? 'repeat(2,1fr)' : `repeat(${Math.min(4, Math.max(2, Number(cfg.catalogue.colonnes) || 3))},1fr)`;
+  const lienReessayer: React.CSSProperties = { background: 'none', border: 'none', color: cp, textDecoration: 'underline', cursor: 'pointer', fontSize: 'inherit' };
+  const PageEncheres = () => (
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: isMobile ? 26 : 34, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>🔨 Enchères</h1>
+        <p style={{ margin: 0, color: '#6b7280', fontSize: 15 }}>Les enchères qui se terminent bientôt sont en premier. Une mise est un engagement d'achat.</p>
+      </div>
+      {!encheresCharge ? <p style={{ color: '#6b7280' }}>Chargement…</p>
+        : encheresErr ? <p style={{ color: '#b91c1c' }}>Impossible de charger les enchères. <button onClick={() => setVersionEncheres(v => v + 1)} style={lienReessayer}>Réessayer</button></p>
+        : encheresListe.length === 0
+          ? <div style={{ textAlign: 'center', padding: '70px 0', color: '#6b7280' }}><div style={{ fontSize: 52, marginBottom: 14 }}>🔨</div><h3 style={{ fontWeight: 600, marginBottom: 16 }}>Aucune enchère en cours pour le moment. Revenez bientôt !</h3><button onClick={() => naviguer('catalogue')} style={{ ...styleBtn, width: 'auto', padding: '12px 28px' }}>Voir le catalogue</button></div>
+          : <div style={{ display: 'grid', gridTemplateColumns: colsGrille, gap: isMobile ? 12 : 20 }}>
+              {encheresListe.map((e: any) => (
+                <div key={e.id} onClick={() => { const pr = encheresProduits[Number(e.produit_id)]; if (pr) voirProduit(pr); else { const dans = produits.find(x => Number(x.id) === Number(e.produit_id)); if (dans) voirProduit(dans); } }} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', cursor: 'pointer' }}>
+                  <div style={{ aspectRatio: '1/1', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {e.image_url ? <img src={e.image_url} alt={e.titre} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 44, opacity: 0.3 }}>🔨</span>}
+                  </div>
+                  <div style={{ padding: '12px 14px' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.titre}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: cp }}>{prix(e.mise_actuelle !== null ? e.mise_actuelle : e.prix_depart)}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 6px' }}>{e.mise_actuelle === null ? 'Prix de départ' : `${e.nb_mises} mise${e.nb_mises > 1 ? 's' : ''}`}{e.reserve && e.reserve.atteinte ? ' · réserve atteinte' : ''}</div>
+                    <div style={{ fontSize: 12 }}><ResteEnchere fin={e.date_fin} decalage={encheresDec} couleur={cp} /></div>
+                  </div>
+                </div>))}
+            </div>}
+    </div>
+  );
+  const PageOffres = () => {
+    const pages = Math.max(1, Math.ceil(offresTotal / OFFRES_PAR_PAGE));
+    const btnPg = (actif: boolean, off = false): React.CSSProperties => ({ padding: '8px 14px', borderRadius: 8, border: `1px solid ${actif ? cp : '#d1d5db'}`, background: actif ? cp : '#fff', color: actif ? '#fff' : off ? '#9ca3af' : '#374151', fontWeight: actif ? 800 : 500, fontSize: 13, cursor: off ? 'not-allowed' : 'pointer', opacity: off ? 0.5 : 1 });
+    return (
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontSize: isMobile ? 26 : 34, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>🔥 Offres du jour</h1>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: 15 }}>Les offres qui se terminent bientôt sont en premier. Le prix revient à la normale dès la fin du compte à rebours.</p>
+        </div>
+        {!offresCharge ? <p style={{ color: '#6b7280' }}>Chargement…</p>
+          : offresErr ? <p style={{ color: '#b91c1c' }}>Impossible de charger les offres. <button onClick={() => setVersionOffres(v => v + 1)} style={lienReessayer}>Réessayer</button></p>
+          : offresListe.length === 0
+            ? <div style={{ textAlign: 'center', padding: '70px 0', color: '#6b7280' }}><div style={{ fontSize: 52, marginBottom: 14 }}>🔥</div><h3 style={{ fontWeight: 600, marginBottom: 16 }}>Aucune offre du jour pour le moment. Revenez bientôt !</h3><button onClick={() => naviguer('catalogue')} style={{ ...styleBtn, width: 'auto', padding: '12px 28px' }}>Voir le catalogue →</button></div>
+            : <>
+              <div style={{ display: 'grid', gridTemplateColumns: colsGrille, gap: isMobile ? 12 : 20 }}>{offresListe.map(pr => <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(pr)} />)}</div>
+              {pages > 1 && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 32, flexWrap: 'wrap' }}>
+                <button disabled={offresPg <= 1} onClick={() => { setOffresPg(offresPg - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(false, offresPg <= 1)}>← Préc.</button>
+                {Array.from({ length: pages }, (_, k) => k + 1).filter(n => n === 1 || n === pages || Math.abs(n - offresPg) <= 1).map((n, i, a) => (<span key={n} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>{i > 0 && n - a[i - 1] > 1 && <span style={{ color: '#9ca3af' }}>…</span>}<button onClick={() => { setOffresPg(n); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(n === offresPg)}>{n}</button></span>))}
+                <button disabled={offresPg >= pages} onClick={() => { setOffresPg(offresPg + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(false, offresPg >= pages)}>Suiv. →</button>
+              </div>}
+            </>}
+      </div>
+    );
+  };
+
   // ══════════════════════════════════════════════════════════════════════════
   // CONNEXION / INSCRIPTION (thème clair)
   // ══════════════════════════════════════════════════════════════════════════
@@ -1396,6 +1629,8 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
 
       {vendeurId > 0 && !configBrut?.__produits_demo__ && <BoutiqueVerificateurAge gid={vendeurId} />}
       <Nav />
+      {vendeurId > 0 && <BoutiqueSouhaitsAcces clair gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} ouvrir={ouvrirSouhaits} variante="flottant" />}
+      {vendeurId > 0 && <BoutiqueFavorisToast gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} />}
       {avisPanier && <div role="status" style={{ position: 'fixed', top: 76, left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: '#fff', border: `1px solid ${cp}`, color: '#1a1a1a', padding: '12px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 30px rgba(0,0,0,0.18)', maxWidth: '92vw' }}>{avisPanier}</div>}
 
       <main style={{ flex: 1 }}>
@@ -1406,6 +1641,8 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         {page === 'article'   && <PageArticle />}
         {page === 'faq'       && <PageFaq />}
         {page === 'contact'   && <PageContact />}
+        {page === 'offres'    && PageOffres()}
+        {page === 'encheres'  && PageEncheres()}
         {page === 'login'     && PageLogin()}
         {page === 'inscription' && PageInscription()}
       </main>

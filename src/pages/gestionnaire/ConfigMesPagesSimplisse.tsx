@@ -150,6 +150,7 @@ interface ConfigSimplisse {
   contact:  ConfigContact;
   footer:      ConfigFooter;
   ficheProduit: ConfigFicheProduit;
+  inscription: any;   // page « Créer un compte » (même modèle que Premium) ; fusionnée avec les défauts à la lecture
 }
 
 // ─── Valeurs par défaut ───────────────────────────────────────────────────────
@@ -222,6 +223,30 @@ const FICHE_PRODUIT_DEFAUT: ConfigFicheProduit = {
   similairesTitre:     'Vous aimerez aussi',
 };
 
+// ─── Compte / Inscription (même modèle que Premium) ───────────────────────────
+type TypeChampInsc = 'text' | 'email' | 'tel' | 'select' | 'textarea' | 'checkbox';
+interface ChampInsc { id: string; type: TypeChampInsc; label: string; placeholder?: string; options?: string[]; requis?: boolean; }
+const TYPE_CHAMP_LABELS: Record<TypeChampInsc, string> = { text: 'Texte court', email: 'Email', tel: 'Téléphone', select: 'Menu déroulant', textarea: 'Zone de texte', checkbox: 'Case à cocher' };
+const MAX_CHAMPS_INSC = 10;
+const INSCRIPTION_DEF = {
+  titre: 'Créer un compte', sousTitre: '', boutonTexte: 'Créer mon compte',
+  messageSuccesTitre: 'Compte créé avec succès !', messageSuccesTexte: 'Vous pouvez maintenant vous connecter.',
+  libelles: { prenom: 'Prénom', nom: 'Nom', email: 'Courriel', mot_de_passe: 'Mot de passe', confirmation: 'Confirmez le mot de passe' },
+  telephone: { mode: 'cache' as 'cache' | 'facultatif' | 'obligatoire' },
+  adresse: { mode: 'obligatoire' as 'cache' | 'facultatif' | 'obligatoire' },
+  infolettre: { affiche: false, texte: 'Je veux recevoir les nouveautés par courriel' },
+  age: { affiche: true, minimum: 16, texte: 'Je déclare avoir {age} ans ou + (consentement parental pour les mineurs)' },
+  termes: { affiche: true, texte: "J'accepte les termes et conditions de la boutique", url: '' },
+  champs: [] as ChampInsc[],
+};
+
+// Fusionne la config sauvegardée avec les défauts (une config partielle ne perd jamais ses valeurs par défaut)
+function fusionInscription(b: any) {
+  const x = b && typeof b === 'object' ? b : {};
+  const sous = (k: 'libelles' | 'telephone' | 'adresse' | 'infolettre' | 'age' | 'termes') => ({ ...INSCRIPTION_DEF[k], ...(x[k] && typeof x[k] === 'object' ? x[k] : {}) });
+  return { ...INSCRIPTION_DEF, ...x, libelles: sous('libelles'), telephone: sous('telephone'), adresse: sous('adresse'), infolettre: sous('infolettre'), age: sous('age'), termes: sous('termes'), champs: Array.isArray(x.champs) ? x.champs : [] };
+}
+
 const CONFIG_DEFAUT: ConfigSimplisse = {
   accueil: {
     hero: { ...HERO_DEFAUT },
@@ -286,6 +311,7 @@ const CONFIG_DEFAUT: ConfigSimplisse = {
     politiques: { afficherConditions: true, afficherConfidentialite: true, afficherRetours: true, afficherLivraison: true },
   },
   ficheProduit: { ...FICHE_PRODUIT_DEFAUT },
+  inscription: INSCRIPTION_DEF,
 };
 
 // ─── Composants utilitaires (même style que FoodTruck) ───────────────────────
@@ -447,6 +473,45 @@ function EditorBanniere({ banniere, onChange }: { banniere: ConfigBanniere; onCh
         </>
       )}
     </>
+  );
+}
+
+
+function EditeurChampInscription({ champ, index, total, ouvertParDefaut, onChange, onSupprimer, onDeplacer }: {
+  champ: ChampInsc; index: number; total: number; ouvertParDefaut?: boolean;
+  onChange: (c: ChampInsc) => void; onSupprimer: () => void; onDeplacer: (dir: -1 | 1) => void;
+}) {
+  const [ouvert, setOuvert] = useState(!!ouvertParDefaut);
+  const btnFleche = (actif: boolean) => ({ width: 20, height: 16, border: '1px solid #d1d5db', borderRadius: 3, background: actif ? '#fff' : '#f3f4f6', color: '#888', cursor: actif ? 'pointer' : 'default', fontSize: 8 } as const);
+  return (
+    <div style={{ border: '1px solid #e5e7eb', borderRadius: 8, marginBottom: 10, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#fafafa' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <button onClick={() => onDeplacer(-1)} disabled={index === 0} style={btnFleche(index !== 0)}>▲</button>
+          <button onClick={() => onDeplacer(1)} disabled={index === total - 1} style={btnFleche(index !== total - 1)}>▼</button>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, margin: 0, color: '#222' }}>{champ.label || '(sans nom)'}</p>
+          <p style={{ fontSize: 11, color: '#888', margin: 0 }}>{TYPE_CHAMP_LABELS[champ.type]}{champ.requis ? ' · Obligatoire' : ''}</p>
+        </div>
+        <button onClick={() => setOuvert(!ouvert)} style={{ background: '#f3f4f6', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, cursor: 'pointer' }}>{ouvert ? '✕' : '✏️'}</button>
+        <button onClick={onSupprimer} style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>🗑️</button>
+      </div>
+      {ouvert && (
+        <div style={{ padding: 14, borderTop: '1px solid #e5e7eb' }}>
+          <F label="Libellé affiché"><Inp value={champ.label} onChange={(v: string) => onChange({ ...champ, label: v })} placeholder="Ex : Ville" /></F>
+          <F label="Type de champ">
+            <select value={champ.type} onChange={e => onChange({ ...champ, type: e.target.value as TypeChampInsc })}
+              style={{ width: '100%', padding: '8px 11px', border: '1.5px solid #e5e7eb', borderRadius: 5, fontSize: 13, background: '#fff', color: '#1a1a1a', boxSizing: 'border-box' as const }}>
+              {Object.entries(TYPE_CHAMP_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </F>
+          {champ.type !== 'checkbox' && champ.type !== 'select' && <F label="Texte d'exemple (placeholder)"><Inp value={champ.placeholder || ''} onChange={(v: string) => onChange({ ...champ, placeholder: v })} /></F>}
+          {champ.type === 'select' && <F label="Options — une par ligne"><Txt value={(champ.options || []).join('\n')} onChange={(v: string) => onChange({ ...champ, options: v.split('\n').map(o => o.trim()).filter(Boolean) })} rows={4} /></F>}
+          <Toggle label="Obligatoire" checked={!!champ.requis} onChange={(v: boolean) => onChange({ ...champ, requis: v })} />
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -670,7 +735,7 @@ function ApercuMini({ config, pageCourante }: { config: ConfigSimplisse; pageCou
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-type PageOnglet = 'accueil' | 'catalogue' | 'faq' | 'blog' | 'contact' | 'fiche-produit' | 'footer';
+type PageOnglet = 'accueil' | 'catalogue' | 'faq' | 'blog' | 'contact' | 'fiche-produit' | 'inscription' | 'footer';
 
 interface Props {
   gestionnaireId: number;
@@ -701,7 +766,7 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.config?.simplisse) {
-          setConfig(prev => ({ ...prev, ...data.config.simplisse }));
+          setConfig(prev => ({ ...prev, ...data.config.simplisse, inscription: fusionInscription(data.config.simplisse.inscription) }));
         }
       })
       .catch(() => {});
@@ -733,6 +798,8 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
   const setBlog = useCallback((patch: Partial<ConfigBlog>)        => setConfig(c => ({ ...c, blog:     { ...c.blog,     ...patch } })), []);
   const setCont = useCallback((patch: Partial<ConfigContact>)     => setConfig(c => ({ ...c, contact:  { ...c.contact,  ...patch } })), []);
   const setFiche = useCallback((patch: Partial<ConfigFicheProduit>) => setConfig(c => ({ ...c, ficheProduit: { ...c.ficheProduit, ...patch } })), []);
+  const setIns  = useCallback((patch: any) => setConfig(c => ({ ...c, inscription: { ...c.inscription, ...patch } })), []);
+  const [dernierChampInsc, setDernierChampInsc] = useState<string | null>(null);
   const setFoot = useCallback((patch: Partial<ConfigFooter>)      => setConfig(c => ({ ...c, footer:   { ...c.footer,   ...patch } })), []);
 
   const PAGES: { id: PageOnglet; label: string; icone: string }[] = [
@@ -742,6 +809,7 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
     { id: 'blog',      label: 'Blog',      icone: '📝' },
     { id: 'contact',   label: 'Contact',   icone: '✉️' },
     { id: 'fiche-produit', label: 'Fiche produit', icone: '🛍' },
+    { id: 'inscription', label: 'Compte', icone: '👤' },
     { id: 'footer',    label: 'Footer',    icone: '📋' },
   ];
 
@@ -997,6 +1065,84 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
         </>
       );
 
+      case 'inscription': {
+        // Réglages de la page « Créer un compte » de la boutique (champs, âge minimum, termes). La page de connexion n'a rien à régler.
+        const ins = config.inscription;
+        const champs: ChampInsc[] = ins.champs || [];
+        const majChamp = (i: number, c: ChampInsc) => { const arr = [...champs]; arr[i] = c; setIns({ champs: arr }); };
+        const deplacer = (i: number, dir: -1 | 1) => { const arr = [...champs]; const j = i + dir; if (j < 0 || j >= arr.length) return; [arr[i], arr[j]] = [arr[j], arr[i]]; setIns({ champs: arr }); };
+        const ajouter = () => { const id = `champ_${Date.now()}`; setIns({ champs: [...champs, { id, type: 'text', label: '' }] }); setDernierChampInsc(id); };
+        const Choix = ({ valeur, options, onChoisir }: { valeur: string; options: [string, string][]; onChoisir: (v: string) => void }) => (
+          <div style={{ display: 'flex', gap: 8 }}>
+            {options.map(([v, l]) => (
+              <button key={v} onClick={() => onChoisir(v)}
+                style={{ flex: 1, padding: '9px', border: `2px solid ${valeur === v ? CP : '#e5e7eb'}`, borderRadius: 8, background: valeur === v ? `${CP}15` : '#fff', color: valeur === v ? CP : '#666', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>{l}</button>
+            ))}
+          </div>
+        );
+        return (
+          <>
+            <S titre="Textes de la page">
+              <F label="Titre"><Inp value={ins.titre} onChange={(v: string) => setIns({ titre: v })} placeholder="Créer un compte" /></F>
+              <F label="Sous-titre (optionnel)"><Inp value={ins.sousTitre} onChange={(v: string) => setIns({ sousTitre: v })} /></F>
+              <F label="Texte du bouton"><Inp value={ins.boutonTexte} onChange={(v: string) => setIns({ boutonTexte: v })} placeholder="Créer mon compte" /></F>
+              <F label="Titre du message de succès"><Inp value={ins.messageSuccesTitre} onChange={(v: string) => setIns({ messageSuccesTitre: v })} /></F>
+              <F label="Texte du message de succès"><Txt value={ins.messageSuccesTexte} onChange={(v: string) => setIns({ messageSuccesTexte: v })} rows={2} /></F>
+            </S>
+            <S titre="Champs de base">
+              <p style={{ fontSize: 12, color: '#888', margin: '0 0 14px', lineHeight: 1.6 }}>Ces 5 champs sont toujours présents (le compte ne peut pas exister sans eux). Vous pouvez seulement changer leur libellé.</p>
+              {([['prenom', 'Prénom'], ['nom', 'Nom'], ['email', 'Courriel'], ['mot_de_passe', 'Mot de passe'], ['confirmation', 'Confirmation du mot de passe']] as const).map(([k, l]) => (
+                <F key={k} label={l}><Inp value={ins.libelles[k]} onChange={(v: string) => setIns({ libelles: { ...ins.libelles, [k]: v } })} /></F>
+              ))}
+            </S>
+            <S titre="Champs facultatifs">
+              <F label="Téléphone">
+                <Choix valeur={ins.telephone.mode} onChoisir={v => setIns({ telephone: { mode: v } })} options={[['cache', 'Caché'], ['facultatif', 'Facultatif'], ['obligatoire', 'Obligatoire']]} />
+              </F>
+              <F label="Adresse de livraison (adresse, ville, code postal, province)">
+                <Choix valeur={ins.adresse.mode} onChoisir={v => setIns({ adresse: { mode: v } })} options={[['cache', 'Cachée'], ['facultatif', 'Facultative'], ['obligatoire', 'Obligatoire']]} />
+              </F>
+              <p style={{ fontSize: 12, color: '#888', margin: '-6px 0 14px', lineHeight: 1.6 }}>Enregistrée de façon chiffrée et pré-remplie à la caisse. Format canadien vérifié (code postal, province).</p>
+              <Toggle label="Case « infolettre »" checked={ins.infolettre.affiche} onChange={(v: boolean) => setIns({ infolettre: { ...ins.infolettre, affiche: v } })} desc="Le client peut cocher pour recevoir vos nouveautés (jamais obligatoire)" />
+              {ins.infolettre.affiche && <F label="Texte de la case"><Inp value={ins.infolettre.texte} onChange={(v: string) => setIns({ infolettre: { ...ins.infolettre, texte: v } })} /></F>}
+            </S>
+            <S titre="Âge minimum">
+              <Toggle label="Afficher la case de confirmation d'âge" checked={ins.age.affiche} onChange={(v: boolean) => setIns({ age: { ...ins.age, affiche: v } })} desc="Case obligatoire à cocher pour créer le compte" />
+              {ins.age.affiche ? (
+                <>
+                  <F label="Âge minimum"><Inp type="number" value={ins.age.minimum} onChange={(v: string) => setIns({ age: { ...ins.age, minimum: Math.max(1, Math.min(99, parseInt(v, 10) || 16)) } })} placeholder="16" /></F>
+                  <F label="Texte de la case — {age} est remplacé par l'âge minimum"><Inp value={ins.age.texte} onChange={(v: string) => setIns({ age: { ...ins.age, texte: v } })} /></F>
+                </>
+              ) : (
+                <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '10px 14px', fontSize: 12, color: '#92400e', lineHeight: 1.6 }}>
+                  ⚠️ Sans cette case, aucune confirmation d'âge n'est demandée. Vous restez responsable du respect des lois qui s'appliquent à votre boutique (ex. Loi 25 au Québec).
+                </div>
+              )}
+            </S>
+            <S titre="Termes et conditions">
+              <Toggle label="Afficher la case « termes et conditions »" checked={ins.termes.affiche} onChange={(v: boolean) => setIns({ termes: { ...ins.termes, affiche: v } })} desc="Case obligatoire à cocher pour créer le compte" />
+              {ins.termes.affiche && <>
+                <F label="Texte de la case"><Inp value={ins.termes.texte} onChange={(v: string) => setIns({ termes: { ...ins.termes, texte: v } })} /></F>
+                <F label="Lien vers vos conditions (optionnel)"><Inp value={ins.termes.url} onChange={(v: string) => setIns({ termes: { ...ins.termes, url: v } })} placeholder="https://..." /></F>
+                {ins.termes.url && !/^https?:\/\//i.test(ins.termes.url) && <div style={{ fontSize: 12, color: '#dc2626', margin: '-6px 0 10px' }}>⚠️ Le lien doit commencer par https:// pour s'afficher.</div>}
+              </>}
+            </S>
+            <S titre={`Champs personnalisés (${champs.length}/${MAX_CHAMPS_INSC})`}>
+              {champs.map((c, i) => (
+                <EditeurChampInscription key={c.id} champ={c} index={i} total={champs.length} ouvertParDefaut={c.id === dernierChampInsc}
+                  onChange={nc => majChamp(i, nc)} onSupprimer={() => setIns({ champs: champs.filter((_, j) => j !== i) })} onDeplacer={dir => deplacer(i, dir)} />
+              ))}
+              {champs.length < MAX_CHAMPS_INSC && (
+                <button onClick={ajouter} style={{ width: '100%', padding: '9px', border: `2px dashed ${CP}40`, borderRadius: 8, background: `${CP}05`, color: CP, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  + Ajouter un champ
+                </button>
+              )}
+              <p style={{ fontSize: 11, color: '#888', margin: '10px 0 0' }}>Les réponses sont conservées avec le compte du client.</p>
+            </S>
+          </>
+        );
+      }
+
       case 'footer': return (
         <>
           <S titre="Identité">
@@ -1140,7 +1286,9 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
                 </div>
               </div>
               <div style={{ border: '1px solid #e5e7eb', borderTop: 'none', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
-                <ApercuMini config={config} pageCourante={page} />
+                {page === 'inscription'
+                  ? <div style={{ padding: 24, background: '#fff', fontSize: 12, color: '#666', lineHeight: 1.6, textAlign: 'center' }}>👤 La page « {config.inscription.titre || 'Créer un compte'} » n'a pas d'aperçu ici.<br />Enregistrez, puis ouvrez <strong>Aperçu de mon site</strong> → Connexion → Créer un compte.</div>
+                  : <ApercuMini config={config} pageCourante={page} />}
               </div>
             </div>
 

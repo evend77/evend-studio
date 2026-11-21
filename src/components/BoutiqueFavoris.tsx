@@ -7,6 +7,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ba } from '../pages/boutique/boutiqueAcheteurApi';
+import { tons } from './tonsBoutique';   // thème sombre (défaut) ou clair
 
 export interface ConfigFavoris {
   bouton_catalogue_actif: boolean; bouton_catalogue_position: 'haut' | 'bas' | 'superposition'; bouton_catalogue_style: 'moderne' | 'classique' | 'minimaliste';
@@ -204,11 +205,13 @@ export function IconeSouhait({ config, rempli, taille }: { config: ConfigFavoris
 interface PropsBouton {
   gestionnaireId?: number | string; produitId?: number | string; connecte?: boolean; demo?: boolean;
   variante: 'produit' | 'carte';
+  clair?: boolean;   // thème clair (template à fond blanc) ; absent = sombre comme avant
   /** Aperçu (page de configuration) : réglages et état imposés, aucun appel serveur. */
   apercu?: { config: ConfigFavoris; actif: boolean; onClick: () => void };
 }
 
-export function BoutiqueSouhaitBouton({ gestionnaireId, produitId, connecte, demo, variante, apercu }: PropsBouton) {
+export function BoutiqueSouhaitBouton({ gestionnaireId, produitId, connecte, demo, variante, apercu, clair }: PropsBouton) {
+  const T = tons(clair);
   const f = useFavoris(apercu ? undefined : gestionnaireId, connecte, demo);
   const config = apercu ? apercu.config : f.config;
   const actifAddon = apercu ? true : f.actif;
@@ -223,7 +226,7 @@ export function BoutiqueSouhaitBouton({ gestionnaireId, produitId, connecte, dem
     return (
       <button type="button" onClick={clic} title={titre} aria-label={titre} aria-pressed={dedans}
         style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '14px 18px', minHeight: 50, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14, fontWeight: 700,
-          color: '#fff', border: `1px solid ${dedans ? config.icone_couleur_active : 'rgba(255,255,255,0.25)'}`, background: dedans ? `${config.icone_couleur_active}22` : 'rgba(255,255,255,0.06)' }}>
+          color: T.txt, border: `1px solid ${dedans ? config.icone_couleur_active : T.b(0.25)}`, background: dedans ? `${config.icone_couleur_active}22` : T.b(0.06) }}>
         <IconeSouhait config={config} rempli={dedans} />
         <span>{dedans ? 'Dans ma liste' : 'Liste de souhaits'}</span>
       </button>
@@ -245,10 +248,10 @@ export function BoutiqueSouhaitBouton({ gestionnaireId, produitId, connecte, dem
 }
 
 /** Bouton de la fiche produit : avant ou après « Ajouter au panier » selon le réglage du gestionnaire. `enLigne` : pas de marge (placé dans une rangée de boutons). */
-export function BoutiqueSouhaitProduit({ zone, gestionnaireId, produitId, connecte, demo, masque, enLigne }: { zone: 'avant_panier' | 'apres_panier'; gestionnaireId?: number | string; produitId: number | string; connecte?: boolean; demo?: boolean; masque?: boolean; enLigne?: boolean }) {
+export function BoutiqueSouhaitProduit({ zone, gestionnaireId, produitId, connecte, demo, masque, enLigne, clair }: { zone: 'avant_panier' | 'apres_panier'; gestionnaireId?: number | string; produitId: number | string; connecte?: boolean; demo?: boolean; masque?: boolean; enLigne?: boolean; clair?: boolean }) {
   const f = useFavoris(gestionnaireId, connecte, demo);
   if (masque || !f.actif || !f.config.bouton_produit_actif || f.config.bouton_produit_position !== zone) return null;
-  return <div style={enLigne ? { display: 'flex' } : { marginBottom: 12 }}><BoutiqueSouhaitBouton gestionnaireId={gestionnaireId} produitId={produitId} connecte={connecte} demo={demo} variante="produit" /></div>;
+  return <div style={enLigne ? { display: 'flex' } : { marginBottom: 12 }}><BoutiqueSouhaitBouton gestionnaireId={gestionnaireId} produitId={produitId} connecte={connecte} demo={demo} variante="produit" clair={clair} /></div>;
 }
 
 /** Bouton d'une carte produit : s'affiche seulement dans la zone choisie par le gestionnaire (superposition sur l'image, haut ou bas de la carte). */
@@ -268,9 +271,10 @@ export function useCarteSuperposition(gestionnaireId?: number | string, connecte
 
 // ─── Accès à la liste : icône d'en-tête et bouton flottant ───────────────────
 
-export function BoutiqueSouhaitsAcces({ gestionnaireId, connecte, demo, ouvrir, variante, styleEntete }: { gestionnaireId?: number | string; connecte?: boolean; demo?: boolean; ouvrir: () => void; variante: 'entete' | 'flottant'; styleEntete?: React.CSSProperties }) {
+export function BoutiqueSouhaitsAcces({ gestionnaireId, connecte, demo, ouvrir, variante, styleEntete, clair }: { gestionnaireId?: number | string; connecte?: boolean; demo?: boolean; ouvrir: () => void; variante: 'entete' | 'flottant'; styleEntete?: React.CSSProperties; clair?: boolean }) {
   const f = useFavoris(gestionnaireId, connecte, demo);
   const c = f.config;
+  const T = tons(clair);
   if (!f.actif || (variante === 'entete' ? !c.entete_actif : !c.flottant_actif)) return null;
   const compteur = (variante === 'flottant' || c.entete_compteur) && f.nombre > 0
     ? <span style={{ position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: c.icone_couleur_active, color: '#fff', fontSize: 11, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{f.nombre}</span>
@@ -278,8 +282,8 @@ export function BoutiqueSouhaitsAcces({ gestionnaireId, connecte, demo, ouvrir, 
   if (variante === 'entete') {
     return (
       <button type="button" onClick={ouvrir} title="Ma liste de souhaits" aria-label="Ma liste de souhaits"
-        style={{ position: 'relative', background: 'none', border: '1px solid #333', borderRadius: 10, width: 40, height: 40, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, ...styleEntete }}>
-        <IconeSouhait config={{ ...c, icone_couleur: '#ffffffcc' }} rempli={false} taille={Math.min(c.icone_taille, 24)} />
+        style={{ position: 'relative', background: 'none', border: `1px solid ${T.clair ? '#e5e7eb' : '#333'}`, borderRadius: 10, width: 40, height: 40, cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, ...styleEntete }}>
+        <IconeSouhait config={{ ...c, icone_couleur: T.clair ? '#374151' : '#ffffffcc' }} rempli={false} taille={Math.min(c.icone_taille, 24)} />
         {compteur}
       </button>
     );

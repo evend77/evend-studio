@@ -5,6 +5,7 @@
 // Rien n'est affiché si l'add-on est inactif ou si le produit n'a aucun avis (le serveur répond actif:false / total:0).
 
 import { useState, useEffect, useCallback, type CSSProperties } from 'react';
+import { tons } from '../../components/tonsBoutique';   // thème sombre (défaut) ou clair
 
 export interface AvisPublic { id: number; note: number; titre: string | null; commentaire: string; photos: string[]; reponse: string | null; reponse_le: string | null; created_at: string; auteur: string }
 export interface EtatAvis { actif: boolean; afficher_moyenne: boolean; total: number; moyenne: number; repartition: Record<string, number>; page: number; pages: number }
@@ -40,19 +41,22 @@ export function useAvisProduit(gestionnaireId: number, produitId: number | undef
   return { etat, avis, plus };
 }
 
-export function EtoilesAvis({ note, taille = 14 }: { note: number; taille?: number }) {
+export function EtoilesAvis({ note, taille = 14, clair }: { note: number; taille?: number; clair?: boolean }) {
+  const T = tons(clair);
   return (
     <span aria-label={`${note} sur 5`} style={{ letterSpacing: 1, fontSize: taille, lineHeight: 1, whiteSpace: 'nowrap' }}>
-      {[1, 2, 3, 4, 5].map(i => <span key={i} style={{ color: i <= Math.round(note) ? '#fbbf24' : 'rgba(255,255,255,0.18)' }}>★</span>)}
+      {[1, 2, 3, 4, 5].map(i => <span key={i} style={{ color: i <= Math.round(note) ? '#fbbf24' : T.b(0.18) }}>★</span>)}
     </span>
   );
 }
 
 const date = (d: string) => { try { return new Date(d).toLocaleDateString('fr-CA', { day: 'numeric', month: 'long', year: 'numeric' }); } catch { return ''; } };
 
-interface Props { donnees: AvisProduit; couleurAccent: string; connecte: boolean; ouvrirMesAvis: () => void; isMobile?: boolean }
+interface Props { donnees: AvisProduit; couleurAccent: string; connecte: boolean; ouvrirMesAvis: () => void; isMobile?: boolean; clair?: boolean }
 
-export default function AvisProduitBoutique({ donnees, couleurAccent, connecte, ouvrirMesAvis, isMobile }: Props) {
+export default function AvisProduitBoutique({ donnees, couleurAccent, connecte, ouvrirMesAvis, isMobile, clair }: Props) {
+  const T = tons(clair);
+  const g = clair ? { g888: '#6b7280', g999: '#6b7280', g777: '#6b7280', gbbb: '#4b5563', gccc: '#4b5563' } : { g888: '#888', g999: '#999', g777: '#777', gbbb: '#bbb', gccc: '#ccc' };
   const { etat, avis, plus } = donnees;
   const [photo, setPhoto] = useState<string | null>(null);
   useEffect(() => {
@@ -63,7 +67,7 @@ export default function AvisProduitBoutique({ donnees, couleurAccent, connecte, 
   }, [photo]);
   if (!etat || !etat.actif || etat.total === 0) return null;
 
-  const carte: CSSProperties = { background: '#1e1e1e', border: '1px solid #222', borderRadius: 12, padding: '20px 24px' };
+  const carte: CSSProperties = { background: T.carte, border: `1px solid ${T.carteBord}`, borderRadius: 12, padding: '20px 24px' };
   const max = Math.max(1, ...[1, 2, 3, 4, 5].map(n => etat.repartition[n] || 0));
 
   return (
@@ -72,14 +76,14 @@ export default function AvisProduitBoutique({ donnees, couleurAccent, connecte, 
         <div style={{ display: 'flex', gap: isMobile ? 20 : 40, marginBottom: 32, flexWrap: 'wrap', alignItems: 'center' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: 56, fontWeight: 900, color: couleurAccent, lineHeight: 1 }}>{etat.moyenne.toFixed(1)}</div>
-            <EtoilesAvis note={etat.moyenne} taille={20} />
-            <div style={{ fontSize: 13, color: '#888', marginTop: 8 }}>{etat.total} avis</div>
+            <EtoilesAvis note={etat.moyenne} taille={20} clair={clair} />
+            <div style={{ fontSize: 13, color: g.g888, marginTop: 8 }}>{etat.total} avis</div>
           </div>
           <div style={{ flex: 1, minWidth: 200, maxWidth: 360 }}>
             {[5, 4, 3, 2, 1].map(n => (
-              <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#999', marginBottom: 4 }}>
+              <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: g.g999, marginBottom: 4 }}>
                 <span style={{ width: 14, textAlign: 'right' }}>{n}</span><span style={{ color: '#fbbf24' }}>★</span>
-                <div style={{ flex: 1, height: 6, background: 'rgba(255,255,255,0.08)', borderRadius: 3, overflow: 'hidden' }}><div style={{ width: `${((etat.repartition[n] || 0) / max) * 100}%`, height: '100%', background: couleurAccent }} /></div>
+                <div style={{ flex: 1, height: 6, background: T.b(0.08), borderRadius: 3, overflow: 'hidden' }}><div style={{ width: `${((etat.repartition[n] || 0) / max) * 100}%`, height: '100%', background: couleurAccent }} /></div>
                 <span style={{ width: 26 }}>{etat.repartition[n] || 0}</span>
               </div>
             ))}
@@ -93,35 +97,35 @@ export default function AvisProduitBoutique({ donnees, couleurAccent, connecte, 
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ width: 36, height: 36, borderRadius: '50%', background: `${couleurAccent}20`, border: '1px solid rgba(201,169,110,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: couleurAccent }}>{(a.auteur || '?')[0]}</div>
-                <div><div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{a.auteur}</div><EtoilesAvis note={a.note} taille={13} /></div>
+                <div><div style={{ fontSize: 14, fontWeight: 700, color: T.txt }}>{a.auteur}</div><EtoilesAvis note={a.note} taille={13} clair={clair} /></div>
               </div>
-              <span style={{ fontSize: 12, color: '#777' }}>{date(a.created_at)}</span>
+              <span style={{ fontSize: 12, color: g.g777 }}>{date(a.created_at)}</span>
             </div>
-            {a.titre && <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', marginBottom: 6, wordBreak: 'break-word' }}>{a.titre}</div>}
-            <p style={{ fontSize: 14, color: '#bbb', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.commentaire}</p>
+            {a.titre && <div style={{ fontSize: 15, fontWeight: 700, color: T.txt, marginBottom: 6, wordBreak: 'break-word' }}>{a.titre}</div>}
+            <p style={{ fontSize: 14, color: g.gbbb, lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.commentaire}</p>
             {a.photos.length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                 {a.photos.map(u => (
-                  <button key={u} onClick={() => setPhoto(u)} aria-label="Agrandir la photo" style={{ padding: 0, border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, overflow: 'hidden', cursor: 'zoom-in', background: 'none', width: 72, height: 72 }}>
+                  <button key={u} onClick={() => setPhoto(u)} aria-label="Agrandir la photo" style={{ padding: 0, border: `1px solid ${T.b(0.15)}`, borderRadius: 8, overflow: 'hidden', cursor: 'zoom-in', background: 'none', width: 72, height: 72 }}>
                     <img src={u} alt="Photo de l'avis" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                   </button>
                 ))}
               </div>
             )}
             {a.reponse && (
-              <div style={{ marginTop: 14, padding: '12px 14px', borderLeft: `3px solid ${couleurAccent}`, background: 'rgba(255,255,255,0.04)', borderRadius: '0 8px 8px 0' }}>
+              <div style={{ marginTop: 14, padding: '12px 14px', borderLeft: `3px solid ${couleurAccent}`, background: T.b(0.04), borderRadius: '0 8px 8px 0' }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: couleurAccent, marginBottom: 4 }}>Réponse du vendeur{a.reponse_le ? ` · ${date(a.reponse_le)}` : ''}</div>
-                <div style={{ fontSize: 14, color: '#ccc', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.reponse}</div>
+                <div style={{ fontSize: 14, color: g.gccc, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{a.reponse}</div>
               </div>
             )}
           </div>
         ))}
         {etat.page < etat.pages && (
-          <button onClick={plus} style={{ alignSelf: 'center', padding: '9px 22px', borderRadius: 10, background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.18)', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Afficher plus d'avis</button>
+          <button onClick={plus} style={{ alignSelf: 'center', padding: '9px 22px', borderRadius: 10, background: T.b(0.08), border: `1px solid ${T.b(0.18)}`, color: T.txt, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Afficher plus d'avis</button>
         )}
       </div>
 
-      <p style={{ margin: '24px 0 0', fontSize: 13, color: '#777' }}>
+      <p style={{ margin: '24px 0 0', fontSize: 13, color: g.g777 }}>
         Vous avez acheté ce produit ?{' '}
         <button onClick={ouvrirMesAvis} style={{ background: 'none', border: 'none', padding: 0, color: couleurAccent, textDecoration: 'underline', cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}>
           {connecte ? 'Laissez votre avis depuis « Mes avis »' : 'Connectez-vous pour laisser votre avis'}

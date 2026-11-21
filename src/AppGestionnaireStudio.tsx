@@ -1309,7 +1309,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   } else if (estSimplisse) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      avecNegociations(avecOffres(menuVosAnnoncesSimplisse)),
+      avecAvis(avecQuestions(avecEncheres(avecNegociations(avecOffres(menuVosAnnoncesSimplisse))))),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1318,7 +1318,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioSimplisse,
-      avecPerso(avecInfolettre(avecEtsy(avecEbay(avecAnalytique(avecPwa(avecFavicon(avecVerificateurAge(avecPopupAnnonce(avecChatbot(avecEffets(menuConfigMesPages))))))))))),
+      avecPerso(avecInfolettre(avecEtsy(avecEbay(avecAnalytique(avecPwa(avecFavicon(avecVerificateurAge(avecParutionFutur(avecFavoris(avecPopupAnnonce(avecChatbot(avecConfigEncheres(avecEffets(menuConfigMesPages)))))))))))))),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },

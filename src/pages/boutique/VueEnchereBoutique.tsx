@@ -28,14 +28,15 @@ export const MODELES: { id: string; nom: string; desc: string; couleur: string }
 
 interface Theme { bg: string; border: string; titre: string; texte: string; sous: string; prix: string; accent: string; btnBg: string; btnTxt: string; inputBg: string; inputBorder: string; inputTxt: string; headerBg?: string; headerTxt?: string; pills?: boolean; live?: boolean; ok: string; avert: string; err: string; fondOk: string }
 
-const theme = (modele: string, accent: string): Theme => {
+const theme = (modele: string, accent: string, clair?: boolean): Theme => {
   switch (modele) {
     case 'l1': return { bg: '#fff', border: '#e5e7eb', titre: '#111827', texte: '#374151', sous: '#6b7280', prix: '#111827', accent: '#111827', btnBg: '#111827', btnTxt: '#fff', inputBg: '#f9fafb', inputBorder: '#d1d5db', inputTxt: '#111827', ok: '#166534', avert: '#b45309', err: '#b91c1c', fondOk: '#f0fdf4' };
     case 'l2': return { bg: '#fff', border: '#99f6e4', titre: '#0f766e', texte: '#0f766e', sous: '#6b7280', prix: '#0f766e', accent: '#0d9488', btnBg: '#0d9488', btnTxt: '#fff', inputBg: '#f0fdfa', inputBorder: '#99f6e4', inputTxt: '#0f172a', headerBg: '#0d9488', headerTxt: '#fff', ok: '#047857', avert: '#b45309', err: '#b91c1c', fondOk: '#ecfdf5' };
     case 'l3': return { bg: '#18181b', border: '#3f3f46', titre: '#fff', texte: '#e4e4e7', sous: '#a1a1aa', prix: '#fff', accent: '#7c3aed', btnBg: '#7c3aed', btnTxt: '#fff', inputBg: '#27272a', inputBorder: '#3f3f46', inputTxt: '#fff', headerBg: '#27272a', headerTxt: '#fff', pills: true, live: true, ok: '#6ee7b7', avert: '#fbbf24', err: '#fca5a5', fondOk: 'rgba(16,185,129,0.15)' };
     case 'l4': return { bg: '#fefce8', border: '#fde047', titre: '#78350f', texte: '#78350f', sous: '#92400e', prix: '#78350f', accent: '#92400e', btnBg: '#78350f', btnTxt: '#fef3c7', inputBg: '#fff', inputBorder: '#fcd34d', inputTxt: '#78350f', headerBg: '#78350f', headerTxt: '#fef3c7', ok: '#166534', avert: '#92400e', err: '#b91c1c', fondOk: '#f0fdf4' };
     case 'l5': return { bg: '#0a0a0f', border: '#312e81', titre: '#e0e7ff', texte: '#c7d2fe', sous: '#818cf8', prix: '#fff', accent: '#818cf8', btnBg: '#4f46e5', btnTxt: '#fff', inputBg: '#13131f', inputBorder: '#312e81', inputTxt: '#fff', pills: true, live: true, ok: '#6ee7b7', avert: '#fbbf24', err: '#fca5a5', fondOk: 'rgba(16,185,129,0.15)' };
-    default: return { bg: 'rgba(255,255,255,0.05)', border: `${accent}88`, titre: '#fff', texte: 'rgba(255,255,255,0.65)', sous: 'rgba(255,255,255,0.6)', prix: '#fff', accent, btnBg: accent, btnTxt: '#000', inputBg: 'rgba(255,255,255,0.06)', inputBorder: 'rgba(255,255,255,0.2)', inputTxt: '#fff', ok: '#6ee7b7', avert: '#fbbf24', err: '#fca5a5', fondOk: 'rgba(16,185,129,0.15)' };
+    default: if (clair) return { bg: '#f9fafb', border: `${accent}88`, titre: '#1a1a1a', texte: '#4b5563', sous: '#6b7280', prix: '#1a1a1a', accent, btnBg: accent, btnTxt: '#fff', inputBg: '#fff', inputBorder: '#d1d5db', inputTxt: '#1a1a1a', ok: '#047857', avert: '#b45309', err: '#b91c1c', fondOk: 'rgba(16,185,129,0.1)' };
+      return { bg: 'rgba(255,255,255,0.05)', border: `${accent}88`, titre: '#fff', texte: 'rgba(255,255,255,0.65)', sous: 'rgba(255,255,255,0.6)', prix: '#fff', accent, btnBg: accent, btnTxt: '#000', inputBg: 'rgba(255,255,255,0.06)', inputBorder: 'rgba(255,255,255,0.2)', inputTxt: '#fff', ok: '#6ee7b7', avert: '#fbbf24', err: '#fca5a5', fondOk: 'rgba(16,185,129,0.15)' };
   }
 };
 
@@ -68,7 +69,7 @@ export const resteEnchere = (ms: number, secondes: boolean) => {
 
 export interface Mise { montant: number; date: string; encherisseur: string }
 export interface PropsVue {
-  enchere: EnchereVue; apparence: ApparenceEnchere; accent: string; msRestant: number;
+  enchere: EnchereVue; apparence: ApparenceEnchere; accent: string; msRestant: number; clair?: boolean;
   montant: string; setMontant: (v: string) => void; occupe: boolean; erreur: string; info: string; connecte: boolean; apercu?: boolean;
   aConfirmer: number | null; onMiser: (v?: number) => void; onConfirmer: () => void; onAnnulerConf: () => void;
   histoOuvert: boolean; histo: Mise[] | null; onToggleHisto: () => void;
@@ -76,7 +77,7 @@ export interface PropsVue {
 
 export default function VueEnchereBoutique(p: PropsVue) {
   const { enchere: e, apparence: a, msRestant } = p;
-  const th = theme(a.modele, p.accent);
+  const th = theme(a.modele, p.accent, p.clair);
   const termine = msRestant <= 0, urgent = !termine && msRestant < 5 * 60 * 1000;
   const minimum = e.prochaine_mise ?? e.prix_depart;
   const rapides = [minimum, minimum + e.increment, minimum + e.increment * 2].map(v => Math.round(v * 100) / 100);

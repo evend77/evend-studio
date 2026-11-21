@@ -19,6 +19,7 @@ interface Props {
   couleurAccent: string;
   isDemo?: boolean;
   allerConnexion: () => void;
+  clair?: boolean;   // thème clair (template à fond blanc)
   onEtat?: (enchereEnCours: boolean) => void;   // la fiche produit s'en sert (cacher la vente directe, lignes de stock)
 }
 
@@ -27,7 +28,7 @@ const MEMO: Record<string, { enchere: Enchere | null; decalage: number; apparenc
 
 const typeCompte = (gId: number): string | null => { try { return JSON.parse(localStorage.getItem(`mv_compte_${gId}`) || 'null')?.type || null; } catch { return null; } };
 
-export default function BlocEnchereBoutique({ gestionnaireId, produitId, couleurAccent, isDemo, allerConnexion, onEtat }: Props) {
+export default function BlocEnchereBoutique({ gestionnaireId, produitId, couleurAccent, isDemo, allerConnexion, onEtat, clair }: Props) {
   const cle = `${gestionnaireId}:${produitId}`;
   const [enchere, setEnchere] = useState<Enchere | null>(() => (MEMO[cle] ? MEMO[cle].enchere : null));
   const [apparence, setApparence] = useState<ApparenceEnchere>(() => (MEMO[cle] ? MEMO[cle].apparence : APPARENCE_DEFAUT));
@@ -100,7 +101,7 @@ export default function BlocEnchereBoutique({ gestionnaireId, produitId, couleur
   };
 
   return (
-    <VueEnchereBoutique enchere={enchere} apparence={apparence} accent={couleurAccent} msRestant={msRestant}
+    <VueEnchereBoutique enchere={enchere} apparence={apparence} accent={couleurAccent} msRestant={msRestant} clair={clair}
       montant={montant} setMontant={v => { setMontant(v); setAConfirmer(null); }} occupe={occupe} erreur={erreur} info={info} connecte={!!typeCompte(gestionnaireId)}
       aConfirmer={aConfirmer} onMiser={v => miser(v)} onConfirmer={() => { if (aConfirmer !== null) miser(aConfirmer, true); }} onAnnulerConf={() => setAConfirmer(null)}
       histoOuvert={histoOuvert} histo={histo} onToggleHisto={() => { const o = !histoOuvert; setHistoOuvert(o); if (o) chargerHisto(); }} />
