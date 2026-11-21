@@ -313,9 +313,9 @@ async function siteConfig(gid) {
   const r = await pool.query("SELECT template_id, config FROM sites WHERE gestionnaire_id = $1 AND template_id LIKE 'boutique-%' LIMIT 1", [gid]);
   let c = r.rows[0] && r.rows[0].config;
   if (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) { c = null; } }
-  // La config du site vit sous la clé de son template : « simplisse » pour Simplisse, « premium » pour les autres (comportement d'origine)
+  // La config du site vit sous la clé de son template : « simplisse » pour Simplisse, « simple » pour le Mono-produit, « premium » pour les autres (comportement d'origine)
   const t = String((r.rows[0] && r.rows[0].template_id) || '');
-  const cle = (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) ? 'simplisse' : 'premium';
+  const cle = t === 'boutique-simple' ? 'simple' : (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) ? 'simplisse' : 'premium';   // Mono-produit : comparaison EXACTE
   return (c && typeof c[cle] === 'object' && c[cle]) || {};
 }
 const valeursTexte = (o) => Object.values(o || {}).filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim()).join(' — ');

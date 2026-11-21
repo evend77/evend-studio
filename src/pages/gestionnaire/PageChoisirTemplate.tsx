@@ -560,7 +560,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
               icone: '💎', couleur: '#c9a96e', disponible: true, badge: 'Premium', badgeCouleur: '#c9a96e',
               pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'À propos', 'Contact', 'Panier', 'Wishlist', 'Compte'],
             },
-            { id: 'boutique-simple',    titre: 'Mono-produit',      desc: 'Une page, checkout intégré, parfait pour lancer un seul produit.',             icone: '🎯', couleur: '#a855f7', disponible: true  },
+            { id: 'boutique-simple',    titre: 'Mono-produit',      desc: 'Une seule page de vente pour UN produit (avec ses variantes), paiement Stripe ou PayPal intégré.',             icone: '🎯', couleur: '#a855f7', disponible: true  },
             { id: 'boutique-complete',  titre: 'Boutique Complète', desc: 'Catalogue, panier, compte acheteur et historique des achats.',                  icone: '🏪', couleur: '#16a34a', disponible: true  },
             { id: 'boutique-catalogue', titre: 'Catalogue Avancé',  desc: 'Grille produits avec filtres avancés et pages produit. Bientôt.',                icone: '🗂️', couleur: '#0ea5e9', disponible: false },
           ]

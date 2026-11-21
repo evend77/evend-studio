@@ -48,15 +48,17 @@ import TemplateBoutiqueSimplisseMode  from '../templates/TemplateBoutiqueSimplis
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
 
 // Templates boutique SOLO : leurs add-ons viennent de l'API boutique (Mon plan & limites). Les autres templates ne changent pas.
 // Simplisse (pas Simplisse-Mode) : le template monte lui-même l'Analytique et le Vérificateur d'âge (add-ons boutique)
-const estSimplisseSeul = (t: string) => t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode');
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p));
+// Mono-produit (boutique-simple, comparé EXACTEMENT : « boutique-simplisse » commence par « boutique-simple ») : même moteur que Simplisse, donc même montage.
+const estMonoProduit = (t: string) => t === 'boutique-simple';
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -92,6 +94,19 @@ const DEMO_PRODUITS_SIMPLISSE = [
   { id: 5, titre: 'Chaussettes Pack x3',   prix: 14.99, stock: 100, categorie: 'Vêtements', description: 'Pack de 3 paires de chaussettes coton doux.', photo_principale: '' },
   { id: 6, titre: 'Bouteille Inox 500ml',  prix: 39.99, stock: 40,  categorie: 'Maison',      description: 'Bouteille isotherme 24h chaud / 48h froid.', photo_principale: '' },
 ];
+
+// Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
+const DEMO_PRODUITS_MONO = [
+  { id: 1, titre: 'Sac à dos Voyageur', prix: 129.99, prix_promo: 99.99, stock: 20, categorie: 'Sacs', description: 'Un sac à dos robuste pour tous vos déplacements. Exemple de produit : remplacez-le par le vôtre.', photo_principale: '', photos: [],
+    variantes: [
+      { nom: 'Noir / 20L', prix: 99.99, stock: 8, options: { Couleur: 'Noir', Capacité: '20L' } },
+      { nom: 'Noir / 30L', prix: 119.99, stock: 5, options: { Couleur: 'Noir', Capacité: '30L' } },
+      { nom: 'Kaki / 20L', prix: 99.99, stock: 7, options: { Couleur: 'Kaki', Capacité: '20L' } },
+      { nom: 'Kaki / 30L', prix: 119.99, stock: 0, options: { Couleur: 'Kaki', Capacité: '30L' } },
+    ] },
+];
+
+const DEMO_CONFIG_SIMPLE = { simple: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 const DEMO_CONFIG_SIMPLISSE = {
   simplisse: {
@@ -227,7 +242,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : DEMO_CONFIG_GENERIQUE)
+    ? (templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -259,7 +274,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     if (templateId === 'enchere-galerie')          return <TemplateEnchereGalerie config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'enchere-live')             return <TemplateEnchereLive config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'boutique-complete')        return <TemplateBoutiqueComplete config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
-    if (templateId === 'boutique-simple')          return <TemplateBoutiqueSimple config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    if (estMonoProduit(templateId)) {
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_MONO } : config;
+      // Add-on « Cacher le branding » : badge « Propulsé par » masqué seulement si l'add-on est activé
+      return <TemplateBoutiqueSimple config={isDemo ? configDemo : configSimpleAvecBadge(configDemo, addonsBoutique)} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
     if (templateId.startsWith('boutique-premium')) {
       const configDemo = isDemo
         ? { ...config, __produits_demo__: DEMO_PRODUITS_PREMIUM }

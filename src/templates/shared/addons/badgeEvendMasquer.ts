@@ -15,6 +15,12 @@ export function configPremiumAvecBadge(config: any, addons: Record<string, boole
 }
 
 // Template Simplisse : le pied de page se lit dans config.simplisse.footer.afficherPropulse
+// Template Mono-produit (boutique-simple) : le pied de page se lit dans config.simple.footer.afficherPropulse
+export function configSimpleAvecBadge(config: any, addons: Record<string, boolean> | null | undefined): any {
+  const simple = (config && config.simple) || {};
+  return { ...config, simple: { ...simple, footer: { ...(simple.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
+
 export function configSimplisseAvecBadge(config: any, addons: Record<string, boolean> | null | undefined): any {
   const simplisse = (config && config.simplisse) || {};
   return { ...config, simplisse: { ...simplisse, footer: { ...(simplisse.footer || {}), afficherPropulse: !badgeMasque(addons) } } };

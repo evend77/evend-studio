@@ -122,8 +122,8 @@ export const TEMPLATES: Template[] = [
     id: 'boutique-simple',
     nom: 'Mono-produit',
     groupe: 'boutique-generique',
-    description: 'Une page complète pour un seul produit. Galerie, variantes, checkout Stripe intégré.',
-    fonctionnalites: ['Galerie photos + vidéo', 'Variantes (couleur/taille)', 'Checkout Stripe', 'Taxes TPS+TVQ auto'],
+    description: 'Une seule page de vente pour un seul produit : accroche, achat, bénéfices, détails, avis et FAQ.',
+    fonctionnalites: ['Page de vente tout-en-un', 'Variantes et options (couleur, taille…) avec photo', 'Paiement Stripe ou PayPal', 'Compte acheteur et panier intégrés'],
     disponible: true, nouveau: false, couleur: '#a855f7',
   },
   {

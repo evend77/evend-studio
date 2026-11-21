@@ -61,6 +61,8 @@ import StudioGestionBadges      from './pages/gestionnaire/StudioGestionBadges';
 import StudioBadgesAttribues    from './pages/gestionnaire/StudioBadgesAttribues';
 import AddOn                    from './pages/gestionnaire/AddOn';
 import ConfigMesPagesSimplisse     from './pages/gestionnaire/ConfigMesPagesSimplisse';
+import ConfigMesPagesSimple        from './pages/gestionnaire/ConfigMesPagesSimple';
+import BoutiqueMonoProduit         from './pages/gestionnaire/BoutiqueMonoProduit';
 import ConfigMesPagesPremium       from './pages/gestionnaire/ConfigMesPagesPremium';
 import ConfigMesPagesSimplisseMode from './pages/gestionnaire/ConfigMesPagesSimplisseMode';
 import SimplissePlan               from './pages/gestionnaire/SimplissePlan';
@@ -800,9 +802,10 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const estMultiVendeur  = templateActif.startsWith('multi-vendeur-premium');
   const aucunTemplate    = !templateActif;
   // Templates boutique « solo » : le gestionnaire est son propre vendeur (pages Boutique*, API /api/boutique)
-  const estSolo          = estSimplisse || estPremium || estSimplisseMode || estBeaute;
+  // Mono-produit (boutique-simple, comparé EXACTEMENT) : même moteur et mêmes pages boutique que Simplisse, avec UN seul produit
+  const estSolo          = estSimplisse || estPremium || estSimplisseMode || estBeaute || estBoutiqueSimple;
   const pagePlanSolo     = estPremium ? 'premium-plan' : estSimplisseMode ? 'mode-plan' : estBeaute ? 'beaute-plan' : 'simplisse-plan';
-  const accentSolo       = estPremium ? '#c9a96e' : estBeaute ? '#ec4899' : estSimplisseMode ? '#0f766e' : '#4f46e5';
+  const accentSolo       = estPremium ? '#c9a96e' : estBeaute ? '#ec4899' : estSimplisseMode ? '#0f766e' : estBoutiqueSimple ? '#a855f7' : '#4f46e5';
   // Ajoute « Effets de boutique » au menu CONFIG MES PAGES des templates boutique solo, seulement si l'add-on est activé
   // Add-on « Offres du jour » (boutique solo) : une entrée sous « Liste des produits » quand l'add-on est activé
   const avecOffres = (m: MenuItem): MenuItem => addonsBoutique.offres_du_jour ? { ...m, sousMenu: (m.sousMenu || []).flatMap(it => it.id === 'annonces-liste' ? [it, { id: 'annonces-offres', label: 'Offres du jour', icon: '🔥' }] : [it]) } : m;
@@ -1042,6 +1045,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
 
   const menuStudioSimplisse: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuVosAnnoncesSimplisse: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-encheres',label:'Mes enchères',icon:'🔨',cleAcces:'modeEncheres' },{ id:'annonces-make-offer',label:'Mes offres reçues',icon:'💬' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-types',label:'Types produits',icon:'📑' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
+  // Mono-produit : UN produit. « Produit vendu » = choix de l'annonce affichée ; pas de tags, types, collections ni enchères (sans objet pour un seul produit)
+  const menuVosAnnoncesMono: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'mono-produit',label:'Produit vendu',icon:'🎯' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
+  const menuConfigMono: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🎨',sousMenu:[{ id:'simple-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'simplisse-plan',label:'Mon plan & limites',icon:'📊' }] };
   const menuConfigMesPages: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🎨',sousMenu:[{ id:'simplisse-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'simplisse-plan',label:'Mon plan & limites',icon:'📊' }] };
 
   const menuStudioPremium: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
@@ -1306,10 +1312,10 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn,
     ];
-  } else if (estSimplisse) {
+  } else if (estSimplisse || estBoutiqueSimple) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
-      avecAvis(avecQuestions(avecEncheres(avecNegociations(avecOffres(menuVosAnnoncesSimplisse))))),
+      avecAvis(avecQuestions(avecEncheres(avecNegociations(avecOffres(estBoutiqueSimple ? menuVosAnnoncesMono : menuVosAnnoncesSimplisse))))),
       { id:'commandes',label:'VOS COMMANDES',icon:'🛒',sousMenu:[
         { id:'commandes-liste',label:'Liste des commandes',icon:'📋' },
         { id:'commandes-paiements',label:'Paiements reçus',icon:'💰' },
@@ -1318,7 +1324,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioSimplisse,
-      avecPerso(avecInfolettre(avecEtsy(avecEbay(avecAnalytique(avecPwa(avecFavicon(avecVerificateurAge(avecParutionFutur(avecFavoris(avecPopupAnnonce(avecChatbot(avecConfigEncheres(avecEffets(menuConfigMesPages)))))))))))))),
+      avecPerso(avecInfolettre(avecEtsy(avecEbay(avecAnalytique(avecPwa(avecFavicon(avecVerificateurAge(avecParutionFutur(avecFavoris(avecPopupAnnonce(avecChatbot(avecConfigEncheres(avecEffets(estBoutiqueSimple ? menuConfigMono : menuConfigMesPages)))))))))))))),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
@@ -1442,55 +1448,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ...(options?.chatbot ? [menuMesChatbot] : []),
       menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn
-    ];
-  } else if (estBoutiqueSimple) {
-    menuItems = [
-      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
-      {
-        id: 'commandes', label: 'VOS COMMANDES', icon: '📦',
-        sousMenu: [
-          { id: 'commandes-liste',    label: 'Liste des commandes',      icon: '📋' },
-          { id: 'commandes-paiements',label: 'Paiements & commissions',  icon: '💰' },
-          { id: 'commandes-retours',  label: 'Retour & remboursement',   icon: '🔄' },
-          { id: 'commandes-documents',label: 'Documents gestionnaire',       icon: '📄' },
-        ]
-      },
-      {
-        id: 'acheteurs', label: 'MES ACHETEURS', icon: '👥',
-        sousMenu: [
-          { id: 'acheteurs-liste', label: 'Liste des acheteurs', icon: '👥' },
-        ]
-      },
-      menuSousVendeurs,
-      menuBadges,
-      menuBlogsSV,
-      menuFaqsSV,
-      menuChatSV,
-      menuStudio,
-      {
-        id: 'config', label: 'CONFIGURATION', icon: '⚙️',
-        sousMenu: [
-          itemConfigGenerale,
-          itemConfigMV,
-          itemConfigPaiements,
-          { id: 'config-expedition',       label: "Méthode d'expédition",    icon: '🚚' },
-          { id: 'config-modeles-courriel', label: 'Modèles de courriel',     icon: '📧' },
-          { id: 'config-facture',          label: 'Modèle de facture',       icon: '🧾' },
-          itemPage404,
-          itemPolitiques,
-          itemPages,
-          itemSeo,
-          itemCookies,
-          itemPhotos, itemFormulaireContact, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
-        ]
-      },
-      menuProfil,
-      menuMessagerie,
-      menuBrandingOptions,
-      ...(options?.analytique ? [menuMesAnalytique] : []),
-      ...(options?.chatbot ? [menuMesChatbot] : []),
-      menuMesEffetsVisuels, // 🔥 AJOUT
-      menuAddOn,
     ];
   } else {
     // boutique-complete + défaut → menu COMPLET e-Vend
@@ -1676,6 +1633,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         const initial = Number.isInteger(idOffre) && idOffre > 0 ? idOffre : null;
         return <BoutiqueOffres key={`offres-${initial || 0}`} gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} produitInitial={initial} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       }
+      if (pageActive === 'mono-produit' && estBoutiqueSimple) return <BoutiqueMonoProduit gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} naviguerVers={setPageActive} />;
       if (pageActive === 'annonces-encheres') return <BoutiqueEncheres gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-config-encheres') return <BoutiqueConfigEncheres gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} pagePlan={pagePlanSolo} naviguerVers={setPageActive} />;
       if (pageActive === 'boutique-mes-blogs') return <BoutiqueBlog gestionnaireId={gestionnaire.id} accent={accentSolo} isMobile={isMobile} />;
@@ -1821,6 +1779,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         setGestionnaire(prev => ({ ...prev, site_template_id: templateId }));
         if (templateId === 'boutique-complete') {
           setPageActive('dashboard');
+        } else if (templateId === 'boutique-simple') {
+          setPageActive('simple-config-pages');
         } else if (templateId.startsWith('boutique-simplisse-mode')) {
           setPageActive('mode-config-pages');
         } else if (templateId.startsWith('boutique-simplisse')) {
@@ -1872,6 +1832,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'studio-domaine') return <MonDomaine gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-import-evend') return <ImportEvend gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-config-pages') return <ConfigMesPagesSimplisse    gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'simple-config-pages')    return <ConfigMesPagesSimple       gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-plan')         return <SimplissePlan              gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-branding')     return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'premium-config-pages')   return <ConfigMesPagesPremium      gestionnaireId={gestionnaire.id} />;
