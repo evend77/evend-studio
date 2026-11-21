@@ -69,6 +69,14 @@ export default function CaisseBoutique({ gestionnaireId: gid, accent, naviguerVe
   const [methodeId, setMethodeId] = useState<string>('');
   const [mode, setMode] = useState<'stripe' | 'paypal' | ''>('');
   const [note, setNote] = useState('');
+  // Add-on « Infolettre » : case facultative (jamais cochée d'avance) ; l'adresse inscrite est celle du compte, choisie côté serveur
+  const [infoCaisse, setInfoCaisse] = useState<{ texte: string } | null>(null);
+  const [infoCoche, setInfoCoche] = useState(false);
+  useEffect(() => {
+    let vivant = true;
+    fetch(`/api/boutique/infolettre/${gid}/config`).then(r => (r.ok ? r.json() : null)).then(c => { if (vivant && c && c.afficher_caisse) setInfoCaisse({ texte: c.texte_caisse }); }).catch(() => {});
+    return () => { vivant = false; };
+  }, [gid]);
   const [infos, setInfos] = useState<Infos | null>(null);
   const [codeSaisi, setCodeSaisi] = useState('');
   const [codeApplique, setCodeApplique] = useState('');
@@ -197,6 +205,7 @@ export default function CaisseBoutique({ gestionnaireId: gid, accent, naviguerVe
     if (!livSel || !mode) return;
     setEnvoi(true);
     const corps: any = { methode_id: methodeId || undefined, mode, note, code_promo: codeApplique || undefined, pourboire: montantTip > 0 ? montantTip : undefined };
+    if (infoCaisse && infoCoche) corps.infolettre = true;
     if (livSel.id !== null) corps.adresse_id = livSel.id; else corps.adresse = pourEnvoi(livSel.adr);
     if (!memeFact && factSel) { if (factSel.id !== null) corps.facturation_id = factSel.id; else corps.facturation = pourEnvoi(factSel.adr); }
     const r = await ba(gid, '/caisse/commande', { method: 'POST', body: corps });
@@ -377,7 +386,15 @@ export default function CaisseBoutique({ gestionnaireId: gid, accent, naviguerVe
       ) })}
 
       {Section({ n: pb ? 7 : 6, icone: '📝', titre: 'Note pour la boutique (facultatif)', children: (
+        <>
         <textarea value={note} maxLength={500} onChange={e => setNote(e.target.value)} placeholder="Instructions de livraison, message…" style={{ width: '100%', boxSizing: 'border-box', minHeight: 70, padding: '10px 12px', border: '1px solid #e7d5b8', borderRadius: 10, fontSize: 14, fontFamily: 'inherit', background: '#fff', outline: 'none', resize: 'vertical' }} />
+          {infoCaisse && (
+            <label style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 12, fontSize: 13, color: '#78716c', cursor: 'pointer', lineHeight: 1.5 }}>
+              <input type="checkbox" checked={infoCoche} onChange={e => setInfoCoche(e.target.checked)} style={{ marginTop: 3, accentColor: c, flexShrink: 0 }} />
+              <span>{infoCaisse.texte}</span>
+            </label>
+          )}
+        </>
       ) })}
     </div>
   );

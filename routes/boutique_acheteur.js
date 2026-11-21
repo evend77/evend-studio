@@ -236,7 +236,10 @@ router.post('/caisse/commande', wrap(async (req, res) => {
     facturation = await ADR.lire(req.gid, req.acheteurId, entier(b.facturation_id) || 0);
     if (!facturation) return res.status(404).json({ message: 'Adresse de facturation introuvable.' });
   } else if (b.facturation && typeof b.facturation === 'object') facturation = b.facturation;
-  res.status(201).json(await C.creerCommande({ gid: req.gid, acheteurId: req.acheteurId, adresse, facturation, methodeId: b.methode_id, note: b.note, mode: b.mode, codePromo: b.code_promo, pourboire: b.pourboire }));
+  const r = await C.creerCommande({ gid: req.gid, acheteurId: req.acheteurId, adresse, facturation, methodeId: b.methode_id, note: b.note, mode: b.mode, codePromo: b.code_promo, pourboire: b.pourboire });
+  // Case « M'inscrire à l'infolettre » de la caisse (add-on Infolettre) : en arrière-plan, n'échoue jamais la commande
+  if (b.infolettre === true) require('../services/boutique_infolettre').inscrireDepuisCaisse(req.gid, req.acheteurId);
+  res.status(201).json(r);
 }));
 
 // ═════════════════════════════ COMMANDES ══════════════════════════════════

@@ -12,6 +12,7 @@ import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique
 import BoutiqueParutionCountdown, { useConfigParution, formaterDateParution } from '../components/BoutiqueParutionCountdown';   // add-on « Parution future » : compte à rebours
 import useBoutiqueAnalytique from '../hooks/useBoutiqueAnalytique';   // add-on « Analytique » : compte les pages vues (après consentement du visiteur)
 import BoutiqueBoutonInstallerApp from '../components/BoutiqueBoutonInstallerApp';   // add-on « App installable » : bouton « Installer l'app » (mobile)
+import BoutiqueInfolettre from '../components/BoutiqueInfolettre';   // add-on « Infolettre » : rangée d'inscription dans le pied de page
 import BoutiqueVerificateurAge from '../components/BoutiqueVerificateurAge';   // add-on « Vérificateur d'âge » : fenêtre bloquante à l'arrivée
 import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
 import AvisProduitBoutique, { useAvisProduit } from '../pages/boutique/AvisProduitBoutique';   // add-on « Avis clients » : onglet « Avis » et note moyenne de la fiche produit
@@ -816,7 +817,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
     const varManquante=varsPlates.length>0&&!vSel;
     const parutionBloquee=!!p.date_parution&&!ouvertes[p.id];   // pas encore en vente : compte à rebours, aucun achat
     const epuise=p.stock===0||(vSel!==null&&stockDe(vSel)===0);
-    const photos = [p.photo_principale,...(p.photos||[])].filter(Boolean) as string[];
+    const photos = Array.from(new Set([p.photo_principale,...(p.photos||[])].filter(Boolean))) as string[];   // la photo principale est aussi dans « photos » : sans doublon
     const similaires = on('ficheProduit','afficherSimilaires')?produits.filter(pr=>pr.id!==p.id&&pr.categorie===p.categorie).slice(0,nbr('ficheProduit','similairesNombre',4,1,8)):[];
 
     return (
@@ -1207,14 +1208,22 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
 
   const PagePolitique = () => {
     const contenu=politique&&politique.contenu.trim()?htmlSur(politique.contenu):'';
+    // Barre des pages légales en haut : mêmes pages et mêmes réglages que le pied de page ; la page ouverte est mise en évidence
+    const polCfg:any={ ...CFG_DEF.footer.politiques, ...(cfg.footer.politiques||{}) };
+    const polOk=(slug:string)=>modeDemo||(politiquesRedigees?politiquesRedigees[slug]===true:false);
+    const ongletsPol=([['conditions-service','Conditions de service',polCfg.afficherConditions],['confidentialite','Confidentialité',polCfg.afficherConfidentialite],['retour-remboursement','Retour & remboursement',polCfg.afficherRetours],['expedition','Expédition',polCfg.afficherLivraison],['coordonnees','Coordonnées',polCfg.afficherCoordonnees],['mentions-legales','Mentions légales',polCfg.afficherMentions]] as [string,string,any][]).filter(([slug,,actif])=>actif!==false&&(polOk(slug)||slug===(politique&&politique.slug)));
+    const titreAffiche=politique&&politique.titre&&!/<h1[\s>]/i.test(contenu)?politique.titre:'';
     return (
       <div style={{ maxWidth:860,margin:'0 auto',padding:'40px 24px' }}>
         <style>{`.pol-contenu h1{font-size:30px;font-weight:900;color:#fff;margin:0 0 20px;line-height:1.2}.pol-contenu h2{font-size:20px;font-weight:800;color:#fff;margin:32px 0 10px}.pol-contenu h3{font-size:16px;font-weight:700;color:#fff;margin:22px 0 8px}.pol-contenu p{color:#aaa;line-height:1.9;margin:0 0 14px;font-size:15px}.pol-contenu ul,.pol-contenu ol{color:#aaa;padding-left:22px;margin:0 0 14px}.pol-contenu li{line-height:1.8;margin-bottom:6px;font-size:15px}.pol-contenu a{color:${cp};text-decoration:underline}.pol-contenu strong{color:#fff}.pol-contenu blockquote{border-left:3px solid ${cp};padding:8px 18px;margin:16px 0;color:#bbb}.pol-contenu hr{border:0;border-top:1px solid ${BORD};margin:24px 0}`}</style>
-        <button onClick={()=>naviguer('accueil')} style={{ background:'none',border:'none',color:cp,fontSize:14,cursor:'pointer',marginBottom:28,padding:0 }}>← Retour à l'accueil</button>
+        <button onClick={()=>naviguer('accueil')} style={{ background:'none',border:'none',color:cp,fontSize:14,cursor:'pointer',marginBottom:20,padding:0 }}>← Retour à l'accueil</button>
+        {ongletsPol.length>1&&<nav aria-label="Pages légales" style={{ display:'flex',flexWrap:'wrap',gap:8,marginBottom:28 }}>
+          {ongletsPol.map(([slug,nom])=>{ const actif=politique?politique.slug===slug:politiqueEnCours.current===slug; return <button key={slug} onClick={()=>{ if(!actif) ouvrirPolitique(slug); }} aria-current={actif?'page':undefined} style={{ padding:'8px 16px',borderRadius:20,border:`1px solid ${actif?cp:'#333'}`,background:actif?cp:'transparent',color:actif?'#000':'#bbb',fontSize:13,fontWeight:actif?800:600,cursor:actif?'default':'pointer' }}>{nom}</button>; })}
+        </nav>}
         {politiqueStatut==='loading'&&<p style={{ color:'#666' }}>Chargement…</p>}
         {politiqueStatut==='err'&&<p style={{ color:'#ef4444' }}>Impossible de charger cette page. Veuillez réessayer.</p>}
         {politiqueStatut==='idle'&&politique&&(contenu
-          ? <div className="pol-contenu" dangerouslySetInnerHTML={{ __html:contenu }}/>
+          ? <>{titreAffiche&&<h1 style={{ fontSize:30,fontWeight:900,color:'#fff',margin:'0 0 20px',lineHeight:1.2 }}>{titreAffiche}</h1>}<div className="pol-contenu" dangerouslySetInnerHTML={{ __html:contenu }}/></>
           : <><h1 style={{ fontSize:30,fontWeight:900,color:'#fff',marginBottom:16 }}>{politique.titre}</h1><p style={{ color:'#777' }}>Cette page n'a pas encore été rédigée.</p></>)}
       </div>
     );
@@ -1302,6 +1311,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               </div>
             ):null)}
           </div>
+          {vendeurId>0&&!modeDemo&&<BoutiqueInfolettre gestionnaireId={vendeurId} couleur={cp}/>}
           <BoutiqueBoutonInstallerApp couleur={cp}/>
           <div style={{ borderTop:`1px solid rgba(201,169,110,0.1)`,padding:'20px 0',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:12 }}>
             <div style={{ fontSize:12,color:'#333' }}>© {new Date().getFullYear()} {f.nomBoutique}. Tous droits réservés.</div>
