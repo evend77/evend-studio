@@ -1170,6 +1170,8 @@ app.listen(port, () => {
   try { require('./services/studio_ebay_import').demarrer(); } catch (e) { console.error('eBay import worker :', e.message); }
   // Idem pour la boutique solo (import + suivi des annonces eBay du gestionnaire)
   try { require('./services/boutique_ebay_import').demarrer(); } catch (e) { console.error('eBay import worker (boutique) :', e.message); }
+  // Import des annonces Etsy de la boutique solo
+  try { require('./services/boutique_etsy_import').demarrer(); } catch (e) { console.error('Etsy import worker (boutique) :', e.message); }
   console.log('\n🚀 ' + '='.repeat(50));
   console.log('🚀   e-Vend Studio API — Port ' + port + ' (proxy depuis React)');
   console.log('🚀 ' + '='.repeat(50));
