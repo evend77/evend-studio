@@ -35,6 +35,7 @@ interface ConfigFooter {
 interface ConfigAccueil {
   hero: ConfigHero; banniere: ConfigBanniere; sections: SectionPage[];
   couleurPrimaire: string; couleurSecondaire: string; couleurFondPage: string; couleurTexte: string; police: string;
+  temoignages?: { texte: string; auteur: string; note: number }[];
 }
 interface ConfigCatalogue {
   titre: string; sousTitre: string; colonnes: 2|3|4;
@@ -939,29 +940,37 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
             </div>
           );
 
-        case 'temoignages':
+        case 'temoignages': {
+          // Témoignages saisis par le gestionnaire (Config → Accueil). Les exemples ne s'affichent qu'en démonstration : jamais de faux avis sur une vraie boutique.
+          const saisis = (Array.isArray(cfg.accueil.temoignages) ? cfg.accueil.temoignages : []).filter(t => t && typeof t.texte === 'string' && t.texte.trim());
+          const exemples = [
+            { texte: 'Produits excellents et livraison ultra rapide ! Je recommande à 100%.', auteur: 'Marie L.', note: 5 },
+            { texte: 'Service client impeccable. Mes commandes arrivent toujours en parfait état.', auteur: 'Jean-Pierre M.', note: 5 },
+            { texte: 'Qualité au rendez-vous, prix compétitifs. Ma boutique préférée!', auteur: 'Sophie R.', note: 5 },
+          ];
+          const liste = saisis.length > 0 ? saisis : (configBrut?.__produits_demo__ ? exemples : []);
+          if (liste.length === 0) return null;
           return (
             <div key={sec.id} style={{ background: '#f8fafc', padding: '56px 24px' }}>
               <div style={{ maxWidth: 1200, margin: '0 auto', textAlign: 'center' }}>
                 <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 40 }}>💬 Ce que disent nos clients</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 24 }}>
-                  {[
-                    { texte: 'Produits excellents et livraison ultra rapide ! Je recommande à 100%.', auteur: 'Marie L.', note: 5 },
-                    { texte: 'Service client impeccable. Mes commandes arrivent toujours en parfait état.', auteur: 'Jean-Pierre M.', note: 5 },
-                    { texte: 'Qualité au rendez-vous, prix compétitifs. Ma boutique préférée!', auteur: 'Sophie R.', note: 5 },
-                  ].map((t, i) => (
+                  {liste.slice(0, 6).map((t, i) => (
                     <div key={i} style={{ background: '#fff', borderRadius: 16, padding: '28px', border: '1px solid #e5e7eb', textAlign: 'left' }}>
-                      <div style={{ color: '#f59e0b', fontSize: 18, marginBottom: 12 }}>{'★'.repeat(t.note)}</div>
+                      <div style={{ color: '#f59e0b', fontSize: 18, marginBottom: 12 }}>{'★'.repeat(Math.max(1, Math.min(5, Math.round(Number(t.note) || 5))))}</div>
                       <p style={{ fontSize: 15, color: '#555', lineHeight: 1.7, marginBottom: 16, fontStyle: 'italic' }}>"{t.texte}"</p>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>— {t.auteur}</p>
+                      {t.auteur && <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>— {t.auteur}</p>}
                     </div>
                   ))}
                 </div>
               </div>
             </div>
           );
+        }
 
         case 'newsletter':
+          // Vraie inscription = add-on « Infolettre » (rangée du pied de page). Ce bloc d'exemple (sans envoi) ne sert qu'en démonstration.
+          if (!configBrut?.__produits_demo__) return null;
           return (
             <div key={sec.id} style={{ background: cp, padding: '56px 24px' }}>
               <div style={{ maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>

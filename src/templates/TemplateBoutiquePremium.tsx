@@ -627,10 +627,11 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               </div>
             </div>
           </div>
-          <div style={{ position:'absolute',bottom:32,left:'50%',transform:'translateX(-50%)',display:'flex',flexDirection:'column',alignItems:'center',gap:6 }}>
+          {/* Indicateur « Défiler » : décoratif, masqué sur mobile (il se superposait aux boutons sur les écrans courts) */}
+          {!isMobile&&<div style={{ position:'absolute',bottom:32,left:'50%',transform:'translateX(-50%)',display:'flex',flexDirection:'column',alignItems:'center',gap:6 }}>
             <span style={{ fontSize:10,color:cp,letterSpacing:'0.15em',textTransform:'uppercase' }}>Défiler</span>
             <div style={{ width:1,height:40,background:`linear-gradient(${cp},transparent)`,animation:'float 2s ease-in-out infinite' }}/>
-          </div>
+          </div>}
         </div>
 
         {/* Avantages */}

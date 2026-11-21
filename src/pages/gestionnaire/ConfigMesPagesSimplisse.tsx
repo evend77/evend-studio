@@ -61,6 +61,7 @@ interface ConfigPageAccueil {
   couleurFondPage: string;
   couleurTexte: string;
   police: string;
+  temoignages?: { texte: string; auteur: string; note: number }[];
 }
 
 interface ConfigFooter {
@@ -838,6 +839,27 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
           </S>
           <S titre="Sections de la page">
             <SectionsManager sections={config.accueil.sections} onChange={s => setAcc({ sections: s })} couleur={config.accueil.couleurPrimaire || CP} />
+          </S>
+          <S titre="Témoignages (section « Avis »)">
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 10px', lineHeight: 1.6 }}>Écrivez ici de vrais commentaires de vos clients. Tant qu'il n'y en a aucun, la section n'apparaît pas sur votre site.</p>
+            {(config.accueil.temoignages || []).map((t, i) => (
+              <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#555' }}>Témoignage {i + 1}</span>
+                  <button onClick={() => { const a = [...(config.accueil.temoignages || [])]; a.splice(i, 1); setAcc({ temoignages: a }); }}
+                    style={{ background: '#fef2f2', border: 'none', borderRadius: 4, padding: '2px 7px', fontSize: 10, color: '#dc2626', cursor: 'pointer' }}>✕</button>
+                </div>
+                <F label="Commentaire"><Txt value={t.texte} onChange={(v: string) => { const a = [...(config.accueil.temoignages || [])]; a[i] = { ...a[i], texte: v }; setAcc({ temoignages: a }); }} rows={3} /></F>
+                <F label="Nom du client"><Inp value={t.auteur} onChange={(v: string) => { const a = [...(config.accueil.temoignages || [])]; a[i] = { ...a[i], auteur: v }; setAcc({ temoignages: a }); }} /></F>
+                <F label="Note (1 à 5)"><Inp type="number" value={String(t.note ?? 5)} onChange={(v: string) => { const a = [...(config.accueil.temoignages || [])]; a[i] = { ...a[i], note: Math.max(1, Math.min(5, parseInt(v, 10) || 5)) }; setAcc({ temoignages: a }); }} /></F>
+              </div>
+            ))}
+            {(config.accueil.temoignages || []).length < 6 && (
+              <button onClick={() => setAcc({ temoignages: [...(config.accueil.temoignages || []), { texte: '', auteur: '', note: 5 }] })}
+                style={{ width: '100%', padding: '8px', border: `2px dashed ${CP}40`, borderRadius: 7, background: `${CP}05`, color: CP, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                + Ajouter un témoignage
+              </button>
+            )}
           </S>
         </>
       );
