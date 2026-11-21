@@ -1,15 +1,2106 @@
 // CHEMIN : src/templates/TemplateBoutiqueSimple.tsx
-// Template Mono-produit (boutique-simple) : une seule page de vente pour UN produit (variantes/options gérées).
-// Réutilise le moteur de TemplateBoutiqueSimplisse en mode `mono` ; la configuration est lue dans config.simple.
-import TemplateBoutiqueSimplisse from './TemplateBoutiqueSimplisse';
+// e-Vend Studio — Template MONO-PRODUIT (boutique-simple) : UNE page de vente pour UN produit (variantes/options). Template INDÉPENDANT de Simplisse.
+// Rendu public — lit config.simple + le produit retenu depuis l'API. Config : ConfigMesPagesSimple.tsx. (Les défauts de l'ancien mono sont ré-exportés plus bas.)
+// Pages : Accueil · Catalogue · Fiche produit · Blog · FAQ · Contact
+// Compte acheteur + panier/caisse/commandes (AppAcheteurBoutique) · Add-ons : Produits personnalisés, Infolettre, Prix par palier, Vérificateur d'âge, Analytique, App installable
+// 100% mobile responsive
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import AppAcheteurBoutique from '../AppAcheteurBoutique';   // espace acheteur (panier, caisse, commandes) partagé avec Premium
+import useBoutiqueAnalytique from '../hooks/useBoutiqueAnalytique';   // add-on « Analytique » : compte les pages vues (après consentement du visiteur)
+import BoutiqueBoutonInstallerApp from '../components/BoutiqueBoutonInstallerApp';   // add-on « App installable » : bouton « Installer l'app » (mobile)
+import BoutiqueInfolettre from '../components/BoutiqueInfolettre';   // add-on « Infolettre » : rangée d'inscription dans le pied de page
+import BoutiquePersonnalisation, { PersoRef, ThemePerso } from '../components/BoutiquePersonnalisation';   // add-on « Produits personnalisés » : champs + aperçu sur la page produit
+import BoutiqueVerificateurAge from '../components/BoutiqueVerificateurAge';   // add-on « Vérificateur d'âge » : fenêtre bloquante à l'arrivée
+import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
+import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
+import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-on « Faire une offre » : bloc de la fiche produit
+import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
+import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
+import AvisProduitBoutique, { useAvisProduit, EtoilesAvis } from '../pages/boutique/AvisProduitBoutique';   // add-on « Avis clients » : avis publiés de la fiche produit
+import BoutiqueParutionCountdown, { useConfigParution, formaterDateParution } from '../components/BoutiqueParutionCountdown';   // add-on « Parution future » : compte à rebours
+import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
+import { BoutiqueSouhaitBouton, BoutiqueSouhaitCarte, BoutiqueSouhaitProduit, BoutiqueSouhaitsAcces, BoutiqueFavorisToast } from '../components/BoutiqueFavoris';   // add-on « Favoris » : cœurs, icône d'en-tête, notifications
+
+// ─── Types (miroir de ConfigMesPagesSimplisse) ────────────────────────────────
+interface SectionPage  { id: string; actif: boolean; ordre: number; label: string; icone: string; }
+interface ConfigHero   { titre: string; sousTitre: string; boutonLabel: string; boutonLien: string; photo: string; couleurFond: string; couleurTitre: string; couleurBouton: string; style: 'centre'|'gauche'|'image-fond'; }
+interface ConfigBanniere { actif: boolean; texte: string; couleurFond: string; couleurTexte: string; lien: string; labelLien: string; }
+interface ConfigFooter {
+  nomBoutique: string; slogan: string; couleurFond: string; couleurTexte: string; afficherPropulse: boolean;
+  reseaux: { facebook:string; instagram:string; tiktok:string; twitter:string; youtube:string; linkedin:string; pinterest:string; };
+  colonnes: { titre1:string; liens1:string; titre2:string; liens2:string; titre3:string; liens3:string; };
+  politiques: { afficherConditions:boolean; afficherConfidentialite:boolean; afficherRetours:boolean; afficherLivraison:boolean; afficherMentions?:boolean; afficherCoordonnees?:boolean; };
+}
+interface ConfigAccueil {
+  hero: ConfigHero; banniere: ConfigBanniere; sections: SectionPage[];
+  couleurPrimaire: string; couleurSecondaire: string; couleurFondPage: string; couleurTexte: string; police: string;
+  temoignages?: { texte: string; auteur: string; note: number }[];
+  avantages?: { ico: string; titre: string; desc: string }[];
+}
+interface ConfigCatalogue {
+  titre: string; sousTitre: string; colonnes: 2|3|4;
+  afficherFiltres: boolean; afficherRecherche: boolean; afficherPrix: boolean; afficherStock: boolean;
+  hero: ConfigHero; banniere: ConfigBanniere; sections: SectionPage[];
+}
+interface ConfigFaq     { titre: string; sousTitre: string; hero: ConfigHero; banniere: ConfigBanniere; items: { question:string; reponse:string }[]; }
+interface ConfigBlog    { titre: string; sousTitre: string; hero: ConfigHero; banniere: ConfigBanniere; afficherAuteur: boolean; afficherDate: boolean; colonnes: 2|3; }
+interface ConfigContact { titre: string; sousTitre: string; hero: ConfigHero; banniere: ConfigBanniere; adresse: string; telephone: string; courriel: string; afficherCarte: boolean; urlCarte: string; }
+interface ConfigSimplisse { accueil: ConfigAccueil; catalogue: ConfigCatalogue; faq: ConfigFaq; blog: ConfigBlog; contact: ConfigContact; footer: ConfigFooter; ficheProduit?: ConfigFicheProduit; }
+interface ConfigSimplisse { accueil: ConfigAccueil; catalogue: ConfigCatalogue; faq: ConfigFaq; blog: ConfigBlog; contact: ConfigContact; footer: ConfigFooter; }
+
+interface ConfigFicheProduit {
+  layout:              'image-gauche' | 'image-droite' | 'image-haut';
+  photosMiniatures:    'dessous' | 'gauche';
+  descriptionPosition: 'droite' | 'bas' | 'onglets';
+  descriptionTronquee: boolean;
+  afficherBreadcrumb:  boolean;
+  afficherStock:       boolean;
+  afficherCategorie:   boolean;
+  afficherSku:         boolean;
+  afficherRabaisPct:   boolean;
+  afficherQte:         boolean;
+  boutonLabel:         string;
+  boutonCouleur:       string;
+  afficherReassurance: boolean;
+  reassuranceItems:    { icone: string; texte: string }[];
+  afficherPartage:     boolean;
+  afficherSimilaires:  boolean;
+  similairesNombre:    2 | 4 | 6;
+  similairesTitre:     string;
+}
+
+interface Produit {
+  id: number; titre: string; prix: number; prix_promo?: number; photo_principale?: string;
+  photos?: string[]; description?: string; stock?: number; categorie?: string; sku?: string;
+  variantes?: { nom: string; valeurs?: string[]; prix?: number|string|null; stock?: number|string|null }[];   // démo : {nom, valeurs[]} ; vraies annonces : liste plate {nom, prix, stock}
+  paliers?: { qte_min:number; type:'pourcentage'|'fixe'; valeur:number; variante:string|null }[];   // add-on « Prix par palier » : le serveur n'envoie rien si l'add-on est inactif
+  offre_fin?: string | null;   // add-on « Offres du jour » : fin de l'offre en cours (le serveur décide du prix)
+  date_parution?: string | null;   // add-on « Parution future » : date d'ouverture de la vente tant qu'elle n'est pas passée
+  enchere?: { fin: string; mise: number; nb_mises: number; decalage?: number } | null;   // add-on « Enchères » : enchère en cours sur ce produit
+}
+
+interface AcheteurUser {
+  id: number; prenom: string; nom: string; email: string;
+  telephone?: string; adresse?: string; ville?: string; province?: string; code_postal?: string;
+}
+
+interface ArticleBlog {
+  id: number; titre: string; slug: string; resume?: string; photo?: string;
+  auteur?: string; date_publication?: string; categorie?: string;
+  contenu?: string; tags?: string[]; vues?: number;
+}
+
+// ─── Config par défaut (fallback si BD vide) ──────────────────────────────────
+const CP = '#2563eb';
+const HERO_DEF: ConfigHero = { titre: 'Bienvenue dans notre boutique', sousTitre: 'Découvrez notre sélection de produits soigneusement choisis pour vous.', boutonLabel: 'Voir le catalogue', boutonLien: '/catalogue', photo: '', couleurFond: '#f8fafc', couleurTitre: '#1a1a1a', couleurBouton: CP, style: 'centre' };
+const BAN_DEF: ConfigBanniere = { actif: false, texte: '🎉 Livraison gratuite sur toutes les commandes de 75$ et plus !', couleurFond: CP, couleurTexte: '#ffffff', lien: '', labelLien: 'En savoir plus' };
+const CFG_DEF: ConfigSimplisse = {
+  accueil: { hero: HERO_DEF, banniere: BAN_DEF, sections: [
+    { id:'banniere', label:'Bannière', icone:'📢', actif:true,  ordre:1 },
+    { id:'hero',     label:'Hero',    icone:'🖼', actif:true,  ordre:2 },
+    { id:'avantages',label:'Avantages',icone:'✅',actif:true,  ordre:3 },
+    { id:'vedette',  label:'Vedette', icone:'⭐', actif:true,  ordre:4 },
+    { id:'categories',label:'Catégories',icone:'🗂',actif:true,ordre:5 },
+    { id:'nouveautes',label:'Nouveautés',icone:'🆕',actif:true,ordre:6 },
+    { id:'promo',    label:'Promos',  icone:'🏷', actif:false, ordre:7 },
+    { id:'temoignages',label:'Avis',  icone:'💬', actif:true,  ordre:8 },
+    { id:'newsletter',label:'Infolettre',icone:'📧',actif:false,ordre:9 },
+    { id:'blog-apercu',label:'Blog',  icone:'📝', actif:false, ordre:10 },
+  ], couleurPrimaire:CP, couleurSecondaire:'#64748b', couleurFondPage:'#ffffff', couleurTexte:'#1a1a1a', police:'Inter' },
+  catalogue: { titre:'Notre catalogue', sousTitre:'Tous nos produits disponibles.', colonnes:3, afficherFiltres:true, afficherRecherche:true, afficherPrix:true, afficherStock:true, banniere:BAN_DEF, hero:HERO_DEF, sections:[] },
+  faq: { titre:'Questions fréquentes', sousTitre:'Trouvez rapidement les réponses à vos questions.', hero:HERO_DEF, banniere:BAN_DEF, items:[
+    { question:'Quels sont vos délais de livraison ?', reponse:'Les commandes sont expédiées sous 24–48h ouvrables.' },
+    { question:'Puis-je retourner un article ?', reponse:'Oui, sous 30 jours suivant la réception.' },
+    { question:'Quels modes de paiement acceptez-vous ?', reponse:'Visa, Mastercard et Apple Pay via Stripe.' },
+  ]},
+  blog: { titre:'Notre blogue', sousTitre:'Actualités, conseils et nouveautés.', hero:HERO_DEF, banniere:BAN_DEF, afficherAuteur:true, afficherDate:true, colonnes:3 },
+  contact: { titre:'Nous contacter', sousTitre:'Une question ? Nous sommes là pour vous.', hero:HERO_DEF, banniere:BAN_DEF, adresse:'', telephone:'', courriel:'', afficherCarte:false, urlCarte:'' },
+  footer: { nomBoutique:'Ma Boutique', slogan:'', couleurFond:'#111827', couleurTexte:'#ffffff', afficherPropulse:true,
+    reseaux:{ facebook:'', instagram:'', tiktok:'', twitter:'', youtube:'', linkedin:'', pinterest:'' },
+    colonnes:{ titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nFAQ\nÀ propos', titre2:'Aide', liens2:'Contact', titre3:'', liens3:'' },
+    politiques:{ afficherConditions:true, afficherConfidentialite:true, afficherRetours:true, afficherLivraison:true, afficherMentions:true, afficherCoordonnees:true },
+  },
+};
+
+// Exemples de démonstration de la page À propos : affichés tant que le gestionnaire n'a rien saisi (Config Mes pages → À propos)
+const APROPOS_DEMO = {
+  accroche: 'Nous croyons que la qualité devrait être accessible à tous — sans compromis.',
+  description: "Fondée avec une passion pour l'excellence, notre boutique sélectionne rigoureusement chaque produit pour vous offrir ce qu'il y a de mieux. Chaque article est testé, validé et choisi avec soin pour dépasser vos attentes.",
+  valeurs: [
+    { ico: '💎', titre: 'Qualité sans compromis', desc: 'Chaque produit est sélectionné selon des critères rigoureux. Nous refusons la médiocrité.' },
+    { ico: '🤝', titre: 'Service humain', desc: "Derrière chaque commande, il y a une personne réelle, disponible pour vous accompagner à chaque étape." },
+    { ico: '🌱', titre: 'Responsabilité', desc: 'Nous choisissons prioritairement des fournisseurs éthiques et des emballages éco-responsables.' },
+  ],
+  chiffres: [{ nb: '500+', label: 'Produits sélectionnés' }, { nb: '4.8/5', label: 'Note moyenne' }, { nb: '2 000+', label: 'Clients satisfaits' }, { nb: '30 jours', label: 'Politique de retour' }],
+  equipe: [{ prenom: 'Alexandre', poste: 'Fondateur & Directeur', photo: '' }, { prenom: 'Marie', poste: 'Responsable des achats', photo: '' }, { prenom: 'Sophie', poste: 'Service à la clientèle', photo: '' }],
+};
+
+const API_BASE = '/api';
+
+// Mono-produit : pied de page par défaut (pas de catalogue) ; tout reste modifiable dans Config → Footer
+const FOOTER_DEF_MONO: ConfigFooter = { ...CFG_DEF.footer, colonnes: { titre1: 'Boutique', liens1: 'Accueil\nBlog\nÀ propos', titre2: 'Aide', liens2: 'Contact', titre3: '', liens3: '' } };
+
+// Mono-produit : exemples de la page de vente, affichés UNIQUEMENT en démonstration (jamais sur une vraie boutique)
+const VENTE_DEMO = {
+  benefices: [{ ico: '⚡', titre: 'Résultat immédiat', desc: 'Décrivez ici le premier grand avantage de votre produit.' }, { ico: '🛡️', titre: 'Fabriqué pour durer', desc: 'Qualité, matériaux, garantie : ce qui rassure vos clients.' }, { ico: '🎁', titre: 'Prêt à offrir', desc: 'Emballage, livraison, retours : ce qui facilite l\'achat.' }],
+  details: [{ titre: 'Conçu avec soin', texte: 'Racontez en quelques lignes ce qui rend votre produit unique : sa fabrication, son histoire, ses matériaux.', photo: '' }, { titre: 'Simple à utiliser', texte: 'Expliquez comment il s\'utilise et ce qu\'il change dans le quotidien de vos clients.', photo: '' }],
+  avis: [{ texte: 'Exactement ce que je cherchais. Je le recommande !', auteur: 'Client satisfait', note: 5 }],
+  faq: [{ question: 'Quels sont les délais de livraison ?', reponse: 'Exemple de réponse : expédition sous 24 à 48 h ouvrables.' }, { question: 'Puis-je retourner mon achat ?', reponse: 'Exemple de réponse : retour possible sous 30 jours.' }],
+};
+
+// ── Inscription acheteur : défauts, fusionnés avec config.simplisse.inscription si elle existe ──
+type ChampInsc = { id:string; type:'text'|'email'|'tel'|'select'|'textarea'|'checkbox'; label:string; placeholder?:string; options?:string[]; requis?:boolean };
+const INSC_DEF = {
+  titre:'Créer un compte', sousTitre:'', boutonTexte:'Créer mon compte',
+  messageSuccesTitre:'Compte créé avec succès !', messageSuccesTexte:'Vous pouvez maintenant vous connecter.',
+  libelles:{ prenom:'Prénom', nom:'Nom', email:'Courriel', mot_de_passe:'Mot de passe', confirmation:'Confirmez le mot de passe' },
+  telephone:{ mode:'cache' }, adresse:{ mode:'obligatoire' }, infolettre:{ affiche:false, texte:'Je veux recevoir les nouveautés par courriel' },
+  age:{ affiche:true, minimum:16, texte:'Je déclare avoir {age} ans ou + (consentement parental pour les mineurs)' },
+  termes:{ affiche:true, texte:"J'accepte les termes et conditions de la boutique", url:'' },
+};
+function fusionInsc(b:any){
+  const x=b&&typeof b==='object'?b:{}; const sous=(k:'libelles'|'telephone'|'adresse'|'infolettre'|'age'|'termes')=>({...INSC_DEF[k],...(x[k]&&typeof x[k]==='object'?x[k]:{})});
+  return { ...INSC_DEF, ...x, libelles:sous('libelles'), telephone:sous('telephone'), adresse:sous('adresse'), infolettre:sous('infolettre'), age:sous('age'), termes:sous('termes'), champs:(Array.isArray(x.champs)?x.champs:[]) as ChampInsc[] };
+}
+// Thème clair de la personnalisation (la boutique Simplisse est blanche)
+const THEME_CLAIR_PERSO: ThemePerso = { fond: '#f9fafb', texte: '#1a1a1a', doux: '#6b7280', bord: '#e5e7eb' };
+// Couleur hex (#rrggbb) → rgba, pour les textes du pied de page (la couleur du texte est choisie par le gestionnaire)
+const hexVersRgba = (hex: string, a: number) => { const m = /^#([0-9a-f]{6})$/i.exec(String(hex || '').trim()); if (!m) return `rgba(255,255,255,${a})`; const n = parseInt(m[1], 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
+
+const FICHE_DEF: ConfigFicheProduit = {
+  layout: 'image-gauche', photosMiniatures: 'dessous', descriptionPosition: 'droite',
+  descriptionTronquee: false, afficherBreadcrumb: true, afficherStock: true,
+  afficherCategorie: true, afficherSku: false, afficherRabaisPct: true, afficherQte: true,
+  boutonLabel: 'Ajouter au panier', boutonCouleur: '',
+  afficherReassurance: true,
+  reassuranceItems: [
+    { icone: '🔒', texte: 'Paiement sécurisé Stripe' },
+    { icone: '🔄', texte: 'Retour sous 30 jours' },
+    { icone: '🚚', texte: 'Livraison rapide 24–48h' },
+  ],
+  afficherPartage: false, afficherSimilaires: true, similairesNombre: 4, similairesTitre: 'Vous aimerez aussi',
+};
+
+
 
 // Compatibilité : la config générique « Modifier mon site » (ancien mono-produit) importe encore ces éléments depuis ce fichier.
-export { DEFAUTS_PAR_TYPE, CONFIG_BOUTIQUE_SIMPLE_DEFAUT } from './TemplateBoutiqueSimpleAncien';
-export type { TypeBoutique, VarianteProduit, ConfigBoutiqueSimple } from './TemplateBoutiqueSimpleAncien';
+export * from './TemplateBoutiqueSimpleAncien';
 
-interface Props { config: any; siteId?: string; vendeurId?: number; }
+// ─── Props ────────────────────────────────────────────────────────────────────
+interface Props {
+  config: any;   // config brute de la BD — contient config.simple
+  siteId?: number;
+  vendeurId: number;
+}
 
-export default function TemplateBoutiqueSimple({ config, siteId, vendeurId }: Props) {
-  const cfg = { ...(config || {}), simplisse: (config && config.simple) || {} };
-  return <TemplateBoutiqueSimplisse mono config={cfg} siteId={siteId as any} vendeurId={vendeurId as any} />;
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function merge<T>(def: T, override: any): T {
+  if (!override || typeof override !== 'object') return def;
+  return { ...def, ...override };
+}
+// ── Politiques légales du site : les 6 politiques fixes que le gestionnaire rédige (Configuration → Mes politiques) ──
+const POLITIQUES_SLUGS = ['retour-remboursement','confidentialite','conditions-service','expedition','coordonnees','mentions-legales'];
+const sansAccent = (t:string)=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+// Reconnaît un lien de pied de page (ou un slug) qui désigne une politique : retourne son slug, sinon ''
+function slugPolitique(dest:string):string {
+  const d=sansAccent(dest).replace(/[-_]+/g,' ');
+  const t:Record<string,string>={ 'conditions':'conditions-service','conditions de service':'conditions-service','conditions service':'conditions-service','termes':'conditions-service','termes et conditions':'conditions-service',
+    'confidentialite':'confidentialite','politique de confidentialite':'confidentialite','vie privee':'confidentialite',
+    'retours':'retour-remboursement','retour':'retour-remboursement','remboursement':'retour-remboursement','remboursements':'retour-remboursement','retour et remboursement':'retour-remboursement','retours et remboursements':'retour-remboursement','retour remboursement':'retour-remboursement',
+    'livraison':'expedition','expedition':'expedition','livraison et expedition':'expedition',
+    'coordonnees':'coordonnees','mentions legales':'mentions-legales' };
+  return t[d]||'';
+}
+// Nettoie le HTML d'une politique avant l'affichage (le serveur le nettoie déjà à l'enregistrement) : retire scripts, cadres, formulaires, gestionnaires d'événements et liens javascript:
+function htmlSur(h:string):string {
+  try {
+    const doc=new DOMParser().parseFromString('<div id="r">'+h+'</div>','text/html'); const racine=doc.getElementById('r'); if(!racine) return '';
+    racine.querySelectorAll('script,style,iframe,object,embed,form,link,meta,base,svg,math').forEach(e=>e.remove());
+    racine.querySelectorAll('*').forEach(e=>{
+      Array.from(e.attributes).forEach(a=>{ const n=a.name.toLowerCase(), v=a.value.replace(/[\s\u0000-\u001f]/g,'').toLowerCase();
+        if(n.startsWith('on')||n==='style'||((n==='href'||n==='src'||n==='xlink:href'||n==='action')&&!/^(https?:|mailto:|tel:|#|\/)/.test(v))) e.removeAttribute(a.name); });
+      if(e.tagName==='A'){ e.setAttribute('target','_blank'); e.setAttribute('rel','noopener noreferrer'); }
+    });
+    return racine.innerHTML;
+  } catch { return ''; }
+}
+
+function prix(n: number | string) { return Number(n || 0).toFixed(2).replace('.', ',') + ' $'; }
+
+// ─── Composant Bannière ───────────────────────────────────────────────────────
+function Banniere({ cfg }: { cfg: ConfigBanniere }) {
+  if (!cfg?.actif) return null;
+  return (
+    <div style={{ background: cfg.couleurFond, color: cfg.couleurTexte, padding: '10px 20px', textAlign: 'center', fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <span>{cfg.texte}</span>
+      {cfg.lien && cfg.labelLien && (
+        <a href={cfg.lien} style={{ color: cfg.couleurTexte, fontWeight: 700, textDecoration: 'underline', fontSize: 13 }}>{cfg.labelLien} →</a>
+      )}
+    </div>
+  );
+}
+
+// ─── Composant Hero ───────────────────────────────────────────────────────────
+function Hero({ cfg, cp, onNaviguer, cs }: { cfg: ConfigHero; cp: string; onNaviguer: (p: string) => void; cs?: string }) {
+  const isFond = cfg.style === 'image-fond' && cfg.photo;
+  // Lien du bouton (config) : page interne (/catalogue, /blog, /faq, /contact, /offres, /encheres, /connexion…) ou adresse complète (https://…). Vide : catalogue.
+  const allerBouton = () => {
+    const l = String(cfg.boutonLien || '').trim();
+    if (!l) { onNaviguer('catalogue'); return; }
+    if (/^(https?:)?\/\//i.test(l) || /^(mailto|tel):/i.test(l)) { window.location.href = l; return; }
+    const cle = l.replace(/^\/+/, '').split(/[?#]/)[0].toLowerCase();
+    const alias: Record<string, string> = { connexion: 'login', 'a-propos': 'a-propos' };
+    onNaviguer(alias[cle] || cle || 'catalogue');
+  };
+  const isGauche = cfg.style === 'gauche';
+  return (
+    <div style={{
+      background: isFond ? `linear-gradient(rgba(0,0,0,0.45),rgba(0,0,0,0.45)), url(${cfg.photo}) center/cover no-repeat` : cfg.couleurFond,
+      minHeight: 420,
+      display: 'flex', alignItems: 'center', justifyContent: isGauche ? 'flex-start' : 'center',
+      padding: '60px 24px',
+    }}>
+      <div style={{ maxWidth: 680, textAlign: isGauche ? 'left' : 'center', width: '100%' }}>
+        {!isFond && cfg.photo && !isGauche && (
+          <img src={cfg.photo} alt="" style={{ width: '100%', maxHeight: 260, objectFit: 'cover', borderRadius: 16, marginBottom: 32 }} />
+        )}
+        {!isFond && cfg.photo && isGauche && (
+          <div style={{ display: 'flex', gap: 40, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: 200 }}>
+              <h1 style={{ fontSize: 'clamp(28px,5vw,52px)', fontWeight: 800, color: isFond ? '#fff' : cfg.couleurTitre, lineHeight: 1.15, marginBottom: 16 }}>{cfg.titre}</h1>
+              <p style={{ fontSize: 18, color: isFond ? 'rgba(255,255,255,0.85)' : (cs || '#555'), marginBottom: 28, lineHeight: 1.6 }}>{cfg.sousTitre}</p>
+              <button onClick={allerBouton} style={{ background: cfg.couleurBouton, color: '#fff', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>{cfg.boutonLabel} →</button>
+            </div>
+            <img src={cfg.photo} alt="" style={{ width: 280, height: 220, objectFit: 'cover', borderRadius: 16, flexShrink: 0 }} />
+          </div>
+        )}
+        {(isFond || !cfg.photo || (!isFond && !isGauche)) && (
+          <>
+            <h1 style={{ fontSize: 'clamp(28px,5vw,56px)', fontWeight: 800, color: isFond ? '#fff' : cfg.couleurTitre, lineHeight: 1.15, marginBottom: 16 }}>{cfg.titre}</h1>
+            <p style={{ fontSize: 18, color: isFond ? 'rgba(255,255,255,0.85)' : (cs || '#555'), marginBottom: 28, lineHeight: 1.6 }}>{cfg.sousTitre}</p>
+            <button onClick={allerBouton} style={{ background: cfg.couleurBouton, color: '#fff', border: 'none', borderRadius: 10, padding: '14px 32px', fontSize: 16, fontWeight: 700, cursor: 'pointer' }}>{cfg.boutonLabel} →</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Carte produit ────────────────────────────────────────────────────────────
+// Add-on « Enchères » : temps restant d'une carte (heure du serveur, pas celle de l'appareil)
+function CompteurEnchere({ fin, decalage, onFini }: { fin: string; decalage: number; onFini?: () => void }) {
+  const [, setT] = useState(0);
+  useEffect(() => { const t = setInterval(() => setT(x => x + 1), 1000); return () => clearInterval(t); }, []);
+  const ms = new Date(fin).getTime() - (Date.now() + decalage);
+  const fini = useRef(false);
+  useEffect(() => { if (ms <= 0 && !fini.current) { fini.current = true; if (onFini) onFini(); } });
+  if (ms <= 0) return <span>Terminée</span>;
+  const sec = Math.floor(ms / 1000), j = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), r = sec % 60;
+  return <span>{j > 0 ? `${j}j ${h}h ${m}m` : h > 0 ? `${h}h ${String(m).padStart(2, '0')}m ${String(r).padStart(2, '0')}s` : `${m}m ${String(r).padStart(2, '0')}s`}</span>;
+}
+// Add-on « Enchères » : temps restant d'une carte de la page « Enchères »
+function ResteEnchere({ fin, decalage, couleur }: { fin: string; decalage: number; couleur: string }) {
+  const [t, setT] = useState(() => Date.now());
+  useEffect(() => { const i = setInterval(() => setT(Date.now()), 1000); return () => clearInterval(i); }, []);
+  const ms = new Date(fin).getTime() - (t + decalage);
+  if (ms <= 0) return <span style={{ color: '#6b7280' }}>Terminée</span>;
+  const s2 = Math.floor(ms / 1000), j = Math.floor(s2 / 86400), h = Math.floor((s2 % 86400) / 3600), m = Math.floor((s2 % 3600) / 60), sec = s2 % 60;
+  const txt = j > 0 ? `${j} j ${h} h ${m} min` : h > 0 ? `${h} h ${String(m).padStart(2, '0')} min` : `${m} min ${String(sec).padStart(2, '0')} s`;
+  return <span style={{ color: ms < 300000 ? '#dc2626' : couleur, fontWeight: 800 }}>⏱ {txt}</span>;
+}
+
+interface CarteExtras { gid?: number; connecte?: boolean; demo?: boolean; offre?: { heureServeur: string | null; onFini: () => void } }
+
+function CarteProduit({ produit, cp, afficherPrix, onClick, extras }: { produit: Produit; cp: string; afficherPrix: boolean; onClick: () => void; extras?: CarteExtras }) {
+  const gid = extras?.gid, connecte = extras?.connecte, demo = extras?.demo, offre = extras?.offre;
+  const enPromo = produit.prix_promo && produit.prix_promo < produit.prix;
+  const ench = produit.enchere || null;
+  const venteBloquee = !!ench && produit.stock === 0;   // seul exemplaire réservé à l'enchère : pas de vente directe
+  return (
+    <div onClick={onClick} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s ease' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 24px ${cp}20`; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; (e.currentTarget as HTMLDivElement).style.transform = 'none'; }}>
+      <div style={{ height: 200, background: '#f3f4f6', overflow: 'hidden', position: 'relative' }}>
+        {produit.photo_principale
+          ? <img src={produit.photo_principale} alt={produit.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, color: '#d1d5db' }}>📦</div>
+        }
+        {enPromo && <span style={{ position: 'absolute', top: 10, left: 10, background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>SOLDE</span>}
+        {ench && <span style={{ position: 'absolute', top: enPromo ? 36 : 10, left: 10, background: cp, color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>🔨 ENCHÈRE</span>}
+        {produit.stock === 0 && !ench && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ background: '#111', color: '#fff', padding: '6px 14px', borderRadius: 6, fontSize: 13, fontWeight: 700 }}>Épuisé</span></div>}
+        {gid !== undefined && <BoutiqueSouhaitCarte zone="superposition" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo} />}
+      </div>
+      <div style={{ padding: '14px 16px' }}>
+        {gid !== undefined && <BoutiqueSouhaitCarte zone="haut" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo} />}
+        {produit.categorie && <span style={{ fontSize: 11, color: cp, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{produit.categorie}</span>}
+        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', margin: '4px 0 8px', lineHeight: 1.3 }}>{produit.titre}</h3>
+        {afficherPrix && !venteBloquee && (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            {enPromo
+              ? <>
+                  <span style={{ fontSize: 17, fontWeight: 800, color: '#ef4444' }}>{prix(produit.prix_promo!)}</span>
+                  <span style={{ fontSize: 13, color: '#aaa', textDecoration: 'line-through' }}>{prix(produit.prix)}</span>
+                </>
+              : <span style={{ fontSize: 17, fontWeight: 800, color: cp }}>{prix(produit.prix)}</span>
+            }
+          </div>
+        )}
+        {produit.offre_fin && offre && <OffreCompteur clair compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini} />}
+        {produit.date_parution && <div style={{ marginTop: 8 }}><BoutiqueParutionCountdown compact dateParution={produit.date_parution} gestionnaireId={gid} heureServeur={offre ? offre.heureServeur : null} /></div>}
+        {ench && (
+          <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 8, border: `1px solid ${cp}55`, background: `${cp}0f` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>
+              <div><div style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{ench.nb_mises > 0 ? 'Mise actuelle' : 'Mise de départ'}</div><div style={{ fontSize: 17, fontWeight: 800, color: cp }}>{prix(ench.mise)}</div></div>
+              <div style={{ textAlign: 'right' }}><div style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Mises</div><div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a' }}>{ench.nb_mises}</div></div>
+            </div>
+            <div style={{ marginTop: 6, display: 'inline-block', fontSize: 11, fontWeight: 800, color: cp, background: `${cp}15`, padding: '3px 8px', borderRadius: 12 }}>⏱ <CompteurEnchere fin={ench.fin} decalage={ench.decalage || 0} onFini={offre ? offre.onFini : undefined} /></div>
+            <button onClick={e => { e.stopPropagation(); onClick(); }} style={{ display: 'block', width: '100%', marginTop: 8, padding: '9px', background: cp, border: 'none', borderRadius: 7, color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>🔨 Participer aux enchères</button>
+          </div>
+        )}
+        {gid !== undefined && <BoutiqueSouhaitCarte zone="bas" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo} />}
+      </div>
+    </div>
+  );
+}
+
+// ─── Footer ───────────────────────────────────────────────────────────────────
+function Footer({ cfg, onNaviguer, liensPol, extra }: { cfg: ConfigFooter; onNaviguer: (p: string) => void; liensPol: string[][]; extra?: React.ReactNode }) {
+  const reseauxActifs = Object.entries(cfg.reseaux).filter(([, v]) => v);
+  const iconeReseau: Record<string, string> = { facebook:'f', instagram:'📸', tiktok:'♪', twitter:'𝕏', youtube:'▶', linkedin:'in', pinterest:'P' };
+  return (
+    <footer style={{ background: cfg.couleurFond, color: cfg.couleurTexte, paddingTop: 48 }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
+        {/* Colonnes */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 32, marginBottom: 40 }}>
+          {/* Identité */}
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{cfg.nomBoutique}</div>
+            {cfg.slogan && <p style={{ fontSize: 14, opacity: 0.65, lineHeight: 1.6, marginBottom: 16 }}>{cfg.slogan}</p>}
+            {reseauxActifs.length > 0 && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {reseauxActifs.map(([k, url]) => (
+                  <a key={k} href={url as string} target="_blank" rel="noopener noreferrer"
+                    style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: cfg.couleurTexte, textDecoration: 'none', fontWeight: 700 }}>
+                    {iconeReseau[k] || k[0].toUpperCase()}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Col 1 */}
+          {cfg.colonnes.titre1 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, opacity: 0.9 }}>{cfg.colonnes.titre1}</div>
+              {cfg.colonnes.liens1.split('\n').filter(l => l.trim() && !slugPolitique(l)).map((l, i) => (
+                <div key={i} style={{ marginBottom: 8 }}>
+                  <button onClick={() => onNaviguer(l.toLowerCase())} style={{ background: 'none', border: 'none', color: cfg.couleurTexte, opacity: 0.65, fontSize: 14, cursor: 'pointer', padding: 0, textAlign: 'left' }}>{l}</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Col 2 */}
+          {cfg.colonnes.titre2 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, opacity: 0.9 }}>{cfg.colonnes.titre2}</div>
+              {cfg.colonnes.liens2.split('\n').filter(l => l.trim() && !slugPolitique(l)).map((l, i) => (
+                <div key={i} style={{ marginBottom: 8 }}>
+                  <button onClick={() => onNaviguer(l.toLowerCase())} style={{ background: 'none', border: 'none', color: cfg.couleurTexte, opacity: 0.65, fontSize: 14, cursor: 'pointer', padding: 0, textAlign: 'left' }}>{l}</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Col 3 */}
+          {cfg.colonnes.titre3 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, opacity: 0.9 }}>{cfg.colonnes.titre3}</div>
+              {cfg.colonnes.liens3.split('\n').filter(Boolean).map((l, i) => (
+                <div key={i} style={{ marginBottom: 8 }}>
+                  <span style={{ fontSize: 14, opacity: 0.65 }}>{l}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {extra}
+
+        {/* Bas du footer */}
+        <div style={{ borderTop: `1px solid rgba(255,255,255,0.12)`, padding: '20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ fontSize: 13, opacity: 0.5 }}>© {new Date().getFullYear()} {cfg.nomBoutique}</div>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            {liensPol.map(([slug, label]) => <button key={slug} onClick={() => onNaviguer(slug)} style={{ background:'none', border:'none', color:cfg.couleurTexte, opacity:0.55, fontSize:12, cursor:'pointer' }}>{label}</button>)}
+          </div>
+          {cfg.afficherPropulse !== false && (
+            <a href="https://e-vend.ca" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, opacity: 0.35, color: cfg.couleurTexte, textDecoration: 'none' }}>
+              Propulsé par e-Vend Studio
+            </a>
+          )}
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+// ─── Composant principal ──────────────────────────────────────────────────────
+export default function TemplateBoutiqueSimple({ config: configBrut, siteId, vendeurId }: Props) {
+  const mono = true;   // ce template est toujours en mode mono-produit (le code multi-produit hérité reste inactif)
+  // Extraire config.simplisse de la BD et merger avec les défauts
+  const rawSimplisse = configBrut?.simple || {};   // config du mono-produit : sites.config.simple
+  const fp: ConfigFicheProduit = { ...FICHE_DEF, ...(rawSimplisse.ficheProduit || {}) };
+
+  const cfg: ConfigSimplisse = {
+    accueil:  merge(CFG_DEF.accueil,  rawSimplisse.accueil),
+    catalogue: merge(CFG_DEF.catalogue, rawSimplisse.catalogue),
+    faq:      merge(CFG_DEF.faq,      rawSimplisse.faq),
+    blog:     merge(CFG_DEF.blog,     rawSimplisse.blog),
+    contact:  merge(CFG_DEF.contact,  rawSimplisse.contact),
+    footer:   merge(mono ? FOOTER_DEF_MONO : CFG_DEF.footer, rawSimplisse.footer),
+    ficheProduit: fp,
+  };
+
+  const cp = cfg.accueil.couleurPrimaire || CP;
+  const cs = cfg.accueil.couleurSecondaire || '#666'; // couleur secondaire (config → Accueil) : sous-titres et textes d'appoint
+
+  // ── State navigation interne ──────────────────────────────────────────────
+  type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'a-propos' | 'contact' | 'login' | 'inscription' | 'compte' | 'offres' | 'encheres' | 'politique';
+  const [page, setPage]               = useState<PageId>('accueil');
+  const [produitActif, setProduitActif] = useState<Produit | null>(null);
+  const [articleActif, setArticleActif] = useState<ArticleBlog | null>(null);
+  const [menuOuvert, setMenuOuvert]   = useState(false);
+  const [isMobile, setIsMobile]       = useState(false);
+
+  // ── State données ─────────────────────────────────────────────────────────
+  const [produits, setProduits]       = useState<Produit[]>([]);
+  const [articles, setArticles]       = useState<ArticleBlog[]>([]);
+  const [blogPage, setBlogPage]       = useState(1);
+  const [blogPages, setBlogPages]     = useState(1);
+  const [blogCharge, setBlogCharge]   = useState(false);
+  const [articleErreur, setArticleErreur] = useState(false);
+  const [politiquesRedigees, setPolitiquesRedigees] = useState<Record<string, boolean> | null>(null);   // slug → rédigée ? (null = pas encore lu)
+  const [politique, setPolitique] = useState<{ slug: string; titre: string; contenu: string } | null>(null);
+  const [politiqueStatut, setPolitiqueStatut] = useState<'idle' | 'loading' | 'err'>('idle');
+  const politiqueEnCours = useRef('');
+  const [categories, setCategories]   = useState<string[]>([]);
+  const [filtreCat, setFiltreCat]     = useState('');
+  const [filtreRecherche, setFiltreRecherche] = useState('');
+  const [acheteur, setAcheteur]     = useState<AcheteurUser | null>(null);
+  const [nbPanier, setNbPanier]       = useState(0);
+  const [vueCompte, setVueCompte]     = useState<'dashboard'|'panier'|'wishlist'|'avis'>('dashboard');
+  const [avisPanier, setAvisPanier]   = useState('');
+  const [loginForm, setLoginForm]     = useState({ email: '', mdp: '' });
+  const [loginStatut, setLoginStatut] = useState<'idle'|'loading'|'err'>('idle');
+  const [loginErreur, setLoginErreur] = useState('');
+  const [inscVal, setInscVal]         = useState<Record<string, any>>({});
+  const [inscStatut, setInscStatut]   = useState<'idle'|'loading'|'ok'>('idle');
+  const [inscErreur, setInscErreur]   = useState('');
+  const [honeypot, setHoneypot]       = useState('');
+  const [sourisBougee, setSourisBougee] = useState(false);
+  const debutInscription = useRef<number>(Date.now());
+  const persoRef = useRef<PersoRef | null>(null);   // add-on « Produits personnalisés » : réponses de l'acheteur, lues au clic sur « Ajouter au panier »
+  // Page produit : ces états sont ici (et non dans PageProduit) pour ne pas être remis à zéro quand la page se redessine
+  const [photoIdx, setPhotoIdx]       = useState(0);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [ongletActif, setOngletActif] = useState<'description'|'details'|'livraison'>('description');
+  const ins = fusionInsc((rawSimplisse as any).inscription);
+  const produitsDemo = !!configBrut?.__produits_demo__;
+  const [heureServeur, setHeureServeur] = useState<string | null>(null);   // heure du serveur (offres du jour, parution, enchères)
+  const [enchereEtat, setEnchereEtat] = useState<Record<number, boolean>>({});   // add-on « Enchères » : enchère en cours par produit, lu en direct par le bloc de la fiche
+  const enchActive = (x: Produit) => enchereEtat[x.id] !== undefined ? enchereEtat[x.id] : !!x.enchere;
+  const venteDirecteBloquee = (x: Produit) => enchActive(x) && x.stock === 0;   // un seul exemplaire et il est réservé à l'enchère
+  const [ouvertes, setOuvertes] = useState<Record<number, boolean>>({});   // Parution future : annonces dont le compte à rebours vient de finir
+  const cfgParution = useConfigParution(vendeurId);
+  const avisProd = useAvisProduit(vendeurId || 0, produitActif?.id, produitsDemo);   // add-on « Avis clients » : avis publiés du produit ouvert
+  const avisReel = !!(avisProd.etat && avisProd.etat.actif && avisProd.etat.total > 0);
+  const resumeAvis = () => { const e = avisProd.etat; return e && e.actif && e.total > 0 && e.afficher_moyenne ? { note: e.moyenne, nb: e.total } : null; };
+  const { trackPageView } = useBoutiqueAnalytique(vendeurId, vendeurId > 0 && !configBrut?.__produits_demo__);   // add-on « Analytique » : rien n'est envoyé sans l'add-on, sans la bannière ou sans consentement
+  const [faqOuvert, setFaqOuvert]     = useState<number | null>(null);
+  const [contactEnvoi, setContactEnvoi] = useState<'idle'|'loading'|'ok'|'err'>('idle');
+  const [contactForm, setContactForm] = useState({ nom:'', courriel:'', message:'' });
+  const [varianteChoisie, setVarianteChoisie] = useState<Record<string, string>>({});
+  const [qteChoisie, setQteChoisie]   = useState(1);
+  const [optSel, setOptSel]           = useState<Record<string, string>>({});   // Mono-produit : valeur choisie pour chaque option (Couleur, Taille…)
+
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // Politiques légales (Configuration → Mes politiques) : lesquelles sont rédigées (un lien n'apparaît que si la politique l'est)
+  useEffect(() => {
+    fetch(`${API_BASE}/studio/politiques/${vendeurId}/public`).then(r => r.ok ? r.json() : null).then(d => {
+      if (!d || !Array.isArray(d.politiques)) return;
+      const m: Record<string, boolean> = {}; d.politiques.forEach((p: any) => { m[p.slug] = typeof p.contenu === 'string' && p.contenu.trim().length > 0; });
+      setPolitiquesRedigees(m);
+    }).catch(() => {});
+  }, [vendeurId]);
+
+  // Catalogue réel du serveur (prix en texte → nombres ; enchères, offres du jour et parutions incluses)
+  const chargerCatalogue = useCallback(() => fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data) return;
+      if (data.heure_serveur) setHeureServeur(String(data.heure_serveur));
+      const decSrv = data.heure_serveur ? new Date(String(data.heure_serveur)).getTime() - Date.now() : 0;
+      const liste: Produit[] = (data.produits || data || []).map((x: any) => ({
+        ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo !== null && x.prix_promo !== undefined && x.prix_promo !== '' ? Number(x.prix_promo) : undefined,
+        stock: x.stock !== null && x.stock !== undefined && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined,
+        variantes: Array.isArray(x.variantes) ? x.variantes : [], paliers: Array.isArray(x.paliers) ? x.paliers : undefined,
+        offre_fin: x.offre_fin || null, date_parution: x.date_parution || null,
+        enchere: x.ench_fin ? { fin: x.ench_fin, mise: Number(x.ench_mise), nb_mises: Number(x.ench_nb) || 0, decalage: decSrv } : null,
+      }));
+      setProduits(liste);
+      setCategories(Array.from(new Set(liste.map(p => p.categorie).filter(Boolean))) as string[]);
+    }).catch(() => {}), [vendeurId]);
+
+  // Charger produits — si démo hardcodée présente, l'utiliser directement
+  useEffect(() => {
+    if (configBrut?.__produits_demo__) {
+      const liste = configBrut.__produits_demo__;
+      setProduits(liste);
+      const cats = Array.from(new Set(liste.map((p: any) => p.categorie).filter(Boolean))) as string[];
+      setCategories(cats);
+      return;
+    }
+    chargerCatalogue();
+  }, [vendeurId, chargerCatalogue]);
+
+  // Mono-produit : le seul produit (celui retenu par le serveur) est toujours ouvert sur la page de vente
+  useEffect(() => { if (!mono) return; setProduitActif(a => { const n = produits[0] || null; return a && n && a.id === n.id ? { ...a, ...n } : n; }); }, [mono, produits]);
+
+  // Quand une offre se termine, la fiche ouverte reprend le vrai prix
+  useEffect(() => { setProduitActif(a => { if (!a) return a; const n = produits.find(x => x.id === a.id); return n && (n.prix_promo !== a.prix_promo || n.offre_fin !== a.offre_fin) ? { ...a, prix_promo: n.prix_promo, offre_fin: n.offre_fin } : a; }); }, [produits]);
+
+  // Add-on « Offres du jour » : lien du menu seulement s'il y a des offres en cours ; la page est lue au serveur (?offres=1), paginée
+  const [nbOffres, setNbOffres] = useState(0);
+  const [versionOffres, setVersionOffres] = useState(0);
+  const compterOffres = useCallback(() => { if (produitsDemo) return; fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?offres=1&limit=1`).then(r => r.ok ? r.json() : null).then(d => { if (d && typeof d.total === 'number') setNbOffres(d.total); }).catch(() => {}); }, [vendeurId, produitsDemo]);
+  useEffect(() => { compterOffres(); }, [compterOffres]);
+  const OFFRES_PAR_PAGE = 24;
+  const [offresListe, setOffresListe] = useState<Produit[]>([]);
+  const [offresTotal, setOffresTotal] = useState(0);
+  const [offresPg, setOffresPg] = useState(1);
+  const [offresCharge, setOffresCharge] = useState(false);
+  const [offresErr, setOffresErr] = useState(false);
+  useEffect(() => {
+    if (page !== 'offres' || produitsDemo) return;
+    let annule = false; setOffresErr(false);
+    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?offres=1&limit=${OFFRES_PAR_PAGE}&offset=${(offresPg - 1) * OFFRES_PAR_PAGE}`).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+      if (annule) return;
+      const l: Produit[] = (Array.isArray(d.produits) ? d.produits : []).map((x: any) => ({ ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo !== null && x.prix_promo !== undefined && x.prix_promo !== '' ? Number(x.prix_promo) : undefined, stock: x.stock !== null && x.stock !== undefined && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined, variantes: Array.isArray(x.variantes) ? x.variantes : [], offre_fin: x.offre_fin || null, date_parution: x.date_parution || null, enchere: null }));
+      setOffresListe(l); setOffresTotal(Number(d.total) || 0); setOffresCharge(true);
+    }).catch(() => { if (!annule) { setOffresErr(true); setOffresCharge(true); } });
+    return () => { annule = true; };
+  }, [page, offresPg, versionOffres, vendeurId, produitsDemo]);
+  const rechargerOffres = useCallback(() => { if (!produitsDemo) chargerCatalogue(); compterOffres(); setVersionOffres(v => v + 1); }, [chargerCatalogue, compterOffres, produitsDemo]);
+  const offreCtx = { heureServeur, onFini: () => { setTimeout(rechargerOffres, 1200); } };
+
+  // Add-on « Enchères » : lien du menu seulement s'il y a au moins une enchère en cours ; la page lit la liste au serveur
+  const [nbEncheres, setNbEncheres] = useState(0);
+  const [encheresListe, setEncheresListe] = useState<any[]>([]);
+  const [encheresProduits, setEncheresProduits] = useState<Record<number, Produit>>({});
+  const [encheresDec, setEncheresDec] = useState(0);
+  const [encheresCharge, setEncheresCharge] = useState(false);
+  const [encheresErr, setEncheresErr] = useState(false);
+  const [versionEncheres, setVersionEncheres] = useState(0);
+  useEffect(() => {
+    if (produitsDemo) return;
+    let annule = false;
+    const compter = () => fetch(`${API_BASE}/boutique/encheres/${vendeurId}?limit=1`).then(r => r.ok ? r.json() : null).then(d => { if (!annule && d && d.pagination && typeof d.pagination.total === 'number') setNbEncheres(d.pagination.total); }).catch(() => {});
+    compter(); const t = setInterval(compter, 60000);
+    return () => { annule = true; clearInterval(t); };
+  }, [vendeurId, produitsDemo]);
+  useEffect(() => {
+    if (page !== 'encheres' || produitsDemo) return;
+    let annule = false; setEncheresErr(false);
+    const lire = () => fetch(`${API_BASE}/boutique/encheres/${vendeurId}?limit=60`).then(r => r.ok ? r.json() : Promise.reject()).then(async d => {
+      if (annule) return;
+      const l: any[] = Array.isArray(d.encheres) ? d.encheres : [];
+      setEncheresListe(l); setNbEncheres(d.pagination ? Number(d.pagination.total) || 0 : l.length); if (d.maintenant) setEncheresDec(new Date(d.maintenant).getTime() - Date.now()); setEncheresCharge(true);
+      const ids = l.map(x => x.produit_id).filter((x: number) => Number.isInteger(x)).slice(0, 50);
+      if (ids.length) { try { const r2 = await fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?ids=${ids.join(',')}&limit=50`); const c = r2.ok ? await r2.json() : null; if (!annule && c && Array.isArray(c.produits)) { const m: Record<number, Produit> = {}; c.produits.forEach((x: any) => { m[Number(x.id)] = { ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo != null && x.prix_promo !== '' ? Number(x.prix_promo) : undefined, stock: x.stock != null && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined, variantes: Array.isArray(x.variantes) ? x.variantes : [], enchere: null }; }); setEncheresProduits(m); } } catch { /* la carte reste visible, sans ouverture de fiche */ } }
+    }).catch(() => { if (!annule) { setEncheresErr(true); setEncheresCharge(true); } });
+    lire(); const t = setInterval(lire, 15000);
+    return () => { annule = true; clearInterval(t); };
+  }, [page, vendeurId, produitsDemo, versionEncheres]);
+
+  // Blog de la boutique (Configuration → Mes blogs) : liste légère et paginée ; l'article complet se charge à son ouverture
+  const versArticle = (x: any): ArticleBlog => ({ id: x.id, titre: x.titre, slug: x.slug, resume: x.extrait || undefined, photo: x.image_couverture || undefined, auteur: x.auteur || undefined, date_publication: x.date_publication || undefined, tags: Array.isArray(x.tags) ? x.tags : [], vues: x.vues });
+  const chargerArticles = (p: number) => {
+    if (!vendeurId) { setBlogCharge(true); return; }
+    fetch(`${API_BASE}/boutique/blog/${vendeurId}?page=${p}&limite=12`).then(r => r.ok ? r.json() : null).then(d => {
+      if (!d || !Array.isArray(d.articles)) return;
+      setBlogPage(d.page || p); setBlogPages(d.pages || 1);
+      setArticles(prev => p === 1 ? d.articles.map(versArticle) : [...prev, ...d.articles.map(versArticle)]);
+    }).catch(() => {}).finally(() => setBlogCharge(true));
+  };
+  useEffect(() => { chargerArticles(1); }, [vendeurId]);
+
+  // Compte acheteur = celui du MV (mêmes clés que AppAcheteur)
+  useEffect(() => {
+    try { const u = localStorage.getItem(`mv_compte_${vendeurId}`), t = localStorage.getItem(`mv_token_${vendeurId}`); setAcheteur(u && t ? JSON.parse(u) : null); } catch { setAcheteur(null); }
+  }, [vendeurId, page]);
+
+  // Pastille du panier (panier du serveur)
+  useEffect(() => {
+    if (!acheteur) { setNbPanier(0); return; }
+    ba(vendeurId, '/panier').then(r => { if (r.ok) setNbPanier((r.data.articles || []).reduce((s: number, a: any) => s + (a.quantite || 0), 0)); });
+  }, [acheteur, vendeurId, page, vueCompte]);
+
+  useEffect(() => { if (!avisPanier) return; const t = setTimeout(() => setAvisPanier(''), 4000); return () => clearTimeout(t); }, [avisPanier]);
+
+  // Anti-bot de l'inscription : champ piège + délai minimum + mouvement de souris
+  useEffect(() => {
+    if (page !== 'inscription') return;
+    debutInscription.current = Date.now(); setSourisBougee(false);
+    const bouge = () => setSourisBougee(true);
+    window.addEventListener('mousemove', bouge, { once: true });
+    return () => window.removeEventListener('mousemove', bouge);
+  }, [page]);
+
+  // Add-on « Analytique » : une page vue par changement de vue
+  useEffect(() => {
+    if (page === 'produit') { if (produitActif) trackPageView('/produit/' + produitActif.id, produitActif.titre); return; }
+    if (page === 'politique') { trackPageView('/politique/' + (politiqueEnCours.current || '')); return; }
+    if (page === 'article') { if (articleActif) trackPageView('/blog/' + (articleActif.slug || articleActif.id), articleActif.titre); return; }
+    const noms: Record<string, [string, string]> = { accueil: ['/', 'Accueil'], catalogue: ['/catalogue', 'Catalogue'], blog: ['/blog', 'Blogue'], faq: ['/faq', 'FAQ'], contact: ['/contact', 'Contact'], offres: ['/offres', 'Offres du jour'], encheres: ['/encheres', 'Enchères'], login: ['/connexion', 'Connexion'], inscription: ['/inscription', 'Inscription'], compte: ['/compte', 'Compte'] };
+    const n = noms[page]; if (n) trackPageView(n[0], n[1]);
+  }, [page, produitActif?.id, articleActif?.id, trackPageView]);
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+  const ouvrirPolitique = useCallback((slugPol: string) => {
+    politiqueEnCours.current = slugPol; setPolitique(null); setPolitiqueStatut('loading'); setPage('politique');
+    fetch(`${API_BASE}/studio/politiques/${vendeurId}/public/${slugPol}`).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+      if (politiqueEnCours.current !== slugPol) return;
+      const p = d && d.politique; if (!p) throw new Error();
+      setPolitique({ slug: slugPol, titre: String(p.titre || ''), contenu: typeof p.contenu === 'string' ? p.contenu : '' }); setPolitiqueStatut('idle');
+    }).catch(() => { if (politiqueEnCours.current === slugPol) setPolitiqueStatut('err'); });
+  }, [vendeurId]);
+
+  const naviguer = useCallback((dest: string) => {
+    setMenuOuvert(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (dest.toLowerCase() === 'panier') { setVueCompte('panier'); setPage('compte'); return; }
+    const slugPol = slugPolitique(dest);
+    if (slugPol) { ouvrirPolitique(slugPol); return; }
+    const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', 'a-propos':'a-propos', contact:'contact', compte:'compte', login:'login', inscription:'inscription', offres:'offres', encheres:'encheres', connexion:'login' };
+    const cle = sansAccent(dest).replace(/\s+/g, '-');
+    if (mono && (cle === 'catalogue' || cle === 'offres' || cle === 'encheres' || cle === 'produit')) { setPage('accueil'); return; }   // Mono-produit : pas de catalogue
+    if (map[cle]) setPage(map[cle]);
+  }, [ouvrirPolitique, mono]);
+
+  const voirProduit = (p: Produit) => {
+    setProduitActif(p);
+    setQteChoisie(1);
+    setVarianteChoisie({});
+    setPhotoIdx(0); setDescExpanded(false); setOngletActif('description'); setOptSel({});
+    if (mono) { setPage('accueil'); setTimeout(() => { const el = document.getElementById('acheter'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 150); return; }   // Mono-produit : le produit est sur la page de vente
+    setPage('produit');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const voirArticle = (a: ArticleBlog) => {
+    setArticleActif(a); setArticleErreur(false);
+    setPage('article');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (a.contenu === undefined && a.slug) {
+      fetch(`${API_BASE}/boutique/blog/${vendeurId}/article/${encodeURIComponent(a.slug)}`).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+        if (!d || !d.article) throw new Error();
+        setArticleActif(cur => cur && cur.id === a.id ? { ...cur, ...versArticle(d.article), contenu: String(d.article.contenu || '') } : cur);
+      }).catch(() => setArticleErreur(true));
+    }
+  };
+
+  // Add-on « Chatbot » : le widget (monté par SitePreview) demande d'ouvrir une page du site ; ce template sait les ouvrir sans recharger
+  const navChatbot = useRef<(d: any) => void>(() => {});
+  navChatbot.current = (d: any) => {
+    if (!d || typeof d !== 'object') return; setMenuOuvert(false); window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (d.page === 'produit' && Number(d.produitId) > 0) { const pr = produits.find(x => Number(x.id) === Number(d.produitId)); if (pr) voirProduit(pr); else naviguer('catalogue'); return; }
+    if (d.page === 'article' && typeof d.articleSlug === 'string') { voirArticle({ id: 0, titre: '', slug: d.articleSlug }); return; }
+    if (d.page === 'politique' && typeof d.politiqueSlug === 'string' && POLITIQUES_SLUGS.includes(d.politiqueSlug)) { ouvrirPolitique(d.politiqueSlug); return; }
+    if (mono && d.page === 'catalogue') { setPage('accueil'); return; }
+    if (d.page === 'faq' || d.page === 'a-propos' || d.page === 'blog' || d.page === 'contact' || d.page === 'catalogue') setPage(d.page);
+  };
+  useEffect(() => { const f = (e: Event) => navChatbot.current((e as CustomEvent).detail); window.addEventListener('boutique-chatbot-nav', f); return () => window.removeEventListener('boutique-chatbot-nav', f); }, []);
+
+  // ── Panier (panier du serveur ; le compte acheteur est obligatoire) ───────
+  const ajouterAuPanier = async (produit: Produit) => {
+    if (configBrut?.__produits_demo__) { setAvisPanier('Produit de démonstration : publiez vos annonces pour vendre.'); return; }
+    if (!acheteur) { setAvisPanier('Connectez-vous pour ajouter au panier.'); naviguer('login'); return; }
+    if (produit.date_parution && !ouvertes[produit.id]) { setAvisPanier(`Disponible le ${formaterDateParution(produit.date_parution)}`); return; }
+    const plates = (produit.variantes || []).filter(v => v && !Array.isArray(v.valeurs));
+    if (plates.length && !varianteChoisie.__v) { setAvisPanier('Choisissez une variante.'); return; }
+    const variante = Object.values(varianteChoisie).join(' / ');
+    let perso: Record<string, any> | undefined;
+    if (persoRef.current) { const pp = await persoRef.current.preparer(); if (!pp.ok) { setAvisPanier(pp.erreur || 'Complétez la personnalisation.'); return; } perso = pp.personnalisation && Object.keys(pp.personnalisation).length ? pp.personnalisation : undefined; }
+    const r = await ajouterAuPanierServeur(vendeurId, produit.id, qteChoisie, variante, perso);
+    if (!r.ok) { setAvisPanier(messageAcheteur(r)); return; }
+    setVueCompte('panier'); naviguer('compte');
+  };
+  const ouvrirCompte = () => { setVueCompte('dashboard'); naviguer(acheteur ? 'compte' : 'login'); };
+  // Add-on « Favoris » : la liste de souhaits est une page de l'espace client (connecté) ; sinon on invite à se connecter
+  const ouvrirSouhaits = () => { if (!acheteur) { setAvisPanier('Connectez-vous pour voir votre liste de souhaits.'); naviguer('login'); return; } setVueCompte('wishlist'); naviguer('compte'); };
+  const ouvrirPanier = () => { if (!acheteur) { setAvisPanier('Connectez-vous pour voir votre panier.'); naviguer('login'); return; } setVueCompte('panier'); naviguer('compte'); };
+
+  const handleLogin = async () => {
+    setLoginStatut('loading'); setLoginErreur('');
+    try {
+      const res = await fetch(`${API_BASE}/marketplace/${vendeurId}/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'acheteur', email: loginForm.email, password: loginForm.mdp }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Erreur');
+      try { localStorage.setItem(`mv_token_${vendeurId}`, data.token); localStorage.setItem(`mv_compte_${vendeurId}`, JSON.stringify(data.compte)); } catch {}
+      setAcheteur(data.compte);
+      setLoginStatut('idle'); naviguer('compte');
+    } catch (e: any) { setLoginErreur(e.message || 'Erreur'); setLoginStatut('err'); }
+  };
+
+  const handleInscription = async () => {
+    setInscErreur('');
+    const v = inscVal;
+    if (v.mdp && v.mdp2 && v.mdp !== v.mdp2) return setInscErreur('Les mots de passe ne correspondent pas.');
+    if (!(v.prenom || '').trim() || !(v.nom || '').trim()) return setInscErreur('Prénom et nom obligatoires.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v.email || '').trim())) return setInscErreur('Adresse courriel invalide.');
+    if ((v.mdp || '').length < 8) return setInscErreur('Le mot de passe doit contenir au moins 8 caractères.');
+    const tel = (v.telephone || '').trim();
+    if (ins.telephone.mode === 'obligatoire' && !tel) return setInscErreur('Téléphone : obligatoire.');
+    if (ins.telephone.mode !== 'cache' && tel && !/^(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$/.test(tel)) return setInscErreur('Numéro de téléphone invalide (ex: 514-555-0100).');
+    if (ins.adresse.mode !== 'cache') {
+      const a = (v.adresse || '').trim(), vi = (v.ville || '').trim(), cpo = (v.code_postal || '').trim();
+      if (ins.adresse.mode === 'obligatoire' || a || vi || cpo) {
+        if (a.length < 3) return setInscErreur('Adresse invalide.');
+        if (vi.length < 2) return setInscErreur('Ville invalide.');
+        if (!/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(cpo)) return setInscErreur('Code postal invalide (ex: H2X 1Y4).');
+      }
+    }
+    const champs: Record<string, any> = {}; ins.champs.forEach((c: ChampInsc) => { champs[c.id] = v['c_' + c.id]; });
+    setInscStatut('loading');
+    try {
+      const res = await fetch(`${API_BASE}/boutique/acheteur/${vendeurId}/inscription`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        prenom: v.prenom || '', nom: v.nom || '', email: v.email || '', mot_de_passe: v.mdp || '', confirmation: v.mdp2 || '',
+        telephone: v.telephone || '', adresse: v.adresse || '', ville: v.ville || '', code_postal: v.code_postal || '', province: v.province || 'QC', infolettre: v.infolettre === true, age_confirme: v.age === true, termes_acceptes: v.termes === true, champs,
+        duree_ms: Date.now() - debutInscription.current, souris: sourisBougee, website: honeypot }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Erreur lors de l'inscription.");
+      setLoginForm({ email: (v.email || '').trim(), mdp: '' }); setInscStatut('ok');
+    } catch (e: any) { setInscErreur(e.message || 'Erreur de connexion au serveur.'); setInscStatut('idle'); }
+  };
+
+  // ── Produits filtrés ──────────────────────────────────────────────────────
+  const produitsFiltres = produits.filter(p => {
+    const matchCat = !filtreCat || p.categorie === filtreCat;
+    const matchRecherche = !filtreRecherche || p.titre.toLowerCase().includes(filtreRecherche.toLowerCase());
+    return matchCat && matchRecherche;
+  });
+
+  // ── Sections accueil triées ───────────────────────────────────────────────
+  const sectionsAccueil = [...(cfg.accueil.sections || [])].sort((a, b) => a.ordre - b.ordre).filter(s => s.actif);
+
+  // ── Envoi formulaire contact ──────────────────────────────────────────────
+  const envoyerContact = async () => {
+    setContactEnvoi('loading');
+    try {
+      const res = await fetch(`${API_BASE}/contact/vendeur/${vendeurId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(contactForm),
+      });
+      if (!res.ok) throw new Error();
+      setContactEnvoi('ok');
+      setContactForm({ nom: '', courriel: '', message: '' });
+    } catch {
+      setContactEnvoi('err');
+    }
+    setTimeout(() => setContactEnvoi('idle'), 4000);
+  };
+
+  // ── Styles communs ────────────────────────────────────────────────────────
+  const styleInput: React.CSSProperties = { width: '100%', padding: '12px 14px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 15, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' };
+  const styleBtn: React.CSSProperties  = { background: cp, color: '#fff', border: 'none', borderRadius: 10, padding: '14px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%' };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // NAV
+  // ══════════════════════════════════════════════════════════════════════════
+  const extras: CarteExtras = { gid: vendeurId > 0 ? vendeurId : undefined, connecte: !!acheteur, demo: produitsDemo, offre: offreCtx };
+  const liensNav: string[][] = (mono ? [['accueil', 'Accueil'], ['blog', 'Blog'], ['a-propos', 'À propos'], ['contact', 'Contact']] : [['accueil', 'Accueil'], ['catalogue', 'Catalogue'], ...(nbOffres > 0 ? [['offres', '🔥 Offres du jour']] : []), ...(nbEncheres > 0 ? [['encheres', '🔨 Enchères']] : []), ['blog', 'Blog'], ['faq', 'FAQ'], ['a-propos', 'À propos'], ['contact', 'Contact']])
+    // Menu du haut configurable (Config Mes pages → Accueil) : libellé renommé ou page cachée
+    .filter(([id]) => !(Array.isArray(rawSimplisse.menu?.masques) ? rawSimplisse.menu.masques : []).includes(id))
+    .map(([id, l]) => [id, (typeof rawSimplisse.menu?.[id] === 'string' && rawSimplisse.menu[id].trim()) ? rawSimplisse.menu[id].trim() : l]);
+  const Nav = () => (
+    <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fff', borderBottom: '1px solid #e5e7eb', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* Logo */}
+        <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', fontSize: 20, fontWeight: 800, color: cp, cursor: 'pointer', padding: 0 }}>
+          {cfg.footer.nomBoutique}
+        </button>
+
+        {/* Liens desktop */}
+        {!isMobile && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            {liensNav.map(([id, label]) => (
+              <button key={id} onClick={() => naviguer(id)}
+                style={{ background: page === id ? `${cp}12` : 'none', border: 'none', borderRadius: 8, color: page === id ? cp : '#555', fontSize: 14, fontWeight: page === id ? 700 : 500, cursor: 'pointer', padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Droite */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Panier */}
+          {vendeurId > 0 && <BoutiqueSouhaitsAcces clair gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} ouvrir={ouvrirSouhaits} variante="entete" />}
+          <button onClick={ouvrirCompte} aria-label={acheteur ? 'Mon compte' : 'Se connecter'}
+            style={{ background: 'none', border: 'none', borderRadius: 10, padding: '9px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#555', fontWeight: 600, fontSize: 14 }}>
+            👤{!isMobile && <span>{acheteur ? (acheteur.prenom || 'Mon compte') : 'Connexion'}</span>}
+          </button>
+          <button onClick={ouvrirPanier} aria-label="Panier"
+            style={{ position: 'relative', background: `${cp}12`, border: 'none', borderRadius: 10, padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: cp, fontWeight: 700, fontSize: 14 }}>
+            🛒
+            {nbPanier > 0 && (
+              <span style={{ position: 'absolute', top: -6, right: -6, background: cp, color: '#fff', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>{nbPanier}</span>
+            )}
+          </button>
+
+          {/* Burger mobile */}
+          {isMobile && (
+            <button onClick={() => setMenuOuvert(!menuOuvert)}
+              style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#333', padding: '4px 8px' }}>
+              {menuOuvert ? '✕' : '☰'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Menu mobile déroulant */}
+      {isMobile && menuOuvert && (
+        <div style={{ background: '#fff', borderTop: '1px solid #e5e7eb', padding: '12px 20px' }}>
+          {liensNav.map(([id, label]) => (
+            <button key={id} onClick={() => naviguer(id)}
+              style={{ display: 'block', width: '100%', textAlign: 'left', background: page === id ? `${cp}10` : 'none', border: 'none', borderRadius: 8, color: page === id ? cp : '#333', fontSize: 16, fontWeight: page === id ? 700 : 500, cursor: 'pointer', padding: '12px 14px', marginBottom: 4 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+    </nav>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE ACCUEIL
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageAccueil = () => {
+    const produitsVedette  = produits.filter((_, i) => i < 4);
+    const produitsNouveaux = produits.filter((_, i) => i < 4);
+    const produitsPromo    = produits.filter(p => p.prix_promo && p.prix_promo < p.prix).slice(0, 4);
+
+    const renderSection = (sec: SectionPage) => {
+      switch (sec.id) {
+        case 'banniere':
+          return <Banniere key={sec.id} cfg={cfg.accueil.banniere} />;
+
+        case 'hero':
+          return <Hero key={sec.id} cfg={cfg.accueil.hero} cp={cp} onNaviguer={naviguer} cs={cs} />;
+
+        case 'avantages': {
+          // Avantages saisis par le gestionnaire (Config → Accueil). Les exemples ne s'affichent qu'en démonstration : jamais de promesse inventée sur une vraie boutique.
+          const avSaisis = (Array.isArray(cfg.accueil.avantages) ? cfg.accueil.avantages : []).filter(a => a && (a.titre || a.desc));
+          const avExemples = [{ ico: '🚚', titre: 'Livraison rapide', desc: '24–48h ouvrables' }, { ico: '🔒', titre: 'Paiement sécurisé', desc: 'Stripe ou PayPal' }, { ico: '🔄', titre: 'Retours faciles', desc: 'Sous 30 jours' }, { ico: '💬', titre: 'Support client', desc: 'Réponse rapide' }];
+          const avListe = avSaisis.length > 0 ? avSaisis : (configBrut?.__produits_demo__ ? avExemples : []);
+          if (avListe.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ background: '#f8fafc', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
+              <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px', display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 40, flexWrap: 'wrap' }}>
+                {avListe.map(({ ico, titre, desc }, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 160 }}>
+                    <span style={{ fontSize: 24 }}>{ico}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{titre}</div>
+                      <div style={{ fontSize: 12, color: '#888' }}>{desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        }
+
+        case 'vedette':
+          if (produitsVedette.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>⭐ Produits en vedette</h2>
+                <button onClick={() => naviguer('catalogue')} style={{ background: 'none', border: `2px solid ${cp}`, borderRadius: 8, color: cp, fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '8px 18px' }}>Voir tout →</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
+                {produitsVedette.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
+              </div>
+            </div>
+          );
+
+        case 'categories':
+          if (categories.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ background: '#f8fafc', padding: '56px 24px' }}>
+              <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 32, textAlign: 'center' }}>Nos catégories</h2>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {categories.map(cat => (
+                    <button key={cat} onClick={() => { setFiltreCat(cat); naviguer('catalogue'); }}
+                      style={{ background: '#fff', border: `2px solid ${cp}30`, borderRadius: 12, padding: '14px 24px', fontSize: 15, fontWeight: 600, color: '#1a1a1a', cursor: 'pointer', transition: 'all 0.2s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = cp; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; (e.currentTarget as HTMLButtonElement).style.color = '#1a1a1a'; }}>
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+
+        case 'nouveautes':
+          if (produitsNouveaux.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 24px' }}>
+              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 32 }}>🆕 Nouveautés</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
+                {produitsNouveaux.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
+              </div>
+            </div>
+          );
+
+        case 'promo':
+          if (produitsPromo.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ background: '#fef2f2', padding: '56px 24px' }}>
+              <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#ef4444', marginBottom: 32 }}>🏷 Offres spéciales</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
+                  {produitsPromo.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
+                </div>
+              </div>
+            </div>
+          );
+
+        case 'temoignages': {
+          // Témoignages saisis par le gestionnaire (Config → Accueil). Les exemples ne s'affichent qu'en démonstration : jamais de faux avis sur une vraie boutique.
+          const saisis = (Array.isArray(cfg.accueil.temoignages) ? cfg.accueil.temoignages : []).filter(t => t && typeof t.texte === 'string' && t.texte.trim());
+          const exemples = [
+            { texte: 'Produits excellents et livraison ultra rapide ! Je recommande à 100%.', auteur: 'Marie L.', note: 5 },
+            { texte: 'Service client impeccable. Mes commandes arrivent toujours en parfait état.', auteur: 'Jean-Pierre M.', note: 5 },
+            { texte: 'Qualité au rendez-vous, prix compétitifs. Ma boutique préférée!', auteur: 'Sophie R.', note: 5 },
+          ];
+          const liste = saisis.length > 0 ? saisis : (configBrut?.__produits_demo__ ? exemples : []);
+          if (liste.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ background: '#f8fafc', padding: '56px 24px' }}>
+              <div style={{ maxWidth: 1200, margin: '0 auto', textAlign: 'center' }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 40 }}>💬 Ce que disent nos clients</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 24 }}>
+                  {liste.slice(0, 6).map((t, i) => (
+                    <div key={i} style={{ background: '#fff', borderRadius: 16, padding: '28px', border: '1px solid #e5e7eb', textAlign: 'left' }}>
+                      <div style={{ color: '#f59e0b', fontSize: 18, marginBottom: 12 }}>{'★'.repeat(Math.max(1, Math.min(5, Math.round(Number(t.note) || 5))))}</div>
+                      <p style={{ fontSize: 15, color: '#555', lineHeight: 1.7, marginBottom: 16, fontStyle: 'italic' }}>"{t.texte}"</p>
+                      {t.auteur && <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>— {t.auteur}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        case 'newsletter':
+          // Vraie inscription = add-on « Infolettre » (rangée du pied de page). Ce bloc d'exemple (sans envoi) ne sert qu'en démonstration.
+          if (!configBrut?.__produits_demo__) return null;
+          return (
+            <div key={sec.id} style={{ background: cp, padding: '56px 24px' }}>
+              <div style={{ maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#fff', marginBottom: 12 }}>📧 Restez informé</h2>
+                <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.8)', marginBottom: 28 }}>Recevez nos offres exclusives et nouveautés en avant-première.</p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <input type="email" placeholder="votre@courriel.com" style={{ flex: 1, minWidth: 220, padding: '13px 18px', borderRadius: 10, border: 'none', fontSize: 15, outline: 'none' }} />
+                  <button style={{ background: '#fff', color: cp, border: 'none', borderRadius: 10, padding: '13px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>S'inscrire →</button>
+                </div>
+              </div>
+            </div>
+          );
+
+        case 'blog-apercu':
+          if (articles.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>📝 Notre blogue</h2>
+                <button onClick={() => naviguer('blog')} style={{ background: 'none', border: `2px solid ${cp}`, borderRadius: 8, color: cp, fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '8px 18px' }}>Tous les articles →</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 20 }}>
+                {articles.slice(0, 3).map(a => (
+                  <div key={a.id} onClick={() => voirArticle(a)} style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', overflow: 'hidden', cursor: 'pointer' }}>
+                    {a.photo && <img src={a.photo} alt="" style={{ width: '100%', height: 180, objectFit: 'cover' }} />}
+                    <div style={{ padding: 20 }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 8, lineHeight: 1.4 }}>{a.titre}</h3>
+                      {a.resume && <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6 }}>{a.resume}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+
+        default:
+          return null;
+      }
+    };
+
+    return <>{sectionsAccueil.map(renderSection)}</>;
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE CATALOGUE
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageCatalogue = () => {
+    const colMap: Record<number, string> = { 2: 'repeat(auto-fill,minmax(300px,1fr))', 3: 'repeat(auto-fill,minmax(220px,1fr))', 4: 'repeat(auto-fill,minmax(180px,1fr))' };
+    return (
+      <div style={{ minHeight: '60vh' }}>
+        {(cfg.catalogue.sections || []).find(x => x.id === 'banniere')?.actif !== false && <Banniere cfg={cfg.catalogue.banniere} />}
+
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+          {/* En-tête */}
+          <div style={{ marginBottom: 32 }}>
+            <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.catalogue.titre}</h1>
+            {cfg.catalogue.sousTitre && <p style={{ fontSize: 16, color: cs }}>{cfg.catalogue.sousTitre}</p>}
+          </div>
+
+          {/* Filtres */}
+          {(cfg.catalogue.afficherRecherche || cfg.catalogue.afficherFiltres) && (
+            <div style={{ display: 'flex', gap: 12, marginBottom: 32, flexWrap: 'wrap', alignItems: 'center' }}>
+              {cfg.catalogue.afficherRecherche && (
+                <input type="text" placeholder="🔍 Rechercher un produit..." value={filtreRecherche} onChange={e => setFiltreRecherche(e.target.value)}
+                  style={{ ...styleInput, maxWidth: 320, flex: 1 }} />
+              )}
+              {cfg.catalogue.afficherFiltres && categories.length > 0 && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={() => setFiltreCat('')}
+                    style={{ background: !filtreCat ? cp : '#f3f4f6', color: !filtreCat ? '#fff' : '#555', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                    Tous
+                  </button>
+                  {categories.map(cat => (
+                    <button key={cat} onClick={() => setFiltreCat(cat === filtreCat ? '' : cat)}
+                      style={{ background: filtreCat === cat ? cp : '#f3f4f6', color: filtreCat === cat ? '#fff' : '#555', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Résultats */}
+          <div style={{ marginBottom: 12, fontSize: 13, color: '#888' }}>{produitsFiltres.length} produit(s)</div>
+
+          {produitsFiltres.length === 0
+            ? <div style={{ textAlign: 'center', padding: '80px 0', color: '#aaa' }}>
+                <div style={{ fontSize: 56, marginBottom: 16 }}>📦</div>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#555', marginBottom: 8 }}>Aucun produit trouvé</h2>
+                <p>Essayez de modifier vos filtres.</p>
+              </div>
+            : <div style={{ display: 'grid', gridTemplateColumns: colMap[cfg.catalogue.colonnes] || colMap[3], gap: 20 }}>
+                {produitsFiltres.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
+              </div>
+          }
+        </div>
+      </div>
+    );
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE FICHE PRODUIT — config dynamique via fp (ConfigFicheProduit)
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageProduit = () => {
+    if (!produitActif) return null;
+    const p = produitActif;
+    const enPromo = p.prix_promo && p.prix_promo < p.prix;
+    const photos = Array.from(new Set([p.photo_principale, ...(p.photos || [])].filter(Boolean))) as string[];
+    const btnCouleur = fp.boutonCouleur || cp;
+    const varsPlates = (p.variantes || []).filter(v => v && !Array.isArray(v.valeurs));
+    const nomVar = varianteChoisie.__v || '';
+    const vSel = varsPlates.find(v => v.nom === nomVar) || null;
+    const stockDe = (v: any): number | null => v && v.stock !== null && v.stock !== undefined && v.stock !== '' ? Math.max(0, Number(v.stock)) : (p.stock !== undefined && p.stock !== null ? p.stock : null);
+    const stockMax = varsPlates.length ? (vSel ? stockDe(vSel) : null) : (p.stock !== undefined ? p.stock : null);
+    const prixVar = vSel && vSel.prix !== null && vSel.prix !== undefined && vSel.prix !== '' && Number(vSel.prix) >= 0 ? Number(vSel.prix) : null;
+    const epuise = (p.stock === 0 && !enchActive(p)) || (vSel !== null && stockDe(vSel) === 0);
+    const modeDemo = !!configBrut?.__produits_demo__;
+    const parutionBloquee = !!p.date_parution && !ouvertes[p.id];   // pas encore en vente : compte à rebours, aucun achat
+    const bloque = parutionBloquee || venteDirecteBloquee(p);
+    const resume = resumeAvis();
+    // Mono-produit : variantes à options (Couleur, Taille…). Un sélecteur par option ; la combinaison choisie = nom de la variante enregistrée.
+    const optsMono: [string, string[]][] = [];
+    if (mono) for (const v of varsPlates) for (const [k, val] of Object.entries((v as any).options || {})) { let o = optsMono.find(x => x[0] === k); if (!o) { o = [k, []]; optsMono.push(o); } if (!o[1].includes(String(val))) o[1].push(String(val)); }
+    const choisirOption = (cle: string, val: string) => {
+      const sel = { ...optSel, [cle]: val }; setOptSel(sel); setQteChoisie(1);
+      if (optsMono.every(([k]) => sel[k])) {
+        const nom = optsMono.map(([k]) => sel[k]).join(' / ');
+        const v: any = varsPlates.find(x => x.nom === nom);
+        setVarianteChoisie(v ? { __v: nom } : {});
+        if (v && v.photo) { const i = photos.indexOf(v.photo); if (i >= 0) setPhotoIdx(i); }
+      } else setVarianteChoisie({});
+    };
+    const optionDispo = (cle: string, val: string) => varsPlates.some((v: any) => v.options && String(v.options[cle]) === val && optsMono.every(([k]) => k === cle || !optSel[k] || String(v.options[k]) === optSel[k]) && stockDe(v) !== 0);
+
+    // Galerie component
+    const GalerieBlock = () => (
+      <div>
+        {fp.photosMiniatures === 'gauche' && photos.length > 1 ? (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {photos.map((ph, i) => (
+                <div key={i} onClick={() => setPhotoIdx(i)}
+                  style={{ width: 56, height: 56, borderRadius: 6, overflow: 'hidden', cursor: 'pointer', border: `2px solid ${photoIdx === i ? btnCouleur : '#e5e7eb'}`, flexShrink: 0 }}>
+                  <img src={ph} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              ))}
+            </div>
+            <div style={{ flex: 1, borderRadius: 14, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '1' }}>
+              {photos.length > 0
+                ? <img src={photos[photoIdx]} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>📦</div>}
+            </div>
+          </div>
+        ) : (
+          <>
+            <div style={{ borderRadius: 14, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '1', marginBottom: 10 }}>
+              {photos.length > 0
+                ? <img src={photos[photoIdx]} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>📦</div>}
+            </div>
+            {photos.length > 1 && (
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {photos.map((ph, i) => (
+                  <div key={i} onClick={() => setPhotoIdx(i)}
+                    style={{ width: 60, height: 60, borderRadius: 7, overflow: 'hidden', cursor: 'pointer', border: `2px solid ${photoIdx === i ? btnCouleur : '#e5e7eb'}` }}>
+                    <img src={ph} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+
+    // Info panel component
+    const InfoBlock = () => (
+      <div>
+        {fp.afficherCategorie && p.categorie && <div style={{ fontSize: 12, color: btnCouleur, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{p.categorie}</div>}
+        <h1 style={{ fontSize: 'clamp(22px,3vw,34px)', fontWeight: 800, color: '#1a1a1a', marginBottom: 14, lineHeight: 1.2 }}>{p.titre}</h1>
+        {fp.afficherSku && p.sku && <div style={{ fontSize: 12, color: '#aaa', marginBottom: 10 }}>SKU : {p.sku}</div>}
+
+        {/* Prix */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 20 }}>
+          {prixVar !== null ? <span style={{ fontSize: 32, fontWeight: 800, color: btnCouleur }}>{prix(prixVar)}</span> : enPromo ? (
+            <>
+              <span style={{ fontSize: 32, fontWeight: 800, color: '#ef4444' }}>{prix(p.prix_promo!)}</span>
+              <span style={{ fontSize: 20, color: '#aaa', textDecoration: 'line-through' }}>{prix(p.prix)}</span>
+              {fp.afficherRabaisPct && <span style={{ background: '#fef2f2', color: '#ef4444', fontSize: 13, fontWeight: 700, padding: '3px 10px', borderRadius: 6 }}>
+                -{Math.round((1 - p.prix_promo! / p.prix) * 100)}%
+              </span>}
+            </>
+          ) : <span style={{ fontSize: 32, fontWeight: 800, color: btnCouleur }}>{prix(p.prix)}</span>}
+        </div>
+
+        {resume && <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}><EtoilesAvis clair note={resume.note} taille={16} /><span style={{ fontSize: 13, color: '#6b7280' }}>{resume.note.toFixed(1)} ({resume.nb} avis)</span><button onClick={() => { const el = document.getElementById('mono-avis'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }} style={{ background: 'none', border: 'none', color: btnCouleur, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Voir les avis</button></div>}
+
+        {p.offre_fin && <OffreCompteur clair fin={p.offre_fin} heureServeur={heureServeur} onFini={offreCtx.onFini} />}
+        {p.date_parution && <BoutiqueParutionCountdown dateParution={p.date_parution} gestionnaireId={vendeurId} heureServeur={heureServeur} onOuvert={() => { setOuvertes(m => ({ ...m, [p.id]: true })); setTimeout(() => { chargerCatalogue(); }, 1500); }} />}
+
+        {/* Stock */}
+        {enchActive(p) && <div style={{ marginBottom: 16 }}><span style={{ fontSize: 13, color: '#b45309', fontWeight: 600 }}>🔨 {p.stock === undefined || p.stock === null || p.stock === 0 ? '1 unité en vente aux enchères' : 'En stock (1 réservé enchère)'}</span></div>}
+        {!parutionBloquee && fp.afficherStock && p.stock !== undefined && !(enchActive(p) && p.stock === 0) && (
+          <div style={{ marginBottom: 16 }}>
+            {p.stock > 0
+              ? <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✅ En stock ({p.stock} disponible{p.stock > 1 ? 's' : ''})</span>
+              : <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 600 }}>❌ Épuisé</span>}
+          </div>
+        )}
+
+        {/* Paliers de prix (add-on « Prix par palier ») */}
+        {!parutionBloquee && p.paliers && p.paliers.length > 0 && <PaliersProduitBoutique produit={p as any} quantite={qteChoisie} variante={Object.values(varianteChoisie).join(' / ')} couleur={btnCouleur} fond="#f9fafb" bordure="#e5e7eb" texte="#1a1a1a" texteDiscret="#6b7280" />}
+
+        {/* Variantes (vraies annonces : liste plate) */}
+        {/* Mono-produit : un sélecteur par option (Couleur, Taille…) */}
+        {!parutionBloquee && mono && optsMono.length > 0 && optsMono.map(([cle, vals]) => (
+          <div key={cle} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>{cle}{optSel[cle] && <span style={{ fontWeight: 500, color: '#6b7280' }}> : {optSel[cle]}</span>}</div>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {vals.map(val => { const sel = optSel[cle] === val; const ok = optionDispo(cle, val);
+                return <button key={val} disabled={!ok} aria-pressed={sel} onClick={() => choisirOption(cle, val)}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: `2px solid ${sel ? btnCouleur : '#e5e7eb'}`, background: sel ? `${btnCouleur}12` : '#fff', color: sel ? btnCouleur : '#333', fontSize: 13, fontWeight: 600, cursor: ok ? 'pointer' : 'not-allowed', opacity: ok ? 1 : 0.4, textDecoration: ok ? 'none' : 'line-through' }}>{val}</button>; })}
+            </div>
+          </div>
+        ))}
+
+        {!parutionBloquee && !(mono && optsMono.length > 0) && varsPlates.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>Variante</div>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {varsPlates.map(v => { const sel = nomVar === v.nom; const out = stockDe(v) === 0; const pv = v.prix !== null && v.prix !== undefined && v.prix !== '' && Number(v.prix) >= 0 ? Number(v.prix) : null;
+                return <button key={v.nom} disabled={out} aria-pressed={sel} onClick={() => { setVarianteChoisie({ __v: v.nom }); setQteChoisie(1); }}
+                  style={{ padding: '7px 14px', borderRadius: 7, border: `2px solid ${sel ? btnCouleur : '#e5e7eb'}`, background: sel ? `${btnCouleur}12` : '#fff', color: sel ? btnCouleur : '#333', fontSize: 13, fontWeight: 600, cursor: out ? 'not-allowed' : 'pointer', opacity: out ? 0.4 : 1, textDecoration: out ? 'line-through' : 'none' }}>
+                  {v.nom}{pv !== null && <span style={{ marginLeft: 8, fontWeight: 400, fontSize: 12 }}>{prix(pv)}</span>}{out && <span style={{ marginLeft: 8, fontSize: 11 }}>Épuisé</span>}
+                </button>; })}
+            </div>
+          </div>
+        )}
+
+        {/* Variantes (démo : nom + valeurs) */}
+        {!parutionBloquee && p.variantes && p.variantes.filter(v => Array.isArray(v.valeurs)).map(v => (
+          <div key={v.nom} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>{v.nom}</div>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {(v.valeurs || []).map(val => (
+                <button key={val} onClick={() => setVarianteChoisie(prev => ({ ...prev, [v.nom]: val }))}
+                  style={{ padding: '7px 14px', borderRadius: 7, border: `2px solid ${varianteChoisie[v.nom] === val ? btnCouleur : '#e5e7eb'}`, background: varianteChoisie[v.nom] === val ? `${btnCouleur}12` : '#fff', color: varianteChoisie[v.nom] === val ? btnCouleur : '#333', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  {val}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Produits personnalisés (add-on) */}
+        {!bloque && vendeurId > 0 && !modeDemo && <BoutiquePersonnalisation key={p.id} gestionnaireId={vendeurId} produitId={p.id} couleur={btnCouleur} theme={THEME_CLAIR_PERSO} reference={persoRef} />}
+
+        {/* Quantité */}
+        {!bloque && fp.afficherQte && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>Quantité</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => setQteChoisie(q => Math.max(1, q - 1))}
+                style={{ width: 38, height: 38, borderRadius: 7, border: '1.5px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 17, fontWeight: 700 }}>−</button>
+              <span style={{ fontSize: 17, fontWeight: 700, minWidth: 28, textAlign: 'center' }}>{qteChoisie}</span>
+              <button onClick={() => setQteChoisie(q => stockMax != null ? Math.min(Math.max(1, stockMax), q + 1) : q + 1)} disabled={stockMax != null && qteChoisie >= stockMax}
+                style={{ width: 38, height: 38, borderRadius: 7, border: '1.5px solid #e5e7eb', background: '#fff', cursor: stockMax != null && qteChoisie >= stockMax ? 'not-allowed' : 'pointer', fontSize: 17, fontWeight: 700, opacity: stockMax != null && qteChoisie >= stockMax ? 0.4 : 1 }}>+</button>
+            </div>
+          </div>
+        )}
+
+        {/* Bouton (+ liste de souhaits avant / après selon le réglage du gestionnaire) */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+          <BoutiqueSouhaitProduit clair zone="avant_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
+          {parutionBloquee
+            ? (cfgParution.afficher_message_atc && cfgParution.texte_atc_bloque
+                ? <div style={{ flex: 1, minWidth: 180, padding: '14px 16px', borderRadius: 12, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 14, fontWeight: 700, textAlign: 'center' }}>{cfgParution.texte_atc_bloque}</div>
+                : <button disabled style={{ flex: 1, minWidth: 180, padding: '14px 24px', background: btnCouleur, color: '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, opacity: 0.5, cursor: 'not-allowed' }}>⏳ Pas encore disponible</button>)
+            : !venteDirecteBloquee(p) && (
+                <button onClick={() => ajouterAuPanier(p)} disabled={epuise}
+                  style={{ flex: 1, minWidth: 180, padding: '14px 24px', background: epuise ? '#e5e7eb' : btnCouleur, color: epuise ? '#aaa' : '#fff', border: 'none', borderRadius: 10, fontSize: 15, fontWeight: 700, cursor: epuise ? 'not-allowed' : 'pointer' }}>
+                  {epuise ? 'Épuisé' : `🛒 ${fp.boutonLabel}`}
+                </button>)}
+          <BoutiqueSouhaitProduit clair zone="apres_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
+        </div>
+
+        {/* Enchère et « Faire une offre » (add-ons) */}
+        {!parutionBloquee && <BlocEnchereBoutique clair gestionnaireId={vendeurId} produitId={p.id} couleurAccent={btnCouleur} isDemo={modeDemo}
+          onEtat={a => { if (enchereEtat[p.id] === true && a === false) setTimeout(rechargerOffres, 400); setEnchereEtat(m => m[p.id] === a ? m : { ...m, [p.id]: a }); }}
+          allerConnexion={() => { setAvisPanier('Connectez-vous pour miser.'); naviguer('login'); }} />}
+        <FaireOffreBoutique clair gestionnaireId={vendeurId} produitId={p.id} prix={prixVar !== null ? prixVar : enPromo ? p.prix_promo! : p.prix} variante={Object.values(varianteChoisie).join(' / ')}
+          varianteRequise={varsPlates.length > 0 && !vSel || !!(p.variantes && p.variantes.some(v => Array.isArray(v.valeurs) && !varianteChoisie[v.nom]))} masque={p.stock === 0 || parutionBloquee} couleurAccent={btnCouleur} isDemo={modeDemo}
+          allerConnexion={() => { setAvisPanier('Connectez-vous pour faire une offre.'); naviguer('login'); }} onPanier={() => { setVueCompte('panier'); naviguer('compte'); }} />
+
+        {/* Réassurance */}
+        {fp.afficherReassurance && fp.reassuranceItems.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+            {fp.reassuranceItems.map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#555' }}>
+                <span>{item.icone}</span><span>{item.texte}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Partage */}
+        {fp.afficherPartage && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <span style={{ fontSize: 12, color: '#888', alignSelf: 'center' }}>Partager :</span>
+            {[['Facebook','🔵'],['Pinterest','📌'],['X','🐦']].map(([nom, ico]) => (
+              <button key={nom} style={{ padding: '5px 10px', border: '1px solid #e5e7eb', borderRadius: 6, background: '#fff', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {ico} {nom}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Description — position 'droite' ou 'onglets' */}
+        {fp.descriptionPosition !== 'bas' && p.description && (
+          fp.descriptionPosition === 'onglets' ? (
+            <div style={{ marginTop: 20, borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
+              <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e5e7eb', marginBottom: 16 }}>
+                {(['description','details','livraison'] as const).map(ong => (
+                  <button key={ong} onClick={() => setOngletActif(ong)}
+                    style={{ padding: '8px 16px', border: 'none', background: 'none', borderBottom: `2px solid ${ongletActif===ong ? btnCouleur : 'transparent'}`, color: ongletActif===ong ? btnCouleur : '#888', fontSize: 13, fontWeight: ongletActif===ong ? 700 : 500, cursor: 'pointer', marginBottom: -2, textTransform: 'capitalize' }}>
+                    {ong === 'description' ? 'Description' : ong === 'details' ? 'Détails' : 'Livraison'}
+                  </button>
+                ))}
+              </div>
+              {ongletActif === 'description' && <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{p.description}</div>}
+              {ongletActif === 'details'     && <div style={{ fontSize: 14, color: '#888' }}>Aucun détail supplémentaire.</div>}
+              {ongletActif === 'livraison'   && <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8 }}>Livraison standard : 2–5 jours ouvrables.<br />Livraison express disponible au moment du paiement.</div>}
+            </div>
+          ) : (
+            <div style={{ marginTop: 20, borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>Description</h3>
+              <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8, whiteSpace: 'pre-wrap', overflow: fp.descriptionTronquee && !descExpanded ? 'hidden' : 'visible', maxHeight: fp.descriptionTronquee && !descExpanded ? 120 : 'none' }}>
+                {p.description}
+              </div>
+              {fp.descriptionTronquee && p.description.length > 300 && (
+                <button onClick={() => setDescExpanded(!descExpanded)}
+                  style={{ marginTop: 8, background: 'none', border: 'none', color: btnCouleur, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  {descExpanded ? '▲ Réduire' : '▼ Lire plus'}
+                </button>
+              )}
+            </div>
+          )
+        )}
+      </div>
+    );
+
+    // Description pleine largeur (bas)
+    const DescriptionBas = () => fp.descriptionPosition === 'bas' && p.description ? (
+      <div style={{ marginTop: 48, paddingTop: 40, borderTop: '1px solid #e5e7eb' }}>
+        <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a', marginBottom: 16 }}>Description</h3>
+        <div style={{ fontSize: 15, color: '#555', lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: fp.descriptionTronquee && !descExpanded ? 160 : 'none', overflow: fp.descriptionTronquee && !descExpanded ? 'hidden' : 'visible' }}>
+          {p.description}
+        </div>
+        {fp.descriptionTronquee && p.description.length > 400 && (
+          <button onClick={() => setDescExpanded(!descExpanded)}
+            style={{ marginTop: 10, background: 'none', border: 'none', color: btnCouleur, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+            {descExpanded ? '▲ Réduire' : '▼ Lire plus'}
+          </button>
+        )}
+      </div>
+    ) : null;
+
+    // Questions et avis (add-ons) : sous la description, avant les produits similaires
+    const blocsBas = (vendeurId > 0 && !modeDemo) ? (
+      <div style={{ marginTop: 40 }}>
+        <QuestionsProduitBoutique clair gestionnaireId={vendeurId} produitId={p.id} couleurAccent={btnCouleur} isDemo={modeDemo}
+          allerConnexion={() => { setAvisPanier('Connectez-vous pour poser une question.'); naviguer('login'); }} />
+        {avisReel && (
+          <div id="mono-avis" style={{ marginTop: 40 }}>
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', margin: '0 0 16px' }}>⭐ Avis clients ({avisProd.etat!.total})</h3>
+            <AvisProduitBoutique clair donnees={avisProd} couleurAccent={btnCouleur} connecte={!!acheteur} isMobile={isMobile}
+              ouvrirMesAvis={() => { if (!acheteur) { setAvisPanier('Connectez-vous pour laisser un avis.'); naviguer('login'); return; } setVueCompte('avis'); naviguer('compte'); }} />
+          </div>
+        )}
+      </div>
+    ) : null;
+
+    // Layout image-haut
+    if (!isMobile && fp.layout === 'image-haut') {
+      return (
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+          {fp.afficherBreadcrumb && !mono && (
+            <div style={{ marginBottom: 20, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: '#888' }}>
+              <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Accueil</button>
+              <span>›</span><button onClick={() => naviguer('catalogue')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Catalogue</button>
+              <span>›</span><span style={{ color: '#333' }}>{p.titre}</span>
+            </div>
+          )}
+          <div style={{ marginBottom: 36 }}>{GalerieBlock()}</div>
+          {InfoBlock()}
+          <DescriptionBas />
+          {blocsBas}
+          {fp.afficherSimilaires && !mono && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
+            <div style={{ marginTop: 56, paddingTop: 40, borderTop: '1px solid #e5e7eb' }}>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', marginBottom: 20 }}>{fp.similairesTitre}</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
+                {produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).slice(0, fp.similairesNombre).map(pr => (
+                  <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(pr)} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Layout gauche/droite (défaut + mobile)
+    const imageCol = GalerieBlock();
+    const infoCol  = InfoBlock();
+    const isInverse = !isMobile && fp.layout === 'image-droite';
+
+    return (
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+        {fp.afficherBreadcrumb && !mono && (
+          <div style={{ marginBottom: 20, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: '#888' }}>
+            <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Accueil</button>
+            <span>›</span><button onClick={() => naviguer('catalogue')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Catalogue</button>
+            <span>›</span><span style={{ color: '#333' }}>{p.titre}</span>
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 48, alignItems: 'start' }}>
+          {isInverse ? <>{infoCol}{imageCol}</> : <>{imageCol}{infoCol}</>}
+        </div>
+        <DescriptionBas />
+        {blocsBas}
+        {fp.afficherSimilaires && !mono && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
+          <div style={{ marginTop: 56, paddingTop: 40, borderTop: '1px solid #e5e7eb' }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', marginBottom: 20 }}>{fp.similairesTitre}</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
+              {produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).slice(0, fp.similairesNombre).map(pr => (
+                <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(pr)} />
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MONO-PRODUIT — PAGE DE VENTE (tout sur une page : accroche, produit à acheter, bénéfices, détails, avis, FAQ, appel final)
+  // Contenu saisi dans Config Mes pages (config.simple.vente / accueil / faq). Aucun contenu inventé sur une vraie boutique :
+  // un bloc vide n'est pas affiché ; les exemples n'apparaissent qu'en démonstration.
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageVente = () => {
+    const rv: any = (rawSimplisse as any).vente || {};
+    const demoV = !!configBrut?.__produits_demo__;
+    const p = produitActif;
+    const t = (cle: string, defaut: string) => (typeof rv[cle] === 'string' && rv[cle].trim()) ? rv[cle].trim() : defaut;
+    const liste = (cle: string, ex: any[], ok: (x: any) => boolean) => { const l = (Array.isArray(rv[cle]) ? rv[cle] : []).filter((x: any) => x && typeof x === 'object' && ok(x)); return l.length > 0 ? l : (demoV ? ex : []); };
+    const benefices = liste('benefices', VENTE_DEMO.benefices, x => !!(x.titre || x.desc));
+    const details = liste('details', VENTE_DEMO.details, x => !!(x.titre || x.texte));
+    const saisiAvis = (Array.isArray(cfg.accueil.temoignages) ? cfg.accueil.temoignages : []).filter(x => x && typeof x.texte === 'string' && x.texte.trim());
+    const avis = saisiAvis.length > 0 ? saisiAvis : (demoV ? VENTE_DEMO.avis : []);
+    const saisiFaq = (Array.isArray((rawSimplisse as any).faq?.items) ? (rawSimplisse as any).faq.items : []).filter((x: any) => x && x.question && x.reponse);
+    const faq = saisiFaq.length > 0 ? saisiFaq : (demoV ? VENTE_DEMO.faq : []);
+    const avantages = (Array.isArray(cfg.accueil.avantages) ? cfg.accueil.avantages : []).filter(a => a && (a.titre || a.desc));
+    const confiance = avantages.length > 0 ? avantages : (demoV ? [{ ico: '🚚', titre: 'Livraison rapide', desc: 'Exemple' }, { ico: '🔒', titre: 'Paiement sécurisé', desc: 'Stripe ou PayPal' }, { ico: '🔄', titre: 'Retours faciles', desc: 'Exemple' }] : []);
+    const allerAcheter = () => { const el = document.getElementById('acheter'); if (el) el.scrollIntoView({ behavior: 'smooth' }); };
+    const photoHero = (typeof rv.heroPhoto === 'string' && /^https?:\/\//i.test(rv.heroPhoto)) ? rv.heroPhoto : (p ? (p.photo_principale || '') : '');
+    const lbl: React.CSSProperties = { fontSize: 12, color: cp, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 };
+    const titreSec = (cle: string, def: string) => <h2 style={{ fontSize: isMobile ? 24 : 32, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{t(cle, def)}</h2>;
+    if (!p) return (
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: '96px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 56, marginBottom: 14 }}>📦</div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>Notre produit arrive bientôt</h1>
+        <p style={{ fontSize: 15, color: cs }}>Revenez très bientôt.</p>
+      </div>
+    );
+    const enPromo = p.prix_promo && p.prix_promo < p.prix;
+    const vars = (p.variantes || []).filter((v: any) => v && !Array.isArray(v.valeurs));
+    const prixBas = (() => { const base = enPromo ? p.prix_promo! : p.prix; const pv = vars.map((v: any) => (v.prix !== null && v.prix !== undefined && v.prix !== '' ? Number(v.prix) : base)).filter((n: number) => n >= 0); return pv.length ? Math.min(base, ...pv) : base; })();
+    const resume = resumeAvis();
+    return (
+      <div>
+        {(cfg.accueil.banniere && cfg.accueil.banniere.actif) && <Banniere cfg={cfg.accueil.banniere} />}
+
+        {/* 1. Accroche */}
+        {rv.afficherHero !== false && (
+          <section style={{ background: `linear-gradient(135deg, ${cp}0f, ${cp}03)`, borderBottom: '1px solid #e5e7eb' }}>
+            <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '36px 20px' : '72px 24px', display: 'grid', gridTemplateColumns: isMobile || !photoHero ? '1fr' : '1.05fr 1fr', gap: isMobile ? 28 : 56, alignItems: 'center' }}>
+              <div>
+                {t('heroSurtitre', '') && <div style={lbl}>{t('heroSurtitre', '')}</div>}
+                <h1 style={{ fontSize: isMobile ? 32 : 52, fontWeight: 900, color: '#1a1a1a', lineHeight: 1.08, margin: '0 0 16px', letterSpacing: '-0.02em' }}>{t('heroTitre', p.titre)}</h1>
+                {t('heroSousTitre', '') && <p style={{ fontSize: isMobile ? 16 : 19, color: cs, lineHeight: 1.6, margin: '0 0 24px', maxWidth: 520 }}>{t('heroSousTitre', '')}</p>}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 30, fontWeight: 800, color: '#1a1a1a' }}>{vars.length > 1 && prixBas !== (enPromo ? p.prix_promo! : p.prix) ? 'Dès ' : ''}{prix(prixBas)}</span>
+                  {enPromo && <span style={{ fontSize: 18, color: '#9ca3af', textDecoration: 'line-through' }}>{prix(p.prix)}</span>}
+                  {resume && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#6b7280' }}><EtoilesAvis clair note={resume.note} taille={16} />{resume.note.toFixed(1)} ({resume.nb} avis)</span>}
+                </div>
+                <button onClick={allerAcheter} style={{ background: cp, color: '#fff', border: 'none', borderRadius: 12, padding: '16px 36px', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: `0 10px 24px -10px ${cp}` }}>{t('heroBouton', 'Acheter maintenant')} →</button>
+              </div>
+              {photoHero && <div style={{ borderRadius: 20, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '1', boxShadow: '0 24px 60px -24px rgba(0,0,0,0.35)' }}><img src={photoHero} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
+            </div>
+          </section>
+        )}
+
+        {/* 2. Bandeau de confiance */}
+        {rv.afficherConfiance !== false && confiance.length > 0 && (
+          <div style={{ background: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
+            <div style={{ maxWidth: 1200, margin: '0 auto', padding: '18px 24px', display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 44, flexWrap: 'wrap' }}>
+              {confiance.map((a: any, i: number) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 160 }}>
+                  <span style={{ fontSize: 24 }}>{a.ico}</span>
+                  <div><div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{a.titre}</div><div style={{ fontSize: 12, color: '#888' }}>{a.desc}</div></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 3. Le produit : choix des options, quantité, ajout au panier (zone d'achat) */}
+        <div id="acheter">{PageProduit()}</div>
+
+        {/* 4. Bénéfices */}
+        {rv.afficherBenefices !== false && benefices.length > 0 && (
+          <section style={{ background: '#f8fafc', padding: isMobile ? '48px 20px' : '72px 24px' }}>
+            <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+              <div style={{ textAlign: 'center', marginBottom: 36 }}>{t('beneficesSurtitre', '') && <div style={lbl}>{t('beneficesSurtitre', '')}</div>}{titreSec('beneficesTitre', 'Pourquoi vous allez l\'adorer')}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(benefices.length, 3)},1fr)`, gap: 20 }}>
+                {benefices.map((b: any, i: number) => (
+                  <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '28px 24px' }}>
+                    {b.ico && <div style={{ width: 52, height: 52, borderRadius: 14, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, marginBottom: 16 }}>{b.ico}</div>}
+                    <h3 style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>{b.titre}</h3>
+                    <p style={{ fontSize: 14, color: '#666', lineHeight: 1.7, margin: 0 }}>{b.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* 5. Détails : sections texte / photo en alternance */}
+        {rv.afficherDetails !== false && details.length > 0 && (
+          <section style={{ padding: isMobile ? '48px 20px' : '72px 24px' }}>
+            <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: isMobile ? 40 : 72 }}>
+              {details.map((d: any, i: number) => { const photo = /^https?:\/\//i.test(d.photo || '') ? d.photo : ''; return (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: isMobile || !photo ? '1fr' : '1fr 1fr', gap: isMobile ? 20 : 56, alignItems: 'center' }}>
+                  <div style={{ order: !isMobile && i % 2 === 1 ? 2 : 1 }}>
+                    <h2 style={{ fontSize: isMobile ? 24 : 32, fontWeight: 800, color: '#1a1a1a', margin: '0 0 14px', lineHeight: 1.2 }}>{d.titre}</h2>
+                    <p style={{ fontSize: 16, color: '#555', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-line' }}>{d.texte}</p>
+                  </div>
+                  {photo && <div style={{ order: !isMobile && i % 2 === 1 ? 1 : 2, borderRadius: 18, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '4/3' }}><img src={photo} alt={d.titre || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
+                </div>
+              ); })}
+            </div>
+          </section>
+        )}
+
+        {/* 6. Avis des clients */}
+        {rv.afficherAvis !== false && avis.length > 0 && (
+          <section style={{ background: '#f8fafc', padding: isMobile ? '48px 20px' : '72px 24px' }}>
+            <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+              <div style={{ textAlign: 'center', marginBottom: 32 }}>{titreSec('avisTitre', 'Ce que disent nos clients')}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(avis.length, 3)},1fr)`, gap: 20 }}>
+                {avis.map((a: any, i: number) => (
+                  <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '24px' }}>
+                    <div style={{ color: '#f59e0b', fontSize: 16, marginBottom: 10 }}>{'★'.repeat(Math.max(1, Math.min(5, Number(a.note) || 5)))}</div>
+                    <p style={{ fontSize: 15, color: '#444', lineHeight: 1.7, margin: '0 0 14px' }}>« {a.texte} »</p>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{a.auteur}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* 7. Questions fréquentes */}
+        {rv.afficherFaq !== false && faq.length > 0 && (
+          <section style={{ padding: isMobile ? '48px 20px' : '72px 24px' }}>
+            <div style={{ maxWidth: 780, margin: '0 auto' }}>
+              <div style={{ textAlign: 'center', marginBottom: 28 }}>{titreSec('faqTitre', 'Questions fréquentes')}</div>
+              {faq.map((item: any, i: number) => (
+                <div key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <button onClick={() => setFaqOuvert(faqOuvert === i ? null : i)} style={{ width: '100%', background: 'none', border: 'none', padding: '20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 16, textAlign: 'left' }}>
+                    <span style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.4 }}>{item.question}</span>
+                    <span style={{ fontSize: 22, color: cp, flexShrink: 0, transition: 'transform 0.2s', transform: faqOuvert === i ? 'rotate(45deg)' : 'none' }}>+</span>
+                  </button>
+                  {faqOuvert === i && <div style={{ paddingBottom: 20, fontSize: 15, color: '#555', lineHeight: 1.7 }}>{item.reponse}</div>}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 8. Appel final */}
+        {rv.afficherCta !== false && (
+          <section style={{ background: cp, padding: isMobile ? '48px 20px' : '72px 24px', textAlign: 'center' }}>
+            <div style={{ maxWidth: 640, margin: '0 auto' }}>
+              <h2 style={{ fontSize: isMobile ? 26 : 36, fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>{t('ctaTitre', p.titre)}</h2>
+              {t('ctaTexte', '') && <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', margin: '0 0 24px', lineHeight: 1.6 }}>{t('ctaTexte', '')}</p>}
+              <button onClick={allerAcheter} style={{ background: '#fff', color: cp, border: 'none', borderRadius: 12, padding: '16px 36px', fontSize: 17, fontWeight: 800, cursor: 'pointer' }}>{t('ctaBouton', 'Acheter maintenant')} →</button>
+            </div>
+          </section>
+        )}
+
+        {/* Mobile : barre d'achat collée en bas */}
+        {isMobile && (
+          <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 150, background: '#fff', borderTop: '1px solid #e5e7eb', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, boxShadow: '0 -4px 16px rgba(0,0,0,0.08)' }}>
+            <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.titre}</div><div style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a' }}>{prix(prixBas)}</div></div>
+            <button onClick={allerAcheter} style={{ background: cp, color: '#fff', border: 'none', borderRadius: 10, padding: '12px 22px', fontSize: 15, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Acheter</button>
+          </div>
+        )}
+        {isMobile && <div style={{ height: 64 }} />}
+      </div>
+    );
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE BLOG
+  // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
+  // OFFRES DU JOUR / ENCHÈRES (thème clair)
+  // ══════════════════════════════════════════════════════════════════════════
+  const colsGrille = isMobile ? 'repeat(2,1fr)' : `repeat(${Math.min(4, Math.max(2, Number(cfg.catalogue.colonnes) || 3))},1fr)`;
+  const lienReessayer: React.CSSProperties = { background: 'none', border: 'none', color: cp, textDecoration: 'underline', cursor: 'pointer', fontSize: 'inherit' };
+  const PageEncheres = () => (
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: isMobile ? 26 : 34, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>🔨 Enchères</h1>
+        <p style={{ margin: 0, color: '#6b7280', fontSize: 15 }}>Les enchères qui se terminent bientôt sont en premier. Une mise est un engagement d'achat.</p>
+      </div>
+      {!encheresCharge ? <p style={{ color: '#6b7280' }}>Chargement…</p>
+        : encheresErr ? <p style={{ color: '#b91c1c' }}>Impossible de charger les enchères. <button onClick={() => setVersionEncheres(v => v + 1)} style={lienReessayer}>Réessayer</button></p>
+        : encheresListe.length === 0
+          ? <div style={{ textAlign: 'center', padding: '70px 0', color: '#6b7280' }}><div style={{ fontSize: 52, marginBottom: 14 }}>🔨</div><h3 style={{ fontWeight: 600, marginBottom: 16 }}>Aucune enchère en cours pour le moment. Revenez bientôt !</h3><button onClick={() => naviguer('catalogue')} style={{ ...styleBtn, width: 'auto', padding: '12px 28px' }}>Voir le catalogue</button></div>
+          : <div style={{ display: 'grid', gridTemplateColumns: colsGrille, gap: isMobile ? 12 : 20 }}>
+              {encheresListe.map((e: any) => (
+                <div key={e.id} onClick={() => { const pr = encheresProduits[Number(e.produit_id)]; if (pr) voirProduit(pr); else { const dans = produits.find(x => Number(x.id) === Number(e.produit_id)); if (dans) voirProduit(dans); } }} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflow: 'hidden', cursor: 'pointer' }}>
+                  <div style={{ aspectRatio: '1/1', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {e.image_url ? <img src={e.image_url} alt={e.titre} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 44, opacity: 0.3 }}>🔨</span>}
+                  </div>
+                  <div style={{ padding: '12px 14px' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.titre}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: cp }}>{prix(e.mise_actuelle !== null ? e.mise_actuelle : e.prix_depart)}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 6px' }}>{e.mise_actuelle === null ? 'Prix de départ' : `${e.nb_mises} mise${e.nb_mises > 1 ? 's' : ''}`}{e.reserve && e.reserve.atteinte ? ' · réserve atteinte' : ''}</div>
+                    <div style={{ fontSize: 12 }}><ResteEnchere fin={e.date_fin} decalage={encheresDec} couleur={cp} /></div>
+                  </div>
+                </div>))}
+            </div>}
+    </div>
+  );
+  const PageOffres = () => {
+    const pages = Math.max(1, Math.ceil(offresTotal / OFFRES_PAR_PAGE));
+    const btnPg = (actif: boolean, off = false): React.CSSProperties => ({ padding: '8px 14px', borderRadius: 8, border: `1px solid ${actif ? cp : '#d1d5db'}`, background: actif ? cp : '#fff', color: actif ? '#fff' : off ? '#9ca3af' : '#374151', fontWeight: actif ? 800 : 500, fontSize: 13, cursor: off ? 'not-allowed' : 'pointer', opacity: off ? 0.5 : 1 });
+    return (
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontSize: isMobile ? 26 : 34, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>🔥 Offres du jour</h1>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: 15 }}>Les offres qui se terminent bientôt sont en premier. Le prix revient à la normale dès la fin du compte à rebours.</p>
+        </div>
+        {!offresCharge ? <p style={{ color: '#6b7280' }}>Chargement…</p>
+          : offresErr ? <p style={{ color: '#b91c1c' }}>Impossible de charger les offres. <button onClick={() => setVersionOffres(v => v + 1)} style={lienReessayer}>Réessayer</button></p>
+          : offresListe.length === 0
+            ? <div style={{ textAlign: 'center', padding: '70px 0', color: '#6b7280' }}><div style={{ fontSize: 52, marginBottom: 14 }}>🔥</div><h3 style={{ fontWeight: 600, marginBottom: 16 }}>Aucune offre du jour pour le moment. Revenez bientôt !</h3><button onClick={() => naviguer('catalogue')} style={{ ...styleBtn, width: 'auto', padding: '12px 28px' }}>Voir le catalogue →</button></div>
+            : <>
+              <div style={{ display: 'grid', gridTemplateColumns: colsGrille, gap: isMobile ? 12 : 20 }}>{offresListe.map(pr => <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(pr)} />)}</div>
+              {pages > 1 && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 32, flexWrap: 'wrap' }}>
+                <button disabled={offresPg <= 1} onClick={() => { setOffresPg(offresPg - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(false, offresPg <= 1)}>← Préc.</button>
+                {Array.from({ length: pages }, (_, k) => k + 1).filter(n => n === 1 || n === pages || Math.abs(n - offresPg) <= 1).map((n, i, a) => (<span key={n} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>{i > 0 && n - a[i - 1] > 1 && <span style={{ color: '#9ca3af' }}>…</span>}<button onClick={() => { setOffresPg(n); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(n === offresPg)}>{n}</button></span>))}
+                <button disabled={offresPg >= pages} onClick={() => { setOffresPg(offresPg + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(false, offresPg >= pages)}>Suiv. →</button>
+              </div>}
+            </>}
+      </div>
+    );
+  };
+
+  // PAGE POLITIQUE (pages légales rédigées dans Configuration → Mes politiques)
+  const PagePolitique = () => {
+    const contenu = politique && politique.contenu.trim() ? htmlSur(politique.contenu) : '';
+    const demoPol = !!configBrut?.__produits_demo__;
+    const polCfg: any = { ...CFG_DEF.footer.politiques, ...(cfg.footer.politiques || {}) };
+    const polOk = (slug: string) => demoPol || (politiquesRedigees ? politiquesRedigees[slug] === true : false);
+    const ongletsPol = ([['conditions-service','Conditions de service',polCfg.afficherConditions],['confidentialite','Confidentialité',polCfg.afficherConfidentialite],['retour-remboursement','Retour & remboursement',polCfg.afficherRetours],['expedition','Expédition',polCfg.afficherLivraison],['coordonnees','Coordonnées',polCfg.afficherCoordonnees],['mentions-legales','Mentions légales',polCfg.afficherMentions]] as [string, string, any][]).filter(([slug, , actif]) => actif !== false && (polOk(slug) || slug === (politique && politique.slug)));
+    const titreAffiche = politique && politique.titre && !/<h1[\s>]/i.test(contenu) ? politique.titre : '';
+    return (
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: '40px 24px' }}>
+        <style>{`.pol-contenu h1{font-size:30px;font-weight:800;color:#1a1a1a;margin:0 0 20px;line-height:1.2}.pol-contenu h2{font-size:20px;font-weight:800;color:#1a1a1a;margin:32px 0 10px}.pol-contenu h3{font-size:16px;font-weight:700;color:#1a1a1a;margin:22px 0 8px}.pol-contenu p{color:#444;line-height:1.9;margin:0 0 14px;font-size:15px}.pol-contenu ul,.pol-contenu ol{color:#444;padding-left:22px;margin:0 0 14px}.pol-contenu li{line-height:1.8;margin-bottom:6px;font-size:15px}.pol-contenu a{color:${cp};text-decoration:underline}.pol-contenu strong{color:#1a1a1a}.pol-contenu blockquote{border-left:3px solid ${cp};padding:8px 18px;margin:16px 0;color:#555}.pol-contenu hr{border:0;border-top:1px solid #e5e7eb;margin:24px 0}`}</style>
+        <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', color: cp, fontSize: 14, cursor: 'pointer', marginBottom: 20, padding: 0 }}>← Retour à l'accueil</button>
+        {ongletsPol.length > 1 && <nav aria-label="Pages légales" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
+          {ongletsPol.map(([slug, nom]) => { const actif = politique ? politique.slug === slug : politiqueEnCours.current === slug; return <button key={slug} onClick={() => { if (!actif) ouvrirPolitique(slug); }} aria-current={actif ? 'page' : undefined} style={{ padding: '8px 16px', borderRadius: 20, border: `1px solid ${actif ? cp : '#d1d5db'}`, background: actif ? cp : 'transparent', color: actif ? '#fff' : '#444', fontSize: 13, fontWeight: actif ? 800 : 600, cursor: actif ? 'default' : 'pointer' }}>{nom}</button>; })}
+        </nav>}
+        {politiqueStatut === 'loading' && <p style={{ color: '#888' }}>Chargement…</p>}
+        {politiqueStatut === 'err' && <p style={{ color: '#dc2626' }}>Impossible de charger cette page. Veuillez réessayer.</p>}
+        {politiqueStatut === 'idle' && politique && (contenu
+          ? <>{titreAffiche && <h1 style={{ fontSize: 30, fontWeight: 800, color: '#1a1a1a', margin: '0 0 20px', lineHeight: 1.2 }}>{titreAffiche}</h1>}<div className="pol-contenu" dangerouslySetInnerHTML={{ __html: contenu }} /></>
+          : <><h1 style={{ fontSize: 30, fontWeight: 800, color: '#1a1a1a', marginBottom: 16 }}>{politique.titre}</h1><p style={{ color: '#777' }}>Cette page n'a pas encore été rédigée.</p></>)}
+      </div>
+    );
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONNEXION / INSCRIPTION (thème clair)
+  // ══════════════════════════════════════════════════════════════════════════
+  const styleLabel: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 7, letterSpacing: '0.05em', textTransform: 'uppercase' };
+  const carteAuth: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: isMobile ? 22 : 32, boxShadow: '0 2px 12px rgba(0,0,0,0.05)' };
+  const champInsc = (cle: string, libelle: string, type: string, ph: string, requis: boolean, extra?: any) => (
+    <div key={cle} style={{ marginBottom: 18 }}>
+      <label style={styleLabel}>{libelle}{requis && ' *'}</label>
+      {type === 'textarea'
+        ? <textarea value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} placeholder={ph} rows={3} style={{ ...styleInput, resize: 'vertical' }} />
+        : type === 'select'
+        ? <select value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} style={styleInput}><option value="">— Choisir —</option>{(extra || []).map((o: string) => <option key={o} value={o}>{o}</option>)}</select>
+        : <input type={type} value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: e.target.value }))} placeholder={ph} style={styleInput} autoComplete={type === 'password' ? 'new-password' : undefined} />}
+    </div>
+  );
+  const caseInsc = (cle: string, contenu: any, requis: boolean) => (
+    <div key={cle} onClick={() => setInscVal(f => ({ ...f, [cle]: !f[cle] }))} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 14 }}>
+      <div style={{ width: 20, height: 20, minWidth: 20, borderRadius: 5, border: `2px solid ${inscVal[cle] ? cp : '#9ca3af'}`, background: inscVal[cle] ? `${cp}22` : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: cp, fontSize: 12, marginTop: 2 }}>{inscVal[cle] && '✓'}</div>
+      <span style={{ fontSize: 13, color: '#444', lineHeight: 1.5 }}>{contenu}{requis && <span style={{ color: '#ef4444' }}> *</span>}</span>
+    </div>
+  );
+
+  const PageInscription = () => (
+    <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+      <div style={{ width: '100%', maxWidth: 480 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{ins.titre}</h1>
+          {ins.sousTitre && <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>{ins.sousTitre}</p>}
+          <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>Vous avez déjà un compte ? <button onClick={() => naviguer('login')} style={{ background: 'none', border: 'none', color: cp, fontSize: 14, cursor: 'pointer', fontWeight: 700 }}>Se connecter</button></p>
+        </div>
+        {inscStatut === 'ok' ? (
+          <div style={{ ...carteAuth, textAlign: 'center' }}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>🎉</div>
+            <h2 style={{ color: '#1a1a1a', fontSize: 20, fontWeight: 800, margin: '0 0 8px' }}>{ins.messageSuccesTitre}</h2>
+            <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 22px' }}>{ins.messageSuccesTexte}</p>
+            <button onClick={() => naviguer('login')} style={styleBtn}>→ Se connecter</button>
+          </div>
+        ) : (
+          <div style={carteAuth}>
+            <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" value={honeypot} onChange={e => setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
+            {champInsc('prenom', ins.libelles.prenom, 'text', '', true)}
+            {champInsc('nom', ins.libelles.nom, 'text', '', true)}
+            {champInsc('email', ins.libelles.email, 'email', 'votre@courriel.com', true)}
+            {ins.telephone.mode !== 'cache' && champInsc('telephone', 'Téléphone', 'tel', '', ins.telephone.mode === 'obligatoire')}
+            {ins.adresse.mode !== 'cache' && <>
+              {champInsc('adresse', 'Adresse', 'text', 'Numéro et rue', ins.adresse.mode === 'obligatoire')}
+              {champInsc('ville', 'Ville', 'text', '', ins.adresse.mode === 'obligatoire')}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {champInsc('code_postal', 'Code postal', 'text', 'H2X 1Y4', ins.adresse.mode === 'obligatoire')}
+                <div style={{ marginBottom: 18 }}>
+                  <label style={styleLabel}>Province{ins.adresse.mode === 'obligatoire' ? ' *' : ''}</label>
+                  <select value={inscVal.province || 'QC'} onChange={e => setInscVal(f => ({ ...f, province: e.target.value }))} style={styleInput}>{PROVINCES.map(pv => <option key={pv.code} value={pv.code}>{pv.nom}</option>)}</select>
+                </div>
+              </div>
+            </>}
+            {champInsc('mdp', ins.libelles.mot_de_passe, 'password', 'Minimum 8 caractères', true)}
+            {champInsc('mdp2', ins.libelles.confirmation, 'password', '', true)}
+            {inscVal.mdp2 && inscVal.mdp !== inscVal.mdp2 && <div style={{ fontSize: 12, color: '#ef4444', margin: '-10px 0 14px' }}>⚠️ Les mots de passe ne correspondent pas.</div>}
+            {ins.champs.map((c: ChampInsc) => c.type === 'checkbox'
+              ? caseInsc('c_' + c.id, c.label, !!c.requis)
+              : champInsc('c_' + c.id, c.label, c.type, c.placeholder || '', !!c.requis, c.options))}
+            {ins.infolettre.affiche && caseInsc('infolettre', ins.infolettre.texte, false)}
+            {ins.age.affiche && caseInsc('age', String(ins.age.texte).replace('{age}', String(ins.age.minimum)), true)}
+            {ins.termes.affiche && caseInsc('termes', /^https?:\/\//i.test(ins.termes.url || '')
+              ? <a href={ins.termes.url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: cp, textDecoration: 'underline' }}>{ins.termes.texte}</a>
+              : ins.termes.texte, true)}
+            {inscErreur && <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>⚠️ {inscErreur}</div>}
+            <button onClick={handleInscription} disabled={inscStatut === 'loading'} style={styleBtn}>{inscStatut === 'loading' ? '⏳ Création en cours…' : ins.boutonTexte}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  const PageLogin = () => (
+    <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+      <div style={{ width: '100%', maxWidth: 440 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Connexion</h1>
+          <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>Accédez à votre panier, vos commandes et votre compte</p>
+        </div>
+        <div style={carteAuth}>
+          <div style={{ marginBottom: 18 }}><label style={styleLabel}>Courriel</label><input type="email" value={loginForm.email} onChange={e => setLoginForm(f => ({ ...f, email: e.target.value }))} placeholder="votre@courriel.com" style={styleInput} /></div>
+          <div style={{ marginBottom: 24 }}><label style={styleLabel}>Mot de passe</label><input type="password" value={loginForm.mdp} onChange={e => setLoginForm(f => ({ ...f, mdp: e.target.value }))} placeholder="••••••••" style={styleInput} onKeyDown={e => e.key === 'Enter' && handleLogin()} /></div>
+          {loginErreur && <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>❌ {loginErreur}</div>}
+          <button onClick={handleLogin} disabled={loginStatut === 'loading'} style={styleBtn}>{loginStatut === 'loading' ? '⏳ Connexion…' : 'Se connecter →'}</button>
+          <div style={{ textAlign: 'center', marginTop: 18 }}><span style={{ fontSize: 13, color: '#6b7280' }}>Pas encore de compte ? </span><button onClick={() => { setInscStatut('idle'); setInscErreur(''); naviguer('inscription'); }} style={{ background: 'none', border: 'none', color: cp, fontSize: 13, cursor: 'pointer', fontWeight: 700 }}>Créer un compte</button></div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const PageBlog = () => (
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+      <Banniere cfg={cfg.blog.banniere} />
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.blog.titre}</h1>
+      {cfg.blog.sousTitre && <p style={{ fontSize: 16, color: cs, marginBottom: 36 }}>{cfg.blog.sousTitre}</p>}
+      {articles.length === 0 && !blogCharge
+        ? <div style={{ textAlign: 'center', padding: '80px 0', color: '#aaa' }}>…</div>
+        : articles.length === 0
+        ? <div style={{ textAlign: 'center', padding: '80px 0', color: '#aaa' }}>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>📝</div>
+            <h2 style={{ fontSize: 20, color: '#555', marginBottom: 8 }}>Aucun article pour l'instant</h2>
+            <p>Revenez bientôt !</p>
+          </div>
+        : <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill,minmax(${cfg.blog.colonnes === 2 ? '340px' : '280px'},1fr))`, gap: 24 }}>
+            {articles.map(a => (
+              <div key={a.id} onClick={() => voirArticle(a)}
+                style={{ background: '#fff', borderRadius: 14, border: '1px solid #e5e7eb', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 24px ${cp}15`; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; (e.currentTarget as HTMLDivElement).style.transform = 'none'; }}>
+                {a.photo && <img src={a.photo} alt="" style={{ width: '100%', height: 200, objectFit: 'cover' }} />}
+                <div style={{ padding: 20 }}>
+                  {a.categorie && <span style={{ fontSize: 11, fontWeight: 700, color: cp, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{a.categorie}</span>}
+                  <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a', margin: '8px 0 10px', lineHeight: 1.3 }}>{a.titre}</h2>
+                  {a.resume && <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 14 }}>{a.resume}</p>}
+                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#aaa' }}>
+                    {cfg.blog.afficherAuteur && a.auteur && <span>✍️ {a.auteur}</span>}
+                    {cfg.blog.afficherDate   && a.date_publication && <span>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA')}</span>}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+      }
+      {blogPage < blogPages && <div style={{ textAlign: 'center', marginTop: 36 }}><button onClick={() => chargerArticles(blogPage + 1)} style={{ background: 'none', border: `2px solid ${cp}`, color: cp, borderRadius: 10, padding: '12px 32px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Voir plus d'articles</button></div>}
+    </div>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE ARTICLE BLOG
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageArticle = () => {
+    if (!articleActif) return null;
+    const a = articleActif;
+    return (
+      <div style={{ maxWidth: 780, margin: '0 auto', padding: '40px 24px' }}>
+        <button onClick={() => setPage('blog')} style={{ background: 'none', border: 'none', color: cp, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
+          ← Retour au blogue
+        </button>
+        {a.photo && <img src={a.photo} alt="" style={{ width: '100%', height: 360, objectFit: 'cover', borderRadius: 16, marginBottom: 32 }} />}
+        {a.categorie && <span style={{ fontSize: 12, fontWeight: 700, color: cp, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{a.categorie}</span>}
+        <h1 style={{ fontSize: 'clamp(24px,4vw,40px)', fontWeight: 800, color: '#1a1a1a', margin: '12px 0 16px', lineHeight: 1.2 }}>{a.titre}</h1>
+        <div style={{ display: 'flex', gap: 16, fontSize: 13, color: '#888', marginBottom: 32 }}>
+          {cfg.blog.afficherAuteur && a.auteur && <span>✍️ {a.auteur}</span>}
+          {cfg.blog.afficherDate && a.date_publication && <span>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })}</span>}
+        </div>
+        {a.resume && <p style={{ fontSize: 18, color: '#555', lineHeight: 1.8, marginBottom: 32, fontStyle: 'italic', borderLeft: `4px solid ${cp}`, paddingLeft: 20 }}>{a.resume}</p>}
+        <style>{`.sp-article{font-size:16px;line-height:1.9;color:#333;overflow-wrap:anywhere}.sp-article h2{font-size:24px;font-weight:800;color:#1a1a1a;margin:1.8em 0 .6em;line-height:1.25}.sp-article h3{font-size:19px;font-weight:700;color:${cp};margin:1.5em 0 .5em}.sp-article h4{font-size:16px;font-weight:700;color:#1a1a1a;margin:1.3em 0 .4em}.sp-article p{margin:0 0 1.1em}.sp-article a{color:${cp};text-decoration:underline}.sp-article img{max-width:100%;height:auto;border-radius:12px;margin:14px 0}.sp-article blockquote{border-left:3px solid ${cp};margin:1.4em 0;padding:.4em 1.2em;background:#f8fafc;border-radius:0 8px 8px 0;font-style:italic}.sp-article ul,.sp-article ol{padding-left:1.5em;margin:0 0 1.1em}.sp-article ul{list-style:disc}.sp-article ol{list-style:decimal}.sp-article li{margin-bottom:.4em}.sp-article hr{border:none;border-top:1px solid #e5e7eb;margin:2em 0}.sp-article table{width:100%;border-collapse:collapse;margin:1.4em 0;font-size:14px;display:block;overflow-x:auto}.sp-article th{color:${cp};text-align:left;padding:10px 12px;border-bottom:2px solid #e5e7eb}.sp-article td{padding:9px 12px;border-bottom:1px solid #e5e7eb}.sp-article pre,.sp-article code{background:#f3f4f6;border-radius:6px;padding:2px 6px;font-size:.9em}.sp-article pre{padding:14px;overflow-x:auto}`}</style>
+        {a.contenu !== undefined
+          ? <div className="sp-article" dangerouslySetInnerHTML={{ __html: a.contenu || '<p>Contenu à venir…</p>' }} />
+          : articleErreur
+            ? <p style={{ fontSize: 15, color: '#666', lineHeight: 1.9 }}>Cet article est introuvable ou n'est plus disponible.</p>
+            : <p style={{ fontSize: 15, color: '#999' }}>Chargement…</p>}
+        {(a.tags || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 36 }}>{(a.tags || []).map(t => <span key={t} style={{ fontSize: 12, color: '#666', border: '1px solid #e5e7eb', borderRadius: 20, padding: '4px 12px' }}>#{t}</span>)}</div>}
+      </div>
+    );
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE FAQ
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageFaq = () => (
+    <div style={{ maxWidth: 780, margin: '0 auto', padding: '40px 24px' }}>
+      <Banniere cfg={cfg.faq.banniere} />
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.faq.titre}</h1>
+      {cfg.faq.sousTitre && <p style={{ fontSize: 16, color: cs, marginBottom: 40 }}>{cfg.faq.sousTitre}</p>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {cfg.faq.items.map((item, i) => (
+          <div key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+            <button onClick={() => setFaqOuvert(faqOuvert === i ? null : i)}
+              style={{ width: '100%', background: 'none', border: 'none', padding: '20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 16, textAlign: 'left' }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.4 }}>{item.question}</span>
+              <span style={{ fontSize: 20, color: cp, flexShrink: 0, transition: 'transform 0.2s', transform: faqOuvert === i ? 'rotate(45deg)' : 'none' }}>+</span>
+            </button>
+            {faqOuvert === i && (
+              <div style={{ paddingBottom: 20, fontSize: 15, color: '#555', lineHeight: 1.7 }}>{item.reponse}</div>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE À PROPOS (Config Mes pages → À propos ; vide : exemples affichés seulement en démo)
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageAPropos = () => {
+    const ap: any = rawSimplisse.aPropos || {};
+    const demo = !!configBrut?.__produits_demo__;
+    const liste = (cle: string, ex: any[], ok: (x: any) => boolean) => { const l = (Array.isArray(ap[cle]) ? ap[cle] : []).filter((x: any) => x && typeof x === 'object' && ok(x)); return l.length > 0 ? l : (demo ? ex : []); };
+    const valeurs = liste('valeurs', APROPOS_DEMO.valeurs, x => !!(x.titre || x.desc));
+    const chiffres = liste('chiffres', APROPOS_DEMO.chiffres, x => !!(x.nb || x.label));
+    const equipe = liste('equipe', APROPOS_DEMO.equipe, x => !!(x.prenom || x.poste));
+    const t = (cle: string, defaut: string) => (typeof ap[cle] === 'string' && ap[cle].trim()) ? ap[cle].trim() : defaut;
+    const accroche = t('accroche', demo ? APROPOS_DEMO.accroche : '');
+    const description = t('description', demo ? APROPOS_DEMO.description : '');
+    const lbl: React.CSSProperties = { fontSize: 12, color: cp, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 };
+    const coulEq = [cp, '#6366f1', '#10b981'];
+    return (
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
+        <div style={lbl}>{t('sousTitre', 'Notre histoire')}</div>
+        <h1 style={{ fontSize: isMobile ? 28 : 36, fontWeight: 800, color: '#1a1a1a', margin: '0 0 32px' }}>{t('titre', 'À propos de nous')}</h1>
+        {(accroche || description) && (
+          <div style={{ background: `${cp}0d`, border: `1px solid ${cp}25`, borderRadius: 16, padding: isMobile ? '28px 20px' : '44px 52px', marginBottom: 48 }}>
+            <div style={{ maxWidth: 680 }}>
+              {accroche && <p style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: '#1a1a1a', lineHeight: 1.5, margin: '0 0 16px' }}>{accroche}</p>}
+              {description && <p style={{ fontSize: 15, color: '#555', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-line' }}>{description}</p>}
+            </div>
+          </div>
+        )}
+        {ap.afficherValeurs !== false && valeurs.length > 0 && (
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div style={lbl}>{t('valeursSurtitre', 'Nos valeurs')}</div>
+              <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{t('valeursTitre', 'Ce qui nous définit')}</h2>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 20 }}>
+              {valeurs.map((v: any, i: number) => (
+                <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: '24px 22px' }}>
+                  {v.ico && <div style={{ width: 48, height: 48, borderRadius: 12, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, marginBottom: 14 }}>{v.ico}</div>}
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', margin: '0 0 8px' }}>{v.titre}</h3>
+                  <p style={{ fontSize: 14, color: '#666', lineHeight: 1.7, margin: 0 }}>{v.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {ap.afficherChiffres !== false && chiffres.length > 0 && (
+          <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 14, padding: '36px 20px', marginBottom: 48 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : `repeat(${Math.min(chiffres.length, 4)},1fr)`, gap: 24, textAlign: 'center' }}>
+              {chiffres.map((x: any, i: number) => (
+                <div key={i}><div style={{ fontSize: isMobile ? 28 : 36, fontWeight: 800, color: cp, marginBottom: 4 }}>{x.nb}</div><div style={{ fontSize: 13, color: '#666' }}>{x.label}</div></div>
+              ))}
+            </div>
+          </div>
+        )}
+        {ap.afficherEquipe !== false && equipe.length > 0 && (
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div style={lbl}>{t('equipeSurtitre', "L'équipe")}</div>
+              <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{t('equipeTitre', 'Les visages derrière la boutique')}</h2>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 20 }}>
+              {equipe.map((m: any, i: number) => { const col = coulEq[i % 3]; const photo = /^https?:\/\//i.test(m.photo || '') ? m.photo : ''; return (
+                <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: '24px 20px', textAlign: 'center' }}>
+                  {photo
+                    ? <img src={photo} alt={m.prenom || ''} style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 14px', display: 'block' }} />
+                    : <div style={{ width: 72, height: 72, borderRadius: '50%', background: col, margin: '0 auto 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 800, color: '#fff' }}>{(m.prenom || '?').charAt(0).toUpperCase()}</div>}
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>{m.prenom}</div>
+                  <div style={{ fontSize: 13, color: col, fontWeight: 600 }}>{m.poste}</div>
+                </div>
+              ); })}
+            </div>
+          </div>
+        )}
+        {ap.afficherCta !== false && (
+          <div style={{ textAlign: 'center', padding: '44px 24px', background: `${cp}0d`, border: `1px solid ${cp}25`, borderRadius: 16 }}>
+            <div style={lbl}>{t('ctaSurtitre', 'Rejoignez-nous')}</div>
+            <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1a1a1a', margin: '0 0 10px' }}>{t('ctaTitre', 'Prêt à découvrir notre sélection ?')}</h2>
+            <p style={{ fontSize: 15, color: '#555', margin: '0 auto 24px', maxWidth: 460 }}>{t('ctaTexte', 'Découvrez nos produits dès maintenant.')}</p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => naviguer('catalogue')} style={{ background: cp, color: '#fff', border: 'none', borderRadius: 10, padding: '13px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{t('ctaBoutonCatalogue', 'Voir notre catalogue →')}</button>
+              <button onClick={() => naviguer('contact')} style={{ background: '#fff', color: '#1a1a1a', border: '1px solid #d1d5db', borderRadius: 10, padding: '13px 24px', fontSize: 15, cursor: 'pointer' }}>{t('ctaBoutonContact', 'Nous contacter')}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE CONTACT
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageContact = () => (
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
+      <Banniere cfg={cfg.contact.banniere} />
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.contact.titre}</h1>
+      {cfg.contact.sousTitre && <p style={{ fontSize: 16, color: cs, marginBottom: 40 }}>{cfg.contact.sousTitre}</p>}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 48 }}>
+        {/* Coordonnées */}
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a', marginBottom: 24 }}>Nos coordonnées</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {cfg.contact.adresse && (
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📍</div>
+                <div><div style={{ fontSize: 13, fontWeight: 700, color: '#888', marginBottom: 2 }}>Adresse</div><div style={{ fontSize: 15, color: '#1a1a1a' }}>{cfg.contact.adresse}</div></div>
+              </div>
+            )}
+            {cfg.contact.telephone && (
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📞</div>
+                <div><div style={{ fontSize: 13, fontWeight: 700, color: '#888', marginBottom: 2 }}>Téléphone</div><a href={`tel:${cfg.contact.telephone}`} style={{ fontSize: 15, color: cp, textDecoration: 'none', fontWeight: 600 }}>{cfg.contact.telephone}</a></div>
+              </div>
+            )}
+            {cfg.contact.courriel && (
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>✉️</div>
+                <div><div style={{ fontSize: 13, fontWeight: 700, color: '#888', marginBottom: 2 }}>Courriel</div><a href={`mailto:${cfg.contact.courriel}`} style={{ fontSize: 15, color: cp, textDecoration: 'none', fontWeight: 600 }}>{cfg.contact.courriel}</a></div>
+              </div>
+            )}
+          </div>
+          {cfg.contact.afficherCarte && cfg.contact.urlCarte && (
+            <div style={{ marginTop: 28, borderRadius: 12, overflow: 'hidden', height: 260 }}>
+              <iframe src={cfg.contact.urlCarte} width="100%" height="100%" style={{ border: 0 }} loading="lazy" title="Carte" />
+            </div>
+          )}
+        </div>
+
+        {/* Formulaire */}
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a', marginBottom: 24 }}>Envoyer un message</h2>
+          {contactEnvoi === 'ok'
+            ? <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 12, padding: 28, textAlign: 'center' }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+                <h3 style={{ color: '#16a34a', margin: '0 0 8px' }}>Message envoyé !</h3>
+                <p style={{ color: '#555', margin: 0 }}>Nous vous répondrons dans les meilleurs délais.</p>
+              </div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre nom</label>
+                  <input value={contactForm.nom} onChange={e => setContactForm(f => ({ ...f, nom: e.target.value }))} placeholder="Jean Tremblay" style={styleInput} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre courriel</label>
+                  <input type="email" value={contactForm.courriel} onChange={e => setContactForm(f => ({ ...f, courriel: e.target.value }))} placeholder="jean@exemple.ca" style={styleInput} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre message</label>
+                  <textarea value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: e.target.value }))} rows={5} placeholder="Décrivez votre question..." style={{ ...styleInput, resize: 'vertical', fontFamily: 'inherit' }} />
+                </div>
+                {contactEnvoi === 'err' && <p style={{ color: '#ef4444', fontSize: 14, margin: 0 }}>❌ Erreur — veuillez réessayer.</p>}
+                <button onClick={envoyerContact} disabled={contactEnvoi === 'loading' || !contactForm.nom || !contactForm.courriel || !contactForm.message}
+                  style={{ ...styleBtn, opacity: (!contactForm.nom || !contactForm.courriel || !contactForm.message) ? 0.5 : 1 }}>
+                  {contactEnvoi === 'loading' ? '⏳ Envoi...' : 'Envoyer le message →'}
+                </button>
+              </div>
+          }
+        </div>
+      </div>
+    </div>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // RENDU PRINCIPAL
+  // ══════════════════════════════════════════════════════════════════════════
+  // Espace acheteur : plein écran (panier, caisse, commandes) ; il a son propre menu et son bouton « Retour à la boutique »
+  // Liens légaux du pied de page : seulement les politiques rédigées et affichées (en démonstration : toutes)
+  const polFooter: any = { ...CFG_DEF.footer.politiques, ...(cfg.footer.politiques || {}) };
+  const polVisible = (slug: string) => !!configBrut?.__produits_demo__ || (politiquesRedigees ? politiquesRedigees[slug] === true : false);
+  const liensPol: string[][] = [['retour-remboursement','Retour & remboursement',polFooter.afficherRetours],['confidentialite','Confidentialité',polFooter.afficherConfidentialite],['conditions-service','Conditions de service',polFooter.afficherConditions],['expedition','Expédition',polFooter.afficherLivraison],['coordonnees','Coordonnées',polFooter.afficherCoordonnees],['mentions-legales','Mentions légales',polFooter.afficherMentions]].filter(([slug, , actif]) => (actif as any) !== false && polVisible(slug as string)).map(([slug, label]) => [slug as string, label as string]);
+
+  if (page === 'compte') return <AppAcheteurBoutique key={vueCompte} vendeurId={vendeurId} pageInitiale={vueCompte} config={{ couleur_accent: cp, nom_boutique: cfg.footer.nomBoutique, gestionnaire_id: vendeurId }} naviguerTemplate={(d: any) => { setVueCompte('dashboard'); if (d && d.page === 'produit') { const pr = produits.find(x => Number(x.id) === Number(d.produitId)); if (pr) { voirProduit(pr); return; } } naviguer(d && d.page ? d.page : 'accueil'); }} />;
+
+  return (
+    <div style={{ fontFamily: `'${cfg.accueil.police || 'Inter'}', -apple-system, sans-serif`, background: cfg.accueil.couleurFondPage, color: cfg.accueil.couleurTexte, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap'); * { box-sizing: border-box; margin: 0; padding: 0; } button { font-family: inherit; }`}</style>
+
+      {vendeurId > 0 && !configBrut?.__produits_demo__ && <BoutiqueVerificateurAge gid={vendeurId} />}
+      <Nav />
+      {vendeurId > 0 && <BoutiqueSouhaitsAcces clair gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} ouvrir={ouvrirSouhaits} variante="flottant" />}
+      {vendeurId > 0 && <BoutiqueFavorisToast gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} />}
+      {avisPanier && <div role="status" style={{ position: 'fixed', top: 76, left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: '#fff', border: `1px solid ${cp}`, color: '#1a1a1a', padding: '12px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 30px rgba(0,0,0,0.18)', maxWidth: '92vw' }}>{avisPanier}</div>}
+
+      <main style={{ flex: 1 }}>
+        {page === 'accueil'   && (mono ? PageVente() : <PageAccueil />)}
+        {page === 'catalogue' && <PageCatalogue />}
+        {page === 'produit'   && PageProduit()}
+        {page === 'blog'      && <PageBlog />}
+        {page === 'politique' && <PagePolitique />}
+        {page === 'article'   && <PageArticle />}
+        {page === 'faq'       && <PageFaq />}
+        {page === 'a-propos'  && <PageAPropos />}
+        {page === 'contact'   && <PageContact />}
+        {page === 'offres'    && PageOffres()}
+        {page === 'encheres'  && PageEncheres()}
+        {page === 'login'     && PageLogin()}
+        {page === 'inscription' && PageInscription()}
+      </main>
+
+      <Footer cfg={cfg.footer} onNaviguer={naviguer} liensPol={liensPol} extra={vendeurId > 0 && !configBrut?.__produits_demo__ ? (
+        <>
+          <BoutiqueInfolettre gestionnaireId={vendeurId} couleur={cp} theme={{ titre: cfg.footer.couleurTexte, doux: hexVersRgba(cfg.footer.couleurTexte, 0.65), bord: hexVersRgba(cfg.footer.couleurTexte, 0.14), champFond: hexVersRgba(cfg.footer.couleurTexte, 0.08), champBord: hexVersRgba(cfg.footer.couleurTexte, 0.25), champTexte: cfg.footer.couleurTexte, boutonTexte: '#fff' }} />
+          <BoutiqueBoutonInstallerApp couleur={cp} texte={cfg.footer.couleurTexte} texteDoux={hexVersRgba(cfg.footer.couleurTexte, 0.75)} />
+        </>
+      ) : undefined} />
+    </div>
+  );
 }
