@@ -138,6 +138,17 @@ const APROPOS_DEMO = {
 
 const API_BASE = '/api';
 
+// Mono-produit : pied de page par défaut (pas de catalogue) ; tout reste modifiable dans Config → Footer
+const FOOTER_DEF_MONO: ConfigFooter = { ...CFG_DEF.footer, colonnes: { titre1: 'Boutique', liens1: 'Accueil\nBlog\nÀ propos', titre2: 'Aide', liens2: 'Contact', titre3: '', liens3: '' } };
+
+// Mono-produit : exemples de la page de vente, affichés UNIQUEMENT en démonstration (jamais sur une vraie boutique)
+const VENTE_DEMO = {
+  benefices: [{ ico: '⚡', titre: 'Résultat immédiat', desc: 'Décrivez ici le premier grand avantage de votre produit.' }, { ico: '🛡️', titre: 'Fabriqué pour durer', desc: 'Qualité, matériaux, garantie : ce qui rassure vos clients.' }, { ico: '🎁', titre: 'Prêt à offrir', desc: 'Emballage, livraison, retours : ce qui facilite l\'achat.' }],
+  details: [{ titre: 'Conçu avec soin', texte: 'Racontez en quelques lignes ce qui rend votre produit unique : sa fabrication, son histoire, ses matériaux.', photo: '' }, { titre: 'Simple à utiliser', texte: 'Expliquez comment il s\'utilise et ce qu\'il change dans le quotidien de vos clients.', photo: '' }],
+  avis: [{ texte: 'Exactement ce que je cherchais. Je le recommande !', auteur: 'Client satisfait', note: 5 }],
+  faq: [{ question: 'Quels sont les délais de livraison ?', reponse: 'Exemple de réponse : expédition sous 24 à 48 h ouvrables.' }, { question: 'Puis-je retourner mon achat ?', reponse: 'Exemple de réponse : retour possible sous 30 jours.' }],
+};
+
 // ── Inscription acheteur : défauts, fusionnés avec config.simplisse.inscription si elle existe ──
 type ChampInsc = { id:string; type:'text'|'email'|'tel'|'select'|'textarea'|'checkbox'; label:string; placeholder?:string; options?:string[]; requis?:boolean };
 const INSC_DEF = {
@@ -175,6 +186,7 @@ const FICHE_DEF: ConfigFicheProduit = {
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface Props {
+  mono?: boolean;   // template Mono-produit (boutique-simple) : page de vente unique pour UN produit (voir TemplateBoutiqueSimple.tsx)
   config: any;   // config brute de la BD — contient config.simplisse
   siteId?: number;
   vendeurId: number;
@@ -429,7 +441,7 @@ function Footer({ cfg, onNaviguer, liensPol, extra }: { cfg: ConfigFooter; onNav
 }
 
 // ─── Composant principal ──────────────────────────────────────────────────────
-export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, vendeurId }: Props) {
+export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, vendeurId, mono = false }: Props) {
   // Extraire config.simplisse de la BD et merger avec les défauts
   const rawSimplisse = configBrut?.simplisse || {};
   const fp: ConfigFicheProduit = { ...FICHE_DEF, ...(rawSimplisse.ficheProduit || {}) };
@@ -440,7 +452,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     faq:      merge(CFG_DEF.faq,      rawSimplisse.faq),
     blog:     merge(CFG_DEF.blog,     rawSimplisse.blog),
     contact:  merge(CFG_DEF.contact,  rawSimplisse.contact),
-    footer:   merge(CFG_DEF.footer,   rawSimplisse.footer),
+    footer:   merge(mono ? FOOTER_DEF_MONO : CFG_DEF.footer, rawSimplisse.footer),
     ficheProduit: fp,
   };
 
@@ -504,6 +516,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const [contactForm, setContactForm] = useState({ nom:'', courriel:'', message:'' });
   const [varianteChoisie, setVarianteChoisie] = useState<Record<string, string>>({});
   const [qteChoisie, setQteChoisie]   = useState(1);
+  const [optSel, setOptSel]           = useState<Record<string, string>>({});   // Mono-produit : valeur choisie pour chaque option (Couleur, Taille…)
 
 
   useEffect(() => {
@@ -551,6 +564,9 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     }
     chargerCatalogue();
   }, [vendeurId, chargerCatalogue]);
+
+  // Mono-produit : le seul produit (celui retenu par le serveur) est toujours ouvert sur la page de vente
+  useEffect(() => { if (!mono) return; setProduitActif(a => { const n = produits[0] || null; return a && n && a.id === n.id ? { ...a, ...n } : n; }); }, [mono, produits]);
 
   // Quand une offre se termine, la fiche ouverte reprend le vrai prix
   useEffect(() => { setProduitActif(a => { if (!a) return a; const n = produits.find(x => x.id === a.id); return n && (n.prix_promo !== a.prix_promo || n.offre_fin !== a.offre_fin) ? { ...a, prix_promo: n.prix_promo, offre_fin: n.offre_fin } : a; }); }, [produits]);
@@ -669,14 +685,16 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     if (slugPol) { ouvrirPolitique(slugPol); return; }
     const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', 'a-propos':'a-propos', contact:'contact', compte:'compte', login:'login', inscription:'inscription', offres:'offres', encheres:'encheres', connexion:'login' };
     const cle = sansAccent(dest).replace(/\s+/g, '-');
+    if (mono && (cle === 'catalogue' || cle === 'offres' || cle === 'encheres' || cle === 'produit')) { setPage('accueil'); return; }   // Mono-produit : pas de catalogue
     if (map[cle]) setPage(map[cle]);
-  }, [ouvrirPolitique]);
+  }, [ouvrirPolitique, mono]);
 
   const voirProduit = (p: Produit) => {
     setProduitActif(p);
     setQteChoisie(1);
     setVarianteChoisie({});
-    setPhotoIdx(0); setDescExpanded(false); setOngletActif('description');
+    setPhotoIdx(0); setDescExpanded(false); setOngletActif('description'); setOptSel({});
+    if (mono) { setPage('accueil'); setTimeout(() => { const el = document.getElementById('acheter'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }, 150); return; }   // Mono-produit : le produit est sur la page de vente
     setPage('produit');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -700,6 +718,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     if (d.page === 'produit' && Number(d.produitId) > 0) { const pr = produits.find(x => Number(x.id) === Number(d.produitId)); if (pr) voirProduit(pr); else naviguer('catalogue'); return; }
     if (d.page === 'article' && typeof d.articleSlug === 'string') { voirArticle({ id: 0, titre: '', slug: d.articleSlug }); return; }
     if (d.page === 'politique' && typeof d.politiqueSlug === 'string' && POLITIQUES_SLUGS.includes(d.politiqueSlug)) { ouvrirPolitique(d.politiqueSlug); return; }
+    if (mono && d.page === 'catalogue') { setPage('accueil'); return; }
     if (d.page === 'faq' || d.page === 'a-propos' || d.page === 'blog' || d.page === 'contact' || d.page === 'catalogue') setPage(d.page);
   };
   useEffect(() => { const f = (e: Event) => navChatbot.current((e as CustomEvent).detail); window.addEventListener('boutique-chatbot-nav', f); return () => window.removeEventListener('boutique-chatbot-nav', f); }, []);
@@ -802,7 +821,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   // NAV
   // ══════════════════════════════════════════════════════════════════════════
   const extras: CarteExtras = { gid: vendeurId > 0 ? vendeurId : undefined, connecte: !!acheteur, demo: produitsDemo, offre: offreCtx };
-  const liensNav: string[][] = [['accueil', 'Accueil'], ['catalogue', 'Catalogue'], ...(nbOffres > 0 ? [['offres', '🔥 Offres du jour']] : []), ...(nbEncheres > 0 ? [['encheres', '🔨 Enchères']] : []), ['blog', 'Blog'], ['faq', 'FAQ'], ['a-propos', 'À propos'], ['contact', 'Contact']]
+  const liensNav: string[][] = (mono ? [['accueil', 'Accueil'], ['blog', 'Blog'], ['a-propos', 'À propos'], ['contact', 'Contact']] : [['accueil', 'Accueil'], ['catalogue', 'Catalogue'], ...(nbOffres > 0 ? [['offres', '🔥 Offres du jour']] : []), ...(nbEncheres > 0 ? [['encheres', '🔨 Enchères']] : []), ['blog', 'Blog'], ['faq', 'FAQ'], ['a-propos', 'À propos'], ['contact', 'Contact']])
     // Menu du haut configurable (Config Mes pages → Accueil) : libellé renommé ou page cachée
     .filter(([id]) => !(Array.isArray(rawSimplisse.menu?.masques) ? rawSimplisse.menu.masques : []).includes(id))
     .map(([id, l]) => [id, (typeof rawSimplisse.menu?.[id] === 'string' && rawSimplisse.menu[id].trim()) ? rawSimplisse.menu[id].trim() : l]);
@@ -1102,7 +1121,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     if (!produitActif) return null;
     const p = produitActif;
     const enPromo = p.prix_promo && p.prix_promo < p.prix;
-    const photos = [p.photo_principale, ...(p.photos || [])].filter(Boolean) as string[];
+    const photos = Array.from(new Set([p.photo_principale, ...(p.photos || [])].filter(Boolean))) as string[];
     const btnCouleur = fp.boutonCouleur || cp;
     const varsPlates = (p.variantes || []).filter(v => v && !Array.isArray(v.valeurs));
     const nomVar = varianteChoisie.__v || '';
@@ -1115,6 +1134,19 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     const parutionBloquee = !!p.date_parution && !ouvertes[p.id];   // pas encore en vente : compte à rebours, aucun achat
     const bloque = parutionBloquee || venteDirecteBloquee(p);
     const resume = resumeAvis();
+    // Mono-produit : variantes à options (Couleur, Taille…). Un sélecteur par option ; la combinaison choisie = nom de la variante enregistrée.
+    const optsMono: [string, string[]][] = [];
+    if (mono) for (const v of varsPlates) for (const [k, val] of Object.entries((v as any).options || {})) { let o = optsMono.find(x => x[0] === k); if (!o) { o = [k, []]; optsMono.push(o); } if (!o[1].includes(String(val))) o[1].push(String(val)); }
+    const choisirOption = (cle: string, val: string) => {
+      const sel = { ...optSel, [cle]: val }; setOptSel(sel); setQteChoisie(1);
+      if (optsMono.every(([k]) => sel[k])) {
+        const nom = optsMono.map(([k]) => sel[k]).join(' / ');
+        const v: any = varsPlates.find(x => x.nom === nom);
+        setVarianteChoisie(v ? { __v: nom } : {});
+        if (v && v.photo) { const i = photos.indexOf(v.photo); if (i >= 0) setPhotoIdx(i); }
+      } else setVarianteChoisie({});
+    };
+    const optionDispo = (cle: string, val: string) => varsPlates.some((v: any) => v.options && String(v.options[cle]) === val && optsMono.every(([k]) => k === cle || !optSel[k] || String(v.options[k]) === optSel[k]) && stockDe(v) !== 0);
 
     // Galerie component
     const GalerieBlock = () => (
@@ -1196,7 +1228,19 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         {!parutionBloquee && p.paliers && p.paliers.length > 0 && <PaliersProduitBoutique produit={p as any} quantite={qteChoisie} variante={Object.values(varianteChoisie).join(' / ')} couleur={btnCouleur} fond="#f9fafb" bordure="#e5e7eb" texte="#1a1a1a" texteDiscret="#6b7280" />}
 
         {/* Variantes (vraies annonces : liste plate) */}
-        {!parutionBloquee && varsPlates.length > 0 && (
+        {/* Mono-produit : un sélecteur par option (Couleur, Taille…) */}
+        {!parutionBloquee && mono && optsMono.length > 0 && optsMono.map(([cle, vals]) => (
+          <div key={cle} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>{cle}{optSel[cle] && <span style={{ fontWeight: 500, color: '#6b7280' }}> : {optSel[cle]}</span>}</div>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {vals.map(val => { const sel = optSel[cle] === val; const ok = optionDispo(cle, val);
+                return <button key={val} disabled={!ok} aria-pressed={sel} onClick={() => choisirOption(cle, val)}
+                  style={{ padding: '8px 16px', borderRadius: 8, border: `2px solid ${sel ? btnCouleur : '#e5e7eb'}`, background: sel ? `${btnCouleur}12` : '#fff', color: sel ? btnCouleur : '#333', fontSize: 13, fontWeight: 600, cursor: ok ? 'pointer' : 'not-allowed', opacity: ok ? 1 : 0.4, textDecoration: ok ? 'none' : 'line-through' }}>{val}</button>; })}
+            </div>
+          </div>
+        ))}
+
+        {!parutionBloquee && !(mono && optsMono.length > 0) && varsPlates.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>Variante</div>
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
@@ -1356,7 +1400,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     if (!isMobile && fp.layout === 'image-haut') {
       return (
         <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
-          {fp.afficherBreadcrumb && (
+          {fp.afficherBreadcrumb && !mono && (
             <div style={{ marginBottom: 20, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: '#888' }}>
               <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Accueil</button>
               <span>›</span><button onClick={() => naviguer('catalogue')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Catalogue</button>
@@ -1367,7 +1411,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           {InfoBlock()}
           <DescriptionBas />
           {blocsBas}
-          {fp.afficherSimilaires && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
+          {fp.afficherSimilaires && !mono && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
             <div style={{ marginTop: 56, paddingTop: 40, borderTop: '1px solid #e5e7eb' }}>
               <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', marginBottom: 20 }}>{fp.similairesTitre}</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
@@ -1388,7 +1432,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
 
     return (
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
-        {fp.afficherBreadcrumb && (
+        {fp.afficherBreadcrumb && !mono && (
           <div style={{ marginBottom: 20, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: '#888' }}>
             <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Accueil</button>
             <span>›</span><button onClick={() => naviguer('catalogue')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Catalogue</button>
@@ -1400,7 +1444,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         </div>
         <DescriptionBas />
         {blocsBas}
-        {fp.afficherSimilaires && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
+        {fp.afficherSimilaires && !mono && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
           <div style={{ marginTop: 56, paddingTop: 40, borderTop: '1px solid #e5e7eb' }}>
             <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', marginBottom: 20 }}>{fp.similairesTitre}</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
@@ -1410,6 +1454,176 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
             </div>
           </div>
         )}
+      </div>
+    );
+  };
+
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MONO-PRODUIT — PAGE DE VENTE (tout sur une page : accroche, produit à acheter, bénéfices, détails, avis, FAQ, appel final)
+  // Contenu saisi dans Config Mes pages (config.simple.vente / accueil / faq). Aucun contenu inventé sur une vraie boutique :
+  // un bloc vide n'est pas affiché ; les exemples n'apparaissent qu'en démonstration.
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageVente = () => {
+    const rv: any = (rawSimplisse as any).vente || {};
+    const demoV = !!configBrut?.__produits_demo__;
+    const p = produitActif;
+    const t = (cle: string, defaut: string) => (typeof rv[cle] === 'string' && rv[cle].trim()) ? rv[cle].trim() : defaut;
+    const liste = (cle: string, ex: any[], ok: (x: any) => boolean) => { const l = (Array.isArray(rv[cle]) ? rv[cle] : []).filter((x: any) => x && typeof x === 'object' && ok(x)); return l.length > 0 ? l : (demoV ? ex : []); };
+    const benefices = liste('benefices', VENTE_DEMO.benefices, x => !!(x.titre || x.desc));
+    const details = liste('details', VENTE_DEMO.details, x => !!(x.titre || x.texte));
+    const saisiAvis = (Array.isArray(cfg.accueil.temoignages) ? cfg.accueil.temoignages : []).filter(x => x && typeof x.texte === 'string' && x.texte.trim());
+    const avis = saisiAvis.length > 0 ? saisiAvis : (demoV ? VENTE_DEMO.avis : []);
+    const saisiFaq = (Array.isArray((rawSimplisse as any).faq?.items) ? (rawSimplisse as any).faq.items : []).filter((x: any) => x && x.question && x.reponse);
+    const faq = saisiFaq.length > 0 ? saisiFaq : (demoV ? VENTE_DEMO.faq : []);
+    const avantages = (Array.isArray(cfg.accueil.avantages) ? cfg.accueil.avantages : []).filter(a => a && (a.titre || a.desc));
+    const confiance = avantages.length > 0 ? avantages : (demoV ? [{ ico: '🚚', titre: 'Livraison rapide', desc: 'Exemple' }, { ico: '🔒', titre: 'Paiement sécurisé', desc: 'Stripe ou PayPal' }, { ico: '🔄', titre: 'Retours faciles', desc: 'Exemple' }] : []);
+    const allerAcheter = () => { const el = document.getElementById('acheter'); if (el) el.scrollIntoView({ behavior: 'smooth' }); };
+    const photoHero = (typeof rv.heroPhoto === 'string' && /^https?:\/\//i.test(rv.heroPhoto)) ? rv.heroPhoto : (p ? (p.photo_principale || '') : '');
+    const lbl: React.CSSProperties = { fontSize: 12, color: cp, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 };
+    const titreSec = (cle: string, def: string) => <h2 style={{ fontSize: isMobile ? 24 : 32, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{t(cle, def)}</h2>;
+    if (!p) return (
+      <div style={{ maxWidth: 640, margin: '0 auto', padding: '96px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 56, marginBottom: 14 }}>📦</div>
+        <h1 style={{ fontSize: 26, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>Notre produit arrive bientôt</h1>
+        <p style={{ fontSize: 15, color: cs }}>Revenez très bientôt.</p>
+      </div>
+    );
+    const enPromo = p.prix_promo && p.prix_promo < p.prix;
+    const vars = (p.variantes || []).filter((v: any) => v && !Array.isArray(v.valeurs));
+    const prixBas = (() => { const base = enPromo ? p.prix_promo! : p.prix; const pv = vars.map((v: any) => (v.prix !== null && v.prix !== undefined && v.prix !== '' ? Number(v.prix) : base)).filter((n: number) => n >= 0); return pv.length ? Math.min(base, ...pv) : base; })();
+    const resume = resumeAvis();
+    return (
+      <div>
+        {(cfg.accueil.banniere && cfg.accueil.banniere.actif) && <Banniere cfg={cfg.accueil.banniere} />}
+
+        {/* 1. Accroche */}
+        {rv.afficherHero !== false && (
+          <section style={{ background: `linear-gradient(135deg, ${cp}0f, ${cp}03)`, borderBottom: '1px solid #e5e7eb' }}>
+            <div style={{ maxWidth: 1200, margin: '0 auto', padding: isMobile ? '36px 20px' : '72px 24px', display: 'grid', gridTemplateColumns: isMobile || !photoHero ? '1fr' : '1.05fr 1fr', gap: isMobile ? 28 : 56, alignItems: 'center' }}>
+              <div>
+                {t('heroSurtitre', '') && <div style={lbl}>{t('heroSurtitre', '')}</div>}
+                <h1 style={{ fontSize: isMobile ? 32 : 52, fontWeight: 900, color: '#1a1a1a', lineHeight: 1.08, margin: '0 0 16px', letterSpacing: '-0.02em' }}>{t('heroTitre', p.titre)}</h1>
+                {t('heroSousTitre', '') && <p style={{ fontSize: isMobile ? 16 : 19, color: cs, lineHeight: 1.6, margin: '0 0 24px', maxWidth: 520 }}>{t('heroSousTitre', '')}</p>}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 30, fontWeight: 800, color: '#1a1a1a' }}>{vars.length > 1 && prixBas !== (enPromo ? p.prix_promo! : p.prix) ? 'Dès ' : ''}{prix(prixBas)}</span>
+                  {enPromo && <span style={{ fontSize: 18, color: '#9ca3af', textDecoration: 'line-through' }}>{prix(p.prix)}</span>}
+                  {resume && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, color: '#6b7280' }}><EtoilesAvis clair note={resume.note} taille={16} />{resume.note.toFixed(1)} ({resume.nb} avis)</span>}
+                </div>
+                <button onClick={allerAcheter} style={{ background: cp, color: '#fff', border: 'none', borderRadius: 12, padding: '16px 36px', fontSize: 17, fontWeight: 800, cursor: 'pointer', boxShadow: `0 10px 24px -10px ${cp}` }}>{t('heroBouton', 'Acheter maintenant')} →</button>
+              </div>
+              {photoHero && <div style={{ borderRadius: 20, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '1', boxShadow: '0 24px 60px -24px rgba(0,0,0,0.35)' }}><img src={photoHero} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
+            </div>
+          </section>
+        )}
+
+        {/* 2. Bandeau de confiance */}
+        {rv.afficherConfiance !== false && confiance.length > 0 && (
+          <div style={{ background: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
+            <div style={{ maxWidth: 1200, margin: '0 auto', padding: '18px 24px', display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 44, flexWrap: 'wrap' }}>
+              {confiance.map((a: any, i: number) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 160 }}>
+                  <span style={{ fontSize: 24 }}>{a.ico}</span>
+                  <div><div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{a.titre}</div><div style={{ fontSize: 12, color: '#888' }}>{a.desc}</div></div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* 3. Le produit : choix des options, quantité, ajout au panier (zone d'achat) */}
+        <div id="acheter">{PageProduit()}</div>
+
+        {/* 4. Bénéfices */}
+        {rv.afficherBenefices !== false && benefices.length > 0 && (
+          <section style={{ background: '#f8fafc', padding: isMobile ? '48px 20px' : '72px 24px' }}>
+            <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+              <div style={{ textAlign: 'center', marginBottom: 36 }}>{t('beneficesSurtitre', '') && <div style={lbl}>{t('beneficesSurtitre', '')}</div>}{titreSec('beneficesTitre', 'Pourquoi vous allez l\'adorer')}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(benefices.length, 3)},1fr)`, gap: 20 }}>
+                {benefices.map((b: any, i: number) => (
+                  <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '28px 24px' }}>
+                    {b.ico && <div style={{ width: 52, height: 52, borderRadius: 14, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26, marginBottom: 16 }}>{b.ico}</div>}
+                    <h3 style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>{b.titre}</h3>
+                    <p style={{ fontSize: 14, color: '#666', lineHeight: 1.7, margin: 0 }}>{b.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* 5. Détails : sections texte / photo en alternance */}
+        {rv.afficherDetails !== false && details.length > 0 && (
+          <section style={{ padding: isMobile ? '48px 20px' : '72px 24px' }}>
+            <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: isMobile ? 40 : 72 }}>
+              {details.map((d: any, i: number) => { const photo = /^https?:\/\//i.test(d.photo || '') ? d.photo : ''; return (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: isMobile || !photo ? '1fr' : '1fr 1fr', gap: isMobile ? 20 : 56, alignItems: 'center' }}>
+                  <div style={{ order: !isMobile && i % 2 === 1 ? 2 : 1 }}>
+                    <h2 style={{ fontSize: isMobile ? 24 : 32, fontWeight: 800, color: '#1a1a1a', margin: '0 0 14px', lineHeight: 1.2 }}>{d.titre}</h2>
+                    <p style={{ fontSize: 16, color: '#555', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-line' }}>{d.texte}</p>
+                  </div>
+                  {photo && <div style={{ order: !isMobile && i % 2 === 1 ? 1 : 2, borderRadius: 18, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '4/3' }}><img src={photo} alt={d.titre || ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>}
+                </div>
+              ); })}
+            </div>
+          </section>
+        )}
+
+        {/* 6. Avis des clients */}
+        {rv.afficherAvis !== false && avis.length > 0 && (
+          <section style={{ background: '#f8fafc', padding: isMobile ? '48px 20px' : '72px 24px' }}>
+            <div style={{ maxWidth: 1100, margin: '0 auto' }}>
+              <div style={{ textAlign: 'center', marginBottom: 32 }}>{titreSec('avisTitre', 'Ce que disent nos clients')}</div>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : `repeat(${Math.min(avis.length, 3)},1fr)`, gap: 20 }}>
+                {avis.map((a: any, i: number) => (
+                  <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 16, padding: '24px' }}>
+                    <div style={{ color: '#f59e0b', fontSize: 16, marginBottom: 10 }}>{'★'.repeat(Math.max(1, Math.min(5, Number(a.note) || 5)))}</div>
+                    <p style={{ fontSize: 15, color: '#444', lineHeight: 1.7, margin: '0 0 14px' }}>« {a.texte} »</p>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{a.auteur}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* 7. Questions fréquentes */}
+        {rv.afficherFaq !== false && faq.length > 0 && (
+          <section style={{ padding: isMobile ? '48px 20px' : '72px 24px' }}>
+            <div style={{ maxWidth: 780, margin: '0 auto' }}>
+              <div style={{ textAlign: 'center', marginBottom: 28 }}>{titreSec('faqTitre', 'Questions fréquentes')}</div>
+              {faq.map((item: any, i: number) => (
+                <div key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <button onClick={() => setFaqOuvert(faqOuvert === i ? null : i)} style={{ width: '100%', background: 'none', border: 'none', padding: '20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 16, textAlign: 'left' }}>
+                    <span style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.4 }}>{item.question}</span>
+                    <span style={{ fontSize: 22, color: cp, flexShrink: 0, transition: 'transform 0.2s', transform: faqOuvert === i ? 'rotate(45deg)' : 'none' }}>+</span>
+                  </button>
+                  {faqOuvert === i && <div style={{ paddingBottom: 20, fontSize: 15, color: '#555', lineHeight: 1.7 }}>{item.reponse}</div>}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* 8. Appel final */}
+        {rv.afficherCta !== false && (
+          <section style={{ background: cp, padding: isMobile ? '48px 20px' : '72px 24px', textAlign: 'center' }}>
+            <div style={{ maxWidth: 640, margin: '0 auto' }}>
+              <h2 style={{ fontSize: isMobile ? 26 : 36, fontWeight: 900, color: '#fff', margin: '0 0 12px' }}>{t('ctaTitre', p.titre)}</h2>
+              {t('ctaTexte', '') && <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.85)', margin: '0 0 24px', lineHeight: 1.6 }}>{t('ctaTexte', '')}</p>}
+              <button onClick={allerAcheter} style={{ background: '#fff', color: cp, border: 'none', borderRadius: 12, padding: '16px 36px', fontSize: 17, fontWeight: 800, cursor: 'pointer' }}>{t('ctaBouton', 'Acheter maintenant')} →</button>
+            </div>
+          </section>
+        )}
+
+        {/* Mobile : barre d'achat collée en bas */}
+        {isMobile && (
+          <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 150, background: '#fff', borderTop: '1px solid #e5e7eb', padding: '10px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, boxShadow: '0 -4px 16px rgba(0,0,0,0.08)' }}>
+            <div style={{ minWidth: 0 }}><div style={{ fontSize: 12, color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.titre}</div><div style={{ fontSize: 18, fontWeight: 800, color: '#1a1a1a' }}>{prix(prixBas)}</div></div>
+            <button onClick={allerAcheter} style={{ background: cp, color: '#fff', border: 'none', borderRadius: 10, padding: '12px 22px', fontSize: 15, fontWeight: 800, cursor: 'pointer', flexShrink: 0 }}>Acheter</button>
+          </div>
+        )}
+        {isMobile && <div style={{ height: 64 }} />}
       </div>
     );
   };
@@ -1863,7 +2077,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
       {avisPanier && <div role="status" style={{ position: 'fixed', top: 76, left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: '#fff', border: `1px solid ${cp}`, color: '#1a1a1a', padding: '12px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 30px rgba(0,0,0,0.18)', maxWidth: '92vw' }}>{avisPanier}</div>}
 
       <main style={{ flex: 1 }}>
-        {page === 'accueil'   && <PageAccueil />}
+        {page === 'accueil'   && (mono ? PageVente() : <PageAccueil />)}
         {page === 'catalogue' && <PageCatalogue />}
         {page === 'produit'   && PageProduit()}
         {page === 'blog'      && <PageBlog />}

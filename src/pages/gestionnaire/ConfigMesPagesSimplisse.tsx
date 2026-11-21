@@ -330,7 +330,7 @@ const CONFIG_DEFAUT: ConfigSimplisse = {
 const Inp = ({ value, onChange, placeholder, type = 'text' }: any) => (
   <input type={type} value={value ?? ''} placeholder={placeholder}
     onChange={e => onChange(e.target.value)}
-    style={{ width: '100%', padding: '8px 11px', border: '1.5px solid #e5e7eb', borderRadius: 5, fontSize: 13, outline: 'none', background: '#fff', color: '#1a1a1a', boxSizing: 'border-box' }}
+    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, outline: 'none', background: '#fff', color: '#1a1a1a', boxSizing: 'border-box', fontFamily: 'inherit' }}
     onFocus={e => (e.target.style.borderColor = CP)}
     onBlur={e => (e.target.style.borderColor = '#e5e7eb')} />
 );
@@ -338,22 +338,22 @@ const Inp = ({ value, onChange, placeholder, type = 'text' }: any) => (
 const Txt = ({ value, onChange, placeholder, rows = 3 }: any) => (
   <textarea value={value ?? ''} placeholder={placeholder} rows={rows}
     onChange={e => onChange(e.target.value)}
-    style={{ width: '100%', padding: '8px 11px', border: '1.5px solid #e5e7eb', borderRadius: 5, fontSize: 13, outline: 'none', resize: 'vertical', fontFamily: 'inherit', background: '#fff', color: '#1a1a1a', boxSizing: 'border-box' }}
+    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, outline: 'none', resize: 'vertical', fontFamily: 'inherit', background: '#fff', color: '#1a1a1a', boxSizing: 'border-box', lineHeight: 1.5 }}
     onFocus={e => (e.target.style.borderColor = CP)}
     onBlur={e => (e.target.style.borderColor = '#e5e7eb')} />
 );
 
 const F = ({ label, desc, children }: any) => (
-  <div style={{ marginBottom: 11 }}>
-    <label style={{ fontSize: 11, fontWeight: 600, color: '#555', display: 'block', marginBottom: 3 }}>{label}</label>
-    {desc && <p style={{ fontSize: 10, color: '#aaa', marginBottom: 4, margin: '0 0 4px' }}>{desc}</p>}
+  <div style={{ marginBottom: 16 }}>
+    <label style={{ fontSize: 12, fontWeight: 700, color: '#555', display: 'block', marginBottom: 6 }}>{label}</label>
+    {desc && <p style={{ fontSize: 12, color: '#888', margin: '0 0 6px', lineHeight: 1.5 }}>{desc}</p>}
     {children}
   </div>
 );
 
 const S = ({ titre, children }: any) => (
-  <div style={{ marginBottom: 18 }}>
-    <h3 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#aaa', marginBottom: 9, paddingBottom: 5, borderBottom: '1px solid #f0f0f0', margin: '0 0 9px' }}>
+  <div style={{ marginBottom: 30 }}>
+    <h3 style={{ fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: CP, margin: '0 0 16px', paddingBottom: 10, borderBottom: '2px solid #eef2ff' }}>
       {titre}
     </h3>
     {children}
@@ -362,23 +362,23 @@ const S = ({ titre, children }: any) => (
 
 const Couleur = ({ label, value, onChange }: any) => (
   <F label={label}>
-    <div style={{ display: 'flex', gap: 6 }}>
+    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
       <input type="color" value={value || '#000000'} onChange={e => onChange(e.target.value)}
-        style={{ width: 34, height: 30, padding: 2, border: '1px solid #ddd', borderRadius: 5, cursor: 'pointer', flexShrink: 0 }} />
+        style={{ width: 44, height: 40, padding: 2, border: '1px solid #ddd', borderRadius: 8, cursor: 'pointer', flexShrink: 0 }} />
       <Inp value={value} onChange={onChange} />
     </div>
   </F>
 );
 
 const Toggle = ({ label, checked, onChange, desc }: any) => (
-  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14, marginBottom: 14, padding: '10px 0', borderBottom: '1px solid #f3f4f6' }}>
     <div>
-      <p style={{ fontSize: 12, fontWeight: 600, color: '#1a1a1a', margin: 0 }}>{label}</p>
-      {desc && <p style={{ fontSize: 11, color: '#888', margin: '2px 0 0' }}>{desc}</p>}
+      <p style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', margin: 0 }}>{label}</p>
+      {desc && <p style={{ fontSize: 12, color: '#777', margin: '3px 0 0', lineHeight: 1.5 }}>{desc}</p>}
     </div>
     <button onClick={() => onChange(!checked)}
-      style={{ width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer', background: checked ? CP : '#ddd', position: 'relative', flexShrink: 0, transition: 'background .25s' }}>
-      <div style={{ position: 'absolute', top: 2, left: checked ? 20 : 2, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .25s' }} />
+      style={{ width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', background: checked ? CP : '#d1d5db', position: 'relative', flexShrink: 0, transition: 'background .25s', marginTop: 2 }}>
+      <div style={{ position: 'absolute', top: 3, left: checked ? 23 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left .25s' }} />
     </button>
   </div>
 );
@@ -526,245 +526,6 @@ function EditeurChampInscription({ champ, index, total, ouvertParDefaut, onChang
   );
 }
 
-// ─── Aperçu visuel mini ────────────────────────────────────────────────────────
-
-function ApercuMini({ config, pageCourante, articlesBlog }: { config: ConfigSimplisse; pageCourante: string; articlesBlog?: any }) {
-  const acc = config.accueil;
-  const foot = config.footer;
-
-  const sectionsTriees = [...(pageCourante === 'accueil' ? acc.sections : config.catalogue.sections)]
-    .sort((a, b) => a.ordre - b.ordre)
-    .filter(s => s.actif);
-
-  const hero = pageCourante === 'accueil' ? acc.hero
-    : pageCourante === 'catalogue' ? config.catalogue.hero
-    : pageCourante === 'faq' ? config.faq.hero
-    : pageCourante === 'blog' ? config.blog.hero
-    : pageCourante === 'contact' ? config.contact.hero
-    : config.faq.hero; // « À propos » : pas de hero (non utilisé)
-
-  const banniere = pageCourante === 'accueil' ? acc.banniere
-    : pageCourante === 'catalogue' ? config.catalogue.banniere
-    : pageCourante === 'faq' ? config.faq.banniere
-    : pageCourante === 'blog' ? config.blog.banniere
-    : pageCourante === 'contact' ? config.contact.banniere
-    : { actif: false } as any; // fiche produit, compte, footer : pas de bannière sur le site
-
-  const mini: React.CSSProperties = { fontSize: 9, padding: '3px 7px', borderRadius: 4, textAlign: 'center' };
-
-  return (
-    <div style={{ fontFamily: "'Inter',sans-serif", background: '#fff', borderRadius: 10, overflow: 'hidden', border: '1px solid #e5e7eb' }}>
-
-      {/* Nav mini */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '6px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ fontSize: 10, fontWeight: 700, color: acc.couleurPrimaire }}>{foot.nomBoutique || 'Ma Boutique'}</span>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {([['accueil','Accueil'],['catalogue','Catalogue'],['blog','Blog'],['faq','FAQ'],['a-propos','À propos'],['contact','Contact']] as string[][]).filter(([id]) => !(config.menu?.masques || []).includes(id)).map(([id, l]) => (config.menu?.[id] || '').trim() || l).map(p => (
-            <span key={p} style={{ fontSize: 8, color: '#888' }}>{p}</span>
-          ))}
-        </div>
-        <span style={{ fontSize: 9, background: acc.couleurPrimaire, color: '#fff', borderRadius: 4, padding: '2px 6px' }}>🛒 0</span>
-      </div>
-
-      {/* Bannière */}
-      {banniere?.actif && (
-        <div style={{ background: banniere.couleurFond, color: banniere.couleurTexte, fontSize: 9, padding: '4px 10px', textAlign: 'center' }}>
-          {banniere.texte || 'Bannière promo'}
-        </div>
-      )}
-
-      {/* Sections selon la page */}
-      {pageCourante === 'accueil' && (
-        <>
-          {sectionsTriees.map(sec => {
-            if (sec.id === 'hero') return (
-              <div key={sec.id} style={{ background: hero.couleurFond, padding: '14px 10px', textAlign: hero.style === 'gauche' ? 'left' : 'center' }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: hero.couleurTitre || '#1a1a1a', marginBottom: 3 }}>{hero.titre || 'Titre hero'}</div>
-                <div style={{ fontSize: 9, color: '#666', marginBottom: 6 }}>{hero.sousTitre || 'Sous-titre'}</div>
-                <span style={{ background: hero.couleurBouton || CP, color: '#fff', ...mini }}>{hero.boutonLabel || 'Voir catalogue'}</span>
-              </div>
-            );
-            if (sec.id === 'avantages') return (
-              <div key={sec.id} style={{ display: 'flex', justifyContent: 'space-around', padding: '6px 8px', background: '#f8fafc', borderTop: '1px solid #e5e7eb' }}>
-                {((acc.avantages || []).filter((x: any) => x && (x.titre || x.desc)).slice(0, 4).map((x: any) => `${x.ico || ''} ${x.titre || x.desc}`)).map((t: string) => <span key={t} style={{ fontSize: 8, color: '#555' }}>{t}</span>)}
-                {!(acc.avantages || []).some((x: any) => x && (x.titre || x.desc)) && <span style={{ fontSize: 8, color: '#aaa' }}>(aucun avantage saisi : bandeau masqué)</span>}
-              </div>
-            );
-            if (sec.id === 'vedette') return (
-              <div key={sec.id} style={{ padding: '8px 10px' }}>
-                <div style={{ fontSize: 9, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 5 }}>⭐ Produits en vedette</div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 4 }}>
-                  {['👟','🎒','🧴','🎁'].map(e => (
-                    <div key={e} style={{ background: '#f3f4f6', borderRadius: 4, padding: 4, textAlign: 'center' }}>
-                      <div style={{ fontSize: 14 }}>{e}</div>
-                      <div style={{ fontSize: 7, color: '#555', marginTop: 2 }}>49$</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-            if (sec.id === 'categories') return (
-              <div key={sec.id} style={{ padding: '6px 10px', background: '#f8fafc' }}>
-                <div style={{ fontSize: 9, fontWeight: 600, color: '#888', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>🗂 Catégories</div>
-                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {['Mode','Maison','Sport','Tech'].map(c => (
-                    <span key={c} style={{ fontSize: 8, background: `${acc.couleurPrimaire}15`, color: acc.couleurPrimaire, borderRadius: 4, padding: '2px 6px' }}>{c}</span>
-                  ))}
-                </div>
-              </div>
-            );
-            if (sec.id === 'temoignages') return (
-              <div key={sec.id} style={{ padding: '6px 10px', background: '#f8fafc', borderTop: '1px solid #e5e7eb' }}>
-                <div style={{ fontSize: 9, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>💬 Témoignages</div>
-                <div style={{ fontSize: 8, color: '#555', fontStyle: 'italic' }}>"Excellent service, livraison rapide!" — Marie L.</div>
-              </div>
-            );
-            if (sec.id === 'newsletter') return (
-              <div key={sec.id} style={{ padding: '6px 10px', background: `${acc.couleurPrimaire}10`, borderTop: '1px solid #e5e7eb' }}>
-                <div style={{ fontSize: 9, color: '#555', marginBottom: 3 }}>📧 Restez informé</div>
-                <div style={{ display: 'flex', gap: 3 }}>
-                  <div style={{ flex: 1, height: 16, background: '#fff', borderRadius: 3, border: '1px solid #ddd' }} />
-                  <div style={{ height: 16, padding: '0 6px', background: acc.couleurPrimaire, borderRadius: 3, display: 'flex', alignItems: 'center' }}>
-                    <span style={{ fontSize: 7, color: '#fff' }}>S'inscrire</span>
-                  </div>
-                </div>
-              </div>
-            );
-            return null;
-          })}
-        </>
-      )}
-
-      {pageCourante === 'catalogue' && (
-        <>
-          <div style={{ background: '#f8fafc', padding: '6px 10px', display: 'flex', gap: 4, alignItems: 'center', borderBottom: '1px solid #e5e7eb' }}>
-            <div style={{ flex: 1, height: 16, background: '#fff', borderRadius: 3, border: '1px solid #ddd', display: 'flex', alignItems: 'center', paddingLeft: 5 }}>
-              <span style={{ fontSize: 7, color: '#aaa' }}>🔍 Rechercher...</span>
-            </div>
-            <span style={{ fontSize: 8, background: '#e5e7eb', borderRadius: 4, padding: '2px 5px', color: '#555' }}>Filtres</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${config.catalogue.colonnes}, 1fr)`, gap: 5, padding: '8px 10px' }}>
-            {[...Array(config.catalogue.colonnes * 2)].map((_, i) => (
-              <div key={i} style={{ background: '#f3f4f6', borderRadius: 5, overflow: 'hidden' }}>
-                <div style={{ height: 40, background: '#e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{'📦'}</div>
-                <div style={{ padding: 4 }}>
-                  <div style={{ fontSize: 8, fontWeight: 600, color: '#1a1a1a', marginBottom: 2 }}>Produit {i + 1}</div>
-                  {config.catalogue.afficherPrix && <div style={{ fontSize: 8, color: acc.couleurPrimaire, fontWeight: 700 }}>29,99$</div>}
-                </div>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-
-      {pageCourante === 'a-propos' && (
-        <div style={{ padding: '8px 10px' }}>
-          <div style={{ fontSize: 8, color: acc.couleurPrimaire, fontWeight: 700, marginBottom: 2 }}>{config.aPropos.sousTitre || 'Notre histoire'}</div>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>{config.aPropos.titre || 'À propos de nous'}</div>
-          {config.aPropos.accroche && <div style={{ fontSize: 9, color: '#555', marginBottom: 6 }}>{config.aPropos.accroche}</div>}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
-            {[0, 1, 2].map(i => <div key={i} style={{ background: '#f3f4f6', borderRadius: 4, height: 28, textAlign: 'center', fontSize: 8, color: '#555', padding: 3 }}>{(config.aPropos.valeurs || [])[i]?.titre || ''}</div>)}
-          </div>
-        </div>
-      )}
-
-      {pageCourante === 'faq' && (
-        <div style={{ padding: '8px 10px' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>{config.faq.titre}</div>
-          {config.faq.items.slice(0, 3).map((item, i) => (
-            <div key={i} style={{ borderBottom: '1px solid #e5e7eb', padding: '5px 0' }}>
-              <div style={{ fontSize: 9, fontWeight: 600, color: '#1a1a1a', marginBottom: 2 }}>Q: {item.question}</div>
-              <div style={{ fontSize: 8, color: '#888' }}>A: {item.reponse.substring(0, 50)}…</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {pageCourante === 'blog' && (
-        <div style={{ padding: '8px 10px' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>{config.blog.titre}</div>
-          {(() => {
-            // Vrais articles publiés (Mes blogs) ; aucun article publié : on le dit au lieu d'inventer des exemples
-            const pub = ((articlesBlog && articlesBlog.articles) || []).filter((a: any) => a.statut === 'publie').slice(0, 4);
-            if (articlesBlog && articlesBlog.charge && pub.length === 0) return <div style={{ fontSize: 8, color: '#888', padding: '6px 0' }}>Aucun article publié pour le moment.</div>;
-            return (
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${Math.min(config.blog.colonnes, 2)},1fr)`, gap: 5 }}>
-                {pub.map((a: any) => (
-                  <div key={a.id} style={{ background: '#f3f4f6', borderRadius: 5, overflow: 'hidden' }}>
-                    {a.image_couverture ? <img src={a.image_couverture} alt="" style={{ width: '100%', height: 30, objectFit: 'cover', display: 'block' }} /> : <div style={{ height: 30, background: '#e5e7eb' }} />}
-                    <div style={{ padding: 4 }}>
-                      <div style={{ fontSize: 8, fontWeight: 600, color: '#1a1a1a' }}>{a.titre}</div>
-                      {config.blog.afficherDate && (a.date_publication || a.created_at) && <div style={{ fontSize: 7, color: '#aaa' }}>{new Date(a.date_publication || a.created_at).toLocaleDateString('fr-CA')}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {pageCourante === 'contact' && (
-        <div style={{ padding: '8px 10px' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>{config.contact.titre}</div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-            <div>
-              {config.contact.adresse && <div style={{ fontSize: 8, color: '#555', marginBottom: 3 }}>📍 {config.contact.adresse}</div>}
-              {config.contact.courriel && <div style={{ fontSize: 8, color: '#555', marginBottom: 3 }}>✉️ {config.contact.courriel}</div>}
-              {config.contact.telephone && <div style={{ fontSize: 8, color: '#555' }}>📞 {config.contact.telephone}</div>}
-            </div>
-            <div style={{ background: '#f3f4f6', borderRadius: 5, padding: 5 }}>
-              <div style={{ height: 8, background: '#e5e7eb', borderRadius: 2, marginBottom: 3 }} />
-              <div style={{ height: 8, background: '#e5e7eb', borderRadius: 2, marginBottom: 3 }} />
-              <div style={{ height: 20, background: '#e5e7eb', borderRadius: 2, marginBottom: 3 }} />
-              <div style={{ height: 12, background: acc.couleurPrimaire, borderRadius: 3, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 7, color: '#fff' }}>Envoyer</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {pageCourante === 'footer' && (
-        <div style={{ background: foot.couleurFond, padding: '10px', color: foot.couleurTexte }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginBottom: 8 }}>
-            {[
-              { titre: foot.colonnes.titre1, liens: foot.colonnes.liens1 },
-              { titre: foot.colonnes.titre2, liens: foot.colonnes.liens2 },
-              { titre: foot.colonnes.titre3, liens: foot.colonnes.liens3 },
-            ].map((col, i) => (
-              <div key={i}>
-                <div style={{ fontSize: 9, fontWeight: 700, marginBottom: 4, opacity: 0.9 }}>{col.titre}</div>
-                {col.liens.split('\n').filter(Boolean).map((l, j) => (
-                  <div key={j} style={{ fontSize: 7, opacity: 0.6, marginBottom: 2 }}>{l}</div>
-                ))}
-              </div>
-            ))}
-          </div>
-          <div style={{ borderTop: `1px solid ${foot.couleurTexte}30`, paddingTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
-            <div style={{ display: 'flex', gap: 5 }}>
-              {foot.politiques.afficherConditions && <span style={{ fontSize: 7, opacity: 0.5 }}>Conditions</span>}
-              {foot.politiques.afficherConfidentialite && <span style={{ fontSize: 7, opacity: 0.5 }}>Confidentialité</span>}
-              {foot.politiques.afficherRetours && <span style={{ fontSize: 7, opacity: 0.5 }}>Retours</span>}
-            </div>
-            {foot.afficherPropulse && (
-              <span style={{ fontSize: 7, opacity: 0.4 }}>Propulsé par e-Vend Studio</span>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Footer mini toujours visible sauf si on édite le footer */}
-      {pageCourante !== 'footer' && (
-        <div style={{ background: foot.couleurFond, padding: '5px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: 7, color: foot.couleurTexte, opacity: 0.6 }}>© {foot.nomBoutique}</span>
-          {foot.afficherPropulse && <span style={{ fontSize: 6, color: foot.couleurTexte, opacity: 0.4 }}>Propulsé par e-Vend Studio</span>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Composant principal ──────────────────────────────────────────────────────
 
 type PageOnglet = 'accueil' | 'catalogue' | 'faq' | 'a-propos' | 'blog' | 'contact' | 'fiche-produit' | 'inscription' | 'footer';
@@ -777,9 +538,7 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
   const [config, setConfig] = useState<ConfigSimplisse>(CONFIG_DEFAUT);
   const [page, setPage] = useState<PageOnglet>('accueil');
   const [sauv, setSauv] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
-  const [modeApercu, setModeApercu] = useState<'desktop' | 'mobile'>('desktop');
   const articlesBlog = useArticlesBlog(); // vrais articles de « Mes blogs » (onglet Blog + aperçu)
-  const [panneauOuvert, setPanneauOuvert] = useState(false); // mobile: toggle config/aperçu
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
@@ -1366,101 +1125,42 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
     }
   };
 
-  // ── Layout ─────────────────────────────────────────────────────────────────
+  // ── Layout (même présentation que Premium : onglets à gauche, contenu pleine largeur) ──
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', fontFamily: "'Inter',sans-serif", background: '#f8f9fb' }}>
-
-      {/* ── Top bar ──────────────────────────────────────────────────────── */}
-      <div style={{ background: '#fff', borderBottom: '1px solid #e5e7eb', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg,#1e3a8a,${CP})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>🛍</div>
-        <div>
-          <p style={{ fontSize: 10, color: '#888', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', margin: 0 }}>Template Simplisse</p>
-          <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>Configuration de mes pages</p>
+    <div style={{ maxWidth: 1000, margin: '0 auto', padding: isMobile ? '16px 12px' : '28px 24px', fontFamily: "'Inter',sans-serif" }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 44, height: 44, borderRadius: 12, background: `linear-gradient(135deg,#1e3a8a,${CP})`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>🛍</div>
+          <div>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Config — Boutique Simplisse</h1>
+            <p style={{ fontSize: 12, color: '#888', margin: 0 }}>Personnalisez les pages de votre boutique</p>
+          </div>
         </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={() => window.open(`/site-preview?vendeurId=${gestionnaireId}`, '_blank', 'noopener,noreferrer')}
+            style={{ padding: '10px 18px', background: '#f8fafc', border: '1px solid #e5e7eb', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600, color: '#555' }}>
+            👁 Aperçu
+          </button>
+          <button onClick={handleSave} disabled={sauv === 'loading'}
+            style={{ padding: '10px 24px', background: sauv === 'ok' ? '#16a34a' : sauv === 'err' ? '#dc2626' : CP, border: 'none', borderRadius: 8, color: '#fff', fontSize: 13, fontWeight: 800, cursor: sauv === 'loading' ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
+            {sauv === 'loading' ? '⏳ Sauvegarde...' : sauv === 'ok' ? '✅ Sauvegardé !' : sauv === 'err' ? '❌ Erreur' : '💾 Sauvegarder'}
+          </button>
+        </div>
+      </div>
 
-        {/* Onglets pages */}
-        <div style={{ flex: 1, display: 'flex', gap: 4, flexWrap: 'wrap', marginLeft: 8 }}>
-          {PAGES.map(p => (
-            <button key={p.id} onClick={() => setPage(p.id as PageOnglet)}
-              style={{ padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 500, background: page === p.id ? CP : '#f3f4f6', color: page === p.id ? '#fff' : '#555', transition: 'all .15s', display: 'flex', alignItems: 'center', gap: 4 }}>
-              {p.icone} {p.label}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '210px 1fr', gap: 24, alignItems: 'flex-start' }}>
+        <div style={{ background: '#fafafa', border: '1px solid #e5e7eb', borderRadius: 12, padding: 8, display: isMobile ? 'flex' : 'block', flexWrap: 'wrap', gap: 4, position: isMobile ? 'static' : 'sticky', top: 12 }}>
+          {PAGES.map(pg => (
+            <button key={pg.id} onClick={() => setPage(pg.id as PageOnglet)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: isMobile ? 'auto' : '100%', padding: '10px 12px', background: page === pg.id ? `${CP}15` : 'none', border: 'none', borderRadius: 8, color: page === pg.id ? CP : '#666', fontSize: 13, fontWeight: page === pg.id ? 700 : 500, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left' }}>
+              <span style={{ fontSize: 15 }}>{pg.icone}</span>{pg.label}
             </button>
           ))}
         </div>
 
-        {/* Bouton toggle mobile */}
-        {isMobile && (
-          <button onClick={() => setPanneauOuvert(!panneauOuvert)}
-            style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${CP}`, background: panneauOuvert ? CP : '#fff', color: panneauOuvert ? '#fff' : CP, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-            {panneauOuvert ? '👁 Aperçu' : '⚙️ Config'}
-          </button>
-        )}
-
-        {/* Bouton sauvegarder */}
-        <button onClick={handleSave} disabled={sauv === 'loading'}
-          style={{ padding: '7px 18px', background: sauv === 'ok' ? '#16a34a' : sauv === 'err' ? '#dc2626' : CP, border: 'none', borderRadius: 7, color: '#fff', fontWeight: 700, fontSize: 13, cursor: sauv === 'loading' ? 'wait' : 'pointer', flexShrink: 0 }}>
-          {sauv === 'loading' ? '⏳ Sauvegarde...' : sauv === 'ok' ? '✅ Sauvegardé !' : sauv === 'err' ? '❌ Erreur' : '💾 Sauvegarder'}
-        </button>
-      </div>
-
-      {/* ── Corps : panneau gauche + aperçu droit ────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: 'hidden' }}>
-
-        {/* Panneau config (gauche) */}
-        {(!isMobile || panneauOuvert) && (
-          <div style={{ width: isMobile ? '100%' : 360, minWidth: isMobile ? 'auto' : 320, background: '#fff', borderRight: isMobile ? 'none' : '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ flex: 1, overflowY: 'auto', padding: 14 }}>
-              {renderConfig()}
-            </div>
-          </div>
-        )}
-
-        {/* Aperçu (droite) */}
-        {(!isMobile || !panneauOuvert) && (
-          <div style={{ flex: 1, background: '#f0f2f5', overflow: 'auto', padding: 16 }}>
-
-            {/* Contrôles aperçu */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Aperçu</span>
-              <div style={{ display: 'flex', gap: 4 }}>
-                {(['desktop', 'mobile'] as const).map(m => (
-                  <button key={m} onClick={() => setModeApercu(m)}
-                    style={{ padding: '4px 10px', borderRadius: 5, border: '1px solid #e5e7eb', background: modeApercu === m ? '#1a1a1a' : '#fff', color: modeApercu === m ? '#fff' : '#555', fontSize: 11, cursor: 'pointer' }}>
-                    {m === 'desktop' ? '🖥' : '📱'} {m}
-                  </button>
-                ))}
-              </div>
-              <span style={{ fontSize: 10, color: '#aaa' }}>— Page : <strong style={{ color: '#555' }}>{PAGES.find(p => p.id === page)?.label}</strong></span>
-            </div>
-
-            {/* Cadre aperçu */}
-            <div style={{
-              margin: '0 auto',
-              maxWidth: modeApercu === 'mobile' ? 375 : '100%',
-              transition: 'max-width .3s ease',
-            }}>
-              {/* Barre navigateur simulée */}
-              <div style={{ background: '#e5e7eb', borderRadius: '8px 8px 0 0', padding: '6px 10px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#ef4444' }} />
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
-                <div style={{ flex: 1, background: '#fff', borderRadius: 4, padding: '2px 8px', fontSize: 9, color: '#aaa', marginLeft: 4 }}>
-                  {config.footer.nomBoutique?.toLowerCase().replace(/\s/g, '') || 'maboutique'}.e-vend.ca/{page === 'accueil' ? '' : page}
-                </div>
-              </div>
-              <div style={{ border: '1px solid #e5e7eb', borderTop: 'none', borderRadius: '0 0 8px 8px', overflow: 'hidden' }}>
-                {page === 'inscription'
-                  ? <div style={{ padding: 24, background: '#fff', fontSize: 12, color: '#666', lineHeight: 1.6, textAlign: 'center' }}>👤 La page « {config.inscription.titre || 'Créer un compte'} » n'a pas d'aperçu ici.<br />Enregistrez, puis ouvrez <strong>Aperçu de mon site</strong> → Connexion → Créer un compte.</div>
-                  : <ApercuMini config={config} pageCourante={page} articlesBlog={articlesBlog} />}
-              </div>
-            </div>
-
-            {/* Note info */}
-            <p style={{ textAlign: 'center', fontSize: 11, color: '#aaa', marginTop: 12 }}>
-              L'aperçu est une représentation simplifiée. Le rendu final sera visible via <strong>Aperçu de mon site</strong>.
-            </p>
-          </div>
-        )}
+        <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: isMobile ? '18px 16px' : '26px 30px', minWidth: 0 }}>
+          {renderConfig()}
+        </div>
       </div>
     </div>
   );

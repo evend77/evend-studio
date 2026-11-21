@@ -42,6 +42,11 @@ async function getStripeKey(vendeurId) {
 // ─── POST /api/boutique-studio/creer-commande ─────────────────────────────────
 // Crée une commande + session Stripe Checkout
 router.post('/creer-commande', async (req, res) => {
+  // 🔒 DÉSACTIVÉE : l'ancien template Mono-produit envoyait le PRIX depuis le navigateur (n'importe qui pouvait payer 0,01 $).
+  // Le template Mono-produit utilise maintenant le panier et la caisse des boutiques (/api/boutique/acheteur/:gid/…), où le serveur
+  // recalcule prix, stock, taxes et expédition. Les anciennes commandes (commandes_studio) restent lisibles plus bas.
+  return res.status(410).json({ message: "Cette méthode de commande n'est plus disponible. Rechargez la page de la boutique." });
+  // eslint-disable-next-line no-unreachable
   const {
     site_id, vendeur_id,
     nom_client, email_client, telephone,
