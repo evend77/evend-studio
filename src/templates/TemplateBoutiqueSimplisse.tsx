@@ -36,6 +36,7 @@ interface ConfigAccueil {
   hero: ConfigHero; banniere: ConfigBanniere; sections: SectionPage[];
   couleurPrimaire: string; couleurSecondaire: string; couleurFondPage: string; couleurTexte: string; police: string;
   temoignages?: { texte: string; auteur: string; note: number }[];
+  avantages?: { ico: string; titre: string; desc: string }[];
 }
 interface ConfigCatalogue {
   titre: string; sousTitre: string; colonnes: 2|3|4;
@@ -117,9 +118,22 @@ const CFG_DEF: ConfigSimplisse = {
   contact: { titre:'Nous contacter', sousTitre:'Une question ? Nous sommes là pour vous.', hero:HERO_DEF, banniere:BAN_DEF, adresse:'', telephone:'', courriel:'', afficherCarte:false, urlCarte:'' },
   footer: { nomBoutique:'Ma Boutique', slogan:'', couleurFond:'#111827', couleurTexte:'#ffffff', afficherPropulse:true,
     reseaux:{ facebook:'', instagram:'', tiktok:'', twitter:'', youtube:'', linkedin:'', pinterest:'' },
-    colonnes:{ titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nFAQ', titre2:'Aide', liens2:'Contact', titre3:'', liens3:'' },
+    colonnes:{ titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nFAQ\nÀ propos', titre2:'Aide', liens2:'Contact', titre3:'', liens3:'' },
     politiques:{ afficherConditions:true, afficherConfidentialite:true, afficherRetours:true, afficherLivraison:true, afficherMentions:true, afficherCoordonnees:true },
   },
+};
+
+// Exemples de démonstration de la page À propos : affichés tant que le gestionnaire n'a rien saisi (Config Mes pages → À propos)
+const APROPOS_DEMO = {
+  accroche: 'Nous croyons que la qualité devrait être accessible à tous — sans compromis.',
+  description: "Fondée avec une passion pour l'excellence, notre boutique sélectionne rigoureusement chaque produit pour vous offrir ce qu'il y a de mieux. Chaque article est testé, validé et choisi avec soin pour dépasser vos attentes.",
+  valeurs: [
+    { ico: '💎', titre: 'Qualité sans compromis', desc: 'Chaque produit est sélectionné selon des critères rigoureux. Nous refusons la médiocrité.' },
+    { ico: '🤝', titre: 'Service humain', desc: "Derrière chaque commande, il y a une personne réelle, disponible pour vous accompagner à chaque étape." },
+    { ico: '🌱', titre: 'Responsabilité', desc: 'Nous choisissons prioritairement des fournisseurs éthiques et des emballages éco-responsables.' },
+  ],
+  chiffres: [{ nb: '500+', label: 'Produits sélectionnés' }, { nb: '4.8/5', label: 'Note moyenne' }, { nb: '2 000+', label: 'Clients satisfaits' }, { nb: '30 jours', label: 'Politique de retour' }],
+  equipe: [{ prenom: 'Alexandre', poste: 'Fondateur & Directeur', photo: '' }, { prenom: 'Marie', poste: 'Responsable des achats', photo: '' }, { prenom: 'Sophie', poste: 'Service à la clientèle', photo: '' }],
 };
 
 const API_BASE = '/api';
@@ -222,7 +236,7 @@ function Hero({ cfg, cp, onNaviguer, cs }: { cfg: ConfigHero; cp: string; onNavi
     if (!l) { onNaviguer('catalogue'); return; }
     if (/^(https?:)?\/\//i.test(l) || /^(mailto|tel):/i.test(l)) { window.location.href = l; return; }
     const cle = l.replace(/^\/+/, '').split(/[?#]/)[0].toLowerCase();
-    const alias: Record<string, string> = { connexion: 'login', 'a-propos': 'faq' };
+    const alias: Record<string, string> = { connexion: 'login', 'a-propos': 'a-propos' };
     onNaviguer(alias[cle] || cle || 'catalogue');
   };
   const isGauche = cfg.style === 'gauche';
@@ -434,7 +448,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   const cs = cfg.accueil.couleurSecondaire || '#666'; // couleur secondaire (config → Accueil) : sous-titres et textes d'appoint
 
   // ── State navigation interne ──────────────────────────────────────────────
-  type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'contact' | 'login' | 'inscription' | 'compte' | 'offres' | 'encheres' | 'politique';
+  type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'a-propos' | 'contact' | 'login' | 'inscription' | 'compte' | 'offres' | 'encheres' | 'politique';
   const [page, setPage]               = useState<PageId>('accueil');
   const [produitActif, setProduitActif] = useState<Produit | null>(null);
   const [articleActif, setArticleActif] = useState<ArticleBlog | null>(null);
@@ -653,7 +667,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     if (dest.toLowerCase() === 'panier') { setVueCompte('panier'); setPage('compte'); return; }
     const slugPol = slugPolitique(dest);
     if (slugPol) { ouvrirPolitique(slugPol); return; }
-    const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', contact:'contact', compte:'compte', login:'login', inscription:'inscription', offres:'offres', encheres:'encheres', connexion:'login' };
+    const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', 'a-propos':'a-propos', contact:'contact', compte:'compte', login:'login', inscription:'inscription', offres:'offres', encheres:'encheres', connexion:'login' };
     const cle = sansAccent(dest).replace(/\s+/g, '-');
     if (map[cle]) setPage(map[cle]);
   }, [ouvrirPolitique]);
@@ -686,7 +700,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
     if (d.page === 'produit' && Number(d.produitId) > 0) { const pr = produits.find(x => Number(x.id) === Number(d.produitId)); if (pr) voirProduit(pr); else naviguer('catalogue'); return; }
     if (d.page === 'article' && typeof d.articleSlug === 'string') { voirArticle({ id: 0, titre: '', slug: d.articleSlug }); return; }
     if (d.page === 'politique' && typeof d.politiqueSlug === 'string' && POLITIQUES_SLUGS.includes(d.politiqueSlug)) { ouvrirPolitique(d.politiqueSlug); return; }
-    if (d.page === 'faq' || d.page === 'blog' || d.page === 'contact' || d.page === 'catalogue') setPage(d.page);
+    if (d.page === 'faq' || d.page === 'a-propos' || d.page === 'blog' || d.page === 'contact' || d.page === 'catalogue') setPage(d.page);
   };
   useEffect(() => { const f = (e: Event) => navChatbot.current((e as CustomEvent).detail); window.addEventListener('boutique-chatbot-nav', f); return () => window.removeEventListener('boutique-chatbot-nav', f); }, []);
 
@@ -788,7 +802,10 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   // NAV
   // ══════════════════════════════════════════════════════════════════════════
   const extras: CarteExtras = { gid: vendeurId > 0 ? vendeurId : undefined, connecte: !!acheteur, demo: produitsDemo, offre: offreCtx };
-  const liensNav: string[][] = [['accueil', 'Accueil'], ['catalogue', 'Catalogue'], ...(nbOffres > 0 ? [['offres', '🔥 Offres du jour']] : []), ...(nbEncheres > 0 ? [['encheres', '🔨 Enchères']] : []), ['blog', 'Blog'], ['faq', 'FAQ'], ['contact', 'Contact']];
+  const liensNav: string[][] = [['accueil', 'Accueil'], ['catalogue', 'Catalogue'], ...(nbOffres > 0 ? [['offres', '🔥 Offres du jour']] : []), ...(nbEncheres > 0 ? [['encheres', '🔨 Enchères']] : []), ['blog', 'Blog'], ['faq', 'FAQ'], ['a-propos', 'À propos'], ['contact', 'Contact']]
+    // Menu du haut configurable (Config Mes pages → Accueil) : libellé renommé ou page cachée
+    .filter(([id]) => !(Array.isArray(rawSimplisse.menu?.masques) ? rawSimplisse.menu.masques : []).includes(id))
+    .map(([id, l]) => [id, (typeof rawSimplisse.menu?.[id] === 'string' && rawSimplisse.menu[id].trim()) ? rawSimplisse.menu[id].trim() : l]);
   const Nav = () => (
     <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fff', borderBottom: '1px solid #e5e7eb', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
       <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -802,7 +819,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
           <div style={{ display: 'flex', gap: 6 }}>
             {liensNav.map(([id, label]) => (
               <button key={id} onClick={() => naviguer(id)}
-                style={{ background: page === id ? `${cp}12` : 'none', border: 'none', borderRadius: 8, color: page === id ? cp : '#555', fontSize: 14, fontWeight: page === id ? 700 : 500, cursor: 'pointer', padding: '8px 14px' }}>
+                style={{ background: page === id ? `${cp}12` : 'none', border: 'none', borderRadius: 8, color: page === id ? cp : '#555', fontSize: 14, fontWeight: page === id ? 700 : 500, cursor: 'pointer', padding: '8px 10px', whiteSpace: 'nowrap' }}>
                 {label}
               </button>
             ))}
@@ -865,12 +882,17 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         case 'hero':
           return <Hero key={sec.id} cfg={cfg.accueil.hero} cp={cp} onNaviguer={naviguer} cs={cs} />;
 
-        case 'avantages':
+        case 'avantages': {
+          // Avantages saisis par le gestionnaire (Config → Accueil). Les exemples ne s'affichent qu'en démonstration : jamais de promesse inventée sur une vraie boutique.
+          const avSaisis = (Array.isArray(cfg.accueil.avantages) ? cfg.accueil.avantages : []).filter(a => a && (a.titre || a.desc));
+          const avExemples = [{ ico: '🚚', titre: 'Livraison rapide', desc: '24–48h ouvrables' }, { ico: '🔒', titre: 'Paiement sécurisé', desc: 'Stripe ou PayPal' }, { ico: '🔄', titre: 'Retours faciles', desc: 'Sous 30 jours' }, { ico: '💬', titre: 'Support client', desc: 'Réponse rapide' }];
+          const avListe = avSaisis.length > 0 ? avSaisis : (configBrut?.__produits_demo__ ? avExemples : []);
+          if (avListe.length === 0) return null;
           return (
             <div key={sec.id} style={{ background: '#f8fafc', borderTop: '1px solid #e5e7eb', borderBottom: '1px solid #e5e7eb' }}>
               <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px', display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 40, flexWrap: 'wrap' }}>
-                {[['🚚', 'Livraison rapide', '24–48h ouvrables'], ['🔒', 'Paiement sécurisé', 'Stripe certifié'], ['🔄', 'Retours faciles', 'Sous 30 jours'], ['💬', 'Support client', 'Réponse rapide']].map(([ico, titre, desc]) => (
-                  <div key={titre} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 160 }}>
+                {avListe.map(({ ico, titre, desc }, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 160 }}>
                     <span style={{ fontSize: 24 }}>{ico}</span>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{titre}</div>
@@ -881,6 +903,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
               </div>
             </div>
           );
+        }
 
         case 'vedette':
           if (produitsVedette.length === 0) return null;
@@ -1659,6 +1682,93 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
   );
 
   // ══════════════════════════════════════════════════════════════════════════
+  // PAGE À PROPOS (Config Mes pages → À propos ; vide : exemples affichés seulement en démo)
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageAPropos = () => {
+    const ap: any = rawSimplisse.aPropos || {};
+    const demo = !!configBrut?.__produits_demo__;
+    const liste = (cle: string, ex: any[], ok: (x: any) => boolean) => { const l = (Array.isArray(ap[cle]) ? ap[cle] : []).filter((x: any) => x && typeof x === 'object' && ok(x)); return l.length > 0 ? l : (demo ? ex : []); };
+    const valeurs = liste('valeurs', APROPOS_DEMO.valeurs, x => !!(x.titre || x.desc));
+    const chiffres = liste('chiffres', APROPOS_DEMO.chiffres, x => !!(x.nb || x.label));
+    const equipe = liste('equipe', APROPOS_DEMO.equipe, x => !!(x.prenom || x.poste));
+    const t = (cle: string, defaut: string) => (typeof ap[cle] === 'string' && ap[cle].trim()) ? ap[cle].trim() : defaut;
+    const accroche = t('accroche', demo ? APROPOS_DEMO.accroche : '');
+    const description = t('description', demo ? APROPOS_DEMO.description : '');
+    const lbl: React.CSSProperties = { fontSize: 12, color: cp, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 };
+    const coulEq = [cp, '#6366f1', '#10b981'];
+    return (
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
+        <div style={lbl}>{t('sousTitre', 'Notre histoire')}</div>
+        <h1 style={{ fontSize: isMobile ? 28 : 36, fontWeight: 800, color: '#1a1a1a', margin: '0 0 32px' }}>{t('titre', 'À propos de nous')}</h1>
+        {(accroche || description) && (
+          <div style={{ background: `${cp}0d`, border: `1px solid ${cp}25`, borderRadius: 16, padding: isMobile ? '28px 20px' : '44px 52px', marginBottom: 48 }}>
+            <div style={{ maxWidth: 680 }}>
+              {accroche && <p style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: '#1a1a1a', lineHeight: 1.5, margin: '0 0 16px' }}>{accroche}</p>}
+              {description && <p style={{ fontSize: 15, color: '#555', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-line' }}>{description}</p>}
+            </div>
+          </div>
+        )}
+        {ap.afficherValeurs !== false && valeurs.length > 0 && (
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div style={lbl}>{t('valeursSurtitre', 'Nos valeurs')}</div>
+              <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{t('valeursTitre', 'Ce qui nous définit')}</h2>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 20 }}>
+              {valeurs.map((v: any, i: number) => (
+                <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: '24px 22px' }}>
+                  {v.ico && <div style={{ width: 48, height: 48, borderRadius: 12, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, marginBottom: 14 }}>{v.ico}</div>}
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', margin: '0 0 8px' }}>{v.titre}</h3>
+                  <p style={{ fontSize: 14, color: '#666', lineHeight: 1.7, margin: 0 }}>{v.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {ap.afficherChiffres !== false && chiffres.length > 0 && (
+          <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 14, padding: '36px 20px', marginBottom: 48 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : `repeat(${Math.min(chiffres.length, 4)},1fr)`, gap: 24, textAlign: 'center' }}>
+              {chiffres.map((x: any, i: number) => (
+                <div key={i}><div style={{ fontSize: isMobile ? 28 : 36, fontWeight: 800, color: cp, marginBottom: 4 }}>{x.nb}</div><div style={{ fontSize: 13, color: '#666' }}>{x.label}</div></div>
+              ))}
+            </div>
+          </div>
+        )}
+        {ap.afficherEquipe !== false && equipe.length > 0 && (
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div style={lbl}>{t('equipeSurtitre', "L'équipe")}</div>
+              <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{t('equipeTitre', 'Les visages derrière la boutique')}</h2>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 20 }}>
+              {equipe.map((m: any, i: number) => { const col = coulEq[i % 3]; const photo = /^https?:\/\//i.test(m.photo || '') ? m.photo : ''; return (
+                <div key={i} style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: '24px 20px', textAlign: 'center' }}>
+                  {photo
+                    ? <img src={photo} alt={m.prenom || ''} style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 14px', display: 'block' }} />
+                    : <div style={{ width: 72, height: 72, borderRadius: '50%', background: col, margin: '0 auto 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 800, color: '#fff' }}>{(m.prenom || '?').charAt(0).toUpperCase()}</div>}
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>{m.prenom}</div>
+                  <div style={{ fontSize: 13, color: col, fontWeight: 600 }}>{m.poste}</div>
+                </div>
+              ); })}
+            </div>
+          </div>
+        )}
+        {ap.afficherCta !== false && (
+          <div style={{ textAlign: 'center', padding: '44px 24px', background: `${cp}0d`, border: `1px solid ${cp}25`, borderRadius: 16 }}>
+            <div style={lbl}>{t('ctaSurtitre', 'Rejoignez-nous')}</div>
+            <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1a1a1a', margin: '0 0 10px' }}>{t('ctaTitre', 'Prêt à découvrir notre sélection ?')}</h2>
+            <p style={{ fontSize: 15, color: '#555', margin: '0 auto 24px', maxWidth: 460 }}>{t('ctaTexte', 'Découvrez nos produits dès maintenant.')}</p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => naviguer('catalogue')} style={{ background: cp, color: '#fff', border: 'none', borderRadius: 10, padding: '13px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{t('ctaBoutonCatalogue', 'Voir notre catalogue →')}</button>
+              <button onClick={() => naviguer('contact')} style={{ background: '#fff', color: '#1a1a1a', border: '1px solid #d1d5db', borderRadius: 10, padding: '13px 24px', fontSize: 15, cursor: 'pointer' }}>{t('ctaBoutonContact', 'Nous contacter')}</button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
   // PAGE CONTACT
   // ══════════════════════════════════════════════════════════════════════════
   const PageContact = () => (
@@ -1760,6 +1870,7 @@ export default function TemplateBoutiqueSimplisse({ config: configBrut, siteId, 
         {page === 'politique' && <PagePolitique />}
         {page === 'article'   && <PageArticle />}
         {page === 'faq'       && <PageFaq />}
+        {page === 'a-propos'  && <PageAPropos />}
         {page === 'contact'   && <PageContact />}
         {page === 'offres'    && PageOffres()}
         {page === 'encheres'  && PageEncheres()}

@@ -62,6 +62,7 @@ interface ConfigPageAccueil {
   couleurTexte: string;
   police: string;
   temoignages?: { texte: string; auteur: string; note: number }[];
+  avantages?: { ico: string; titre: string; desc: string }[];
 }
 
 interface ConfigFooter {
@@ -154,6 +155,8 @@ interface ConfigSimplisse {
   contact:  ConfigContact;
   footer:      ConfigFooter;
   ficheProduit: ConfigFicheProduit;
+  aPropos: any;       // page « À propos » (vide = rien d'inventé sur le site)
+  menu: any;          // menu du haut : libellés renommés + pages cachées
   inscription: any;   // page « Créer un compte » (même modèle que Premium) ; fusionnée avec les défauts à la lecture
 }
 
@@ -312,11 +315,13 @@ const CONFIG_DEFAUT: ConfigSimplisse = {
     couleurTexte: '#ffffff',
     afficherPropulse: true,
     reseaux: { facebook:'', instagram:'', tiktok:'', twitter:'', youtube:'', linkedin:'', pinterest:'' },
-    colonnes: { titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nContact', titre2:'Aide', liens2:'FAQ\nRetours\nLivraison\nContactez-nous', titre3:'Légal', liens3:'' },
+    colonnes: { titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nÀ propos\nContact', titre2:'Aide', liens2:'FAQ\nRetours\nLivraison\nContactez-nous', titre3:'Légal', liens3:'' },
     politiques: { afficherConditions: true, afficherConfidentialite: true, afficherRetours: true, afficherLivraison: true, afficherMentions: true, afficherCoordonnees: true },
   },
   ficheProduit: { ...FICHE_PRODUIT_DEFAUT },
   inscription: INSCRIPTION_DEF,
+  aPropos: { titre: '', sousTitre: '', accroche: '', description: '', afficherValeurs: true, afficherChiffres: true, afficherEquipe: true, afficherCta: true, valeursSurtitre: '', valeursTitre: '', valeurs: [] as any[], chiffres: [] as any[], equipeSurtitre: '', equipeTitre: '', equipe: [] as any[], ctaSurtitre: '', ctaTitre: '', ctaTexte: '', ctaBoutonCatalogue: '', ctaBoutonContact: '' },
+  menu: { accueil: '', catalogue: '', blog: '', faq: '', 'a-propos': '', contact: '', masques: [] as string[] },
 };
 
 // ─── Composants utilitaires (même style que FoodTruck) ───────────────────────
@@ -534,7 +539,8 @@ function ApercuMini({ config, pageCourante }: { config: ConfigSimplisse; pageCou
     : pageCourante === 'catalogue' ? config.catalogue.hero
     : pageCourante === 'faq' ? config.faq.hero
     : pageCourante === 'blog' ? config.blog.hero
-    : config.contact.hero;
+    : pageCourante === 'contact' ? config.contact.hero
+    : config.faq.hero; // « À propos » : pas de hero (non utilisé)
 
   const banniere = pageCourante === 'accueil' ? acc.banniere
     : pageCourante === 'catalogue' ? config.catalogue.banniere
@@ -579,7 +585,8 @@ function ApercuMini({ config, pageCourante }: { config: ConfigSimplisse; pageCou
             );
             if (sec.id === 'avantages') return (
               <div key={sec.id} style={{ display: 'flex', justifyContent: 'space-around', padding: '6px 8px', background: '#f8fafc', borderTop: '1px solid #e5e7eb' }}>
-                {['🚚 Livraison','🔒 Sécurisé','🔄 Retours'].map(t => <span key={t} style={{ fontSize: 8, color: '#555' }}>{t}</span>)}
+                {((acc.avantages || []).filter((x: any) => x && (x.titre || x.desc)).slice(0, 4).map((x: any) => `${x.ico || ''} ${x.titre || x.desc}`)).map((t: string) => <span key={t} style={{ fontSize: 8, color: '#555' }}>{t}</span>)}
+                {!(acc.avantages || []).some((x: any) => x && (x.titre || x.desc)) && <span style={{ fontSize: 8, color: '#aaa' }}>(aucun avantage saisi : bandeau masqué)</span>}
               </div>
             );
             if (sec.id === 'vedette') return (
@@ -647,6 +654,17 @@ function ApercuMini({ config, pageCourante }: { config: ConfigSimplisse; pageCou
             ))}
           </div>
         </>
+      )}
+
+      {pageCourante === 'a-propos' && (
+        <div style={{ padding: '8px 10px' }}>
+          <div style={{ fontSize: 8, color: acc.couleurPrimaire, fontWeight: 700, marginBottom: 2 }}>{config.aPropos.sousTitre || 'Notre histoire'}</div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: '#1a1a1a', marginBottom: 6 }}>{config.aPropos.titre || 'À propos de nous'}</div>
+          {config.aPropos.accroche && <div style={{ fontSize: 9, color: '#555', marginBottom: 6 }}>{config.aPropos.accroche}</div>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 4 }}>
+            {[0, 1, 2].map(i => <div key={i} style={{ background: '#f3f4f6', borderRadius: 4, height: 28, textAlign: 'center', fontSize: 8, color: '#555', padding: 3 }}>{(config.aPropos.valeurs || [])[i]?.titre || ''}</div>)}
+          </div>
+        </div>
       )}
 
       {pageCourante === 'faq' && (
@@ -741,7 +759,7 @@ function ApercuMini({ config, pageCourante }: { config: ConfigSimplisse; pageCou
 
 // ─── Composant principal ──────────────────────────────────────────────────────
 
-type PageOnglet = 'accueil' | 'catalogue' | 'faq' | 'blog' | 'contact' | 'fiche-produit' | 'inscription' | 'footer';
+type PageOnglet = 'accueil' | 'catalogue' | 'faq' | 'a-propos' | 'blog' | 'contact' | 'fiche-produit' | 'inscription' | 'footer';
 
 interface Props {
   gestionnaireId: number;
@@ -772,7 +790,7 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (data?.config?.simplisse) {
-          setConfig(prev => ({ ...prev, ...data.config.simplisse, inscription: fusionInscription(data.config.simplisse.inscription) }));
+          setConfig(prev => ({ ...prev, ...data.config.simplisse, inscription: fusionInscription(data.config.simplisse.inscription), aPropos: { ...CONFIG_DEFAUT.aPropos, ...(data.config.simplisse.aPropos || {}) }, menu: { ...CONFIG_DEFAUT.menu, ...(data.config.simplisse.menu || {}) } }));
         }
       })
       .catch(() => {});
@@ -804,6 +822,8 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
   const setBlog = useCallback((patch: Partial<ConfigBlog>)        => setConfig(c => ({ ...c, blog:     { ...c.blog,     ...patch } })), []);
   const setCont = useCallback((patch: Partial<ConfigContact>)     => setConfig(c => ({ ...c, contact:  { ...c.contact,  ...patch } })), []);
   const setFiche = useCallback((patch: Partial<ConfigFicheProduit>) => setConfig(c => ({ ...c, ficheProduit: { ...c.ficheProduit, ...patch } })), []);
+  const setAP   = useCallback((patch: any) => setConfig(c => ({ ...c, aPropos: { ...c.aPropos, ...patch } })), []);
+  const setMenu = useCallback((patch: any) => setConfig(c => ({ ...c, menu: { ...c.menu, ...patch } })), []);
   const setIns  = useCallback((patch: any) => setConfig(c => ({ ...c, inscription: { ...c.inscription, ...patch } })), []);
   const [dernierChampInsc, setDernierChampInsc] = useState<string | null>(null);
   const setFoot = useCallback((patch: Partial<ConfigFooter>)      => setConfig(c => ({ ...c, footer:   { ...c.footer,   ...patch } })), []);
@@ -812,6 +832,7 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
     { id: 'accueil',   label: 'Accueil',   icone: '🏠' },
     { id: 'catalogue', label: 'Catalogue', icone: '📦' },
     { id: 'faq',       label: 'FAQ',       icone: '❓' },
+    { id: 'a-propos',  label: 'À propos',  icone: '💡' },
     { id: 'blog',      label: 'Blog',      icone: '📝' },
     { id: 'contact',   label: 'Contact',   icone: '✉️' },
     { id: 'fiche-produit', label: 'Fiche produit', icone: '🛍' },
@@ -825,6 +846,18 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
 
       case 'accueil': return (
         <>
+          <S titre="Menu du haut">
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 12px', lineHeight: 1.6 }}>Renommez les liens du menu ou cachez les pages dont vous n'avez pas besoin. Vide = nom par défaut.</p>
+            {([['accueil', 'Accueil', false], ['catalogue', 'Catalogue', false], ['blog', 'Blog', true], ['faq', 'FAQ', true], ['a-propos', 'À propos', true], ['contact', 'Contact', true]] as [string, string, boolean][]).map(([id, defaut, masquable]) => {
+              const masque = (config.menu.masques || []).includes(id);
+              return (
+                <div key={id} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8, opacity: masque ? 0.5 : 1 }}>
+                  <div style={{ flex: 1 }}><Inp value={config.menu[id] || ''} onChange={(v: string) => setMenu({ [id]: v })} placeholder={defaut} /></div>
+                  {masquable && <button onClick={() => setMenu({ masques: masque ? config.menu.masques.filter((x: string) => x !== id) : [...(config.menu.masques || []), id] })} style={{ background: masque ? '#fef2f2' : '#f0fdf4', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: masque ? '#dc2626' : '#16a34a', cursor: 'pointer', minWidth: 78 }}>{masque ? 'Caché' : 'Affiché'}</button>}
+                </div>
+              );
+            })}
+          </S>
           <S titre="Couleurs globales du site">
             <Couleur label="Couleur primaire" value={config.accueil.couleurPrimaire} onChange={(v: string) => setAcc({ couleurPrimaire: v })} />
             <Couleur label="Couleur secondaire" value={config.accueil.couleurSecondaire} onChange={(v: string) => setAcc({ couleurSecondaire: v })} />
@@ -839,6 +872,23 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
           </S>
           <S titre="Sections de la page">
             <SectionsManager sections={config.accueil.sections} onChange={s => setAcc({ sections: s })} couleur={config.accueil.couleurPrimaire || CP} />
+          </S>
+          <S titre="Avantages (bandeau sous le hero)">
+            <p style={{ fontSize: 12, color: '#888', margin: '0 0 10px', lineHeight: 1.6 }}>Vos vrais engagements (livraison, retours, paiement…). Tant qu'il n'y en a aucun, le bandeau n'apparaît pas sur votre site.</p>
+            {(config.accueil.avantages || []).map((a, i) => (
+              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 60 }}><Inp value={a.ico} onChange={(v: string) => { const l = [...(config.accueil.avantages || [])]; l[i] = { ...l[i], ico: v }; setAcc({ avantages: l }); }} placeholder="🚚" /></div>
+                <Inp value={a.titre} onChange={(v: string) => { const l = [...(config.accueil.avantages || [])]; l[i] = { ...l[i], titre: v }; setAcc({ avantages: l }); }} placeholder="Titre" />
+                <Inp value={a.desc} onChange={(v: string) => { const l = [...(config.accueil.avantages || [])]; l[i] = { ...l[i], desc: v }; setAcc({ avantages: l }); }} placeholder="Détail" />
+                <button onClick={() => { const l = [...(config.accueil.avantages || [])]; l.splice(i, 1); setAcc({ avantages: l }); }} style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>✕</button>
+              </div>
+            ))}
+            {(config.accueil.avantages || []).length < 6 && (
+              <button onClick={() => setAcc({ avantages: [...(config.accueil.avantages || []), { ico: '✅', titre: '', desc: '' }] })}
+                style={{ width: '100%', padding: '8px', border: `2px dashed ${CP}40`, borderRadius: 7, background: `${CP}05`, color: CP, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                + Ajouter un avantage
+              </button>
+            )}
           </S>
           <S titre="Témoignages (section « Avis »)">
             <p style={{ fontSize: 12, color: '#888', margin: '0 0 10px', lineHeight: 1.6 }}>Écrivez ici de vrais commentaires de vos clients. Tant qu'il n'y en a aucun, la section n'apparaît pas sur votre site.</p>
@@ -923,6 +973,79 @@ export default function ConfigMesPagesSimplisse({ gestionnaireId }: Props) {
           </S>
         </>
       );
+
+      case 'a-propos': {
+        const ap = config.aPropos;
+        const maj = (cle: string, i: number, patch: any) => { const arr = [...(ap[cle] || [])]; arr[i] = { ...arr[i], ...patch }; setAP({ [cle]: arr }); };
+        const ret = (cle: string, i: number) => setAP({ [cle]: (ap[cle] || []).filter((_: any, k: number) => k !== i) });
+        const btnAj = (txt: string, fn: () => void) => <button onClick={fn} style={{ width: '100%', padding: '8px', border: `2px dashed ${CP}40`, borderRadius: 7, background: `${CP}05`, color: CP, fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{txt}</button>;
+        const btnX = (fn: () => void) => <button onClick={fn} style={{ background: '#fef2f2', border: 'none', borderRadius: 5, padding: '5px 10px', fontSize: 12, color: '#dc2626', cursor: 'pointer' }}>🗑️</button>;
+        return (
+        <>
+          <S titre="Titres">
+            <F label="Titre principal"><Inp value={ap.titre} onChange={(v: string) => setAP({ titre: v })} placeholder="À propos de nous" /></F>
+            <F label="Sous-titre (au-dessus du titre)"><Inp value={ap.sousTitre} onChange={(v: string) => setAP({ sousTitre: v })} placeholder="Notre histoire" /></F>
+          </S>
+          <S titre="Présentation">
+            <F label="Phrase d'accroche (grosse phrase en haut)"><Txt value={ap.accroche} onChange={(v: string) => setAP({ accroche: v })} rows={2} /></F>
+            <F label="Description de la boutique"><Txt value={ap.description} onChange={(v: string) => setAP({ description: v })} placeholder="Racontez votre histoire..." rows={5} /></F>
+          </S>
+          <S titre="Sections affichées">
+            <Toggle label="Bloc valeurs (cartes)" checked={ap.afficherValeurs !== false} onChange={(v: boolean) => setAP({ afficherValeurs: v })} />
+            <Toggle label="Chiffres clés" checked={ap.afficherChiffres !== false} onChange={(v: boolean) => setAP({ afficherChiffres: v })} />
+            <Toggle label="Section équipe" checked={ap.afficherEquipe !== false} onChange={(v: boolean) => setAP({ afficherEquipe: v })} />
+            <Toggle label="Bloc final avec boutons" checked={ap.afficherCta !== false} onChange={(v: boolean) => setAP({ afficherCta: v })} />
+          </S>
+          <S titre="Nos valeurs">
+            <F label="Sur-titre"><Inp value={ap.valeursSurtitre} onChange={(v: string) => setAP({ valeursSurtitre: v })} placeholder="Nos valeurs" /></F>
+            <F label="Titre"><Inp value={ap.valeursTitre} onChange={(v: string) => setAP({ valeursTitre: v })} placeholder="Ce qui nous définit" /></F>
+            {(ap.valeurs || []).map((v: any, i: number) => (
+              <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <div style={{ width: 64 }}><Inp value={v.ico} onChange={(val: string) => maj('valeurs', i, { ico: val })} placeholder="💎" /></div>
+                  <Inp value={v.titre} onChange={(val: string) => maj('valeurs', i, { titre: val })} placeholder="Titre de la valeur" />
+                  {btnX(() => ret('valeurs', i))}
+                </div>
+                <Txt value={v.desc} onChange={(val: string) => maj('valeurs', i, { desc: val })} placeholder="Description..." rows={2} />
+              </div>
+            ))}
+            {(ap.valeurs || []).length < 6 && btnAj('+ Ajouter une valeur', () => setAP({ valeurs: [...(ap.valeurs || []), { ico: '⭐', titre: '', desc: '' }] }))}
+          </S>
+          <S titre="Chiffres clés">
+            {(ap.chiffres || []).map((x: any, i: number) => (
+              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                <div style={{ width: 110 }}><Inp value={x.nb} onChange={(val: string) => maj('chiffres', i, { nb: val })} placeholder="500+" /></div>
+                <Inp value={x.label} onChange={(val: string) => maj('chiffres', i, { label: val })} placeholder="Produits vendus" />
+                {btnX(() => ret('chiffres', i))}
+              </div>
+            ))}
+            {(ap.chiffres || []).length < 6 && btnAj('+ Ajouter un chiffre', () => setAP({ chiffres: [...(ap.chiffres || []), { nb: '', label: '' }] }))}
+          </S>
+          <S titre="Équipe">
+            <F label="Sur-titre"><Inp value={ap.equipeSurtitre} onChange={(v: string) => setAP({ equipeSurtitre: v })} placeholder="L'équipe" /></F>
+            <F label="Titre"><Inp value={ap.equipeTitre} onChange={(v: string) => setAP({ equipeTitre: v })} placeholder="Les visages derrière la boutique" /></F>
+            {(ap.equipe || []).map((m: any, i: number) => (
+              <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 10, marginBottom: 8 }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                  <Inp value={m.prenom} onChange={(val: string) => maj('equipe', i, { prenom: val })} placeholder="Prénom" />
+                  <Inp value={m.poste} onChange={(val: string) => maj('equipe', i, { poste: val })} placeholder="Poste" />
+                  {btnX(() => ret('equipe', i))}
+                </div>
+                <Inp value={m.photo} onChange={(val: string) => maj('equipe', i, { photo: val })} placeholder="URL de la photo (facultatif, https://...)" />
+              </div>
+            ))}
+            {(ap.equipe || []).length < 12 && btnAj('+ Ajouter une personne', () => setAP({ equipe: [...(ap.equipe || []), { prenom: '', poste: '', photo: '' }] }))}
+          </S>
+          <S titre="Bloc final">
+            <F label="Sur-titre"><Inp value={ap.ctaSurtitre} onChange={(v: string) => setAP({ ctaSurtitre: v })} placeholder="Rejoignez-nous" /></F>
+            <F label="Titre"><Inp value={ap.ctaTitre} onChange={(v: string) => setAP({ ctaTitre: v })} placeholder="Prêt à découvrir notre sélection ?" /></F>
+            <F label="Texte"><Txt value={ap.ctaTexte} onChange={(v: string) => setAP({ ctaTexte: v })} rows={2} /></F>
+            <F label="Bouton 1 (vers le catalogue)"><Inp value={ap.ctaBoutonCatalogue} onChange={(v: string) => setAP({ ctaBoutonCatalogue: v })} placeholder="Voir notre catalogue →" /></F>
+            <F label="Bouton 2 (vers contact)"><Inp value={ap.ctaBoutonContact} onChange={(v: string) => setAP({ ctaBoutonContact: v })} placeholder="Nous contacter" /></F>
+          </S>
+        </>
+        );
+      }
 
       case 'blog': return (
         <>
