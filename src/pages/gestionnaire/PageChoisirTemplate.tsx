@@ -162,12 +162,12 @@ const DEMO_CONFIGS: Record<string, any> = {
     },
     // Produits démo hardcodés
     __produits_demo__: [
-      { id: 1, titre: 'T-Shirt Premium Blanc', prix: 29.99, prix_promo: 19.99, stock: 50, categorie: 'Vetements', description: 'T-shirt 100% coton bio, coupe reguliere.', photo_principale: '' },
-      { id: 2, titre: 'Casquette Signature', prix: 24.99, stock: 30, categorie: 'Accessoires', description: 'Casquette ajustable brodee. Taille unique.', photo_principale: '' },
-      { id: 3, titre: 'Sac Tote Canvas', prix: 34.99, stock: 25, categorie: 'Accessoires', description: 'Sac fourre-tout en canvas epais.', photo_principale: '' },
-      { id: 4, titre: 'Hoodie Zip Gris', prix: 59.99, prix_promo: 44.99, stock: 20, categorie: 'Vetements', description: 'Hoodie zip molleton doux.', photo_principale: '' },
-      { id: 5, titre: 'Chaussettes Pack x3', prix: 14.99, stock: 100, categorie: 'Vetements', description: 'Pack de 3 paires de chaussettes coton doux.', photo_principale: '' },
-      { id: 6, titre: 'Bouteille Inox 500ml', prix: 39.99, stock: 40, categorie: 'Maison', description: 'Bouteille isotherme 24h chaud / 48h froid.', photo_principale: '' },
+      { id: 1, titre: 'T-Shirt Premium Blanc', prix: 29.99, prix_promo: 19.99, stock: 50, categorie: 'Vetements', description: 'T-shirt 100% coton bio, coupe reguliere.', photo_principale: '', emoji: '👕' },
+      { id: 2, titre: 'Tuque Tricotée', prix: 24.99, stock: 30, categorie: 'Accessoires', description: 'Tuque en laine douce, doublée polaire.', photo_principale: '', emoji: '🧢' },
+      { id: 3, titre: 'Sac Tote Canvas', prix: 34.99, stock: 25, categorie: 'Accessoires', description: 'Sac fourre-tout en canvas epais.', photo_principale: '', emoji: '👜' },
+      { id: 4, titre: 'Chandail Molleton Gris', prix: 59.99, prix_promo: 44.99, stock: 20, categorie: 'Vetements', description: 'Chandail en molleton doux.', photo_principale: '', emoji: '🧶' },
+      { id: 5, titre: 'Bottes d\'Hiver', prix: 14.99, stock: 100, categorie: 'Chaussures', description: 'Bottes imperméables, semelle antidérapante.', photo_principale: '', emoji: '🥾' },
+      { id: 6, titre: 'Outil Multifonction', prix: 39.99, stock: 40, categorie: 'Maison', description: 'Outil multifonction en acier inoxydable, 12 fonctions.', photo_principale: '', emoji: '🔧' },
     ],
   },
 };

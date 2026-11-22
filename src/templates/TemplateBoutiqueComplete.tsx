@@ -70,7 +70,7 @@ interface ConfigFicheProduit {
 }
 
 interface ProduitCat {
-  id: number; titre: string; prix: number; prix_promo?: number; photo_principale?: string;
+  id: number; titre: string; prix: number; prix_promo?: number; photo_principale?: string; emoji?: string;
   photos?: string[]; description?: string; stock?: number; categorie?: string; sku?: string;
   variantes?: { nom: string; valeurs?: string[]; prix?: number|string|null; stock?: number|string|null }[];   // démo : {nom, valeurs[]} ; vraies annonces : liste plate {nom, prix, stock}
   paliers?: { qte_min:number; type:'pourcentage'|'fixe'; valeur:number; variante:string|null }[];   // add-on « Prix par palier » : le serveur n'envoie rien si l'add-on est inactif
@@ -383,7 +383,7 @@ function CarteProduit({ produit, cp, afficherPrix, onClick, extras }: { produit:
       <div style={{ height: 200, background: '#f3f4f6', overflow: 'hidden', position: 'relative' }}>
         {produit.photo_principale
           ? <img src={produit.photo_principale} alt={produit.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, color: '#d1d5db' }}>📦</div>
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, color: '#d1d5db' }}>{produit.emoji||'📦'}</div>
         }
         {enPromo && <span style={{ position: 'absolute', top: 10, left: 10, background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>SOLDE</span>}
         {ench && <span style={{ position: 'absolute', top: enPromo ? 36 : 10, left: 10, background: cp, color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>🔨 ENCHÈRE</span>}
@@ -506,6 +506,8 @@ export default function TemplateBoutiqueComplete({ config: configBrut, siteId, v
   // Extraire config.complete de la BD et merger avec les défauts
   const rawComplete = migrerComplete(configBrut);
   const fp: ConfigFicheProduit = { ...FICHE_DEF, ...(rawComplete.ficheProduit || {}) };
+  // Promesses de réassurance (retour, livraison) : seulement si le gestionnaire les a enregistrées, ou en démo
+  const reassuranceVisible = !!configBrut?.__produits_demo__ || Array.isArray(rawComplete.ficheProduit?.reassuranceItems);
 
   const cfg: ConfigComplete = {
     accueil:  merge(CFG_DEF.accueil,  rawComplete.accueil),
@@ -1223,7 +1225,7 @@ export default function TemplateBoutiqueComplete({ config: configBrut, siteId, v
             <div style={{ flex: 1, borderRadius: 14, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '1' }}>
               {photos.length > 0
                 ? <img src={photos[photoIdx]} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>📦</div>}
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>{p.emoji||'📦'}</div>}
             </div>
           </div>
         ) : (
@@ -1231,7 +1233,7 @@ export default function TemplateBoutiqueComplete({ config: configBrut, siteId, v
             <div style={{ borderRadius: 14, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '1', marginBottom: 10 }}>
               {photos.length > 0
                 ? <img src={photos[photoIdx]} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>📦</div>}
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>{p.emoji||'📦'}</div>}
             </div>
             {photos.length > 1 && (
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
@@ -1356,7 +1358,7 @@ export default function TemplateBoutiqueComplete({ config: configBrut, siteId, v
           allerConnexion={() => { setAvisPanier('Connectez-vous pour faire une offre.'); naviguer('login'); }} onPanier={() => { setVueCompte('panier'); naviguer('compte'); }} />
 
         {/* Réassurance */}
-        {fp.afficherReassurance && fp.reassuranceItems.length > 0 && (
+        {fp.afficherReassurance && reassuranceVisible && fp.reassuranceItems.length > 0 && (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
             {fp.reassuranceItems.map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#555' }}>
@@ -1392,7 +1394,7 @@ export default function TemplateBoutiqueComplete({ config: configBrut, siteId, v
               </div>
               {ongletActif === 'description' && <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{p.description}</div>}
               {ongletActif === 'details'     && <div style={{ fontSize: 14, color: '#888' }}>Aucun détail supplémentaire.</div>}
-              {ongletActif === 'livraison'   && <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8 }}>Livraison standard : 2–5 jours ouvrables.<br />Livraison express disponible au moment du paiement.</div>}
+              {ongletActif === 'livraison'   && <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8 }}>{configBrut?.__produits_demo__ ? <>Livraison standard : 2–5 jours ouvrables.<br />Livraison express disponible au moment du paiement.</> : <>Les modes et les frais de livraison sont présentés à l'étape du paiement.</>}</div>}
             </div>
           ) : (
             <div style={{ marginTop: 20, borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>

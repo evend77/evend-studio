@@ -10,7 +10,7 @@ const express = require('express');
 const crypto = require('crypto');
 const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-const sanitizeHtml = require('sanitize-html');
+const { nettoyerTexte } = require('../utils/sanitize');   // nettoyage unique (utils/sanitize.js)
 const pool = require('../db');
 const { authenticateToken } = require('../middleware/auth');
 const L = require('../services/boutique_limites');
@@ -55,7 +55,7 @@ function texte(v, nom, max, obligatoire) {
   if (v === undefined || v === null) v = '';
   if (typeof v !== 'string') bad(`${nom} invalide`);
   if (v.length > max * 5) bad(`${nom} trop long (max ${max} caractères)`);
-  let t = sanitizeHtml(v, { allowedTags: [], allowedAttributes: {} });
+  let t = nettoyerTexte(v, 1000000);
   t = t.replace(/&(?:amp|lt|gt|quot|#x27|#39);/g, (e) => ENTITES[e]);
   t = t.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
   t = t.replace(/\r\n?/g, '\n').replace(/\n{4,}/g, '\n\n\n').trim();

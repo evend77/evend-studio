@@ -11,7 +11,7 @@
 
 const crypto = require('crypto');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-const sanitizeHtml = require('sanitize-html');
+const { nettoyerTexte } = require('../utils/sanitize');   // nettoyage unique (utils/sanitize.js)
 const pool = require('../db');
 const svc = require('./boutique_ebay');
 const L = require('./boutique_limites');
@@ -118,7 +118,7 @@ function poidsKg(xml) {
 
 function texteDescription(html) {
   let t = String(html || '').replace(/<\s*(br|\/p|\/div|\/li|\/h\d)\s*\/?>/gi, '\n');
-  t = sanitizeHtml(t, { allowedTags: [], allowedAttributes: {} });
+  t = nettoyerTexte(t, 1000000);
   t = t.replace(/&(?:amp|lt|gt|quot|#x27|#39|nbsp);/g, (e) => ({ '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#x27;': "'", '&#39;': "'", '&nbsp;': ' ' }[e]));
   t = t.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').replace(/\r\n?/g, '\n').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
   return t.length > 5000 ? t.slice(0, 4997) + '…' : t;

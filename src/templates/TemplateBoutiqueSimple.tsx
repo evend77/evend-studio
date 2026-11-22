@@ -71,7 +71,7 @@ interface ConfigFicheProduit {
 }
 
 interface Produit {
-  id: number; titre: string; prix: number; prix_promo?: number; photo_principale?: string;
+  id: number; titre: string; prix: number; prix_promo?: number; photo_principale?: string; emoji?: string;
   photos?: string[]; description?: string; stock?: number; categorie?: string; sku?: string;
   variantes?: { nom: string; valeurs?: string[]; prix?: number|string|null; stock?: number|string|null }[];   // démo : {nom, valeurs[]} ; vraies annonces : liste plate {nom, prix, stock}
   paliers?: { qte_min:number; type:'pourcentage'|'fixe'; valeur:number; variante:string|null }[];   // add-on « Prix par palier » : le serveur n'envoie rien si l'add-on est inactif
@@ -447,7 +447,7 @@ function CarteProduit({ produit, cp, afficherPrix, onClick, extras }: { produit:
       <div style={{ height: 200, background: '#f3f4f6', overflow: 'hidden', position: 'relative' }}>
         {produit.photo_principale
           ? <img src={produit.photo_principale} alt={produit.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, color: '#d1d5db' }}>📦</div>
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, color: '#d1d5db' }}>{produit.emoji||'📦'}</div>
         }
         {enPromo && <span style={{ position: 'absolute', top: 10, left: 10, background: '#ef4444', color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>SOLDE</span>}
         {ench && <span style={{ position: 'absolute', top: enPromo ? 36 : 10, left: 10, background: cp, color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6 }}>🔨 ENCHÈRE</span>}
@@ -571,6 +571,8 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
   // Extraire config.simplisse de la BD et merger avec les défauts
   const rawSimplisse = configBrut?.simple || {};   // config du mono-produit : sites.config.simple
   const fp: ConfigFicheProduit = { ...FICHE_DEF, ...(rawSimplisse.ficheProduit || {}) };
+  // Promesses de réassurance (retour, livraison) : seulement si le gestionnaire les a enregistrées, ou en démo
+  const reassuranceVisible = !!configBrut?.__produits_demo__ || Array.isArray(rawSimplisse.ficheProduit?.reassuranceItems);
 
   const cfg: ConfigSimplisse = {
     accueil:  merge(CFG_DEF.accueil,  rawSimplisse.accueil),
@@ -1076,7 +1078,7 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
             <div style={{ flex: 1, borderRadius: 14, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '1' }}>
               {photos.length > 0
                 ? <img src={photos[photoIdx]} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>📦</div>}
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>{p.emoji||'📦'}</div>}
             </div>
           </div>
         ) : (
@@ -1084,7 +1086,7 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
             <div style={{ borderRadius: 14, overflow: 'hidden', background: '#f3f4f6', aspectRatio: '1', marginBottom: 10 }}>
               {photos.length > 0
                 ? <img src={photos[photoIdx]} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>📦</div>}
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>{p.emoji||'📦'}</div>}
             </div>
             {photos.length > 1 && (
               <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
@@ -1221,7 +1223,7 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
           allerConnexion={() => { setAvisPanier('Connectez-vous pour faire une offre.'); naviguer('login'); }} onPanier={() => { setVueCompte('panier'); naviguer('compte'); }} />
 
         {/* Réassurance */}
-        {fp.afficherReassurance && fp.reassuranceItems.length > 0 && (
+        {fp.afficherReassurance && reassuranceVisible && fp.reassuranceItems.length > 0 && (
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
             {fp.reassuranceItems.map((item, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#555' }}>
@@ -1257,7 +1259,7 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
               </div>
               {ongletActif === 'description' && <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{p.description}</div>}
               {ongletActif === 'details'     && <div style={{ fontSize: 14, color: '#888' }}>Aucun détail supplémentaire.</div>}
-              {ongletActif === 'livraison'   && <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8 }}>Livraison standard : 2–5 jours ouvrables.<br />Livraison express disponible au moment du paiement.</div>}
+              {ongletActif === 'livraison'   && <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8 }}>{configBrut?.__produits_demo__ ? <>Livraison standard : 2–5 jours ouvrables.<br />Livraison express disponible au moment du paiement.</> : <>Les modes et les frais de livraison sont présentés à l'étape du paiement.</>}</div>}
             </div>
           ) : (
             <div style={{ marginTop: 20, borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>
@@ -1797,10 +1799,10 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
     <div key={cle} style={{ marginBottom: 18 }}>
       <label style={styleLabel}>{libelle}{requis && ' *'}</label>
       {type === 'textarea'
-        ? <textarea value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} placeholder={ph} rows={3} style={{ ...styleInput, resize: 'vertical' }} />
+        ? <textarea value={inscVal[cle] || ''} maxLength={1000} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} placeholder={ph} rows={3} style={{ ...styleInput, resize: 'vertical' }} />
         : type === 'select'
         ? <select value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} style={styleInput}><option value="">— Choisir —</option>{(extra || []).map((o: string) => <option key={o} value={o}>{o}</option>)}</select>
-        : <input type={type} value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} placeholder={ph} style={styleInput} autoComplete={type === 'password' ? 'new-password' : undefined} />}
+        : <input type={type} value={inscVal[cle] || ''} maxLength={254} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 254) }))} placeholder={ph} style={styleInput} autoComplete={type === 'password' ? 'new-password' : undefined} />}
     </div>
   );
   const caseInsc = (cle: string, contenu: any, requis: boolean) => (
@@ -1827,7 +1829,7 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
           </div>
         ) : (
           <div style={carteAuth}>
-            <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" value={honeypot} onChange={e => setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
+            <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" value={honeypot} maxLength={100} onChange={e => setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
             {champInsc('prenom', ins.libelles.prenom, 'text', '', true)}
             {champInsc('nom', ins.libelles.nom, 'text', '', true)}
             {champInsc('email', ins.libelles.email, 'email', 'votre@courriel.com', true)}
@@ -2120,7 +2122,7 @@ export default function TemplateBoutiqueSimple({ config: configBrut, siteId, ven
                   <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre message</label>
                   <textarea value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: limiterSaisie(e.target.value, 5000) }))} maxLength={5000} rows={5} placeholder="Décrivez votre question..." style={{ ...styleInput, resize: 'vertical', fontFamily: 'inherit' }} />
                 </div>
-                <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" value={contactPiege} onChange={e => setContactPiege(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
+                <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" value={contactPiege} maxLength={100} onChange={e => setContactPiege(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
                 {contactEnvoi === 'err' && <p style={{ color: '#ef4444', fontSize: 14, margin: 0 }}>❌ {contactErr || 'Erreur — vérifiez les champs et réessayez.'}</p>}
                 <button onClick={envoyerContact} disabled={contactEnvoi === 'loading' || !contactForm.nom || !contactForm.courriel || !contactForm.message}
                   style={{ ...styleBtn, opacity: (!contactForm.nom || !contactForm.courriel || !contactForm.message) ? 0.5 : 1 }}>

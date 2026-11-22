@@ -10,7 +10,7 @@
 'use strict';
 
 const pool = require('../db');
-const sanitizeHtml = require('sanitize-html');
+const { nettoyerTexte } = require('../utils/sanitize');   // nettoyage unique (utils/sanitize.js)
 const A = require('./boutique_addons');
 const EXP = require('./boutique_expedition');
 const O = require('./boutique_offres');
@@ -122,7 +122,7 @@ const BOOLEENS = ['actif', 'suggerer_questions', 'afficher_bulle_bienvenue', 'so
 const PHRASES = ['accueil_phrases', 'transition_phrases', 'attente_phrases', 'erreur_phrases', 'fin_phrases', 'suggestions_defaut'];
 const SOURCES = ['produits', 'politiques', 'faq', 'apropos', 'blog', 'pages'];
 const PHOTO_RE = /^https:\/\/media\.e-vend\.ca\/[A-Za-z0-9_\-./%]+\.(jpe?g|png|webp|gif|avif)$/i;
-const proprete = (v, max) => sanitizeHtml(String(v), { allowedTags: [], allowedAttributes: {} }).replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim().slice(0, max);
+const proprete = (v, max) => nettoyerTexte(String(v), 1000000).replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim().slice(0, max);
 
 function lireConfig(b, gid) {
   const o = {};

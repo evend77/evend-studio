@@ -7,7 +7,7 @@
 'use strict';
 
 const pool = require('../db');
-const sanitizeHtml = require('sanitize-html');
+const { nettoyerTexte } = require('../utils/sanitize');   // nettoyage unique (utils/sanitize.js)
 const A = require('./boutique_addons');
 const { ErreurBoutique } = require('./boutique_limites');
 
@@ -17,7 +17,7 @@ async function autorise(gid) { return A.addonActif(gid, CODE_ADDON); }
 
 const TYPES = ['popup', 'banniere_haut', 'banniere_bas'];
 const COULEUR_RE = /^(#[0-9a-fA-F]{3,8}|rgba?\(\s*\d{1,3}\s*,\s*\d{1,3}\s*,\s*\d{1,3}\s*(,\s*(0|1|0?\.\d+)\s*)?\))$/;
-const propre = (v, max) => sanitizeHtml(String(v), { allowedTags: [], allowedAttributes: {} }).replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/[ \t]+/g, ' ').trim().slice(0, max);
+const propre = (v, max) => nettoyerTexte(String(v), 1000000).replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/[ \t]+/g, ' ').trim().slice(0, max);
 const COLS = `actif, type_affichage, titre, message, bouton_label, bouton_url, bouton_actif, couleur_fond, couleur_texte, couleur_bouton,
   delai_secondes, fermeture_auto, fermeture_auto_secondes, se_souvenir_heures, icone, date_debut, date_fin, updated_at`;
 

@@ -38,7 +38,7 @@ const COURRIEL_OK = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']{2,}$/;
 interface Produit {
   id: number; titre: string; prix: number; prix_promo?: number|null;
   offre_fin?: string|null;   // add-on « Offres du jour » : fin de l'offre en cours (le serveur n'envoie rien si l'add-on est inactif)
-  photo_principale?: string; photos?: string[]; description?: string;
+  photo_principale?: string; emoji?: string; photos?: string[]; description?: string;
   stock?: number; categorie?: string; sku?: string; marque?: string;
   note_moyenne?: number; nb_avis?: number;
   variantes?: { nom: string; valeurs?: string[]; prix?: number|string|null; stock?: number|string|null }[];   // démo : {nom, valeurs[]} ; vraies annonces : liste plate {nom, prix, stock}
@@ -237,7 +237,7 @@ function CarteProduit({ produit, cp, onClick, gid, connecte, demo, vue='grille',
     <div onClick={onClick} style={{ display:'flex',gap:20,padding:16,background:hovered?SURF2:SURF,border:`1px solid ${hovered?BORD:'#222'}`,borderRadius:12,cursor:'pointer',transition:'all 0.2s',alignItems:'center' }}
       onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)}>
       <div style={{ width:100,height:100,borderRadius:8,background:'#1a1a1a',display:'flex',alignItems:'center',justifyContent:'center',fontSize:36,flexShrink:0,overflow:'hidden' }}>
-        {produit.photo_principale ? <img src={produit.photo_principale} alt={produit.titre} style={{ width:'100%',height:'100%',objectFit:'cover' }}/> : '📦'}
+        {produit.photo_principale ? <img src={produit.photo_principale} alt={produit.titre} style={{ width:'100%',height:'100%',objectFit:'cover' }}/> : (produit.emoji||'📦')}
       </div>
       <div style={{ flex:1 }}>
         {produit.categorie && <span style={{ fontSize:10,color:cp,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.08em' }}>{produit.categorie}</span>}
@@ -261,7 +261,7 @@ function CarteProduit({ produit, cp, onClick, gid, connecte, demo, vue='grille',
     <div style={{ position:'relative',background:hovered?SURF2:SURF,border:`1px solid ${hovered?BORD:'#222'}`,borderRadius:14,overflow:'hidden',cursor:'pointer',transition:'all 0.25s ease' }}
       onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)} onClick={onClick}>
       <div style={{ aspectRatio:'1',background:'#111',display:'flex',alignItems:'center',justifyContent:'center',fontSize:56,overflow:'hidden',position:'relative' }}>
-        {produit.photo_principale ? <img src={produit.photo_principale} alt={produit.titre} style={{ width:'100%',height:'100%',objectFit:'cover',transition:'transform 0.4s ease',transform:hovered?'scale(1.08)':'scale(1)' }}/> : <span style={{ color:'#333' }}>📦</span>}
+        {produit.photo_principale ? <img src={produit.photo_principale} alt={produit.titre} style={{ width:'100%',height:'100%',objectFit:'cover',transition:'transform 0.4s ease',transform:hovered?'scale(1.08)':'scale(1)' }}/> : <span style={{ color:'#333' }}>{produit.emoji||'📦'}</span>}
         {ench && <span style={{ position:'absolute',top:enPromo?34:10,left:10,background:cp,color:'#000',fontSize:10,fontWeight:800,padding:'3px 8px',borderRadius:6 }}>🔨 ENCHÈRE</span>}
         {enPromo && <span style={{ position:'absolute',top:10,left:10,background:'#ef4444',color:'#fff',fontSize:10,fontWeight:800,padding:'3px 8px',borderRadius:6 }}>SOLDE</span>}
         {montrerStock && produit.stock!==undefined && produit.stock<=3 && produit.stock>0 && <span style={{ position:'absolute',top:10,right:coeurSurImage?48:10,background:'#f59e0b',color:'#000',fontSize:9,fontWeight:800,padding:'3px 7px',borderRadius:6 }}>Plus que {produit.stock}!</span>}
@@ -306,11 +306,13 @@ function fusionInsc(b:any){
 
 export default function TemplateBoutiquePremium({ config: configBrut, siteId, vendeurId }: Props) {
   const raw = configBrut?.premium || {};
+  const estDemoPrem = !!configBrut?.__produits_demo__;   // contenu d'exemple : seulement en démo, jamais sur une vraie boutique
   const cfg = { ...CFG_DEF, ...raw, footer: { ...CFG_DEF.footer, ...(raw.footer||{}) } };
   // Lecture de la config du gestionnaire : texte saisi, sinon exemple ; interrupteur actif sauf s'il est coupé ; liste saisie, sinon exemples
   const tx=(sec:string,cle:string,defaut:string):string=>{ const v=raw?.[sec]?.[cle]; return typeof v==='string'&&v.trim()?v.trim():defaut; };
   const on=(sec:string,cle:string):boolean=>raw?.[sec]?.[cle]!==false;
-  const lst=(sec:string,cle:string,demo:any[],ok:(x:any)=>boolean):any[]=>{ const l=(Array.isArray(raw?.[sec]?.[cle])?raw[sec][cle]:[]).filter((x:any)=>x&&typeof x==='object'&&ok(x)); return l.length>0?l:demo; };
+  const lst=(sec:string,cle:string,demo:any[],ok:(x:any)=>boolean):any[]=>{ const l=(Array.isArray(raw?.[sec]?.[cle])?raw[sec][cle]:[]).filter((x:any)=>x&&typeof x==='object'&&ok(x)); return l.length>0?l:(estDemoPrem?demo:[]); };
+  const aListe=(sec:string,cle:string,ok:(x:any)=>boolean):boolean=>estDemoPrem||(Array.isArray(raw?.[sec]?.[cle])&&raw[sec][cle].some((x:any)=>x&&typeof x==='object'&&ok(x)));
   const nbr=(sec:string,cle:string,defaut:number,min:number,max:number):number=>{ const n=Number(raw?.[sec]?.[cle]); return Number.isFinite(n)&&n>=min&&n<=max?Math.round(n):defaut; };
   const optsCarte={ prix:on('catalogue','afficherPrix'), stock:on('catalogue','afficherStock') };
   const couleurBtn=/^#[0-9a-f]{6}$/i.test(String(raw?.ficheProduit?.boutonCouleur||''))?String(raw.ficheProduit.boutonCouleur):'';
@@ -323,7 +325,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   };
   const cc:any=raw?.contact||{};
   const saisiContact=[['📍','Adresse',cc.adresse],['📞','Téléphone',cc.telephone],['✉️','Courriel',cc.courriel],['⏰','Heures',cc.heures]].filter(([,,v])=>typeof v==='string'&&String(v).trim()).map(([ico,label,val])=>({ico,label,val:String(val).trim()}));
-  const lignesContact:any[]=saisiContact.length>0?saisiContact:DEMO.contact;
+  const lignesContact:any[]=saisiContact.length>0?saisiContact:(estDemoPrem?DEMO.contact:[]);
   const lienHttp=(u:any):string=>/^https?:\/\//i.test(String(u||''))?String(u):'';
   const cp  = cfg.couleurAccent || OR;
 
@@ -659,7 +661,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         </div>
 
         {/* Avantages */}
-        {on('accueil','afficherAvantages')&&<div style={{ background:`linear-gradient(135deg,${SURF},${SURF2})`,borderTop:`1px solid ${BORD}`,borderBottom:`1px solid ${BORD}` }}>
+        {on('accueil','afficherAvantages')&&aListe('accueil','avantages',x=>!!(x.titre||x.desc))&&<div style={{ background:`linear-gradient(135deg,${SURF},${SURF2})`,borderTop:`1px solid ${BORD}`,borderBottom:`1px solid ${BORD}` }}>
           <div style={{ maxWidth:1300,margin:'0 auto',padding:'20px 24px',display:'grid',gridTemplateColumns:`repeat(${isMobile?2:4},1fr)`,gap:20 }}>
             {lst('accueil','avantages',DEMO.avantages,x=>!!(x.titre||x.desc)).slice(0,4).map((a:any,i:number)=>{ const {ico,titre,desc}=a; return (
               <div key={i} style={{ display:'flex',alignItems:'center',gap:12 }}>
@@ -698,7 +700,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         </div>}
 
         {/* Témoignages */}
-        {on('accueil','afficherTemoignages')&&<div style={{ maxWidth:1300,margin:'0 auto',padding:'72px 24px' }}>
+        {on('accueil','afficherTemoignages')&&aListe('accueil','temoignages',x=>!!x.texte)&&<div style={{ maxWidth:1300,margin:'0 auto',padding:'72px 24px' }}>
           <div style={{ textAlign:'center',marginBottom:48 }}><div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ {tx('accueil','temoignagesSurtitre','Témoignages')}</div><h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:'#fff',margin:0 }}>{tx('accueil','temoignagesTitre','Ce que disent nos clients')}</h2></div>
           <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:20 }}>
             {lst('accueil','temoignages',DEMO.temoignages,x=>!!x.texte).slice(0,6).map((t:any,i:number)=>(
@@ -760,8 +762,8 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
             </div>
             <h3 style={{ fontSize:11,fontWeight:700,color:cp,textTransform:'uppercase',letterSpacing:'0.15em',margin:'0 0 16px' }}>Prix</h3>
             <div style={{ display:'flex',gap:8,marginBottom:24 }}>
-              <input type="number" placeholder="Min $" value={filtrePrixMin} onChange={e=>setFiltrePrixMin(limiterSaisie(e.target.value,10))} style={{ ...styleInput,padding:'8px 12px',fontSize:12,flex:1 }}/>
-              <input type="number" placeholder="Max $" value={filtrePrixMax} onChange={e=>setFiltrePrixMax(limiterSaisie(e.target.value,10))} style={{ ...styleInput,padding:'8px 12px',fontSize:12,flex:1 }}/>
+              <input type="number" min={0} max={9999999} placeholder="Min $" value={filtrePrixMin} onChange={e=>setFiltrePrixMin(limiterSaisie(e.target.value,10))} style={{ ...styleInput,padding:'8px 12px',fontSize:12,flex:1 }}/>
+              <input type="number" min={0} max={9999999} placeholder="Max $" value={filtrePrixMax} onChange={e=>setFiltrePrixMax(limiterSaisie(e.target.value,10))} style={{ ...styleInput,padding:'8px 12px',fontSize:12,flex:1 }}/>
             </div>
             {(filtreCat||filtreRecherche||filtrePrixMin||filtrePrixMax)&&<button onClick={()=>{setFiltreCat('');setFiltreRecherche('');setFiltrePrixMin('');setFiltrePrixMax('');}} style={{ width:'100%',padding:'10px',background:'rgba(239,68,68,0.15)',border:'1px solid rgba(239,68,68,0.3)',borderRadius:8,color:'#ef4444',fontSize:13,cursor:'pointer',fontWeight:600 }}>✕ Effacer</button>}
           </div>}
@@ -866,7 +868,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               onMouseMove={e=>{const r=e.currentTarget.getBoundingClientRect();setSourisPos({x:((e.clientX-r.left)/r.width)*100,y:((e.clientY-r.top)/r.height)*100});}}>
               {photos.length>0
                 ? <img src={photos[photoIdx]} alt={p.titre} style={{ width:'100%',height:'100%',objectFit:'cover',transition:'transform 0.3s ease',transform:zoomActif?`scale(2) translate(${50-sourisPos.x}%,${50-sourisPos.y}%)`:'scale(1)',transformOrigin:`${sourisPos.x}% ${sourisPos.y}%` }}/>
-                : <div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:80,color:'#333' }}>📦</div>}
+                : <div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:80,color:'#333' }}>{p.emoji||'📦'}</div>}
               {enPromo&&<span style={{ position:'absolute',top:16,left:16,background:'#ef4444',color:'#fff',fontSize:12,fontWeight:800,padding:'4px 12px',borderRadius:8 }}>SOLDE -{Math.round((1-p.prix_promo!/p.prix)*100)}%</span>}
               {on('ficheProduit','afficherZoom')&&<div style={{ position:'absolute',bottom:12,right:12,background:'rgba(0,0,0,0.6)',backdropFilter:'blur(4px)',borderRadius:6,padding:'4px 10px',fontSize:11,color:'#aaa' }}>{zoomActif?'🔍 Cliquer pour dézoomer':'🔍 Cliquer pour zoomer'}</div>}
             </div>
@@ -942,11 +944,11 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               varianteRequise={varManquante||!!(p.variantes&&p.variantes.some(v=>Array.isArray(v.valeurs)&&!varianteChoisie[v.nom]))} masque={p.stock===0||parutionBloquee} couleurAccent={cp} isDemo={modeDemo}
               allerConnexion={()=>{ setAvisPanier('Connectez-vous pour faire une offre.'); naviguer('login'); }} onPanier={()=>{ setVueCompte('panier'); naviguer('compte'); }}/>
 
-            <div style={{ background:SURF,border:`1px solid #222`,borderRadius:12,padding:'14px 16px',marginBottom:24 }}>
+            {aListe('ficheProduit','reassurance',x=>!!x.texte)&&<div style={{ background:SURF,border:`1px solid #222`,borderRadius:12,padding:'14px 16px',marginBottom:24 }}>
               {lst('ficheProduit','reassurance',DEMO.reassurance,x=>!!x.texte).slice(0,5).map(({ico,texte:txt}:any,i:number)=>(
                 <div key={i} style={{ display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:'1px solid #1a1a1a',fontSize:13,color:'#888' }}><span>{ico}</span><span>{txt}</span></div>
               ))}
-            </div>
+            </div>}
 
             {on('ficheProduit','afficherPartage')&&<div style={{ display:'flex',gap:8,alignItems:'center' }}>
               <span style={{ fontSize:12,color:'#555' }}>Partager :</span>
@@ -1036,7 +1038,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
           </div>
         ) : (
           <div style={{ background:SURF,border:`1px solid ${BORD}`,borderRadius:16,padding:32 }}>
-            <div style={{ position:'absolute',left:-9999,top:-9999,opacity:0,pointerEvents:'none' }} aria-hidden="true"><input type="text" name="website" value={honeypot} onChange={e=>setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off"/></div>
+            <div style={{ position:'absolute',left:-9999,top:-9999,opacity:0,pointerEvents:'none' }} aria-hidden="true"><input type="text" name="website" value={honeypot} maxLength={100} onChange={e=>setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off"/></div>
             {champInsc('prenom',ins.libelles.prenom,'text','',true)}
             {champInsc('nom',ins.libelles.nom,'text','',true)}
             {champInsc('email',ins.libelles.email,'email','votre@courriel.com',true)}
@@ -1146,7 +1148,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const PageAPropos = () => {
     // Gestionnaire : ce qu'il a saisi (Config Mes pages → À propos). Vide : exemples de démonstration.
     const ap:any = raw.aPropos||{};
-    const liste=(cle:string,ex:any[],ok:(x:any)=>boolean)=>{ const l=(Array.isArray(ap[cle])?ap[cle]:[]).filter((x:any)=>x&&typeof x==='object'&&ok(x)); return l.length>0?l:ex; };
+    const liste=(cle:string,ex:any[],ok:(x:any)=>boolean)=>{ const l=(Array.isArray(ap[cle])?ap[cle]:[]).filter((x:any)=>x&&typeof x==='object'&&ok(x)); return l.length>0?l:(estDemoPrem?ex:[]); };
     const valeurs=liste('valeurs',APROPOS_DEMO.valeurs,(x)=>!!(x.titre||x.desc));
     const chiffres=liste('chiffres',APROPOS_DEMO.chiffres,(x)=>!!(x.nb||x.label));
     const equipe=liste('equipe',APROPOS_DEMO.equipe,(x)=>!!(x.prenom||x.poste));
@@ -1164,13 +1166,13 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
         <div style={{ position:'absolute',bottom:-60,left:-20,width:150,height:150,borderRadius:'50%',background:`${cp}05` }}/>
         <div style={{ position:'relative',maxWidth:640 }}>
           <div style={{ width:48,height:3,background:`linear-gradient(90deg,${cp},transparent)`,marginBottom:24,borderRadius:2 }}/>
-          <p style={{ fontSize:isMobile?18:24,fontWeight:700,color:'#fff',lineHeight:1.6,margin:'0 0 20px' }}>{t('accroche',APROPOS_DEMO.accroche)}</p>
-          <p style={{ fontSize:15,color:'#888',lineHeight:1.9,margin:0,whiteSpace:'pre-line' }}>{cfg.description||APROPOS_DEMO.description}</p>
+          <p style={{ fontSize:isMobile?18:24,fontWeight:700,color:'#fff',lineHeight:1.6,margin:'0 0 20px' }}>{t('accroche',estDemoPrem?APROPOS_DEMO.accroche:'')}</p>
+          <p style={{ fontSize:15,color:'#888',lineHeight:1.9,margin:0,whiteSpace:'pre-line' }}>{cfg.description||(estDemoPrem?APROPOS_DEMO.description:'')}</p>
         </div>
       </div>
 
       {/* Valeurs */}
-      {ap.afficherValeurs!==false&&(
+      {ap.afficherValeurs!==false&&valeurs.length>0&&(
       <div style={{ marginBottom:64 }}>
         <div style={{ textAlign:'center',marginBottom:40 }}>
           <div style={lblStyle}>✦ {t('valeursSurtitre','Nos valeurs')}</div>
@@ -1190,7 +1192,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       </div>)}
 
       {/* Chiffres */}
-      {ap.afficherChiffres!==false&&(
+      {ap.afficherChiffres!==false&&chiffres.length>0&&(
       <div style={{ background:`linear-gradient(135deg,${SURF},${SURF2})`,borderTop:`1px solid ${BORD}`,borderBottom:`1px solid ${BORD}`,padding:'48px 24px',marginBottom:64,borderRadius:16 }}>
         <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:32,textAlign:'center' }}>
           {chiffres.map((x:any,i:number)=>(
@@ -1203,7 +1205,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
       </div>)}
 
       {/* Équipe */}
-      {ap.afficherEquipe!==false&&(
+      {ap.afficherEquipe!==false&&equipe.length>0&&(
       <div style={{ marginBottom:64 }}>
         <div style={{ textAlign:'center',marginBottom:40 }}>
           <div style={lblStyle}>✦ {t('equipeSurtitre',"L'équipe")}</div>
@@ -1261,7 +1263,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   };
 
   const PageFaq = () => {
-    const faq=cfg.faq?.items||[{ question:'Quels sont vos délais de livraison ?',reponse:'Les commandes sont expédiées sous 24–48h. Livraison standard 2-5 jours.' },{ question:'Puis-je retourner un article ?',reponse:'Oui, sous 30 jours dans leur emballage original.' },{ question:'Quels modes de paiement ?',reponse:'Visa, Mastercard, American Express et Apple Pay via Stripe.' },{ question:'Comment suivre ma commande ?',reponse:'Un courriel avec numéro de suivi vous est envoyé dès expédition.' }];
+    const faq=cfg.faq?.items||(estDemoPrem?[{ question:'Quels sont vos délais de livraison ?',reponse:'Les commandes sont expédiées sous 24–48h. Livraison standard 2-5 jours.' },{ question:'Puis-je retourner un article ?',reponse:'Oui, sous 30 jours dans leur emballage original.' },{ question:'Quels modes de paiement ?',reponse:'Visa, Mastercard, American Express et Apple Pay via Stripe.' },{ question:'Comment suivre ma commande ?',reponse:'Un courriel avec numéro de suivi vous est envoyé dès expédition.' }]:[]);
     return (
       <div style={{ maxWidth:780,margin:'0 auto',padding:'40px 24px' }}>
         <div style={{ fontSize:11,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ FAQ</div>
@@ -1304,7 +1306,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
               </div>
               <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Sujet</label><input value={contactForm.sujet} onChange={e=>setContactForm(f=>({...f,sujet:limiterSaisie(e.target.value,200)}))} maxLength={200} style={styleInput} placeholder="Sujet de votre message"/></div>
               <div><label style={{ fontSize:11,fontWeight:600,color:'#666',textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:8 }}>Message</label><textarea value={contactForm.message} onChange={e=>setContactForm(f=>({...f,message:limiterSaisie(e.target.value,5000)}))} maxLength={5000} rows={5} style={{ ...styleInput,resize:'vertical',fontFamily:'inherit' }} placeholder="Votre message..."/></div>
-              <div style={{ position:'absolute',left:-9999,top:-9999,opacity:0,pointerEvents:'none' }} aria-hidden="true"><input type="text" name="website" value={contactPiege} onChange={e=>setContactPiege(e.target.value)} tabIndex={-1} autoComplete="off"/></div>
+              <div style={{ position:'absolute',left:-9999,top:-9999,opacity:0,pointerEvents:'none' }} aria-hidden="true"><input type="text" name="website" value={contactPiege} maxLength={100} onChange={e=>setContactPiege(e.target.value)} tabIndex={-1} autoComplete="off"/></div>
               {contactStatut==='err'&&<p style={{ color:'#ef4444',fontSize:13 }}>❌ {contactErr||'Erreur. Veuillez réessayer.'}</p>}
               <button onClick={envoyerContact} disabled={contactStatut==='loading'||!contactForm.nom||!contactForm.courriel||!contactForm.message} style={{ ...styleBtn,padding:'16px',fontSize:15,opacity:(!contactForm.nom||!contactForm.courriel||!contactForm.message)?0.5:1,cursor:(!contactForm.nom||!contactForm.courriel||!contactForm.message)?'not-allowed':'pointer' }}>{contactStatut==='loading'?'⏳ Envoi...':'Envoyer →'}</button>
             </div>}

@@ -71,42 +71,42 @@ interface SitePreviewProps {
 
 // ─── Configs démo 100% hardcodées — zéro API ─────────────────────────────────
 const DEMO_PRODUITS_PREMIUM = [
-  { id:1, titre:'Montre Édition Limitée', prix:299.99, prix_promo:249.99, stock:5, categorie:'Accessoires', note_moyenne:4.8, nb_avis:124, description:'Montre de luxe avec boîtier en acier inoxydable et cadran saphir. Étanche 50m. Garantie 2 ans.', photo_principale:'' },
-  { id:2, titre:'Sac Cuir Véritable', prix:189.99, stock:12, categorie:'Maroquinerie', note_moyenne:4.9, nb_avis:87, description:'Sac en cuir pleine fleur tanné végétal. Doublure en suède. Fabriqué à la main.', photo_principale:'' },
-  { id:3, titre:'Parfum Signature', prix:149.99, stock:20, categorie:'Beauté', note_moyenne:4.7, nb_avis:203, description:'Eau de parfum 100ml. Notes de tête: bergamote. Notes de cœur: rose, jasmin.', photo_principale:'' },
-  { id:4, titre:'Coffret Soins Premium', prix:89.99, prix_promo:69.99, stock:8, categorie:'Beauté', note_moyenne:4.6, nb_avis:56, description:'Coffret de 5 produits de soin visage haut de gamme.', photo_principale:'' },
-  { id:5, titre:'Ceinture Cuir Italien', prix:119.99, stock:15, categorie:'Maroquinerie', note_moyenne:4.8, nb_avis:41, description:'Ceinture en cuir de veau italien. Boucle en laiton doré.', photo_principale:'' },
-  { id:6, titre:'Écharpe Cachemire', prix:199.99, prix_promo:159.99, stock:7, categorie:'Mode', note_moyenne:4.9, nb_avis:67, description:'Écharpe 100% cachemire mongolien. Tissage fait main.', photo_principale:'' },
-  { id:7, titre:'Chapeau Fedora', prix:59.99, stock:10, categorie:'Accessoires', note_moyenne:4.5, nb_avis:34, description:'Chapeau fedora en laine feutrée. Ruban en soie.', photo_principale:'' },
-  { id:8, titre:'Portefeuille Slim', prix:79.99, stock:25, categorie:'Maroquinerie', note_moyenne:4.7, nb_avis:92, description:'Portefeuille ultra-mince en cuir de veau. 6 emplacements cartes.', photo_principale:'' },
+  { id:1, titre:'Montre Édition Limitée', prix:299.99, prix_promo:249.99, stock:5, categorie:'Accessoires', note_moyenne:4.8, nb_avis:124, description:'Montre de luxe avec boîtier en acier inoxydable et cadran saphir. Étanche 50m. Garantie 2 ans.', photo_principale:'', emoji:'⌚' },
+  { id:2, titre:'Sac Cuir Véritable', prix:189.99, stock:12, categorie:'Maroquinerie', note_moyenne:4.9, nb_avis:87, description:'Sac en cuir pleine fleur tanné végétal. Doublure en suède. Fabriqué à la main.', photo_principale:'', emoji:'👜' },
+  { id:3, titre:'Parfum Signature', prix:149.99, stock:20, categorie:'Beauté', note_moyenne:4.7, nb_avis:203, description:'Eau de parfum 100ml. Notes de tête: bergamote. Notes de cœur: rose, jasmin.', photo_principale:'', emoji:'🧴' },
+  { id:4, titre:'Coffret Soins Premium', prix:89.99, prix_promo:69.99, stock:8, categorie:'Beauté', note_moyenne:4.6, nb_avis:56, description:'Coffret de 5 produits de soin visage haut de gamme.', photo_principale:'', emoji:'🎁' },
+  { id:5, titre:'Ceinture Cuir Italien', prix:119.99, stock:15, categorie:'Maroquinerie', note_moyenne:4.8, nb_avis:41, description:'Ceinture en cuir de veau italien. Boucle en laiton doré.', photo_principale:'', emoji:'👔' },
+  { id:6, titre:'Écharpe Cachemire', prix:199.99, prix_promo:159.99, stock:7, categorie:'Mode', note_moyenne:4.9, nb_avis:67, description:'Écharpe 100% cachemire mongolien. Tissage fait main.', photo_principale:'', emoji:'🧣' },
+  { id:7, titre:'Chapeau Fedora', prix:59.99, stock:10, categorie:'Accessoires', note_moyenne:4.5, nb_avis:34, description:'Chapeau fedora en laine feutrée. Ruban en soie.', photo_principale:'', emoji:'🎩' },
+  { id:8, titre:'Portefeuille Slim', prix:79.99, stock:25, categorie:'Maroquinerie', note_moyenne:4.7, nb_avis:92, description:'Portefeuille ultra-mince en cuir de veau. 6 emplacements cartes.', photo_principale:'', emoji:'👛' },
 ];
 
 const DEMO_PRODUITS_SIMPLISSE_MODE = [
-  { id:1, titre:'Robe Midi Fleurie', prix:89.99, prix_promo:69.99, stock:15, categorie:'Robes', note_moyenne:4.8, nb_avis:42, est_nouveau:true, photo_principale:'', variantes:[{ nom:'Couleur', valeurs:['Rouge','Bleu','Noir'], type:'couleur' },{ nom:'Taille', valeurs:['XS','S','M','L','XL'], type:'taille' }] },
-  { id:2, titre:'Blazer Oversized Crème', prix:129.99, stock:8, categorie:'Vestes', note_moyenne:4.9, nb_avis:28, photo_principale:'', variantes:[{ nom:'Taille', valeurs:['XS','S','M','L'], type:'taille' }] },
-  { id:3, titre:'Jean Taille Haute', prix:74.99, prix_promo:59.99, stock:20, categorie:'Pantalons', note_moyenne:4.7, nb_avis:61, photo_principale:'', variantes:[{ nom:'Couleur', valeurs:['Noir','Bleu','Blanc'], type:'couleur' },{ nom:'Taille', valeurs:['36','38','40','42','44'], type:'taille' }] },
-  { id:4, titre:'Top Épaules Dénudées', prix:44.99, stock:25, categorie:'Hauts', note_moyenne:4.6, nb_avis:33, est_nouveau:true, photo_principale:'', variantes:[{ nom:'Couleur', valeurs:['Blanc','Rose','Sauge'], type:'couleur' },{ nom:'Taille', valeurs:['XS','S','M','L'], type:'taille' }] },
-  { id:5, titre:'Manteau Long Camel', prix:189.99, prix_promo:149.99, stock:6, categorie:'Manteaux', note_moyenne:4.9, nb_avis:19, photo_principale:'', variantes:[{ nom:'Taille', valeurs:['XS','S','M','L','XL'], type:'taille' }] },
-  { id:6, titre:'Jupe Plissée Midi', prix:59.99, stock:18, categorie:'Jupes', note_moyenne:4.7, nb_avis:47, photo_principale:'', variantes:[{ nom:'Couleur', valeurs:['Bordeaux','Vert','Noir'], type:'couleur' },{ nom:'Taille', valeurs:['XS','S','M','L'], type:'taille' }] },
+  { id:1, titre:'Robe Midi Fleurie', prix:89.99, prix_promo:69.99, stock:15, categorie:'Robes', note_moyenne:4.8, nb_avis:42, est_nouveau:true, photo_principale:'', emoji:'👗', variantes:[{ nom:'Couleur', valeurs:['Rouge','Bleu','Noir'], type:'couleur' },{ nom:'Taille', valeurs:['XS','S','M','L','XL'], type:'taille' }] },
+  { id:2, titre:'Blazer Oversized Crème', prix:129.99, stock:8, categorie:'Vestes', note_moyenne:4.9, nb_avis:28, photo_principale:'', emoji:'🧥', variantes:[{ nom:'Taille', valeurs:['XS','S','M','L'], type:'taille' }] },
+  { id:3, titre:'Jean Taille Haute', prix:74.99, prix_promo:59.99, stock:20, categorie:'Pantalons', note_moyenne:4.7, nb_avis:61, photo_principale:'', emoji:'👖', variantes:[{ nom:'Couleur', valeurs:['Noir','Bleu','Blanc'], type:'couleur' },{ nom:'Taille', valeurs:['36','38','40','42','44'], type:'taille' }] },
+  { id:4, titre:'Top Épaules Dénudées', prix:44.99, stock:25, categorie:'Hauts', note_moyenne:4.6, nb_avis:33, est_nouveau:true, photo_principale:'', emoji:'👚', variantes:[{ nom:'Couleur', valeurs:['Blanc','Rose','Sauge'], type:'couleur' },{ nom:'Taille', valeurs:['XS','S','M','L'], type:'taille' }] },
+  { id:5, titre:'Manteau Long Camel', prix:189.99, prix_promo:149.99, stock:6, categorie:'Manteaux', note_moyenne:4.9, nb_avis:19, photo_principale:'', emoji:'🧥', variantes:[{ nom:'Taille', valeurs:['XS','S','M','L','XL'], type:'taille' }] },
+  { id:6, titre:'Jupe Plissée Midi', prix:59.99, stock:18, categorie:'Jupes', note_moyenne:4.7, nb_avis:47, photo_principale:'', emoji:'👗', variantes:[{ nom:'Couleur', valeurs:['Bordeaux','Vert','Noir'], type:'couleur' },{ nom:'Taille', valeurs:['XS','S','M','L'], type:'taille' }] },
 ];
 
 const DEMO_PRODUITS_SIMPLISSE = [
-  { id: 1, titre: 'T-Shirt Premium Blanc', prix: 29.99, prix_promo: 19.99, stock: 50, categorie: 'Vêtements', description: 'T-shirt 100% coton bio, coupe régulière. Disponible en S, M, L, XL.', photo_principale: '' },
-  { id: 2, titre: 'Casquette Signature',   prix: 24.99, stock: 30,  categorie: 'Accessoires', description: 'Casquette ajustable brodée. Taille unique.', photo_principale: '' },
-  { id: 3, titre: 'Sac Tote Canvas',       prix: 34.99, stock: 25,  categorie: 'Accessoires', description: 'Sac fourre-tout en canvas épais. Contenance 15L.', photo_principale: '' },
-  { id: 4, titre: 'Hoodie Zip Gris',       prix: 59.99, prix_promo: 44.99, stock: 20, categorie: 'Vêtements', description: 'Hoodie zip molleton doux. Poche kangourou.', photo_principale: '' },
-  { id: 5, titre: 'Chaussettes Pack x3',   prix: 14.99, stock: 100, categorie: 'Vêtements', description: 'Pack de 3 paires de chaussettes coton doux.', photo_principale: '' },
-  { id: 6, titre: 'Bouteille Inox 500ml',  prix: 39.99, stock: 40,  categorie: 'Maison',      description: 'Bouteille isotherme 24h chaud / 48h froid.', photo_principale: '' },
+  { id: 1, titre: 'T-Shirt Premium Blanc', prix: 29.99, prix_promo: 19.99, stock: 50, categorie: 'Vêtements', description: 'T-shirt 100% coton bio, coupe régulière. Disponible en S, M, L, XL.', photo_principale:'', emoji:'👕' },
+  { id: 2, titre: 'Tuque Tricotée',   prix: 24.99, stock: 30,  categorie: 'Accessoires', description: 'Tuque en laine douce, doublée polaire.', photo_principale:'', emoji:'🧢' },
+  { id: 3, titre: 'Sac Tote Canvas',       prix: 34.99, stock: 25,  categorie: 'Accessoires', description: 'Sac fourre-tout en canvas épais. Contenance 15L.', photo_principale:'', emoji:'👜' },
+  { id: 4, titre: 'Chandail Molleton Gris',       prix: 59.99, prix_promo: 44.99, stock: 20, categorie: 'Vêtements', description: 'Chandail en molleton doux. Poche kangourou.', photo_principale:'', emoji:'🧶' },
+  { id: 5, titre: 'Bottes d\'Hiver',   prix: 14.99, stock: 100, categorie: 'Chaussures', description: 'Bottes imperméables, semelle antidérapante.', photo_principale:'', emoji:'🥾' },
+  { id: 6, titre: 'Outil Multifonction',  prix: 39.99, stock: 40,  categorie: 'Maison',      description: 'Outil multifonction en acier inoxydable, 12 fonctions.', photo_principale:'', emoji:'🔧' },
 ];
 
 // Boutique Complète : démonstration seulement — une vraie boutique n'affiche jamais ces exemples
 const DEMO_PRODUITS_COMPLETE = [
-  { id: 1, titre: 'T-Shirt Coton Blanc', prix: 29.99, prix_promo: 19.99, stock: 50, categorie: 'Vêtements', description: 'T-shirt 100% coton, coupe régulière. Exemple de produit : remplacez-le par les vôtres.', photo_principale: '' },
-  { id: 2, titre: 'Casquette Signature', prix: 24.99, stock: 30, categorie: 'Accessoires', description: 'Casquette ajustable brodée. Taille unique.', photo_principale: '' },
-  { id: 3, titre: 'Sac Tote Canvas', prix: 34.99, stock: 25, categorie: 'Accessoires', description: 'Sac fourre-tout en canvas épais.', photo_principale: '' },
-  { id: 4, titre: 'Hoodie Zip Gris', prix: 59.99, prix_promo: 44.99, stock: 20, categorie: 'Vêtements', description: 'Hoodie zip en molleton doux.', photo_principale: '' },
-  { id: 5, titre: 'Chaussettes Pack x3', prix: 14.99, stock: 100, categorie: 'Vêtements', description: 'Pack de 3 paires de chaussettes en coton.', photo_principale: '' },
-  { id: 6, titre: 'Bouteille Inox 500ml', prix: 39.99, stock: 40, categorie: 'Maison', description: 'Bouteille isotherme 24h chaud / 48h froid.', photo_principale: '' },
+  { id: 1, titre: 'T-Shirt Coton Blanc', prix: 29.99, prix_promo: 19.99, stock: 50, categorie: 'Vêtements', description: 'T-shirt 100% coton, coupe régulière. Exemple de produit : remplacez-le par les vôtres.', photo_principale:'', emoji:'👕' },
+  { id: 2, titre: 'Tuque Tricotée', prix: 24.99, stock: 30, categorie: 'Accessoires', description: 'Tuque en laine douce, doublée polaire.', photo_principale:'', emoji:'🧢' },
+  { id: 3, titre: 'Sac Tote Canvas', prix: 34.99, stock: 25, categorie: 'Accessoires', description: 'Sac fourre-tout en canvas épais.', photo_principale:'', emoji:'👜' },
+  { id: 4, titre: 'Chandail Molleton Gris', prix: 59.99, prix_promo: 44.99, stock: 20, categorie: 'Vêtements', description: 'Chandail en molleton doux.', photo_principale:'', emoji:'🧶' },
+  { id: 5, titre: 'Bottes d\'Hiver', prix: 14.99, stock: 100, categorie: 'Chaussures', description: 'Bottes imperméables, semelle antidérapante.', photo_principale:'', emoji:'🥾' },
+  { id: 6, titre: 'Outil Multifonction', prix: 39.99, stock: 40, categorie: 'Maison', description: 'Outil multifonction en acier inoxydable, 12 fonctions.', photo_principale:'', emoji:'🔧' },
 ];
 const DEMO_CONFIG_COMPLETE = { complete: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 // Catalogue Avancé : démonstration seulement (produits d'exemple jamais affichés sur une vraie boutique)
@@ -116,7 +116,7 @@ const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', 
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
 const DEMO_PRODUITS_MONO = [
-  { id: 1, titre: 'Sac à dos Voyageur', prix: 129.99, prix_promo: 99.99, stock: 20, categorie: 'Sacs', description: 'Un sac à dos robuste pour tous vos déplacements. Exemple de produit : remplacez-le par le vôtre.', photo_principale: '', photos: [],
+  { id: 1, titre: 'Sac à dos Voyageur', prix: 129.99, prix_promo: 99.99, stock: 20, categorie: 'Sacs', description: 'Un sac à dos robuste pour tous vos déplacements. Exemple de produit : remplacez-le par le vôtre.', photo_principale:'', emoji:'🎒', photos: [],
     variantes: [
       { nom: 'Noir / 20L', prix: 99.99, stock: 8, options: { Couleur: 'Noir', Capacité: '20L' } },
       { nom: 'Noir / 30L', prix: 119.99, stock: 5, options: { Couleur: 'Noir', Capacité: '30L' } },

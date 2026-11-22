@@ -9,7 +9,7 @@
 'use strict';
 
 const bcrypt = require('bcrypt');
-const sanitizeHtml = require('sanitize-html');
+const { nettoyerTexte } = require('../utils/sanitize');   // nettoyage unique (utils/sanitize.js)
 const pool = require('../db');
 const cfgMV = require('./studio_config_mv');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
@@ -89,7 +89,7 @@ function normaliserCodePostal(cp) {
 const ENTITES = { '&amp;': '&', '&lt;': '<', '&gt;': '>', '&quot;': '"', '&#x27;': "'", '&#39;': "'" };
 function texte(v, max) {
   if (typeof v !== 'string') return '';
-  let t = sanitizeHtml(v.slice(0, (max || 200) * 5), { allowedTags: [], allowedAttributes: {} });
+  let t = nettoyerTexte(v.slice(0, (max || 200) * 5), 1000000);
   t = t.replace(/&(?:amp|lt|gt|quot|#x27|#39);/g, (e) => ENTITES[e]);
   t = t.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
   t = t.replace(/\r\n?/g, '\n').replace(/\n{4,}/g, '\n\n\n').trim();
