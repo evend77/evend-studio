@@ -25,3 +25,10 @@ export function configSimplisseAvecBadge(config: any, addons: Record<string, boo
   const simplisse = (config && config.simplisse) || {};
   return { ...config, simplisse: { ...simplisse, footer: { ...(simplisse.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Boutique Complète : le pied de page se lit dans config.complete.footer.afficherPropulse.
+// `base` = config.complete déjà lue (migrée si le site a encore l'ancienne config à plat) : on n'écrase jamais la config du gestionnaire.
+export function configCompleteAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const complete = (base && typeof base === 'object') ? base : {};
+  return { ...config, complete: { ...complete, footer: { ...(complete.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

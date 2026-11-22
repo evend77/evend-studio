@@ -29,10 +29,10 @@ const nombre = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n :
 const arrondi = (n) => Math.round(n * 100) / 100;
 
 // Templates boutique SOLO (mêmes préfixes que le menu du gestionnaire) : Premium, Simplisse (et Mode), Beauté.
-// Les anciens templates « boutique-simple » et « boutique-complete » gardent leur menu « Branding & options ».
+// Boutique Complète (boutique-complete) : comparaison EXACTE, comme le Mono-produit.
 const PREFIXES_SOLO = ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'];
 // Mono-produit (boutique-simple) : comparaison EXACTE — « boutique-simplisse » commence par « boutique-simple »
-const estTemplateSolo = (t) => typeof t === 'string' && (PREFIXES_SOLO.some((p) => t.startsWith(p)) || MONO.estTemplateMono(t));
+const estTemplateSolo = (t) => typeof t === 'string' && (PREFIXES_SOLO.some((p) => t.startsWith(p)) || MONO.estTemplateMono(t) || t === 'boutique-complete');
 
 // Le gestionnaire a-t-il un site boutique solo ? Les add-ons ne servent qu'à ces templates.
 async function aSiteBoutique(gid, db) {

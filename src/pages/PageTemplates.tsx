@@ -130,8 +130,8 @@ export const TEMPLATES: Template[] = [
     id: 'boutique-complete',
     nom: 'Boutique Complète',
     groupe: 'boutique-generique',
-    description: 'Navigation, catalogue multi-produits, panier et compte acheteur avec historique.',
-    fonctionnalites: ['Catalogue multi-produits', 'Panier persistant', 'Compte acheteur', 'Historique commandes'],
+    description: "Boutique multi-produits au look clair : catalogue de vos annonces (recherche, filtres, fiche produit), panier et paiement, compte acheteur avec historique des commandes, blog, FAQ, à propos et contact. Logo, couleurs et police réglables.",
+    fonctionnalites: ['Catalogue de vos annonces avec recherche, filtres et fiche produit', 'Panier, paiement Stripe ou PayPal et compte acheteur avec historique', 'Blog, FAQ, À propos et Contact sécurisé', 'Logo, couleurs et police (Moderne, Classique, Manuscrite) réglables', 'Compatible avec les add-ons (avis, favoris, infolettre, chatbot…)'],
     disponible: true, nouveau: true, couleur: '#16a34a',
   },
   {

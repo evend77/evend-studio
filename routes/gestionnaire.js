@@ -1,4 +1,4 @@
-// routes/gestionnaire.js
+// CHEMIN : routes/gestionnaire.js
 // Routes de base des vendeurs : liste, profil public, création, mise à jour générale
 // Les autres routes sont dans des fichiers dédiés montés directement dans server.js
 
@@ -459,7 +459,9 @@ router.put('/:id/plan', authenticateToken, async (req, res) => {
             return res.status(403).json({ success: false, message: 'Accès refusé' });
         }
         const plansValides = ['simplisse-25','simplisse-50','simplisse-100','simplisse-200','premium-25','premium-50','premium-100','premium-200','premium-500','simplisse-mode-100','mv-demarrage','mv-croissance','mv-affaires','mv-pro','mv-marche'];
-        if (!plansValides.includes(plan)) {
+        // Boutique Complète : « complete-<limite> » (les paliers sont définis dans Prix Template, pas ici)
+        const planComplete = typeof plan === 'string' && /^complete-[0-9]{1,5}$/.test(plan);
+        if (!plansValides.includes(plan) && !planComplete) {
             return res.status(400).json({ success: false, message: 'Plan invalide' });
         }
         await pool.query(
@@ -467,7 +469,7 @@ router.put('/:id/plan', authenticateToken, async (req, res) => {
             [plan, gestionnaireId]
         );
         let planDetails = null;
-        if (!plan.startsWith('mv-')) {
+        if (!plan.startsWith('mv-') && !planComplete) {
           const table = plan.startsWith('premium-') ? 'plans_premium' : plan.startsWith('simplisse-mode-') ? 'plans_simplisse_mode' : 'plans_simplisse';
           const planResult = await pool.query(`SELECT * FROM ${table} WHERE plan = $1`, [plan]);
           planDetails = planResult.rows[0] || null;

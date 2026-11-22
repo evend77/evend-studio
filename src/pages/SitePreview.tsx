@@ -1,4 +1,4 @@
-// src/pages/SitePreview.tsx
+// CHEMIN : src/pages/SitePreview.tsx
 // e-Vend Studio — Aperçu du site du vendeur (rendu réel)
 // Accessible via /site-preview?vendeurId=X
 // Mode démo : /site-preview?forceTemplate=xxx&demo=true — 100% hardcodé, zéro API
@@ -17,7 +17,7 @@ import TemplateReservation            from '../templates/TemplateReservation';
 import TemplateSpectacle              from '../templates/TemplateSpectacle';
 import TemplateCagnottePro            from '../templates/TemplateCagnottePro';
 import TemplateBoutiqueSimple         from '../templates/TemplateBoutiqueSimple';
-import TemplateBoutiqueComplete       from '../templates/TemplateBoutiqueComplete';
+import TemplateBoutiqueComplete, { migrerComplete } from '../templates/TemplateBoutiqueComplete';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -48,7 +48,7 @@ import TemplateBoutiqueSimplisseMode  from '../templates/TemplateBoutiqueSimplis
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -57,8 +57,9 @@ const API_BASE = '/api';
 // Simplisse (pas Simplisse-Mode) : le template monte lui-même l'Analytique et le Vérificateur d'âge (add-ons boutique)
 // Mono-produit (boutique-simple, comparé EXACTEMENT : « boutique-simplisse » commence par « boutique-simple ») : même moteur que Simplisse, donc même montage.
 const estMonoProduit = (t: string) => t === 'boutique-simple';
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t);
+const estCompleteBoutique = (t: string) => t === 'boutique-complete';
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -94,6 +95,17 @@ const DEMO_PRODUITS_SIMPLISSE = [
   { id: 5, titre: 'Chaussettes Pack x3',   prix: 14.99, stock: 100, categorie: 'Vêtements', description: 'Pack de 3 paires de chaussettes coton doux.', photo_principale: '' },
   { id: 6, titre: 'Bouteille Inox 500ml',  prix: 39.99, stock: 40,  categorie: 'Maison',      description: 'Bouteille isotherme 24h chaud / 48h froid.', photo_principale: '' },
 ];
+
+// Boutique Complète : démonstration seulement — une vraie boutique n'affiche jamais ces exemples
+const DEMO_PRODUITS_COMPLETE = [
+  { id: 1, titre: 'T-Shirt Coton Blanc', prix: 29.99, prix_promo: 19.99, stock: 50, categorie: 'Vêtements', description: 'T-shirt 100% coton, coupe régulière. Exemple de produit : remplacez-le par les vôtres.', photo_principale: '' },
+  { id: 2, titre: 'Casquette Signature', prix: 24.99, stock: 30, categorie: 'Accessoires', description: 'Casquette ajustable brodée. Taille unique.', photo_principale: '' },
+  { id: 3, titre: 'Sac Tote Canvas', prix: 34.99, stock: 25, categorie: 'Accessoires', description: 'Sac fourre-tout en canvas épais.', photo_principale: '' },
+  { id: 4, titre: 'Hoodie Zip Gris', prix: 59.99, prix_promo: 44.99, stock: 20, categorie: 'Vêtements', description: 'Hoodie zip en molleton doux.', photo_principale: '' },
+  { id: 5, titre: 'Chaussettes Pack x3', prix: 14.99, stock: 100, categorie: 'Vêtements', description: 'Pack de 3 paires de chaussettes en coton.', photo_principale: '' },
+  { id: 6, titre: 'Bouteille Inox 500ml', prix: 39.99, stock: 40, categorie: 'Maison', description: 'Bouteille isotherme 24h chaud / 48h froid.', photo_principale: '' },
+];
+const DEMO_CONFIG_COMPLETE = { complete: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
 const DEMO_PRODUITS_MONO = [
@@ -242,7 +254,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : DEMO_CONFIG_GENERIQUE)
+    ? (templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -273,7 +285,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     if (templateId === 'enchere-flash')            return <TemplateEnchereFlash config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'enchere-galerie')          return <TemplateEnchereGalerie config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'enchere-live')             return <TemplateEnchereLive config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
-    if (templateId === 'boutique-complete')        return <TemplateBoutiqueComplete config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    if (templateId === 'boutique-complete') {
+      // Boutique Complète : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_COMPLETE } : config;
+      return <TemplateBoutiqueComplete config={isDemo ? configDemo : configCompleteAvecBadge(configDemo, addonsBoutique, migrerComplete(configDemo))} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
     if (estMonoProduit(templateId)) {
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_MONO } : config;
       // Add-on « Cacher le branding » : badge « Propulsé par » masqué seulement si l'add-on est activé
