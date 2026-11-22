@@ -39,3 +39,10 @@ export function configCatalogueAvecBadge(config: any, addons: Record<string, boo
   const avance = (base && typeof base === 'object') ? base : {};
   return { ...config, avance: { ...avance, footer: { ...(avance.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Mode : le pied de page se lit dans config.mode.footer.afficherPropulse.
+// `base` = config.mode déjà lue (convertie si le site a encore l'ancienne config à plat) : on n'écrase jamais la config du gestionnaire.
+export function configModeAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const mode = (base && typeof base === 'object') ? base : {};
+  return { ...config, mode: { ...mode, footer: { ...(mode.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

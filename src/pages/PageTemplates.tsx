@@ -147,8 +147,8 @@ export const TEMPLATES: Template[] = [
     id: 'boutique-simplisse-mode',
     nom: 'Simplisse Mode',
     groupe: 'boutique-industrie',
-    description: 'Boutique mode & vêtements haut de gamme. Lookbook, filtres taille/couleur visuels, guide des tailles, zoom image, wishlist. Style éditorial ivoire & bordeaux.',
-    fonctionnalites: ['Lookbook & filtres taille/couleur', 'Guide des tailles', 'Zoom image & wishlist', 'Compte acheteur'],
+    description: 'Boutique mode & vêtements au style éditorial ivoire & bordeaux. Lookbook, section Instagram, filtres taille/couleur tirés de vos variantes, guide des tailles que vous saisissez, bandeau défilant et popup promo. Panier, paiement et compte acheteur intégrés.',
+    fonctionnalites: ['Lookbook & section Instagram', 'Filtres taille/couleur (vos variantes)', 'Guide des tailles configurable', 'Panier, paiement et compte acheteur', 'Compatible avec les add-ons'],
     disponible: true, nouveau: true, couleur: '#722f37',
   },
   {

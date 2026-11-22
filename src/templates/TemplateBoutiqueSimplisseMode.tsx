@@ -1,1165 +1,2203 @@
-// src/templates/TemplateBoutiqueSimplisseMode.tsx
-// e-Vend Studio — Template Boutique Simplisse Mode
-// Style éditorial fashion — ivoire, noir, accents configurables
-// Sections réordonnables · Variantes couleur/taille · Lookbook · Guide des tailles
+// CHEMIN : src/templates/TemplateBoutiqueSimplisseMode.tsx
+// e-Vend Studio — Template Boutique Simplisse Mode (style éditorial ivoire/noir, lookbook, Instagram, filtres taille/couleur) — indépendant des autres templates
+// Rendu public — lit config.mode + produits depuis l'API (l'ancienne config à plat de Simplisse Mode est convertie à la volée)
+// Pages : Accueil · Catalogue · Fiche produit · Blog · FAQ · Contact
+// Compte acheteur + panier/caisse/commandes (AppAcheteurBoutique) · Add-ons : Produits personnalisés, Infolettre, Prix par palier, Vérificateur d'âge, Analytique, App installable
+// 100% mobile responsive
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import AppAcheteurBoutique from '../AppAcheteurBoutique';   // espace acheteur (panier, caisse, commandes) partagé avec Premium
+import useBoutiqueAnalytique from '../hooks/useBoutiqueAnalytique';   // add-on « Analytique » : compte les pages vues (après consentement du visiteur)
+import BoutiqueBoutonInstallerApp from '../components/BoutiqueBoutonInstallerApp';   // add-on « App installable » : bouton « Installer l'app » (mobile)
+import BoutiqueInfolettre from '../components/BoutiqueInfolettre';   // add-on « Infolettre » : rangée d'inscription dans le pied de page
+import BoutiquePersonnalisation, { PersoRef, ThemePerso } from '../components/BoutiquePersonnalisation';   // add-on « Produits personnalisés » : champs + aperçu sur la page produit
+import BoutiqueVerificateurAge from '../components/BoutiqueVerificateurAge';   // add-on « Vérificateur d'âge » : fenêtre bloquante à l'arrivée
+import PaliersProduitBoutique from '../pages/boutique/PaliersProduitBoutique';   // add-on « Prix par palier » : tableau de la fiche produit
+import { ba, ajouterAuPanier as ajouterAuPanierServeur, messageAcheteur, PROVINCES } from '../pages/boutique/boutiqueAcheteurApi';
+import FaireOffreBoutique from '../pages/boutique/FaireOffreBoutique';   // add-on « Faire une offre » : bloc de la fiche produit
+import BlocEnchereBoutique from '../pages/boutique/BlocEnchereBoutique';   // add-on « Enchères » : bloc de la fiche produit
+import QuestionsProduitBoutique from '../pages/boutique/QuestionsProduitBoutique';   // add-on « Questions sur le produit » : bloc de la fiche produit
+import AvisProduitBoutique, { useAvisProduit, EtoilesAvis } from '../pages/boutique/AvisProduitBoutique';   // add-on « Avis clients » : avis publiés de la fiche produit
+import BoutiqueParutionCountdown, { useConfigParution, formaterDateParution } from '../components/BoutiqueParutionCountdown';   // add-on « Parution future » : compte à rebours
+import OffreCompteur from './multivendeur/MVOffre';   // add-on « Offres du jour » : compte à rebours (heure du serveur)
+import { BoutiqueSouhaitBouton, BoutiqueSouhaitCarte, BoutiqueSouhaitProduit, BoutiqueSouhaitsAcces, BoutiqueFavorisToast } from '../components/BoutiqueFavoris';   // add-on « Favoris » : cœurs, icône d'en-tête, notifications
 
-const API_BASE = '/api';
+// ─── Types (miroir de ConfigMesPagesSimplisseMode) ────────────────────────────────
+interface SectionPage  { id: string; actif: boolean; ordre: number; label: string; icone: string; }
+interface ConfigHero   { titre: string; sousTitre: string; boutonLabel: string; boutonLien: string; photo: string; couleurFond: string; couleurTitre: string; couleurBouton: string; style: 'centre'|'gauche'|'image-fond'; }
+interface ConfigBanniere { defilant?: boolean; actif: boolean; texte: string; couleurFond: string; couleurTexte: string; lien: string; labelLien: string; }
+interface ConfigFooter {
+  nomBoutique: string; slogan: string; couleurFond: string; couleurTexte: string; afficherPropulse: boolean;
+  reseaux: { facebook:string; instagram:string; tiktok:string; twitter:string; youtube:string; linkedin:string; pinterest:string; };
+  colonnes: { titre1:string; liens1:string; titre2:string; liens2:string; titre3:string; liens3:string; };
+  politiques: { afficherConditions:boolean; afficherConfidentialite:boolean; afficherRetours:boolean; afficherLivraison:boolean; afficherMentions?:boolean; afficherCoordonnees?:boolean; };
+}
+interface ConfigAccueil {
+  hero: ConfigHero; banniere: ConfigBanniere; sections: SectionPage[];
+  couleurPrimaire: string; couleurSecondaire: string; couleurFondPage: string; couleurTexte: string; police: string;
+  afficherRemonter?: boolean;
+  popup?: { actif: boolean; delaiSecondes: number; texte: string; code: string };
+  temoignages?: { texte: string; auteur: string; note: number }[];
+  avantages?: { ico: string; titre: string; desc: string }[];
+}
+interface ConfigCatalogue {
+  titre: string; sousTitre: string; colonnes: 2|3|4;
+  afficherFiltres: boolean; afficherRecherche: boolean; afficherPrix: boolean; afficherStock: boolean;
+  hero: ConfigHero; banniere: ConfigBanniere; sections: SectionPage[];
+  afficherFiltresTaille?: boolean; afficherFiltresCouleur?: boolean; tailles?: string[];
+}
+interface ConfigFaq     { titre: string; sousTitre: string; hero: ConfigHero; banniere: ConfigBanniere; items: { question:string; reponse:string }[]; }
+interface ConfigBlog    { titre: string; sousTitre: string; hero: ConfigHero; banniere: ConfigBanniere; afficherAuteur: boolean; afficherDate: boolean; colonnes: 2|3; }
+interface ConfigContact { titre: string; sousTitre: string; hero: ConfigHero; banniere: ConfigBanniere; adresse: string; telephone: string; courriel: string; afficherCarte: boolean; urlCarte: string; }
+interface ConfigMode { accueil: ConfigAccueil; catalogue: ConfigCatalogue; faq: ConfigFaq; blog: ConfigBlog; contact: ConfigContact; footer: ConfigFooter; ficheProduit?: ConfigFicheProduit; }
 
-// ─── Couleurs de base ─────────────────────────────────────────────────────────
-const IVOIRE  = '#faf8f5';
-const IVOIRE2 = '#f2ede6';
-const NOIR    = '#0f0f0f';
-const NOIR2   = '#1a1a1a';
-const GRIS    = '#888888';
-const GRIS2   = '#e8e4df';
-const BORD    = '#e2ddd8';
+interface ConfigFicheProduit {
+  layout:              'image-gauche' | 'image-droite' | 'image-haut';
+  photosMiniatures:    'dessous' | 'gauche';
+  descriptionPosition: 'droite' | 'bas' | 'onglets';
+  descriptionTronquee: boolean;
+  afficherBreadcrumb:  boolean;
+  afficherStock:       boolean;
+  afficherCategorie:   boolean;
+  afficherSku:         boolean;
+  afficherRabaisPct:   boolean;
+  afficherQte:         boolean;
+  boutonLabel:         string;
+  boutonCouleur:       string;
+  afficherReassurance: boolean;
+  reassuranceItems:    { icone: string; texte: string }[];
+  afficherPartage:     boolean;
+  afficherSimilaires:  boolean;
+  similairesNombre:    2 | 4 | 6;
+  similairesTitre:     string;
+}
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface Produit {
-  id: number; titre: string; prix: number; prix_promo?: number;
-  photo_principale?: string; photos?: string[]; description?: string;
-  stock?: number; categorie?: string; sku?: string; marque?: string;
-  note_moyenne?: number; nb_avis?: number; est_nouveau?: boolean;
-  variantes?: { nom: string; valeurs: string[]; type?: 'couleur'|'taille'|'texte' }[];
+interface ProduitCat {
+  id: number; titre: string; prix: number; prix_promo?: number; photo_principale?: string;
+  photos?: string[]; description?: string; stock?: number; categorie?: string; sku?: string;
+  variantes?: { nom: string; valeurs?: string[]; prix?: number|string|null; stock?: number|string|null }[];   // démo : {nom, valeurs[]} ; vraies annonces : liste plate {nom, prix, stock}
+  paliers?: { qte_min:number; type:'pourcentage'|'fixe'; valeur:number; variante:string|null }[];   // add-on « Prix par palier » : le serveur n'envoie rien si l'add-on est inactif
+  offre_fin?: string | null;   // add-on « Offres du jour » : fin de l'offre en cours (le serveur décide du prix)
+  date_parution?: string | null;   // add-on « Parution future » : date d'ouverture de la vente tant qu'elle n'est pas passée
+  enchere?: { fin: string; mise: number; nb_mises: number; decalage?: number } | null;   // add-on « Enchères » : enchère en cours sur ce produit
+}
+
+interface AcheteurUser {
+  id: number; prenom: string; nom: string; email: string;
+  telephone?: string; adresse?: string; ville?: string; province?: string; code_postal?: string;
 }
 
 interface ArticleBlog {
-  id: number; titre: string; resume?: string;
-  photo?: string; auteur?: string; date_publication?: string; categorie?: string;
+  id: number; titre: string; slug: string; resume?: string; photo?: string;
+  auteur?: string; date_publication?: string; categorie?: string;
+  contenu?: string; tags?: string[]; vues?: number;
 }
 
-interface PanierItem { produit: Produit; qte: number; variantes?: Record<string,string>; }
+// ─── Config par défaut (fallback si BD vide) ──────────────────────────────────
+const CP = '#722f37';
+const HERO_DEF: ConfigHero = { titre: 'Bienvenue dans notre boutique', sousTitre: 'Découvrez notre sélection de produits soigneusement choisis pour vous.', boutonLabel: 'Voir le catalogue', boutonLien: '/catalogue', photo: '', couleurFond: '#f2ede6', couleurTitre: '#0f0f0f', couleurBouton: CP, style: 'centre' };
+const BAN_DEF: ConfigBanniere = { defilant: true, actif: false, texte: '🎉 Livraison gratuite sur toutes les commandes de 75$ et plus !', couleurFond: CP, couleurTexte: '#ffffff', lien: '', labelLien: 'En savoir plus' };
+const CFG_DEF: ConfigMode = {
+  accueil: { hero: HERO_DEF, banniere: BAN_DEF, sections: [
+    { id:'banniere', label:'Bannière', icone:'📢', actif:true,  ordre:1 },
+    { id:'hero',     label:'Hero',    icone:'🎬', actif:true,  ordre:2 },
+    { id:'avantages',label:'Avantages',icone:'✅',actif:true,  ordre:3 },
+    { id:'vedette',  label:'Produits vedette', icone:'👗', actif:true,  ordre:4 },
+    { id:'categories',label:'Collections',icone:'🗂',actif:true,ordre:5 },
+    { id:'nouveautes',label:'Nouveautés',icone:'🆕',actif:false,ordre:6 },
+    { id:'promo',    label:'Promos',  icone:'🏷', actif:false, ordre:7 },
+    { id:'lookbook', label:'Lookbook', icone:'📸', actif:true,  ordre:8 },
+    { id:'instagram',label:'Vu sur Instagram', icone:'📱', actif:false, ordre:9 },
+    { id:'temoignages',label:'Témoignages',  icone:'⭐', actif:true,  ordre:10 },
+    { id:'newsletter',label:'Infolettre',icone:'📧',actif:false,ordre:11 },
+    { id:'blog-apercu',label:'Articles du blog',  icone:'📰', actif:true, ordre:12 },
+  ], couleurPrimaire:CP, couleurSecondaire:'#6b6560', couleurFondPage:'#faf8f5', couleurTexte:'#0f0f0f', police:'Playfair Display', afficherRemonter:true, popup:{ actif:false, delaiSecondes:5, texte:'', code:'' } },
+  catalogue: { titre:'Notre catalogue', sousTitre:'Tous nos produits disponibles.', colonnes:3, afficherFiltres:true, afficherRecherche:true, afficherPrix:true, afficherStock:true, afficherFiltresTaille:true, afficherFiltresCouleur:true, tailles:['XS','S','M','L','XL','XXL'], banniere:BAN_DEF, hero:HERO_DEF, sections:[] },
+  faq: { titre:'Questions fréquentes', sousTitre:'Trouvez rapidement les réponses à vos questions.', hero:HERO_DEF, banniere:BAN_DEF, items:[
+    { question:'Quels sont vos délais de livraison ?', reponse:'Les commandes sont expédiées sous 24–48h ouvrables.' },
+    { question:'Puis-je retourner un article ?', reponse:'Oui, sous 30 jours suivant la réception.' },
+    { question:'Quels modes de paiement acceptez-vous ?', reponse:'Visa, Mastercard et Apple Pay via Stripe.' },
+  ]},
+  blog: { titre:'Notre blogue', sousTitre:'Actualités, conseils et nouveautés.', hero:HERO_DEF, banniere:BAN_DEF, afficherAuteur:true, afficherDate:true, colonnes:3 },
+  contact: { titre:'Nous contacter', sousTitre:'Une question ? Nous sommes là pour vous.', hero:HERO_DEF, banniere:BAN_DEF, adresse:'', telephone:'', courriel:'', afficherCarte:false, urlCarte:'' },
+  footer: { nomBoutique:'Ma Boutique', slogan:'', couleurFond:'#0f0f0f', couleurTexte:'#ffffff', afficherPropulse:true,
+    reseaux:{ facebook:'', instagram:'', tiktok:'', twitter:'', youtube:'', linkedin:'', pinterest:'' },
+    colonnes:{ titre1:'Boutique', liens1:'Accueil\nCatalogue\nBlog\nFAQ\nÀ propos', titre2:'Aide', liens2:'Contact', titre3:'', liens3:'' },
+    politiques:{ afficherConditions:true, afficherConfidentialite:true, afficherRetours:true, afficherLivraison:true, afficherMentions:true, afficherCoordonnees:true },
+  },
+};
 
-interface Section {
-  id: string; label: string; icone: string; actif: boolean; ordre: number;
-}
+// Exemples de démonstration de la page À propos : affichés tant que le gestionnaire n'a rien saisi (Config Mes pages → À propos)
+const APROPOS_DEMO = {
+  accroche: 'Nous croyons que la qualité devrait être accessible à tous — sans compromis.',
+  description: "Fondée avec une passion pour l'excellence, notre boutique sélectionne rigoureusement chaque produit pour vous offrir ce qu'il y a de mieux. Chaque article est testé, validé et choisi avec soin pour dépasser vos attentes.",
+  valeurs: [
+    { ico: '💎', titre: 'Qualité sans compromis', desc: 'Chaque produit est sélectionné selon des critères rigoureux. Nous refusons la médiocrité.' },
+    { ico: '🤝', titre: 'Service humain', desc: "Derrière chaque commande, il y a une personne réelle, disponible pour vous accompagner à chaque étape." },
+    { ico: '🌱', titre: 'Responsabilité', desc: 'Nous choisissons prioritairement des fournisseurs éthiques et des emballages éco-responsables.' },
+  ],
+  chiffres: [{ nb: '500+', label: 'Produits sélectionnés' }, { nb: '4.8/5', label: 'Note moyenne' }, { nb: '2 000+', label: 'Clients satisfaits' }, { nb: '30 jours', label: 'Politique de retour' }],
+  equipe: [{ prenom: 'Alexandre', poste: 'Fondateur & Directeur', photo: '' }, { prenom: 'Marie', poste: 'Responsable des achats', photo: '' }, { prenom: 'Sophie', poste: 'Service à la clientèle', photo: '' }],
+};
 
-interface Props { config: any; siteId?: number; vendeurId: number; }
+const API_BASE = '/api';
 
-const px = (n: number) => n?.toFixed(2).replace('.', ',') + ' $';
+// ── Polices proposées (liste fermée : jamais une valeur libre dans le CSS). La police choisie s'applique aux titres ; le texte reste en Inter. ──
+export const POLICES_MODE: { valeur: string; label: string; css: string; google: string }[] = [
+  { valeur: 'Playfair Display',   label: 'Éditoriale (Playfair Display)',   css: "'Playfair Display', Georgia, serif",   google: 'Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@400;600;700' },
+  { valeur: 'Cormorant Garamond', label: 'Élégante (Cormorant Garamond)',   css: "'Cormorant Garamond', Georgia, serif", google: 'Inter:wght@400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700' },
+  { valeur: 'Inter',              label: 'Moderne (Inter)',                 css: "'Inter', -apple-system, sans-serif",   google: 'Inter:wght@400;500;600;700;800' },
+];
+export const policeMode = (p: any) => POLICES_MODE.find(x => x.valeur === String(p == null ? '' : p)) || POLICES_MODE[0];
+const hexOk = (v: any, def: string) => (/^#[0-9a-f]{3,8}$/i.test(String(v == null ? '' : v).trim()) ? String(v).trim() : def);
 
-// ─── Couleurs mode prédéfinies ────────────────────────────────────────────────
+// Couleurs connues : les noms de variantes (« Rouge », « Marine »…) deviennent des pastilles. Un nom inconnu reste du texte.
 const COULEURS_MODE: Record<string, string> = {
-  'Noir': '#0f0f0f', 'Blanc': '#ffffff', 'Crème': '#faf8f5',
-  'Rouge': '#c0392b', 'Rose': '#e91e8c', 'Bordeaux': '#722f37',
-  'Bleu': '#2563eb', 'Marine': '#1e3a5f', 'Ciel': '#87ceeb',
-  'Vert': '#16a34a', 'Sauge': '#8fae88', 'Olive': '#6b7c3a',
-  'Beige': '#c9a96e', 'Camel': '#c19a6b', 'Taupe': '#8b7355',
-  'Gris': '#888888', 'Anthracite': '#3d3d3d', 'Lavande': '#967bb6',
-  'Jaune': '#f59e0b', 'Orange': '#f97316', 'Corail': '#ff6b6b',
+  noir: '#0f0f0f', blanc: '#ffffff', creme: '#faf8f5', ecru: '#f1ebe0', rouge: '#c0392b', rose: '#e91e8c', bordeaux: '#722f37',
+  bleu: '#2563eb', marine: '#1e3a5f', ciel: '#87ceeb', vert: '#16a34a', sauge: '#8fae88', olive: '#6b7c3a', kaki: '#8a8a4a',
+  beige: '#c9a96e', camel: '#c19a6b', taupe: '#8b7355', brun: '#6b4423', marron: '#6b4423', gris: '#888888', anthracite: '#3d3d3d',
+  lavande: '#967bb6', mauve: '#9b6bb0', jaune: '#f59e0b', orange: '#f97316', corail: '#ff6b6b', or: '#d4af37', argent: '#c0c0c0',
+};
+const hexCouleur = (nom: string): string => COULEURS_MODE[sansAccent(nom)] || '';
+// Valeurs de variantes d'un produit : démo = {nom, valeurs[]} ; vraies annonces = liste plate {nom, prix, stock} (le nom est la valeur)
+const valeursVariantes = (p: any): string[] => {
+  const out: string[] = [];
+  (Array.isArray(p && p.variantes) ? p.variantes : []).forEach((v: any) => {
+    if (!v) return;
+    if (Array.isArray(v.valeurs)) v.valeurs.forEach((x: any) => { if (typeof x === 'string' && x.trim()) out.push(x.trim()); });
+    else if (typeof v.nom === 'string' && v.nom.trim()) out.push(v.nom.trim());
+  });
+  return out;
 };
 
-// ─── Config défaut ────────────────────────────────────────────────────────────
-const SECTIONS_DEF: Section[] = [
-  { id:'hero',         label:'Hero',              icone:'🎬', actif:true,  ordre:1 },
-  { id:'banniere',     label:'Bannière promo',    icone:'📢', actif:true,  ordre:2 },
-  { id:'vedette',      label:'Produits vedette',  icone:'👗', actif:true,  ordre:3 },
-  { id:'collections',  label:'Collections',       icone:'🗂',  actif:true,  ordre:4 },
-  { id:'lookbook',     label:'Lookbook',          icone:'📸', actif:true,  ordre:5 },
-  { id:'instagram',    label:'Vu sur Instagram',  icone:'📱', actif:false, ordre:6 },
-  { id:'temoignages',  label:'Témoignages',       icone:'⭐', actif:true,  ordre:7 },
-  { id:'blog',         label:'Articles du blog',  icone:'📰', actif:true,  ordre:8 },
-  { id:'infolettre',   label:'Infolettre',        icone:'📧', actif:true,  ordre:9 },
-];
+// ── Guide des tailles : tableau saisi par le gestionnaire (rien d'inventé : sans tableau, pas de guide) ──
+type GuideTailles = { actif: boolean; titre: string; colonnes: string[]; lignes: { taille: string; valeurs: string[] }[]; note: string };
+const guideTaillesSur = (b: any): GuideTailles => {
+  const x = b && typeof b === 'object' ? b : {};
+  const colonnes = (Array.isArray(x.colonnes) ? x.colonnes : []).slice(0, 6).map((c: any) => nettoyerEnvoi(c, 30));
+  const lignes = (Array.isArray(x.lignes) ? x.lignes : []).slice(0, 14).map((l: any) => ({ taille: nettoyerEnvoi(l && l.taille, 20), valeurs: colonnes.map((_: any, k: number) => nettoyerEnvoi(l && Array.isArray(l.valeurs) ? l.valeurs[k] : '', 20)) })).filter((l: any) => l.taille);
+  return { actif: x.actif === true && lignes.length > 0, titre: nettoyerEnvoi(x.titre, 60) || 'Guide des tailles', colonnes, lignes, note: nettoyerEnvoi(x.note, 300) };
+};
 
-const CFG_DEF = {
-  nomBoutique: 'Ma Boutique Mode',
-  slogan: 'Style & Élégance',
-  couleurAccent: '#722f37',
-  couleurFond: IVOIRE,
-  couleurTexte: NOIR,
-  logoUrl: '',
-  afficherBanniere: true,
-  banniereTexte: '✦ LIVRAISON GRATUITE dès 80$ ✦ RETOURS GRATUITS 30 JOURS ✦ NOUVEAUTÉS CHAQUE SEMAINE ✦',
-  banniereColor: '#722f37',
-  sections: SECTIONS_DEF,
-  hero: {
-    titre: 'La Mode\nComme un Art',
-    sousTitre: 'Collections exclusives · Pièces uniques · Style intemporel',
-    boutonLabel: 'Découvrir la collection',
-    photo: '',
-    style: 'diagonal', // diagonal | centre | gauche
-  },
-  lookbook: {
-    titre: 'Lookbook',
-    sousTitre: 'Inspirations & Styles de la saison',
-    photos: ['','','','','',''],
-    disposition: 'masonry', // masonry | grille | plein
-  },
-  instagram: {
-    handle: '@maboutique',
-    titre: 'Suivez-nous sur Instagram',
-    photos: ['','','','','',''],
-  },
-  catalogue: {
-    colonnes: 3,
-    afficherFiltresTaille: true,
-    afficherFiltresCouleur: true,
-    afficherGuidesTailles: true,
-    afficherStock: true,
-    afficherNote: true,
-    afficherNouveauBadge: true,
-    tailles: ['XS','S','M','L','XL','XXL'],
-  },
-  ficheProduit: {
-    afficherZoom: true,
-    afficherGuidesTailles: true,
-    afficherCompleterLook: true,
-    afficherAvis: true,
-    afficherPartage: true,
-    boutonLabel: 'Ajouter au panier',
-    boutonCouleur: '',
-  },
-  footer: {
-    nomBoutique: 'Ma Boutique Mode',
-    slogan: 'Style & Élégance',
-    couleurFond: NOIR,
-    couleurTexte: '#ffffff',
-    reseaux: { facebook:'', instagram:'', tiktok:'', twitter:'', youtube:'', pinterest:'' },
-    colonnes: {
-      titre1:'Boutique', liens1:'Accueil\nCatalogue\nLookbook\nBlog',
-      titre2:'Service', liens2:'Contact\nRetours\nLivraison\nGuide des tailles',
-      titre3:'', liens3:'',
+// ── Anciennes configurations à plat de Simplisse Mode (clés à la racine de config.mode) : converties à la volée, sans rien perdre ──
+const reseauVersUrl = (v: any, base: string): string => {
+  const t = String(v == null ? '' : v).trim().slice(0, 200);
+  if (!t) return '';
+  if (/^https?:\/\//i.test(t)) return urlSure(t);
+  const h = t.replace(/^@/, '');
+  return /^[A-Za-z0-9._-]{1,80}$/.test(h) ? `${base}${h}` : '';
+};
+const ANCIENS_IDS: Record<string, string> = { hero: 'hero', banniere: 'banniere', vedette: 'vedette', collections: 'categories', lookbook: 'lookbook', instagram: 'instagram', temoignages: 'temoignages', blog: 'blog-apercu', infolettre: 'newsletter' };
+export function migrerMode(brut: any): any {
+  const c = brut && typeof brut === 'object' && !Array.isArray(brut) ? brut : {};
+  if (c.accueil || c.identite || c.menu || c.guideTailles) return c;   // déjà au nouveau format
+  const ancienne = ['nomBoutique', 'couleurAccent', 'hero', 'footer', 'sections', 'lookbook', 'faq'].some(k => c[k] !== undefined);
+  if (!ancienne) return {};
+  const obj = (x: any) => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
+  const hero = obj(c.hero); const cp0 = hexOk(c.couleurAccent, CP);
+  const sections = Array.isArray(c.sections) ? c.sections.map((x: any) => ANCIENS_IDS[x && x.id] ? ({ id: ANCIENS_IDS[x.id], label: nettoyerEnvoi(x.label, 40), icone: nettoyerEnvoi(x.icone, 4), actif: x.actif !== false, ordre: Number(x.ordre) || 0 }) : null).filter(Boolean) : undefined;
+  const foot = obj(c.footer); const res = obj(foot.reseaux); const col = obj(foot.colonnes);
+  return {
+    identite: { logoUrl: urlSure(c.logoUrl) },
+    accueil: {
+      hero: { ...HERO_DEF, titre: nettoyerEnvoi(hero.titre, 120) || HERO_DEF.titre, sousTitre: nettoyerEnvoi(hero.sousTitre, 300) || HERO_DEF.sousTitre, boutonLabel: nettoyerEnvoi(hero.boutonLabel, 40) || HERO_DEF.boutonLabel, photo: urlSure(hero.photo), style: urlSure(hero.photo) ? 'image-fond' : 'centre', couleurBouton: cp0 },
+      banniere: { ...BAN_DEF, actif: c.afficherBanniere !== false && !!c.banniereTexte, texte: nettoyerEnvoi(c.banniereTexte, 200), couleurFond: hexOk(c.banniereColor, cp0), defilant: true },
+      ...(sections && sections.length ? { sections } : {}),
+      couleurPrimaire: cp0, couleurFondPage: hexOk(c.couleurFond, '#faf8f5'), couleurTexte: hexOk(c.couleurTexte, '#0f0f0f'),
     },
-    afficherPropulse: true,
-  },
+    catalogue: { colonnes: [2, 3, 4].includes(Number(obj(c.catalogue).colonnes)) ? Number(obj(c.catalogue).colonnes) : 3 },
+    lookbook: { ...obj(c.lookbook) }, instagram: { ...obj(c.instagram) },
+    faq: Array.isArray(obj(c.faq).items) ? { titre: nettoyerEnvoi(obj(c.faq).titre, 100) || undefined, items: obj(c.faq).items } : {},
+    blog: { titre: nettoyerEnvoi(obj(c.blog).titre, 100) || undefined },
+    contact: { titre: nettoyerEnvoi(obj(c.contact).titre, 100) || undefined, sousTitre: nettoyerEnvoi(obj(c.contact).sousTitre, 200) || undefined, adresse: nettoyerEnvoi(obj(c.contact).adresse, 200), telephone: nettoyerEnvoi(obj(c.contact).telephone, 40), courriel: nettoyerEnvoi(obj(c.contact).courriel, 120) },
+    footer: { nomBoutique: nettoyerEnvoi(foot.nomBoutique || c.nomBoutique, 80) || 'Ma Boutique', slogan: nettoyerEnvoi(foot.slogan || c.slogan, 160), couleurFond: hexOk(foot.couleurFond, '#0f0f0f'), couleurTexte: hexOk(foot.couleurTexte, '#ffffff'),
+      reseaux: { facebook: reseauVersUrl(res.facebook, 'https://facebook.com/'), instagram: reseauVersUrl(res.instagram, 'https://instagram.com/'), tiktok: reseauVersUrl(res.tiktok, 'https://tiktok.com/@'), twitter: reseauVersUrl(res.twitter, 'https://x.com/'), youtube: reseauVersUrl(res.youtube, 'https://youtube.com/@'), pinterest: reseauVersUrl(res.pinterest, 'https://pinterest.com/') },
+      colonnes: { titre1: nettoyerEnvoi(col.titre1, 40), liens1: nettoyerEnvoi(col.liens1, 400), titre2: nettoyerEnvoi(col.titre2, 40), liens2: nettoyerEnvoi(col.liens2, 400), titre3: '', liens3: '' } },
+  };
+}
+
+// ── Inscription acheteur : défauts, fusionnés avec config.mode.inscription si elle existe ──
+type ChampInsc = { id:string; type:'text'|'email'|'tel'|'select'|'textarea'|'checkbox'; label:string; placeholder?:string; options?:string[]; requis?:boolean };
+const INSC_DEF = {
+  titre:'Créer un compte', sousTitre:'', boutonTexte:'Créer mon compte',
+  messageSuccesTitre:'Compte créé avec succès !', messageSuccesTexte:'Vous pouvez maintenant vous connecter.',
+  libelles:{ prenom:'Prénom', nom:'Nom', email:'Courriel', mot_de_passe:'Mot de passe', confirmation:'Confirmez le mot de passe' },
+  telephone:{ mode:'cache' }, adresse:{ mode:'obligatoire' }, infolettre:{ affiche:false, texte:'Je veux recevoir les nouveautés par courriel' },
+  age:{ affiche:true, minimum:16, texte:'Je déclare avoir {age} ans ou + (consentement parental pour les mineurs)' },
+  termes:{ affiche:true, texte:"J'accepte les termes et conditions de la boutique", url:'' },
+};
+function fusionInsc(b:any){
+  const x=b&&typeof b==='object'?b:{}; const sous=(k:'libelles'|'telephone'|'adresse'|'infolettre'|'age'|'termes')=>({...INSC_DEF[k],...(x[k]&&typeof x[k]==='object'?x[k]:{})});
+  return { ...INSC_DEF, ...x, libelles:sous('libelles'), telephone:sous('telephone'), adresse:sous('adresse'), infolettre:sous('infolettre'), age:sous('age'), termes:sous('termes'), champs:(Array.isArray(x.champs)?x.champs:[]) as ChampInsc[] };
+}
+// Thème clair de la personnalisation (la boutique Complète est claire)
+const THEME_CLAIR_PERSO: ThemePerso = { fond: '#f9fafb', texte: '#1a1a1a', doux: '#6b7280', bord: '#e2ddd8' };
+// Couleur hex (#rrggbb) → rgba, pour les textes du pied de page (la couleur du texte est choisie par le gestionnaire)
+const hexVersRgba = (hex: string, a: number) => { const m = /^#([0-9a-f]{6})$/i.exec(String(hex || '').trim()); if (!m) return `rgba(255,255,255,${a})`; const n = parseInt(m[1], 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
+
+const FICHE_DEF: ConfigFicheProduit = {
+  layout: 'image-gauche', photosMiniatures: 'dessous', descriptionPosition: 'droite',
+  descriptionTronquee: false, afficherBreadcrumb: true, afficherStock: true,
+  afficherCategorie: true, afficherSku: false, afficherRabaisPct: true, afficherQte: true,
+  boutonLabel: 'Ajouter au panier', boutonCouleur: '',
+  afficherReassurance: true,
+  reassuranceItems: [
+    { icone: '🔒', texte: 'Paiement sécurisé Stripe' },
+    { icone: '🔄', texte: 'Retour sous 30 jours' },
+    { icone: '🚚', texte: 'Livraison rapide 24–48h' },
+  ],
+  afficherPartage: false, afficherSimilaires: true, similairesNombre: 4, similairesTitre: 'Vous aimerez aussi',
 };
 
-// ─── Produits démo ────────────────────────────────────────────────────────────
-const PRODUITS_DEMO: Produit[] = [
-  { id:1, titre:'Robe Midi Fleurie', prix:89.99, prix_promo:69.99, stock:15, categorie:'Robes', note_moyenne:4.8, nb_avis:42, est_nouveau:true, photo_principale:'', variantes:[{ nom:'Couleur', valeurs:['Rouge','Bleu','Noir'], type:'couleur' },{ nom:'Taille', valeurs:['XS','S','M','L','XL'], type:'taille' }] },
-  { id:2, titre:'Blazer Oversized Crème', prix:129.99, stock:8, categorie:'Vestes', note_moyenne:4.9, nb_avis:28, photo_principale:'', variantes:[{ nom:'Taille', valeurs:['XS','S','M','L'], type:'taille' }] },
-  { id:3, titre:'Jean Taille Haute', prix:74.99, prix_promo:59.99, stock:20, categorie:'Pantalons', note_moyenne:4.7, nb_avis:61, photo_principale:'', variantes:[{ nom:'Couleur', valeurs:['Noir','Bleu','Blanc'], type:'couleur' },{ nom:'Taille', valeurs:['36','38','40','42','44'], type:'taille' }] },
-  { id:4, titre:'Top Épaules Dénudées', prix:44.99, stock:25, categorie:'Hauts', note_moyenne:4.6, nb_avis:33, est_nouveau:true, photo_principale:'', variantes:[{ nom:'Couleur', valeurs:['Blanc','Rose','Sauge'], type:'couleur' },{ nom:'Taille', valeurs:['XS','S','M','L'], type:'taille' }] },
-  { id:5, titre:'Manteau Long Camel', prix:189.99, prix_promo:149.99, stock:6, categorie:'Manteaux', note_moyenne:4.9, nb_avis:19, photo_principale:'', variantes:[{ nom:'Taille', valeurs:['XS','S','M','L','XL'], type:'taille' }] },
-  { id:6, titre:'Jupe Plissée Midi', prix:59.99, stock:18, categorie:'Jupes', note_moyenne:4.7, nb_avis:47, photo_principale:'', variantes:[{ nom:'Couleur', valeurs:['Bordeaux','Vert','Noir'], type:'couleur' },{ nom:'Taille', valeurs:['XS','S','M','L'], type:'taille' }] },
-  { id:7, titre:'Ensemble Loungewear', prix:94.99, prix_promo:79.99, stock:12, categorie:'Loungewear', note_moyenne:4.8, nb_avis:55, est_nouveau:true, photo_principale:'', variantes:[{ nom:'Couleur', valeurs:['Crème','Gris','Rose'], type:'couleur' },{ nom:'Taille', valeurs:['S','M','L'], type:'taille' }] },
-  { id:8, titre:'Chemise Lin Oversize', prix:69.99, stock:22, categorie:'Hauts', note_moyenne:4.6, nb_avis:38, photo_principale:'', variantes:[{ nom:'Couleur', valeurs:['Blanc','Beige','Bleu'], type:'couleur' },{ nom:'Taille', valeurs:['XS','S','M','L','XL'], type:'taille' }] },
-];
 
-// ─── Silhouette SVG mode (placeholder photo) ─────────────────────────────────
-function SilhouetteMode({ taille = 200, couleur = '#c9a96e', style = 1 }: { taille?:number; couleur?:string; style?:number }) {
-  if (style === 2) return (
-    <svg width={taille} height={taille * 1.4} viewBox="0 0 100 140" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="50" cy="18" rx="12" ry="14" fill={couleur} opacity="0.3"/>
-      <path d="M30 45 Q50 35 70 45 L75 90 Q60 85 50 88 Q40 85 25 90 Z" fill={couleur} opacity="0.2"/>
-      <path d="M35 90 Q50 88 65 90 L70 135 Q55 130 50 132 Q45 130 30 135 Z" fill={couleur} opacity="0.15"/>
-    </svg>
-  );
+
+// ─── Props ────────────────────────────────────────────────────────────────────
+// ── Protection des saisies et des liens (tous les champs du site public) ──────────────────────────
+// À la frappe : retire les caractères de contrôle et limite la longueur. À l'envoi : retire les balises HTML, les < >, les espaces en trop.
+// (React échappe déjà tout ce qui s'affiche ; le serveur nettoie et valide de son côté — ceci est la première barrière.)
+const limiterSaisie = (v: any, max = 200): string => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, max);
+const nettoyerEnvoi = (v: any, max = 200): string => limiterSaisie(v, max * 2).replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim().slice(0, max);
+const COURRIEL_OK = /^[^\s@<>"']+@[^\s@<>"']+\.[^\s@<>"']{2,}$/;
+// Liens venant de la configuration : seulement http(s) ou chemin interne — jamais javascript:, data:, vbscript:
+const urlSure = (u: any): string => { const t = String(u == null ? '' : u).trim(); return /^(https?:\/\/|\/(?!\/))/i.test(t) ? t : ''; };
+
+interface Props {
+  config: any;   // config brute de la BD — contient config.mode
+  siteId?: number;
+  vendeurId: number;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function merge<T>(def: T, override: any): T {
+  if (!override || typeof override !== 'object') return def;
+  return { ...def, ...override };
+}
+// ── Politiques légales du site : les 6 politiques fixes que le gestionnaire rédige (Configuration → Mes politiques) ──
+const POLITIQUES_SLUGS = ['retour-remboursement','confidentialite','conditions-service','expedition','coordonnees','mentions-legales'];
+const sansAccent = (t:string)=>t.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+// Reconnaît un lien de pied de page (ou un slug) qui désigne une politique : retourne son slug, sinon ''
+function slugPolitique(dest:string):string {
+  const d=sansAccent(dest).replace(/[-_]+/g,' ');
+  const t:Record<string,string>={ 'conditions':'conditions-service','conditions de service':'conditions-service','conditions service':'conditions-service','termes':'conditions-service','termes et conditions':'conditions-service',
+    'confidentialite':'confidentialite','politique de confidentialite':'confidentialite','vie privee':'confidentialite',
+    'retours':'retour-remboursement','retour':'retour-remboursement','remboursement':'retour-remboursement','remboursements':'retour-remboursement','retour et remboursement':'retour-remboursement','retours et remboursements':'retour-remboursement','retour remboursement':'retour-remboursement',
+    'livraison':'expedition','expedition':'expedition','livraison et expedition':'expedition',
+    'coordonnees':'coordonnees','mentions legales':'mentions-legales' };
+  return t[d]||'';
+}
+// Nettoie le HTML d'une politique avant l'affichage (le serveur le nettoie déjà à l'enregistrement) : retire scripts, cadres, formulaires, gestionnaires d'événements et liens javascript:
+function htmlSur(h:string):string {
+  try {
+    const doc=new DOMParser().parseFromString('<div id="r">'+h+'</div>','text/html'); const racine=doc.getElementById('r'); if(!racine) return '';
+    racine.querySelectorAll('script,style,iframe,object,embed,form,link,meta,base,svg,math').forEach(e=>e.remove());
+    racine.querySelectorAll('*').forEach(e=>{
+      Array.from(e.attributes).forEach(a=>{ const n=a.name.toLowerCase(), v=a.value.replace(/[\s\u0000-\u001f]/g,'').toLowerCase();
+        if(n.startsWith('on')||n==='style'||((n==='href'||n==='src'||n==='xlink:href'||n==='action')&&!/^(https?:|mailto:|tel:|#|\/)/.test(v))) e.removeAttribute(a.name); });
+      if(e.tagName==='A'){ e.setAttribute('target','_blank'); e.setAttribute('rel','noopener noreferrer'); }
+    });
+    return racine.innerHTML;
+  } catch { return ''; }
+}
+
+function prix(n: number | string) { return Number(n || 0).toFixed(2).replace('.', ',') + ' $'; }
+
+// ─── Composant Bannière ───────────────────────────────────────────────────────
+function Banniere({ cfg }: { cfg: ConfigBanniere }) {
+  if (!cfg?.actif) return null;
+  const texte = String(cfg.texte || '');
+  const lien = cfg.lien && cfg.labelLien ? <a href={urlSure(cfg.lien) || '#'} style={{ color: cfg.couleurTexte, fontWeight: 700, textDecoration: 'underline', fontSize: 12 }}>{cfg.labelLien} →</a> : null;
+  if (cfg.defilant) {
+    // Bandeau défilant (CSS, arrêté si le visiteur préfère moins d'animations). La vitesse suit la longueur du texte.
+    const duree = Math.max(14, Math.min(90, texte.length * 0.5 + 10));
+    const bloc = (k: number) => <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 14, paddingRight: 60, whiteSpace: 'nowrap' }}><span>✦ {texte}</span>{lien}</span>;
+    return (
+      <div style={{ background: cfg.couleurFond, color: cfg.couleurTexte, overflow: 'hidden', fontSize: 11, fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', padding: '11px 0' }}>
+        <div className="mo-defile" style={{ display: 'inline-flex', width: 'max-content', animation: `mo-defile ${duree}s linear infinite` }}>
+          {[0, 1, 2, 3].map(bloc)}{[4, 5, 6, 7].map(bloc)}
+        </div>
+      </div>
+    );
+  }
   return (
-    <svg width={taille} height={taille * 1.6} viewBox="0 0 100 160" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="50" cy="15" rx="11" ry="13" fill={couleur} opacity="0.35"/>
-      <path d="M28 38 Q50 28 72 38 L78 70 Q62 65 50 67 Q38 65 22 70 Z" fill={couleur} opacity="0.25"/>
-      <path d="M22 70 L18 100 Q35 95 50 97 Q65 95 82 100 L78 70 Q62 65 50 67 Q38 65 22 70 Z" fill={couleur} opacity="0.2"/>
-      <path d="M20 100 Q15 130 18 155 L35 155 L38 110 Q50 108 62 110 L65 155 L82 155 Q85 130 80 100 Q65 95 50 97 Q35 95 20 100 Z" fill={couleur} opacity="0.18"/>
-    </svg>
+    <div style={{ background: cfg.couleurFond, color: cfg.couleurTexte, padding: '10px 20px', textAlign: 'center', fontSize: 12, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <span>{texte}</span>{lien}
+    </div>
   );
 }
 
-// ─── Étoiles ──────────────────────────────────────────────────────────────────
-function Etoiles({ note, taille=12 }: { note:number; taille?:number }) {
-  return <span style={{ display:'inline-flex',gap:1 }}>{[1,2,3,4,5].map(i=><span key={i} style={{ fontSize:taille,color:i<=Math.round(note)?'#c9a96e':'#d1ccc6' }}>★</span>)}</span>;
-}
-
-// ─── Pastille couleur ─────────────────────────────────────────────────────────
-function PastilleCouleur({ couleur, actif, onClick }: { couleur:string; actif:boolean; onClick:()=>void }) {
-  const hex = COULEURS_MODE[couleur] || '#888';
+// ─── Composant Hero ───────────────────────────────────────────────────────────
+function Hero({ cfg, cp, onNaviguer, cs }: { cfg: ConfigHero; cp: string; onNaviguer: (p: string) => void; cs?: string }) {
+  const photoHero = urlSure(cfg.photo);   // seulement http(s) ou chemin interne
+  const isFond = cfg.style === 'image-fond' && !!photoHero;
+  const isGauche = cfg.style === 'gauche';
+  // Lien du bouton (config) : page interne (/catalogue, /blog, /faq, /contact, /offres, /encheres, /connexion…) ou adresse complète (https://…). Vide : catalogue.
+  const allerBouton = () => {
+    const l = String(cfg.boutonLien || '').trim();
+    if (!l) { onNaviguer('catalogue'); return; }
+    if (/^(https?:)?\/\//i.test(l) || /^(mailto|tel):/i.test(l)) { window.location.href = l; return; }
+    const cle = l.replace(/^\/+/, '').split(/[?#]/)[0].toLowerCase();
+    const alias: Record<string, string> = { connexion: 'login', 'a-propos': 'a-propos' };
+    onNaviguer(alias[cle] || cle || 'catalogue');
+  };
+  const lignes = String(cfg.titre || '').split('\n').slice(0, 4);
+  const centre = !isGauche && !(photoHero && !isFond);
+  const titre = (
+    <h1 style={{ fontSize: 'clamp(36px,6.5vw,78px)', fontWeight: 600, color: isFond ? '#fff' : cfg.couleurTitre, lineHeight: 1.05, marginBottom: 20, overflowWrap: 'anywhere' }}>
+      {lignes.map((l, i) => <span key={i} style={{ display: 'block', fontStyle: i % 2 === 1 ? 'italic' : 'normal', color: i % 2 === 1 ? (isFond ? '#fff' : cp) : undefined }}>{l}</span>)}
+    </h1>
+  );
+  const sous = <p style={{ fontSize: 13, letterSpacing: '0.18em', textTransform: 'uppercase', color: isFond ? 'rgba(255,255,255,0.88)' : (cs || '#666'), marginBottom: 32, lineHeight: 1.9 }}>{cfg.sousTitre}</p>;
+  const bouton = <button onClick={allerBouton} style={{ background: cfg.couleurBouton, color: '#fff', border: 'none', borderRadius: 0, padding: '15px 40px', fontSize: 12, fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', cursor: 'pointer' }}>{cfg.boutonLabel}</button>;
   return (
-    <button onClick={onClick} title={couleur}
-      style={{ width:24,height:24,borderRadius:'50%',background:hex,border:`2px solid ${actif?'#0f0f0f':'transparent'}`,outline:actif?'2px solid #0f0f0f':'none',outlineOffset:2,cursor:'pointer',transition:'all 0.15s',flexShrink:0 }}/>
+    <div style={{
+      background: isFond ? `linear-gradient(rgba(0,0,0,0.42),rgba(0,0,0,0.42)), url("${encodeURI(photoHero).replace(/"/g, '%22')}") center/cover no-repeat` : cfg.couleurFond,
+      minHeight: 480, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '64px 24px',
+    }}>
+      {photoHero && !isFond ? (
+        <div style={{ maxWidth: 1100, width: '100%', display: 'flex', gap: 48, alignItems: 'center', flexWrap: 'wrap', flexDirection: isGauche ? 'row' : 'row-reverse' }}>
+          <img src={photoHero} alt="" style={{ width: 380, maxWidth: '100%', aspectRatio: '3 / 4', objectFit: 'cover', flexShrink: 0, margin: '0 auto' }} />
+          <div style={{ flex: 1, minWidth: 260 }}>{titre}{sous}{bouton}</div>
+        </div>
+      ) : (
+        <div style={{ maxWidth: 760, textAlign: centre ? 'center' : 'left', width: '100%' }}>{titre}{sous}{bouton}</div>
+      )}
+    </div>
   );
 }
 
-// ─── Ticker bannière ──────────────────────────────────────────────────────────
-function BanniereMode({ texte, couleur }: { texte:string; couleur:string }) {
+// ─── Carte produit ────────────────────────────────────────────────────────────
+// Add-on « Enchères » : temps restant d'une carte (heure du serveur, pas celle de l'appareil)
+function CompteurEnchere({ fin, decalage, onFini }: { fin: string; decalage: number; onFini?: () => void }) {
+  const [, setT] = useState(0);
+  useEffect(() => { const t = setInterval(() => setT(x => x + 1), 1000); return () => clearInterval(t); }, []);
+  const ms = new Date(fin).getTime() - (Date.now() + decalage);
+  const fini = useRef(false);
+  useEffect(() => { if (ms <= 0 && !fini.current) { fini.current = true; if (onFini) onFini(); } });
+  if (ms <= 0) return <span>Terminée</span>;
+  const sec = Math.floor(ms / 1000), j = Math.floor(sec / 86400), h = Math.floor((sec % 86400) / 3600), m = Math.floor((sec % 3600) / 60), r = sec % 60;
+  return <span>{j > 0 ? `${j}j ${h}h ${m}m` : h > 0 ? `${h}h ${String(m).padStart(2, '0')}m ${String(r).padStart(2, '0')}s` : `${m}m ${String(r).padStart(2, '0')}s`}</span>;
+}
+// Add-on « Enchères » : temps restant d'une carte de la page « Enchères »
+function ResteEnchere({ fin, decalage, couleur }: { fin: string; decalage: number; couleur: string }) {
+  const [t, setT] = useState(() => Date.now());
+  useEffect(() => { const i = setInterval(() => setT(Date.now()), 1000); return () => clearInterval(i); }, []);
+  const ms = new Date(fin).getTime() - (t + decalage);
+  if (ms <= 0) return <span style={{ color: '#6b7280' }}>Terminée</span>;
+  const s2 = Math.floor(ms / 1000), j = Math.floor(s2 / 86400), h = Math.floor((s2 % 86400) / 3600), m = Math.floor((s2 % 3600) / 60), sec = s2 % 60;
+  const txt = j > 0 ? `${j} j ${h} h ${m} min` : h > 0 ? `${h} h ${String(m).padStart(2, '0')} min` : `${m} min ${String(sec).padStart(2, '0')} s`;
+  return <span style={{ color: ms < 300000 ? '#dc2626' : couleur, fontWeight: 800 }}>⏱ {txt}</span>;
+}
+
+interface CarteExtras { gid?: number; connecte?: boolean; demo?: boolean; offre?: { heureServeur: string | null; onFini: () => void } }
+
+function CarteProduit({ produit, cp, afficherPrix, onClick, extras }: { produit: ProduitCat; cp: string; afficherPrix: boolean; onClick: () => void; extras?: CarteExtras }) {
+  const gid = extras?.gid, connecte = extras?.connecte, demo = extras?.demo, offre = extras?.offre;
+  const enPromo = produit.prix_promo && produit.prix_promo < produit.prix;
+  const ench = produit.enchere || null;
+  const venteBloquee = !!ench && produit.stock === 0;   // seul exemplaire réservé à l'enchère : pas de vente directe
   return (
-    <div style={{ background:couleur,overflow:'hidden',height:34,display:'flex',alignItems:'center' }}>
-      <style>{`.tick-mode{display:flex;white-space:nowrap;animation:tickm 25s linear infinite;}@keyframes tickm{from{transform:translateX(0)}to{transform:translateX(-50%)}}`}</style>
-      <div className="tick-mode">
-        {[...Array(4)].map((_,i)=><span key={i} style={{ fontSize:11,fontWeight:600,color:'#fff',letterSpacing:'0.12em',paddingRight:80 }}>{texte}</span>)}
+    <div onClick={onClick} style={{ background: '#fff', borderRadius: 2, border: '1px solid #e2ddd8', overflow: 'hidden', cursor: 'pointer', transition: 'box-shadow 0.3s ease' }}
+      onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 8px 32px rgba(0,0,0,0.12)'; }}
+      onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; }}>
+      <div style={{ aspectRatio: '3 / 4', background: '#f2ede6', overflow: 'hidden', position: 'relative' }}>
+        {produit.photo_principale
+          ? <img src={produit.photo_principale} alt={produit.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 48, color: '#d1d5db' }}>📦</div>
+        }
+        {enPromo && <span style={{ position: 'absolute', top: 10, left: 10, background: '#0f0f0f', color: '#fff', fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', padding: '3px 8px', borderRadius: 0 }}>-{Math.round((1 - produit.prix_promo! / produit.prix) * 100)}%</span>}
+        {ench && <span style={{ position: 'absolute', top: enPromo ? 36 : 10, left: 10, background: cp, color: '#fff', fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 2 }}>🔨 ENCHÈRE</span>}
+        {produit.stock === 0 && !ench && <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><span style={{ background: '#111', color: '#fff', padding: '6px 14px', borderRadius: 2, fontSize: 13, fontWeight: 700 }}>Épuisé</span></div>}
+        {gid !== undefined && <BoutiqueSouhaitCarte zone="superposition" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo} />}
+      </div>
+      <div style={{ padding: '14px 16px' }}>
+        {gid !== undefined && <BoutiqueSouhaitCarte zone="haut" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo} />}
+        {produit.categorie && <span style={{ fontSize: 10, color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.14em' }}>{produit.categorie}</span>}
+        <h3 style={{ fontSize: 16, fontWeight: 600, color: '#0f0f0f', margin: '4px 0 8px', lineHeight: 1.3 }}>{produit.titre}</h3>
+        {(() => {
+          // Pastilles couleur et tailles : seulement ce qui existe vraiment dans les variantes du produit
+          const vals = valeursVariantes(produit);
+          const couleurs = vals.filter(v => hexCouleur(v)).slice(0, 6);
+          const autres = vals.filter(v => !hexCouleur(v) && v.length <= 4).slice(0, 6);
+          if (couleurs.length === 0 && autres.length === 0) return null;
+          return (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+              {couleurs.map(c => <span key={c} title={c} style={{ width: 14, height: 14, borderRadius: '50%', background: hexCouleur(c), border: '1px solid #cfc9c2', display: 'inline-block' }} />)}
+              {autres.map(t => <span key={t} style={{ fontSize: 9, color: '#888', border: '1px solid #e2ddd8', padding: '2px 5px', letterSpacing: '0.06em' }}>{t}</span>)}
+            </div>
+          );
+        })()}
+        {afficherPrix && !venteBloquee && (
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            {enPromo
+              ? <>
+                  <span style={{ fontSize: 17, fontWeight: 800, color: cp }}>{prix(produit.prix_promo!)}</span>
+                  <span style={{ fontSize: 13, color: '#aaa', textDecoration: 'line-through' }}>{prix(produit.prix)}</span>
+                </>
+              : <span style={{ fontSize: 17, fontWeight: 700, color: '#0f0f0f' }}>{prix(produit.prix)}</span>
+            }
+          </div>
+        )}
+        {produit.offre_fin && offre && <OffreCompteur clair compact fin={produit.offre_fin} heureServeur={offre.heureServeur} onFini={offre.onFini} />}
+        {produit.date_parution && <div style={{ marginTop: 8 }}><BoutiqueParutionCountdown compact dateParution={produit.date_parution} gestionnaireId={gid} heureServeur={offre ? offre.heureServeur : null} /></div>}
+        {ench && (
+          <div style={{ marginTop: 8, padding: '8px 10px', borderRadius: 2, border: `1px solid ${cp}55`, background: `${cp}0f` }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>
+              <div><div style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{ench.nb_mises > 0 ? 'Mise actuelle' : 'Mise de départ'}</div><div style={{ fontSize: 17, fontWeight: 800, color: cp }}>{prix(ench.mise)}</div></div>
+              <div style={{ textAlign: 'right' }}><div style={{ fontSize: 9, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase' }}>Mises</div><div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a1a' }}>{ench.nb_mises}</div></div>
+            </div>
+            <div style={{ marginTop: 6, display: 'inline-block', fontSize: 11, fontWeight: 800, color: cp, background: `${cp}15`, padding: '3px 8px', borderRadius: 2 }}>⏱ <CompteurEnchere fin={ench.fin} decalage={ench.decalage || 0} onFini={offre ? offre.onFini : undefined} /></div>
+            <button onClick={e => { e.stopPropagation(); onClick(); }} style={{ display: 'block', width: '100%', marginTop: 8, padding: '9px', background: cp, border: 'none', borderRadius: 2, color: '#fff', fontSize: 12, fontWeight: 800, cursor: 'pointer' }}>🔨 Participer aux enchères</button>
+          </div>
+        )}
+        {gid !== undefined && <BoutiqueSouhaitCarte zone="bas" gestionnaireId={gid} produitId={produit.id} connecte={connecte} demo={demo} />}
       </div>
     </div>
   );
 }
 
-// ─── Modal Guide des tailles ──────────────────────────────────────────────────
-function GuideDesTailles({ onFermer, cp }: { onFermer:()=>void; cp:string }) {
+// ─── Guide des tailles : tableau saisi par le gestionnaire ─────────────────────
+function GuideTaillesModal({ guide, cp, onFermer }: { guide: GuideTailles; cp: string; onFermer: () => void }) {
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onFermer(); }; document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onFermer]);
   return (
     <>
-      <div onClick={onFermer} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:1000,backdropFilter:'blur(4px)' }}/>
-      <div style={{ position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',zIndex:1001,background:'#fff',borderRadius:16,width:'90%',maxWidth:540,padding:32,fontFamily:"'Inter',sans-serif" }}>
-        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:24 }}>
-          <h2 style={{ fontSize:20,fontWeight:800,color:NOIR }}>📏 Guide des tailles</h2>
-          <button onClick={onFermer} style={{ background:'none',border:'none',fontSize:20,cursor:'pointer',color:GRIS }}>✕</button>
+      <div onClick={onFermer} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000 }} />
+      <div role="dialog" aria-modal="true" aria-label={guide.titre} style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 1001, background: '#fff', width: '92%', maxWidth: 560, maxHeight: '88vh', overflowY: 'auto', padding: 28, borderRadius: 2 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontSize: 22, color: '#0f0f0f' }}>📏 {guide.titre}</h2>
+          <button onClick={onFermer} aria-label="Fermer" style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>✕</button>
         </div>
-        <div style={{ overflowX:'auto' }}>
-          <table style={{ width:'100%',borderCollapse:'collapse',fontSize:13 }}>
-            <thead>
-              <tr style={{ background:IVOIRE2 }}>
-                {['Taille','Buste (cm)','Taille (cm)','Hanches (cm)'].map(h=><th key={h} style={{ padding:'10px 14px',textAlign:'left',fontWeight:700,color:NOIR,borderBottom:`2px solid ${BORD}` }}>{h}</th>)}
-              </tr>
-            </thead>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead><tr style={{ background: '#f2ede6' }}>
+              {['Taille', ...guide.colonnes].map((h, i) => <th key={i} style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 700, color: '#0f0f0f', borderBottom: '2px solid #e2ddd8' }}>{h}</th>)}
+            </tr></thead>
             <tbody>
-              {[['XS','80-83','60-63','86-89'],['S','84-87','64-67','90-93'],['M','88-91','68-71','94-97'],['L','92-95','72-75','98-101'],['XL','96-99','76-79','102-105'],['XXL','100-103','80-83','106-109']].map(([t,...vals],i)=>(
-                <tr key={t} style={{ background:i%2===0?'#fff':IVOIRE }}>
-                  <td style={{ padding:'10px 14px',fontWeight:700,color:cp,borderBottom:`1px solid ${BORD}` }}>{t}</td>
-                  {vals.map(v=><td key={v} style={{ padding:'10px 14px',color:NOIR2,borderBottom:`1px solid ${BORD}` }}>{v}</td>)}
+              {guide.lignes.map((l, i) => (
+                <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : '#faf8f5' }}>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, color: cp, borderBottom: '1px solid #e2ddd8' }}>{l.taille}</td>
+                  {l.valeurs.map((v, k) => <td key={k} style={{ padding: '10px 12px', color: '#1a1a1a', borderBottom: '1px solid #e2ddd8' }}>{v}</td>)}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-        <p style={{ fontSize:12,color:GRIS,marginTop:16,lineHeight:1.6 }}>💡 En cas de doute entre deux tailles, nous recommandons de prendre la taille supérieure.</p>
+        {guide.note && <p style={{ fontSize: 12, color: '#6b6560', marginTop: 16, lineHeight: 1.6 }}>{guide.note}</p>}
       </div>
     </>
   );
 }
 
-// ─── Carte Produit Mode ───────────────────────────────────────────────────────
-function CarteProduitMode({ produit, cp, onClick, onWishlist, inWishlist }: {
-  produit:Produit; cp:string; onClick:()=>void; onWishlist?:()=>void; inWishlist?:boolean;
-}) {
-  const [hovered, setHovered] = useState(false);
-  const [photoIdx, setPhotoIdx] = useState(0);
-  const enPromo = produit.prix_promo && produit.prix_promo < produit.prix;
-  const photos = [produit.photo_principale, ...(produit.photos||[])].filter(Boolean) as string[];
-  const couleurs = produit.variantes?.find(v=>v.type==='couleur');
-  const tailles  = produit.variantes?.find(v=>v.type==='taille');
-
+// ─── Footer ───────────────────────────────────────────────────────────────────
+function Footer({ cfg, onNaviguer, liensPol, extra }: { cfg: ConfigFooter; onNaviguer: (p: string) => void; liensPol: string[][]; extra?: React.ReactNode }) {
+  const reseauxActifs = Object.entries(cfg.reseaux).filter(([, v]) => v);
+  const iconeReseau: Record<string, string> = { facebook:'f', instagram:'📸', tiktok:'♪', twitter:'𝕏', youtube:'▶', linkedin:'in', pinterest:'P' };
   return (
-    <div style={{ position:'relative',background:'#fff',borderRadius:2,overflow:'hidden',cursor:'pointer',transition:'all 0.3s ease',boxShadow:hovered?'0 8px 32px rgba(0,0,0,0.12)':'0 1px 4px rgba(0,0,0,0.06)' }}
-      onMouseEnter={()=>setHovered(true)} onMouseLeave={()=>setHovered(false)} onClick={onClick}>
-      {/* Image */}
-      <div style={{ position:'relative',aspectRatio:'3/4',background:IVOIRE2,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center' }}>
-        {photos.length>0
-          ? <img src={photos[photoIdx]} alt={produit.titre} style={{ width:'100%',height:'100%',objectFit:'cover',transition:'transform 0.5s ease',transform:hovered?'scale(1.06)':'scale(1)' }}/>
-          : <div style={{ display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',width:'100%' }}>
-              <SilhouetteMode taille={120} couleur={cp} style={Math.random()>0.5?1:2}/>
+    <footer style={{ background: cfg.couleurFond, color: cfg.couleurTexte, paddingTop: 48 }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 24px' }}>
+        {/* Colonnes */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px,1fr))', gap: 32, marginBottom: 40 }}>
+          {/* Identité */}
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, marginBottom: 8 }}>{cfg.nomBoutique}</div>
+            {cfg.slogan && <p style={{ fontSize: 14, opacity: 0.65, lineHeight: 1.6, marginBottom: 16 }}>{cfg.slogan}</p>}
+            {reseauxActifs.length > 0 && (
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                {reseauxActifs.map(([k, url]) => (
+                  <a key={k} href={urlSure(url) || '#'} target="_blank" rel="noopener noreferrer"
+                    style={{ width: 36, height: 36, borderRadius: 2, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: cfg.couleurTexte, textDecoration: 'none', fontWeight: 700 }}>
+                    {iconeReseau[k] || k[0].toUpperCase()}
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Col 1 */}
+          {cfg.colonnes.titre1 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, opacity: 0.9 }}>{cfg.colonnes.titre1}</div>
+              {cfg.colonnes.liens1.split('\n').filter(l => l.trim() && !slugPolitique(l)).map((l, i) => (
+                <div key={i} style={{ marginBottom: 8 }}>
+                  <button onClick={() => onNaviguer(l.toLowerCase())} style={{ background: 'none', border: 'none', color: cfg.couleurTexte, opacity: 0.65, fontSize: 14, cursor: 'pointer', padding: 0, textAlign: 'left' }}>{l}</button>
+                </div>
+              ))}
             </div>
-        }
-        {/* Badges */}
-        <div style={{ position:'absolute',top:12,left:12,display:'flex',flexDirection:'column',gap:6 }}>
-          {produit.est_nouveau && <span style={{ background:cp,color:'#fff',fontSize:9,fontWeight:800,padding:'3px 8px',letterSpacing:'0.1em',textTransform:'uppercase' }}>Nouveau</span>}
-          {enPromo && <span style={{ background:NOIR,color:'#fff',fontSize:9,fontWeight:800,padding:'3px 8px',letterSpacing:'0.1em' }}>-{Math.round((1-produit.prix_promo!/produit.prix)*100)}%</span>}
+          )}
+          {/* Col 2 */}
+          {cfg.colonnes.titre2 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, opacity: 0.9 }}>{cfg.colonnes.titre2}</div>
+              {cfg.colonnes.liens2.split('\n').filter(l => l.trim() && !slugPolitique(l)).map((l, i) => (
+                <div key={i} style={{ marginBottom: 8 }}>
+                  <button onClick={() => onNaviguer(l.toLowerCase())} style={{ background: 'none', border: 'none', color: cfg.couleurTexte, opacity: 0.65, fontSize: 14, cursor: 'pointer', padding: 0, textAlign: 'left' }}>{l}</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Col 3 */}
+          {cfg.colonnes.titre3 && (
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 14, opacity: 0.9 }}>{cfg.colonnes.titre3}</div>
+              {cfg.colonnes.liens3.split('\n').filter(Boolean).map((l, i) => (
+                <div key={i} style={{ marginBottom: 8 }}>
+                  <span style={{ fontSize: 14, opacity: 0.65 }}>{l}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        {/* Wishlist */}
-        {onWishlist && <button onClick={e=>{e.stopPropagation();onWishlist();}} style={{ position:'absolute',top:12,right:12,width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,0.9)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:15,backdropFilter:'blur(4px)',boxShadow:'0 2px 8px rgba(0,0,0,0.1)' }}>{inWishlist?'❤️':'🤍'}</button>}
-        {/* Bouton rapide */}
-        <div style={{ position:'absolute',bottom:0,left:0,right:0,padding:'12px',background:'linear-gradient(transparent,rgba(0,0,0,0.7))',opacity:hovered?1:0,transition:'opacity 0.3s ease' }}>
-          <button onClick={e=>{e.stopPropagation();onClick();}} style={{ width:'100%',padding:'9px',background:'#fff',border:'none',fontSize:11,fontWeight:800,cursor:'pointer',letterSpacing:'0.1em',textTransform:'uppercase',color:NOIR }}>
-            VOIR LE PRODUIT
-          </button>
+
+        {extra}
+
+        {/* Bas du footer */}
+        <div style={{ borderTop: `1px solid rgba(255,255,255,0.12)`, padding: '20px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+          <div style={{ fontSize: 13, opacity: 0.5 }}>© {new Date().getFullYear()} {cfg.nomBoutique}</div>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            {liensPol.map(([slug, label]) => <button key={slug} onClick={() => onNaviguer(slug)} style={{ background:'none', border:'none', color:cfg.couleurTexte, opacity:0.55, fontSize:12, cursor:'pointer' }}>{label}</button>)}
+          </div>
+          {cfg.afficherPropulse !== false && (
+            <a href="https://e-vend.ca" target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, opacity: 0.35, color: cfg.couleurTexte, textDecoration: 'none' }}>
+              Propulsé par e-Vend Studio
+            </a>
+          )}
         </div>
-        {/* Stock faible */}
-        {produit.stock!==undefined&&produit.stock<=3&&produit.stock>0&&<span style={{ position:'absolute',bottom:hovered?50:12,left:12,background:'#f59e0b',color:'#fff',fontSize:9,fontWeight:800,padding:'3px 8px',transition:'bottom 0.3s' }}>Plus que {produit.stock}!</span>}
       </div>
-      {/* Info */}
-      <div style={{ padding:'12px 14px 16px' }}>
-        {produit.categorie && <span style={{ fontSize:10,color:GRIS,textTransform:'uppercase',letterSpacing:'0.12em',fontWeight:600 }}>{produit.categorie}</span>}
-        <h3 style={{ fontSize:14,fontWeight:600,color:NOIR,margin:'4px 0 6px',lineHeight:1.3 }}>{produit.titre}</h3>
-        {/* Pastilles couleur */}
-        {couleurs && couleurs.valeurs.length>0 && (
-          <div style={{ display:'flex',gap:4,marginBottom:8,flexWrap:'wrap' }}>
-            {couleurs.valeurs.map(c=><PastilleCouleur key={c} couleur={c} actif={false} onClick={()=>{}} />)}
-          </div>
-        )}
-        {/* Tailles dispo */}
-        {tailles && tailles.valeurs.length>0 && (
-          <div style={{ display:'flex',gap:3,marginBottom:8,flexWrap:'wrap' }}>
-            {tailles.valeurs.map(t=><span key={t} style={{ fontSize:9,color:GRIS,border:`1px solid ${BORD}`,padding:'2px 5px',letterSpacing:'0.06em' }}>{t}</span>)}
-          </div>
-        )}
-        {/* Prix + note */}
-        <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center' }}>
-          <div style={{ display:'flex',alignItems:'baseline',gap:6 }}>
-            {enPromo ? (<><span style={{ fontSize:16,fontWeight:800,color:cp }}>{px(produit.prix_promo!)}</span><span style={{ fontSize:12,color:GRIS,textDecoration:'line-through' }}>{px(produit.prix)}</span></>) : <span style={{ fontSize:16,fontWeight:700,color:NOIR }}>{px(produit.prix)}</span>}
-          </div>
-          {produit.note_moyenne && <div style={{ display:'flex',alignItems:'center',gap:3 }}><Etoiles note={produit.note_moyenne} taille={10}/><span style={{ fontSize:10,color:GRIS }}>({produit.nb_avis})</span></div>}
-        </div>
-      </div>
-    </div>
+    </footer>
   );
 }
 
-// ─── Composant Principal ──────────────────────────────────────────────────────
+// ─── Composant principal ──────────────────────────────────────────────────────
 export default function TemplateBoutiqueSimplisseMode({ config: configBrut, siteId, vendeurId }: Props) {
-  const raw = configBrut?.mode || {};
-  const cfg = { ...CFG_DEF, ...raw, hero: { ...CFG_DEF.hero, ...(raw.hero||{}) }, catalogue: { ...CFG_DEF.catalogue, ...(raw.catalogue||{}) }, ficheProduit: { ...CFG_DEF.ficheProduit, ...(raw.ficheProduit||{}) }, footer: { ...CFG_DEF.footer, ...(raw.footer||{}) }, lookbook: { ...CFG_DEF.lookbook, ...(raw.lookbook||{}) }, instagram: { ...CFG_DEF.instagram, ...(raw.instagram||{}) } };
-  const cp = cfg.couleurAccent || '#722f37';
-  const sections: Section[] = cfg.sections || SECTIONS_DEF;
-  const sectionsActives = [...sections].filter(s=>s.actif).sort((a,b)=>a.ordre-b.ordre);
+  // Extraire config.mode de la BD et merger avec les défauts
+  const rawMode = migrerMode(configBrut && typeof configBrut.mode === 'object' ? configBrut.mode : null);
+  const fp: ConfigFicheProduit = { ...FICHE_DEF, ...(rawMode.ficheProduit || {}) };
 
-  type PageId = 'accueil'|'catalogue'|'produit'|'blog'|'faq'|'contact'|'panier'|'wishlist'|'compte'|'login';
-  const [page, setPage]               = useState<PageId>('accueil');
-  const [produitActif, setProduitActif] = useState<Produit|null>(null);
-  const [isMobile, setIsMobile]       = useState(false);
-  const [menuOuvert, setMenuOuvert]   = useState(false);
-  const [produits, setProduits]       = useState<Produit[]>([]);
-  const [articles, setArticles]       = useState<ArticleBlog[]>([]);
-  const [categories, setCategories]   = useState<string[]>([]);
-  const [panier, setPanier]           = useState<PanierItem[]>([]);
-  const [wishlist, setWishlist]       = useState<number[]>([]);
-  const [panierOuvert, setPanierOuvert] = useState(false);
-  const [filtreCat, setFiltreCat]     = useState('');
-  const [filtreTaille, setFiltreTaille] = useState('');
-  const [filtreCouleur, setFiltreCouleur] = useState('');
-  const [filtreRecherche, setFiltreRecherche] = useState('');
-  const [filtrePrixMin, setFiltrePrixMin] = useState('');
-  const [filtrePrixMax, setFiltrePrixMax] = useState('');
-  const [tri, setTri]                 = useState<'recent'|'prix_asc'|'prix_desc'|'note'>('recent');
-  const [popupPromo, setPopupPromo]   = useState(false);
-  const [notifVente, setNotifVente]   = useState(false);
-  const [photoIdx, setPhotoIdx]       = useState(0);
-  const [qteChoisie, setQteChoisie]   = useState(1);
-  const [variantesChoisies, setVariantesChoisies] = useState<Record<string,string>>({});
-  const [zoomActif, setZoomActif]     = useState(false);
-  const [sourisPos, setSourisPos]     = useState({x:0,y:0});
-  const [guideOuvert, setGuideOuvert] = useState(false);
-  const [ongletProduit, setOngletProduit] = useState<'description'|'avis'|'livraison'>('description');
-  const [faqOuvert, setFaqOuvert]     = useState<number|null>(null);
-  const [contactForm, setContactForm] = useState({nom:'',courriel:'',sujet:'',message:''});
-  const [contactStatut, setContactStatut] = useState<'idle'|'loading'|'ok'|'err'>('idle');
-  const [loginForm, setLoginForm]     = useState({email:'',mdp:''});
-  const [loginStatut, setLoginStatut] = useState<'idle'|'loading'|'err'>('idle');
-  const [loginErreur, setLoginErreur] = useState('');
-  const [acheteur, setAcheteur]       = useState<any>(null);
-  const [codePromo, setCodePromo]     = useState('');
-  const [codePromoApplique, setCodePromoApplique] = useState<any>(null);
-  const [notifIdx, setNotifIdx]       = useState(0);
-
-  useEffect(()=>{ const c=()=>setIsMobile(window.innerWidth<768); c(); window.addEventListener('resize',c); return()=>window.removeEventListener('resize',c); },[]);
-  useEffect(()=>{ if(cfg.afficherPopupPromo){ const t=setTimeout(()=>setPopupPromo(true),4000); return()=>clearTimeout(t); } },[]);
-  useEffect(()=>{
-    const t1=setTimeout(()=>setNotifVente(true),5000);
-    const iv=setInterval(()=>{ setNotifVente(false); setTimeout(()=>{ setNotifIdx(i=>(i+1)%4); setNotifVente(true); },500); },8000);
-    return()=>{ clearTimeout(t1); clearInterval(iv); };
-  },[]);
-
-  useEffect(()=>{
-    if(configBrut?.__produits_demo__){ setProduits(configBrut.__produits_demo__); setCategories(Array.from(new Set(configBrut.__produits_demo__.map((p:any)=>p.categorie).filter(Boolean))) as string[]); return; }
-    setProduits(PRODUITS_DEMO); setCategories(Array.from(new Set(PRODUITS_DEMO.map(p=>p.categorie).filter(Boolean))) as string[]);
-    fetch(`${API_BASE}/produits/vendeur/${vendeurId}?limit=100`).then(r=>r.ok?r.json():null).then(data=>{ if(!data) return; const l:Produit[]=data.produits||data||[]; if(l.length>0){ setProduits(l); setCategories(Array.from(new Set(l.map(p=>p.categorie).filter(Boolean))) as string[]); } }).catch(()=>{});
-  },[vendeurId]);
-
-  useEffect(()=>{ fetch(`${API_BASE}/blog/vendeur/${vendeurId}?publie=true&limit=6`).then(r=>r.ok?r.json():[]).then(data=>setArticles(Array.isArray(data)?data:data.articles||[])).catch(()=>{}); },[vendeurId]);
-  useEffect(()=>{ const u=localStorage.getItem(`acheteur_${vendeurId}`),t=localStorage.getItem(`acheteur_token_${vendeurId}`); if(u&&t){ try{ setAcheteur(JSON.parse(u)); } catch{} } },[vendeurId]);
-
-  const naviguer = useCallback((dest:string)=>{ setMenuOuvert(false); setPanierOuvert(false); window.scrollTo({top:0,behavior:'smooth'}); const map:Record<string,PageId>={ accueil:'accueil',catalogue:'catalogue',blog:'blog',faq:'faq',contact:'contact',panier:'panier',wishlist:'wishlist',compte:'compte',login:'login' }; if(map[dest.toLowerCase()]) setPage(map[dest.toLowerCase()]); },[]);
-
-  const voirProduit = (p:Produit)=>{ setProduitActif(p); setPhotoIdx(0); setQteChoisie(1); setVariantesChoisies({}); setOngletProduit('description'); setPage('produit'); window.scrollTo({top:0,behavior:'smooth'}); };
-
-  const ajouterAuPanier = (produit:Produit)=>{
-    setPanier(prev=>{ const ex=prev.find(i=>i.produit.id===produit.id&&JSON.stringify(i.variantes)===JSON.stringify(variantesChoisies)); if(ex) return prev.map(i=>i.produit.id===produit.id?{...i,qte:i.qte+qteChoisie}:i); return [...prev,{produit,qte:qteChoisie,variantes:{...variantesChoisies}}]; });
-    setPanierOuvert(true);
+  const cfg: ConfigMode = {
+    accueil:  merge(CFG_DEF.accueil,  rawMode.accueil),
+    catalogue: merge(CFG_DEF.catalogue, rawMode.catalogue),
+    faq:      merge(CFG_DEF.faq,      rawMode.faq),
+    blog:     merge(CFG_DEF.blog,     rawMode.blog),
+    contact:  merge(CFG_DEF.contact,  rawMode.contact),
+    footer:   merge(CFG_DEF.footer,   rawMode.footer),
+    ficheProduit: fp,
   };
 
-  const totalPanier = panier.reduce((s,i)=>s+(i.produit.prix_promo||i.produit.prix)*i.qte,0);
-  const nbPanier    = panier.reduce((s,i)=>s+i.qte,0);
-  const totalApres  = codePromoApplique ? (codePromoApplique.type==='pourcentage'?totalPanier*(1-codePromoApplique.valeur/100):Math.max(0,totalPanier-codePromoApplique.valeur)) : totalPanier;
-  const toggleWishlist = (id:number)=>setWishlist(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
+  const objSur = (x: any) => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
+  const demoActive = !!configBrut?.__produits_demo__;
+  const lookbook = {
+    titre: nettoyerEnvoi(objSur(rawMode.lookbook).titre, 80) || 'Lookbook',
+    sousTitre: nettoyerEnvoi(objSur(rawMode.lookbook).sousTitre, 160),
+    disposition: (['masonry', 'grille', 'plein'].includes(objSur(rawMode.lookbook).disposition) ? objSur(rawMode.lookbook).disposition : 'masonry') as 'masonry' | 'grille' | 'plein',
+    photos: (Array.isArray(objSur(rawMode.lookbook).photos) ? objSur(rawMode.lookbook).photos : []).slice(0, 12).map((u: any) => urlSure(u)).filter(Boolean) as string[],
+  };
+  const instaHandle = (() => { const h = String(objSur(rawMode.instagram).handle || '').trim().replace(/^@/, ''); return /^[A-Za-z0-9._]{1,30}$/.test(h) ? h : ''; })();
+  const insta = {
+    titre: nettoyerEnvoi(objSur(rawMode.instagram).titre, 80) || 'Suivez-nous sur Instagram',
+    handle: instaHandle,
+    photos: (Array.isArray(objSur(rawMode.instagram).photos) ? objSur(rawMode.instagram).photos : []).slice(0, 6).map((u: any) => urlSure(u)).filter(Boolean) as string[],
+  };
+  const guide = guideTaillesSur(rawMode.guideTailles);
+  const popup = (() => { const p = objSur(cfg.accueil.popup); return { actif: p.actif === true, delai: Math.max(1, Math.min(60, Math.round(Number(p.delaiSecondes) || 5))), texte: nettoyerEnvoi(p.texte, 160), code: nettoyerEnvoi(p.code, 30) }; })();
+  const taillesCfg = (Array.isArray(cfg.catalogue.tailles) ? cfg.catalogue.tailles : []).map(t => nettoyerEnvoi(t, 10)).filter(Boolean).slice(0, 20);
+  const logoUrl = urlSure(rawMode.identite?.logoUrl);   // logo (Config → Identité) : seulement http(s) ou chemin interne
+  const police = policeMode(cfg.accueil.police);
+  const cp = hexOk(cfg.accueil.couleurPrimaire, CP);
+  const cs = cfg.accueil.couleurSecondaire || '#666'; // couleur secondaire (config → Accueil) : sous-titres et textes d'appoint
 
-  const handleLogin=async()=>{ setLoginStatut('loading'); setLoginErreur(''); try{ const res=await fetch(`${API_BASE}/acheteurs/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:loginForm.email,mot_de_passe:loginForm.mdp,gestionnaire_id:vendeurId})}); const data=await res.json(); if(!res.ok) throw new Error(data.message||'Erreur'); setAcheteur(data.acheteur); localStorage.setItem(`acheteur_${vendeurId}`,JSON.stringify(data.acheteur)); localStorage.setItem(`acheteur_token_${vendeurId}`,data.token); setLoginStatut('idle'); naviguer('compte'); } catch(e:any){ setLoginErreur(e.message||'Erreur'); setLoginStatut('err'); } };
-  const handleLogout=()=>{ setAcheteur(null); localStorage.removeItem(`acheteur_${vendeurId}`); localStorage.removeItem(`acheteur_token_${vendeurId}`); naviguer('accueil'); };
-  const envoyerContact=async()=>{ setContactStatut('loading'); try{ const res=await fetch(`${API_BASE}/contact/vendeur/${vendeurId}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(contactForm)}); if(!res.ok) throw new Error(); setContactStatut('ok'); setContactForm({nom:'',courriel:'',sujet:'',message:''}); } catch{ setContactStatut('err'); } setTimeout(()=>setContactStatut('idle'),4000); };
+  // ── State navigation interne ──────────────────────────────────────────────
+  type PageId = 'accueil' | 'catalogue' | 'produit' | 'blog' | 'article' | 'faq' | 'a-propos' | 'contact' | 'login' | 'inscription' | 'compte' | 'offres' | 'encheres' | 'politique';
+  const [page, setPage]               = useState<PageId>('accueil');
+  const [produitActif, setProduitActif] = useState<ProduitCat | null>(null);
+  const [articleActif, setArticleActif] = useState<ArticleBlog | null>(null);
+  const [menuOuvert, setMenuOuvert]   = useState(false);
+  const [isMobile, setIsMobile]       = useState(false);
 
-  const produitsFiltres = produits.filter(p=>{
-    const mc=!filtreCat||p.categorie===filtreCat;
-    const mr=!filtreRecherche||p.titre.toLowerCase().includes(filtreRecherche.toLowerCase());
-    const mn=!filtrePrixMin||p.prix>=parseFloat(filtrePrixMin);
-    const mx=!filtrePrixMax||p.prix<=parseFloat(filtrePrixMax);
-    const mt=!filtreTaille||p.variantes?.find(v=>v.type==='taille')?.valeurs.includes(filtreTaille);
-    const mcoul=!filtreCouleur||p.variantes?.find(v=>v.type==='couleur')?.valeurs.includes(filtreCouleur);
-    return mc&&mr&&mn&&mx&&mt&&mcoul;
-  }).sort((a,b)=>{ if(tri==='prix_asc') return (a.prix_promo||a.prix)-(b.prix_promo||b.prix); if(tri==='prix_desc') return (b.prix_promo||b.prix)-(a.prix_promo||a.prix); if(tri==='note') return (b.note_moyenne||0)-(a.note_moyenne||0); return 0; });
+  // ── State données ─────────────────────────────────────────────────────────
+  const [produits, setProduits]       = useState<ProduitCat[]>([]);
+  const [articles, setArticles]       = useState<ArticleBlog[]>([]);
+  const [blogPage, setBlogPage]       = useState(1);
+  const [blogPages, setBlogPages]     = useState(1);
+  const [blogCharge, setBlogCharge]   = useState(false);
+  const [articleErreur, setArticleErreur] = useState(false);
+  const [politiquesRedigees, setPolitiquesRedigees] = useState<Record<string, boolean> | null>(null);   // slug → rédigée ? (null = pas encore lu)
+  const [politique, setPolitique] = useState<{ slug: string; titre: string; contenu: string } | null>(null);
+  const [politiqueStatut, setPolitiqueStatut] = useState<'idle' | 'loading' | 'err'>('idle');
+  const politiqueEnCours = useRef('');
+  const [categories, setCategories]   = useState<string[]>([]);
+  const [filtreCat, setFiltreCat]     = useState('');
+  const [filtreRecherche, setFiltreRecherche] = useState('');
+  // Filtres du catalogue (prix, taille, couleur, promo, stock, tri)
+  const [prixMin, setPrixMin] = useState('');
+  const [prixMax, setPrixMax] = useState('');
+  const [filtreTaille, setFiltreTaille] = useState('');
+  const [filtreCouleur, setFiltreCouleur] = useState('');
+  const [seulPromo, setSeulPromo] = useState(false);
+  const [seulStock, setSeulStock] = useState(false);
+  const [tri, setTri] = useState<'recent' | 'prix-asc' | 'prix-desc' | 'nom'>('recent');
+  const [guideOuvert, setGuideOuvert] = useState(false);
+  const [popupVisible, setPopupVisible] = useState(false);
+  const [codeCopie, setCodeCopie] = useState(false);
+  const [remonterVisible, setRemonterVisible] = useState(false);
+  useEffect(() => { const f = () => setRemonterVisible(window.scrollY > 600); f(); window.addEventListener('scroll', f, { passive: true }); return () => window.removeEventListener('scroll', f); }, []);
+  const [acheteur, setAcheteur]     = useState<AcheteurUser | null>(null);
+  const [nbPanier, setNbPanier]       = useState(0);
+  const [vueCompte, setVueCompte]     = useState<'dashboard'|'panier'|'wishlist'|'avis'>('dashboard');
+  const [avisPanier, setAvisPanier]   = useState('');
+  const [loginForm, setLoginForm]     = useState({ email: '', mdp: '' });
+  const [loginStatut, setLoginStatut] = useState<'idle'|'loading'|'err'>('idle');
+  const [loginErreur, setLoginErreur] = useState('');
+  const [inscVal, setInscVal]         = useState<Record<string, any>>({});
+  const [inscStatut, setInscStatut]   = useState<'idle'|'loading'|'ok'>('idle');
+  const [inscErreur, setInscErreur]   = useState('');
+  const [honeypot, setHoneypot]       = useState('');
+  const [sourisBougee, setSourisBougee] = useState(false);
+  const debutInscription = useRef<number>(Date.now());
+  const persoRef = useRef<PersoRef | null>(null);   // add-on « Produits personnalisés » : réponses de l'acheteur, lues au clic sur « Ajouter au panier »
+  // Page produit : ces états sont ici (et non dans PageProduit) pour ne pas être remis à zéro quand la page se redessine
+  const [photoIdx, setPhotoIdx]       = useState(0);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [ongletActif, setOngletActif] = useState<'description'|'details'|'livraison'>('description');
+  const ins = fusionInsc((rawMode as any).inscription);
+  const produitsDemo = !!configBrut?.__produits_demo__;
+  const [heureServeur, setHeureServeur] = useState<string | null>(null);   // heure du serveur (offres du jour, parution, enchères)
+  const [enchereEtat, setEnchereEtat] = useState<Record<number, boolean>>({});   // add-on « Enchères » : enchère en cours par produit, lu en direct par le bloc de la fiche
+  const enchActive = (x: ProduitCat) => enchereEtat[x.id] !== undefined ? enchereEtat[x.id] : !!x.enchere;
+  const venteDirecteBloquee = (x: ProduitCat) => enchActive(x) && x.stock === 0;   // un seul exemplaire et il est réservé à l'enchère
+  const [ouvertes, setOuvertes] = useState<Record<number, boolean>>({});   // Parution future : annonces dont le compte à rebours vient de finir
+  const cfgParution = useConfigParution(vendeurId);
+  const avisProd = useAvisProduit(vendeurId || 0, produitActif?.id, produitsDemo);   // add-on « Avis clients » : avis publiés du produit ouvert
+  const avisReel = !!(avisProd.etat && avisProd.etat.actif && avisProd.etat.total > 0);
+  const resumeAvis = () => { const e = avisProd.etat; return e && e.actif && e.total > 0 && e.afficher_moyenne ? { note: e.moyenne, nb: e.total } : null; };
+  const { trackPageView } = useBoutiqueAnalytique(vendeurId, vendeurId > 0 && !configBrut?.__produits_demo__);   // add-on « Analytique » : rien n'est envoyé sans l'add-on, sans la bannière ou sans consentement
+  const [faqOuvert, setFaqOuvert]     = useState<number | null>(null);
+  const [contactEnvoi, setContactEnvoi] = useState<'idle'|'loading'|'ok'|'err'>('idle');
+  const [contactForm, setContactForm] = useState({ nom:'', courriel:'', message:'' });
+  const [contactErr, setContactErr] = useState('');   // message d'erreur renvoyé par le serveur (ex. trop de messages)
+  const [contactPiege, setContactPiege] = useState('');   // anti-bot : champ piège du formulaire de contact
+  const debutContact = useRef(Date.now());              // anti-bot : délai minimum avant l'envoi
+  const [varianteChoisie, setVarianteChoisie] = useState<Record<string, string>>({});
+  const [qteChoisie, setQteChoisie]   = useState(1);
 
-  const styleInput:React.CSSProperties = { width:'100%',padding:'11px 14px',background:'#fff',border:`1px solid ${BORD}`,borderRadius:0,fontSize:13,outline:'none',color:NOIR,fontFamily:'inherit',boxSizing:'border-box' };
-  const styleBtn:React.CSSProperties  = { background:cp,color:'#fff',border:'none',padding:'14px 28px',fontSize:13,fontWeight:700,cursor:'pointer',letterSpacing:'0.1em',textTransform:'uppercase' };
 
-  const notifVentes = [
-    { prenom:'Sophie', ville:'Montréal', produit:'Robe Midi Fleurie', temps:'2 min' },
-    { prenom:'Emma', ville:'Québec', produit:'Blazer Oversized Crème', temps:'5 min' },
-    { prenom:'Marie', ville:'Laval', produit:'Jean Taille Haute', temps:'9 min' },
-    { prenom:'Léa', ville:'Sherbrooke', produit:'Écharpe Cachemire', temps:'14 min' },
-  ];
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
-  // ══ NAV ══════════════════════════════════════════════════════════════════
+  // Politiques légales (Configuration → Mes politiques) : lesquelles sont rédigées (un lien n'apparaît que si la politique l'est)
+  useEffect(() => {
+    fetch(`${API_BASE}/studio/politiques/${vendeurId}/public`).then(r => r.ok ? r.json() : null).then(d => {
+      if (!d || !Array.isArray(d.politiques)) return;
+      const m: Record<string, boolean> = {}; d.politiques.forEach((p: any) => { m[p.slug] = typeof p.contenu === 'string' && p.contenu.trim().length > 0; });
+      setPolitiquesRedigees(m);
+    }).catch(() => {});
+  }, [vendeurId]);
+
+  // Catalogue réel du serveur (prix en texte → nombres ; enchères, offres du jour et parutions incluses)
+  const chargerCatalogue = useCallback(() => fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?limit=100`)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => {
+      if (!data) return;
+      if (data.heure_serveur) setHeureServeur(String(data.heure_serveur));
+      const decSrv = data.heure_serveur ? new Date(String(data.heure_serveur)).getTime() - Date.now() : 0;
+      const liste: ProduitCat[] = (data.produits || data || []).map((x: any) => ({
+        ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo !== null && x.prix_promo !== undefined && x.prix_promo !== '' ? Number(x.prix_promo) : undefined,
+        stock: x.stock !== null && x.stock !== undefined && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined,
+        variantes: Array.isArray(x.variantes) ? x.variantes : [], paliers: Array.isArray(x.paliers) ? x.paliers : undefined,
+        offre_fin: x.offre_fin || null, date_parution: x.date_parution || null,
+        enchere: x.ench_fin ? { fin: x.ench_fin, mise: Number(x.ench_mise), nb_mises: Number(x.ench_nb) || 0, decalage: decSrv } : null,
+      }));
+      setProduits(liste);
+      setCategories(Array.from(new Set(liste.map(p => p.categorie).filter(Boolean))) as string[]);
+    }).catch(() => {}), [vendeurId]);
+
+  // Charger produits — si démo hardcodée présente, l'utiliser directement
+  useEffect(() => {
+    if (configBrut?.__produits_demo__) {
+      const liste = configBrut.__produits_demo__;
+      setProduits(liste);
+      const cats = Array.from(new Set(liste.map((p: any) => p.categorie).filter(Boolean))) as string[];
+      setCategories(cats);
+      return;
+    }
+    chargerCatalogue();
+  }, [vendeurId, chargerCatalogue]);
+
+  // Quand une offre se termine, la fiche ouverte reprend le vrai prix
+  useEffect(() => { setProduitActif(a => { if (!a) return a; const n = produits.find(x => x.id === a.id); return n && (n.prix_promo !== a.prix_promo || n.offre_fin !== a.offre_fin) ? { ...a, prix_promo: n.prix_promo, offre_fin: n.offre_fin } : a; }); }, [produits]);
+
+  // Add-on « Offres du jour » : lien du menu seulement s'il y a des offres en cours ; la page est lue au serveur (?offres=1), paginée
+  const [nbOffres, setNbOffres] = useState(0);
+  const [versionOffres, setVersionOffres] = useState(0);
+  const compterOffres = useCallback(() => { if (produitsDemo) return; fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?offres=1&limit=1`).then(r => r.ok ? r.json() : null).then(d => { if (d && typeof d.total === 'number') setNbOffres(d.total); }).catch(() => {}); }, [vendeurId, produitsDemo]);
+  useEffect(() => { compterOffres(); }, [compterOffres]);
+  const OFFRES_PAR_PAGE = 24;
+  const [offresListe, setOffresListe] = useState<ProduitCat[]>([]);
+  const [offresTotal, setOffresTotal] = useState(0);
+  const [offresPg, setOffresPg] = useState(1);
+  const [offresCharge, setOffresCharge] = useState(false);
+  const [offresErr, setOffresErr] = useState(false);
+  useEffect(() => {
+    if (page !== 'offres' || produitsDemo) return;
+    let annule = false; setOffresErr(false);
+    fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?offres=1&limit=${OFFRES_PAR_PAGE}&offset=${(offresPg - 1) * OFFRES_PAR_PAGE}`).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+      if (annule) return;
+      const l: ProduitCat[] = (Array.isArray(d.produits) ? d.produits : []).map((x: any) => ({ ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo !== null && x.prix_promo !== undefined && x.prix_promo !== '' ? Number(x.prix_promo) : undefined, stock: x.stock !== null && x.stock !== undefined && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined, variantes: Array.isArray(x.variantes) ? x.variantes : [], offre_fin: x.offre_fin || null, date_parution: x.date_parution || null, enchere: null }));
+      setOffresListe(l); setOffresTotal(Number(d.total) || 0); setOffresCharge(true);
+    }).catch(() => { if (!annule) { setOffresErr(true); setOffresCharge(true); } });
+    return () => { annule = true; };
+  }, [page, offresPg, versionOffres, vendeurId, produitsDemo]);
+  const rechargerOffres = useCallback(() => { if (!produitsDemo) chargerCatalogue(); compterOffres(); setVersionOffres(v => v + 1); }, [chargerCatalogue, compterOffres, produitsDemo]);
+  const offreCtx = { heureServeur, onFini: () => { setTimeout(rechargerOffres, 1200); } };
+
+  // Add-on « Enchères » : lien du menu seulement s'il y a au moins une enchère en cours ; la page lit la liste au serveur
+  const [nbEncheres, setNbEncheres] = useState(0);
+  const [encheresListe, setEncheresListe] = useState<any[]>([]);
+  const [encheresProduits, setEncheresProduits] = useState<Record<number, ProduitCat>>({});
+  const [encheresDec, setEncheresDec] = useState(0);
+  const [encheresCharge, setEncheresCharge] = useState(false);
+  const [encheresErr, setEncheresErr] = useState(false);
+  const [versionEncheres, setVersionEncheres] = useState(0);
+  useEffect(() => {
+    if (produitsDemo) return;
+    let annule = false;
+    const compter = () => fetch(`${API_BASE}/boutique/encheres/${vendeurId}?limit=1`).then(r => r.ok ? r.json() : null).then(d => { if (!annule && d && d.pagination && typeof d.pagination.total === 'number') setNbEncheres(d.pagination.total); }).catch(() => {});
+    compter(); const t = setInterval(compter, 60000);
+    return () => { annule = true; clearInterval(t); };
+  }, [vendeurId, produitsDemo]);
+  useEffect(() => {
+    if (page !== 'encheres' || produitsDemo) return;
+    let annule = false; setEncheresErr(false);
+    const lire = () => fetch(`${API_BASE}/boutique/encheres/${vendeurId}?limit=60`).then(r => r.ok ? r.json() : Promise.reject()).then(async d => {
+      if (annule) return;
+      const l: any[] = Array.isArray(d.encheres) ? d.encheres : [];
+      setEncheresListe(l); setNbEncheres(d.pagination ? Number(d.pagination.total) || 0 : l.length); if (d.maintenant) setEncheresDec(new Date(d.maintenant).getTime() - Date.now()); setEncheresCharge(true);
+      const ids = l.map(x => x.produit_id).filter((x: number) => Number.isInteger(x)).slice(0, 50);
+      if (ids.length) { try { const r2 = await fetch(`${API_BASE}/boutique/catalogue/${vendeurId}?ids=${ids.join(',')}&limit=50`); const c = r2.ok ? await r2.json() : null; if (!annule && c && Array.isArray(c.produits)) { const m: Record<number, ProduitCat> = {}; c.produits.forEach((x: any) => { m[Number(x.id)] = { ...x, prix: Number(x.prix) || 0, prix_promo: x.prix_promo != null && x.prix_promo !== '' ? Number(x.prix_promo) : undefined, stock: x.stock != null && x.stock !== '' ? Number(x.stock) : undefined, description: x.description || undefined, photo_principale: x.photo_principale || undefined, variantes: Array.isArray(x.variantes) ? x.variantes : [], enchere: null }; }); setEncheresProduits(m); } } catch { /* la carte reste visible, sans ouverture de fiche */ } }
+    }).catch(() => { if (!annule) { setEncheresErr(true); setEncheresCharge(true); } });
+    lire(); const t = setInterval(lire, 15000);
+    return () => { annule = true; clearInterval(t); };
+  }, [page, vendeurId, produitsDemo, versionEncheres]);
+
+  // Blog de la boutique (Configuration → Mes blogs) : liste légère et paginée ; l'article complet se charge à son ouverture
+  const versArticle = (x: any): ArticleBlog => ({ id: x.id, titre: x.titre, slug: x.slug, resume: x.extrait || undefined, photo: x.image_couverture || undefined, auteur: x.auteur || undefined, date_publication: x.date_publication || undefined, tags: Array.isArray(x.tags) ? x.tags : [], vues: x.vues });
+  const chargerArticles = (p: number) => {
+    if (!vendeurId) { setBlogCharge(true); return; }
+    fetch(`${API_BASE}/boutique/blog/${vendeurId}?page=${p}&limite=12`).then(r => r.ok ? r.json() : null).then(d => {
+      if (!d || !Array.isArray(d.articles)) return;
+      setBlogPage(d.page || p); setBlogPages(d.pages || 1);
+      setArticles(prev => p === 1 ? d.articles.map(versArticle) : [...prev, ...d.articles.map(versArticle)]);
+    }).catch(() => {}).finally(() => setBlogCharge(true));
+  };
+  useEffect(() => { chargerArticles(1); }, [vendeurId]);
+
+  // Compte acheteur = celui du MV (mêmes clés que AppAcheteur)
+  useEffect(() => {
+    try { const u = localStorage.getItem(`mv_compte_${vendeurId}`), t = localStorage.getItem(`mv_token_${vendeurId}`); setAcheteur(u && t ? JSON.parse(u) : null); } catch { setAcheteur(null); }
+  }, [vendeurId, page]);
+
+  // Pastille du panier (panier du serveur)
+  useEffect(() => {
+    if (!acheteur) { setNbPanier(0); return; }
+    ba(vendeurId, '/panier').then(r => { if (r.ok) setNbPanier((r.data.articles || []).reduce((s: number, a: any) => s + (a.quantite || 0), 0)); });
+  }, [acheteur, vendeurId, page, vueCompte]);
+
+  useEffect(() => { if (!avisPanier) return; const t = setTimeout(() => setAvisPanier(''), 4000); return () => clearTimeout(t); }, [avisPanier]);
+
+  // Anti-bot du formulaire de contact : le délai se compte depuis l'ouverture de la page Contact
+  useEffect(() => { if (page === 'contact') debutContact.current = Date.now(); }, [page]);
+
+  // Anti-bot de l'inscription : champ piège + délai minimum + mouvement de souris
+  useEffect(() => {
+    if (page !== 'inscription') return;
+    debutInscription.current = Date.now(); setSourisBougee(false);
+    const bouge = () => setSourisBougee(true);
+    window.addEventListener('mousemove', bouge, { once: true });
+    return () => window.removeEventListener('mousemove', bouge);
+  }, [page]);
+
+  // Add-on « Analytique » : une page vue par changement de vue
+  useEffect(() => {
+    if (page === 'produit') { if (produitActif) trackPageView('/produit/' + produitActif.id, produitActif.titre); return; }
+    if (page === 'politique') { trackPageView('/politique/' + (politiqueEnCours.current || '')); return; }
+    if (page === 'article') { if (articleActif) trackPageView('/blog/' + (articleActif.slug || articleActif.id), articleActif.titre); return; }
+    const noms: Record<string, [string, string]> = { accueil: ['/', 'Accueil'], catalogue: ['/catalogue', 'Catalogue'], blog: ['/blog', 'Blogue'], faq: ['/faq', 'FAQ'], contact: ['/contact', 'Contact'], offres: ['/offres', 'Offres du jour'], encheres: ['/encheres', 'Enchères'], login: ['/connexion', 'Connexion'], inscription: ['/inscription', 'Inscription'], compte: ['/compte', 'Compte'] };
+    const n = noms[page]; if (n) trackPageView(n[0], n[1]);
+  }, [page, produitActif?.id, articleActif?.id, trackPageView]);
+
+  // ── Navigation ────────────────────────────────────────────────────────────
+  const ouvrirPolitique = useCallback((slugPol: string) => {
+    politiqueEnCours.current = slugPol; setPolitique(null); setPolitiqueStatut('loading'); setPage('politique');
+    fetch(`${API_BASE}/studio/politiques/${vendeurId}/public/${slugPol}`).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+      if (politiqueEnCours.current !== slugPol) return;
+      const p = d && d.politique; if (!p) throw new Error();
+      setPolitique({ slug: slugPol, titre: String(p.titre || ''), contenu: typeof p.contenu === 'string' ? p.contenu : '' }); setPolitiqueStatut('idle');
+    }).catch(() => { if (politiqueEnCours.current === slugPol) setPolitiqueStatut('err'); });
+  }, [vendeurId]);
+
+  useEffect(() => {
+    if (!popup.actif || !(popup.texte || popup.code)) return;
+    let deja = false; try { deja = sessionStorage.getItem('evend_popup_mode_' + vendeurId) === '1'; } catch { /* stockage indisponible : on affiche */ }
+    if (deja) return;
+    const t = setTimeout(() => setPopupVisible(true), popup.delai * 1000);
+    return () => clearTimeout(t);
+  }, [popup.actif, popup.texte, popup.code, popup.delai, vendeurId]);
+  const fermerPopup = () => { setPopupVisible(false); try { sessionStorage.setItem('evend_popup_mode_' + vendeurId, '1'); } catch { /* sans effet */ } };
+  const copierCode = () => { try { navigator.clipboard.writeText(popup.code).then(() => { setCodeCopie(true); setTimeout(() => setCodeCopie(false), 2000); }).catch(() => {}); } catch { /* sans effet */ } };
+
+  const naviguer = useCallback((dest: string) => {
+    setMenuOuvert(false);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (dest.toLowerCase() === 'panier') { setVueCompte('panier'); setPage('compte'); return; }
+    const slugPol = slugPolitique(dest);
+    if (slugPol) { ouvrirPolitique(slugPol); return; }
+    const map: Record<string, PageId> = { accueil:'accueil', catalogue:'catalogue', blog:'blog', faq:'faq', 'a-propos':'a-propos', contact:'contact', compte:'compte', login:'login', inscription:'inscription', offres:'offres', encheres:'encheres', connexion:'login' };
+    const cle = sansAccent(dest).replace(/\s+/g, '-');
+    if (map[cle]) setPage(map[cle]);
+  }, [ouvrirPolitique]);
+
+  const voirProduit = (p: ProduitCat) => {
+    setProduitActif(p);
+    setQteChoisie(1);
+    setVarianteChoisie({});
+    setPhotoIdx(0); setDescExpanded(false); setOngletActif('description');
+    setPage('produit');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const voirArticle = (a: ArticleBlog) => {
+    setArticleActif(a); setArticleErreur(false);
+    setPage('article');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (a.contenu === undefined && a.slug) {
+      fetch(`${API_BASE}/boutique/blog/${vendeurId}/article/${encodeURIComponent(a.slug)}`).then(r => r.ok ? r.json() : Promise.reject()).then(d => {
+        if (!d || !d.article) throw new Error();
+        setArticleActif(cur => cur && cur.id === a.id ? { ...cur, ...versArticle(d.article), contenu: String(d.article.contenu || '') } : cur);
+      }).catch(() => setArticleErreur(true));
+    }
+  };
+
+  // Add-on « Chatbot » : le widget (monté par SitePreview) demande d'ouvrir une page du site ; ce template sait les ouvrir sans recharger
+  const navChatbot = useRef<(d: any) => void>(() => {});
+  navChatbot.current = (d: any) => {
+    if (!d || typeof d !== 'object') return; setMenuOuvert(false); window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (d.page === 'produit' && Number(d.produitId) > 0) { const pr = produits.find(x => Number(x.id) === Number(d.produitId)); if (pr) voirProduit(pr); else naviguer('catalogue'); return; }
+    if (d.page === 'article' && typeof d.articleSlug === 'string') { voirArticle({ id: 0, titre: '', slug: d.articleSlug }); return; }
+    if (d.page === 'politique' && typeof d.politiqueSlug === 'string' && POLITIQUES_SLUGS.includes(d.politiqueSlug)) { ouvrirPolitique(d.politiqueSlug); return; }
+    if (d.page === 'faq' || d.page === 'a-propos' || d.page === 'blog' || d.page === 'contact' || d.page === 'catalogue') setPage(d.page);
+  };
+  useEffect(() => { const f = (e: Event) => navChatbot.current((e as CustomEvent).detail); window.addEventListener('boutique-chatbot-nav', f); return () => window.removeEventListener('boutique-chatbot-nav', f); }, []);
+
+  // ── Panier (panier du serveur ; le compte acheteur est obligatoire) ───────
+  const ajouterAuPanier = async (produit: ProduitCat) => {
+    if (configBrut?.__produits_demo__) { setAvisPanier('Produit de démonstration : publiez vos annonces pour vendre.'); return; }
+    if (!acheteur) { setAvisPanier('Connectez-vous pour ajouter au panier.'); naviguer('login'); return; }
+    if (produit.date_parution && !ouvertes[produit.id]) { setAvisPanier(`Disponible le ${formaterDateParution(produit.date_parution)}`); return; }
+    const plates = (produit.variantes || []).filter(v => v && !Array.isArray(v.valeurs));
+    if (plates.length && !varianteChoisie.__v) { setAvisPanier('Choisissez une variante.'); return; }
+    const variante = Object.values(varianteChoisie).join(' / ');
+    let perso: Record<string, any> | undefined;
+    if (persoRef.current) { const pp = await persoRef.current.preparer(); if (!pp.ok) { setAvisPanier(pp.erreur || 'Complétez la personnalisation.'); return; } perso = pp.personnalisation && Object.keys(pp.personnalisation).length ? pp.personnalisation : undefined; }
+    const r = await ajouterAuPanierServeur(vendeurId, produit.id, qteChoisie, variante, perso);
+    if (!r.ok) { setAvisPanier(messageAcheteur(r)); return; }
+    setVueCompte('panier'); naviguer('compte');
+  };
+  const ouvrirCompte = () => { setVueCompte('dashboard'); naviguer(acheteur ? 'compte' : 'login'); };
+  // Add-on « Favoris » : la liste de souhaits est une page de l'espace client (connecté) ; sinon on invite à se connecter
+  const ouvrirSouhaits = () => { if (!acheteur) { setAvisPanier('Connectez-vous pour voir votre liste de souhaits.'); naviguer('login'); return; } setVueCompte('wishlist'); naviguer('compte'); };
+  const ouvrirPanier = () => { if (!acheteur) { setAvisPanier('Connectez-vous pour voir votre panier.'); naviguer('login'); return; } setVueCompte('panier'); naviguer('compte'); };
+
+  const handleLogin = async () => {
+    setLoginStatut('loading'); setLoginErreur('');
+    try {
+      const res = await fetch(`${API_BASE}/marketplace/${vendeurId}/login`, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'acheteur', email: loginForm.email, password: loginForm.mdp }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || 'Erreur');
+      try { localStorage.setItem(`mv_token_${vendeurId}`, data.token); localStorage.setItem(`mv_compte_${vendeurId}`, JSON.stringify(data.compte)); } catch {}
+      setAcheteur(data.compte);
+      setLoginStatut('idle'); naviguer('compte');
+    } catch (e: any) { setLoginErreur(e.message || 'Erreur'); setLoginStatut('err'); }
+  };
+
+  const handleInscription = async () => {
+    setInscErreur('');
+    const v = inscVal;
+    if (v.mdp && v.mdp2 && v.mdp !== v.mdp2) return setInscErreur('Les mots de passe ne correspondent pas.');
+    if (!(v.prenom || '').trim() || !(v.nom || '').trim()) return setInscErreur('Prénom et nom obligatoires.');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((v.email || '').trim())) return setInscErreur('Adresse courriel invalide.');
+    if ((v.mdp || '').length < 8) return setInscErreur('Le mot de passe doit contenir au moins 8 caractères.');
+    const tel = (v.telephone || '').trim();
+    if (ins.telephone.mode === 'obligatoire' && !tel) return setInscErreur('Téléphone : obligatoire.');
+    if (ins.telephone.mode !== 'cache' && tel && !/^(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}$/.test(tel)) return setInscErreur('Numéro de téléphone invalide (ex: 514-555-0100).');
+    if (ins.adresse.mode !== 'cache') {
+      const a = (v.adresse || '').trim(), vi = (v.ville || '').trim(), cpo = (v.code_postal || '').trim();
+      if (ins.adresse.mode === 'obligatoire' || a || vi || cpo) {
+        if (a.length < 3) return setInscErreur('Adresse invalide.');
+        if (vi.length < 2) return setInscErreur('Ville invalide.');
+        if (!/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(cpo)) return setInscErreur('Code postal invalide (ex: H2X 1Y4).');
+      }
+    }
+    const champs: Record<string, any> = {}; ins.champs.slice(0, 20).forEach((c: ChampInsc) => { const x = v['c_' + c.id]; champs[String(c.id).slice(0, 60)] = typeof x === 'boolean' ? x : nettoyerEnvoi(x, 1000); });
+    setInscStatut('loading');
+    try {
+      const res = await fetch(`${API_BASE}/boutique/acheteur/${vendeurId}/inscription`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        prenom: nettoyerEnvoi(v.prenom, 100), nom: nettoyerEnvoi(v.nom, 100), email: nettoyerEnvoi(v.email, 254), mot_de_passe: limiterSaisie(v.mdp, 200), confirmation: limiterSaisie(v.mdp2, 200),
+        telephone: nettoyerEnvoi(v.telephone, 30), adresse: nettoyerEnvoi(v.adresse, 150), ville: nettoyerEnvoi(v.ville, 100), code_postal: nettoyerEnvoi(v.code_postal, 10), province: nettoyerEnvoi(v.province || 'QC', 4), infolettre: v.infolettre === true, age_confirme: v.age === true, termes_acceptes: v.termes === true, champs,
+        duree_ms: Date.now() - debutInscription.current, souris: sourisBougee, website: limiterSaisie(honeypot, 100) }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.message || "Erreur lors de l'inscription.");
+      setLoginForm({ email: (v.email || '').trim(), mdp: '' }); setInscStatut('ok');
+    } catch (e: any) { setInscErreur(e.message || 'Erreur de connexion au serveur.'); setInscStatut('idle'); }
+  };
+
+  // ── Produits filtrés ──────────────────────────────────────────────────────
+  const nombreSaisi = (v: string): number | null => { const n = parseFloat(String(v).replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : null; };
+  const pMin = nombreSaisi(prixMin), pMax = nombreSaisi(prixMax);
+  const prixEffectif = (p: ProduitCat) => (p.prix_promo && p.prix_promo < p.prix ? p.prix_promo : p.prix);
+  const aValeur = (p: ProduitCat, v: string) => valeursVariantes(p).some(x => sansAccent(x) === sansAccent(v));
+  const taillesDispo = taillesCfg.filter(t => produits.some(p => aValeur(p, t)));
+  const couleursDispo = (() => { const vus = new Set<string>(); const out: string[] = []; produits.forEach(p => valeursVariantes(p).forEach(v => { const k = sansAccent(v); if (hexCouleur(v) && !vus.has(k)) { vus.add(k); out.push(v); } })); return out.slice(0, 16); })();
+  const filtresActifs = !!(filtreCat || filtreRecherche || prixMin || prixMax || filtreTaille || filtreCouleur || seulPromo || seulStock || tri !== 'recent');
+  const reinitialiserFiltres = () => { setFiltreCat(''); setFiltreRecherche(''); setPrixMin(''); setPrixMax(''); setFiltreTaille(''); setFiltreCouleur(''); setSeulPromo(false); setSeulStock(false); setTri('recent'); };
+  const produitsFiltres = (() => {
+    const l = produits.filter(p => {
+      if (filtreCat && p.categorie !== filtreCat) return false;
+      if (filtreRecherche && !String(p.titre || '').toLowerCase().includes(filtreRecherche.toLowerCase())) return false;
+      const px = prixEffectif(p);
+      if (pMin !== null && px < pMin) return false;
+      if (pMax !== null && px > pMax) return false;
+      if (filtreTaille && !aValeur(p, filtreTaille)) return false;
+      if (filtreCouleur && !aValeur(p, filtreCouleur)) return false;
+      if (seulPromo && !(p.prix_promo && p.prix_promo < p.prix)) return false;
+      if (seulStock && p.stock !== undefined && p.stock <= 0) return false;
+      return true;
+    });
+    if (tri === 'prix-asc') l.sort((x, y) => prixEffectif(x) - prixEffectif(y));
+    else if (tri === 'prix-desc') l.sort((x, y) => prixEffectif(y) - prixEffectif(x));
+    else if (tri === 'nom') l.sort((x, y) => String(x.titre || '').localeCompare(String(y.titre || ''), 'fr'));
+    return l;
+  })();
+
+  // ── Sections accueil triées ───────────────────────────────────────────────
+  const sectionsAccueil = [...(cfg.accueil.sections || [])].sort((a, b) => a.ordre - b.ordre).filter(s => s.actif);
+
+  // ── Envoi formulaire contact ──────────────────────────────────────────────
+  const envoyerContact = async () => {
+    const fin = (etat: 'ok' | 'err') => { setContactEnvoi(etat); setTimeout(() => setContactEnvoi('idle'), 4000); };
+    const nom = nettoyerEnvoi(contactForm.nom, 100), courriel = nettoyerEnvoi(contactForm.courriel, 254), message = nettoyerEnvoi(contactForm.message, 5000);
+    setContactErr('');
+    if (!nom || !COURRIEL_OK.test(courriel)) { fin('err'); return; }
+    if (message.length < 10) { setContactErr('Message trop court (minimum 10 caractères).'); fin('err'); return; }
+    if (contactPiege) { setContactForm({ nom: '', courriel: '', message: '' }); fin('ok'); return; }   // champ piège rempli = robot : on fait semblant que c'est envoyé
+    const duree = Date.now() - debutContact.current;
+    if (duree < 3000) { setContactErr('Veuillez patienter quelques secondes avant d\'envoyer.'); fin('err'); return; }   // trop rapide pour un humain
+    setContactEnvoi('loading');
+    try {
+      // Même route serveur que tous les templates : /api/studio/contact (anti-spam, quota et enregistrement dans Messagerie)
+      const res = await fetch(`${API_BASE}/studio/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nom_expediteur: nom, email_expediteur: courriel, message, vendeur_id: vendeurId, template_id: 'boutique-simplisse-mode', honeypot: '', form_start_time: debutContact.current }),
+      });
+      if (!res.ok) { try { const j = await res.json(); if (j && typeof j.message === 'string') setContactErr(j.message.slice(0, 200)); } catch { /* réponse non JSON */ } throw new Error(); }
+      setContactForm({ nom: '', courriel: '', message: '' });
+      fin('ok');
+    } catch {
+      fin('err');
+    }
+  };
+
+  // ── Styles communs ────────────────────────────────────────────────────────
+  const styleInput: React.CSSProperties = { width: '100%', padding: '12px 14px', border: '1.5px solid #e2ddd8', borderRadius: 2, fontSize: 15, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' };
+  const styleBtn: React.CSSProperties  = { background: cp, color: '#fff', border: 'none', borderRadius: 2, padding: '14px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer', width: '100%' };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // NAV
+  // ══════════════════════════════════════════════════════════════════════════
+  const extras: CarteExtras = { gid: vendeurId > 0 ? vendeurId : undefined, connecte: !!acheteur, demo: produitsDemo, offre: offreCtx };
+  const liensNav: string[][] = [['accueil', 'Accueil'], ['catalogue', 'Catalogue'], ...(nbOffres > 0 ? [['offres', '🔥 Offres du jour']] : []), ...(nbEncheres > 0 ? [['encheres', '🔨 Enchères']] : []), ['blog', 'Blog'], ['faq', 'FAQ'], ['a-propos', 'À propos'], ['contact', 'Contact']]
+    // Menu du haut configurable (Config Mes pages → Accueil) : libellé renommé ou page cachée
+    .filter(([id]) => !(Array.isArray(rawMode.menu?.masques) ? rawMode.menu.masques : []).includes(id))
+    .map(([id, l]) => [id, (typeof rawMode.menu?.[id] === 'string' && rawMode.menu[id].trim()) ? rawMode.menu[id].trim() : l]);
   const Nav = () => (
-    <nav style={{ position:'sticky',top:0,zIndex:100,background:'rgba(250,248,245,0.96)',backdropFilter:'blur(12px)',borderBottom:`1px solid ${BORD}` }}>
-      <div style={{ maxWidth:1300,margin:'0 auto',padding:'0 24px',height:64,display:'flex',alignItems:'center',justifyContent:'space-between' }}>
-        <button onClick={()=>naviguer('accueil')} style={{ background:'none',border:'none',cursor:'pointer',padding:0 }}>
-          {cfg.logoUrl ? <img src={cfg.logoUrl} alt={cfg.nomBoutique} style={{ height:36 }}/> :
-            <div><div style={{ fontSize:20,fontWeight:900,color:NOIR,letterSpacing:'-0.02em',fontFamily:'Georgia,serif' }}>{cfg.nomBoutique}</div><div style={{ fontSize:9,color:cp,letterSpacing:'0.2em',textTransform:'uppercase' }}>{cfg.slogan}</div></div>}
+    <nav style={{ position: 'sticky', top: 0, zIndex: 100, background: '#fff', borderBottom: '1px solid #e2ddd8', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 20px', height: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        {/* Logo */}
+        <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', fontSize: 19, fontWeight: 700, color: '#0f0f0f', letterSpacing: '0.16em', textTransform: 'uppercase', fontFamily: police.css, cursor: 'pointer', padding: 0 }}>
+          {logoUrl
+            ? <img src={logoUrl} alt={cfg.footer.nomBoutique} style={{ height: 40, maxWidth: 180, objectFit: 'contain', display: 'block' }} />
+            : cfg.footer.nomBoutique}
         </button>
-        {!isMobile&&<div style={{ display:'flex',gap:2 }}>
-          {[['accueil','Accueil'],['catalogue','Catalogue'],['blog','Blog'],['faq','FAQ'],['contact','Contact']].map(([id,label])=>(
-            <button key={id} onClick={()=>naviguer(id)} style={{ background:'none',border:'none',color:page===id?cp:NOIR2,fontSize:13,fontWeight:page===id?700:400,cursor:'pointer',padding:'8px 16px',letterSpacing:'0.04em',borderBottom:page===id?`2px solid ${cp}`:'2px solid transparent',transition:'all 0.2s' }}>{label}</button>
-          ))}</div>}
-        <div style={{ display:'flex',alignItems:'center',gap:8 }}>
-          <button onClick={()=>naviguer('wishlist')} style={{ position:'relative',background:'none',border:'none',cursor:'pointer',fontSize:20,padding:8,color:NOIR }}>🤍{wishlist.length>0&&<span style={{ position:'absolute',top:2,right:2,background:cp,color:'#fff',borderRadius:'50%',width:14,height:14,display:'flex',alignItems:'center',justifyContent:'center',fontSize:8,fontWeight:800 }}>{wishlist.length}</span>}</button>
-          <button onClick={()=>naviguer(acheteur?'compte':'login')} style={{ background:'none',border:'none',cursor:'pointer',fontSize:18,padding:8,color:NOIR,position:'relative' }}>
-            {acheteur?'👤':'🔑'}{acheteur&&<div style={{ position:'absolute',bottom:6,right:6,width:7,height:7,borderRadius:'50%',background:'#4ade80',border:'1.5px solid '+IVOIRE }}/>}
+
+        {/* Liens desktop */}
+        {!isMobile && (
+          <div style={{ display: 'flex', gap: 6 }}>
+            {liensNav.map(([id, label]) => (
+              <button key={id} onClick={() => naviguer(id)}
+                style={{ background: page === id ? `${cp}12` : 'none', border: 'none', borderRadius: 2, color: page === id ? cp : '#555', fontSize: 14, fontWeight: page === id ? 700 : 500, cursor: 'pointer', padding: '8px 10px', whiteSpace: 'nowrap' }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Droite */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Panier */}
+          {vendeurId > 0 && <BoutiqueSouhaitsAcces clair gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} ouvrir={ouvrirSouhaits} variante="entete" />}
+          <button onClick={ouvrirCompte} aria-label={acheteur ? 'Mon compte' : 'Se connecter'}
+            style={{ background: 'none', border: 'none', borderRadius: 2, padding: '9px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: '#555', fontWeight: 600, fontSize: 14 }}>
+            👤{!isMobile && <span>{acheteur ? (acheteur.prenom || 'Mon compte') : 'Connexion'}</span>}
           </button>
-          <button onClick={()=>setPanierOuvert(!panierOuvert)} style={{ display:'flex',alignItems:'center',gap:6,background:'none',border:`1.5px solid ${BORD}`,padding:'8px 14px',cursor:'pointer',color:NOIR,fontSize:13,fontWeight:500 }}>
-            🛒{nbPanier>0&&<span style={{ background:cp,color:'#fff',borderRadius:20,padding:'1px 7px',fontSize:11,fontWeight:800 }}>{nbPanier}</span>}{!isMobile&&<span style={{ fontSize:13 }}>{px(totalPanier)}</span>}
+          <button onClick={ouvrirPanier} aria-label="Panier"
+            style={{ position: 'relative', background: `${cp}12`, border: 'none', borderRadius: 2, padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, color: cp, fontWeight: 700, fontSize: 14 }}>
+            🛒
+            {nbPanier > 0 && (
+              <span style={{ position: 'absolute', top: -6, right: -6, background: cp, color: '#fff', borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>{nbPanier}</span>
+            )}
           </button>
-          {isMobile&&<button onClick={()=>setMenuOuvert(!menuOuvert)} style={{ background:'none',border:`1px solid ${BORD}`,padding:'8px 12px',cursor:'pointer',color:NOIR,fontSize:16 }}>{menuOuvert?'✕':'☰'}</button>}
+
+          {/* Burger mobile */}
+          {isMobile && (
+            <button onClick={() => setMenuOuvert(!menuOuvert)}
+              style={{ background: 'none', border: 'none', fontSize: 24, cursor: 'pointer', color: '#333', padding: '4px 8px' }}>
+              {menuOuvert ? '✕' : '☰'}
+            </button>
+          )}
         </div>
       </div>
-      {isMobile&&menuOuvert&&<div style={{ background:IVOIRE,borderTop:`1px solid ${BORD}`,padding:'12px 24px 20px' }}>
-        {[['accueil','Accueil'],['catalogue','Catalogue'],['blog','Blog'],['faq','FAQ'],['contact','Contact']].map(([id,label])=>(
-          <button key={id} onClick={()=>naviguer(id)} style={{ display:'block',width:'100%',textAlign:'left',background:'none',border:'none',borderBottom:`1px solid ${BORD}`,color:page===id?cp:NOIR2,fontSize:15,fontWeight:page===id?700:400,cursor:'pointer',padding:'14px 0' }}>{label}</button>
-        ))}</div>}
+
+      {/* Menu mobile déroulant */}
+      {isMobile && menuOuvert && (
+        <div style={{ background: '#fff', borderTop: '1px solid #e2ddd8', padding: '12px 20px' }}>
+          {liensNav.map(([id, label]) => (
+            <button key={id} onClick={() => naviguer(id)}
+              style={{ display: 'block', width: '100%', textAlign: 'left', background: page === id ? `${cp}10` : 'none', border: 'none', borderRadius: 2, color: page === id ? cp : '#333', fontSize: 16, fontWeight: page === id ? 700 : 500, cursor: 'pointer', padding: '12px 14px', marginBottom: 4 }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </nav>
   );
 
-  // ══ TIROIR PANIER ════════════════════════════════════════════════════════
-  const TiroirPanier = () => (
-    <>
-      {panierOuvert&&<div onClick={()=>setPanierOuvert(false)} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:199,backdropFilter:'blur(3px)' }}/>}
-      <div style={{ position:'fixed',top:0,right:panierOuvert?0:'-460px',width:Math.min(460,window.innerWidth),height:'100vh',background:'#fff',zIndex:200,boxShadow:'-4px 0 24px rgba(0,0,0,0.12)',display:'flex',flexDirection:'column',transition:'right 0.35s cubic-bezier(0.4,0,0.2,1)',borderLeft:`1px solid ${BORD}` }}>
-        <div style={{ padding:'20px 24px',borderBottom:`1px solid ${BORD}`,display:'flex',justifyContent:'space-between',alignItems:'center' }}>
-          <div><h2 style={{ margin:0,fontSize:16,fontWeight:800,color:NOIR,textTransform:'uppercase',letterSpacing:'0.08em' }}>Votre panier</h2><span style={{ fontSize:12,color:cp }}>{nbPanier} article{nbPanier>1?'s':''}</span></div>
-          <button onClick={()=>setPanierOuvert(false)} style={{ background:IVOIRE2,border:'none',padding:'8px 12px',cursor:'pointer',fontSize:14,color:NOIR,fontWeight:600 }}>FERMER</button>
-        </div>
-        <div style={{ flex:1,overflowY:'auto',padding:'16px 24px' }}>
-          {panier.length===0 ? <div style={{ textAlign:'center',padding:'60px 0' }}><div style={{ fontSize:48,marginBottom:16 }}>🛒</div><p style={{ color:GRIS,marginBottom:20 }}>Votre panier est vide</p><button onClick={()=>{naviguer('catalogue');setPanierOuvert(false);}} style={styleBtn}>Découvrir la collection</button></div>
-          : <>
-              {cfg.afficherBarreLivraison&&<div style={{ background:IVOIRE2,padding:'10px 14px',marginBottom:16,fontSize:12,borderLeft:`3px solid ${cp}` }}>
-                {totalPanier>=cfg.seuilLivraisonGratuite ? <span style={{ color:cp,fontWeight:700 }}>🎉 Livraison gratuite incluse !</span> : <span>Ajoutez <strong style={{ color:cp }}>{px(cfg.seuilLivraisonGratuite-totalPanier)}</strong> pour la livraison gratuite</span>}
-              </div>}
-              {panier.map((item,i)=>(
-                <div key={i} style={{ display:'flex',gap:14,padding:'14px 0',borderBottom:`1px solid ${BORD}`,alignItems:'center' }}>
-                  <div style={{ width:70,height:90,background:IVOIRE2,flexShrink:0,overflow:'hidden' }}>
-                    {item.produit.photo_principale ? <img src={item.produit.photo_principale} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/> : <div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center' }}><SilhouetteMode taille={50} couleur={cp}/></div>}
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE ACCUEIL
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageAccueil = () => {
+    const produitsVedette  = produits.filter((_, i) => i < 4);
+    const produitsNouveaux = produits.filter((_, i) => i < 4);
+    const produitsPromo    = produits.filter(p => p.prix_promo && p.prix_promo < p.prix).slice(0, 4);
+
+    const renderSection = (sec: SectionPage) => {
+      switch (sec.id) {
+        case 'banniere':
+          return <Banniere key={sec.id} cfg={cfg.accueil.banniere} />;
+
+        case 'hero':
+          return <Hero key={sec.id} cfg={cfg.accueil.hero} cp={cp} onNaviguer={naviguer} cs={cs} />;
+
+        case 'avantages': {
+          // Avantages saisis par le gestionnaire (Config → Accueil). Les exemples ne s'affichent qu'en démonstration : jamais de promesse inventée sur une vraie boutique.
+          const avSaisis = (Array.isArray(cfg.accueil.avantages) ? cfg.accueil.avantages : []).filter(a => a && (a.titre || a.desc));
+          const avExemples = [{ ico: '🚚', titre: 'Livraison rapide', desc: '24–48h ouvrables' }, { ico: '🔒', titre: 'Paiement sécurisé', desc: 'Stripe ou PayPal' }, { ico: '🔄', titre: 'Retours faciles', desc: 'Sous 30 jours' }, { ico: '💬', titre: 'Support client', desc: 'Réponse rapide' }];
+          const avListe = avSaisis.length > 0 ? avSaisis : (configBrut?.__produits_demo__ ? avExemples : []);
+          if (avListe.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ background: '#f2ede6', borderTop: '1px solid #e2ddd8', borderBottom: '1px solid #e2ddd8' }}>
+              <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px', display: 'flex', justifyContent: 'center', gap: isMobile ? 16 : 40, flexWrap: 'wrap' }}>
+                {avListe.map(({ ico, titre, desc }, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 160 }}>
+                    <span style={{ fontSize: 24 }}>{ico}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a' }}>{titre}</div>
+                      <div style={{ fontSize: 12, color: '#888' }}>{desc}</div>
+                    </div>
                   </div>
-                  <div style={{ flex:1,minWidth:0 }}>
-                    <p style={{ margin:'0 0 3px',fontSize:13,fontWeight:600,color:NOIR,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap' }}>{item.produit.titre}</p>
-                    {item.variantes&&Object.keys(item.variantes).length>0&&<p style={{ margin:'0 0 5px',fontSize:11,color:GRIS }}>{Object.entries(item.variantes).map(([k,v])=>`${k}: ${v}`).join(' · ')}</p>}
-                    <p style={{ margin:0,fontSize:14,fontWeight:700,color:cp }}>{px((item.produit.prix_promo||item.produit.prix)*item.qte)}</p>
-                  </div>
-                  <div style={{ display:'flex',alignItems:'center',gap:6 }}>
-                    <button onClick={()=>setPanier(p=>p.map((it,j)=>j===i?{...it,qte:Math.max(1,it.qte-1)}:it))} style={{ width:28,height:28,border:`1px solid ${BORD}`,background:'#fff',cursor:'pointer',fontSize:14,fontWeight:700 }}>−</button>
-                    <span style={{ fontSize:13,fontWeight:700,color:NOIR,minWidth:20,textAlign:'center' }}>{item.qte}</span>
-                    <button onClick={()=>setPanier(p=>p.map((it,j)=>j===i?{...it,qte:it.qte+1}:it))} style={{ width:28,height:28,border:`1px solid ${BORD}`,background:'#fff',cursor:'pointer',fontSize:14,fontWeight:700 }}>+</button>
-                    <button onClick={()=>setPanier(p=>p.filter((_,j)=>j!==i))} style={{ width:28,height:28,border:'none',background:'#fef2f2',color:'#ef4444',cursor:'pointer',fontSize:13,fontWeight:700 }}>✕</button>
-                  </div>
-                </div>
-              ))}
-            </>}
-        </div>
-        {panier.length>0&&<div style={{ padding:'20px 24px',borderTop:`1px solid ${BORD}` }}>
-          <div style={{ display:'flex',gap:8,marginBottom:12 }}>
-            <input value={codePromo} onChange={e=>setCodePromo(e.target.value)} placeholder="Code promo" style={{ ...styleInput,flex:1 }}/>
-            <button onClick={async()=>{ try{ const r=await fetch(`${API_BASE}/reductions/verifier`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:codePromo,vendeur_id:vendeurId,total:totalPanier})}); if(r.ok){ const d=await r.json(); setCodePromoApplique(d); } } catch{} }} style={{ ...styleBtn,padding:'11px 16px',fontSize:12 }}>OK</button>
-          </div>
-          {codePromoApplique&&<div style={{ background:'#f0fdf4',border:'1px solid #bbf7d0',padding:'8px 12px',marginBottom:12,fontSize:12,color:'#16a34a',display:'flex',justifyContent:'space-between' }}><span>✅ Code appliqué</span><button onClick={()=>{setCodePromoApplique(null);setCodePromo('');}} style={{ background:'none',border:'none',color:'#16a34a',cursor:'pointer',fontSize:11 }}>Retirer</button></div>}
-          <div style={{ display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:16,paddingTop:12,borderTop:`1px solid ${BORD}` }}>
-            <span style={{ fontSize:15,fontWeight:800,color:NOIR,textTransform:'uppercase',letterSpacing:'0.06em' }}>Total</span>
-            <span style={{ fontSize:20,fontWeight:900,color:cp }}>{px(totalApres)}</span>
-          </div>
-          <button style={{ ...styleBtn,width:'100%',textAlign:'center',padding:'16px',fontSize:14 }}>PASSER À LA CAISSE →</button>
-          <button onClick={()=>naviguer('panier')} style={{ width:'100%',marginTop:10,padding:'10px',background:'none',border:`1px solid ${BORD}`,color:GRIS,fontSize:12,cursor:'pointer',letterSpacing:'0.06em' }}>VOIR LE PANIER COMPLET</button>
-        </div>}
-      </div>
-    </>
-  );
-
-  // ══ NOTIF VENTE ═══════════════════════════════════════════════════════════
-  const NotifVente = () => {
-    const v = notifVentes[notifIdx];
-    if (!notifVente || !cfg.afficherNotifVente) return null;
-    return (
-      <div style={{ position:'fixed',bottom:24,left:24,zIndex:500,background:'#fff',border:`1px solid ${BORD}`,padding:'12px 16px',display:'flex',gap:12,alignItems:'center',maxWidth:280,boxShadow:'0 4px 20px rgba(0,0,0,0.1)',animation:'fadeInUp 0.4s ease' }}>
-        <style>{`@keyframes fadeInUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}`}</style>
-        <div style={{ width:36,height:36,background:IVOIRE2,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0 }}>👗</div>
-        <div>
-          <p style={{ margin:0,fontSize:11,color:GRIS }}><strong style={{ color:NOIR }}>{v.prenom}</strong> de {v.ville}</p>
-          <p style={{ margin:'2px 0 0',fontSize:10,color:cp,fontWeight:600 }}>a acheté {v.produit}</p>
-          <p style={{ margin:'1px 0 0',fontSize:9,color:GRIS }}>il y a {v.temps}</p>
-        </div>
-        <button onClick={()=>setNotifVente(false)} style={{ position:'absolute',top:5,right:8,background:'none',border:'none',color:GRIS,cursor:'pointer',fontSize:11 }}>✕</button>
-      </div>
-    );
-  };
-
-  // ══ SECTIONS ACCUEIL ══════════════════════════════════════════════════════
-  const SectionHero = () => (
-    <div style={{ position:'relative',minHeight:isMobile?'80vh':'90vh',background:IVOIRE2,overflow:'hidden',display:'flex',alignItems:'center' }}>
-      <style>{`@keyframes fadeSlide{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}`}</style>
-      {/* Fond décoratif */}
-      <div style={{ position:'absolute',inset:0,background:`radial-gradient(ellipse at 70% 50%,${cp}08 0%,transparent 60%)` }}/>
-      <div style={{ position:'absolute',top:-100,right:-100,width:400,height:400,borderRadius:'50%',background:`${cp}06`,border:`1px solid ${cp}15` }}/>
-      <div style={{ position:'absolute',bottom:-60,left:-40,width:250,height:250,borderRadius:'50%',background:`${cp}04` }}/>
-      {/* Silhouettes décoratives */}
-      {!isMobile&&<div style={{ position:'absolute',right:'8%',bottom:0,opacity:0.12 }}><SilhouetteMode taille={280} couleur={cp} style={1}/></div>}
-      {!isMobile&&<div style={{ position:'absolute',right:'22%',bottom:0,opacity:0.08 }}><SilhouetteMode taille={220} couleur={NOIR} style={2}/></div>}
-      <div style={{ maxWidth:1300,margin:'0 auto',padding:'80px 24px',position:'relative',zIndex:1,width:'100%' }}>
-        <div style={{ maxWidth:isMobile?'100%':'55%',animation:'fadeSlide 0.8s ease' }}>
-          <div style={{ display:'inline-block',fontSize:10,fontWeight:700,color:cp,letterSpacing:'0.25em',textTransform:'uppercase',borderBottom:`1px solid ${cp}`,paddingBottom:6,marginBottom:24 }}>✦ NOUVELLE COLLECTION</div>
-          <h1 style={{ fontSize:isMobile?'clamp(42px,10vw,60px)':'clamp(56px,6vw,84px)',fontWeight:900,color:NOIR,lineHeight:1.0,margin:'0 0 24px',fontFamily:'Georgia,serif',letterSpacing:'-0.02em' }}>
-            {cfg.hero.titre.split('\n').map((line:string,i:number)=>(
-              <span key={i} style={{ display:'block',color:i%2===1?cp:NOIR }}>{line}</span>
-            ))}
-          </h1>
-          <p style={{ fontSize:isMobile?15:18,color:GRIS,lineHeight:1.7,marginBottom:40,maxWidth:440 }}>{cfg.hero.sousTitre}</p>
-          <div style={{ display:'flex',gap:14,flexWrap:'wrap' }}>
-            <button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'16px 40px',fontSize:14 }}>{cfg.hero.boutonLabel} →</button>
-            <button onClick={()=>naviguer('blog')} style={{ padding:'16px 28px',background:'none',border:`1.5px solid ${BORD}`,color:NOIR,fontSize:13,cursor:'pointer',letterSpacing:'0.06em',fontWeight:500 }}>Notre univers</button>
-          </div>
-          {/* Stats */}
-          <div style={{ display:'flex',gap:32,marginTop:48,paddingTop:32,borderTop:`1px solid ${BORD}`,flexWrap:'wrap' }}>
-            {[['500+','Pièces uniques'],['4.8★','Note moyenne'],['30j','Retours gratuits']].map(([nb,label])=>(
-              <div key={label}><div style={{ fontSize:22,fontWeight:900,color:cp }}>{nb}</div><div style={{ fontSize:11,color:GRIS,textTransform:'uppercase',letterSpacing:'0.08em' }}>{label}</div></div>
-            ))}
-          </div>
-        </div>
-      </div>
-      {/* Vague bas */}
-      <div style={{ position:'absolute',bottom:0,left:0,right:0 }}>
-        <svg viewBox="0 0 1440 60" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display:'block',width:'100%' }}>
-          <path d="M0,30 Q180,0 360,30 Q540,60 720,30 Q900,0 1080,30 Q1260,60 1440,30 L1440,60 L0,60 Z" fill={cfg.couleurFond||IVOIRE}/>
-        </svg>
-      </div>
-    </div>
-  );
-
-  const SectionVedette = () => {
-    const vedette = produits.slice(0,8);
-    if(vedette.length===0) return null;
-    return (
-      <div style={{ maxWidth:1300,margin:'0 auto',padding:'72px 24px' }}>
-        <div style={{ display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:40,flexWrap:'wrap',gap:12 }}>
-          <div>
-            <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ SÉLECTION</div>
-            <h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,margin:0,fontFamily:'Georgia,serif' }}>Nos coups de cœur</h2>
-          </div>
-          <button onClick={()=>naviguer('catalogue')} style={{ background:'none',border:`1px solid ${BORD}`,padding:'10px 24px',color:NOIR,fontSize:12,cursor:'pointer',fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase' }}>TOUT VOIR →</button>
-        </div>
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(4,vedette.length)},1fr)`,gap:isMobile?12:20 }}>
-          {vedette.map(p=><CarteProduitMode key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={wishlist.includes(p.id)}/>)}
-        </div>
-      </div>
-    );
-  };
-
-  const SectionCollections = () => {
-    if(categories.length===0) return null;
-    const cats = categories.slice(0,6);
-    return (
-      <div style={{ background:IVOIRE2,borderTop:`1px solid ${BORD}`,borderBottom:`1px solid ${BORD}`,padding:'72px 24px' }}>
-        <div style={{ maxWidth:1300,margin:'0 auto' }}>
-          <div style={{ textAlign:'center',marginBottom:48 }}>
-            <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ COLLECTIONS</div>
-            <h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,margin:0,fontFamily:'Georgia,serif' }}>Shop by catégorie</h2>
-          </div>
-          <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(3,1fr)',gap:16 }}>
-            {cats.map((cat,i)=>(
-              <div key={cat} onClick={()=>{ setFiltreCat(cat); naviguer('catalogue'); }}
-                style={{ position:'relative',aspectRatio:i===0?'2/1':'1/1',background:IVOIRE,overflow:'hidden',cursor:'pointer',border:`1px solid ${BORD}`,transition:'all 0.3s' }}
-                onMouseEnter={e=>{ (e.currentTarget as HTMLDivElement).style.borderColor=cp; }}
-                onMouseLeave={e=>{ (e.currentTarget as HTMLDivElement).style.borderColor=BORD; }}>
-                <div style={{ position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12 }}>
-                  <SilhouetteMode taille={80} couleur={cp} style={i%2===0?1:2}/>
-                  <div style={{ fontSize:14,fontWeight:800,color:NOIR,textTransform:'uppercase',letterSpacing:'0.12em' }}>{cat}</div>
-                  <div style={{ fontSize:11,color:GRIS }}>{produits.filter(p=>p.categorie===cat).length} articles</div>
-                </div>
-                <div style={{ position:'absolute',bottom:0,left:0,right:0,height:3,background:cp,transform:'scaleX(0)',transition:'transform 0.3s',transformOrigin:'left' }}
-                  onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.transform='scaleX(1)'}
-                  onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.transform='scaleX(0)'}/>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const SectionLookbook = () => (
-    <div style={{ padding:'72px 24px' }}>
-      <div style={{ maxWidth:1300,margin:'0 auto' }}>
-        <div style={{ textAlign:'center',marginBottom:48 }}>
-          <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ LIFESTYLE</div>
-          <h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,margin:0,fontFamily:'Georgia,serif' }}>{cfg.lookbook.titre}</h2>
-          {cfg.lookbook.sousTitre&&<p style={{ fontSize:15,color:GRIS,marginTop:10 }}>{cfg.lookbook.sousTitre}</p>}
-        </div>
-        {/* Grille lookbook asymétrique */}
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gridTemplateRows:'auto auto',gap:12 }}>
-          {[0,1,2,3,4,5].map(i=>(
-            <div key={i} style={{ aspectRatio:i===0&&!isMobile?undefined:'3/4',background:IVOIRE2,overflow:'hidden',position:'relative',gridColumn:i===0&&!isMobile?'1/2':undefined,gridRow:i===0&&!isMobile?'1/3':undefined }}>
-              {cfg.lookbook.photos[i] ? <img src={cfg.lookbook.photos[i]} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>
-              : <div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:8 }}>
-                  <SilhouetteMode taille={100} couleur={cp} style={i%2===0?1:2}/>
-                  <span style={{ fontSize:10,color:GRIS,textTransform:'uppercase',letterSpacing:'0.1em' }}>Photo lookbook {i+1}</span>
-                </div>}
             </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+          );
+        }
 
-  const SectionInstagram = () => (
-    <div style={{ background:IVOIRE2,borderTop:`1px solid ${BORD}`,padding:'72px 24px' }}>
-      <div style={{ maxWidth:1300,margin:'0 auto',textAlign:'center' }}>
-        <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ INSTAGRAM</div>
-        <h2 style={{ fontSize:isMobile?24:36,fontWeight:900,color:NOIR,margin:'0 0 8px',fontFamily:'Georgia,serif' }}>{cfg.instagram.titre}</h2>
-        <p style={{ color:cp,fontSize:14,marginBottom:32 }}>{cfg.instagram.handle}</p>
-        <div style={{ display:'grid',gridTemplateColumns:`repeat(${isMobile?3:6},1fr)`,gap:6 }}>
-          {[0,1,2,3,4,5].map(i=>(
-            <div key={i} style={{ aspectRatio:'1',background:IVOIRE,overflow:'hidden' }}>
-              {cfg.instagram.photos[i] ? <img src={cfg.instagram.photos[i]} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>
-              : <div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24 }}>📱</div>}
+        case 'vedette':
+          if (produitsVedette.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Produits en vedette</h2>
+                <button onClick={() => naviguer('catalogue')} style={{ background: 'none', border: `2px solid ${cp}`, borderRadius: 2, color: cp, fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '8px 18px' }}>Voir tout →</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
+                {produitsVedette.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
+              </div>
             </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
+          );
 
-  const SectionTemoignages = () => (
-    <div style={{ maxWidth:1300,margin:'0 auto',padding:'72px 24px' }}>
-      <div style={{ textAlign:'center',marginBottom:48 }}>
-        <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ AVIS CLIENTS</div>
-        <h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,margin:0,fontFamily:'Georgia,serif' }}>Elles nous font confiance</h2>
-      </div>
-      <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:20 }}>
-        {[{ texte:"Cette boutique est une vraie pépite ! Les vêtements sont de qualité exceptionnelle et les tailles correspondent parfaitement au guide.",auteur:'Sophie M.',ville:'Montréal',note:5 },{ texte:"Service client irréprochable et livraison express. J'ai reçu ma commande en 2 jours, parfaitement emballée.",auteur:'Emma R.',ville:'Québec',note:5 },{ texte:"Des pièces uniques qu'on ne trouve nulle part ailleurs. Le rapport qualité-prix est imbattable. Je recommande !",auteur:'Chloé L.',ville:'Laval',note:5 }].map((t,i)=>(
-          <div key={i} style={{ background:'#fff',border:`1px solid ${BORD}`,padding:28 }}>
-            <Etoiles note={t.note} taille={14}/>
-            <p style={{ fontSize:15,color:NOIR2,lineHeight:1.7,margin:'14px 0 20px',fontStyle:'italic' }}>"{t.texte}"</p>
-            <div style={{ display:'flex',alignItems:'center',gap:12 }}>
-              <div style={{ width:36,height:36,borderRadius:'50%',background:IVOIRE2,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:cp }}>{t.auteur[0]}</div>
-              <div><div style={{ fontSize:14,fontWeight:700,color:NOIR }}>{t.auteur}</div><div style={{ fontSize:12,color:GRIS }}>{t.ville}</div></div>
+        case 'lookbook': {
+          const photos = lookbook.photos.length > 0 ? lookbook.photos : [];
+          if (photos.length === 0 && !demoActive) return null;
+          const cases = photos.length > 0 ? photos : ['', '', '', '', '', ''];
+          const bloc = (u: string, i: number) => u
+            ? <img key={i} src={u} alt="" loading="lazy" style={{ width: '100%', display: 'block', objectFit: 'cover', aspectRatio: lookbook.disposition === 'masonry' ? undefined : '3 / 4', marginBottom: lookbook.disposition === 'masonry' ? 12 : 0 }} />
+            : <div key={i} style={{ width: '100%', aspectRatio: i % 2 ? '3 / 4' : '4 / 5', background: '#f2ede6', marginBottom: lookbook.disposition === 'masonry' ? 12 : 0 }} />;
+          return (
+            <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '64px 24px' }}>
+              <div style={{ textAlign: 'center', marginBottom: 36 }}>
+                <h2 style={{ fontSize: 34, color: '#0f0f0f', margin: 0 }}>{lookbook.titre}</h2>
+                {lookbook.sousTitre && <p style={{ fontSize: 13, letterSpacing: '0.16em', textTransform: 'uppercase', color: cs, marginTop: 10 }}>{lookbook.sousTitre}</p>}
+              </div>
+              {lookbook.disposition === 'masonry' && <div style={{ columnCount: isMobile ? 2 : 3, columnGap: 12 }}>{cases.map(bloc)}</div>}
+              {lookbook.disposition === 'grille' && <div style={{ display: 'grid', gridTemplateColumns: `repeat(${isMobile ? 2 : 3}, 1fr)`, gap: 12 }}>{cases.map(bloc)}</div>}
+              {lookbook.disposition === 'plein' && <div style={{ display: 'grid', gap: 16, maxWidth: 900, margin: '0 auto' }}>{cases.slice(0, 6).map(bloc)}</div>}
             </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+          );
+        }
 
-  const SectionBlog = () => {
-    if(articles.length===0) return null;
-    return (
-      <div style={{ background:IVOIRE2,borderTop:`1px solid ${BORD}`,padding:'72px 24px' }}>
-        <div style={{ maxWidth:1300,margin:'0 auto' }}>
-          <div style={{ display:'flex',alignItems:'flex-end',justifyContent:'space-between',marginBottom:40 }}>
-            <div><div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ TENDANCES</div><h2 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,margin:0,fontFamily:'Georgia,serif' }}>Notre univers</h2></div>
-            <button onClick={()=>naviguer('blog')} style={{ background:'none',border:`1px solid ${BORD}`,padding:'10px 24px',color:NOIR,fontSize:12,cursor:'pointer',fontWeight:600,letterSpacing:'0.08em',textTransform:'uppercase' }}>TOUT LIRE →</button>
-          </div>
-          <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:20 }}>
-            {articles.slice(0,3).map(a=>(
-              <div key={a.id} style={{ background:'#fff',border:`1px solid ${BORD}`,overflow:'hidden',cursor:'pointer',transition:'all 0.2s' }}
-                onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.borderColor=cp}
-                onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.borderColor=BORD}>
-                <div style={{ height:220,background:IVOIRE2,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden' }}>
-                  {a.photo?<img src={a.photo} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>:<div style={{ display:'flex',flexDirection:'column',alignItems:'center',gap:8 }}><SilhouetteMode taille={80} couleur={cp}/><span style={{ fontSize:10,color:GRIS,textTransform:'uppercase',letterSpacing:'0.1em' }}>Article mode</span></div>}
-                </div>
-                <div style={{ padding:'20px 22px' }}>
-                  {a.categorie&&<span style={{ fontSize:10,color:cp,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em' }}>{a.categorie}</span>}
-                  <h3 style={{ fontSize:16,fontWeight:700,color:NOIR,margin:'6px 0 10px',lineHeight:1.3,fontFamily:'Georgia,serif' }}>{a.titre}</h3>
-                  {a.resume&&<p style={{ fontSize:13,color:GRIS,lineHeight:1.6,marginBottom:14 }}>{a.resume}</p>}
-                  <div style={{ fontSize:11,color:GRIS }}>{a.date_publication&&new Date(a.date_publication).toLocaleDateString('fr-CA')}</div>
+        case 'instagram': {
+          if (insta.photos.length === 0 && !insta.handle) return null;
+          const lien = insta.handle ? `https://instagram.com/${insta.handle}` : '';
+          return (
+            <div key={sec.id} style={{ background: '#f2ede6', padding: '64px 24px' }}>
+              <div style={{ maxWidth: 1200, margin: '0 auto', textAlign: 'center' }}>
+                <h2 style={{ fontSize: 30, color: '#0f0f0f', margin: 0 }}>{insta.titre}</h2>
+                {lien && <a href={lien} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 10, fontSize: 13, letterSpacing: '0.14em', textTransform: 'uppercase', color: cp, fontWeight: 700, textDecoration: 'none' }}>@{insta.handle}</a>}
+                {insta.photos.length > 0 && (
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${isMobile ? 3 : 6}, 1fr)`, gap: 8, marginTop: 28 }}>
+                    {insta.photos.map((u, i) => {
+                      const img = <img src={u} alt="" loading="lazy" style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', display: 'block' }} />;
+                      return lien ? <a key={i} href={lien} target="_blank" rel="noopener noreferrer" aria-label={`Instagram @${insta.handle}`}>{img}</a> : <div key={i}>{img}</div>;
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        }
+
+        case 'categories':
+          if (categories.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ background: '#f2ede6', padding: '56px 24px' }}>
+              <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 32, textAlign: 'center' }}>Collections</h2>
+                <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {categories.map(cat => (
+                    <button key={cat} onClick={() => { setFiltreCat(cat); naviguer('catalogue'); }}
+                      style={{ background: '#fff', border: `2px solid ${cp}30`, borderRadius: 2, padding: '14px 24px', fontSize: 15, fontWeight: 600, color: '#1a1a1a', cursor: 'pointer', transition: 'all 0.2s' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = cp; (e.currentTarget as HTMLButtonElement).style.color = '#fff'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fff'; (e.currentTarget as HTMLButtonElement).style.color = '#1a1a1a'; }}>
+                      {cat}
+                    </button>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+            </div>
+          );
+
+        case 'nouveautes':
+          if (produitsNouveaux.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 24px' }}>
+              <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 32 }}>Nouveautés</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
+                {produitsNouveaux.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
+              </div>
+            </div>
+          );
+
+        case 'promo':
+          if (produitsPromo.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ background: '#fef2f2', padding: '56px 24px' }}>
+              <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#ef4444', marginBottom: 32 }}>Offres spéciales</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(220px,1fr))`, gap: 20 }}>
+                  {produitsPromo.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
+                </div>
+              </div>
+            </div>
+          );
+
+        case 'temoignages': {
+          // Témoignages saisis par le gestionnaire (Config → Accueil). Les exemples ne s'affichent qu'en démonstration : jamais de faux avis sur une vraie boutique.
+          const saisis = (Array.isArray(cfg.accueil.temoignages) ? cfg.accueil.temoignages : []).filter(t => t && typeof t.texte === 'string' && t.texte.trim());
+          const exemples = [
+            { texte: 'Produits excellents et livraison ultra rapide ! Je recommande à 100%.', auteur: 'Marie L.', note: 5 },
+            { texte: 'Service client impeccable. Mes commandes arrivent toujours en parfait état.', auteur: 'Jean-Pierre M.', note: 5 },
+            { texte: 'Qualité au rendez-vous, prix compétitifs. Ma boutique préférée!', auteur: 'Sophie R.', note: 5 },
+          ];
+          const liste = saisis.length > 0 ? saisis : (configBrut?.__produits_demo__ ? exemples : []);
+          if (liste.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ background: '#f2ede6', padding: '56px 24px' }}>
+              <div style={{ maxWidth: 1200, margin: '0 auto', textAlign: 'center' }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', marginBottom: 40 }}>💬 Ce que disent nos clients</h2>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(260px,1fr))', gap: 24 }}>
+                  {liste.slice(0, 6).map((t, i) => (
+                    <div key={i} style={{ background: '#fff', borderRadius: 2, padding: '28px', border: '1px solid #e2ddd8', textAlign: 'left' }}>
+                      <div style={{ color: '#f59e0b', fontSize: 18, marginBottom: 12 }}>{'★'.repeat(Math.max(1, Math.min(5, Math.round(Number(t.note) || 5))))}</div>
+                      <p style={{ fontSize: 15, color: '#555', lineHeight: 1.7, marginBottom: 16, fontStyle: 'italic' }}>"{t.texte}"</p>
+                      {t.auteur && <p style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', margin: 0 }}>— {t.auteur}</p>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        }
+
+        case 'newsletter':
+          // Vraie inscription = add-on « Infolettre » (rangée du pied de page). Ce bloc d'exemple (sans envoi) ne sert qu'en démonstration.
+          if (!configBrut?.__produits_demo__) return null;
+          return (
+            <div key={sec.id} style={{ background: cp, padding: '56px 24px' }}>
+              <div style={{ maxWidth: 520, margin: '0 auto', textAlign: 'center' }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#fff', marginBottom: 12 }}>Restez informé</h2>
+                <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.8)', marginBottom: 28 }}>Recevez nos offres exclusives et nouveautés en avant-première.</p>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  <input type="email" maxLength={254} placeholder="votre@courriel.com" style={{ flex: 1, minWidth: 220, padding: '13px 18px', borderRadius: 2, border: 'none', fontSize: 15, outline: 'none' }} />
+                  <button style={{ background: '#fff', color: cp, border: 'none', borderRadius: 2, padding: '13px 24px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>S'inscrire →</button>
+                </div>
+              </div>
+            </div>
+          );
+
+        case 'blog-apercu':
+          if (articles.length === 0) return null;
+          return (
+            <div key={sec.id} style={{ maxWidth: 1200, margin: '0 auto', padding: '56px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 32 }}>
+                <h2 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Notre blogue</h2>
+                <button onClick={() => naviguer('blog')} style={{ background: 'none', border: `2px solid ${cp}`, borderRadius: 2, color: cp, fontSize: 14, fontWeight: 700, cursor: 'pointer', padding: '8px 18px' }}>Tous les articles →</button>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 20 }}>
+                {articles.slice(0, 3).map(a => (
+                  <div key={a.id} onClick={() => voirArticle(a)} style={{ background: '#fff', borderRadius: 2, border: '1px solid #e2ddd8', overflow: 'hidden', cursor: 'pointer' }}>
+                    {a.photo && <img src={a.photo} alt="" style={{ width: '100%', height: 180, objectFit: 'cover' }} />}
+                    <div style={{ padding: 20 }}>
+                      <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 8, lineHeight: 1.4 }}>{a.titre}</h3>
+                      {a.resume && <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6 }}>{a.resume}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+
+        default:
+          return null;
+      }
+    };
+
+    return <>{sectionsAccueil.map(renderSection)}</>;
   };
 
-  const SectionInfoletre = () => (
-    <div style={{ background:NOIR,padding:'72px 24px' }}>
-      <div style={{ maxWidth:560,margin:'0 auto',textAlign:'center' }}>
-        <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ EXCLUSIVITÉS</div>
-        <h2 style={{ fontSize:isMobile?28:36,fontWeight:900,color:'#fff',marginBottom:10,fontFamily:'Georgia,serif' }}>Restez dans la tendance</h2>
-        <p style={{ fontSize:14,color:GRIS,marginBottom:32,lineHeight:1.6 }}>Offres exclusives, nouvelles collections et conseils mode en avant-première.</p>
-        <div style={{ display:'flex',gap:0,flexWrap:'wrap',justifyContent:'center' }}>
-          <input type="email" placeholder="votre@courriel.com" style={{ flex:1,minWidth:220,padding:'14px 20px',background:'rgba(255,255,255,0.05)',border:`1px solid rgba(255,255,255,0.15)`,borderRight:'none',fontSize:14,color:'#fff',outline:'none' }}/>
-          <button style={{ ...styleBtn,padding:'14px 24px',fontSize:12,flexShrink:0,letterSpacing:'0.12em' }}>S'INSCRIRE</button>
-        </div>
-      </div>
-    </div>
-  );
-
-  const PageAccueil = () => (
-    <>
-      {cfg.afficherBanniere&&<BanniereMode texte={cfg.banniereTexte} couleur={cfg.banniereColor}/>}
-      {sectionsActives.map(s=>{
-        if(s.id==='hero')        return <SectionHero key={s.id}/>;
-        if(s.id==='vedette')     return <SectionVedette key={s.id}/>;
-        if(s.id==='collections') return <SectionCollections key={s.id}/>;
-        if(s.id==='lookbook')    return <SectionLookbook key={s.id}/>;
-        if(s.id==='instagram')   return <SectionInstagram key={s.id}/>;
-        if(s.id==='temoignages') return <SectionTemoignages key={s.id}/>;
-        if(s.id==='blog')        return <SectionBlog key={s.id}/>;
-        if(s.id==='infolettre')  return <SectionInfoletre key={s.id}/>;
-        return null;
-      })}
-    </>
-  );
-
-  // ══ PAGE CATALOGUE ════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE CATALOGUE
+  // ══════════════════════════════════════════════════════════════════════════
   const PageCatalogue = () => {
-    const [filtresPanneau,setFiltresPanneau] = useState(!isMobile);
-    const toutesLesCouleurs = Array.from(new Set(produits.flatMap(p=>p.variantes?.find(v=>v.type==='couleur')?.valeurs||[])));
+    const colMap: Record<number, string> = { 2: 'repeat(auto-fill,minmax(300px,1fr))', 3: 'repeat(auto-fill,minmax(220px,1fr))', 4: 'repeat(auto-fill,minmax(180px,1fr))' };
     return (
-      <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
-        <div style={{ marginBottom:32 }}><div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ CATALOGUE</div><h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,margin:0,fontFamily:'Georgia,serif' }}>Toute la collection</h1></div>
-        <div style={{ display:'flex',gap:12,marginBottom:24,alignItems:'center',flexWrap:'wrap' }}>
-          <div style={{ flex:1,minWidth:200,position:'relative' }}>
-            <span style={{ position:'absolute',left:14,top:'50%',transform:'translateY(-50%)',color:GRIS,fontSize:14 }}>🔍</span>
-            <input type="text" placeholder="Rechercher..." value={filtreRecherche} onChange={e=>setFiltreRecherche(e.target.value)} style={{ ...styleInput,paddingLeft:40,fontSize:13 }}/>
-          </div>
-          <select value={tri} onChange={e=>setTri(e.target.value as any)} style={{ padding:'11px 14px',background:'#fff',border:`1px solid ${BORD}`,fontSize:13,color:NOIR,cursor:'pointer',outline:'none' }}>
-            <option value="recent">Plus récents</option><option value="prix_asc">Prix ↑</option><option value="prix_desc">Prix ↓</option><option value="note">Mieux notés</option>
-          </select>
-          <button onClick={()=>setFiltresPanneau(!filtresPanneau)} style={{ padding:'11px 18px',background:filtresPanneau?cp:'#fff',border:`1px solid ${filtresPanneau?cp:BORD}`,color:filtresPanneau?'#fff':NOIR,fontSize:12,cursor:'pointer',fontWeight:700,letterSpacing:'0.08em',textTransform:'uppercase' }}>⚡ FILTRES</button>
-        </div>
-        <div style={{ display:'flex',gap:24,alignItems:'flex-start' }}>
-          {filtresPanneau&&<div style={{ width:220,flexShrink:0,background:'#fff',border:`1px solid ${BORD}`,padding:20,position:'sticky',top:90,maxHeight:'calc(100vh-110px)',overflowY:'auto' }}>
-            {/* Catégories */}
-            <h4 style={{ fontSize:10,fontWeight:700,color:GRIS,textTransform:'uppercase',letterSpacing:'0.15em',margin:'0 0 12px' }}>Catégories</h4>
-            <div style={{ marginBottom:20 }}>
-              <button onClick={()=>setFiltreCat('')} style={{ display:'block',width:'100%',textAlign:'left',padding:'7px 10px',background:!filtreCat?IVOIRE2:'none',border:'none',color:!filtreCat?cp:GRIS,fontSize:13,cursor:'pointer',marginBottom:3,fontWeight:!filtreCat?700:400 }}>Tout ({produits.length})</button>
-              {categories.map(cat=><button key={cat} onClick={()=>setFiltreCat(cat)} style={{ display:'block',width:'100%',textAlign:'left',padding:'7px 10px',background:filtreCat===cat?IVOIRE2:'none',border:'none',color:filtreCat===cat?cp:GRIS,fontSize:13,cursor:'pointer',marginBottom:3,fontWeight:filtreCat===cat?700:400 }}>{cat} ({produits.filter(p=>p.categorie===cat).length})</button>)}
-            </div>
-            {/* Tailles */}
-            {cfg.catalogue.afficherFiltresTaille&&<><h4 style={{ fontSize:10,fontWeight:700,color:GRIS,textTransform:'uppercase',letterSpacing:'0.15em',margin:'0 0 12px' }}>Taille</h4>
-            <div style={{ display:'flex',gap:6,flexWrap:'wrap',marginBottom:20 }}>
-              {cfg.catalogue.tailles.map((t:string)=><button key={t} onClick={()=>setFiltreTaille(filtreTaille===t?'':t)} style={{ padding:'6px 10px',border:`1px solid ${filtreTaille===t?cp:BORD}`,background:filtreTaille===t?cp:'#fff',color:filtreTaille===t?'#fff':NOIR,fontSize:11,cursor:'pointer',fontWeight:700,transition:'all 0.15s' }}>{t}</button>)}
-            </div></>}
-            {/* Couleurs */}
-            {cfg.catalogue.afficherFiltresCouleur&&toutesLesCouleurs.length>0&&<><h4 style={{ fontSize:10,fontWeight:700,color:GRIS,textTransform:'uppercase',letterSpacing:'0.15em',margin:'0 0 12px' }}>Couleur</h4>
-            <div style={{ display:'flex',gap:6,flexWrap:'wrap',marginBottom:20 }}>
-              {toutesLesCouleurs.map(c=><PastilleCouleur key={c} couleur={c} actif={filtreCouleur===c} onClick={()=>setFiltreCouleur(filtreCouleur===c?'':c)}/>)}
-            </div></>}
-            {/* Prix */}
-            <h4 style={{ fontSize:10,fontWeight:700,color:GRIS,textTransform:'uppercase',letterSpacing:'0.15em',margin:'0 0 12px' }}>Prix</h4>
-            <div style={{ display:'flex',gap:8,marginBottom:20 }}>
-              <input type="number" placeholder="Min" value={filtrePrixMin} onChange={e=>setFiltrePrixMin(e.target.value)} style={{ ...styleInput,padding:'8px 10px',fontSize:12,flex:1 }}/>
-              <input type="number" placeholder="Max" value={filtrePrixMax} onChange={e=>setFiltrePrixMax(e.target.value)} style={{ ...styleInput,padding:'8px 10px',fontSize:12,flex:1 }}/>
-            </div>
-            {(filtreCat||filtreTaille||filtreCouleur||filtreRecherche||filtrePrixMin||filtrePrixMax)&&<button onClick={()=>{setFiltreCat('');setFiltreTaille('');setFiltreCouleur('');setFiltreRecherche('');setFiltrePrixMin('');setFiltrePrixMax('');}} style={{ width:'100%',padding:'9px',background:'#fef2f2',border:'1px solid #fecaca',color:'#ef4444',fontSize:12,cursor:'pointer',fontWeight:700,letterSpacing:'0.06em' }}>✕ EFFACER</button>}
-          </div>}
-          <div style={{ flex:1 }}>
-            <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16 }}>
-              <span style={{ fontSize:13,color:GRIS }}><strong style={{ color:NOIR }}>{produitsFiltres.length}</strong> article{produitsFiltres.length>1?'s':''}</span>
-              {cfg.catalogue.afficherGuidesTailles&&<button onClick={()=>setGuideOuvert(true)} style={{ background:'none',border:'none',color:cp,fontSize:12,cursor:'pointer',fontWeight:600,textDecoration:'underline' }}>📏 Guide des tailles</button>}
-            </div>
-            {produitsFiltres.length===0 ? <div style={{ textAlign:'center',padding:'80px 0',color:GRIS }}><div style={{ fontSize:48,marginBottom:16 }}>🔍</div><h3 style={{ color:GRIS,fontWeight:600,marginBottom:8,fontFamily:'Georgia,serif' }}>Aucun article trouvé</h3><p>Modifiez vos filtres</p></div>
-            : <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${cfg.catalogue.colonnes},1fr)`,gap:isMobile?10:16 }}>
-                {produitsFiltres.map(p=><CarteProduitMode key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={wishlist.includes(p.id)}/>)}
-              </div>}
-          </div>
-        </div>
-      </div>
-    );
-  };
+      <div style={{ minHeight: '60vh' }}>
+        {(cfg.catalogue.sections || []).find(x => x.id === 'banniere')?.actif !== false && <Banniere cfg={cfg.catalogue.banniere} />}
 
-  // ══ PAGE PRODUIT ══════════════════════════════════════════════════════════
-  const PageProduit = () => {
-    const [nbVues] = useState(Math.floor(Math.random()*15)+4);
-    if(!produitActif) return null;
-    const p = produitActif;
-    const enPromo = p.prix_promo && p.prix_promo < p.prix;
-    const photos = [p.photo_principale,...(p.photos||[])].filter(Boolean) as string[];
-    const similaires = produits.filter(pr=>pr.id!==p.id&&pr.categorie===p.categorie).slice(0,4);
-    const cp2 = cfg.ficheProduit.boutonCouleur || cp;
-
-    return (
-      <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
-        {guideOuvert&&<GuideDesTailles onFermer={()=>setGuideOuvert(false)} cp={cp}/>}
-        {/* Breadcrumb */}
-        <div style={{ display:'flex',gap:8,alignItems:'center',fontSize:12,color:GRIS,marginBottom:32 }}>
-          <button onClick={()=>naviguer('accueil')} style={{ background:'none',border:'none',color:cp,cursor:'pointer',fontSize:12 }}>Accueil</button>
-          <span>›</span><button onClick={()=>naviguer('catalogue')} style={{ background:'none',border:'none',color:cp,cursor:'pointer',fontSize:12 }}>Catalogue</button>
-          {p.categorie&&<><span>›</span><button onClick={()=>{setFiltreCat(p.categorie!);naviguer('catalogue');}} style={{ background:'none',border:'none',color:cp,cursor:'pointer',fontSize:12 }}>{p.categorie}</button></>}
-          <span>›</span><span style={{ color:NOIR2 }}>{p.titre}</span>
-        </div>
-
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:48,alignItems:'flex-start' }}>
-          {/* Galerie */}
-          <div>
-            <div style={{ position:'relative',aspectRatio:'3/4',background:IVOIRE2,overflow:'hidden',cursor:zoomActif?'zoom-out':'zoom-in',marginBottom:10 }}
-              onClick={()=>setZoomActif(!zoomActif)}
-              onMouseMove={e=>{const r=e.currentTarget.getBoundingClientRect();setSourisPos({x:((e.clientX-r.left)/r.width)*100,y:((e.clientY-r.top)/r.height)*100});}}>
-              {photos.length>0
-                ? <img src={photos[photoIdx]} alt={p.titre} style={{ width:'100%',height:'100%',objectFit:'cover',transition:'transform 0.3s ease',transform:zoomActif?`scale(2.2) translate(${50-sourisPos.x}%,${50-sourisPos.y}%)`:'scale(1)',transformOrigin:`${sourisPos.x}% ${sourisPos.y}%` }}/>
-                : <div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:16 }}><SilhouetteMode taille={200} couleur={cp}/><span style={{ fontSize:10,color:GRIS,textTransform:'uppercase',letterSpacing:'0.1em' }}>Photo du produit</span></div>}
-              {enPromo&&<span style={{ position:'absolute',top:16,left:16,background:cp,color:'#fff',fontSize:10,fontWeight:800,padding:'4px 10px',letterSpacing:'0.08em' }}>-{Math.round((1-p.prix_promo!/p.prix)*100)}%</span>}
-              {p.est_nouveau&&<span style={{ position:'absolute',top:enPromo?46:16,left:16,background:NOIR,color:'#fff',fontSize:10,fontWeight:800,padding:'4px 10px',letterSpacing:'0.08em' }}>NOUVEAU</span>}
-              <button onClick={e=>{e.stopPropagation();toggleWishlist(p.id);}} style={{ position:'absolute',top:16,right:16,width:36,height:36,borderRadius:'50%',background:'rgba(255,255,255,0.9)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',fontSize:16 }}>{wishlist.includes(p.id)?'❤️':'🤍'}</button>
-              <div style={{ position:'absolute',bottom:12,right:12,background:'rgba(255,255,255,0.85)',padding:'4px 10px',fontSize:10,color:GRIS }}>{zoomActif?'🔍 Cliquer pour dézoomer':'🔍 Cliquer pour zoomer'}</div>
-            </div>
-            {photos.length>1&&<div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
-              {photos.map((ph,i)=><div key={i} onClick={()=>{setPhotoIdx(i);setZoomActif(false);}} style={{ width:72,height:90,border:`2px solid ${photoIdx===i?cp:BORD}`,overflow:'hidden',cursor:'pointer',transition:'border-color 0.2s',background:IVOIRE2 }}><img src={ph} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/></div>)}
-            </div>}
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+          {/* En-tête */}
+          <div style={{ marginBottom: 32 }}>
+            <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.catalogue.titre}</h1>
+            {cfg.catalogue.sousTitre && <p style={{ fontSize: 16, color: cs }}>{cfg.catalogue.sousTitre}</p>}
           </div>
 
-          {/* Infos */}
-          <div>
-            {p.categorie&&<div style={{ fontSize:10,color:GRIS,textTransform:'uppercase',letterSpacing:'0.15em',marginBottom:8,fontWeight:600 }}>{p.categorie}</div>}
-            {p.marque&&<div style={{ fontSize:11,color:cp,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:6,fontWeight:700 }}>{p.marque}</div>}
-            <h1 style={{ fontSize:isMobile?24:32,fontWeight:900,color:NOIR,marginBottom:12,lineHeight:1.15,fontFamily:'Georgia,serif' }}>{p.titre}</h1>
-            {p.sku&&<div style={{ fontSize:11,color:GRIS,marginBottom:10 }}>Réf. {p.sku}</div>}
-
-            {/* Note */}
-            {p.note_moyenne&&<div style={{ display:'flex',alignItems:'center',gap:10,marginBottom:20 }}>
-              <Etoiles note={p.note_moyenne} taille={14}/>
-              <span style={{ fontSize:13,color:GRIS }}>{p.note_moyenne.toFixed(1)} ({p.nb_avis} avis)</span>
-              <button onClick={()=>setOngletProduit('avis')} style={{ background:'none',border:'none',color:cp,fontSize:12,cursor:'pointer',textDecoration:'underline' }}>Lire les avis</button>
-            </div>}
-
-            {/* Prix */}
-            <div style={{ display:'flex',alignItems:'baseline',gap:12,marginBottom:24,paddingBottom:24,borderBottom:`1px solid ${BORD}` }}>
-              {enPromo ? (<><span style={{ fontSize:34,fontWeight:900,color:cp }}>{px(p.prix_promo!)}</span><span style={{ fontSize:20,color:GRIS,textDecoration:'line-through' }}>{px(p.prix)}</span></>) : <span style={{ fontSize:34,fontWeight:900,color:NOIR }}>{px(p.prix)}</span>}
-            </div>
-
-            {/* Variantes */}
-            {p.variantes?.map(v=>(
-              <div key={v.nom} style={{ marginBottom:20 }}>
-                <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:10 }}>
-                  <div style={{ fontSize:12,fontWeight:700,color:NOIR,textTransform:'uppercase',letterSpacing:'0.1em' }}>
-                    {v.nom}{variantesChoisies[v.nom]&&<span style={{ fontWeight:400,color:GRIS,marginLeft:8 }}>— {variantesChoisies[v.nom]}</span>}
-                  </div>
-                  {v.type==='taille'&&cfg.ficheProduit.afficherGuidesTailles&&<button onClick={()=>setGuideOuvert(true)} style={{ background:'none',border:'none',color:cp,fontSize:11,cursor:'pointer',textDecoration:'underline',fontWeight:600 }}>📏 Guide des tailles</button>}
-                </div>
-                {v.type==='couleur' ? (
-                  <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
-                    {v.valeurs.map(val=><PastilleCouleur key={val} couleur={val} actif={variantesChoisies[v.nom]===val} onClick={()=>setVariantesChoisies(prev=>({...prev,[v.nom]:val}))}/>)}
-                  </div>
-                ) : (
-                  <div style={{ display:'flex',gap:8,flexWrap:'wrap' }}>
-                    {v.valeurs.map(val=>(
-                      <button key={val} onClick={()=>setVariantesChoisies(prev=>({...prev,[v.nom]:val}))}
-                        style={{ padding:'9px 16px',border:`1.5px solid ${variantesChoisies[v.nom]===val?cp:BORD}`,background:variantesChoisies[v.nom]===val?cp:'#fff',color:variantesChoisies[v.nom]===val?'#fff':NOIR,fontSize:13,fontWeight:600,cursor:'pointer',transition:'all 0.15s',letterSpacing:'0.04em' }}>
-                        {val}
+          {/* Filtres */}
+          {(cfg.catalogue.afficherRecherche || cfg.catalogue.afficherFiltres) && (
+            <div style={{ marginBottom: 28 }}>
+              <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+                {cfg.catalogue.afficherRecherche && (
+                  <input type="text" placeholder="🔍 Rechercher un produit..." value={filtreRecherche} onChange={e => setFiltreRecherche(limiterSaisie(e.target.value, 100))} maxLength={100}
+                    style={{ ...styleInput, maxWidth: 320, flex: 1 }} />
+                )}
+                {cfg.catalogue.afficherFiltres && categories.length > 0 && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button onClick={() => setFiltreCat('')}
+                      style={{ background: !filtreCat ? '#0f0f0f' : '#f2ede6', color: !filtreCat ? '#fff' : '#555', border: 'none', borderRadius: 0, padding: '8px 16px', fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                      Tous
+                    </button>
+                    {categories.map(cat => (
+                      <button key={cat} onClick={() => setFiltreCat(cat === filtreCat ? '' : cat)}
+                        style={{ background: filtreCat === cat ? '#0f0f0f' : '#f2ede6', color: filtreCat === cat ? '#fff' : '#555', border: 'none', borderRadius: 0, padding: '8px 16px', fontSize: 12, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                        {cat}
                       </button>
                     ))}
                   </div>
                 )}
               </div>
-            ))}
-
-            {/* Stock & vues */}
-            <div style={{ display:'flex',gap:16,marginBottom:20,flexWrap:'wrap' }}>
-              {p.stock!==undefined&&<span style={{ fontSize:12,fontWeight:600,color:p.stock>5?'#16a34a':p.stock>0?'#f59e0b':'#ef4444' }}>{p.stock>5?'✅ En stock':p.stock>0?`⚠️ Dernières pièces (${p.stock})`:'❌ Épuisé'}</span>}
-              {cfg.afficherNbVues&&<span style={{ fontSize:12,color:GRIS }}>👁 {nbVues} personnes regardent</span>}
+              {cfg.catalogue.afficherFiltres && (
+                <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', background: '#fff', border: '1px solid #e2ddd8', padding: '12px 16px' }}>
+                  {cfg.catalogue.afficherFiltresTaille !== false && taillesDispo.length > 0 && (
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Taille</span>
+                      {taillesDispo.map(t => <button key={t} onClick={() => setFiltreTaille(filtreTaille === t ? '' : t)} aria-pressed={filtreTaille === t}
+                        style={{ minWidth: 36, padding: '6px 9px', fontSize: 12, fontWeight: 600, border: `1px solid ${filtreTaille === t ? '#0f0f0f' : '#d8d2cb'}`, background: filtreTaille === t ? '#0f0f0f' : '#fff', color: filtreTaille === t ? '#fff' : '#333', cursor: 'pointer' }}>{t}</button>)}
+                    </div>
+                  )}
+                  {cfg.catalogue.afficherFiltresCouleur !== false && couleursDispo.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: '#888', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Couleur</span>
+                      {couleursDispo.map(c => <button key={c} onClick={() => setFiltreCouleur(sansAccent(filtreCouleur) === sansAccent(c) ? '' : c)} title={c} aria-label={c} aria-pressed={sansAccent(filtreCouleur) === sansAccent(c)}
+                        style={{ width: 24, height: 24, borderRadius: '50%', background: hexCouleur(c), border: '1px solid #cfc9c2', outline: sansAccent(filtreCouleur) === sansAccent(c) ? '2px solid #0f0f0f' : 'none', outlineOffset: 2, cursor: 'pointer', padding: 0 }} />)}
+                    </div>
+                  )}
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#444' }}>Prix
+                    <input inputMode="decimal" value={prixMin} onChange={e => setPrixMin(limiterSaisie(e.target.value, 8).replace(/[^0-9.,]/g, ''))} maxLength={8} placeholder="min" aria-label="Prix minimum" style={{ ...styleInput, width: 80, padding: '7px 10px' }} />
+                    <span>–</span>
+                    <input inputMode="decimal" value={prixMax} onChange={e => setPrixMax(limiterSaisie(e.target.value, 8).replace(/[^0-9.,]/g, ''))} maxLength={8} placeholder="max" aria-label="Prix maximum" style={{ ...styleInput, width: 80, padding: '7px 10px' }} />
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#444', cursor: 'pointer' }}><input type="checkbox" checked={seulPromo} onChange={e => setSeulPromo(e.target.checked)} /> En promo</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#444', cursor: 'pointer' }}><input type="checkbox" checked={seulStock} onChange={e => setSeulStock(e.target.checked)} /> En stock</label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#444', marginLeft: isMobile ? 0 : 'auto' }}>Trier
+                    <select value={tri} onChange={e => setTri(['prix-asc', 'prix-desc', 'nom'].includes(e.target.value) ? e.target.value as any : 'recent')} style={{ ...styleInput, width: 'auto', padding: '7px 10px' }}>
+                      <option value="recent">Nouveautés</option><option value="prix-asc">Prix croissant</option><option value="prix-desc">Prix décroissant</option><option value="nom">Nom (A–Z)</option>
+                    </select>
+                  </label>
+                  {filtresActifs && <button onClick={reinitialiserFiltres} style={{ background: 'none', border: '1px solid #d8d2cb', color: '#444', fontSize: 13, padding: '7px 12px', cursor: 'pointer' }}>Réinitialiser</button>}
+                </div>
+              )}
             </div>
+          )}
 
-            {/* Quantité */}
-            <div style={{ marginBottom:20 }}>
-              <div style={{ fontSize:11,fontWeight:700,color:NOIR,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10 }}>Quantité</div>
-              <div style={{ display:'flex',alignItems:'center',gap:0,border:`1px solid ${BORD}`,width:'fit-content' }}>
-                <button onClick={()=>setQteChoisie(q=>Math.max(1,q-1))} style={{ width:44,height:44,border:'none',background:'#fff',cursor:'pointer',fontSize:18,fontWeight:700,color:NOIR,borderRight:`1px solid ${BORD}` }}>−</button>
-                <span style={{ width:52,textAlign:'center',fontSize:15,fontWeight:700,color:NOIR }}>{qteChoisie}</span>
-                <button onClick={()=>setQteChoisie(q=>p.stock!==undefined?Math.min(p.stock,q+1):q+1)} style={{ width:44,height:44,border:'none',background:'#fff',cursor:'pointer',fontSize:18,fontWeight:700,color:NOIR,borderLeft:`1px solid ${BORD}`,opacity:p.stock!==undefined&&qteChoisie>=p.stock?0.4:1 }}>+</button>
+          {/* Résultats */}
+          <div style={{ marginBottom: 12, fontSize: 13, color: '#888' }}>{produitsFiltres.length} produit(s)</div>
+
+          {produitsFiltres.length === 0
+            ? <div style={{ textAlign: 'center', padding: '80px 0', color: '#aaa' }}>
+                <div style={{ fontSize: 56, marginBottom: 16 }}>📦</div>
+                <h2 style={{ fontSize: 20, fontWeight: 700, color: '#555', marginBottom: 8 }}>Aucun produit trouvé</h2>
+                <p>Essayez de modifier vos filtres.</p>
               </div>
-            </div>
+            : <div style={{ display: 'grid', gridTemplateColumns: colMap[cfg.catalogue.colonnes] || colMap[3], gap: 20 }}>
+                {produitsFiltres.map(p => <CarteProduit key={p.id} produit={p} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(p)} />)}
+              </div>
+          }
+        </div>
+      </div>
+    );
+  };
 
-            {/* Boutons */}
-            <div style={{ display:'flex',gap:10,marginBottom:20 }}>
-              <button onClick={()=>ajouterAuPanier(p)} disabled={p.stock===0}
-                style={{ flex:1,background:p.stock===0?GRIS2:cp2,color:p.stock===0?GRIS:'#fff',border:'none',padding:'16px 24px',fontSize:13,fontWeight:800,cursor:p.stock===0?'not-allowed':'pointer',letterSpacing:'0.1em',textTransform:'uppercase' }}>
-                {p.stock===0?'ÉPUISÉ':`🛒 ${cfg.ficheProduit.boutonLabel}`}
-              </button>
-              <button onClick={()=>toggleWishlist(p.id)} style={{ width:52,height:52,border:`1.5px solid ${wishlist.includes(p.id)?cp:BORD}`,background:wishlist.includes(p.id)?IVOIRE2:'#fff',color:wishlist.includes(p.id)?cp:GRIS,cursor:'pointer',fontSize:20,flexShrink:0 }}>{wishlist.includes(p.id)?'❤️':'🤍'}</button>
-            </div>
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE FICHE PRODUIT — config dynamique via fp (ConfigFicheProduit)
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageProduit = () => {
+    if (!produitActif) return null;
+    const p = produitActif;
+    const enPromo = p.prix_promo && p.prix_promo < p.prix;
+    const photos = [p.photo_principale, ...(p.photos || [])].filter(Boolean) as string[];
+    const btnCouleur = fp.boutonCouleur || cp;
+    const varsPlates = (p.variantes || []).filter(v => v && !Array.isArray(v.valeurs));
+    const nomVar = varianteChoisie.__v || '';
+    const vSel = varsPlates.find(v => v.nom === nomVar) || null;
+    const stockDe = (v: any): number | null => v && v.stock !== null && v.stock !== undefined && v.stock !== '' ? Math.max(0, Number(v.stock)) : (p.stock !== undefined && p.stock !== null ? p.stock : null);
+    const stockMax = varsPlates.length ? (vSel ? stockDe(vSel) : null) : (p.stock !== undefined ? p.stock : null);
+    const prixVar = vSel && vSel.prix !== null && vSel.prix !== undefined && vSel.prix !== '' && Number(vSel.prix) >= 0 ? Number(vSel.prix) : null;
+    const epuise = (p.stock === 0 && !enchActive(p)) || (vSel !== null && stockDe(vSel) === 0);
+    const modeDemo = !!configBrut?.__produits_demo__;
+    const parutionBloquee = !!p.date_parution && !ouvertes[p.id];   // pas encore en vente : compte à rebours, aucun achat
+    const bloque = parutionBloquee || venteDirecteBloquee(p);
+    const resume = resumeAvis();
 
-            {/* Réassurance */}
-            <div style={{ background:IVOIRE2,border:`1px solid ${BORD}`,padding:'14px 18px',marginBottom:20 }}>
-              {[['🚚','Livraison gratuite dès 80$'],['🔒','Paiement sécurisé SSL'],['🔄','Retour gratuit 30 jours'],['📏','Guide des tailles disponible']].map(([ico,txt])=>(
-                <div key={txt as string} style={{ display:'flex',alignItems:'center',gap:10,padding:'5px 0',borderBottom:`1px solid ${BORD}`,fontSize:12,color:NOIR2 }}><span>{ico}</span><span>{txt}</span></div>
+    // Galerie component
+    const GalerieBlock = () => (
+      <div>
+        {fp.photosMiniatures === 'gauche' && photos.length > 1 ? (
+          <div style={{ display: 'flex', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {photos.map((ph, i) => (
+                <div key={i} onClick={() => setPhotoIdx(i)}
+                  style={{ width: 56, height: 56, borderRadius: 2, overflow: 'hidden', cursor: 'pointer', border: `2px solid ${photoIdx === i ? btnCouleur : '#e2ddd8'}`, flexShrink: 0 }}>
+                  <img src={ph} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
               ))}
             </div>
-
-            {/* Partage */}
-            {cfg.ficheProduit.afficherPartage&&<div style={{ display:'flex',gap:8,alignItems:'center' }}>
-              <span style={{ fontSize:11,color:GRIS,textTransform:'uppercase',letterSpacing:'0.08em' }}>Partager :</span>
-              {[['Facebook','🔵'],['Pinterest','📌'],['Instagram','📸']].map(([n,i])=><button key={n as string} style={{ padding:'5px 10px',background:'#fff',border:`1px solid ${BORD}`,fontSize:11,cursor:'pointer',color:GRIS,display:'flex',alignItems:'center',gap:4 }}>{i} {n}</button>)}
-            </div>}
+            <div style={{ flex: 1, borderRadius: 2, overflow: 'hidden', background: '#f2ede6', aspectRatio: '1' }}>
+              {photos.length > 0
+                ? <img src={photos[photoIdx]} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>📦</div>}
+            </div>
           </div>
+        ) : (
+          <>
+            <div style={{ borderRadius: 2, overflow: 'hidden', background: '#f2ede6', aspectRatio: '1', marginBottom: 10 }}>
+              {photos.length > 0
+                ? <img src={photos[photoIdx]} alt={p.titre} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 72, color: '#d1d5db' }}>📦</div>}
+            </div>
+            {photos.length > 1 && (
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+                {photos.map((ph, i) => (
+                  <div key={i} onClick={() => setPhotoIdx(i)}
+                    style={{ width: 60, height: 60, borderRadius: 2, overflow: 'hidden', cursor: 'pointer', border: `2px solid ${photoIdx === i ? btnCouleur : '#e2ddd8'}` }}>
+                    <img src={ph} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
+
+    // Info panel component
+    const InfoBlock = () => (
+      <div>
+        {fp.afficherCategorie && p.categorie && <div style={{ fontSize: 12, color: btnCouleur, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{p.categorie}</div>}
+        <h1 style={{ fontSize: 'clamp(22px,3vw,34px)', fontWeight: 800, color: '#1a1a1a', marginBottom: 14, lineHeight: 1.2 }}>{p.titre}</h1>
+        {fp.afficherSku && p.sku && <div style={{ fontSize: 12, color: '#aaa', marginBottom: 10 }}>SKU : {p.sku}</div>}
+
+        {/* Prix */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 20 }}>
+          {prixVar !== null ? <span style={{ fontSize: 32, fontWeight: 800, color: btnCouleur }}>{prix(prixVar)}</span> : enPromo ? (
+            <>
+              <span style={{ fontSize: 32, fontWeight: 800, color: '#ef4444' }}>{prix(p.prix_promo!)}</span>
+              <span style={{ fontSize: 20, color: '#aaa', textDecoration: 'line-through' }}>{prix(p.prix)}</span>
+              {fp.afficherRabaisPct && <span style={{ background: '#fef2f2', color: '#ef4444', fontSize: 13, fontWeight: 700, padding: '3px 10px', borderRadius: 2 }}>
+                -{Math.round((1 - p.prix_promo! / p.prix) * 100)}%
+              </span>}
+            </>
+          ) : <span style={{ fontSize: 32, fontWeight: 800, color: btnCouleur }}>{prix(p.prix)}</span>}
         </div>
 
-        {/* Onglets description/avis/livraison */}
-        <div style={{ marginTop:56,borderTop:`1px solid ${BORD}`,paddingTop:40 }}>
-          <div style={{ display:'flex',gap:0,borderBottom:`1px solid ${BORD}`,marginBottom:32 }}>
-            {([['description','Description'],['avis',`Avis (${0})`],['livraison','Livraison']] as const).map(([id,label])=>(
-              <button key={id} onClick={()=>setOngletProduit(id)} style={{ padding:'14px 24px',background:'none',border:'none',borderBottom:`2px solid ${ongletProduit===id?cp:'transparent'}`,color:ongletProduit===id?cp:GRIS,fontSize:11,fontWeight:ongletProduit===id?700:400,cursor:'pointer',marginBottom:-1,letterSpacing:'0.06em',textTransform:'uppercase' }}>{label}</button>
+        {resume && <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}><EtoilesAvis clair note={resume.note} taille={16} /><span style={{ fontSize: 13, color: '#6b7280' }}>{resume.note.toFixed(1)} ({resume.nb} avis)</span><button onClick={() => { const el = document.getElementById('mode-avis'); if (el) el.scrollIntoView({ behavior: 'smooth' }); }} style={{ background: 'none', border: 'none', color: btnCouleur, fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Voir les avis</button></div>}
+
+        {p.offre_fin && <OffreCompteur clair fin={p.offre_fin} heureServeur={heureServeur} onFini={offreCtx.onFini} />}
+        {p.date_parution && <BoutiqueParutionCountdown dateParution={p.date_parution} gestionnaireId={vendeurId} heureServeur={heureServeur} onOuvert={() => { setOuvertes(m => ({ ...m, [p.id]: true })); setTimeout(() => { chargerCatalogue(); }, 1500); }} />}
+
+        {/* Stock */}
+        {enchActive(p) && <div style={{ marginBottom: 16 }}><span style={{ fontSize: 13, color: '#b45309', fontWeight: 600 }}>🔨 {p.stock === undefined || p.stock === null || p.stock === 0 ? '1 unité en vente aux enchères' : 'En stock (1 réservé enchère)'}</span></div>}
+        {!parutionBloquee && fp.afficherStock && p.stock !== undefined && !(enchActive(p) && p.stock === 0) && (
+          <div style={{ marginBottom: 16 }}>
+            {p.stock > 0
+              ? <span style={{ fontSize: 13, color: '#16a34a', fontWeight: 600 }}>✅ En stock ({p.stock} disponible{p.stock > 1 ? 's' : ''})</span>
+              : <span style={{ fontSize: 13, color: '#ef4444', fontWeight: 600 }}>❌ Épuisé</span>}
+          </div>
+        )}
+
+        {/* Paliers de prix (add-on « Prix par palier ») */}
+        {!parutionBloquee && p.paliers && p.paliers.length > 0 && <PaliersProduitBoutique produit={p as any} quantite={qteChoisie} variante={Object.values(varianteChoisie).join(' / ')} couleur={btnCouleur} fond="#f9fafb" bordure="#e2ddd8" texte="#1a1a1a" texteDiscret="#6b7280" />}
+
+        {/* Variantes (vraies annonces : liste plate) */}
+        {!parutionBloquee && varsPlates.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>Variante</div>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {varsPlates.map(v => { const sel = nomVar === v.nom; const out = stockDe(v) === 0; const pv = v.prix !== null && v.prix !== undefined && v.prix !== '' && Number(v.prix) >= 0 ? Number(v.prix) : null;
+                return <button key={v.nom} disabled={out} aria-pressed={sel} onClick={() => { setVarianteChoisie({ __v: v.nom }); setQteChoisie(1); }}
+                  style={{ padding: '7px 14px', borderRadius: 2, border: `2px solid ${sel ? btnCouleur : '#e2ddd8'}`, background: sel ? `${btnCouleur}12` : '#fff', color: sel ? btnCouleur : '#333', fontSize: 13, fontWeight: 600, cursor: out ? 'not-allowed' : 'pointer', opacity: out ? 0.4 : 1, textDecoration: out ? 'line-through' : 'none' }}>
+                  {v.nom}{pv !== null && <span style={{ marginLeft: 8, fontWeight: 400, fontSize: 12 }}>{prix(pv)}</span>}{out && <span style={{ marginLeft: 8, fontSize: 11 }}>Épuisé</span>}
+                </button>; })}
+            </div>
+          </div>
+        )}
+
+        {!parutionBloquee && guide.actif && valeursVariantes(p).length > 0 && (
+          <button onClick={() => setGuideOuvert(true)} style={{ background: 'none', border: 'none', color: cp, fontSize: 13, fontWeight: 600, textDecoration: 'underline', cursor: 'pointer', marginBottom: 12, padding: 0 }}>📏 {guide.titre}</button>
+        )}
+
+        {/* Variantes (démo : nom + valeurs) */}
+        {!parutionBloquee && p.variantes && p.variantes.filter(v => Array.isArray(v.valeurs)).map(v => (
+          <div key={v.nom} style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>{v.nom}</div>
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap' }}>
+              {(v.valeurs || []).map(val => (
+                <button key={val} onClick={() => setVarianteChoisie(prev => ({ ...prev, [v.nom]: val }))}
+                  style={{ padding: '7px 14px', borderRadius: 2, border: `2px solid ${varianteChoisie[v.nom] === val ? btnCouleur : '#e2ddd8'}`, background: varianteChoisie[v.nom] === val ? `${btnCouleur}12` : '#fff', color: varianteChoisie[v.nom] === val ? btnCouleur : '#333', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                  {val}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+
+        {/* Produits personnalisés (add-on) */}
+        {!bloque && vendeurId > 0 && !modeDemo && <BoutiquePersonnalisation key={p.id} gestionnaireId={vendeurId} produitId={p.id} couleur={btnCouleur} theme={THEME_CLAIR_PERSO} reference={persoRef} />}
+
+        {/* Quantité */}
+        {!bloque && fp.afficherQte && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', marginBottom: 7 }}>Quantité</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button onClick={() => setQteChoisie(q => Math.max(1, q - 1))}
+                style={{ width: 38, height: 38, borderRadius: 2, border: '1.5px solid #e2ddd8', background: '#fff', cursor: 'pointer', fontSize: 17, fontWeight: 700 }}>−</button>
+              <span style={{ fontSize: 17, fontWeight: 700, minWidth: 28, textAlign: 'center' }}>{qteChoisie}</span>
+              <button onClick={() => setQteChoisie(q => stockMax != null ? Math.min(Math.max(1, stockMax), q + 1) : q + 1)} disabled={stockMax != null && qteChoisie >= stockMax}
+                style={{ width: 38, height: 38, borderRadius: 2, border: '1.5px solid #e2ddd8', background: '#fff', cursor: stockMax != null && qteChoisie >= stockMax ? 'not-allowed' : 'pointer', fontSize: 17, fontWeight: 700, opacity: stockMax != null && qteChoisie >= stockMax ? 0.4 : 1 }}>+</button>
+            </div>
+          </div>
+        )}
+
+        {/* Bouton (+ liste de souhaits avant / après selon le réglage du gestionnaire) */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+          <BoutiqueSouhaitProduit clair zone="avant_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
+          {parutionBloquee
+            ? (cfgParution.afficher_message_atc && cfgParution.texte_atc_bloque
+                ? <div style={{ flex: 1, minWidth: 180, padding: '14px 16px', borderRadius: 2, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 14, fontWeight: 700, textAlign: 'center' }}>{cfgParution.texte_atc_bloque}</div>
+                : <button disabled style={{ flex: 1, minWidth: 180, padding: '14px 24px', background: btnCouleur, color: '#fff', border: 'none', borderRadius: 2, fontSize: 15, fontWeight: 700, opacity: 0.5, cursor: 'not-allowed' }}>⏳ Pas encore disponible</button>)
+            : !venteDirecteBloquee(p) && (
+                <button onClick={() => ajouterAuPanier(p)} disabled={epuise}
+                  style={{ flex: 1, minWidth: 180, padding: '14px 24px', background: epuise ? '#e2ddd8' : btnCouleur, color: epuise ? '#aaa' : '#fff', border: 'none', borderRadius: 2, fontSize: 15, fontWeight: 700, cursor: epuise ? 'not-allowed' : 'pointer' }}>
+                  {epuise ? 'Épuisé' : `🛒 ${fp.boutonLabel}`}
+                </button>)}
+          <BoutiqueSouhaitProduit clair zone="apres_panier" enLigne gestionnaireId={vendeurId} produitId={p.id} connecte={!!acheteur} demo={produitsDemo} masque={parutionBloquee && cfgParution.bloquer_wishlist} />
+        </div>
+
+        {/* Enchère et « Faire une offre » (add-ons) */}
+        {!parutionBloquee && <BlocEnchereBoutique clair gestionnaireId={vendeurId} produitId={p.id} couleurAccent={btnCouleur} isDemo={modeDemo}
+          onEtat={a => { if (enchereEtat[p.id] === true && a === false) setTimeout(rechargerOffres, 400); setEnchereEtat(m => m[p.id] === a ? m : { ...m, [p.id]: a }); }}
+          allerConnexion={() => { setAvisPanier('Connectez-vous pour miser.'); naviguer('login'); }} />}
+        <FaireOffreBoutique clair gestionnaireId={vendeurId} produitId={p.id} prix={prixVar !== null ? prixVar : enPromo ? p.prix_promo! : p.prix} variante={Object.values(varianteChoisie).join(' / ')}
+          varianteRequise={varsPlates.length > 0 && !vSel || !!(p.variantes && p.variantes.some(v => Array.isArray(v.valeurs) && !varianteChoisie[v.nom]))} masque={p.stock === 0 || parutionBloquee} couleurAccent={btnCouleur} isDemo={modeDemo}
+          allerConnexion={() => { setAvisPanier('Connectez-vous pour faire une offre.'); naviguer('login'); }} onPanier={() => { setVueCompte('panier'); naviguer('compte'); }} />
+
+        {/* Réassurance */}
+        {fp.afficherReassurance && fp.reassuranceItems.length > 0 && (
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+            {fp.reassuranceItems.map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#555' }}>
+                <span>{item.icone}</span><span>{item.texte}</span>
+              </div>
             ))}
           </div>
-          {ongletProduit==='description'&&<div style={{ maxWidth:760 }}>{p.description?<p style={{ fontSize:15,color:NOIR2,lineHeight:1.9,whiteSpace:'pre-wrap' }}>{p.description}</p>:<p style={{ color:GRIS }}>Aucune description disponible.</p>}</div>}
-          {ongletProduit==='avis'&&<p style={{ color:GRIS,fontStyle:'italic' }}>Aucun avis pour ce produit. Soyez la première à partager votre avis !</p>}
-          {ongletProduit==='livraison'&&<div style={{ maxWidth:560 }}>{[['🚚','Livraison standard','2-5 jours ouvrables','Gratuite dès 80$'],['⚡','Livraison express','1-2 jours ouvrables','Disponible au checkout'],['🔄','Retours','Sous 30 jours','Gratuits — articles non portés avec étiquettes']].map(([ico,titre,delai,info])=><div key={titre as string} style={{ display:'flex',gap:16,padding:'18px 0',borderBottom:`1px solid ${BORD}` }}><div style={{ width:44,height:44,background:IVOIRE2,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:20,flexShrink:0 }}>{ico}</div><div><div style={{ fontSize:14,fontWeight:700,color:NOIR,marginBottom:4 }}>{titre}</div><div style={{ fontSize:13,color:cp,marginBottom:4 }}>{delai}</div><div style={{ fontSize:12,color:GRIS }}>{info}</div></div></div>)}</div>}
-        </div>
+        )}
 
-        {/* Complétez le look */}
-        {cfg.ficheProduit.afficherCompleterLook&&similaires.length>0&&<div style={{ marginTop:64,paddingTop:48,borderTop:`1px solid ${BORD}` }}>
-          <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ COMPLÉTEZ LE LOOK</div>
-          <h2 style={{ fontSize:isMobile?24:32,fontWeight:900,color:NOIR,marginBottom:28,fontFamily:'Georgia,serif' }}>À porter avec</h2>
-          <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':`repeat(${Math.min(4,similaires.length)},1fr)`,gap:14 }}>
-            {similaires.map(p=><CarteProduitMode key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={wishlist.includes(p.id)}/>)}
+        {/* Partage */}
+        {fp.afficherPartage && (
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <span style={{ fontSize: 12, color: '#888', alignSelf: 'center' }}>Partager :</span>
+            {[['Facebook','🔵'],['Pinterest','📌'],['X','🐦']].map(([nom, ico]) => (
+              <button key={nom} style={{ padding: '5px 10px', border: '1px solid #e2ddd8', borderRadius: 2, background: '#fff', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}>
+                {ico} {nom}
+              </button>
+            ))}
           </div>
-        </div>}
+        )}
+
+        {/* Description — position 'droite' ou 'onglets' */}
+        {fp.descriptionPosition !== 'bas' && p.description && (
+          fp.descriptionPosition === 'onglets' ? (
+            <div style={{ marginTop: 20, borderTop: '1px solid #e2ddd8', paddingTop: 16 }}>
+              <div style={{ display: 'flex', gap: 0, borderBottom: '2px solid #e2ddd8', marginBottom: 16 }}>
+                {(['description','details','livraison'] as const).map(ong => (
+                  <button key={ong} onClick={() => setOngletActif(ong)}
+                    style={{ padding: '8px 16px', border: 'none', background: 'none', borderBottom: `2px solid ${ongletActif===ong ? btnCouleur : 'transparent'}`, color: ongletActif===ong ? btnCouleur : '#888', fontSize: 13, fontWeight: ongletActif===ong ? 700 : 500, cursor: 'pointer', marginBottom: -2, textTransform: 'capitalize' }}>
+                    {ong === 'description' ? 'Description' : ong === 'details' ? 'Détails' : 'Livraison'}
+                  </button>
+                ))}
+              </div>
+              {ongletActif === 'description' && <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>{p.description}</div>}
+              {ongletActif === 'details'     && <div style={{ fontSize: 14, color: '#888' }}>Aucun détail supplémentaire.</div>}
+              {ongletActif === 'livraison'   && <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8 }}>Livraison standard : 2–5 jours ouvrables.<br />Livraison express disponible au moment du paiement.</div>}
+            </div>
+          ) : (
+            <div style={{ marginTop: 20, borderTop: '1px solid #e2ddd8', paddingTop: 16 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 10 }}>Description</h3>
+              <div style={{ fontSize: 14, color: '#555', lineHeight: 1.8, whiteSpace: 'pre-wrap', overflow: fp.descriptionTronquee && !descExpanded ? 'hidden' : 'visible', maxHeight: fp.descriptionTronquee && !descExpanded ? 120 : 'none' }}>
+                {p.description}
+              </div>
+              {fp.descriptionTronquee && p.description.length > 300 && (
+                <button onClick={() => setDescExpanded(!descExpanded)}
+                  style={{ marginTop: 8, background: 'none', border: 'none', color: btnCouleur, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                  {descExpanded ? '▲ Réduire' : '▼ Lire plus'}
+                </button>
+              )}
+            </div>
+          )
+        )}
+      </div>
+    );
+
+    // Description pleine largeur (bas)
+    const DescriptionBas = () => fp.descriptionPosition === 'bas' && p.description ? (
+      <div style={{ marginTop: 48, paddingTop: 40, borderTop: '1px solid #e2ddd8' }}>
+        <h3 style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a', marginBottom: 16 }}>Description</h3>
+        <div style={{ fontSize: 15, color: '#555', lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: fp.descriptionTronquee && !descExpanded ? 160 : 'none', overflow: fp.descriptionTronquee && !descExpanded ? 'hidden' : 'visible' }}>
+          {p.description}
+        </div>
+        {fp.descriptionTronquee && p.description.length > 400 && (
+          <button onClick={() => setDescExpanded(!descExpanded)}
+            style={{ marginTop: 10, background: 'none', border: 'none', color: btnCouleur, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+            {descExpanded ? '▲ Réduire' : '▼ Lire plus'}
+          </button>
+        )}
+      </div>
+    ) : null;
+
+    // Questions et avis (add-ons) : sous la description, avant les produits similaires
+    const blocsBas = (vendeurId > 0 && !modeDemo) ? (
+      <div style={{ marginTop: 40 }}>
+        <QuestionsProduitBoutique clair gestionnaireId={vendeurId} produitId={p.id} couleurAccent={btnCouleur} isDemo={modeDemo}
+          allerConnexion={() => { setAvisPanier('Connectez-vous pour poser une question.'); naviguer('login'); }} />
+        {avisReel && (
+          <div id="mode-avis" style={{ marginTop: 40 }}>
+            <h3 style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', margin: '0 0 16px' }}>⭐ Avis clients ({avisProd.etat!.total})</h3>
+            <AvisProduitBoutique clair donnees={avisProd} couleurAccent={btnCouleur} connecte={!!acheteur} isMobile={isMobile}
+              ouvrirMesAvis={() => { if (!acheteur) { setAvisPanier('Connectez-vous pour laisser un avis.'); naviguer('login'); return; } setVueCompte('avis'); naviguer('compte'); }} />
+          </div>
+        )}
+      </div>
+    ) : null;
+
+    // Layout image-haut
+    if (!isMobile && fp.layout === 'image-haut') {
+      return (
+        <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+          {fp.afficherBreadcrumb && (
+            <div style={{ marginBottom: 20, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: '#888' }}>
+              <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Accueil</button>
+              <span>›</span><button onClick={() => naviguer('catalogue')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Catalogue</button>
+              <span>›</span><span style={{ color: '#333' }}>{p.titre}</span>
+            </div>
+          )}
+          <div style={{ marginBottom: 36 }}>{GalerieBlock()}</div>
+          {InfoBlock()}
+          <DescriptionBas />
+          {blocsBas}
+          {fp.afficherSimilaires && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
+            <div style={{ marginTop: 56, paddingTop: 40, borderTop: '1px solid #e2ddd8' }}>
+              <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', marginBottom: 20 }}>{fp.similairesTitre}</h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
+                {produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).slice(0, fp.similairesNombre).map(pr => (
+                  <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(pr)} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // Layout gauche/droite (défaut + mobile)
+    const imageCol = GalerieBlock();
+    const infoCol  = InfoBlock();
+    const isInverse = !isMobile && fp.layout === 'image-droite';
+
+    return (
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+        {fp.afficherBreadcrumb && (
+          <div style={{ marginBottom: 20, display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: '#888' }}>
+            <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Accueil</button>
+            <span>›</span><button onClick={() => naviguer('catalogue')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: btnCouleur, fontSize: 13 }}>Catalogue</button>
+            <span>›</span><span style={{ color: '#333' }}>{p.titre}</span>
+          </div>
+        )}
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 48, alignItems: 'start' }}>
+          {isInverse ? <>{infoCol}{imageCol}</> : <>{imageCol}{infoCol}</>}
+        </div>
+        <DescriptionBas />
+        {blocsBas}
+        {fp.afficherSimilaires && produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).length > 0 && (
+          <div style={{ marginTop: 56, paddingTop: 40, borderTop: '1px solid #e2ddd8' }}>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', marginBottom: 20 }}>{fp.similairesTitre}</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(200px,1fr))', gap: 16 }}>
+              {produits.filter(pr => pr.id !== p.id && pr.categorie === p.categorie).slice(0, fp.similairesNombre).map(pr => (
+                <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(pr)} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   };
 
-  // ══ PAGES SECONDAIRES + FOOTER + RENDU ═══════════════════════════════════
-  const PageWishlist = () => {
-    const items = produits.filter(p=>wishlist.includes(p.id));
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE BLOG
+  // ══════════════════════════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
+  // OFFRES DU JOUR / ENCHÈRES (thème clair)
+  // ══════════════════════════════════════════════════════════════════════════
+  const colsGrille = isMobile ? 'repeat(2,1fr)' : `repeat(${Math.min(4, Math.max(2, Number(cfg.catalogue.colonnes) || 3))},1fr)`;
+  const lienReessayer: React.CSSProperties = { background: 'none', border: 'none', color: cp, textDecoration: 'underline', cursor: 'pointer', fontSize: 'inherit' };
+  const PageEncheres = () => (
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: isMobile ? 26 : 34, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>🔨 Enchères</h1>
+        <p style={{ margin: 0, color: '#6b7280', fontSize: 15 }}>Les enchères qui se terminent bientôt sont en premier. Une mise est un engagement d'achat.</p>
+      </div>
+      {!encheresCharge ? <p style={{ color: '#6b7280' }}>Chargement…</p>
+        : encheresErr ? <p style={{ color: '#b91c1c' }}>Impossible de charger les enchères. <button onClick={() => setVersionEncheres(v => v + 1)} style={lienReessayer}>Réessayer</button></p>
+        : encheresListe.length === 0
+          ? <div style={{ textAlign: 'center', padding: '70px 0', color: '#6b7280' }}><div style={{ fontSize: 52, marginBottom: 14 }}>🔨</div><h3 style={{ fontWeight: 600, marginBottom: 16 }}>Aucune enchère en cours pour le moment. Revenez bientôt !</h3><button onClick={() => naviguer('catalogue')} style={{ ...styleBtn, width: 'auto', padding: '12px 28px' }}>Voir le catalogue</button></div>
+          : <div style={{ display: 'grid', gridTemplateColumns: colsGrille, gap: isMobile ? 12 : 20 }}>
+              {encheresListe.map((e: any) => (
+                <div key={e.id} onClick={() => { const pr = encheresProduits[Number(e.produit_id)]; if (pr) voirProduit(pr); else { const dans = produits.find(x => Number(x.id) === Number(e.produit_id)); if (dans) voirProduit(dans); } }} style={{ background: '#fff', border: '1px solid #e2ddd8', borderRadius: 2, overflow: 'hidden', cursor: 'pointer' }}>
+                  <div style={{ aspectRatio: '1/1', background: '#f2ede6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                    {e.image_url ? <img src={e.image_url} alt={e.titre} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: 44, opacity: 0.3 }}>🔨</span>}
+                  </div>
+                  <div style={{ padding: '12px 14px' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a1a', marginBottom: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.titre}</div>
+                    <div style={{ fontSize: 20, fontWeight: 900, color: cp }}>{prix(e.mise_actuelle !== null ? e.mise_actuelle : e.prix_depart)}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', margin: '2px 0 6px' }}>{e.mise_actuelle === null ? 'Prix de départ' : `${e.nb_mises} mise${e.nb_mises > 1 ? 's' : ''}`}{e.reserve && e.reserve.atteinte ? ' · réserve atteinte' : ''}</div>
+                    <div style={{ fontSize: 12 }}><ResteEnchere fin={e.date_fin} decalage={encheresDec} couleur={cp} /></div>
+                  </div>
+                </div>))}
+            </div>}
+    </div>
+  );
+  const PageOffres = () => {
+    const pages = Math.max(1, Math.ceil(offresTotal / OFFRES_PAR_PAGE));
+    const btnPg = (actif: boolean, off = false): React.CSSProperties => ({ padding: '8px 14px', borderRadius: 2, border: `1px solid ${actif ? cp : '#d1d5db'}`, background: actif ? cp : '#fff', color: actif ? '#fff' : off ? '#9ca3af' : '#374151', fontWeight: actif ? 800 : 500, fontSize: 13, cursor: off ? 'not-allowed' : 'pointer', opacity: off ? 0.5 : 1 });
     return (
-      <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
-        <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ LISTE D'ENVIES</div>
-        <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,marginBottom:40,fontFamily:'Georgia,serif' }}>{items.length} pièce{items.length>1?'s':''} sauvegardée{items.length>1?'s':''}</h1>
-        {items.length===0 ? <div style={{ textAlign:'center',padding:'80px 0' }}><div style={{ marginBottom:24 }}><SilhouetteMode taille={100} couleur={GRIS}/></div><h2 style={{ color:GRIS,fontWeight:600,marginBottom:12,fontFamily:'Georgia,serif' }}>Votre liste est vide</h2><p style={{ color:GRIS,marginBottom:24 }}>Cliquez sur 🤍 sur les articles que vous aimez.</p><button onClick={()=>naviguer('catalogue')} style={styleBtn}>DÉCOUVRIR LA COLLECTION</button></div>
-        : <div style={{ display:'grid',gridTemplateColumns:isMobile?'repeat(2,1fr)':'repeat(4,1fr)',gap:16 }}>{items.map(p=><CarteProduitMode key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={true}/>)}</div>}
+      <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+        <div style={{ marginBottom: 28 }}>
+          <h1 style={{ fontSize: isMobile ? 26 : 34, fontWeight: 800, color: '#1a1a1a', margin: '0 0 8px' }}>🔥 Offres du jour</h1>
+          <p style={{ margin: 0, color: '#6b7280', fontSize: 15 }}>Les offres qui se terminent bientôt sont en premier. Le prix revient à la normale dès la fin du compte à rebours.</p>
+        </div>
+        {!offresCharge ? <p style={{ color: '#6b7280' }}>Chargement…</p>
+          : offresErr ? <p style={{ color: '#b91c1c' }}>Impossible de charger les offres. <button onClick={() => setVersionOffres(v => v + 1)} style={lienReessayer}>Réessayer</button></p>
+          : offresListe.length === 0
+            ? <div style={{ textAlign: 'center', padding: '70px 0', color: '#6b7280' }}><div style={{ fontSize: 52, marginBottom: 14 }}>🔥</div><h3 style={{ fontWeight: 600, marginBottom: 16 }}>Aucune offre du jour pour le moment. Revenez bientôt !</h3><button onClick={() => naviguer('catalogue')} style={{ ...styleBtn, width: 'auto', padding: '12px 28px' }}>Voir le catalogue →</button></div>
+            : <>
+              <div style={{ display: 'grid', gridTemplateColumns: colsGrille, gap: isMobile ? 12 : 20 }}>{offresListe.map(pr => <CarteProduit key={pr.id} produit={pr} cp={cp} afficherPrix={cfg.catalogue.afficherPrix} extras={extras} onClick={() => voirProduit(pr)} />)}</div>
+              {pages > 1 && <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 32, flexWrap: 'wrap' }}>
+                <button disabled={offresPg <= 1} onClick={() => { setOffresPg(offresPg - 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(false, offresPg <= 1)}>← Préc.</button>
+                {Array.from({ length: pages }, (_, k) => k + 1).filter(n => n === 1 || n === pages || Math.abs(n - offresPg) <= 1).map((n, i, a) => (<span key={n} style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>{i > 0 && n - a[i - 1] > 1 && <span style={{ color: '#9ca3af' }}>…</span>}<button onClick={() => { setOffresPg(n); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(n === offresPg)}>{n}</button></span>))}
+                <button disabled={offresPg >= pages} onClick={() => { setOffresPg(offresPg + 1); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={btnPg(false, offresPg >= pages)}>Suiv. →</button>
+              </div>}
+            </>}
       </div>
     );
   };
+
+  // PAGE POLITIQUE (pages légales rédigées dans Configuration → Mes politiques)
+  const PagePolitique = () => {
+    const contenu = politique && politique.contenu.trim() ? htmlSur(politique.contenu) : '';
+    const demoPol = !!configBrut?.__produits_demo__;
+    const polCfg: any = { ...CFG_DEF.footer.politiques, ...(cfg.footer.politiques || {}) };
+    const polOk = (slug: string) => demoPol || (politiquesRedigees ? politiquesRedigees[slug] === true : false);
+    const ongletsPol = ([['conditions-service','Conditions de service',polCfg.afficherConditions],['confidentialite','Confidentialité',polCfg.afficherConfidentialite],['retour-remboursement','Retour & remboursement',polCfg.afficherRetours],['expedition','Expédition',polCfg.afficherLivraison],['coordonnees','Coordonnées',polCfg.afficherCoordonnees],['mentions-legales','Mentions légales',polCfg.afficherMentions]] as [string, string, any][]).filter(([slug, , actif]) => actif !== false && (polOk(slug) || slug === (politique && politique.slug)));
+    const titreAffiche = politique && politique.titre && !/<h1[\s>]/i.test(contenu) ? politique.titre : '';
+    return (
+      <div style={{ maxWidth: 860, margin: '0 auto', padding: '40px 24px' }}>
+        <style>{`.pol-contenu h1{font-size:30px;font-weight:800;color:#1a1a1a;margin:0 0 20px;line-height:1.2}.pol-contenu h2{font-size:20px;font-weight:800;color:#1a1a1a;margin:32px 0 10px}.pol-contenu h3{font-size:16px;font-weight:700;color:#1a1a1a;margin:22px 0 8px}.pol-contenu p{color:#444;line-height:1.9;margin:0 0 14px;font-size:15px}.pol-contenu ul,.pol-contenu ol{color:#444;padding-left:22px;margin:0 0 14px}.pol-contenu li{line-height:1.8;margin-bottom:6px;font-size:15px}.pol-contenu a{color:${cp};text-decoration:underline}.pol-contenu strong{color:#1a1a1a}.pol-contenu blockquote{border-left:3px solid ${cp};padding:8px 18px;margin:16px 0;color:#555}.pol-contenu hr{border:0;border-top:1px solid #e2ddd8;margin:24px 0}`}</style>
+        <button onClick={() => naviguer('accueil')} style={{ background: 'none', border: 'none', color: cp, fontSize: 14, cursor: 'pointer', marginBottom: 20, padding: 0 }}>← Retour à l'accueil</button>
+        {ongletsPol.length > 1 && <nav aria-label="Pages légales" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 28 }}>
+          {ongletsPol.map(([slug, nom]) => { const actif = politique ? politique.slug === slug : politiqueEnCours.current === slug; return <button key={slug} onClick={() => { if (!actif) ouvrirPolitique(slug); }} aria-current={actif ? 'page' : undefined} style={{ padding: '8px 16px', borderRadius: 20, border: `1px solid ${actif ? cp : '#d1d5db'}`, background: actif ? cp : 'transparent', color: actif ? '#fff' : '#444', fontSize: 13, fontWeight: actif ? 800 : 600, cursor: actif ? 'default' : 'pointer' }}>{nom}</button>; })}
+        </nav>}
+        {politiqueStatut === 'loading' && <p style={{ color: '#888' }}>Chargement…</p>}
+        {politiqueStatut === 'err' && <p style={{ color: '#dc2626' }}>Impossible de charger cette page. Veuillez réessayer.</p>}
+        {politiqueStatut === 'idle' && politique && (contenu
+          ? <>{titreAffiche && <h1 style={{ fontSize: 30, fontWeight: 800, color: '#1a1a1a', margin: '0 0 20px', lineHeight: 1.2 }}>{titreAffiche}</h1>}<div className="pol-contenu" dangerouslySetInnerHTML={{ __html: contenu }} /></>
+          : <><h1 style={{ fontSize: 30, fontWeight: 800, color: '#1a1a1a', marginBottom: 16 }}>{politique.titre}</h1><p style={{ color: '#777' }}>Cette page n'a pas encore été rédigée.</p></>)}
+      </div>
+    );
+  };
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONNEXION / INSCRIPTION (thème clair)
+  // ══════════════════════════════════════════════════════════════════════════
+  const styleLabel: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, color: '#555', marginBottom: 7, letterSpacing: '0.05em', textTransform: 'uppercase' };
+  const carteAuth: React.CSSProperties = { background: '#fff', border: '1px solid #e2ddd8', borderRadius: 2, padding: isMobile ? 22 : 32, boxShadow: '0 2px 12px rgba(0,0,0,0.05)' };
+  // Longueur maximale d'un champ du formulaire d'inscription (à la frappe ; le serveur revalide)
+  const maxInsc = (cle: string, type: string): number => type === 'email' ? 254 : type === 'password' ? 200 : type === 'tel' || cle === 'telephone' ? 30 : cle === 'code_postal' ? 10 : cle === 'province' ? 4 : 150;
+  const champInsc = (cle: string, libelle: string, type: string, ph: string, requis: boolean, extra?: any) => (
+    <div key={cle} style={{ marginBottom: 18 }}>
+      <label style={styleLabel}>{libelle}{requis && ' *'}</label>
+      {type === 'textarea'
+        ? <textarea value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} maxLength={1000} placeholder={ph} rows={3} style={{ ...styleInput, resize: 'vertical' }} />
+        : type === 'select'
+        ? <select value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, 1000) }))} style={styleInput}><option value="">— Choisir —</option>{(extra || []).map((o: string) => <option key={o} value={o}>{o}</option>)}</select>
+        : <input type={type} value={inscVal[cle] || ''} onChange={e => setInscVal(f => ({ ...f, [cle]: limiterSaisie(e.target.value, maxInsc(cle, type)) }))} maxLength={maxInsc(cle, type)} placeholder={ph} style={styleInput} autoComplete={type === 'password' ? 'new-password' : undefined} />}
+    </div>
+  );
+  const caseInsc = (cle: string, contenu: any, requis: boolean) => (
+    <div key={cle} onClick={() => setInscVal(f => ({ ...f, [cle]: !f[cle] }))} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', marginBottom: 14 }}>
+      <div style={{ width: 20, height: 20, minWidth: 20, borderRadius: 5, border: `2px solid ${inscVal[cle] ? cp : '#9ca3af'}`, background: inscVal[cle] ? `${cp}22` : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: cp, fontSize: 12, marginTop: 2 }}>{inscVal[cle] && '✓'}</div>
+      <span style={{ fontSize: 13, color: '#444', lineHeight: 1.5 }}>{contenu}{requis && <span style={{ color: '#ef4444' }}> *</span>}</span>
+    </div>
+  );
+
+  const PageInscription = () => (
+    <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+      <div style={{ width: '100%', maxWidth: 480 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{ins.titre}</h1>
+          {ins.sousTitre && <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>{ins.sousTitre}</p>}
+          <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>Vous avez déjà un compte ? <button onClick={() => naviguer('login')} style={{ background: 'none', border: 'none', color: cp, fontSize: 14, cursor: 'pointer', fontWeight: 700 }}>Se connecter</button></p>
+        </div>
+        {inscStatut === 'ok' ? (
+          <div style={{ ...carteAuth, textAlign: 'center' }}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>🎉</div>
+            <h2 style={{ color: '#1a1a1a', fontSize: 20, fontWeight: 800, margin: '0 0 8px' }}>{ins.messageSuccesTitre}</h2>
+            <p style={{ color: '#6b7280', fontSize: 14, margin: '0 0 22px' }}>{ins.messageSuccesTexte}</p>
+            <button onClick={() => naviguer('login')} style={styleBtn}>→ Se connecter</button>
+          </div>
+        ) : (
+          <div style={carteAuth}>
+            <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" maxLength={100} value={honeypot} onChange={e => setHoneypot(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
+            {champInsc('prenom', ins.libelles.prenom, 'text', '', true)}
+            {champInsc('nom', ins.libelles.nom, 'text', '', true)}
+            {champInsc('email', ins.libelles.email, 'email', 'votre@courriel.com', true)}
+            {ins.telephone.mode !== 'cache' && champInsc('telephone', 'Téléphone', 'tel', '', ins.telephone.mode === 'obligatoire')}
+            {ins.adresse.mode !== 'cache' && <>
+              {champInsc('adresse', 'Adresse', 'text', 'Numéro et rue', ins.adresse.mode === 'obligatoire')}
+              {champInsc('ville', 'Ville', 'text', '', ins.adresse.mode === 'obligatoire')}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                {champInsc('code_postal', 'Code postal', 'text', 'H2X 1Y4', ins.adresse.mode === 'obligatoire')}
+                <div style={{ marginBottom: 18 }}>
+                  <label style={styleLabel}>Province{ins.adresse.mode === 'obligatoire' ? ' *' : ''}</label>
+                  <select value={inscVal.province || 'QC'} onChange={e => setInscVal(f => ({ ...f, province: e.target.value }))} style={styleInput}>{PROVINCES.map(pv => <option key={pv.code} value={pv.code}>{pv.nom}</option>)}</select>
+                </div>
+              </div>
+            </>}
+            {champInsc('mdp', ins.libelles.mot_de_passe, 'password', 'Minimum 8 caractères', true)}
+            {champInsc('mdp2', ins.libelles.confirmation, 'password', '', true)}
+            {inscVal.mdp2 && inscVal.mdp !== inscVal.mdp2 && <div style={{ fontSize: 12, color: '#ef4444', margin: '-10px 0 14px' }}>⚠️ Les mots de passe ne correspondent pas.</div>}
+            {ins.champs.map((c: ChampInsc) => c.type === 'checkbox'
+              ? caseInsc('c_' + c.id, c.label, !!c.requis)
+              : champInsc('c_' + c.id, c.label, c.type, c.placeholder || '', !!c.requis, c.options))}
+            {ins.infolettre.affiche && caseInsc('infolettre', ins.infolettre.texte, false)}
+            {ins.age.affiche && caseInsc('age', String(ins.age.texte).replace('{age}', String(ins.age.minimum)), true)}
+            {ins.termes.affiche && caseInsc('termes', /^https?:\/\//i.test(ins.termes.url || '')
+              ? <a href={urlSure(ins.termes.url) || undefined} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: cp, textDecoration: 'underline' }}>{ins.termes.texte}</a>
+              : ins.termes.texte, true)}
+            {inscErreur && <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 2, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>⚠️ {inscErreur}</div>}
+            <button onClick={handleInscription} disabled={inscStatut === 'loading'} style={styleBtn}>{inscStatut === 'loading' ? '⏳ Création en cours…' : ins.boutonTexte}</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
   const PageLogin = () => (
-    <div style={{ minHeight:'70vh',display:'flex',alignItems:'center',justifyContent:'center',padding:'40px 24px' }}>
-      <div style={{ width:'100%',maxWidth:420 }}>
-        <div style={{ textAlign:'center',marginBottom:36 }}><div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:10 }}>✦ ESPACE CLIENT</div><h1 style={{ fontSize:28,fontWeight:900,color:NOIR,margin:0,fontFamily:'Georgia,serif' }}>Connexion</h1><p style={{ color:GRIS,marginTop:8,fontSize:13 }}>Accédez à vos commandes et favoris</p></div>
-        <div style={{ background:'#fff',border:`1px solid ${BORD}`,padding:32 }}>
-          <div style={{ marginBottom:18 }}><label style={{ fontSize:11,fontWeight:600,color:GRIS,textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6 }}>Courriel</label><input type="email" value={loginForm.email} onChange={e=>setLoginForm(f=>({...f,email:e.target.value}))} style={styleInput} placeholder="votre@courriel.com"/></div>
-          <div style={{ marginBottom:24 }}><label style={{ fontSize:11,fontWeight:600,color:GRIS,textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6 }}>Mot de passe</label><input type="password" value={loginForm.mdp} onChange={e=>setLoginForm(f=>({...f,mdp:e.target.value}))} style={styleInput} placeholder="••••••••" onKeyDown={e=>e.key==='Enter'&&handleLogin()}/></div>
-          {loginErreur&&<div style={{ background:'#fef2f2',border:'1px solid #fecaca',padding:'10px 14px',marginBottom:16,fontSize:13,color:'#ef4444' }}>❌ {loginErreur}</div>}
-          <button onClick={handleLogin} disabled={loginStatut==='loading'} style={{ ...styleBtn,width:'100%',textAlign:'center',padding:'16px',fontSize:13 }}>{loginStatut==='loading'?'⏳ CONNEXION...':'SE CONNECTER →'}</button>
-          <div style={{ textAlign:'center',marginTop:16 }}><span style={{ fontSize:12,color:GRIS }}>Pas encore de compte ? </span><button style={{ background:'none',border:'none',color:cp,fontSize:12,cursor:'pointer',fontWeight:700,textDecoration:'underline' }}>Créer un compte</button></div>
+    <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+      <div style={{ width: '100%', maxWidth: 440 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <h1 style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Connexion</h1>
+          <p style={{ color: '#6b7280', marginTop: 10, fontSize: 14 }}>Accédez à votre panier, vos commandes et votre compte</p>
+        </div>
+        <div style={carteAuth}>
+          <div style={{ marginBottom: 18 }}><label style={styleLabel}>Courriel</label><input type="email" value={loginForm.email} onChange={e => setLoginForm(f => ({ ...f, email: limiterSaisie(e.target.value, 254) }))} maxLength={254} placeholder="votre@courriel.com" style={styleInput} /></div>
+          <div style={{ marginBottom: 24 }}><label style={styleLabel}>Mot de passe</label><input type="password" value={loginForm.mdp} onChange={e => setLoginForm(f => ({ ...f, mdp: limiterSaisie(e.target.value, 200) }))} maxLength={200} placeholder="••••••••" style={styleInput} onKeyDown={e => e.key === 'Enter' && handleLogin()} /></div>
+          {loginErreur && <div role="alert" style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 2, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#b91c1c' }}>❌ {loginErreur}</div>}
+          <button onClick={handleLogin} disabled={loginStatut === 'loading'} style={styleBtn}>{loginStatut === 'loading' ? '⏳ Connexion…' : 'Se connecter →'}</button>
+          <div style={{ textAlign: 'center', marginTop: 18 }}><span style={{ fontSize: 13, color: '#6b7280' }}>Pas encore de compte ? </span><button onClick={() => { setInscStatut('idle'); setInscErreur(''); naviguer('inscription'); }} style={{ background: 'none', border: 'none', color: cp, fontSize: 13, cursor: 'pointer', fontWeight: 700 }}>Créer un compte</button></div>
         </div>
       </div>
     </div>
   );
 
-  const PageCompte = () => {
-    const [section, setSection] = useState('dashboard');
-    if(!acheteur){ naviguer('login'); return null; }
-    const initiale=(acheteur.prenom?.[0]||acheteur.email[0]).toUpperCase();
-    return (
-      <div style={{ maxWidth:1100,margin:'0 auto',padding:'40px 24px' }}>
-        <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'240px 1fr',gap:24,alignItems:'flex-start' }}>
-          <div style={{ background:'#fff',border:`1px solid ${BORD}`,padding:20 }}>
-            <div style={{ textAlign:'center',marginBottom:20,paddingBottom:20,borderBottom:`1px solid ${BORD}` }}>
-              <div style={{ width:56,height:56,background:cp,margin:'0 auto 10px',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,fontWeight:900,color:'#fff' }}>{initiale}</div>
-              <div style={{ fontSize:14,fontWeight:700,color:NOIR }}>{acheteur.prenom} {acheteur.nom}</div>
-              <div style={{ fontSize:11,color:GRIS,marginTop:3 }}>{acheteur.email}</div>
-            </div>
-            {[['dashboard','Tableau de bord','📊'],['commandes','Mes commandes','📦'],['wishlist','Ma wishlist','❤️'],['profil','Mon profil','👤']].map(([id,label,ico])=>(
-              <button key={id} onClick={()=>setSection(id)} style={{ display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:section===id?IVOIRE2:'none',border:'none',color:section===id?cp:GRIS,fontSize:13,fontWeight:section===id?700:400,cursor:'pointer',marginBottom:3,textAlign:'left',borderLeft:section===id?`2px solid ${cp}`:'2px solid transparent' }}><span>{ico}</span>{label}</button>
+  const PageBlog = () => (
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '40px 24px' }}>
+      <Banniere cfg={cfg.blog.banniere} />
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.blog.titre}</h1>
+      {cfg.blog.sousTitre && <p style={{ fontSize: 16, color: cs, marginBottom: 36 }}>{cfg.blog.sousTitre}</p>}
+      {articles.length === 0 && !blogCharge
+        ? <div style={{ textAlign: 'center', padding: '80px 0', color: '#aaa' }}>…</div>
+        : articles.length === 0
+        ? <div style={{ textAlign: 'center', padding: '80px 0', color: '#aaa' }}>
+            <div style={{ fontSize: 56, marginBottom: 16 }}>📝</div>
+            <h2 style={{ fontSize: 20, color: '#555', marginBottom: 8 }}>Aucun article pour l'instant</h2>
+            <p>Revenez bientôt !</p>
+          </div>
+        : <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill,minmax(${cfg.blog.colonnes === 2 ? '340px' : '280px'},1fr))`, gap: 24 }}>
+            {articles.map(a => (
+              <div key={a.id} onClick={() => voirArticle(a)}
+                style={{ background: '#fff', borderRadius: 2, border: '1px solid #e2ddd8', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 8px 24px ${cp}15`; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-3px)'; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = 'none'; (e.currentTarget as HTMLDivElement).style.transform = 'none'; }}>
+                {a.photo && <img src={a.photo} alt="" style={{ width: '100%', height: 200, objectFit: 'cover' }} />}
+                <div style={{ padding: 20 }}>
+                  {a.categorie && <span style={{ fontSize: 11, fontWeight: 700, color: cp, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{a.categorie}</span>}
+                  <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1a1a1a', margin: '8px 0 10px', lineHeight: 1.3 }}>{a.titre}</h2>
+                  {a.resume && <p style={{ fontSize: 14, color: '#666', lineHeight: 1.6, marginBottom: 14 }}>{a.resume}</p>}
+                  <div style={{ display: 'flex', gap: 12, fontSize: 12, color: '#aaa' }}>
+                    {cfg.blog.afficherAuteur && a.auteur && <span>✍️ {a.auteur}</span>}
+                    {cfg.blog.afficherDate   && a.date_publication && <span>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA')}</span>}
+                  </div>
+                </div>
+              </div>
             ))}
-            <div style={{ borderTop:`1px solid ${BORD}`,marginTop:12,paddingTop:12 }}><button onClick={handleLogout} style={{ display:'flex',alignItems:'center',gap:10,width:'100%',padding:'10px 12px',background:'none',border:'none',color:'#ef4444',fontSize:13,fontWeight:600,cursor:'pointer' }}>🚪 Se déconnecter</button></div>
           </div>
-          <div style={{ background:'#fff',border:`1px solid ${BORD}`,padding:28 }}>
-            {section==='dashboard'&&<><div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ TABLEAU DE BORD</div><h2 style={{ fontSize:22,fontWeight:800,color:NOIR,marginBottom:20,fontFamily:'Georgia,serif' }}>Bonjour, {acheteur.prenom} 👋</h2><div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(130px,1fr))',gap:12 }}>{[['📦','0','Commandes'],['❤️',`${wishlist.length}`,'Wishlist'],['⭐','0','Avis']].map(([ico,nb,label])=><div key={label as string} style={{ background:IVOIRE2,border:`1px solid ${BORD}`,padding:'16px',textAlign:'center' }}><div style={{ fontSize:24,marginBottom:6 }}>{ico}</div><div style={{ fontSize:20,fontWeight:800,color:cp,marginBottom:3 }}>{nb}</div><div style={{ fontSize:11,color:GRIS,textTransform:'uppercase',letterSpacing:'0.06em' }}>{label}</div></div>)}</div></>}
-            {section==='commandes'&&<><div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ MES COMMANDES</div><h2 style={{ fontSize:22,fontWeight:800,color:NOIR,marginBottom:20,fontFamily:'Georgia,serif' }}>Historique</h2><div style={{ textAlign:'center',padding:'40px 0',color:GRIS }}><div style={{ fontSize:40,marginBottom:12 }}>📦</div><p>Aucune commande.</p><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'12px 24px',marginTop:16,fontSize:12 }}>COMMENCER VOS ACHATS</button></div></>}
-            {section==='wishlist'&&<><div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ MA WISHLIST</div><h2 style={{ fontSize:22,fontWeight:800,color:NOIR,marginBottom:20,fontFamily:'Georgia,serif' }}>Mes coups de cœur</h2>{wishlist.length===0?<p style={{ color:GRIS }}>Wishlist vide.</p>:<div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(150px,1fr))',gap:12 }}>{produits.filter(p=>wishlist.includes(p.id)).map(p=><CarteProduitMode key={p.id} produit={p} cp={cp} onClick={()=>voirProduit(p)} onWishlist={()=>toggleWishlist(p.id)} inWishlist={true}/>)}</div>}</>}
-            {section==='profil'&&<><div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ MON PROFIL</div><h2 style={{ fontSize:22,fontWeight:800,color:NOIR,marginBottom:20,fontFamily:'Georgia,serif' }}>Mes informations</h2><div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:14,maxWidth:500 }}>{[['Prénom',acheteur.prenom],['Nom',acheteur.nom],['Courriel',acheteur.email],['Téléphone',acheteur.telephone||'—']].map(([label,val])=><div key={label as string}><label style={{ fontSize:11,fontWeight:600,color:GRIS,textTransform:'uppercase',letterSpacing:'0.06em',display:'block',marginBottom:5 }}>{label}</label><div style={{ padding:'10px 12px',background:IVOIRE2,border:`1px solid ${BORD}`,fontSize:13,color:NOIR2 }}>{val}</div></div>)}</div></>}
-          </div>
+      }
+      {blogPage < blogPages && <div style={{ textAlign: 'center', marginTop: 36 }}><button onClick={() => chargerArticles(blogPage + 1)} style={{ background: 'none', border: `2px solid ${cp}`, color: cp, borderRadius: 2, padding: '12px 32px', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Voir plus d'articles</button></div>}
+    </div>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE ARTICLE BLOG
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageArticle = () => {
+    if (!articleActif) return null;
+    const a = articleActif;
+    return (
+      <div style={{ maxWidth: 780, margin: '0 auto', padding: '40px 24px' }}>
+        <button onClick={() => setPage('blog')} style={{ background: 'none', border: 'none', color: cp, fontSize: 14, fontWeight: 600, cursor: 'pointer', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 6 }}>
+          ← Retour au blogue
+        </button>
+        {a.photo && <img src={a.photo} alt="" style={{ width: '100%', height: 360, objectFit: 'cover', borderRadius: 2, marginBottom: 32 }} />}
+        {a.categorie && <span style={{ fontSize: 12, fontWeight: 700, color: cp, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{a.categorie}</span>}
+        <h1 style={{ fontSize: 'clamp(24px,4vw,40px)', fontWeight: 800, color: '#1a1a1a', margin: '12px 0 16px', lineHeight: 1.2 }}>{a.titre}</h1>
+        <div style={{ display: 'flex', gap: 16, fontSize: 13, color: '#888', marginBottom: 32 }}>
+          {cfg.blog.afficherAuteur && a.auteur && <span>✍️ {a.auteur}</span>}
+          {cfg.blog.afficherDate && a.date_publication && <span>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA', { year: 'numeric', month: 'long', day: 'numeric' })}</span>}
         </div>
+        {a.resume && <p style={{ fontSize: 18, color: '#555', lineHeight: 1.8, marginBottom: 32, fontStyle: 'italic', borderLeft: `4px solid ${cp}`, paddingLeft: 20 }}>{a.resume}</p>}
+        <style>{`.sp-article{font-size:16px;line-height:1.9;color:#333;overflow-wrap:anywhere}.sp-article h2{font-size:24px;font-weight:800;color:#1a1a1a;margin:1.8em 0 .6em;line-height:1.25}.sp-article h3{font-size:19px;font-weight:700;color:${cp};margin:1.5em 0 .5em}.sp-article h4{font-size:16px;font-weight:700;color:#1a1a1a;margin:1.3em 0 .4em}.sp-article p{margin:0 0 1.1em}.sp-article a{color:${cp};text-decoration:underline}.sp-article img{max-width:100%;height:auto;border-radius:12px;margin:14px 0}.sp-article blockquote{border-left:3px solid ${cp};margin:1.4em 0;padding:.4em 1.2em;background:#f8fafc;border-radius:0 8px 8px 0;font-style:italic}.sp-article ul,.sp-article ol{padding-left:1.5em;margin:0 0 1.1em}.sp-article ul{list-style:disc}.sp-article ol{list-style:decimal}.sp-article li{margin-bottom:.4em}.sp-article hr{border:none;border-top:1px solid #e2ddd8;margin:2em 0}.sp-article table{width:100%;border-collapse:collapse;margin:1.4em 0;font-size:14px;display:block;overflow-x:auto}.sp-article th{color:${cp};text-align:left;padding:10px 12px;border-bottom:2px solid #e2ddd8}.sp-article td{padding:9px 12px;border-bottom:1px solid #e2ddd8}.sp-article pre,.sp-article code{background:#f3f4f6;border-radius:6px;padding:2px 6px;font-size:.9em}.sp-article pre{padding:14px;overflow-x:auto}`}</style>
+        {a.contenu !== undefined
+          ? <div className="sp-article" dangerouslySetInnerHTML={{ __html: a.contenu || '<p>Contenu à venir…</p>' }} />
+          : articleErreur
+            ? <p style={{ fontSize: 15, color: '#666', lineHeight: 1.9 }}>Cet article est introuvable ou n'est plus disponible.</p>
+            : <p style={{ fontSize: 15, color: '#999' }}>Chargement…</p>}
+        {(a.tags || []).length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 36 }}>{(a.tags || []).map(t => <span key={t} style={{ fontSize: 12, color: '#666', border: '1px solid #e2ddd8', borderRadius: 20, padding: '4px 12px' }}>#{t}</span>)}</div>}
       </div>
     );
   };
 
-  const PageBlog = () => (
-    <div style={{ maxWidth:1300,margin:'0 auto',padding:'40px 24px' }}>
-      <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ TENDANCES</div>
-      <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,marginBottom:40,fontFamily:'Georgia,serif' }}>Notre univers mode</h1>
-      {articles.length===0 ? <div style={{ textAlign:'center',padding:'80px 0',color:GRIS }}><div style={{ marginBottom:16 }}><SilhouetteMode taille={80} couleur={GRIS}/></div><h3 style={{ color:GRIS,fontFamily:'Georgia,serif' }}>Aucun article pour l'instant</h3></div>
-      : <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'repeat(3,1fr)',gap:24 }}>
-          {articles.map(a=>(
-            <div key={a.id} style={{ background:'#fff',border:`1px solid ${BORD}`,overflow:'hidden',cursor:'pointer',transition:'border-color 0.2s' }}
-              onMouseEnter={e=>(e.currentTarget as HTMLDivElement).style.borderColor=cp}
-              onMouseLeave={e=>(e.currentTarget as HTMLDivElement).style.borderColor=BORD}>
-              <div style={{ height:240,background:IVOIRE2,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center' }}>
-                {a.photo?<img src={a.photo} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>:<SilhouetteMode taille={90} couleur={cp}/>}
-              </div>
-              <div style={{ padding:'20px 22px' }}>
-                {a.categorie&&<span style={{ fontSize:10,color:cp,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.1em' }}>{a.categorie}</span>}
-                <h2 style={{ fontSize:17,fontWeight:700,color:NOIR,margin:'6px 0 10px',lineHeight:1.3,fontFamily:'Georgia,serif' }}>{a.titre}</h2>
-                {a.resume&&<p style={{ fontSize:13,color:GRIS,lineHeight:1.6,marginBottom:14 }}>{a.resume}</p>}
-                <div style={{ fontSize:11,color:GRIS }}>{a.auteur&&<span>✍️ {a.auteur}</span>}{a.date_publication&&<span style={{ marginLeft:10 }}>📅 {new Date(a.date_publication).toLocaleDateString('fr-CA')}</span>}</div>
-              </div>
-            </div>
-          ))}
-        </div>}
-    </div>
-  );
-
-  const PageFaq = () => {
-    const faq = cfg.faq?.items||[{ question:'Quels sont vos délais de livraison ?',reponse:'Les commandes sont expédiées sous 24–48h. Livraison standard 2-5 jours ouvrables.' },{ question:'Comment utiliser le guide des tailles ?',reponse:'Notre guide des tailles est disponible sur chaque fiche produit. Mesurez votre buste, taille et hanches et comparez avec notre tableau.' },{ question:'Les retours sont-ils gratuits ?',reponse:'Oui ! Retours gratuits sous 30 jours pour les articles non portés avec étiquettes.' },{ question:'Quels modes de paiement ?',reponse:'Visa, Mastercard, American Express et Apple Pay via Stripe.' }];
-    return (
-      <div style={{ maxWidth:780,margin:'0 auto',padding:'40px 24px' }}>
-        <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ FAQ</div>
-        <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,marginBottom:48,fontFamily:'Georgia,serif' }}>Questions fréquentes</h1>
-        {faq.map((item:any,i:number)=>(
-          <div key={i} style={{ borderBottom:`1px solid ${BORD}` }}>
-            <button onClick={()=>setFaqOuvert(faqOuvert===i?null:i)} style={{ width:'100%',background:'none',border:'none',padding:'20px 0',display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer',gap:16,textAlign:'left' }}>
-              <span style={{ fontSize:15,fontWeight:600,color:NOIR,lineHeight:1.4 }}>{item.question}</span>
-              <span style={{ fontSize:20,color:cp,flexShrink:0,transition:'transform 0.2s',transform:faqOuvert===i?'rotate(45deg)':'none',fontWeight:300 }}>+</span>
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE FAQ
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageFaq = () => (
+    <div style={{ maxWidth: 780, margin: '0 auto', padding: '40px 24px' }}>
+      <Banniere cfg={cfg.faq.banniere} />
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.faq.titre}</h1>
+      {cfg.faq.sousTitre && <p style={{ fontSize: 16, color: cs, marginBottom: 40 }}>{cfg.faq.sousTitre}</p>}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+        {cfg.faq.items.map((item, i) => (
+          <div key={i} style={{ borderBottom: '1px solid #e2ddd8' }}>
+            <button onClick={() => setFaqOuvert(faqOuvert === i ? null : i)}
+              style={{ width: '100%', background: 'none', border: 'none', padding: '20px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer', gap: 16, textAlign: 'left' }}>
+              <span style={{ fontSize: 16, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.4 }}>{item.question}</span>
+              <span style={{ fontSize: 20, color: cp, flexShrink: 0, transition: 'transform 0.2s', transform: faqOuvert === i ? 'rotate(45deg)' : 'none' }}>+</span>
             </button>
-            {faqOuvert===i&&<div style={{ paddingBottom:20,fontSize:14,color:GRIS,lineHeight:1.8 }}>{item.reponse}</div>}
+            {faqOuvert === i && (
+              <div style={{ paddingBottom: 20, fontSize: 15, color: '#555', lineHeight: 1.7 }}>{item.reponse}</div>
+            )}
           </div>
         ))}
       </div>
-    );
-  };
-
-  const PageContact = () => (
-    <div style={{ maxWidth:1100,margin:'0 auto',padding:'40px 24px' }}>
-      <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ CONTACT</div>
-      <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,marginBottom:48,fontFamily:'Georgia,serif' }}>Nous contacter</h1>
-      <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 1fr',gap:48 }}>
-        <div>
-          <h2 style={{ fontSize:18,fontWeight:700,color:NOIR,marginBottom:20,fontFamily:'Georgia,serif' }}>Coordonnées</h2>
-          {[['📍','Adresse',cfg.contact?.adresse||'123 rue de la Mode, Montréal QC'],['📞','Téléphone',cfg.contact?.telephone||'514 000-0000'],['✉️','Courriel',cfg.contact?.courriel||'info@maboutique.ca'],['⏰','Heures','Lun-Ven 10h-18h · Sam 11h-17h']].map(([ico,label,val])=>(
-            <div key={label as string} style={{ display:'flex',gap:14,marginBottom:18,alignItems:'flex-start' }}>
-              <div style={{ width:38,height:38,background:IVOIRE2,border:`1px solid ${BORD}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:16,flexShrink:0 }}>{ico}</div>
-              <div><div style={{ fontSize:11,fontWeight:700,color:GRIS,marginBottom:2,textTransform:'uppercase',letterSpacing:'0.08em' }}>{label}</div><div style={{ fontSize:13,color:NOIR2 }}>{val}</div></div>
-            </div>
-          ))}
-        </div>
-        <div>
-          {contactStatut==='ok' ? <div style={{ background:'#f0fdf4',border:'1px solid #bbf7d0',padding:40,textAlign:'center' }}><div style={{ fontSize:40,marginBottom:12 }}>✅</div><h3 style={{ color:'#16a34a',marginBottom:8,fontFamily:'Georgia,serif' }}>Message envoyé !</h3><p style={{ color:GRIS }}>Nous vous répondrons sous 24h.</p></div>
-          : <div style={{ display:'flex',flexDirection:'column',gap:14 }}>
-              <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:12 }}>
-                <div><label style={{ fontSize:11,fontWeight:600,color:GRIS,textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6 }}>Nom</label><input value={contactForm.nom} onChange={e=>setContactForm(f=>({...f,nom:e.target.value}))} style={styleInput} placeholder="Votre nom"/></div>
-                <div><label style={{ fontSize:11,fontWeight:600,color:GRIS,textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6 }}>Courriel</label><input type="email" value={contactForm.courriel} onChange={e=>setContactForm(f=>({...f,courriel:e.target.value}))} style={styleInput} placeholder="votre@email.com"/></div>
-              </div>
-              <div><label style={{ fontSize:11,fontWeight:600,color:GRIS,textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6 }}>Sujet</label><input value={contactForm.sujet} onChange={e=>setContactForm(f=>({...f,sujet:e.target.value}))} style={styleInput} placeholder="Sujet de votre message"/></div>
-              <div><label style={{ fontSize:11,fontWeight:600,color:GRIS,textTransform:'uppercase',letterSpacing:'0.08em',display:'block',marginBottom:6 }}>Message</label><textarea value={contactForm.message} onChange={e=>setContactForm(f=>({...f,message:e.target.value}))} rows={5} style={{ ...styleInput,resize:'vertical',fontFamily:'inherit' }} placeholder="Votre message..."/></div>
-              {contactStatut==='err'&&<p style={{ color:'#ef4444',fontSize:12 }}>❌ Erreur. Veuillez réessayer.</p>}
-              <button onClick={envoyerContact} disabled={contactStatut==='loading'||!contactForm.nom||!contactForm.courriel||!contactForm.message} style={{ ...styleBtn,padding:'16px',fontSize:13,letterSpacing:'0.1em',opacity:(!contactForm.nom||!contactForm.courriel||!contactForm.message)?0.5:1,cursor:(!contactForm.nom||!contactForm.courriel||!contactForm.message)?'not-allowed':'pointer' }}>{contactStatut==='loading'?'⏳ ENVOI...':'ENVOYER →'}</button>
-            </div>}
-        </div>
-      </div>
     </div>
   );
 
-  const PagePanier = () => (
-    <div style={{ maxWidth:1100,margin:'0 auto',padding:'40px 24px' }}>
-      <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:8 }}>✦ PANIER</div>
-      <h1 style={{ fontSize:isMobile?28:40,fontWeight:900,color:NOIR,marginBottom:40,fontFamily:'Georgia,serif' }}>{nbPanier} article{nbPanier>1?'s':''}</h1>
-      {panier.length===0 ? <div style={{ textAlign:'center',padding:'80px 0' }}><div style={{ marginBottom:20 }}><SilhouetteMode taille={100} couleur={GRIS}/></div><h2 style={{ color:GRIS,fontWeight:600,marginBottom:12,fontFamily:'Georgia,serif' }}>Votre panier est vide</h2><button onClick={()=>naviguer('catalogue')} style={{ ...styleBtn,padding:'14px 32px' }}>DÉCOUVRIR LA COLLECTION →</button></div>
-      : <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'1fr 360px',gap:32,alignItems:'flex-start' }}>
-          <div>
-            {cfg.afficherBarreLivraison&&<div style={{ background:IVOIRE2,padding:'12px 16px',marginBottom:20,borderLeft:`3px solid ${cp}`,fontSize:13 }}>{totalPanier>=cfg.seuilLivraisonGratuite?<span style={{ color:cp,fontWeight:700 }}>🎉 Livraison gratuite incluse !</span>:<span>Ajoutez <strong style={{ color:cp }}>{px(cfg.seuilLivraisonGratuite-totalPanier)}</strong> pour la livraison gratuite</span>}</div>}
-            {panier.map((item,i)=>(
-              <div key={i} style={{ display:'flex',gap:18,padding:'20px 0',borderBottom:`1px solid ${BORD}`,alignItems:'center' }}>
-                <div style={{ width:90,height:115,background:IVOIRE2,flexShrink:0,overflow:'hidden' }}>{item.produit.photo_principale?<img src={item.produit.photo_principale} alt="" style={{ width:'100%',height:'100%',objectFit:'cover' }}/>:<div style={{ width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center' }}><SilhouetteMode taille={60} couleur={cp}/></div>}</div>
-                <div style={{ flex:1,minWidth:0 }}>
-                  <p style={{ margin:'0 0 4px',fontSize:15,fontWeight:700,color:NOIR,fontFamily:'Georgia,serif' }}>{item.produit.titre}</p>
-                  {item.variantes&&Object.keys(item.variantes).length>0&&<p style={{ margin:'0 0 6px',fontSize:12,color:GRIS }}>{Object.entries(item.variantes).map(([k,v])=>`${k}: ${v}`).join(' · ')}</p>}
-                  <p style={{ margin:0,fontSize:15,fontWeight:700,color:cp }}>{px((item.produit.prix_promo||item.produit.prix)*item.qte)}</p>
-                </div>
-                <div style={{ display:'flex',alignItems:'center',gap:0,border:`1px solid ${BORD}` }}>
-                  <button onClick={()=>setPanier(p=>p.map((it,j)=>j===i?{...it,qte:Math.max(1,it.qte-1)}:it))} style={{ width:36,height:36,border:'none',background:'#fff',cursor:'pointer',fontSize:16,borderRight:`1px solid ${BORD}`,fontWeight:700 }}>−</button>
-                  <span style={{ width:40,textAlign:'center',fontSize:14,fontWeight:700,color:NOIR }}>{item.qte}</span>
-                  <button onClick={()=>setPanier(p=>p.map((it,j)=>j===i?{...it,qte:it.qte+1}:it))} style={{ width:36,height:36,border:'none',background:'#fff',cursor:'pointer',fontSize:16,borderLeft:`1px solid ${BORD}`,fontWeight:700 }}>+</button>
-                </div>
-                <button onClick={()=>setPanier(p=>p.filter((_,j)=>j!==i))} style={{ width:36,height:36,border:'none',background:'#fef2f2',color:'#ef4444',cursor:'pointer',fontSize:14,marginLeft:8 }}>✕</button>
-              </div>
-            ))}
-            <button onClick={()=>naviguer('catalogue')} style={{ marginTop:16,padding:'10px 20px',background:'none',border:`1px solid ${BORD}`,color:GRIS,fontSize:12,cursor:'pointer',letterSpacing:'0.06em' }}>← CONTINUER LES ACHATS</button>
-          </div>
-          <div style={{ background:'#fff',border:`1px solid ${BORD}`,padding:24 }}>
-            <h3 style={{ fontSize:15,fontWeight:800,color:NOIR,marginBottom:20,textTransform:'uppercase',letterSpacing:'0.08em' }}>Résumé</h3>
-            <div style={{ display:'flex',gap:8,marginBottom:14 }}>
-              <input value={codePromo} onChange={e=>setCodePromo(e.target.value)} placeholder="Code promo" style={{ ...styleInput,flex:1 }}/>
-              <button onClick={async()=>{ try{ const r=await fetch(`${API_BASE}/reductions/verifier`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:codePromo,vendeur_id:vendeurId,total:totalPanier})}); if(r.ok){const d=await r.json();setCodePromoApplique(d);} }catch{} }} style={{ ...styleBtn,padding:'11px 16px',fontSize:11 }}>OK</button>
-            </div>
-            {codePromoApplique&&<div style={{ background:'#f0fdf4',border:'1px solid #bbf7d0',padding:'8px 12px',marginBottom:12,fontSize:12,color:'#16a34a',display:'flex',justifyContent:'space-between' }}><span>✅ Code appliqué</span><button onClick={()=>{setCodePromoApplique(null);setCodePromo('');}} style={{ background:'none',border:'none',color:'#16a34a',cursor:'pointer',fontSize:11 }}>Retirer</button></div>}
-            <div style={{ borderTop:`1px solid ${BORD}`,paddingTop:14,marginBottom:20 }}>
-              <div style={{ display:'flex',justifyContent:'space-between',marginBottom:8,fontSize:13,color:GRIS }}><span>Sous-total</span><span style={{ color:NOIR2 }}>{px(totalPanier)}</span></div>
-              {codePromoApplique&&<div style={{ display:'flex',justifyContent:'space-between',marginBottom:8,fontSize:13,color:'#16a34a' }}><span>Réduction</span><span>−{px(totalPanier-totalApres)}</span></div>}
-              <div style={{ display:'flex',justifyContent:'space-between',marginBottom:8,fontSize:13,color:GRIS }}><span>Livraison</span><span style={{ color:totalPanier>=cfg.seuilLivraisonGratuite?'#16a34a':NOIR2 }}>{totalPanier>=cfg.seuilLivraisonGratuite?'GRATUITE':'Calculée au checkout'}</span></div>
-              <div style={{ display:'flex',justifyContent:'space-between',paddingTop:12,borderTop:`1px solid ${BORD}`,fontSize:18,fontWeight:900 }}><span style={{ color:NOIR }}>TOTAL</span><span style={{ color:cp }}>{px(totalApres)}</span></div>
-            </div>
-            <button style={{ ...styleBtn,width:'100%',textAlign:'center',padding:'16px',fontSize:13 }}>PASSER À LA CAISSE →</button>
-            <p style={{ textAlign:'center',fontSize:11,color:GRIS,marginTop:10 }}>🔒 Paiement 100% sécurisé</p>
-          </div>
-        </div>}
-    </div>
-  );
-
-  const Footer = () => {
-    const f = cfg.footer;
-    const reseaux = Object.entries(f.reseaux).filter(([,v])=>v);
-    const icos:Record<string,string>={ facebook:'f',instagram:'📸',tiktok:'♪',twitter:'𝕏',youtube:'▶',pinterest:'P' };
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE À PROPOS (Config Mes pages → À propos ; vide : exemples affichés seulement en démo)
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageAPropos = () => {
+    const ap: any = rawMode.aPropos || {};
+    const demo = !!configBrut?.__produits_demo__;
+    const liste = (cle: string, ex: any[], ok: (x: any) => boolean) => { const l = (Array.isArray(ap[cle]) ? ap[cle] : []).filter((x: any) => x && typeof x === 'object' && ok(x)); return l.length > 0 ? l : (demo ? ex : []); };
+    const valeurs = liste('valeurs', APROPOS_DEMO.valeurs, x => !!(x.titre || x.desc));
+    const chiffres = liste('chiffres', APROPOS_DEMO.chiffres, x => !!(x.nb || x.label));
+    const equipe = liste('equipe', APROPOS_DEMO.equipe, x => !!(x.prenom || x.poste));
+    const t = (cle: string, defaut: string) => (typeof ap[cle] === 'string' && ap[cle].trim()) ? ap[cle].trim() : defaut;
+    const accroche = t('accroche', demo ? APROPOS_DEMO.accroche : '');
+    const description = t('description', demo ? APROPOS_DEMO.description : '');
+    const lbl: React.CSSProperties = { fontSize: 12, color: cp, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 8 };
+    const coulEq = [cp, '#6366f1', '#10b981'];
     return (
-      <footer style={{ background:f.couleurFond,borderTop:`1px solid rgba(255,255,255,0.08)`,paddingTop:56 }}>
-        <div style={{ maxWidth:1300,margin:'0 auto',padding:'0 24px' }}>
-          <div style={{ display:'grid',gridTemplateColumns:isMobile?'1fr':'1.5fr 1fr 1fr 1fr',gap:40,marginBottom:48 }}>
-            <div>
-              <div style={{ fontSize:22,fontWeight:900,color:'#fff',marginBottom:8,fontFamily:'Georgia,serif',letterSpacing:'-0.01em' }}>{f.nomBoutique}</div>
-              <div style={{ width:32,height:2,background:cp,marginBottom:14 }}/>
-              {f.slogan&&<p style={{ fontSize:13,color:'rgba(255,255,255,0.45)',lineHeight:1.6,marginBottom:20 }}>{f.slogan}</p>}
-              {reseaux.length>0&&<div style={{ display:'flex',gap:8 }}>{reseaux.map(([k,url])=><a key={k} href={url as string} target="_blank" rel="noopener noreferrer" style={{ width:34,height:34,background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.1)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,color:'#fff',textDecoration:'none',fontWeight:700,transition:'all 0.2s' }}>{icos[k]||k[0].toUpperCase()}</a>)}</div>}
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
+        <div style={lbl}>{t('sousTitre', 'Notre histoire')}</div>
+        <h1 style={{ fontSize: isMobile ? 28 : 36, fontWeight: 800, color: '#1a1a1a', margin: '0 0 32px' }}>{t('titre', 'À propos de nous')}</h1>
+        {(accroche || description) && (
+          <div style={{ background: `${cp}0d`, border: `1px solid ${cp}25`, borderRadius: 2, padding: isMobile ? '28px 20px' : '44px 52px', marginBottom: 48 }}>
+            <div style={{ maxWidth: 680 }}>
+              {accroche && <p style={{ fontSize: isMobile ? 18 : 22, fontWeight: 700, color: '#1a1a1a', lineHeight: 1.5, margin: '0 0 16px' }}>{accroche}</p>}
+              {description && <p style={{ fontSize: 15, color: '#555', lineHeight: 1.8, margin: 0, whiteSpace: 'pre-line' }}>{description}</p>}
             </div>
-            {['1','2','3'].map(n=>f.colonnes[`titre${n}`]?(
-              <div key={n}>
-                <div style={{ fontSize:10,fontWeight:700,color:'rgba(255,255,255,0.5)',textTransform:'uppercase',letterSpacing:'0.18em',marginBottom:16 }}>{f.colonnes[`titre${n}`]}</div>
-                {f.colonnes[`liens${n}`].split('\n').filter(Boolean).map((l:string,i:number)=>(
-                  <div key={i} style={{ marginBottom:9 }}><button onClick={()=>naviguer(l.toLowerCase())} style={{ background:'none',border:'none',color:'rgba(255,255,255,0.5)',fontSize:13,cursor:'pointer',padding:0,textAlign:'left',transition:'color 0.2s' }} onMouseEnter={e=>(e.currentTarget as HTMLButtonElement).style.color=cp} onMouseLeave={e=>(e.currentTarget as HTMLButtonElement).style.color='rgba(255,255,255,0.5)'}>{l}</button></div>
-                ))}
-              </div>
-            ):null)}
           </div>
-          <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)',padding:'18px 0',display:'flex',justifyContent:'space-between',alignItems:'center',flexWrap:'wrap',gap:10 }}>
-            <div style={{ fontSize:12,color:'rgba(255,255,255,0.2)' }}>© {new Date().getFullYear()} {f.nomBoutique}. Tous droits réservés.</div>
-            {f.afficherPropulse&&<a href="https://e-vend.ca" target="_blank" rel="noopener noreferrer" style={{ fontSize:10,color:'rgba(255,255,255,0.15)',textDecoration:'none' }}>Propulsé par e-Vend Studio</a>}
+        )}
+        {ap.afficherValeurs !== false && valeurs.length > 0 && (
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div style={lbl}>{t('valeursSurtitre', 'Nos valeurs')}</div>
+              <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{t('valeursTitre', 'Ce qui nous définit')}</h2>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 20 }}>
+              {valeurs.map((v: any, i: number) => (
+                <div key={i} style={{ background: '#fff', border: '1px solid #e2ddd8', borderRadius: 2, padding: '24px 22px' }}>
+                  {v.ico && <div style={{ width: 48, height: 48, borderRadius: 2, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, marginBottom: 14 }}>{v.ico}</div>}
+                  <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', margin: '0 0 8px' }}>{v.titre}</h3>
+                  <p style={{ fontSize: 14, color: '#666', lineHeight: 1.7, margin: 0 }}>{v.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </footer>
+        )}
+        {ap.afficherChiffres !== false && chiffres.length > 0 && (
+          <div style={{ background: '#f9fafb', border: '1px solid #e2ddd8', borderRadius: 2, padding: '36px 20px', marginBottom: 48 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : `repeat(${Math.min(chiffres.length, 4)},1fr)`, gap: 24, textAlign: 'center' }}>
+              {chiffres.map((x: any, i: number) => (
+                <div key={i}><div style={{ fontSize: isMobile ? 28 : 36, fontWeight: 800, color: cp, marginBottom: 4 }}>{x.nb}</div><div style={{ fontSize: 13, color: '#666' }}>{x.label}</div></div>
+              ))}
+            </div>
+          </div>
+        )}
+        {ap.afficherEquipe !== false && equipe.length > 0 && (
+          <div style={{ marginBottom: 48 }}>
+            <div style={{ textAlign: 'center', marginBottom: 28 }}>
+              <div style={lbl}>{t('equipeSurtitre', "L'équipe")}</div>
+              <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>{t('equipeTitre', 'Les visages derrière la boutique')}</h2>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3,1fr)', gap: 20 }}>
+              {equipe.map((m: any, i: number) => { const col = coulEq[i % 3]; const photo = /^https?:\/\//i.test(m.photo || '') ? m.photo : ''; return (
+                <div key={i} style={{ background: '#fff', border: '1px solid #e2ddd8', borderRadius: 2, padding: '24px 20px', textAlign: 'center' }}>
+                  {photo
+                    ? <img src={photo} alt={m.prenom || ''} style={{ width: 72, height: 72, borderRadius: '50%', objectFit: 'cover', margin: '0 auto 14px', display: 'block' }} />
+                    : <div style={{ width: 72, height: 72, borderRadius: '50%', background: col, margin: '0 auto 14px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 28, fontWeight: 800, color: '#fff' }}>{(m.prenom || '?').charAt(0).toUpperCase()}</div>}
+                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1a1a1a', marginBottom: 4 }}>{m.prenom}</div>
+                  <div style={{ fontSize: 13, color: col, fontWeight: 600 }}>{m.poste}</div>
+                </div>
+              ); })}
+            </div>
+          </div>
+        )}
+        {ap.afficherCta !== false && (
+          <div style={{ textAlign: 'center', padding: '44px 24px', background: `${cp}0d`, border: `1px solid ${cp}25`, borderRadius: 2 }}>
+            <div style={lbl}>{t('ctaSurtitre', 'Rejoignez-nous')}</div>
+            <h2 style={{ fontSize: isMobile ? 22 : 28, fontWeight: 800, color: '#1a1a1a', margin: '0 0 10px' }}>{t('ctaTitre', 'Prêt à découvrir notre sélection ?')}</h2>
+            <p style={{ fontSize: 15, color: '#555', margin: '0 auto 24px', maxWidth: 460 }}>{t('ctaTexte', 'Découvrez nos produits dès maintenant.')}</p>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button onClick={() => naviguer('catalogue')} style={{ background: cp, color: '#fff', border: 'none', borderRadius: 2, padding: '13px 28px', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>{t('ctaBoutonCatalogue', 'Voir notre catalogue →')}</button>
+              <button onClick={() => naviguer('contact')} style={{ background: '#fff', color: '#1a1a1a', border: '1px solid #d1d5db', borderRadius: 2, padding: '13px 24px', fontSize: 15, cursor: 'pointer' }}>{t('ctaBoutonContact', 'Nous contacter')}</button>
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
 
-  const PopupPromo = () => !popupPromo ? null : (
-    <>
-      <div onClick={()=>setPopupPromo(false)} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:1000,backdropFilter:'blur(4px)' }}/>
-      <div style={{ position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',zIndex:1001,background:'#fff',width:'90%',maxWidth:440,overflow:'hidden',boxShadow:'0 24px 60px rgba(0,0,0,0.2)' }}>
-        <div style={{ background:IVOIRE2,padding:'36px 32px',textAlign:'center',borderBottom:`2px solid ${cp}` }}>
-          <div style={{ fontSize:10,color:cp,fontWeight:700,letterSpacing:'0.2em',textTransform:'uppercase',marginBottom:12 }}>OFFRE EXCLUSIVE</div>
-          <h2 style={{ fontSize:24,fontWeight:900,color:NOIR,margin:'0 0 10px',lineHeight:1.2,fontFamily:'Georgia,serif' }}>{cfg.popupPromoTexte}</h2>
-          <div style={{ display:'inline-block',background:'#fff',border:`2px solid ${cp}`,padding:'12px 28px',margin:'16px 0 20px' }}><span style={{ fontSize:24,fontWeight:900,color:cp,letterSpacing:'0.15em' }}>{cfg.popupPromoCode}</span></div>
-          <div style={{ display:'flex',gap:10 }}>
-            <button onClick={()=>{naviguer('catalogue');setPopupPromo(false);}} style={{ flex:1,...styleBtn,padding:'14px',fontSize:13 }}>PROFITER DE L'OFFRE →</button>
-            <button onClick={()=>setPopupPromo(false)} style={{ padding:'14px 16px',background:'none',border:`1px solid ${BORD}`,color:GRIS,cursor:'pointer',fontSize:12,flexShrink:0 }}>Plus tard</button>
+  // ══════════════════════════════════════════════════════════════════════════
+  // PAGE CONTACT
+  // ══════════════════════════════════════════════════════════════════════════
+  const PageContact = () => (
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px' }}>
+      <Banniere cfg={cfg.contact.banniere} />
+      <h1 style={{ fontSize: 32, fontWeight: 800, color: '#1a1a1a', marginBottom: 8 }}>{cfg.contact.titre}</h1>
+      {cfg.contact.sousTitre && <p style={{ fontSize: 16, color: cs, marginBottom: 40 }}>{cfg.contact.sousTitre}</p>}
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 48 }}>
+        {/* Coordonnées */}
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a', marginBottom: 24 }}>Nos coordonnées</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {cfg.contact.adresse && (
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 2, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📍</div>
+                <div><div style={{ fontSize: 13, fontWeight: 700, color: '#888', marginBottom: 2 }}>Adresse</div><div style={{ fontSize: 15, color: '#1a1a1a' }}>{cfg.contact.adresse}</div></div>
+              </div>
+            )}
+            {cfg.contact.telephone && (
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 2, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>📞</div>
+                <div><div style={{ fontSize: 13, fontWeight: 700, color: '#888', marginBottom: 2 }}>Téléphone</div><a href={`tel:${cfg.contact.telephone}`} style={{ fontSize: 15, color: cp, textDecoration: 'none', fontWeight: 600 }}>{cfg.contact.telephone}</a></div>
+              </div>
+            )}
+            {cfg.contact.courriel && (
+              <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 2, background: `${cp}12`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>✉️</div>
+                <div><div style={{ fontSize: 13, fontWeight: 700, color: '#888', marginBottom: 2 }}>Courriel</div><a href={`mailto:${cfg.contact.courriel}`} style={{ fontSize: 15, color: cp, textDecoration: 'none', fontWeight: 600 }}>{cfg.contact.courriel}</a></div>
+              </div>
+            )}
           </div>
+          {cfg.contact.afficherCarte && urlSure(cfg.contact.urlCarte) && (
+            <div style={{ marginTop: 28, borderRadius: 2, overflow: 'hidden', height: 260 }}>
+              <iframe src={urlSure(cfg.contact.urlCarte)} width="100%" height="100%" style={{ border: 0 }} loading="lazy" title="Carte" />
+            </div>
+          )}
+        </div>
+
+        {/* Formulaire */}
+        <div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1a1a1a', marginBottom: 24 }}>Envoyer un message</h2>
+          {contactEnvoi === 'ok'
+            ? <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 2, padding: 28, textAlign: 'center' }}>
+                <div style={{ fontSize: 40, marginBottom: 12 }}>✅</div>
+                <h3 style={{ color: '#16a34a', margin: '0 0 8px' }}>Message envoyé !</h3>
+                <p style={{ color: '#555', margin: 0 }}>Nous vous répondrons dans les meilleurs délais.</p>
+              </div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre nom</label>
+                  <input value={contactForm.nom} onChange={e => setContactForm(f => ({ ...f, nom: limiterSaisie(e.target.value, 100) }))} maxLength={100} placeholder="Jean Tremblay" style={styleInput} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre courriel</label>
+                  <input type="email" value={contactForm.courriel} onChange={e => setContactForm(f => ({ ...f, courriel: limiterSaisie(e.target.value, 254) }))} maxLength={254} placeholder="jean@exemple.ca" style={styleInput} />
+                </div>
+                <div>
+                  <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', display: 'block', marginBottom: 6 }}>Votre message</label>
+                  <textarea value={contactForm.message} onChange={e => setContactForm(f => ({ ...f, message: limiterSaisie(e.target.value, 5000) }))} maxLength={5000} rows={5} placeholder="Décrivez votre question..." style={{ ...styleInput, resize: 'vertical', fontFamily: 'inherit' }} />
+                </div>
+                <div style={{ position: 'absolute', left: -9999, top: -9999, opacity: 0, pointerEvents: 'none' }} aria-hidden="true"><input type="text" name="website" maxLength={100} value={contactPiege} onChange={e => setContactPiege(e.target.value)} tabIndex={-1} autoComplete="off" /></div>
+                {contactEnvoi === 'err' && <p style={{ color: '#ef4444', fontSize: 14, margin: 0 }}>❌ {contactErr || 'Erreur — vérifiez les champs et réessayez.'}</p>}
+                <button onClick={envoyerContact} disabled={contactEnvoi === 'loading' || !contactForm.nom || !contactForm.courriel || !contactForm.message}
+                  style={{ ...styleBtn, opacity: (!contactForm.nom || !contactForm.courriel || !contactForm.message) ? 0.5 : 1 }}>
+                  {contactEnvoi === 'loading' ? '⏳ Envoi...' : 'Envoyer le message →'}
+                </button>
+              </div>
+          }
         </div>
       </div>
-    </>
+    </div>
   );
 
-  // ══ RENDU PRINCIPAL ═══════════════════════════════════════════════════════
+  // ══════════════════════════════════════════════════════════════════════════
+  // RENDU PRINCIPAL
+  // ══════════════════════════════════════════════════════════════════════════
+  // Espace acheteur : plein écran (panier, caisse, commandes) ; il a son propre menu et son bouton « Retour à la boutique »
+  // Liens légaux du pied de page : seulement les politiques rédigées et affichées (en démonstration : toutes)
+  const polFooter: any = { ...CFG_DEF.footer.politiques, ...(cfg.footer.politiques || {}) };
+  const polVisible = (slug: string) => !!configBrut?.__produits_demo__ || (politiquesRedigees ? politiquesRedigees[slug] === true : false);
+  const liensPol: string[][] = [['retour-remboursement','Retour & remboursement',polFooter.afficherRetours],['confidentialite','Confidentialité',polFooter.afficherConfidentialite],['conditions-service','Conditions de service',polFooter.afficherConditions],['expedition','Expédition',polFooter.afficherLivraison],['coordonnees','Coordonnées',polFooter.afficherCoordonnees],['mentions-legales','Mentions légales',polFooter.afficherMentions]].filter(([slug, , actif]) => (actif as any) !== false && polVisible(slug as string)).map(([slug, label]) => [slug as string, label as string]);
+
+  if (page === 'compte') return <AppAcheteurBoutique key={vueCompte} vendeurId={vendeurId} pageInitiale={vueCompte} config={{ couleur_accent: cp, nom_boutique: cfg.footer.nomBoutique, gestionnaire_id: vendeurId }} naviguerTemplate={(d: any) => { setVueCompte('dashboard'); if (d && d.page === 'produit') { const pr = produits.find(x => Number(x.id) === Number(d.produitId)); if (pr) { voirProduit(pr); return; } } naviguer(d && d.page ? d.page : 'accueil'); }} />;
+
   return (
-    <div style={{ fontFamily:"'Inter',-apple-system,sans-serif",background:cfg.couleurFond||IVOIRE,color:cfg.couleurTexte||NOIR,minHeight:'100vh',display:'flex',flexDirection:'column' }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Georgia&display=swap');*{box-sizing:border-box;margin:0;padding:0;}button{font-family:inherit;}::-webkit-scrollbar{width:4px;}::-webkit-scrollbar-track{background:${IVOIRE2};}::-webkit-scrollbar-thumb{background:${BORD};border-radius:2px;}`}</style>
+    <div className="mo-root" style={{ fontFamily: "'Inter', -apple-system, sans-serif", background: cfg.accueil.couleurFondPage, color: cfg.accueil.couleurTexte, minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=${police.google}&display=swap'); * { box-sizing: border-box; margin: 0; padding: 0; } button { font-family: inherit; } .mo-root h1, .mo-root h2, .mo-root h3 { font-family: ${police.css} !important; font-weight: 600 !important; } .mo-root nav button { letter-spacing: 0.04em; } @keyframes mo-defile { from { transform: translateX(0); } to { transform: translateX(-50%); } } @media (prefers-reduced-motion: reduce) { .mo-defile { animation: none !important; } }`}</style>
 
-      {guideOuvert&&<GuideDesTailles onFermer={()=>setGuideOuvert(false)} cp={cp}/>}
-      <Nav/>
-      <TiroirPanier/>
-      <NotifVente/>
-      <PopupPromo/>
+      {vendeurId > 0 && !configBrut?.__produits_demo__ && <BoutiqueVerificateurAge gid={vendeurId} />}
+      <Nav />
+      {vendeurId > 0 && <BoutiqueSouhaitsAcces clair gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} ouvrir={ouvrirSouhaits} variante="flottant" />}
+      {vendeurId > 0 && <BoutiqueFavorisToast gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} />}
+      {avisPanier && <div role="status" style={{ position: 'fixed', top: 76, left: '50%', transform: 'translateX(-50%)', zIndex: 300, background: '#fff', border: `1px solid ${cp}`, color: '#1a1a1a', padding: '12px 20px', borderRadius: 2, fontSize: 13, fontWeight: 600, boxShadow: '0 8px 30px rgba(0,0,0,0.18)', maxWidth: '92vw' }}>{avisPanier}</div>}
 
-      <main style={{ flex:1 }}>
-        {page==='accueil'   && <PageAccueil/>}
-        {page==='catalogue' && <PageCatalogue/>}
-        {page==='produit'   && <PageProduit/>}
-        {page==='blog'      && <PageBlog/>}
-        {page==='faq'       && <PageFaq/>}
-        {page==='contact'   && <PageContact/>}
-        {page==='panier'    && <PagePanier/>}
-        {page==='wishlist'  && <PageWishlist/>}
-        {page==='login'     && <PageLogin/>}
-        {page==='compte'    && <PageCompte/>}
+      <main style={{ flex: 1 }}>
+        {page === 'accueil'   && <PageAccueil />}
+        {page === 'catalogue' && <PageCatalogue />}
+        {page === 'produit'   && PageProduit()}
+        {page === 'blog'      && <PageBlog />}
+        {page === 'politique' && <PagePolitique />}
+        {page === 'article'   && <PageArticle />}
+        {page === 'faq'       && <PageFaq />}
+        {page === 'a-propos'  && <PageAPropos />}
+        {page === 'contact'   && <PageContact />}
+        {page === 'offres'    && PageOffres()}
+        {page === 'encheres'  && PageEncheres()}
+        {page === 'login'     && PageLogin()}
+        {page === 'inscription' && PageInscription()}
       </main>
 
-      <Footer/>
+      {guideOuvert && guide.actif && <GuideTaillesModal guide={guide} cp={cp} onFermer={() => setGuideOuvert(false)} />}
+      {popupVisible && (popup.texte || popup.code) && (
+        <>
+          <div onClick={fermerPopup} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000 }} />
+          <div role="dialog" aria-modal="true" aria-label="Offre de bienvenue" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 1001, background: '#fff', width: '92%', maxWidth: 420, padding: '36px 28px', textAlign: 'center', borderRadius: 2 }}>
+            <button onClick={fermerPopup} aria-label="Fermer" style={{ position: 'absolute', top: 10, right: 14, background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#888' }}>✕</button>
+            {popup.texte && <p style={{ fontSize: 18, lineHeight: 1.5, color: '#0f0f0f', marginBottom: popup.code ? 18 : 0 }}>{popup.texte}</p>}
+            {popup.code && (
+              <button onClick={copierCode} style={{ background: '#f2ede6', border: `2px dashed ${cp}`, color: cp, fontSize: 18, fontWeight: 800, letterSpacing: '0.18em', padding: '12px 22px', cursor: 'pointer' }}>{codeCopie ? 'Copié ✓' : popup.code}</button>
+            )}
+          </div>
+        </>
+      )}
+      {cfg.accueil.afficherRemonter !== false && remonterVisible && (
+        <button onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })} aria-label="Remonter en haut de la page"
+          style={{ position: 'fixed', left: 16, bottom: 84, zIndex: 90, width: 44, height: 44, borderRadius: '50%', background: '#fff', color: '#0f0f0f', border: '1px solid #e2ddd8', boxShadow: '0 6px 20px rgba(0,0,0,0.15)', cursor: 'pointer', fontSize: 18 }}>↑</button>
+      )}
+      <Footer cfg={cfg.footer} onNaviguer={naviguer} liensPol={liensPol} extra={vendeurId > 0 && !configBrut?.__produits_demo__ ? (
+        <>
+          <BoutiqueInfolettre gestionnaireId={vendeurId} couleur={cp} theme={{ titre: cfg.footer.couleurTexte, doux: hexVersRgba(cfg.footer.couleurTexte, 0.65), bord: hexVersRgba(cfg.footer.couleurTexte, 0.14), champFond: hexVersRgba(cfg.footer.couleurTexte, 0.08), champBord: hexVersRgba(cfg.footer.couleurTexte, 0.25), champTexte: cfg.footer.couleurTexte, boutonTexte: '#fff' }} />
+          <BoutiqueBoutonInstallerApp couleur={cp} texte={cfg.footer.couleurTexte} texteDoux={hexVersRgba(cfg.footer.couleurTexte, 0.75)} />
+        </>
+      ) : undefined} />
     </div>
   );
 }

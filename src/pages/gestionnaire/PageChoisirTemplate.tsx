@@ -656,9 +656,9 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           templates: [
             {
               id: 'boutique-simplisse-mode', titre: 'Simplisse Mode',
-              desc: "Boutique mode & vêtements haut de gamme. Lookbook, filtres taille/couleur visuels, guide des tailles, zoom image, wishlist, popup promo, compte acheteur. Style éditorial ivoire & bordeaux.",
+              desc: "Boutique mode & vêtements au style éditorial ivoire & bordeaux. Lookbook, section Instagram, filtres taille/couleur tirés de vos variantes, guide des tailles que vous saisissez, bandeau défilant, popup promo, panier et paiement, compte acheteur. Compatible avec les add-ons (favoris, avis, infolettre, chatbot…).",
               icone: '👗', couleur: '#722f37', disponible: true, badge: 'Nouveau', badgeCouleur: '#722f37',
-              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Lookbook', 'Blog', 'FAQ', 'Contact', 'Panier', 'Wishlist', 'Compte'],
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Lookbook', 'Blog', 'FAQ', 'À propos', 'Contact', 'Panier', 'Compte'],
             },
             {
               id: 'boutique-simplisse-artisan', titre: 'Simplisse Artisan',

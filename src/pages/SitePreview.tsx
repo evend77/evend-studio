@@ -45,11 +45,11 @@ import TemplateFoodTruck              from '../templates/TemplateFoodTruck';
 import TemplateBoulangerie            from '../templates/TemplateBoulangerie';
 import TemplateCoachVie               from '../templates/TemplateCoachVie';
 import TemplateBoutiqueSimplisse      from '../templates/TemplateBoutiqueSimplisse';
-import TemplateBoutiqueSimplisseMode  from '../templates/TemplateBoutiqueSimplisseMode';
+import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/TemplateBoutiqueSimplisseMode';
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -60,7 +60,8 @@ const API_BASE = '/api';
 const estMonoProduit = (t: string) => t === 'boutique-simple';
 const estCompleteBoutique = (t: string) => t === 'boutique-complete';
 const estCatalogueBoutique = (t: string) => t === 'boutique-catalogue';
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t);
+const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estModeBoutique(t);
 const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t);
 
 interface SitePreviewProps {
@@ -110,6 +111,7 @@ const DEMO_PRODUITS_COMPLETE = [
 const DEMO_CONFIG_COMPLETE = { complete: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 // Catalogue Avancé : démonstration seulement (produits d'exemple jamais affichés sur une vraie boutique)
 const DEMO_PRODUITS_CATALOGUE = DEMO_PRODUITS_COMPLETE;
+const DEMO_CONFIG_MODE = { mode: { footer: { nomBoutique: 'Ma Boutique Mode', afficherPropulse: true } } };
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
@@ -259,7 +261,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -330,7 +332,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     }
     if (templateId.startsWith('boutique-simplisse-mode')) {
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_SIMPLISSE_MODE } : config;
-      return <TemplateBoutiqueSimplisseMode config={configDemo} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+      return <TemplateBoutiqueSimplisseMode config={isDemo ? configDemo : configModeAvecBadge(configDemo, addonsBoutique, migrerMode(configDemo && configDemo.mode))} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId.startsWith('boutique-simplisse')) {
       // En mode démo — injecter les produits hardcodés via config

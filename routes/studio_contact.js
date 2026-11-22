@@ -183,6 +183,7 @@ const TEMPLATE_BRANDING = {
   'boutique-simple':    { couleur: '#a855f7', fond: '#1a1030', nom: 'Boutique Mono-produit',  icone: '🎯' },
   'boutique-premium':   { couleur: '#c9a96e', fond: '#0a0805', nom: 'Boutique Premium',       icone: '💎' },
   'boutique-complete':  { couleur: '#16a34a', fond: '#0f1f14', nom: 'Boutique Complète',      icone: '🏪' },
+  'boutique-simplisse-mode': { couleur: '#722f37', fond: '#1a0b0e', nom: 'Simplisse Mode',      icone: '👗' },
   'boutique-catalogue': { couleur: '#3b82f6', fond: '#0b1220', nom: 'Catalogue Avancé',       icone: '🗂️' },
 };
 
