@@ -138,9 +138,9 @@ export const TEMPLATES: Template[] = [
     id: 'boutique-catalogue',
     nom: 'Catalogue Avancé',
     groupe: 'boutique-generique',
-    description: 'Grille de produits avec filtres avancés, pages produit individuelles. Bientôt disponible.',
-    fonctionnalites: ['Filtres avancés', 'Pages produit', 'Comparateur', 'Recherche'],
-    disponible: false, nouveau: false, couleur: '#0ea5e9',
+    description: "Boutique au thème sombre par défaut (clair au choix) avec menu à sous-menus et méga-menu configurables : vos catégories s'ouvrent au survol. Filtres avancés (prix, promo, stock, tri), tuiles de catégories, bande d'annonce défilante, panier et paiement, compte acheteur, blog, FAQ, à propos et contact.",
+    fonctionnalites: ['Thème sombre ou clair, bouton de bascule pour le visiteur', 'Menu configurable : liens, listes déroulantes et méga-menus avec carte promo', 'Filtres avancés : prix, promo, en stock, tri', 'Panier, paiement Stripe ou PayPal et compte acheteur', 'Logo, couleurs et police réglables', 'Compatible avec les add-ons (avis, favoris, infolettre, chatbot…)'],
+    disponible: true, nouveau: true, couleur: '#3b82f6',
   },
   // ── BOUTIQUE EN LIGNE — PAR INDUSTRIE ──
   {

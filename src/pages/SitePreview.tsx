@@ -18,6 +18,7 @@ import TemplateSpectacle              from '../templates/TemplateSpectacle';
 import TemplateCagnottePro            from '../templates/TemplateCagnottePro';
 import TemplateBoutiqueSimple         from '../templates/TemplateBoutiqueSimple';
 import TemplateBoutiqueComplete, { migrerComplete } from '../templates/TemplateBoutiqueComplete';
+import TemplateBoutiqueCatalogue from '../templates/TemplateBoutiqueCatalogue';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -48,7 +49,7 @@ import TemplateBoutiqueSimplisseMode  from '../templates/TemplateBoutiqueSimplis
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -58,8 +59,9 @@ const API_BASE = '/api';
 // Mono-produit (boutique-simple, comparé EXACTEMENT : « boutique-simplisse » commence par « boutique-simple ») : même moteur que Simplisse, donc même montage.
 const estMonoProduit = (t: string) => t === 'boutique-simple';
 const estCompleteBoutique = (t: string) => t === 'boutique-complete';
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t);
+const estCatalogueBoutique = (t: string) => t === 'boutique-catalogue';
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -106,6 +108,9 @@ const DEMO_PRODUITS_COMPLETE = [
   { id: 6, titre: 'Bouteille Inox 500ml', prix: 39.99, stock: 40, categorie: 'Maison', description: 'Bouteille isotherme 24h chaud / 48h froid.', photo_principale: '' },
 ];
 const DEMO_CONFIG_COMPLETE = { complete: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
+// Catalogue Avancé : démonstration seulement (produits d'exemple jamais affichés sur une vraie boutique)
+const DEMO_PRODUITS_CATALOGUE = DEMO_PRODUITS_COMPLETE;
+const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
 const DEMO_PRODUITS_MONO = [
@@ -254,7 +259,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : DEMO_CONFIG_GENERIQUE)
+    ? (templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -289,6 +294,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Boutique Complète : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_COMPLETE } : config;
       return <TemplateBoutiqueComplete config={isDemo ? configDemo : configCompleteAvecBadge(configDemo, addonsBoutique, migrerComplete(configDemo))} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-catalogue') {
+      // Catalogue Avancé : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_CATALOGUE } : config;
+      return <TemplateBoutiqueCatalogue config={isDemo ? configDemo : configCatalogueAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.avance) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (estMonoProduit(templateId)) {
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_MONO } : config;

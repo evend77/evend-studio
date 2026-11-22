@@ -386,17 +386,17 @@ function ModalReinitialisationTemplate({ gestionnaireId, onConfirme, onAnnuler }
 }
 
 // ─── Modal choix du palier — Boutique Complète (paliers lus dans Prix Template : rien d'inventé) ───
-function ModalPalierComplete({ paliers, onConfirmer, onAnnuler }: { paliers: { limite: number; prix: string; label: string }[]; onConfirmer: (limite: number) => void; onAnnuler: () => void }) {
+function ModalPalierComplete({ paliers, onConfirmer, onAnnuler, nom = 'Boutique Complète', icone = '🏪', couleur = '#16a34a' }: { paliers: { limite: number; prix: string; label: string }[]; onConfirmer: (limite: number) => void; onAnnuler: () => void; nom?: string; icone?: string; couleur?: string }) {
   const [choisi, setChoisi] = useState<number>(paliers[0]?.limite || 0);
   const [envoi, setEnvoi] = useState(false);
-  const VERT = '#16a34a';
+  const VERT = couleur;
   const actif = paliers.find(p => p.limite === choisi) || paliers[0];
   return (
     <div onClick={onAnnuler} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 24px 70px rgba(0,0,0,0.35)', fontFamily: "'Inter',sans-serif" }}>
         <div style={{ padding: '24px 28px', borderBottom: '1px solid #e5e7eb' }}>
-          <div style={{ fontSize: 26, marginBottom: 6 }}>🏪</div>
-          <h2 style={{ fontSize: 19, fontWeight: 800, color: '#1a1a1a', margin: '0 0 4px' }}>Choisir votre palier — Boutique Complète</h2>
+          <div style={{ fontSize: 26, marginBottom: 6 }}>{icone}</div>
+          <h2 style={{ fontSize: 19, fontWeight: 800, color: '#1a1a1a', margin: '0 0 4px' }}>Choisir votre palier — {nom}</h2>
           <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>Le palier fixe le nombre d'annonces actives. Changeable en tout temps dans « Mon plan & limites ».</p>
         </div>
         <div style={{ padding: '20px 28px' }}>
@@ -436,6 +436,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [infoPaliers, setInfoPaliers] = useState<Record<string, { prixMin: string; limiteMax: number }>>({});
   const [paliersComplete, setPaliersComplete] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de la Boutique Complète (Prix Template) ; vide = aucune limite, pas de fenêtre
   const [modalCompleteOuvert, setModalCompleteOuvert] = useState(false);
+  const [paliersCatalogue, setPaliersCatalogue] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers du Catalogue Avancé (Prix Template) ; vide = aucune limite, pas de fenêtre
+  const [modalCatalogueOuvert, setModalCatalogueOuvert] = useState(false);
 
   // Prix configurés dans le dashboard admin — si l'appel échoue, on retombe
   // simplement sur le prix codé en dur (ou "Gratuit") comme avant.
@@ -453,7 +455,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         }
         setPrixParTemplate(map);
         const info: Record<string, { prixMin: string; limiteMax: number }> = {};
-        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete']) {
+        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue']) {
           let pal: any = data.templates[id]?.prix_paliers;
           if (typeof pal === 'string') { try { pal = JSON.parse(pal); } catch { pal = null; } }
           if (!Array.isArray(pal) || pal.length === 0) continue;
@@ -462,6 +464,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           const min = ok.reduce((a: any, b: any) => (b.n < a.n ? b : a));
           info[id] = { prixMin: min.prix, limiteMax: Math.max(...ok.map((x: any) => x.limite)) };
           if (id === 'boutique-complete') setPaliersComplete(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
+          if (id === 'boutique-catalogue') setPaliersCatalogue(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
         }
         setInfoPaliers(info);
       })
@@ -480,6 +483,19 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     }
     setModalCompleteOuvert(false);
     onChoisir('boutique-complete');
+  };
+  // Catalogue Avancé : même principe (fenêtre de palier seulement si des paliers sont configurés dans Prix Template)
+  const handleChoisirCatalogue = () => { if (paliersCatalogue.length > 0) setModalCatalogueOuvert(true); else onChoisir('boutique-catalogue'); };
+  const handleConfirmerPalierCatalogue = async (limite: number) => {
+    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include', body: JSON.stringify({ plan: `catalogue-${limite}` }),
+      }).catch(() => {});
+    }
+    setModalCatalogueOuvert(false);
+    onChoisir('boutique-catalogue');
   };
   const handleChoisirSimplisse = () => setModalSimplisseOuvert(true);
   const [modalPremiumOuvert, setModalPremiumOuvert] = useState(false);
@@ -627,7 +643,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
               icone: '🏪', couleur: '#16a34a', disponible: true,
               pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'À propos', 'Contact', 'Panier', 'Compte'],
             },
-            { id: 'boutique-catalogue', titre: 'Catalogue Avancé',  desc: 'Grille produits avec filtres avancés et pages produit. Bientôt.',                icone: '🗂️', couleur: '#0ea5e9', disponible: false },
+            {
+              id: 'boutique-catalogue', titre: 'Catalogue Avancé',
+              desc: "Boutique au thème sombre (clair au choix) avec menu à sous-menus et méga-menu configurables : catégories en survol, filtres avancés (prix, promo, stock, tri), tuiles de catégories, bande d'annonce défilante. Panier, paiement Stripe ou PayPal, compte acheteur, blog, FAQ, à propos et contact. Logo, couleurs et police réglables.",
+              icone: '🗂️', couleur: '#3b82f6', disponible: true,
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Blog', 'FAQ', 'À propos', 'Contact', 'Panier', 'Compte'],
+            },
           ]
         },
         {
@@ -824,6 +845,14 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           paliers={paliersComplete}
           onConfirmer={handleConfirmerPalierComplete}
           onAnnuler={() => setModalCompleteOuvert(false)}
+        />
+      )}
+      {modalCatalogueOuvert && paliersCatalogue.length > 0 && (
+        <ModalPalierComplete
+          paliers={paliersCatalogue}
+          nom="Catalogue Avancé" icone="🗂️" couleur="#3b82f6"
+          onConfirmer={handleConfirmerPalierCatalogue}
+          onAnnuler={() => setModalCatalogueOuvert(false)}
         />
       )}
       {modalPremiumOuvert && (
@@ -1183,6 +1212,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                     const estSimplisseMode = t.id === 'boutique-simplisse-mode';
                     const estMonoProduit   = t.id === 'boutique-simple';
                     const estComplete      = t.id === 'boutique-complete';
+                    const estCatalogue     = t.id === 'boutique-catalogue';
                     return (
                       <div key={t.id} className="template-card"
                         onClick={() => {
@@ -1191,6 +1221,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estPremium) { handleChoisirPremium(); return; }
                           if (estSimplisseMode) { handleChoisirSimplisseMode(); return; }
                           if (estComplete) { handleChoisirComplete(); return; }
+                          if (estCatalogue) { handleChoisirCatalogue(); return; }
                           onChoisir(t.id);
                         }}
                         onMouseEnter={e => {
@@ -1261,6 +1292,15 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           </div>
                         )}
 
+                        {estCatalogue && (
+                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
+                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
+                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Thème sombre ou clair · menu avec sous-menus et méga-menu réglables', '✅ Filtres avancés : prix, promo, stock, tri', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Compte acheteur · historique des commandes · favoris', '✅ Logo, couleurs et police réglables · compatible avec les add-ons'].map((l, i) => <span key={i}>{l}<br /></span>)}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
                         {estMonoProduit && (
                           <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
                             <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
@@ -1301,6 +1341,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                                 if (estPremium) { handleChoisirPremium(); return; }
                                 if (estSimplisseMode) { handleChoisirSimplisseMode(); return; }
                                 if (estComplete) { handleChoisirComplete(); return; }
+                                if (estCatalogue) { handleChoisirCatalogue(); return; }
                                 onChoisir(t.id);
                               }}
                               style={{ padding: '9px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit', boxShadow: `0 8px 16px -8px ${estSimplisse ? COULEUR_MP : t.couleur}` }}>

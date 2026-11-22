@@ -32,3 +32,10 @@ export function configCompleteAvecBadge(config: any, addons: Record<string, bool
   const complete = (base && typeof base === 'object') ? base : {};
   return { ...config, complete: { ...complete, footer: { ...(complete.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Catalogue Avancé : le pied de page se lit dans config.avance.footer.afficherPropulse.
+// `base` = config.avance déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configCatalogueAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const avance = (base && typeof base === 'object') ? base : {};
+  return { ...config, avance: { ...avance, footer: { ...(avance.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

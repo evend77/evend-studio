@@ -459,8 +459,8 @@ router.put('/:id/plan', authenticateToken, async (req, res) => {
             return res.status(403).json({ success: false, message: 'Accès refusé' });
         }
         const plansValides = ['simplisse-25','simplisse-50','simplisse-100','simplisse-200','premium-25','premium-50','premium-100','premium-200','premium-500','simplisse-mode-100','mv-demarrage','mv-croissance','mv-affaires','mv-pro','mv-marche'];
-        // Boutique Complète : « complete-<limite> » (les paliers sont définis dans Prix Template, pas ici)
-        const planComplete = typeof plan === 'string' && /^complete-[0-9]{1,5}$/.test(plan);
+        // Boutique Complète / Catalogue Avancé : « complete-<limite> » / « catalogue-<limite> » (les paliers sont définis dans Prix Template, pas ici)
+        const planComplete = typeof plan === 'string' && /^(complete|catalogue)-[0-9]{1,5}$/.test(plan);
         if (!plansValides.includes(plan) && !planComplete) {
             return res.status(400).json({ success: false, message: 'Plan invalide' });
         }
