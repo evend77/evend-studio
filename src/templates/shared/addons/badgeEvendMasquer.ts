@@ -53,3 +53,10 @@ export function configFermeAvecBadge(config: any, addons: Record<string, boolean
   const ferme = (base && typeof base === 'object') ? base : {};
   return { ...config, ferme: { ...ferme, footer: { ...(ferme.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Artisan : le pied de page se lit dans config.artisan.footer.afficherPropulse.
+// `base` = config.artisan déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configArtisanAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const artisan = (base && typeof base === 'object') ? base : {};
+  return { ...config, artisan: { ...artisan, footer: { ...(artisan.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

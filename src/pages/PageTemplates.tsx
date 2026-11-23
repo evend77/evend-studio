@@ -17,7 +17,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-catalogue':    'https://images.pexels.com/photos/5709661/pexels-photo-5709661.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Boutique — Par industrie
   'boutique-simplisse-mode':      'https://images.pexels.com/photos/934070/pexels-photo-934070.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'boutique-simplisse-artisan':   'https://images.pexels.com/photos/4207892/pexels-photo-4207892.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-artisan':             'https://images.pexels.com/photos/33684107/pexels-photo-33684107.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-simplisse-aliments':  'https://images.pexels.com/photos/264636/pexels-photo-264636.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-simplisse-numerique': 'https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -153,12 +153,12 @@ export const TEMPLATES: Template[] = [
     disponible: true, nouveau: true, couleur: '#722f37',
   },
   {
-    id: 'boutique-simplisse-artisan',
+    id: 'boutique-artisan',
     nom: 'Simplisse Artisan',
     groupe: 'boutique-industrie',
-    description: 'Pour les artisans et créateurs. Mise en avant du savoir-faire, atelier, matériaux. Tons chauds & naturels. Bientôt.',
-    fonctionnalites: ['Mise en avant savoir-faire', 'Section atelier & matériaux', 'Tons chauds & naturels', 'Bientôt disponible'],
-    disponible: false, nouveau: false, couleur: '#b45309',
+    description: "Boutique d'artisans et de créateurs au style galerie d'art : thème clair, hero plein écran, collections en tuiles, galerie de photos, blocs de collection, panier et paiement Stripe ou PayPal, compte acheteur, blog, FAQ et contact. Sections masquables et réordonnables.",
+    fonctionnalites: ['Galerie de photos et blocs de collection', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur', 'Logo, couleurs et police réglables'],
+    disponible: true, nouveau: true, couleur: '#111111',
   },
   {
     id: 'boutique-simplisse-aliments',

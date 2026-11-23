@@ -151,9 +151,9 @@ const hexOk = (v: any, def: string) => (/^#[0-9a-f]{3,8}$/i.test(String(v == nul
 type Theme = { fond: string; s: string; s2: string; b: string; t: string; t2: string; d: string; err: string; errBg: string };
 const THEMES: Record<'sombre' | 'clair', Theme> = {
   sombre: { fond: '#070b14', s: '#0f1626', s2: '#161f33', b: 'rgba(255,255,255,0.12)', t: '#f5f7fb', t2: '#cbd5e1', d: '#94a3b8', err: '#fca5a5', errBg: 'rgba(239,68,68,0.14)' },
-  clair:  { fond: '#ffffff', s: '#ffffff', s2: '#f3f4f6', b: 'var(--ca-b)', t: '#1a1a1a', t2: '#444444', d: '#6b7280', err: 'var(--ca-err)', errBg: '#fef2f2' },
+  clair:  { fond: '#ffffff', s: '#ffffff', s2: '#f3f4f6', b: '#e5e7eb', t: '#1a1a1a', t2: '#444444', d: '#6b7280', err: '#dc2626', errBg: '#fef2f2' },
 };
-const THEME_CLAIR_PERSO: ThemePerso = { fond: '#f9fafb', texte: '#1a1a1a', doux: '#6b7280', bord: 'var(--ca-b)' };
+const THEME_CLAIR_PERSO: ThemePerso = { fond: '#f9fafb', texte: '#1a1a1a', doux: '#6b7280', bord: '#e5e7eb' };
 const THEME_SOMBRE_PERSO: ThemePerso = { fond: '#161f33', texte: '#f5f7fb', doux: '#94a3b8', bord: 'rgba(255,255,255,0.14)' };
 
 // ── Menu du haut configurable : liens simples, listes (sous-menu) et méga-menus (colonnes + carte promo) ──

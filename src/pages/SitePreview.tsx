@@ -20,6 +20,7 @@ import TemplateBoutiqueSimple         from '../templates/TemplateBoutiqueSimple'
 import TemplateBoutiqueComplete, { migrerComplete } from '../templates/TemplateBoutiqueComplete';
 import TemplateBoutiqueCatalogue from '../templates/TemplateBoutiqueCatalogue';
 import TemplateBoutiqueAgricole from '../templates/TemplateBoutiqueAgricole';
+import TemplateBoutiqueArtisan from '../templates/TemplateBoutiqueArtisan';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -50,7 +51,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -62,9 +63,10 @@ const estMonoProduit = (t: string) => t === 'boutique-simple';
 const estCompleteBoutique = (t: string) => t === 'boutique-complete';
 const estCatalogueBoutique = (t: string) => t === 'boutique-catalogue';
 const estAgricoleBoutique = (t: string) => t === 'boutique-agricole';
+const estArtisanBoutique = (t: string) => t === 'boutique-artisan';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -124,6 +126,34 @@ const DEMO_PRODUITS_AGRICOLE = [
   { id: 6, titre: 'Miel', prix: 12.0, stock: 20, categorie: 'Produits de la ferme', description: 'Exemple de produit de démonstration.', photo_principale:'', emoji:'🍯' },
 ];
 const DEMO_CONFIG_AGRICOLE = { ferme: { footer: { nomBoutique: 'Ma Ferme', afficherPropulse: true } } };
+// Simplisse Artisan : démonstration seulement — photos libres de droits (Pexels, usage commercial permis sans attribution), jamais affichées sur une vraie boutique
+const PX = (id: number, w = 800) => `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=${w}`;
+const DEMO_PRODUITS_ARTISAN = [
+  { id: 1,  titre: 'Toile abstraite — Éclats',        prix: 189, stock: 3,  categorie: 'Toiles',             description: 'Exemple de produit de démonstration.', photo_principale: PX(1418595) },
+  { id: 2,  titre: 'Toile texturée — Brume',          prix: 249, prix_promo: 199, stock: 1, categorie: 'Toiles', description: 'Exemple de produit de démonstration.', photo_principale: PX(10532816) },
+  { id: 3,  titre: 'Toile colorée — Mouvement',       prix: 159, stock: 5,  categorie: 'Toiles',             description: 'Exemple de produit de démonstration.', photo_principale: PX(1563016) },
+  { id: 4,  titre: 'Peinture expressive — Élan',      prix: 219, stock: 2,  categorie: 'Toiles',             description: 'Exemple de produit de démonstration.', photo_principale: PX(1848647) },
+  { id: 5,  titre: 'Encre fluide — Nuit dorée',       prix: 129, prix_promo: 99, stock: 4, categorie: 'Œuvres sur papier', description: 'Exemple de produit de démonstration.', photo_principale: PX(5506217) },
+  { id: 6,  titre: 'Fluide — Tons de sable',          prix: 139, stock: 6,  categorie: 'Œuvres sur papier', description: 'Exemple de produit de démonstration.', photo_principale: PX(32079990) },
+  { id: 7,  titre: 'Toile verticale — Vert et or',    prix: 179, stock: 2,  categorie: 'Œuvres sur papier', description: 'Exemple de produit de démonstration.', photo_principale: PX(15062251) },
+  { id: 8,  titre: "Céramiques d'atelier",            prix: 74,  stock: 8,  categorie: 'Céramique',          description: 'Exemple de produit de démonstration.', photo_principale: PX(8066048) },
+  { id: 9,  titre: 'Pot en argile',                   prix: 64,  prix_promo: 54, stock: 10, categorie: 'Céramique', description: 'Exemple de produit de démonstration.', photo_principale: PX(33912318) },
+  { id: 10, titre: 'Tasses en grès',                  prix: 48,  stock: 12, categorie: 'Céramique',          description: 'Exemple de produit de démonstration.', photo_principale: PX(9733314) },
+  { id: 11, titre: 'Étagère de céramiques',           prix: 89,  stock: 7,  categorie: 'Céramique',          description: 'Exemple de produit de démonstration.', photo_principale: PX(3094041) },
+];
+const DEMO_CONFIG_ARTISAN = { artisan: {
+  accueil: {
+    hero: { titre: 'Des œuvres uniques, faites à la main', sousTitre: "Découvrez les créations de l'atelier : pièces originales, séries limitées et objets d'artisan.", boutonLabel: 'Voir la boutique', boutonLien: '/catalogue', photo: PX(33684107, 1600), style: 'image-fond' },
+    galerie: { titre: 'Expressions abstraites', sousTitre: "Exemple de démonstration : remplacez ces photos par les vôtres (Config Mes pages → Accueil → Galerie).", photos: [PX(1418595), PX(1070527), PX(7222027), PX(9508911), PX(1970337), PX(1321935)] },
+    blocs: [
+      { titre: 'Toiles et œuvres murales', texte: "Exemple de démonstration : présentez une collection, son inspiration et ses techniques.", photo: PX(34688122), lien: '/catalogue', labelLien: 'Découvrir' },
+      { titre: "Céramiques d'atelier", texte: "Exemple de démonstration : parlez de vos matériaux et de votre façon de travailler.", photo: PX(5490165), lien: '/catalogue', labelLien: 'Voir la collection' },
+      { titre: 'Créations sur commande', texte: "Exemple de démonstration : expliquez si vous acceptez les demandes personnalisées.", photo: PX(3817498), lien: '/contact', labelLien: 'Nous écrire' },
+    ],
+    philosophie: { sousTitre: "Mot de l'artisan", titre: 'Chaque pièce raconte une histoire', photo: PX(3720778, 1600) },
+  },
+  footer: { nomBoutique: 'Mon Atelier', afficherPropulse: true, images: [PX(1070527, 500), PX(7222027, 500), PX(15062251, 500), PX(9508911, 500)] },
+} };
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
@@ -273,7 +303,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -313,6 +343,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Catalogue Avancé : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_CATALOGUE } : config;
       return <TemplateBoutiqueCatalogue config={isDemo ? configDemo : configCatalogueAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.avance) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-artisan') {
+      // Simplisse Artisan : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_ARTISAN } : config;
+      return <TemplateBoutiqueArtisan config={isDemo ? configDemo : configArtisanAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.artisan) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId === 'boutique-agricole') {
       // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
