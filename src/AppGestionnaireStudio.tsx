@@ -25,6 +25,7 @@ import ChatbotConfig from './pages/gestionnaire/ChatbotConfig';
 import ConfigurationPaiements from './pages/gestionnaire/ConfigurationPaiements';
 import MesAcheteurs                  from './pages/studio/MesAcheteurs';
 import StudioConfigPage404   from './pages/gestionnaire/StudioConfigPage404';
+import StudioConfigMaintenance from './pages/gestionnaire/StudioConfigMaintenance';
 import StudioMesPolitiques  from './pages/gestionnaire/StudioMesPolitiques';
 import StudioMesPages       from './pages/gestionnaire/StudioMesPages';
 import StudioSeoSite        from './pages/gestionnaire/StudioSeoSite';
@@ -770,6 +771,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
 
   // ── Item page 404 — commun à tous les menus CONFIGURATION ───────────────
   const itemPage404: SousMenuItem = { id: 'studio-page-404', label: 'Page 404', icon: '🔍' };
+  const itemMaintenance: SousMenuItem = { id: 'studio-maintenance', label: 'Page maintenance', icon: '🚧' };
   const itemPolitiques: SousMenuItem = { id: 'studio-mes-politiques', label: 'Mes politiques', icon: '📜' };
   // Templates boutique (solo) seulement : les articles du blog du site (jamais le MV ni les autres templates)
   const itemMesBlogs: SousMenuItem = { id: 'boutique-mes-blogs', label: 'Mes blogs', icon: '📝' };
@@ -1105,7 +1107,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemConfigMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
-          itemPage404,
+          itemPage404, itemMaintenance,
           itemPolitiques,
           itemPages,
           itemSeo,
@@ -1146,7 +1148,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemConfigMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
-          itemPage404,
+          itemPage404, itemMaintenance,
           itemPolitiques,
           itemPages,
           itemSeo,
@@ -1186,7 +1188,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemConfigMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
-          itemPage404,
+          itemPage404, itemMaintenance,
           itemPolitiques,
           itemPages,
           itemSeo,
@@ -1224,7 +1226,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemConfigMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
-          itemPage404,
+          itemPage404, itemMaintenance,
           itemPolitiques,
           itemPages,
           itemSeo,
@@ -1261,7 +1263,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemConfigMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
-          itemPage404,
+          itemPage404, itemMaintenance,
           itemPolitiques,
           itemPages,
           itemSeo,
@@ -1301,7 +1303,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           itemConfigMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
-          itemPage404,
+          itemPage404, itemMaintenance,
           itemPolitiques,
           itemPages,
           itemSeo,
@@ -1335,7 +1337,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
-        itemPage404,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        itemPage404, itemMaintenance,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
       ]},
@@ -1364,7 +1366,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
-        itemPage404,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        itemPage404, itemMaintenance,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
       ]},
@@ -1393,7 +1395,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
-        itemPage404,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        itemPage404, itemMaintenance,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
       ]},
@@ -1417,7 +1419,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         itemConfigGenerale,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-courriels-boutique',label:'Modèles de courriel',icon:'📧' },
-        itemPage404,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,
+        itemPage404, itemMaintenance,itemPolitiques,itemPages,itemSeo,itemCookies,itemPhotos,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
       ]},
@@ -1443,7 +1445,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
         { id:'config-taxes',label:'Taxes',icon:'🧾' },
         { id:'config-modeles-courriel',label:'Modèles de courriel',icon:'📧' },
-        itemPage404,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
+        itemPage404, itemMaintenance,itemPolitiques,itemMesBlogs,itemPages,itemSeo,itemCookies,itemPhotos,itemFormulaireContact,
         ...(options?.verificateur_age ? [itemVerificateurAge] : []),
         ...(options?.popup_annonce ? [itemPopupAnnonce] : [])
       ]},
@@ -1860,6 +1862,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'annonces-creer')         return <CreerAnnonce onRetour={() => setPageActive('annonces-liste')} gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-apercu') return null;
     if (pageActive === 'studio-page-404') return <StudioConfigPage404 gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'studio-maintenance') return <StudioConfigMaintenance gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-mes-politiques') return <StudioMesPolitiques gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-mes-pages')      return <StudioMesPages      gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'studio-seo-site')       return <StudioSeoSite       gestionnaireId={gestionnaire.id} />;

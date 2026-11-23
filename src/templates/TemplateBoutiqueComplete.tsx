@@ -530,7 +530,7 @@ export default function TemplateBoutiqueComplete({ config: configBrut, siteId, v
   const [produitActif, setProduitActif] = useState<ProduitCat | null>(null);
   const [articleActif, setArticleActif] = useState<ArticleBlog | null>(null);
   const [menuOuvert, setMenuOuvert]   = useState(false);
-  const [isMobile, setIsMobile]       = useState(false);
+  const [isMobile, setIsMobile]       = useState(() => typeof window !== 'undefined' && Math.min(window.innerWidth, (window.screen && window.screen.width) || window.innerWidth) < 768);   // largeur réelle de l'écran : un contenu trop large ne doit jamais faire croire à un grand écran
 
   // ── State données ─────────────────────────────────────────────────────────
   const [produits, setProduits]       = useState<ProduitCat[]>([]);
@@ -587,7 +587,7 @@ export default function TemplateBoutiqueComplete({ config: configBrut, siteId, v
 
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
+    const check = () => setIsMobile(Math.min(window.innerWidth, (window.screen && window.screen.width) || window.innerWidth) < 768);
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);

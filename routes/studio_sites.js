@@ -1,4 +1,4 @@
-// routes/studio_sites.js
+// CHEMIN : routes/studio_sites.js
 // e-Vend Studio — Routes pour la config des sites des gestionnaires
 // Utilisé par ConfigMesPagesSimplisse, ConfigMesPagesPremium, SitePreview, MonDomaine
 
@@ -6,6 +6,7 @@ const express = require('express');
 const router  = express.Router();
 const pool    = require('../db');
 const { authenticateToken, estProprietaireOuAdmin } = require('../middleware/auth');
+const { nettoyerTexte } = require('../utils/sanitize');
 const domainePerso = require('../services/studio_domaine_perso');   // VPS + Caddy (ancien hébergement Render retiré)
 
 // =====================================================================
@@ -60,14 +61,47 @@ function validerFormatDomainePerso(domaine) {
 
 // Mode maintenance : réglé soit dans Config générale (Avancé) du site, soit dans Config marketplace → Généralité (multi-vendeur),
 // soit imposé par l'admin (statut « en_maintenance »). Le message du gestionnaire passe en priorité.
+// Valide une couleur #RRGGBB (sinon valeur par défaut)
+function couleurSure(v, defaut) {
+  return (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim())) ? v.trim() : defaut;
+}
+// Accepte seulement une URL http(s) ou un chemin relatif /uploads... (jamais javascript:, data:, etc.)
+function urlImageSure(v) {
+  if (typeof v !== 'string') return '';
+  const u = v.trim().slice(0, 1000);
+  if (/^https?:\/\//i.test(u) || /^\/[^/\\]/.test(u)) return u;
+  return '';
+}
+// Page de maintenance personnalisée (assainie) — stockée dans config.generale.maintenance_page
+function pageMaintenanceSure(cfg, messageFallback) {
+  const p = (cfg && cfg.generale && cfg.generale.maintenance_page) || {};
+  return {
+    titre: nettoyerTexte(p.titre || '', 120),
+    message: nettoyerTexte(p.message || messageFallback || '', 1000),
+    image_url: urlImageSure(p.image_url),
+    couleur_fond: couleurSure(p.couleur_fond, '#0f172a'),
+    couleur_texte: couleurSure(p.couleur_texte, '#ffffff'),
+    couleur_accent: couleurSure(p.couleur_accent, '#f59e0b'),
+    barre: p.barre !== false,
+  };
+}
+
+// Mode maintenance : réglé soit dans « Page maintenance » (gestionnaire), soit dans Config marketplace → Généralité (multi-vendeur),
+// soit imposé par l'admin (statut « en_maintenance »). Le message du gestionnaire passe en priorité.
 function etatMaintenance(row) {
   const cfg = row.config || {};
   const gen = cfg.generale?.mode_maintenance === true;
   const mv = cfg.multivendeur?.mode_maintenance === true;
+  const imposee = row.gestionnaire_statut === 'en_maintenance';
   const message = gen
     ? (cfg.generale?.message_maintenance || null)
     : (mv ? (String(cfg.multivendeur?.message_maintenance || '').trim() || null) : null);
-  return { maintenance: gen || mv || row.gestionnaire_statut === 'en_maintenance', message };
+  return {
+    maintenance: gen || mv || imposee,
+    message,
+    imposee_admin: imposee,
+    page: pageMaintenanceSure(cfg, message),
+  };
 }
 
 // =====================================================================
@@ -160,6 +194,7 @@ router.get('/domaine-perso/public/:domaine', async (req, res) => {
       site_suspendu: result.rows[0].site_suspendu_email === true,
       maintenance: etatMaint.maintenance,
       message_maintenance: etatMaint.message,
+      page_maintenance: etatMaint.page,
     });
   } catch (err) {
     console.error('GET /studio/sites/domaine-perso/public/:domaine', err);
@@ -206,6 +241,7 @@ router.get('/sous-domaine/public/:slug', async (req, res) => {
       site_suspendu: result.rows[0].site_suspendu_email === true,
       maintenance: etatMaint.maintenance,
       message_maintenance: etatMaint.message,
+      page_maintenance: etatMaint.page,
     });
   } catch (err) {
     console.error('GET /studio/sites/sous-domaine/public/:slug', err);
@@ -223,7 +259,8 @@ router.get('/:gestionnaireId', async (req, res) => {
     const result = await pool.query(
       `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie,
               s.sous_domaine, s.domaine_perso, s.domaine_statut,
-              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description
+              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description,
+              g.statut AS gestionnaire_statut
        FROM sites s
        JOIN gestionnaires g ON g.id = s.gestionnaire_id
        WHERE s.gestionnaire_id = $1
@@ -235,7 +272,12 @@ router.get('/:gestionnaireId', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Site non trouvé.' });
     }
 
-    return res.json(result.rows[0]);
+    const etatMaint = etatMaintenance(result.rows[0]);
+    return res.json({
+      ...result.rows[0],
+      maintenance: etatMaint.maintenance,
+      maintenance_imposee_admin: etatMaint.imposee_admin,
+    });
   } catch (err) {
     console.error('GET /studio/sites/:gestionnaireId', err);
     return res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -430,6 +472,74 @@ router.put('/:gestionnaireId/config', authenticateToken, async (req, res) => {
 
   } catch (err) {
     console.error('PUT /studio/sites/:gestionnaireId/config', err);
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// =====================================================================
+// PUT /api/studio/sites/:gestionnaireId/maintenance
+// Active/désactive la maintenance du site et/ou enregistre la page de maintenance.
+// Fusion côté serveur dans config.generale (mode_maintenance, message_maintenance, maintenance_page).
+// Corps : { actif?: boolean, titre?, message?, image_url?, couleur_fond?, couleur_texte?, couleur_accent?, barre? }
+// =====================================================================
+router.put('/:gestionnaireId/maintenance', authenticateToken, async (req, res) => {
+  try {
+    const { gestionnaireId } = req.params;
+    if (!estProprietaireOuAdmin(req, gestionnaireId)) {
+      return res.status(403).json({ success: false, message: 'Accès refusé.' });
+    }
+    const b = req.body;
+    if (!b || typeof b !== 'object' || Array.isArray(b)) {
+      return res.status(400).json({ success: false, message: 'Données invalides.' });
+    }
+
+    const existing = await pool.query(
+      `SELECT s.config, g.statut AS gestionnaire_statut
+       FROM sites s JOIN gestionnaires g ON g.id = s.gestionnaire_id
+       WHERE s.gestionnaire_id = $1 LIMIT 1`,
+      [gestionnaireId]
+    );
+    if (!existing.rows.length) {
+      return res.status(404).json({ success: false, message: 'Site non trouvé.' });
+    }
+
+    const config = existing.rows[0].config || {};
+    const gen = { ...(config.generale || {}) };
+    const page = { ...(gen.maintenance_page || {}) };
+
+    if (typeof b.actif === 'boolean') gen.mode_maintenance = b.actif;
+
+    const aContenu = ['titre', 'message', 'image_url', 'couleur_fond', 'couleur_texte', 'couleur_accent', 'barre']
+      .some(k => k in b);
+    if (aContenu) {
+      if ('titre' in b)          page.titre = nettoyerTexte(b.titre || '', 120);
+      if ('message' in b)        page.message = nettoyerTexte(b.message || '', 1000);
+      if ('image_url' in b)      page.image_url = urlImageSure(b.image_url);
+      if ('couleur_fond' in b)   page.couleur_fond = couleurSure(b.couleur_fond, '#0f172a');
+      if ('couleur_texte' in b)  page.couleur_texte = couleurSure(b.couleur_texte, '#ffffff');
+      if ('couleur_accent' in b) page.couleur_accent = couleurSure(b.couleur_accent, '#f59e0b');
+      if ('barre' in b)          page.barre = b.barre !== false;
+      gen.maintenance_page = page;
+      // Garde l'ancien champ en phase (utilisé par la config générale et l'ancien affichage)
+      gen.message_maintenance = page.message || '';
+    }
+
+    const nouvelleConfig = { ...config, generale: gen };
+    await pool.query(
+      `UPDATE sites SET config = $1, updated_at = NOW() WHERE gestionnaire_id = $2`,
+      [JSON.stringify(nouvelleConfig), gestionnaireId]
+    );
+
+    const etat = etatMaintenance({ config: nouvelleConfig, gestionnaire_statut: existing.rows[0].gestionnaire_statut });
+    return res.json({
+      success: true,
+      maintenance: etat.maintenance,
+      maintenance_imposee_admin: etat.imposee_admin,
+      generale_actif: gen.mode_maintenance === true,
+      page: etat.page,
+    });
+  } catch (err) {
+    console.error('PUT /studio/sites/:gestionnaireId/maintenance', err);
     return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });

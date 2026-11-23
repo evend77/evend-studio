@@ -337,7 +337,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const enchActive=(x:Produit)=>enchereEtat[x.id]!==undefined?enchereEtat[x.id]:!!x.enchere;   // enchère en cours sur ce produit
   const venteDirecteBloquee=(x:Produit)=>enchActive(x)&&x.stock===0;   // un seul exemplaire et il est réservé à l'enchère
   const [articleActif,setArticleActif] = useState<ArticleBlog|null>(null);
-  const [isMobile,setIsMobile]     = useState(false);
+  const [isMobile, setIsMobile]     = useState(() => typeof window !== 'undefined' && Math.min(window.innerWidth, (window.screen && window.screen.width) || window.innerWidth) < 768);   // largeur réelle de l'écran : un contenu trop large ne doit jamais faire croire à un grand écran
   const [menuOuvert,setMenuOuvert] = useState(false);
   const [produits,setProduits]     = useState<Produit[]>([]);
   const [produitsDemo,setProduitsDemo] = useState(true); // vrai tant que seuls les exemples sont affichés
@@ -403,7 +403,7 @@ export default function TemplateBoutiquePremium({ config: configBrut, siteId, ve
   const debutInscription = useRef<number>(Date.now());
   const ins = fusionInsc(raw.inscription);
 
-  useEffect(()=>{ const c=()=>setIsMobile(window.innerWidth<768); c(); window.addEventListener('resize',c); return()=>window.removeEventListener('resize',c); },[]);
+  useEffect(()=>{ const c=()=>setIsMobile(Math.min(window.innerWidth, (window.screen && window.screen.width) || window.innerWidth) < 768); c(); window.addEventListener('resize',c); return()=>window.removeEventListener('resize',c); },[]);
   useEffect(()=>{
     fetch(`${API_BASE}/studio/politiques/${vendeurId}/public`).then(r=>r.ok?r.json():null).then(d=>{ if(!d||!Array.isArray(d.politiques)) return; const m:Record<string,boolean>={}; d.politiques.forEach((p:any)=>{ m[p.slug]=typeof p.contenu==='string'&&p.contenu.trim().length>0; }); setPolitiquesRedigees(m); }).catch(()=>{});
   },[vendeurId]);

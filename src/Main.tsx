@@ -1,4 +1,4 @@
-// Main.tsx — e-Vend Studio
+// CHEMIN : src/Main.tsx
 
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -24,7 +24,7 @@ import DomaineAnnule         from './pages/DomaineAnnule';
 import PageVerifierEmail     from './pages/PageVerifierEmail';
 import PageReinitialiserMotDePasse from './pages/PageReinitialiserMotDePasse';
 import SiteSuspendu          from './pages/SiteSuspendu';
-import SiteMaintenance       from './pages/SiteMaintenance';
+import SiteMaintenanceBoutique from './pages/SiteMaintenanceBoutique';
 // 👇 NOUVEAUX IMPORTS POUR COMMANDITAIRE
 import InscriptionCommanditaire from './pages/commanditaire/InscriptionCommanditaire';
 import AppSponsors from './AppSponsors';
@@ -48,7 +48,9 @@ export default function Main() {
     suspendu: boolean;
     maintenance: boolean;
     messageMaintenance: string | null;
-  }>({ verifie: false, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null });
+    pageMaintenance: any;
+    nomBoutique: string;
+  }>({ verifie: false, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null, pageMaintenance: null, nomBoutique: '' });
 
   const SOUS_DOMAINES_NON_CLIENTS = ['www', 'e-vendstudio', 'localhost'];
 
@@ -67,12 +69,12 @@ export default function Main() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.success && data?.gestionnaire_id) {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id, suspendu: !!data.site_suspendu, maintenance: !!data.maintenance, messageMaintenance: data.message_maintenance || null });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id, suspendu: !!data.site_suspendu, maintenance: !!data.maintenance, messageMaintenance: data.message_maintenance || null, pageMaintenance: data.page_maintenance || null, nomBoutique: data.nom_boutique || '' });
           } else {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null, pageMaintenance: null, nomBoutique: '' });
           }
         })
-        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null }));
+        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null, pageMaintenance: null, nomBoutique: '' }));
       return;
     }
 
@@ -86,16 +88,16 @@ export default function Main() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.success && data?.gestionnaire_id) {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id, suspendu: !!data.site_suspendu, maintenance: !!data.maintenance, messageMaintenance: data.message_maintenance || null });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: data.gestionnaire_id, suspendu: !!data.site_suspendu, maintenance: !!data.maintenance, messageMaintenance: data.message_maintenance || null, pageMaintenance: data.page_maintenance || null, nomBoutique: data.nom_boutique || '' });
           } else {
-            setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null });
+            setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null, pageMaintenance: null, nomBoutique: '' });
           }
         })
-        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null }));
+        .catch(() => setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null, pageMaintenance: null, nomBoutique: '' }));
       return;
     }
 
-    setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null });
+    setSousDomaineCheck({ verifie: true, gestionnaireId: null, suspendu: false, maintenance: false, messageMaintenance: null, pageMaintenance: null, nomBoutique: '' });
   }, []);
 
   useEffect(() => {
@@ -182,7 +184,7 @@ export default function Main() {
       return <SiteSuspendu />;
     }
     if (sousDomaineCheck.maintenance) {
-      return <SiteMaintenance messagePersonnalise={sousDomaineCheck.messageMaintenance} />;
+      return <SiteMaintenanceBoutique nomBoutique={sousDomaineCheck.nomBoutique} page={sousDomaineCheck.pageMaintenance} messageFallback={sousDomaineCheck.messageMaintenance} />;
     }
     return (
       <BrowserRouter>

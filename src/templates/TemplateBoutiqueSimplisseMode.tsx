@@ -210,7 +210,7 @@ export function migrerMode(brut: any): any {
     faq: Array.isArray(obj(c.faq).items) ? { titre: nettoyerEnvoi(obj(c.faq).titre, 100) || undefined, items: obj(c.faq).items } : {},
     blog: { titre: nettoyerEnvoi(obj(c.blog).titre, 100) || undefined },
     contact: { titre: nettoyerEnvoi(obj(c.contact).titre, 100) || undefined, sousTitre: nettoyerEnvoi(obj(c.contact).sousTitre, 200) || undefined, adresse: nettoyerEnvoi(obj(c.contact).adresse, 200), telephone: nettoyerEnvoi(obj(c.contact).telephone, 40), courriel: nettoyerEnvoi(obj(c.contact).courriel, 120) },
-    footer: { nomBoutique: nettoyerEnvoi(foot.nomBoutique || c.nomBoutique, 80) || 'Ma Boutique', slogan: nettoyerEnvoi(foot.slogan || c.slogan, 160), couleurFond: hexOk(foot.couleurFond, '#0f0f0f'), couleurTexte: hexOk(foot.couleurTexte, '#ffffff'),
+    footer: { nomBoutique: nettoyerEnvoi(foot.nomBoutique || c.nomBoutique, 80) || 'Ma Boutique', slogan: nettoyerEnvoi(foot.slogan || c.slogan, 160), couleurFond: hexOk(foot.couleurFond, '#0f0f0f'), couleurTexte: hexOk(foot.couleurTexte, '#ffffff'), afficherPropulse: foot.afficherPropulse !== false,
       reseaux: { facebook: reseauVersUrl(res.facebook, 'https://facebook.com/'), instagram: reseauVersUrl(res.instagram, 'https://instagram.com/'), tiktok: reseauVersUrl(res.tiktok, 'https://tiktok.com/@'), twitter: reseauVersUrl(res.twitter, 'https://x.com/'), youtube: reseauVersUrl(res.youtube, 'https://youtube.com/@'), pinterest: reseauVersUrl(res.pinterest, 'https://pinterest.com/') },
       colonnes: { titre1: nettoyerEnvoi(col.titre1, 40), liens1: nettoyerEnvoi(col.liens1, 400), titre2: nettoyerEnvoi(col.titre2, 40), liens2: nettoyerEnvoi(col.liens2, 400), titre3: '', liens3: '' } },
   };
@@ -611,7 +611,7 @@ export default function TemplateBoutiqueSimplisseMode({ config: configBrut, site
   const [produitActif, setProduitActif] = useState<ProduitCat | null>(null);
   const [articleActif, setArticleActif] = useState<ArticleBlog | null>(null);
   const [menuOuvert, setMenuOuvert]   = useState(false);
-  const [isMobile, setIsMobile]       = useState(false);
+  const [isMobile, setIsMobile]       = useState(() => typeof window !== 'undefined' && Math.min(window.innerWidth, (window.screen && window.screen.width) || window.innerWidth) < 768);   // largeur réelle de l'écran : un contenu trop large ne doit jamais faire croire à un grand écran
 
   // ── State données ─────────────────────────────────────────────────────────
   const [produits, setProduits]       = useState<ProduitCat[]>([]);
@@ -681,7 +681,7 @@ export default function TemplateBoutiqueSimplisseMode({ config: configBrut, site
 
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
+    const check = () => setIsMobile(Math.min(window.innerWidth, (window.screen && window.screen.width) || window.innerWidth) < 768);
     check();
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
