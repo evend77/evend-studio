@@ -109,3 +109,10 @@ export function configRoseAvecBadge(config: any, addons: Record<string, boolean>
   const rose = (base && typeof base === 'object') ? base : {};
   return { ...config, rose: { ...rose, footer: { ...(rose.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Bonbon : le pied de page se lit dans config.bonbon.footer.afficherPropulse.
+// `base` = config.bonbon déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configBonbonAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const bonbon = (base && typeof base === 'object') ? base : {};
+  return { ...config, bonbon: { ...bonbon, footer: { ...(bonbon.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
