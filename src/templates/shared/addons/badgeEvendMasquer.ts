@@ -116,3 +116,10 @@ export function configBonbonAvecBadge(config: any, addons: Record<string, boolea
   const bonbon = (base && typeof base === 'object') ? base : {};
   return { ...config, bonbon: { ...bonbon, footer: { ...(bonbon.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Soleil : le pied de page se lit dans config.soleil.footer.afficherPropulse.
+// `base` = config.soleil déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configSoleilAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const soleil = (base && typeof base === 'object') ? base : {};
+  return { ...config, soleil: { ...soleil, footer: { ...(soleil.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

@@ -458,6 +458,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [modalRoseOuvert, setModalRoseOuvert] = useState(false);
   const [paliersBonbon, setPaliersBonbon] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de Simplisse Bonbon (Prix Template) ; vide = aucune limite, pas de fenêtre
   const [modalBonbonOuvert, setModalBonbonOuvert] = useState(false);
+  const [paliersSoleil, setPaliersSoleil] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de Simplisse Soleil (Prix Template) ; vide = aucune limite, pas de fenêtre
+  const [modalSoleilOuvert, setModalSoleilOuvert] = useState(false);
 
   // Prix configurés dans le dashboard admin — si l'appel échoue, on retombe
   // simplement sur le prix codé en dur (ou "Gratuit") comme avant.
@@ -475,7 +477,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         }
         setPrixParTemplate(map);
         const info: Record<string, { prixMin: string; limiteMax: number }> = {};
-        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique', 'boutique-bd', 'boutique-futuriste', 'boutique-tech', 'boutique-rose', 'boutique-bonbon']) {
+        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique', 'boutique-bd', 'boutique-futuriste', 'boutique-tech', 'boutique-rose', 'boutique-bonbon', 'boutique-soleil']) {
           let pal: any = data.templates[id]?.prix_paliers;
           if (typeof pal === 'string') { try { pal = JSON.parse(pal); } catch { pal = null; } }
           if (!Array.isArray(pal) || pal.length === 0) continue;
@@ -493,6 +495,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           if (id === 'boutique-tech') setPaliersTech(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-rose') setPaliersRose(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-bonbon') setPaliersBonbon(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
+          if (id === 'boutique-soleil') setPaliersSoleil(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-agricole') setPaliersAgricole(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-catalogue') setPaliersCatalogue(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
         }
@@ -652,6 +655,18 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     }
     setModalBonbonOuvert(false);
     onChoisir('boutique-bonbon');
+  };
+  const handleChoisirSoleil = () => { if (paliersSoleil.length > 0) setModalSoleilOuvert(true); else onChoisir('boutique-soleil'); };
+  const handleConfirmerPalierSoleil = async (limite: number) => {
+    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include', body: JSON.stringify({ plan: `soleil-${limite}` }),
+      }).catch(() => {});
+    }
+    setModalSoleilOuvert(false);
+    onChoisir('boutique-soleil');
   };
   const handleChoisirSimplisse = () => setModalSimplisseOuvert(true);
   const [modalPremiumOuvert, setModalPremiumOuvert] = useState(false);
@@ -874,6 +889,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
               id: 'boutique-bonbon', titre: 'Simplisse Bonbon',
               desc: "Boutique pastel bleu ciel et rose : menu latéral (catégories, réseaux, produits populaires), diaporama à flèches avec légende rose, bandeau dégradé, vidéo YouTube ou Vimeo, collections, avis. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
               icone: '🍬', couleur: '#d81e7c', disponible: true, badge: 'Nouveau', badgeCouleur: '#d81e7c',
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'À propos', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
+            },
+            {
+              id: 'boutique-soleil', titre: 'Simplisse Soleil',
+              desc: "Boutique ensoleillée : ciel bleu et fond crème, orange, menu latéral (catégories, réseaux, produits populaires en liste), diaporama à légende orange, bandeau d'offre, vidéo YouTube ou Vimeo, collines et soleil au pied de page. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+              icone: '☀️', couleur: '#c95500', disponible: true, badge: 'Nouveau', badgeCouleur: '#c95500',
               pages: ['Accueil', 'Catalogue', 'Fiche produit', 'À propos', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
             },
             {
@@ -1131,6 +1152,14 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           nom="Simplisse Bonbon" icone="🍬" couleur="#d81e7c"
           onConfirmer={handleConfirmerPalierBonbon}
           onAnnuler={() => setModalBonbonOuvert(false)}
+        />
+      )}
+      {modalSoleilOuvert && paliersSoleil.length > 0 && (
+        <ModalPalierComplete
+          paliers={paliersSoleil}
+          nom="Simplisse Soleil" icone="☀️" couleur="#c95500"
+          onConfirmer={handleConfirmerPalierSoleil}
+          onAnnuler={() => setModalSoleilOuvert(false)}
         />
       )}
       {modalAgricoleOuvert && paliersAgricole.length > 0 && (
@@ -1509,6 +1538,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                     const estTech          = t.id === 'boutique-tech';
                     const estRose          = t.id === 'boutique-rose';
                     const estBonbon        = t.id === 'boutique-bonbon';
+                    const estSoleil        = t.id === 'boutique-soleil';
                     return (
                       <div key={t.id} className="template-card"
                         onClick={() => {
@@ -1528,6 +1558,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estTech) { handleChoisirTech(); return; }
                           if (estRose) { handleChoisirRose(); return; }
                           if (estBonbon) { handleChoisirBonbon(); return; }
+                          if (estSoleil) { handleChoisirSoleil(); return; }
                           onChoisir(t.id);
                         }}
                         onMouseEnter={e => {
@@ -1697,6 +1728,15 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           </div>
                         )}
 
+                        {estSoleil && (
+                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
+                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
+                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Menu latéral · diaporama à légende orange · bandeau offre · vidéo · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
                         {estMonoProduit && (
                           <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
                             <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
@@ -1748,10 +1788,11 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estTech) { handleChoisirTech(); return; }
                           if (estRose) { handleChoisirRose(); return; }
                           if (estBonbon) { handleChoisirBonbon(); return; }
+                          if (estSoleil) { handleChoisirSoleil(); return; }
                                 onChoisir(t.id);
                               }}
                               style={{ padding: '9px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit', boxShadow: `0 8px 16px -8px ${estSimplisse ? COULEUR_MP : t.couleur}` }}>
-                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : estAuto ? '🚗 Auto →' : estJouets ? '🧸 Jouets →' : estGothique ? '🖤 Gothique →' : estBD ? '💥 BD →' : estFuturiste ? '⚡ Futuriste →' : estTech ? '🎮 Tech →' : estRose ? '🌸 Rosé →' : estBonbon ? '🍬 Bonbon →' : 'Choisir →'}
+                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : estAuto ? '🚗 Auto →' : estJouets ? '🧸 Jouets →' : estGothique ? '🖤 Gothique →' : estBD ? '💥 BD →' : estFuturiste ? '⚡ Futuriste →' : estTech ? '🎮 Tech →' : estRose ? '🌸 Rosé →' : estBonbon ? '🍬 Bonbon →' : estSoleil ? '☀️ Soleil →' : 'Choisir →'}
                             </button>
                           </div>
                         )}
