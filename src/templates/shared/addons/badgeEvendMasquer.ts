@@ -102,3 +102,10 @@ export function configTechAvecBadge(config: any, addons: Record<string, boolean>
   const tech = (base && typeof base === 'object') ? base : {};
   return { ...config, tech: { ...tech, footer: { ...(tech.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Rose : le pied de page se lit dans config.rose.footer.afficherPropulse.
+// `base` = config.rose déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configRoseAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const rose = (base && typeof base === 'object') ? base : {};
+  return { ...config, rose: { ...rose, footer: { ...(rose.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

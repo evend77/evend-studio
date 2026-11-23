@@ -193,6 +193,7 @@ const TEMPLATE_BRANDING = {
   'boutique-bd':        { couleur: '#1570e0', fond: '#001a3d', nom: 'Simplisse BD',           icone: '💥' },
   'boutique-futuriste': { couleur: '#1de48a', fond: '#000000', nom: 'Simplisse Futuriste',    icone: '⚡' },
   'boutique-tech': { couleur: '#8b2cf5', fond: '#05060f', nom: 'Simplisse Tech',    icone: '🎮' },
+  'boutique-rose': { couleur: '#e0147a', fond: '#ffd3ec', nom: 'Simplisse Rosé',    icone: '🌸' },
 };
 
 const BRANDING_DEFAUT = { couleur: '#c9a96e', fond: '#1a1a2e', nom: 'e-Vend Studio', icone: '✨' };

@@ -27,6 +27,7 @@ import TemplateBoutiqueGothique from '../templates/TemplateBoutiqueGothique';
 import TemplateBoutiqueBD from '../templates/TemplateBoutiqueBD';
 import TemplateBoutiqueFuturiste from '../templates/TemplateBoutiqueFuturiste';
 import TemplateBoutiqueTech from '../templates/TemplateBoutiqueTech';
+import TemplateBoutiqueRose from '../templates/TemplateBoutiqueRose';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -57,7 +58,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge, configFuturisteAvecBadge, configTechAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge, configFuturisteAvecBadge, configTechAvecBadge, configRoseAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -76,9 +77,10 @@ const estGothiqueBoutique = (t: string) => t === 'boutique-gothique';
 const estBDBoutique = (t: string) => t === 'boutique-bd';
 const estFuturisteBoutique = (t: string) => t === 'boutique-futuriste';
 const estTechBoutique = (t: string) => t === 'boutique-tech';
+const estRoseBoutique = (t: string) => t === 'boutique-rose';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -457,6 +459,69 @@ const DEMO_CONFIG_TECH = { tech: {
     aide: { titre: 'Besoin d\'aide ?', texte: 'Exemple de démonstration : une équipe pour vous conseiller.', bouton: 'Nous joindre', lien: 'contact', photo: '' },
     paiements: 'Visa\nMastercard\nPayPal' },
 } };
+// Simplisse Rosé : démonstration seulement — photos libres de droits (Pexels, usage commercial permis sans attribution), jamais affichées sur une vraie boutique
+const DEMO_PRODUITS_ROSE = [
+  { id: 1,  titre: 'Sérum éclat',          prix: 48, stock: 14, categorie: 'Soins visage', description: 'Exemple de produit de démonstration.', sku: 'SV-1001', photo_principale: PX(15930068) },
+  { id: 2,  titre: 'Sérum hydratant',      prix: 42, prix_promo: 34, stock: 3, categorie: 'Soins visage', description: 'Exemple de produit de démonstration.', sku: 'SV-1002', photo_principale: PX(4841353) },
+  { id: 3,  titre: 'Crème douceur',        prix: 36, stock: 30, categorie: 'Soins visage', description: 'Exemple de produit de démonstration.', sku: 'SV-1003', photo_principale: PX(13516789) },
+  { id: 4,  titre: 'Crème en pot rose',    prix: 29, prix_promo: 24, stock: 9, categorie: 'Soins visage', description: 'Exemple de produit de démonstration.', sku: 'SV-1004', photo_principale: PX(13006781) },
+  { id: 5,  titre: 'Rouge à lèvres rose',  prix: 24, prix_promo: 19, stock: 6, categorie: 'Maquillage', description: 'Exemple de produit de démonstration.', sku: 'MQ-2001', photo_principale: PX(2533266) },
+  { id: 6,  titre: 'Duo de rouges',        prix: 32, stock: 9, categorie: 'Maquillage', description: 'Exemple de produit de démonstration.', sku: 'MQ-2002', photo_principale: PX(3373746) },
+  { id: 7,  titre: 'Poudre rose pastel',   prix: 27, stock: 4, categorie: 'Maquillage', description: 'Exemple de produit de démonstration.', sku: 'MQ-2003', photo_principale: PX(8776814) },
+  { id: 8,  titre: 'Parfum fleuri',        prix: 78, stock: 5, categorie: 'Parfums', description: 'Exemple de produit de démonstration.', sku: 'PF-3001', photo_principale: PX(12563417) },
+  { id: 9,  titre: 'Parfum flacon rose',   prix: 69, stock: 20, categorie: 'Parfums', description: 'Exemple de produit de démonstration.', sku: 'PF-3002', photo_principale: PX(9957576) },
+  { id: 10, titre: 'Bombe de bain',        prix: 9, stock: 40, categorie: 'Bain et corps', description: 'Exemple de produit de démonstration.', sku: 'BC-4001', photo_principale: PX(7175328) },
+  { id: 11, titre: 'Trio de bombes de bain', prix: 24, stock: 12, categorie: 'Bain et corps', description: 'Exemple de produit de démonstration.', sku: 'BC-4002', photo_principale: PX(6724360) },
+  { id: 12, titre: 'Crème pour les mains', prix: 18, stock: 25, categorie: 'Bain et corps', description: 'Exemple de produit de démonstration.', sku: 'BC-4003', photo_principale: PX(27393233) },
+];
+const DEMO_ARTICLES_ROSE = [
+  { id: 9001, titre: 'Exemple : composer sa routine du soir', slug: 'exemple-routine', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(7143283), date_publication: new Date(Date.now() - 5 * 864e5).toISOString(), categorie: 'Conseils', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9002, titre: 'Exemple : bien choisir son sérum', slug: 'exemple-serum', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(4841353), date_publication: new Date(Date.now() - 12 * 864e5).toISOString(), categorie: 'Guides', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9003, titre: 'Exemple : un bain tout en douceur', slug: 'exemple-bain', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(6724360), date_publication: new Date(Date.now() - 20 * 864e5).toISOString(), categorie: 'Guides', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+];
+const ROSE_FIN_DEMO = (() => { const d = new Date(Date.now() + 15 * 864e5); const z = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; })();
+const DEMO_CONFIG_ROSE = { rose: {
+  accueil: {
+    hero: { titre: 'Un peu de rose dans votre quotidien', sousTitre: 'Exemple de démonstration', boutonLabel: 'Magasiner', boutonLien: '/catalogue', photo: PX(6543153, 1600), style: 'image-fond' },
+    entete: { barreHaut: { actif: true, gauche: 'Exemple de démonstration : message de la barre du haut', droite: 'Aide | contact\nBlogue | blog' } },
+    diaporama: [
+      { surtitre: 'Exemple de démonstration', titre: 'Une peau *douce*, un teint rose', texte: 'Exemple de démonstration : remplacez ce texte par le vôtre.', bouton: 'Magasiner', lien: 'catalogue', photo: PX(6543153, 1600) },
+      { surtitre: 'Nouveautés', titre: 'Les *nouveautés* de la semaine', texte: 'Exemple de démonstration : un deuxième message.', bouton: 'Voir les nouveautés', lien: 'catalogue', photo: PX(11179672, 1600) },
+      { surtitre: 'Parfums', titre: 'Des parfums qui *fleurissent*', texte: 'Exemple de démonstration : un troisième message.', bouton: 'Voir les parfums', lien: 'cat:Parfums', photo: PX(7524968, 1600) },
+    ],
+    onde: { messages: 'Exemple : un premier message\nExemple : un deuxième message\nExemple : un troisième message' },
+    parcourir: { titre: 'Magasiner pour', nombre: 6 },
+    vedette: { titre: 'Nos *favoris*', sousTitre: 'Exemple de démonstration', categorie: '', nombre: 10 },
+    grostexte: { texte: 'Des soins {1} choisis avec amour, une routine {2} simple et des produits {3} faits pour vous', photos: PX(5912194, 500) + '\n' + PX(13516789, 500) + '\n' + PX(2533266, 500), sousTexte: 'Exemple de démonstration : présentez ici votre boutique en quelques phrases. Ce texte est remplacé par le vôtre.', bouton: 'En savoir plus', lien: 'a-propos' },
+    collections: { titre: 'Magasiner par *collection*', sousTitre: 'Exemple de démonstration' },
+    vitrine: { photo: PX(5240446, 1200), points: '30 | 40 | catalogue\n62 | 58 | catalogue', categorie: 'Soins visage', nombre: 4, bouton: 'Choisir' },
+    nouveautes: { titre: 'Nouveautés', sousTitre: '', categorie: '', nombre: 10 },
+    trouveur: { etiquette: 'Trouvez votre soin', titre: 'Quelle est votre priorité du moment ?', photo: PX(3762562, 1000), options: 'Hydrater en profondeur | cat:Soins visage\nUn teint éclatant | cat:Maquillage\nUn parfum qui me ressemble | cat:Parfums\nUn moment de détente | cat:Bain et corps' },
+    comparatif: { titre: 'Comparez nos *sérums*', sousTitre: 'Exemple de démonstration : tableau saisi à la main', libelle: 'Nos sérums', produits: PX(15930068, 600) + ' | Sérum éclat | 48 $ | catalogue\n' + PX(4841353, 600) + ' | Sérum hydratant | 42 $ | catalogue\n' + PX(13516789, 600) + ' | Crème douceur | 36 $ | catalogue', criteres: 'Sans parfum | oui | oui | non\nPeaux sensibles | oui | oui | oui\nFormat | 30 ml | 30 ml | 50 ml\nÉcoresponsable | non | oui | oui' },
+    temoignagesTitre: 'Avis de nos *clientes*', temoignagesSousTitre: 'Exemple de démonstration', temoignagesPhotos: PX(5912194, 700) + '\n' + PX(29044029, 700),
+    avantages: [],
+    galerie: { titre: 'Sur les *réseaux*', sousTitre: 'Exemple de démonstration', items: PX(6621025, 600) + ' | catalogue\n' + PX(6543149, 600) + ' | catalogue\n' + PX(7143283, 600) + ' | catalogue\n' + PX(15108320, 600) + ' | catalogue\n' + PX(3910068, 600) + ' | catalogue' },
+    pastilles: { titre: 'Nos *garanties*', items: '🔒 | Paiement sécurisé\n🚚 | Livraison suivie\n↩️ | Retours simples\n🌸 | Sélection soignée' },
+    blogApercu: { titre: 'Notre *blogue*', sousTitre: 'Exemple de démonstration', bouton: 'Lire le blogue' },
+    grandnom: { texte: 'Rosé' },
+    ticker: { messages: 'Exemple : un message de votre boutique\nExemple : un autre message', vitesse: 'normale', couleurFond: '#e0147a', couleurTexte: '#ffffff', couleurAccent: '#ffffff', icone: '🌸', lien: '' },
+    bandeaux: [{ titre: 'Un moment pour *vous*', sousTitre: 'Exemple de démonstration : un texte court sous le titre.', bouton: 'Découvrir', lien: 'catalogue', bouton2: 'En savoir plus', lien2: 'a-propos', photo: PX(6621033, 1800) }],
+    focus: { titre: 'Coup de *cœur*', texte: 'Exemple de démonstration', bouton: 'Découvrir', lien: 'catalogue', photo: PX(3910068, 1000), categorie: '', nombre: 4 },
+    etapes: { titre: 'Pourquoi *choisir* nos produits', photo: PX(7321491, 1200), items: 'Premier point fort | Exemple de démonstration : décrivez ici un avantage réel de votre boutique.\nDeuxième point fort | Exemple de démonstration : un deuxième avantage.\nTroisième point fort | Exemple de démonstration : un troisième avantage.', bouton: 'En savoir plus', lien: 'a-propos' },
+    presentation: { titre: 'À propos de la *boutique*', texte: 'Exemple de démonstration : présentez ici votre boutique, votre sélection et ce qui vous distingue. Ce texte est remplacé par le vôtre.', bouton: 'En savoir plus', lien: 'a-propos', photo: PX(5912194, 1200), inverser: false },
+    tuiles: [
+      { titre: 'Les *plus vendus*', texte: 'Exemple de démonstration : une carte promo.', bouton: 'Voir maintenant', lien: 'catalogue', photo: PX(2533266, 1000), couleur: '' },
+      { titre: 'Nos *parfums*', texte: 'Exemple de démonstration : une deuxième carte promo.', bouton: 'Voir maintenant', lien: 'cat:Parfums', photo: PX(9957574, 1000), couleur: '' },
+    ],
+    marques: { items: ' | Marque exemple 1 | \n | Marque exemple 2 | \n | Marque exemple 3 | \n | Marque exemple 4 | ' },
+    decompte: { titre: 'Un *lancement* approche', sousTitre: 'Exemple de démonstration : date fictive', fin: ROSE_FIN_DEMO, photo: PX(11179672, 1600), bouton: 'En savoir plus', lien: 'contact' },
+    accordeon: { titre: 'Caractéristiques', items: 'Première caractéristique | Exemple de démonstration : le détail s\'affiche ici.\nDeuxième caractéristique | Exemple de démonstration : le détail s\'affiche ici.' },
+    accordeon2: { titre: 'Questions fréquentes', items: 'Première question ? | Exemple de démonstration : la réponse s\'affiche ici.\nDeuxième question ? | Exemple de démonstration : la réponse s\'affiche ici.' },
+  },
+  footer: { nomBoutique: 'Ma boutique Rosée', slogan: 'Exemple de démonstration', afficherPropulse: true,
+    aide: { titre: 'Besoin d\'aide ?', texte: 'Exemple de démonstration : une équipe pour vous conseiller.', bouton: 'Nous joindre', lien: 'contact', photo: '' },
+    paiements: 'Visa\nMastercard\nPayPal' },
+} };
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
@@ -606,7 +671,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : estFuturisteBoutique(templateId) ? DEMO_CONFIG_FUTURISTE : estTechBoutique(templateId) ? DEMO_CONFIG_TECH : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : estFuturisteBoutique(templateId) ? DEMO_CONFIG_FUTURISTE : estTechBoutique(templateId) ? DEMO_CONFIG_TECH : estRoseBoutique(templateId) ? DEMO_CONFIG_ROSE : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -681,6 +746,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Simplisse Tech : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_TECH, __articles_demo__: DEMO_ARTICLES_TECH } : config;
       return <TemplateBoutiqueTech config={isDemo ? configDemo : configTechAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.tech) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-rose') {
+      // Simplisse Rosé : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_ROSE, __articles_demo__: DEMO_ARTICLES_ROSE } : config;
+      return <TemplateBoutiqueRose config={isDemo ? configDemo : configRoseAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.rose) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId === 'boutique-agricole') {
       // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
