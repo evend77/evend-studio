@@ -22,6 +22,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-jouets':              'https://images.pexels.com/photos/5665500/pexels-photo-5665500.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-gothique':            'https://images.pexels.com/photos/3109671/pexels-photo-3109671.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-bd':                  'https://images.pexels.com/photos/6654172/pexels-photo-6654172.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-futuriste':           'https://images.pexels.com/photos/9996339/pexels-photo-9996339.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -193,6 +194,14 @@ export const TEMPLATES: Template[] = [
     description: "Boutique colorée au style bande dessinée : diaporama avec bulle de BD, bandeau défilant, cartes promo, rangées de produits qui défilent, compte à rebours, collections, avis et blogue. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
     fonctionnalites: ['Diaporama avec bulle de BD et bandeau défilant', 'Rangées de produits, cartes promo et compte à rebours réglables', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#1570e0',
+  },
+  {
+    id: 'boutique-futuriste',
+    nom: 'Simplisse Futuriste',
+    groupe: 'boutique-industrie',
+    description: "Boutique futuriste en blocs noirs arrondis : diaporama texte sur photo, bandeau défilant violet, engagements en cartes, points forts numérotés, grandes bannières, accordéons de questions, grille de garanties, avis violets et compte à rebours. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Fond noir, vert néon et cartes arrondies réglables', 'Questions / réponses en accordéon et grille de garanties', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#1de48a',
   },
   {
     id: 'boutique-agricole',

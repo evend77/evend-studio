@@ -88,3 +88,10 @@ export function configBDAvecBadge(config: any, addons: Record<string, boolean> |
   const bd = (base && typeof base === 'object') ? base : {};
   return { ...config, bd: { ...bd, footer: { ...(bd.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Futuriste : le pied de page se lit dans config.futuriste.footer.afficherPropulse.
+// `base` = config.futuriste déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configFuturisteAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const futuriste = (base && typeof base === 'object') ? base : {};
+  return { ...config, futuriste: { ...futuriste, footer: { ...(futuriste.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
