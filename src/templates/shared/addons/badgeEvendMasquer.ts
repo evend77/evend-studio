@@ -123,3 +123,10 @@ export function configSoleilAvecBadge(config: any, addons: Record<string, boolea
   const soleil = (base && typeof base === 'object') ? base : {};
   return { ...config, soleil: { ...soleil, footer: { ...(soleil.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Sentier : le pied de page se lit dans config.sentier.footer.afficherPropulse.
+// `base` = config.sentier déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configSentierAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const sentier = (base && typeof base === 'object') ? base : {};
+  return { ...config, sentier: { ...sentier, footer: { ...(sentier.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

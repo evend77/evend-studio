@@ -27,6 +27,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-rose':                'https://images.pexels.com/photos/6543153/pexels-photo-6543153.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-bonbon':              'https://images.pexels.com/photos/1875919/pexels-photo-1875919.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-soleil':              'https://images.pexels.com/photos/796606/pexels-photo-796606.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-sentier':             'https://images.pexels.com/photos/30925315/pexels-photo-30925315.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -238,6 +239,14 @@ export const TEMPLATES: Template[] = [
     description: "Boutique ensoleillée : ciel bleu et fond crème, orange, menu latéral (catégories, réseaux, produits populaires en liste), diaporama à légende orange, bandeau d'offre, vidéo YouTube ou Vimeo, collines et soleil au pied de page. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
     fonctionnalites: ['Ciel bleu, crème et orange réglables, collines et soleil', 'Menu latéral : catégories, réseaux et produits populaires', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#c95500',
+  },
+  {
+    id: 'boutique-sentier',
+    nom: 'Simplisse Sentier',
+    groupe: 'boutique-industrie',
+    description: "Boutique sportive et sobre : fond noir et vert sauge, grande photo pleine largeur au titre en majuscules, produits sans cadre, bandeau d'offre, compte à rebours, vidéo YouTube ou Vimeo, pied de page sauge. Mode clair possible. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Noir et vert sauge réglables, mode clair possible', 'Grande photo pleine largeur au titre en majuscules', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#5d7157',
   },
   {
     id: 'boutique-agricole',
