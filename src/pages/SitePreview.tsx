@@ -24,6 +24,7 @@ import TemplateBoutiqueArtisan from '../templates/TemplateBoutiqueArtisan';
 import TemplateBoutiqueAuto from '../templates/TemplateBoutiqueAuto';
 import TemplateBoutiqueJouets from '../templates/TemplateBoutiqueJouets';
 import TemplateBoutiqueGothique from '../templates/TemplateBoutiqueGothique';
+import TemplateBoutiqueBD from '../templates/TemplateBoutiqueBD';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -54,7 +55,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -70,9 +71,10 @@ const estArtisanBoutique = (t: string) => t === 'boutique-artisan';
 const estAutoBoutique = (t: string) => t === 'boutique-auto';
 const estJouetsBoutique = (t: string) => t === 'boutique-jouets';
 const estGothiqueBoutique = (t: string) => t === 'boutique-gothique';
+const estBDBoutique = (t: string) => t === 'boutique-bd';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -297,6 +299,53 @@ const DEMO_CONFIG_GOTHIQUE = { gothique: {
   },
   footer: { nomBoutique: 'Nocturne', slogan: '', texte: 'Exemple de démonstration : présentez ici votre boutique en quelques lignes.', afficherPropulse: true, paiements: 'Visa\nMastercard\nPayPal' },
 } };
+// Simplisse BD : démonstration seulement — photos libres de droits (Pexels, usage commercial permis sans attribution), jamais affichées sur une vraie boutique
+const DEMO_PRODUITS_BD = [
+  { id: 1,  titre: 'Lot de bandes dessinées d\'aventure', prix: 25, stock: 14, categorie: 'Bandes dessinées', description: 'Exemple de produit de démonstration.', sku: 'BD-1001', photo_principale: PX(7809122) },
+  { id: 2,  titre: 'Collection de revues illustrées',     prix: 18, prix_promo: 14, stock: 3, categorie: 'Bandes dessinées', description: 'Exemple de produit de démonstration.', sku: 'BD-1002', photo_principale: PX(6654177) },
+  { id: 3,  titre: 'Assortiment de bandes dessinées',     prix: 32, stock: 30, categorie: 'Bandes dessinées', description: 'Exemple de produit de démonstration.', sku: 'BD-1003', photo_principale: PX(6654172) },
+  { id: 4,  titre: 'Album à collectionner',               prix: 29, stock: 9,  categorie: 'Romans graphiques', description: 'Exemple de produit de démonstration.', sku: 'RG-2001', photo_principale: PX(5883534) },
+  { id: 5,  titre: 'Pile de bandes dessinées',            prix: 45, prix_promo: 39, stock: 6, categorie: 'Romans graphiques', description: 'Exemple de produit de démonstration.', sku: 'RG-2002', photo_principale: PX(7524998) },
+  { id: 6,  titre: 'Lot de mangas',                       prix: 38, stock: 20, categorie: 'Mangas', description: 'Exemple de produit de démonstration.', sku: 'MA-3001', photo_principale: PX(18848524) },
+  { id: 7,  titre: 'Bande dessinée jeunesse',             prix: 15, stock: 12, categorie: 'Jeunesse', description: 'Exemple de produit de démonstration.', sku: 'JE-4001', photo_principale: PX(8342186) },
+  { id: 8,  titre: 'Vitrine de bandes dessinées',         prix: 52, stock: 4,  categorie: 'Romans graphiques', description: 'Exemple de produit de démonstration.', sku: 'RG-2003', photo_principale: PX(20085947) },
+  { id: 9,  titre: 'Carnet de croquis',                   prix: 12, stock: 25, categorie: 'Papeterie', description: 'Exemple de produit de démonstration.', sku: 'PA-5001', photo_principale: PX(6044265) },
+  { id: 10, titre: 'Tablette à dessin',                   prix: 89, stock: 7,  categorie: 'Papeterie', description: 'Exemple de produit de démonstration.', sku: 'PA-5002', photo_principale: PX(7147701) },
+];
+const DEMO_ARTICLES_BD = [
+  { id: 9001, titre: 'Exemple : par où commencer en bande dessinée', slug: 'exemple-debuter', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(8342186), date_publication: new Date(Date.now() - 5 * 864e5).toISOString(), categorie: 'Conseils', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9002, titre: 'Exemple : bien conserver sa collection', slug: 'exemple-conserver', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(7809122), date_publication: new Date(Date.now() - 12 * 864e5).toISOString(), categorie: 'Collection', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9003, titre: 'Exemple : rencontre avec un illustrateur', slug: 'exemple-illustrateur', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(7859510), date_publication: new Date(Date.now() - 20 * 864e5).toISOString(), categorie: 'Entrevues', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+];
+const BD_FIN_DEMO = (() => { const d = new Date(Date.now() + 15 * 864e5); const z = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; })();
+const DEMO_CONFIG_BD = { bd: {
+  accueil: {
+    hero: { titre: 'Des histoires à lire', sousTitre: 'Exemple de démonstration', boutonLabel: 'Magasiner', boutonLien: '/catalogue', photo: PX(6654172, 1600), style: 'image-fond' },
+    entete: { barreHaut: { actif: true, gauche: 'Exemple de démonstration : message de la barre du haut', droite: 'Aide | contact\nBlogue | blog' } },
+    diaporama: [
+      { titre: 'Des *aventures* à portée de main', texte: 'Exemple de démonstration : remplacez ce texte par le vôtre.', bouton: 'Découvrir', lien: 'catalogue', photo: PX(6654172, 1600) },
+      { titre: 'Les *nouveautés* de la semaine', texte: 'Exemple de démonstration : un deuxième message.', bouton: 'Voir les nouveautés', lien: 'catalogue', photo: PX(7809122, 1600) },
+      { titre: 'Collectionnez, lisez, *partagez*', texte: 'Exemple de démonstration : un troisième message.', bouton: 'Voir les romans graphiques', lien: 'cat:Romans graphiques', photo: PX(5883534, 1600) },
+    ],
+    ticker: { messages: 'Exemple : un premier message de votre boutique\nExemple : un autre message de votre boutique', vitesse: 'normale', couleurFond: '#ffd93b', couleurTexte: '#001a3d', icone: '💥', lien: '' },
+    marques: { items: ' | Éditeur exemple 1 | \n | Éditeur exemple 2 | \n | Éditeur exemple 3 | \n | Éditeur exemple 4 | \n | Éditeur exemple 5 | ' },
+    tuiles: [
+      { titre: 'Des albums à *vendre* ?', texte: 'Exemple de démonstration : décrivez ici votre service de rachat.', bouton: 'Nous joindre', lien: 'contact', photo: PX(7524998, 1000), couleur: '' },
+      { titre: 'Nos *romans graphiques*', texte: 'Exemple de démonstration : une deuxième carte promo.', bouton: 'Voir maintenant', lien: 'cat:Romans graphiques', photo: PX(20085947, 1000), couleur: '' },
+    ],
+    focus: { titre: 'Coup de *cœur*', texte: 'Exemple de démonstration', bouton: 'Découvrir', lien: 'catalogue', photo: PX(7859510, 1000), categorie: '', nombre: 10 },
+    decompte: { titre: 'Les *abonnements* démarrent bientôt', sousTitre: 'Exemple de démonstration : date fictive', fin: BD_FIN_DEMO, photo: PX(6654177, 1600), bouton: 'En savoir plus', lien: 'contact' },
+    vedette: { titre: 'Nos *favoris*', sousTitre: '', categorie: '', nombre: 10 },
+    bandeaux: [{ titre: 'Nos artistes *dessinent* pour vous', sousTitre: '', bouton: 'En savoir plus', lien: 'a-propos', photo: PX(7147701, 1800) }],
+    nouveautes: { titre: 'Nouveautés', sousTitre: '', categorie: '', nombre: 10 },
+    presentation: { titre: 'À propos de la boutique', texte: 'Exemple de démonstration : présentez ici votre boutique, votre sélection et ce qui vous distingue. Ce texte est remplacé par le vôtre.', bouton: 'En savoir plus', lien: 'a-propos' },
+    temoignagesTitre: 'Avis de nos clients',
+    blogApercu: { titre: 'Notre *blogue*', sousTitre: 'Exemple de démonstration', bouton: 'Lire le blogue' },
+  },
+  footer: { nomBoutique: 'Ma boutique BD', slogan: 'Exemple de démonstration', afficherPropulse: true,
+    aide: { titre: 'Besoin d\'aide ?', texte: 'Exemple de démonstration : une équipe pour vous conseiller.', bouton: 'Nous joindre', lien: 'contact', photo: '' },
+    paiements: 'Visa\nMastercard\nPayPal' },
+} };
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
@@ -446,7 +495,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -506,6 +555,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Simplisse Gothique : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_GOTHIQUE, __articles_demo__: DEMO_ARTICLES_GOTHIQUE } : config;
       return <TemplateBoutiqueGothique config={isDemo ? configDemo : configGothiqueAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.gothique) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-bd') {
+      // Simplisse BD : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_BD, __articles_demo__: DEMO_ARTICLES_BD } : config;
+      return <TemplateBoutiqueBD config={isDemo ? configDemo : configBDAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.bd) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId === 'boutique-agricole') {
       // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.

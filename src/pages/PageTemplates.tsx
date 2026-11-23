@@ -21,6 +21,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-auto':                'https://images.pexels.com/photos/8985967/pexels-photo-8985967.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-jouets':              'https://images.pexels.com/photos/5665500/pexels-photo-5665500.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-gothique':            'https://images.pexels.com/photos/3109671/pexels-photo-3109671.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-bd':                  'https://images.pexels.com/photos/6654172/pexels-photo-6654172.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -184,6 +185,14 @@ export const TEMPLATES: Template[] = [
     description: "Boutique noire à l'allure gothique : nom de la boutique en police gothique au centre, image pleine largeur, bandeaux défilants, grilles de produits à fines lignes, collections, grande affiche, avantages, avis et grand nom en pied de page. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
     fonctionnalites: ['Image pleine largeur et bandeaux défilants réglables', 'Police gothique au choix pour le nom de la boutique', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#e8590c',
+  },
+  {
+    id: 'boutique-bd',
+    nom: 'Simplisse BD',
+    groupe: 'boutique-industrie',
+    description: "Boutique colorée au style bande dessinée : diaporama avec bulle de BD, bandeau défilant, cartes promo, rangées de produits qui défilent, compte à rebours, collections, avis et blogue. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Diaporama avec bulle de BD et bandeau défilant', 'Rangées de produits, cartes promo et compte à rebours réglables', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#1570e0',
   },
   {
     id: 'boutique-agricole',

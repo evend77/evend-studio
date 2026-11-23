@@ -448,6 +448,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [modalJouetsOuvert, setModalJouetsOuvert] = useState(false);
   const [paliersGothique, setPaliersGothique] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de Simplisse Gothique (Prix Template) ; vide = aucune limite, pas de fenêtre
   const [modalGothiqueOuvert, setModalGothiqueOuvert] = useState(false);
+  const [paliersBD, setPaliersBD] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de Simplisse BD (Prix Template) ; vide = aucune limite, pas de fenêtre
+  const [modalBDOuvert, setModalBDOuvert] = useState(false);
 
   // Prix configurés dans le dashboard admin — si l'appel échoue, on retombe
   // simplement sur le prix codé en dur (ou "Gratuit") comme avant.
@@ -465,7 +467,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         }
         setPrixParTemplate(map);
         const info: Record<string, { prixMin: string; limiteMax: number }> = {};
-        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique']) {
+        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique', 'boutique-bd']) {
           let pal: any = data.templates[id]?.prix_paliers;
           if (typeof pal === 'string') { try { pal = JSON.parse(pal); } catch { pal = null; } }
           if (!Array.isArray(pal) || pal.length === 0) continue;
@@ -478,6 +480,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           if (id === 'boutique-auto') setPaliersAuto(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-jouets') setPaliersJouets(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-gothique') setPaliersGothique(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
+          if (id === 'boutique-bd') setPaliersBD(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-agricole') setPaliersAgricole(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-catalogue') setPaliersCatalogue(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
         }
@@ -576,6 +579,19 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     }
     setModalGothiqueOuvert(false);
     onChoisir('boutique-gothique');
+  };
+  // Simplisse BD : même principe
+  const handleChoisirBD = () => { if (paliersBD.length > 0) setModalBDOuvert(true); else onChoisir('boutique-bd'); };
+  const handleConfirmerPalierBD = async (limite: number) => {
+    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include', body: JSON.stringify({ plan: `bd-${limite}` }),
+      }).catch(() => {});
+    }
+    setModalBDOuvert(false);
+    onChoisir('boutique-bd');
   };
   const handleChoisirSimplisse = () => setModalSimplisseOuvert(true);
   const [modalPremiumOuvert, setModalPremiumOuvert] = useState(false);
@@ -768,6 +784,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
               id: 'boutique-gothique', titre: 'Simplisse Gothique',
               desc: "Boutique noire à l'allure gothique : nom en police gothique, image pleine largeur, bandeaux défilants, grilles de produits à fines lignes, collections, grande affiche, avantages, avis, blogue et grand nom en pied de page. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
               icone: '🖤', couleur: '#e8590c', disponible: true, badge: 'Nouveau', badgeCouleur: '#e8590c',
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'À propos', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
+            },
+            {
+              id: 'boutique-bd', titre: 'Simplisse BD',
+              desc: "Boutique colorée au style bande dessinée : diaporama avec bulle de BD, bandeau défilant, cartes promo, rangées de produits qui défilent, compte à rebours, collections, avis et blogue. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+              icone: '💥', couleur: '#1570e0', disponible: true, badge: 'Nouveau', badgeCouleur: '#1570e0',
               pages: ['Accueil', 'Catalogue', 'Fiche produit', 'À propos', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
             },
             {
@@ -985,6 +1007,14 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           nom="Simplisse Gothique" icone="🖤" couleur="#e8590c"
           onConfirmer={handleConfirmerPalierGothique}
           onAnnuler={() => setModalGothiqueOuvert(false)}
+        />
+      )}
+      {modalBDOuvert && paliersBD.length > 0 && (
+        <ModalPalierComplete
+          paliers={paliersBD}
+          nom="Simplisse BD" icone="💥" couleur="#1570e0"
+          onConfirmer={handleConfirmerPalierBD}
+          onAnnuler={() => setModalBDOuvert(false)}
         />
       )}
       {modalAgricoleOuvert && paliersAgricole.length > 0 && (
@@ -1358,6 +1388,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                     const estAuto          = t.id === 'boutique-auto';
                     const estJouets        = t.id === 'boutique-jouets';
                     const estGothique      = t.id === 'boutique-gothique';
+                    const estBD            = t.id === 'boutique-bd';
                     return (
                       <div key={t.id} className="template-card"
                         onClick={() => {
@@ -1372,6 +1403,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estAuto) { handleChoisirAuto(); return; }
                           if (estJouets) { handleChoisirJouets(); return; }
                           if (estGothique) { handleChoisirGothique(); return; }
+                          if (estBD) { handleChoisirBD(); return; }
                           onChoisir(t.id);
                         }}
                         onMouseEnter={e => {
@@ -1496,6 +1528,15 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           </div>
                         )}
 
+                        {estBD && (
+                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
+                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
+                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Diaporama bulle de BD · cartes promo · compte à rebours · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
                         {estMonoProduit && (
                           <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
                             <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
@@ -1542,10 +1583,11 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estAuto) { handleChoisirAuto(); return; }
                           if (estJouets) { handleChoisirJouets(); return; }
                           if (estGothique) { handleChoisirGothique(); return; }
+                          if (estBD) { handleChoisirBD(); return; }
                                 onChoisir(t.id);
                               }}
                               style={{ padding: '9px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit', boxShadow: `0 8px 16px -8px ${estSimplisse ? COULEUR_MP : t.couleur}` }}>
-                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : estAuto ? '🚗 Auto →' : estJouets ? '🧸 Jouets →' : estGothique ? '🖤 Gothique →' : 'Choisir →'}
+                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : estAuto ? '🚗 Auto →' : estJouets ? '🧸 Jouets →' : estGothique ? '🖤 Gothique →' : estBD ? '💥 BD →' : 'Choisir →'}
                             </button>
                           </div>
                         )}

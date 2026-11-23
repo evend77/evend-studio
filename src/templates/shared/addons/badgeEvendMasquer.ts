@@ -81,3 +81,10 @@ export function configGothiqueAvecBadge(config: any, addons: Record<string, bool
   const gothique = (base && typeof base === 'object') ? base : {};
   return { ...config, gothique: { ...gothique, footer: { ...(gothique.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse BD : le pied de page se lit dans config.bd.footer.afficherPropulse.
+// `base` = config.bd déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configBDAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const bd = (base && typeof base === 'object') ? base : {};
+  return { ...config, bd: { ...bd, footer: { ...(bd.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
