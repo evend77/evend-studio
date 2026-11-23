@@ -261,16 +261,11 @@ const COUL = { rouge: '#de1b2d', rougeNav: '#c60f1f', bleu: '#1d6fc4', marine: '
 const ENT_DEF = { couleurFond: COUL.rouge, couleurNav: COUL.rougeNav, couleurTexte: '#ffffff', couleurBarre: COUL.bleu, afficherRecherche: true, afficherCategories: true, afficherChat: true, pastille: { titre: '', sousTitre: '', lien: '' }, barreHaut: { actif: false, gauche: '', droite: '' } };
 
 // Icônes en trait (style Feather, licence MIT) — pas d'emoji dans l'en-tête
-const ICONES: Record<string, string[]> = {
-  user: ['M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2', 'M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z'],
-  chat: ['M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z'],
-  cart: ['M9 20a1 1 0 1 0 0 2 1 1 0 0 0 0-2z', 'M20 20a1 1 0 1 0 0 2 1 1 0 0 0 0-2z', 'M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6'],
-  search: ['M11 3a8 8 0 1 0 0 16 8 8 0 0 0 0-16z', 'M21 21l-4.35-4.35'],
-  gift: ['M20 12v10H4V12', 'M2 7h20v5H2z', 'M12 22V7', 'M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z', 'M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z'],
-  gauche: ['M15 18l-6-6 6-6'], droite: ['M9 18l6-6-6-6'], pause: ['M6 4h4v16H6z', 'M14 4h4v16h-4z'], lecture: ['M6 4l14 8-14 8z'],
-};
-function Ico({ n, taille = 22, epais = 2 }: { n: string; taille?: number; epais?: number }) {
-  return <svg width={taille} height={taille} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={epais} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" focusable="false">{(ICONES[n] || []).map((d, i) => <path key={i} d={d} />)}</svg>;
+// Icônes e-Vend : mêmes pictogrammes que le template Premium (émojis), pour toutes nos boutiques
+const ICONES: Record<string, string> = { user: '👤', chat: '💬', cart: '🛒', search: '🔍', gift: '🎁', gauche: '‹', droite: '›', pause: '⏸', lecture: '▶' };
+function Ico({ n, taille = 22 }: { n: string; taille?: number; epais?: number }) {
+  const fleche = n === 'gauche' || n === 'droite';
+  return <span aria-hidden="true" style={{ fontSize: fleche ? taille * 1.4 : taille * 0.8, lineHeight: 1, fontWeight: fleche ? 700 : 400, fontFamily: fleche ? 'inherit' : undefined, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{ICONES[n] || ''}</span>;
 }
 
 // Titre avec mots en dégradé : les mots entre *étoiles* prennent le dégradé (texte simple, jamais de HTML)
@@ -1218,11 +1213,11 @@ export default function TemplateBoutiqueJouets({ config: configBrut, siteId, ven
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: isMobile ? '10px 12px' : '16px 32px', minHeight: isMobile ? 64 : 86, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: isMobile ? 6 : 24 }}>
         {isMobile && (
           <button onClick={() => setMenuOuvert(!menuOuvert)} aria-label="Menu" aria-expanded={menuOuvert}
-            style={{ background: 'none', border: 'none', fontSize: 26, cursor: 'pointer', color: 'var(--jo-t)', padding: '4px 6px', lineHeight: 1 }}>
+            style={{ background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.5)', borderRadius: 8, width: 40, height: 40, fontSize: 18, cursor: 'pointer', color: 'var(--jo-t)', padding: 0, lineHeight: 1, flexShrink: 0 }}>
             {menuOuvert ? '✕' : '☰'}
           </button>
         )}
-        <button onClick={() => allerLien('page', 'accueil')} className="jo-fh" style={{ background: 'none', border: 'none', fontSize: isMobile ? 26 : 38, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--jo-t)', cursor: 'pointer', padding: 0, flexShrink: 1, minWidth: 0, maxWidth: isMobile ? '40vw' : '30vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>
+        <button onClick={() => allerLien('page', 'accueil')} className="jo-fh" style={{ background: 'none', border: 'none', fontSize: isMobile ? 26 : 38, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--jo-t)', cursor: 'pointer', padding: 0, flexShrink: 1, minWidth: 0, maxWidth: isMobile ? '40vw' : '34vw', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'left' }}>
           {logoUrl
             ? <img src={logoUrl} alt={cfg.footer.nomBoutique} style={{ height: isMobile ? 34 : 48, maxWidth: isMobile ? 130 : 220, objectFit: 'contain', display: 'block' }} />
             : cfg.footer.nomBoutique}
@@ -1243,17 +1238,14 @@ export default function TemplateBoutiqueJouets({ config: configBrut, siteId, ven
           )}
           {vendeurId > 0 && <BoutiqueSouhaitsAcces clair={!entSombre} gestionnaireId={vendeurId} connecte={!!acheteur} demo={produitsDemo} ouvrir={ouvrirSouhaits} variante="entete" />}
           <button onClick={ouvrirCompte} aria-label={acheteur ? 'Mon compte' : 'Se connecter'} title={acheteur ? (acheteur.prenom || 'Mon compte') : 'Connexion'}
-            style={{ background: 'none', border: 'none', padding: isMobile ? '9px 7px' : '9px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--jo-t)' }}><Ico n="user" taille={isMobile ? 24 : 28} /></button>
+            style={{ background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.5)', borderRadius: 10, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, position: 'relative', color: 'var(--jo-t)', padding: 0 }}>{acheteur ? '👤' : '🔑'}{acheteur && <span style={{ position: 'absolute', bottom: 2, right: 2, width: 8, height: 8, borderRadius: '50%', background: '#4ade80', border: `1.5px solid ${entFond}` }} />}</button>
           {ent.afficherChat !== false && !isMobile && (
             <button onClick={() => allerLien('page', 'contact')} aria-label="Nous écrire" title="Nous écrire"
-              style={{ background: 'none', border: 'none', padding: '9px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--jo-t)' }}><Ico n="chat" taille={28} /></button>
+              style={{ background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.5)', borderRadius: 10, width: 40, height: 40, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, position: 'relative', color: 'var(--jo-t)', padding: 0 }}>💬</button>
           )}
           <button onClick={ouvrirPanier} aria-label="Panier"
-            style={{ position: 'relative', background: 'none', border: 'none', padding: isMobile ? '9px 7px' : '9px 10px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: 'var(--jo-t)' }}>
-            <Ico n="cart" taille={isMobile ? 24 : 28} />
-            {nbPanier > 0 && (
-              <span style={{ position: 'absolute', top: 0, right: 0, background: '#ffffff', color: entFond, borderRadius: '50%', width: 20, height: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800 }}>{nbPanier}</span>
-            )}
+            style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 8, background: 'rgba(255,255,255,0.14)', border: '1px solid rgba(255,255,255,0.5)', borderRadius: 10, height: 40, padding: '0 14px', cursor: 'pointer', color: 'var(--jo-t)', fontSize: 17 }}>
+            🛒{nbPanier > 0 && <span style={{ background: '#ffffff', color: entFond, borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 800 }}>{nbPanier}</span>}
           </button>
         </div>
       </div>

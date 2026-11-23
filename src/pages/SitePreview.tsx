@@ -23,6 +23,7 @@ import TemplateBoutiqueAgricole from '../templates/TemplateBoutiqueAgricole';
 import TemplateBoutiqueArtisan from '../templates/TemplateBoutiqueArtisan';
 import TemplateBoutiqueAuto from '../templates/TemplateBoutiqueAuto';
 import TemplateBoutiqueJouets from '../templates/TemplateBoutiqueJouets';
+import TemplateBoutiqueGothique from '../templates/TemplateBoutiqueGothique';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -53,7 +54,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -68,9 +69,10 @@ const estAgricoleBoutique = (t: string) => t === 'boutique-agricole';
 const estArtisanBoutique = (t: string) => t === 'boutique-artisan';
 const estAutoBoutique = (t: string) => t === 'boutique-auto';
 const estJouetsBoutique = (t: string) => t === 'boutique-jouets';
+const estGothiqueBoutique = (t: string) => t === 'boutique-gothique';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -255,6 +257,46 @@ const DEMO_CONFIG_JOUETS = { jouets: {
     aide: { titre: 'Besoin d\'aide ?', texte: 'Exemple de démonstration : une équipe pour vous conseiller.', bouton: 'Nous joindre', lien: 'contact', photo: PX(7296490, 800) },
     paiements: 'Visa\nMastercard\nPayPal' },
 } };
+// Simplisse Gothique : démonstration seulement — photos libres de droits (Pexels, usage commercial permis sans attribution), jamais affichées sur une vraie boutique
+const DEMO_PRODUITS_GOTHIQUE = [
+  { id: 1,  titre: 'Veste de cuir noire',            prix: 189, prix_promo: 149, stock: 3, categorie: 'Vêtements',   description: 'Exemple de produit de démonstration.', sku: 'VE-1001', photo_principale: PX(6044127) },
+  { id: 2,  titre: 'Chandail à capuchon noir',       prix: 79,  stock: 14, categorie: 'Vêtements',   description: 'Exemple de produit de démonstration.', sku: 'VE-1002', photo_principale: PX(8206318) },
+  { id: 3,  titre: 'T-shirt noir',                   prix: 39,  stock: 30, categorie: 'Vêtements',   description: 'Exemple de produit de démonstration.', sku: 'VE-1003', photo_principale: PX(8532616) },
+  { id: 4,  titre: 'Bottes noires',                  prix: 159, stock: 9,  categorie: 'Chaussures',  description: 'Exemple de produit de démonstration.', sku: 'CH-2001', photo_principale: PX(2929281) },
+  { id: 5,  titre: 'Souliers noirs',                 prix: 129, prix_promo: 99, stock: 6, categorie: 'Chaussures', description: 'Exemple de produit de démonstration.', sku: 'CH-2002', photo_principale: PX(27274312) },
+  { id: 6,  titre: 'Bague argentée',                 prix: 45,  stock: 20, categorie: 'Accessoires', description: 'Exemple de produit de démonstration.', sku: 'AC-3001', photo_principale: PX(2732096) },
+  { id: 7,  titre: 'Bijoux argentés',                prix: 65,  stock: 8,  categorie: 'Accessoires', description: 'Exemple de produit de démonstration.', sku: 'AC-3002', photo_principale: PX(20719544) },
+  { id: 8,  titre: 'Sac de cuir noir',               prix: 119, stock: 4,  categorie: 'Accessoires', description: 'Exemple de produit de démonstration.', sku: 'AC-3003', photo_principale: PX(2962086) },
+  { id: 9,  titre: 'Sac à main noir',                prix: 99,  stock: 12, categorie: 'Accessoires', description: 'Exemple de produit de démonstration.', sku: 'AC-3004', photo_principale: PX(16484534) },
+  { id: 10, titre: 'Lunettes noires',                prix: 55,  prix_promo: 42, stock: 7, categorie: 'Accessoires', description: 'Exemple de produit de démonstration.', sku: 'AC-3005', photo_principale: PX(31305965) },
+];
+const DEMO_ARTICLES_GOTHIQUE = [
+  { id: 9001, titre: 'Exemple : composer une tenue tout en noir', slug: 'exemple-noir', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(7679725), date_publication: new Date(Date.now() - 5 * 864e5).toISOString(), categorie: 'Style', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9002, titre: 'Exemple : entretenir le cuir', slug: 'exemple-cuir', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(6045049), date_publication: new Date(Date.now() - 12 * 864e5).toISOString(), categorie: 'Conseils', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9003, titre: 'Exemple : nos accessoires préférés', slug: 'exemple-accessoires', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(12901704), date_publication: new Date(Date.now() - 20 * 864e5).toISOString(), categorie: 'Idées', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+];
+const DEMO_CONFIG_GOTHIQUE = { gothique: {
+  accueil: {
+    hero: { titre: 'Nouvelle collection', sousTitre: '', boutonLabel: 'Magasiner', boutonLien: '/catalogue', photo: PX(3109671, 1600), style: 'image-fond' },
+    entete: { barreHaut: { actif: true, gauche: 'Exemple de démonstration : message de la barre du haut', droite: 'Aide | contact\nBlogue | blog' } },
+    diaporama: [
+      { titre: 'Nouvelle collection', texte: 'Exemple de démonstration : remplacez ce texte par le vôtre.', bouton: 'Magasiner', lien: 'catalogue', photo: PX(3109671, 1600) },
+      { titre: 'Après la tombée du jour', texte: 'Exemple de démonstration : un deuxième message.', bouton: 'Voir les vêtements', lien: 'cat:Vêtements', photo: PX(11048654, 1600) },
+      { titre: 'Pas à pas', texte: 'Exemple de démonstration : un troisième message.', bouton: 'Voir les chaussures', lien: 'cat:Chaussures', photo: PX(17955862, 1600) },
+    ],
+    ticker: { messages: 'Exemple : un premier message de votre boutique\nExemple : un autre message de votre boutique', vitesse: 'normale', icone: '✦', lien: '' },
+    ticker2: { messages: 'Exemple : un message pour vos clients\nExemple : une autre annonce', vitesse: 'lente', icone: '✦', lien: '' },
+    focus: { titre: 'Titre', texte: 'Exemple de démonstration : décrivez ici une collection à mettre en avant.', bouton: 'Découvrir', lien: 'cat:Vêtements', photo: PX(983497, 1200), categorie: '' },
+    vedette: { titre: 'Meilleurs vendeurs', sousTitre: '', categorie: '', nombre: 6 },
+    bandeaux: [{ titre: 'Après la nuit', bouton: '', lien: 'catalogue', photo: PX(13160240, 1800) }],
+    collections: { titre: 'Magasiner par collection', items: 'Nouveautés | catalogue\nVêtements | cat:Vêtements\nChaussures | cat:Chaussures\nAccessoires | cat:Accessoires' },
+    nouveautes: { titre: 'Nouveautés', sousTitre: '', categorie: '', nombre: 6 },
+    affiche: { texte: 'SOLDES jusqu\'à 70 %', couleurFond: '#ffffff', couleurTexte: '#000000', lien: 'catalogue' },
+    temoignagesTitre: 'Avis',
+    blogApercu: { titre: 'Blogue', bouton: 'Lire le blogue' },
+  },
+  footer: { nomBoutique: 'Nocturne', slogan: '', texte: 'Exemple de démonstration : présentez ici votre boutique en quelques lignes.', afficherPropulse: true, paiements: 'Visa\nMastercard\nPayPal' },
+} };
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
@@ -404,7 +446,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -459,6 +501,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Simplisse Jouets : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_JOUETS, __articles_demo__: DEMO_ARTICLES_JOUETS } : config;
       return <TemplateBoutiqueJouets config={isDemo ? configDemo : configJouetsAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.jouets) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-gothique') {
+      // Simplisse Gothique : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_GOTHIQUE, __articles_demo__: DEMO_ARTICLES_GOTHIQUE } : config;
+      return <TemplateBoutiqueGothique config={isDemo ? configDemo : configGothiqueAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.gothique) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId === 'boutique-agricole') {
       // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.

@@ -20,6 +20,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-artisan':             'https://images.pexels.com/photos/33684107/pexels-photo-33684107.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-auto':                'https://images.pexels.com/photos/8985967/pexels-photo-8985967.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-jouets':              'https://images.pexels.com/photos/5665500/pexels-photo-5665500.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-gothique':            'https://images.pexels.com/photos/3109671/pexels-photo-3109671.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -175,6 +176,14 @@ export const TEMPLATES: Template[] = [
     description: "Boutique de jouets colorée : barre bleue et en-tête rouge avec recherche, diaporama, rangées de produits qui défilent, grandes bannières, tuiles, chercheur de cadeau (âge, type, budget), photos de la communauté, mosaïque, chiffres clés, magasiner par âge, aperçu du blogue et pied de page bleu. Panier et paiement Stripe ou PayPal, compte acheteur, blog, FAQ et contact. Tout est réglable.",
     fonctionnalites: ['Diaporama, rangées de produits et bannières réglables', 'Chercheur de cadeau (âge, type, budget)', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#de1b2d',
+  },
+  {
+    id: 'boutique-gothique',
+    nom: 'Simplisse Gothique',
+    groupe: 'boutique-industrie',
+    description: "Boutique noire à l'allure gothique : nom de la boutique en police gothique au centre, image pleine largeur, bandeaux défilants, grilles de produits à fines lignes, collections, grande affiche, avantages, avis et grand nom en pied de page. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Image pleine largeur et bandeaux défilants réglables', 'Police gothique au choix pour le nom de la boutique', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#e8590c',
   },
   {
     id: 'boutique-agricole',

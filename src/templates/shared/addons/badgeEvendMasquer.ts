@@ -74,3 +74,10 @@ export function configJouetsAvecBadge(config: any, addons: Record<string, boolea
   const jouets = (base && typeof base === 'object') ? base : {};
   return { ...config, jouets: { ...jouets, footer: { ...(jouets.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Gothique : le pied de page se lit dans config.gothique.footer.afficherPropulse.
+// `base` = config.gothique déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configGothiqueAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const gothique = (base && typeof base === 'object') ? base : {};
+  return { ...config, gothique: { ...gothique, footer: { ...(gothique.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
