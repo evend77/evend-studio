@@ -26,6 +26,7 @@ import TemplateBoutiqueJouets from '../templates/TemplateBoutiqueJouets';
 import TemplateBoutiqueGothique from '../templates/TemplateBoutiqueGothique';
 import TemplateBoutiqueBD from '../templates/TemplateBoutiqueBD';
 import TemplateBoutiqueFuturiste from '../templates/TemplateBoutiqueFuturiste';
+import TemplateBoutiqueTech from '../templates/TemplateBoutiqueTech';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -56,7 +57,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge, configFuturisteAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge, configFuturisteAvecBadge, configTechAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -74,9 +75,10 @@ const estJouetsBoutique = (t: string) => t === 'boutique-jouets';
 const estGothiqueBoutique = (t: string) => t === 'boutique-gothique';
 const estBDBoutique = (t: string) => t === 'boutique-bd';
 const estFuturisteBoutique = (t: string) => t === 'boutique-futuriste';
+const estTechBoutique = (t: string) => t === 'boutique-tech';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -399,6 +401,62 @@ const DEMO_CONFIG_FUTURISTE = { futuriste: {
     aide: { titre: 'Besoin d\'aide ?', texte: 'Exemple de démonstration : une équipe pour vous conseiller.', bouton: 'Nous joindre', lien: 'contact', photo: '' },
     paiements: 'Visa\nMastercard\nPayPal' },
 } };
+// Simplisse Tech : démonstration seulement — photos libres de droits (Pexels, usage commercial permis sans attribution), jamais affichées sur une vraie boutique
+const DEMO_PRODUITS_TECH = [
+  { id: 1,  titre: 'Manette sans fil',          prix: 79, stock: 14, categorie: 'Manettes', description: 'Exemple de produit de démonstration.', sku: 'MA-1001', photo_principale: PX(6006298) },
+  { id: 2,  titre: 'Manette blanche',           prix: 69, prix_promo: 54, stock: 3, categorie: 'Manettes', description: 'Exemple de produit de démonstration.', sku: 'MA-1002', photo_principale: PX(4497076) },
+  { id: 3,  titre: 'Casque audio',              prix: 129, stock: 30, categorie: 'Audio', description: 'Exemple de produit de démonstration.', sku: 'AU-2001', photo_principale: PX(1649771) },
+  { id: 4,  titre: 'Écouteurs compacts',        prix: 79, prix_promo: 59, stock: 9, categorie: 'Audio', description: 'Exemple de produit de démonstration.', sku: 'AU-2002', photo_principale: PX(10292808) },
+  { id: 5,  titre: 'Clavier mécanique RVB',     prix: 149, prix_promo: 119, stock: 6, categorie: 'Claviers', description: 'Exemple de produit de démonstration.', sku: 'CL-3001', photo_principale: PX(33888380) },
+  { id: 6,  titre: 'Clavier lumineux',          prix: 99, stock: 9, categorie: 'Claviers', description: 'Exemple de produit de démonstration.', sku: 'CL-3002', photo_principale: PX(28842075) },
+  { id: 7,  titre: 'Ensemble clavier et souris', prix: 109, stock: 4, categorie: 'Claviers', description: 'Exemple de produit de démonstration.', sku: 'CL-3003', photo_principale: PX(28779689) },
+  { id: 8,  titre: 'Casque de réalité virtuelle', prix: 399, stock: 5, categorie: 'Réalité virtuelle', description: 'Exemple de produit de démonstration.', sku: 'VR-4001', photo_principale: PX(7776217) },
+  { id: 9,  titre: 'Montre connectée',          prix: 189, stock: 20, categorie: 'Accessoires', description: 'Exemple de produit de démonstration.', sku: 'AC-5001', photo_principale: PX(5081914) },
+  { id: 10, titre: 'Enceinte portable',         prix: 89, stock: 7, categorie: 'Audio', description: 'Exemple de produit de démonstration.', sku: 'AU-2003', photo_principale: PX(9767549) },
+];
+const DEMO_ARTICLES_TECH = [
+  { id: 9001, titre: 'Exemple : bien choisir sa manette', slug: 'exemple-manette', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(6006298), date_publication: new Date(Date.now() - 5 * 864e5).toISOString(), categorie: 'Conseils', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9002, titre: 'Exemple : aménager un poste de jeu', slug: 'exemple-poste', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(38498457), date_publication: new Date(Date.now() - 12 * 864e5).toISOString(), categorie: 'Guides', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9003, titre: 'Exemple : choisir un clavier', slug: 'exemple-clavier', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(33888380), date_publication: new Date(Date.now() - 20 * 864e5).toISOString(), categorie: 'Guides', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+];
+const TK_FIN_DEMO = (() => { const d = new Date(Date.now() + 15 * 864e5); const z = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; })();
+const DEMO_CONFIG_TECH = { tech: {
+  accueil: {
+    hero: { titre: 'Passez au niveau supérieur', sousTitre: 'Exemple de démonstration', boutonLabel: 'Magasiner', boutonLien: '/catalogue', photo: PX(38498457, 1600), style: 'image-fond' },
+    entete: { barreHaut: { actif: true, gauche: 'Exemple de démonstration : message de la barre du haut', droite: 'Aide | contact\nBlogue | blog' } },
+    diaporama: [
+      { surtitre: 'Exemple de démonstration', titre: 'Un poste de jeu *sans limite*', texte: 'Exemple de démonstration : remplacez ce texte par le vôtre.', bouton: 'Magasiner', lien: 'catalogue', photo: PX(38498457, 1600) },
+      { surtitre: 'Nouveautés', titre: 'Les *nouveautés* de la semaine', texte: 'Exemple de démonstration : un deuxième message.', bouton: 'Voir les nouveautés', lien: 'catalogue', photo: PX(34697345, 1600) },
+      { surtitre: 'Claviers', titre: 'Écrivez, jouez, *dominez*', texte: 'Exemple de démonstration : un troisième message.', bouton: 'Voir les claviers', lien: 'cat:Claviers', photo: PX(31018745, 1600) },
+    ],
+    ticker: { messages: 'Exemple : un premier message de votre boutique\nExemple : un autre message de votre boutique', vitesse: 'normale', couleurFond: '#6d28d9', couleurTexte: '#ffffff', couleurAccent: '#ffffff', icone: '🎮', lien: '' },
+    mosaique: { titre: 'Magasiner par *catégorie*', sousTitre: 'Exemple de démonstration', fantome: 'Catégories', items: 'Manettes | ' + PX(6006298, 800) + ' | cat:Manettes\nAudio | ' + PX(1649771, 800) + ' | cat:Audio\nClaviers | ' + PX(33888380, 1000) + ' | cat:Claviers\nRéalité virtuelle | ' + PX(7776217, 1000) + ' | cat:Réalité virtuelle' },
+    vedette: { titre: 'Nos *favoris*', sousTitre: 'Exemple de démonstration', fantome: 'Favoris', categorie: '', nombre: 10 },
+    bandeaux: [{ titre: 'Transformez votre *espace*', sousTitre: 'Exemple de démonstration : un texte court sous le titre.', bouton: 'Découvrir', lien: 'catalogue', bouton2: 'En savoir plus', lien2: 'a-propos', photo: PX(33050961, 1800) }],
+    details: { titre: 'Pensé pour la *performance*', sousTitre: 'Exemple de démonstration', fantome: 'Détails', photo: PX(33888380, 900), points: 'Touches mécaniques | Exemple de démonstration : décrivez ici un point fort réel.\nÉclairage RVB | Exemple de démonstration : un deuxième point fort.\nSans fil | Exemple de démonstration : un troisième point fort.\nBatterie longue durée | Exemple de démonstration : un quatrième point fort.', bouton: 'Voir le produit', lien: 'catalogue' },
+    nouveautes: { titre: 'Nouveautés', sousTitre: '', fantome: 'Nouveau', categorie: '', nombre: 10 },
+    recherche: { titre: 'Vous n\'avez pas trouvé ce que vous cherchiez ?', bouton: 'Rechercher' },
+    focus: { titre: 'Coup de *cœur*', texte: 'Exemple de démonstration', bouton: 'Découvrir', lien: 'catalogue', photo: PX(13071304, 1000), categorie: '', nombre: 4 },
+    comparatif: { titre: 'Comparez nos *casques*', sousTitre: 'Exemple de démonstration : tableau saisi à la main', fantome: 'Comparer', produits: PX(1649771, 600) + ' | Casque audio | 129 $ | catalogue\n' + PX(10292808, 600) + ' | Écouteurs | 79 $ | catalogue\n' + PX(7776217, 600) + ' | Casque VR | 399 $ | catalogue', criteres: 'Autonomie | 30 h | 8 h | 3 h\nConnexion | Sans fil | Sans fil | Sans fil\nGarantie | 1 an | 1 an | 2 ans' },
+    temoignagesTitre: 'Avis de nos *clients*', temoignagesSousTitre: 'Exemple de démonstration', temoignagesFantome: 'Avis', temoignagesPhoto: PX(34697345, 1000),
+    avantages: [],
+    etapes: { titre: 'Pourquoi *choisir* nos produits', photo: PX(31018745, 1200), items: 'Premier point fort | Exemple de démonstration : décrivez ici un avantage réel de votre boutique.\nDeuxième point fort | Exemple de démonstration : un deuxième avantage.\nTroisième point fort | Exemple de démonstration : un troisième avantage.', bouton: 'En savoir plus', lien: 'a-propos' },
+    presentation: { titre: 'À propos de la *boutique*', texte: 'Exemple de démonstration : présentez ici votre boutique, votre sélection et ce qui vous distingue. Ce texte est remplacé par le vôtre.', bouton: 'En savoir plus', lien: 'a-propos', photo: PX(1649771, 1200), inverser: false },
+    tuiles: [
+      { titre: 'Les *plus vendus*', texte: 'Exemple de démonstration : une carte promo.', bouton: 'Voir maintenant', lien: 'catalogue', photo: PX(4497076, 1000), couleur: '' },
+      { titre: 'Notre *audio*', texte: 'Exemple de démonstration : une deuxième carte promo.', bouton: 'Voir maintenant', lien: 'cat:Audio', photo: PX(10292808, 1000), couleur: '' },
+    ],
+    marques: { items: ' | Marque exemple 1 | \n | Marque exemple 2 | \n | Marque exemple 3 | \n | Marque exemple 4 | ' },
+    decompte: { titre: 'Un *lancement* approche', sousTitre: 'Exemple de démonstration : date fictive', fin: TK_FIN_DEMO, photo: PX(34697345, 1600), bouton: 'En savoir plus', lien: 'contact' },
+    accordeon: { titre: 'Caractéristiques', items: 'Première caractéristique | Exemple de démonstration : le détail s\'affiche ici.\nDeuxième caractéristique | Exemple de démonstration : le détail s\'affiche ici.' },
+    pastilles: { titre: 'Nos garanties', items: '🔒 | Paiement sécurisé\n🚚 | Livraison suivie\n↩️ | Retours simples\n💬 | Service à la clientèle\n⭐ | Sélection soignée\n🎁 | Emballage soigné' },
+    accordeon2: { titre: 'Questions fréquentes', items: 'Première question ? | Exemple de démonstration : la réponse s\'affiche ici.\nDeuxième question ? | Exemple de démonstration : la réponse s\'affiche ici.' },
+    blogApercu: { titre: 'Notre *blogue*', sousTitre: 'Exemple de démonstration', bouton: 'Lire le blogue' },
+  },
+  footer: { nomBoutique: 'Ma boutique Tech', slogan: 'Exemple de démonstration', afficherPropulse: true,
+    aide: { titre: 'Besoin d\'aide ?', texte: 'Exemple de démonstration : une équipe pour vous conseiller.', bouton: 'Nous joindre', lien: 'contact', photo: '' },
+    paiements: 'Visa\nMastercard\nPayPal' },
+} };
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
@@ -548,7 +606,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : estFuturisteBoutique(templateId) ? DEMO_CONFIG_FUTURISTE : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : estFuturisteBoutique(templateId) ? DEMO_CONFIG_FUTURISTE : estTechBoutique(templateId) ? DEMO_CONFIG_TECH : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -618,6 +676,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Simplisse Futuriste : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_FU, __articles_demo__: DEMO_ARTICLES_FU } : config;
       return <TemplateBoutiqueFuturiste config={isDemo ? configDemo : configFuturisteAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.futuriste) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-tech') {
+      // Simplisse Tech : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_TECH, __articles_demo__: DEMO_ARTICLES_TECH } : config;
+      return <TemplateBoutiqueTech config={isDemo ? configDemo : configTechAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.tech) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId === 'boutique-agricole') {
       // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.

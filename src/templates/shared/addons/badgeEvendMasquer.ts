@@ -95,3 +95,10 @@ export function configFuturisteAvecBadge(config: any, addons: Record<string, boo
   const futuriste = (base && typeof base === 'object') ? base : {};
   return { ...config, futuriste: { ...futuriste, footer: { ...(futuriste.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Tech : le pied de page se lit dans config.tech.footer.afficherPropulse.
+// `base` = config.tech déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configTechAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const tech = (base && typeof base === 'object') ? base : {};
+  return { ...config, tech: { ...tech, footer: { ...(tech.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
