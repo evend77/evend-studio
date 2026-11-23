@@ -442,6 +442,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [modalAgricoleOuvert, setModalAgricoleOuvert] = useState(false);
   const [paliersArtisan, setPaliersArtisan] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de Simplisse Artisan (Prix Template) ; vide = aucune limite, pas de fenêtre
   const [modalArtisanOuvert, setModalArtisanOuvert] = useState(false);
+  const [paliersAuto, setPaliersAuto] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de Simplisse Auto (Prix Template) ; vide = aucune limite, pas de fenêtre
+  const [modalAutoOuvert, setModalAutoOuvert] = useState(false);
 
   // Prix configurés dans le dashboard admin — si l'appel échoue, on retombe
   // simplement sur le prix codé en dur (ou "Gratuit") comme avant.
@@ -459,7 +461,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         }
         setPrixParTemplate(map);
         const info: Record<string, { prixMin: string; limiteMax: number }> = {};
-        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan']) {
+        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto']) {
           let pal: any = data.templates[id]?.prix_paliers;
           if (typeof pal === 'string') { try { pal = JSON.parse(pal); } catch { pal = null; } }
           if (!Array.isArray(pal) || pal.length === 0) continue;
@@ -469,6 +471,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           info[id] = { prixMin: min.prix, limiteMax: Math.max(...ok.map((x: any) => x.limite)) };
           if (id === 'boutique-complete') setPaliersComplete(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-artisan') setPaliersArtisan(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
+          if (id === 'boutique-auto') setPaliersAuto(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-agricole') setPaliersAgricole(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-catalogue') setPaliersCatalogue(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
         }
@@ -528,6 +531,19 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     }
     setModalArtisanOuvert(false);
     onChoisir('boutique-artisan');
+  };
+  // Simplisse Auto : même principe
+  const handleChoisirAuto = () => { if (paliersAuto.length > 0) setModalAutoOuvert(true); else onChoisir('boutique-auto'); };
+  const handleConfirmerPalierAuto = async (limite: number) => {
+    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include', body: JSON.stringify({ plan: `auto-${limite}` }),
+      }).catch(() => {});
+    }
+    setModalAutoOuvert(false);
+    onChoisir('boutique-auto');
   };
   const handleChoisirSimplisse = () => setModalSimplisseOuvert(true);
   const [modalPremiumOuvert, setModalPremiumOuvert] = useState(false);
@@ -705,9 +721,10 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
               pages: ['Accueil', 'Catalogue', 'Fiche produit', "L'atelier", 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
             },
             {
-              id: 'boutique-simplisse-aliments', titre: 'Simplisse Épicerie',
-              desc: "Épicerie fine, produits locaux ou fermiers. Sections origines, producteurs, fraîcheur du jour. Tons verts & terroir. Bientôt.",
-              icone: '🥕', couleur: '#16a34a', disponible: false, badge: 'Bientôt', badgeCouleur: '#16a34a', pages: [],
+              id: 'boutique-auto', titre: 'Simplisse Auto',
+              desc: "Pour les vendeurs de pièces auto et mécaniques : en-tête foncé avec recherche et « Mon garage », bandeau défilant, recherche par marque / modèle / année, cartes de catégories, tuiles promo, compte à rebours, marques, tableau comparatif, réservation de rendez-vous, panier et paiement Stripe ou PayPal, compte acheteur, blog, FAQ et contact. Sections masquables et réordonnables.",
+              icone: '🚗', couleur: '#d9670b', disponible: true, badge: 'Nouveau', badgeCouleur: '#d9670b',
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'À propos', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
             },
             {
               id: 'boutique-simplisse-numerique', titre: 'Simplisse Numérique',
@@ -905,6 +922,14 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           nom="Simplisse Artisan" icone="🎨" couleur="#111111"
           onConfirmer={handleConfirmerPalierArtisan}
           onAnnuler={() => setModalArtisanOuvert(false)}
+        />
+      )}
+      {modalAutoOuvert && paliersAuto.length > 0 && (
+        <ModalPalierComplete
+          paliers={paliersAuto}
+          nom="Simplisse Auto" icone="🚗" couleur="#d9670b"
+          onConfirmer={handleConfirmerPalierAuto}
+          onAnnuler={() => setModalAutoOuvert(false)}
         />
       )}
       {modalAgricoleOuvert && paliersAgricole.length > 0 && (
@@ -1275,6 +1300,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                     const estCatalogue     = t.id === 'boutique-catalogue';
                     const estAgricole      = t.id === 'boutique-agricole';
                     const estArtisan       = t.id === 'boutique-artisan';
+                    const estAuto          = t.id === 'boutique-auto';
                     return (
                       <div key={t.id} className="template-card"
                         onClick={() => {
@@ -1286,6 +1312,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estCatalogue) { handleChoisirCatalogue(); return; }
                           if (estAgricole) { handleChoisirAgricole(); return; }
                           if (estArtisan) { handleChoisirArtisan(); return; }
+                          if (estAuto) { handleChoisirAuto(); return; }
                           onChoisir(t.id);
                         }}
                         onMouseEnter={e => {
@@ -1383,6 +1410,15 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           </div>
                         )}
 
+                        {estAuto && (
+                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
+                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
+                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Recherche par véhicule · Mon garage · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
                         {estMonoProduit && (
                           <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
                             <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
@@ -1426,10 +1462,11 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                                 if (estCatalogue) { handleChoisirCatalogue(); return; }
                                 if (estAgricole) { handleChoisirAgricole(); return; }
                                 if (estArtisan) { handleChoisirArtisan(); return; }
+                          if (estAuto) { handleChoisirAuto(); return; }
                                 onChoisir(t.id);
                               }}
                               style={{ padding: '9px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit', boxShadow: `0 8px 16px -8px ${estSimplisse ? COULEUR_MP : t.couleur}` }}>
-                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : 'Choisir →'}
+                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : estAuto ? '🚗 Auto →' : 'Choisir →'}
                             </button>
                           </div>
                         )}

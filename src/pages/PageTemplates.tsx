@@ -18,7 +18,7 @@ export const PHOTOS: Record<string, string> = {
   // Boutique — Par industrie
   'boutique-simplisse-mode':      'https://images.pexels.com/photos/934070/pexels-photo-934070.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-artisan':             'https://images.pexels.com/photos/33684107/pexels-photo-33684107.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'boutique-simplisse-aliments':  'https://images.pexels.com/photos/264636/pexels-photo-264636.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-auto':                'https://images.pexels.com/photos/8985967/pexels-photo-8985967.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-simplisse-numerique': 'https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -161,12 +161,12 @@ export const TEMPLATES: Template[] = [
     disponible: true, nouveau: true, couleur: '#111111',
   },
   {
-    id: 'boutique-simplisse-aliments',
-    nom: 'Simplisse Épicerie',
+    id: 'boutique-auto',
+    nom: 'Simplisse Auto',
     groupe: 'boutique-industrie',
-    description: 'Épicerie fine, produits locaux ou fermiers. Sections origines, producteurs, fraîcheur du jour. Tons verts & terroir. Bientôt.',
-    fonctionnalites: ['Sections origines & producteurs', 'Fraîcheur du jour', 'Tons verts & terroir', 'Bientôt disponible'],
-    disponible: false, nouveau: false, couleur: '#16a34a',
+    description: "Boutique de pièces auto et mécaniques : en-tête foncé avec recherche et « Mon garage », bandeau défilant, recherche par marque / modèle / année, cartes de catégories, tuiles promo, compte à rebours, marques, tableau comparatif, chiffres clés et réservation de rendez-vous. Panier et paiement Stripe ou PayPal, compte acheteur, blog, FAQ et contact. Sections masquables et réordonnables.",
+    fonctionnalites: ['Recherche par véhicule et « Mon garage »', 'Bandeau défilant, tuiles promo, compte à rebours', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#d9670b',
   },
   {
     id: 'boutique-simplisse-numerique',

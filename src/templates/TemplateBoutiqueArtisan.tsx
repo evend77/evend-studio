@@ -926,7 +926,7 @@ export default function TemplateBoutiqueArtisan({ config: configBrut, siteId, ve
       const res = await fetch(`${API_BASE}/studio/contact`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nom_expediteur: nom, email_expediteur: courriel, message, vendeur_id: vendeurId, template_id: 'boutique-catalogue', honeypot: '', form_start_time: debutContact.current }),
+        body: JSON.stringify({ nom_expediteur: nom, email_expediteur: courriel, message, vendeur_id: vendeurId, template_id: 'boutique-artisan', honeypot: '', form_start_time: debutContact.current }),
       });
       if (!res.ok) { try { const j = await res.json(); if (j && typeof j.message === 'string') setContactErr(j.message.slice(0, 200)); } catch { /* réponse non JSON */ } throw new Error(); }
       setContactForm({ nom: '', courriel: '', message: '' });

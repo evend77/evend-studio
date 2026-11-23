@@ -15,13 +15,14 @@ const cfgMV = require('./studio_config_mv');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
 
 // Clés de config des templates solo (un site n'en utilise qu'une). Ajouter ici chaque nouveau template passé.
-const CLES_TEMPLATES = ['premium', 'simplisse', 'simple', 'complete', 'avance', 'mode', 'ferme', 'artisan'];
+const CLES_TEMPLATES = ['premium', 'simplisse', 'simple', 'complete', 'avance', 'mode', 'ferme', 'artisan', 'auto'];
 
 // Clé de config d'un template solo d'après son identifiant (null = inconnu : on cherche alors dans toutes les clés ci-dessus).
 // Simplisse-Mode et Beauté seront ajoutés ici quand leur config d'inscription existera.
 function cleDuTemplate(templateId) {
   const t = String(templateId || '');
   if (t.startsWith('boutique-simplisse-mode')) return 'mode';   // Simplisse Mode (avant le test Simplisse ci-dessous)
+  if (t === 'boutique-auto') return 'auto';   // Simplisse Auto : comparaison EXACTE
   if (t === 'boutique-artisan') return 'artisan';   // Simplisse Artisan : comparaison EXACTE
   if (t === 'boutique-agricole') return 'ferme';   // Boutique Agricole : comparaison EXACTE
   if (t === 'boutique-catalogue') return 'avance';   // Catalogue Avancé : comparaison EXACTE

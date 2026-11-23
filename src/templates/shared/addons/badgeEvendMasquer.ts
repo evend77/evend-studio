@@ -60,3 +60,10 @@ export function configArtisanAvecBadge(config: any, addons: Record<string, boole
   const artisan = (base && typeof base === 'object') ? base : {};
   return { ...config, artisan: { ...artisan, footer: { ...(artisan.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Auto : le pied de page se lit dans config.auto.footer.afficherPropulse.
+// `base` = config.auto déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configAutoAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const auto = (base && typeof base === 'object') ? base : {};
+  return { ...config, auto: { ...auto, footer: { ...(auto.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

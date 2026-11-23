@@ -21,6 +21,7 @@ import TemplateBoutiqueComplete, { migrerComplete } from '../templates/TemplateB
 import TemplateBoutiqueCatalogue from '../templates/TemplateBoutiqueCatalogue';
 import TemplateBoutiqueAgricole from '../templates/TemplateBoutiqueAgricole';
 import TemplateBoutiqueArtisan from '../templates/TemplateBoutiqueArtisan';
+import TemplateBoutiqueAuto from '../templates/TemplateBoutiqueAuto';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -51,7 +52,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -64,9 +65,10 @@ const estCompleteBoutique = (t: string) => t === 'boutique-complete';
 const estCatalogueBoutique = (t: string) => t === 'boutique-catalogue';
 const estAgricoleBoutique = (t: string) => t === 'boutique-agricole';
 const estArtisanBoutique = (t: string) => t === 'boutique-artisan';
+const estAutoBoutique = (t: string) => t === 'boutique-auto';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -153,6 +155,44 @@ const DEMO_CONFIG_ARTISAN = { artisan: {
     philosophie: { sousTitre: "Mot de l'artisan", titre: 'Chaque pièce raconte une histoire', photo: PX(3720778, 1600) },
   },
   footer: { nomBoutique: 'Mon Atelier', afficherPropulse: true, images: [PX(1070527, 500), PX(7222027, 500), PX(15062251, 500), PX(9508911, 500)] },
+} };
+// Simplisse Auto : démonstration seulement — photos libres de droits (Pexels, usage commercial permis sans attribution), jamais affichées sur une vraie boutique
+const DEMO_PRODUITS_AUTO = [
+  { id: 1,  titre: 'Plaquettes de frein avant — Honda Civic 2016-2021', prix: 64,  stock: 12, categorie: 'Freinage',      description: 'Exemple de produit de démonstration. Compatible Honda Civic.', sku: 'FR-1001', photo_principale: PX(8986132) },
+  { id: 2,  titre: 'Disques de frein ventilés — Toyota Corolla 2014-2019', prix: 119, prix_promo: 99, stock: 6, categorie: 'Freinage', description: 'Exemple de produit de démonstration. Compatible Toyota Corolla.', sku: 'FR-1002', photo_principale: PX(4489749) },
+  { id: 3,  titre: "Filtre à l'huile — Ford F-150 2015-2023",         prix: 14,  stock: 40, categorie: 'Entretien',    description: 'Exemple de produit de démonstration. Compatible Ford F-150.', sku: 'EN-2001', photo_principale: PX(8985510) },
+  { id: 4,  titre: 'Courroie de distribution — Honda Civic 2012-2015', prix: 89,  stock: 5,  categorie: 'Moteur',       description: 'Exemple de produit de démonstration. Compatible Honda Civic.', sku: 'MO-3001', photo_principale: PX(11455717) },
+  { id: 5,  titre: 'Bougies d\'allumage (jeu de 4) — Toyota Corolla',  prix: 36,  stock: 25, categorie: 'Moteur',       description: 'Exemple de produit de démonstration. Compatible Toyota Corolla.', sku: 'MO-3002', photo_principale: PX(5158155) },
+  { id: 6,  titre: 'Amortisseur arrière — Ford Escape 2013-2019',       prix: 94,  prix_promo: 79, stock: 8, categorie: 'Suspension', description: 'Exemple de produit de démonstration. Compatible Ford Escape.', sku: 'SU-4001', photo_principale: PX(3807517) },
+  { id: 7,  titre: 'Rotule de suspension — Chevrolet Silverado',        prix: 52,  stock: 10, categorie: 'Suspension',   description: 'Exemple de produit de démonstration. Compatible Chevrolet Silverado.', sku: 'SU-4002', photo_principale: PX(12765673) },
+  { id: 8,  titre: 'Jeu de 4 pneus quatre saisons 205/55R16',           prix: 520, stock: 4,  categorie: 'Pneus et roues', description: 'Exemple de produit de démonstration.', sku: 'PN-5001', photo_principale: PX(7807035) },
+  { id: 9,  titre: 'Ampoules de phare DEL (paire) — H11',               prix: 45,  stock: 30, categorie: 'Éclairage',    description: 'Exemple de produit de démonstration.', sku: 'EC-6001', photo_principale: PX(65623) },
+  { id: 10, titre: 'Batterie 12 V 650 CCA',                             prix: 159, prix_promo: 139, stock: 9, categorie: 'Électrique', description: 'Exemple de produit de démonstration.', sku: 'EL-7001', photo_principale: PX(8478259) },
+];
+const DEMO_CONFIG_AUTO = { auto: {
+  accueil: {
+    hero: { titre: 'Pièces auto et mécaniques', sousTitre: "Exemple de démonstration : trouvez les pièces qu'il vous faut pour votre véhicule.", boutonLabel: 'Voir les pièces', boutonLien: '/catalogue', photo: PX(8985967, 1600), style: 'image-fond' },
+    entete: { couleurFond: '#111111', couleurTexte: '#ffffff', afficherRecherche: true, afficherGarage: true, barreHaut: { actif: true, gauche: 'Exemple de démonstration : message de la barre du haut', droite: 'Aide : 514 000-0000' } },
+    ticker: { messages: 'Exemple : commandez avant 13 h pour une livraison le lendemain !\nExemple : retours acceptés selon votre politique\nExemple : conseils gratuits au comptoir', vitesse: 'normale', couleurFond: '#d9670b', couleurTexte: '#ffffff', lien: '' },
+    vehicule: { titre: 'Trouvez les pièces pour votre véhicule', sousTitre: 'Choisissez votre marque, votre modèle et votre année.', photo: PX(34337558, 1600), anneeMin: 1995, anneeMax: 2026, note: 'Exemple de démonstration : la recherche cherche le nom du véhicule dans les fiches produits. Vérifiez toujours la compatibilité.',
+      marques: 'Honda: Civic, Accord, CR-V\nToyota: Corolla, Camry, RAV4\nFord: F-150, Escape, Focus\nChevrolet: Silverado, Equinox, Malibu\nHyundai: Elantra, Tucson, Sonata' },
+    cartes: [
+      { titre: 'Freinage', texte: 'Plaquettes, disques et étriers.', photo: PX(4489749), bouton: 'Magasiner', lien: 'cat:Freinage' },
+      { titre: 'Moteur', texte: 'Courroies, bougies, joints.', photo: PX(65623), bouton: 'Magasiner', lien: 'cat:Moteur' },
+      { titre: 'Suspension', texte: 'Amortisseurs, rotules, ressorts.', photo: PX(3807517), bouton: 'Magasiner', lien: 'cat:Suspension' },
+    ],
+    pieces: { titre: 'Chercher par type de pièce', types: 'Freinage\nMoteur\nSuspension\nPneus et roues\nÉclairage\nÉlectrique\nEntretien' },
+    tuiles: [
+      { titre: 'Entretien saisonnier', texte: 'Exemple : huile, filtres et balais.', photo: PX(8985510), lien: 'cat:Entretien' },
+      { titre: 'Pneus et roues', texte: 'Exemple : tous les formats.', photo: PX(7807035), lien: 'cat:Pneus et roues' },
+    ],
+    compteRebours: { titre: 'Vente de fin de saison', texte: 'Exemple de démonstration : rabais sur une sélection de pièces.', dateFin: new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 16), photo: PX(12765673, 1600), bouton: 'Voir les promos', lien: 'catalogue' },
+    marques: { titre: 'Nos marques', items: 'Bosch\nDenso\nNGK\nMonroe\nAkebono\nGates' },
+    comparatif: { titre: 'Pourquoi nous choisir', colonnes: 'Nous | Autre boutique A | Autre boutique B', lignes: 'Conseils personnalisés | oui | non | non\nRecherche par véhicule | oui | oui | non\nRendez-vous pour la pose | oui | non | non\nExemple de critère | oui | oui | oui' },
+    chiffres: { items: '15 | Ans d\'expérience\n5000 | Pièces en inventaire\n40 | Marques\n24 h | Réponse aux courriels' },
+    reservation: { titre: 'Réserver une pose ou un diagnostic', sousTitre: 'Exemple de démonstration : choisissez un service et une date, nous vous confirmons le rendez-vous.', photo: PX(8985967, 1000), services: 'Installation de pièces\nDiagnostic\nChangement de pneus\nEntretien', bouton: 'Envoyer la demande', messageSucces: 'Demande envoyée. Nous vous répondrons bientôt.' },
+  },
+  footer: { nomBoutique: 'Ma Boutique Auto', afficherPropulse: true },
 } };
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
@@ -303,7 +343,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -348,6 +388,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Simplisse Artisan : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_ARTISAN } : config;
       return <TemplateBoutiqueArtisan config={isDemo ? configDemo : configArtisanAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.artisan) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-auto') {
+      // Simplisse Auto : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_AUTO } : config;
+      return <TemplateBoutiqueAuto config={isDemo ? configDemo : configAutoAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.auto) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId === 'boutique-agricole') {
       // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
