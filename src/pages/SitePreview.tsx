@@ -22,6 +22,7 @@ import TemplateBoutiqueCatalogue from '../templates/TemplateBoutiqueCatalogue';
 import TemplateBoutiqueAgricole from '../templates/TemplateBoutiqueAgricole';
 import TemplateBoutiqueArtisan from '../templates/TemplateBoutiqueArtisan';
 import TemplateBoutiqueAuto from '../templates/TemplateBoutiqueAuto';
+import TemplateBoutiqueJouets from '../templates/TemplateBoutiqueJouets';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -52,7 +53,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -66,9 +67,10 @@ const estCatalogueBoutique = (t: string) => t === 'boutique-catalogue';
 const estAgricoleBoutique = (t: string) => t === 'boutique-agricole';
 const estArtisanBoutique = (t: string) => t === 'boutique-artisan';
 const estAutoBoutique = (t: string) => t === 'boutique-auto';
+const estJouetsBoutique = (t: string) => t === 'boutique-jouets';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -193,6 +195,65 @@ const DEMO_CONFIG_AUTO = { auto: {
     reservation: { titre: 'Réserver une pose ou un diagnostic', sousTitre: 'Exemple de démonstration : choisissez un service et une date, nous vous confirmons le rendez-vous.', photo: PX(8985967, 1000), services: 'Installation de pièces\nDiagnostic\nChangement de pneus\nEntretien', bouton: 'Envoyer la demande', messageSucces: 'Demande envoyée. Nous vous répondrons bientôt.' },
   },
   footer: { nomBoutique: 'Ma Boutique Auto', afficherPropulse: true },
+} };
+// Simplisse Jouets : démonstration seulement — photos libres de droits (Pexels, usage commercial permis sans attribution), jamais affichées sur une vraie boutique
+const DEMO_PRODUITS_JOUETS = [
+  { id: 1,  titre: 'Ourson en peluche brun',               prix: 24, stock: 14, categorie: 'Peluches',          description: 'Exemple de produit de démonstration.', sku: 'PE-1001', photo_principale: PX(245914) },
+  { id: 2,  titre: 'Ourson en peluche blanc',              prix: 29, prix_promo: 22, stock: 3, categorie: 'Peluches', description: 'Exemple de produit de démonstration.', sku: 'PE-1002', photo_principale: PX(185848) },
+  { id: 3,  titre: 'Assortiment de petites voitures',      prix: 18, stock: 30, categorie: 'Véhicules',        description: 'Exemple de produit de démonstration.', sku: 'VE-2001', photo_principale: PX(2767817) },
+  { id: 4,  titre: 'Circuit de course et voitures',        prix: 59, prix_promo: 49, stock: 9, categorie: 'Véhicules', description: 'Exemple de produit de démonstration.', sku: 'VE-2002', photo_principale: PX(3567681) },
+  { id: 5,  titre: 'Casse-tête de 100 pièces',             prix: 16, stock: 20, categorie: 'Casse-têtes et jeux', description: 'Exemple de produit de démonstration.', sku: 'CA-3001', photo_principale: PX(6255656) },
+  { id: 6,  titre: 'Jeu de logique en bois',               prix: 27, stock: 8,  categorie: 'Casse-têtes et jeux', description: 'Exemple de produit de démonstration.', sku: 'CA-3002', photo_principale: PX(7296496) },
+  { id: 7,  titre: 'Jouet alphabet à manipuler',           prix: 21, stock: 4,  categorie: 'Apprentissage',    description: 'Exemple de produit de démonstration.', sku: 'AP-4001', photo_principale: PX(7334320) },
+  { id: 8,  titre: 'Géoplan à élastiques',                 prix: 19, stock: 12, categorie: 'Apprentissage',    description: 'Exemple de produit de démonstration.', sku: 'AP-4002', photo_principale: PX(8504340) },
+  { id: 9,  titre: 'Ours en peluche classique',            prix: 32, stock: 10, categorie: 'Peluches',          description: 'Exemple de produit de démonstration.', sku: 'PE-1003', photo_principale: PX(264917) },
+  { id: 10, titre: 'Ourson brun et blanc',                 prix: 26, prix_promo: 20, stock: 7, categorie: 'Peluches', description: 'Exemple de produit de démonstration.', sku: 'PE-1004', photo_principale: PX(42230) },
+];
+const DEMO_ARTICLES_JOUETS = [
+  { id: 9001, titre: 'Exemple : choisir un jouet selon l\'âge', slug: 'exemple-age', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(5665500), date_publication: new Date(Date.now() - 5 * 864e5).toISOString(), categorie: 'Conseils', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9002, titre: 'Exemple : jouer en famille', slug: 'exemple-famille', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(7296490), date_publication: new Date(Date.now() - 12 * 864e5).toISOString(), categorie: 'Idées', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9003, titre: 'Exemple : apprendre en jouant', slug: 'exemple-apprendre', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(6692843), date_publication: new Date(Date.now() - 20 * 864e5).toISOString(), categorie: 'Éducation', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9004, titre: 'Exemple : cadeaux de fête', slug: 'exemple-fete', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(4487869), date_publication: new Date(Date.now() - 30 * 864e5).toISOString(), categorie: 'Cadeaux', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+];
+const DEMO_CONFIG_JOUETS = { jouets: {
+  accueil: {
+    hero: { titre: 'Des jouets qui font sourire', sousTitre: 'Exemple de démonstration', boutonLabel: 'Magasiner', boutonLien: '/catalogue', photo: PX(5665500, 1600), style: 'image-fond' },
+    entete: { barreHaut: { actif: true, gauche: 'Exemple de démonstration : message de la barre du haut', droite: 'Aide | contact\nBlogue | blog' }, pastille: { titre: 'Trouver le bon jouet', sousTitre: 'Chercheur de cadeau', lien: 'chercheur' } },
+    diaporama: [
+      { titre: 'Jouer, *rire* et grandir', texte: 'Exemple de démonstration : remplacez ce texte par le vôtre.', bouton: 'Magasiner', lien: 'catalogue', photo: PX(5665500, 1600) },
+      { titre: 'Des cadeaux *magiques*', texte: 'Exemple de démonstration : un deuxième message de votre boutique.', bouton: 'Voir les peluches', lien: 'cat:Peluches', photo: PX(4487869, 1600) },
+      { titre: 'Pleins feux sur les *véhicules*', texte: 'Exemple de démonstration : un troisième message.', bouton: 'Voir les véhicules', lien: 'cat:Véhicules', photo: PX(4491563, 1600) },
+    ],
+    avantages: [],
+    vedette: { titre: 'Meilleurs *vendeurs*', sousTitre: '', categorie: '', nombre: 10 },
+    bandeaux: [{ titre: 'Un *été* de jeux', sousTitre: 'Exemple de démonstration', bouton: 'Magasiner', lien: 'catalogue', photo: PX(4484785, 1800) }],
+    presentation: { surtitre: 'Exemple de démonstration', titre: 'Des jouets *vraiment* spéciaux', texte: 'Exemple de démonstration : présentez ici votre boutique, vos valeurs et ce qui vous distingue.', bouton: 'En savoir plus', lien: 'a-propos' },
+    tuiles: [
+      { titre: 'Peluches', texte: 'Des câlins à chaque âge', bouton: 'Magasiner', lien: 'cat:Peluches', photo: PX(245914, 1200), couleur: '#1b1b4f' },
+      { titre: 'Véhicules', texte: 'Vroum vroum', bouton: 'Magasiner', lien: 'cat:Véhicules', photo: PX(3567681, 1200), couleur: '#1d6fc4' },
+    ],
+    tuilesDisposition: 'large-premier',
+    focus: { surtitre: 'Exemple', titre: 'Jeux de *logique*', bouton: 'Découvrir', lien: 'cat:Casse-têtes et jeux', photo: PX(7296496, 1200), titreDroite: 'Apprendre en s\'amusant', texte: 'Exemple de démonstration : décrivez ici un produit ou une collection à mettre en avant.', photoDroite: PX(8504340, 1200) },
+    selection: { titre: 'Notre *sélection*', sousTitre: '', categorie: '', nombre: 10 },
+    communaute: { titre: 'Joué, aimé et *partagé* par vous', sousTitre: 'Exemple de démonstration : ajoutez les photos de vos clients (avec leur permission).', items: `${PX(4491563)} | @exemple1 | \n${PX(6692843)} | @exemple2 | \n${PX(4487869)} | @exemple3 | \n${PX(7334320)} | @exemple4 | \n${PX(5665500)} | @exemple5 | \n${PX(4484785)} | @exemple6 | ` },
+    chercheur: { titre: 'Trouvez le cadeau *parfait*', sousTitre: 'Choisissez un âge, un type de jouet et un budget.', ageLabel: 'Âge', typeLabel: 'Type de jouet', budgetLabel: 'Budget', bouton: 'Chercher', note: 'Exemple de démonstration : la recherche utilise les mots-clés ci-dessous dans vos fiches et le prix. Indiquez l\'âge dans vos fiches produits.', photo: PX(3567681, 1800),
+      ageOptions: '0 à 2 ans | bébé\n3 à 5 ans | enfant\n6 à 8 ans | jeu', typeOptions: 'Peluches | peluche\nVéhicules | voiture\nCasse-têtes | casse-tête\nApprentissage | alphabet', budgetOptions: 'Moins de 20 $ | | 20\n20 $ à 30 $ | 20 | 30\n30 $ et plus | 30 | ' },
+    ticker: { messages: 'Exemple : commandez avant 13 h pour une livraison le lendemain !\nExemple : un autre message de votre boutique', vitesse: 'normale', couleurFond: '#c2188a', couleurTexte: '#ffffff', couleurAccent: '#67e8f9', icone: '🎁', lien: '' },
+    mosaique: { titre: '@exemple_boutique', sousTitre: 'Exemple de démonstration', items: `${PX(5665500)} | Exemple | Date | \n${PX(4487869)} | Exemple | Date | \n${PX(4491563)} | Exemple | Date | \n${PX(6692843)} | Exemple | Date | ` },
+    chiffres: { titre: 'Pourquoi *magasiner* chez nous ?', sousTitre: 'Exemple de démonstration : remplacez ces chiffres par les vôtres (chiffres vrais seulement).', items: 'Exemple | 10+ | Années d\'expérience\nExemple | 500 | Jouets en magasin\nExemple | 24 h | Réponse aux courriels' },
+    temoignagesTitre: 'Ce que disent nos clients',
+    cercles: { titre: 'Magasiner par *âge*', items: `${PX(245914)} | 0 à 2 ans | catalogue\n${PX(7334320)} | 3 à 5 ans | catalogue\n${PX(6255656)} | 6 à 8 ans | catalogue\n${PX(8504340)} | 9 ans et plus | catalogue` },
+    tuiles2: [
+      { titre: 'Boutique *filles*', texte: 'Exemple', bouton: 'Magasiner', lien: 'catalogue', photo: PX(4487869, 1200), couleur: '#c2188a' },
+      { titre: 'Boutique *garçons*', texte: 'Exemple', bouton: 'Magasiner', lien: 'catalogue', photo: PX(4491563, 1200), couleur: '#1d6fc4' },
+    ],
+    tuiles2Disposition: 'egale',
+    blogApercu: { titre: 'Notre *blogue*', sousTitre: 'Exemple de démonstration', bouton: 'Lire le blogue' },
+  },
+  footer: { nomBoutique: 'Ma boutique de jouets', slogan: 'Exemple de démonstration', afficherPropulse: true,
+    bande: 'Paiement sécurisé | Exemple\nLivraison | Exemple\nAide | Exemple',
+    aide: { titre: 'Besoin d\'aide ?', texte: 'Exemple de démonstration : une équipe pour vous conseiller.', bouton: 'Nous joindre', lien: 'contact', photo: PX(7296490, 800) },
+    paiements: 'Visa\nMastercard\nPayPal' },
 } };
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
@@ -343,7 +404,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -393,6 +454,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Simplisse Auto : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_AUTO } : config;
       return <TemplateBoutiqueAuto config={isDemo ? configDemo : configAutoAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.auto) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-jouets') {
+      // Simplisse Jouets : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_JOUETS, __articles_demo__: DEMO_ARTICLES_JOUETS } : config;
+      return <TemplateBoutiqueJouets config={isDemo ? configDemo : configJouetsAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.jouets) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId === 'boutique-agricole') {
       // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.

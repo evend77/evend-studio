@@ -67,3 +67,10 @@ export function configAutoAvecBadge(config: any, addons: Record<string, boolean>
   const auto = (base && typeof base === 'object') ? base : {};
   return { ...config, auto: { ...auto, footer: { ...(auto.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Jouets : le pied de page se lit dans config.jouets.footer.afficherPropulse.
+// `base` = config.jouets déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configJouetsAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const jouets = (base && typeof base === 'object') ? base : {};
+  return { ...config, jouets: { ...jouets, footer: { ...(jouets.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

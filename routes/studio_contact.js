@@ -188,6 +188,7 @@ const TEMPLATE_BRANDING = {
   'boutique-agricole':  { couleur: '#c9854a', fond: '#1a120a', nom: 'Boutique Agricole',      icone: '🌾' },
   'boutique-artisan':   { couleur: '#d4d4d4', fond: '#0b0b0b', nom: 'Simplisse Artisan',      icone: '🎨' },
   'boutique-auto':      { couleur: '#d9670b', fond: '#111111', nom: 'Simplisse Auto',         icone: '🚗' },
+  'boutique-jouets':    { couleur: '#de1b2d', fond: '#1b1b4f', nom: 'Simplisse Jouets',       icone: '🧸' },
 };
 
 const BRANDING_DEFAUT = { couleur: '#c9a96e', fond: '#1a1a2e', nom: 'e-Vend Studio', icone: '✨' };

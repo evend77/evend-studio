@@ -19,7 +19,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-simplisse-mode':      'https://images.pexels.com/photos/934070/pexels-photo-934070.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-artisan':             'https://images.pexels.com/photos/33684107/pexels-photo-33684107.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-auto':                'https://images.pexels.com/photos/8985967/pexels-photo-8985967.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'boutique-simplisse-numerique': 'https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-jouets':              'https://images.pexels.com/photos/5665500/pexels-photo-5665500.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -169,12 +169,12 @@ export const TEMPLATES: Template[] = [
     disponible: true, nouveau: true, couleur: '#d9670b',
   },
   {
-    id: 'boutique-simplisse-numerique',
-    nom: 'Simplisse Numérique',
+    id: 'boutique-jouets',
+    nom: 'Simplisse Jouets',
     groupe: 'boutique-industrie',
-    description: 'Produits numériques — PDF, guides, presets, musique, cours en ligne. Livraison instantanée par courriel. Bientôt.',
-    fonctionnalites: ['Livraison instantanée par courriel', 'PDF, guides, presets, musique', 'Cours en ligne', 'Bientôt disponible'],
-    disponible: false, nouveau: false, couleur: '#0891b2',
+    description: "Boutique de jouets colorée : barre bleue et en-tête rouge avec recherche, diaporama, rangées de produits qui défilent, grandes bannières, tuiles, chercheur de cadeau (âge, type, budget), photos de la communauté, mosaïque, chiffres clés, magasiner par âge, aperçu du blogue et pied de page bleu. Panier et paiement Stripe ou PayPal, compte acheteur, blog, FAQ et contact. Tout est réglable.",
+    fonctionnalites: ['Diaporama, rangées de produits et bannières réglables', 'Chercheur de cadeau (âge, type, budget)', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#de1b2d',
   },
   {
     id: 'boutique-agricole',
