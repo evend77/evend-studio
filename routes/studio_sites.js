@@ -259,8 +259,7 @@ router.get('/:gestionnaireId', async (req, res) => {
     const result = await pool.query(
       `SELECT s.id, s.gestionnaire_id, s.template_id, s.config, s.publie,
               s.sous_domaine, s.domaine_perso, s.domaine_statut,
-              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description,
-              g.statut AS gestionnaire_statut
+              g.nom_boutique, g.plan, g.logo_url, g.banniere_url, g.description
        FROM sites s
        JOIN gestionnaires g ON g.id = s.gestionnaire_id
        WHERE s.gestionnaire_id = $1
@@ -272,12 +271,7 @@ router.get('/:gestionnaireId', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Site non trouvé.' });
     }
 
-    const etatMaint = etatMaintenance(result.rows[0]);
-    return res.json({
-      ...result.rows[0],
-      maintenance: etatMaint.maintenance,
-      maintenance_imposee_admin: etatMaint.imposee_admin,
-    });
+    return res.json(result.rows[0]);
   } catch (err) {
     console.error('GET /studio/sites/:gestionnaireId', err);
     return res.status(500).json({ success: false, error: 'Erreur serveur' });
@@ -472,6 +466,45 @@ router.put('/:gestionnaireId/config', authenticateToken, async (req, res) => {
 
   } catch (err) {
     console.error('PUT /studio/sites/:gestionnaireId/config', err);
+    return res.status(500).json({ success: false, error: 'Erreur serveur' });
+  }
+});
+
+// =====================================================================
+// GET /api/studio/sites/:gestionnaireId/maintenance
+// État réel de la maintenance + contenu enregistré de la page (pour le tableau de bord
+// et la page « Page maintenance »).
+// ⚠️ Le GET /api/studio/sites/:id de server.js passe avant ce router : c'est pourquoi l'état
+// de maintenance a sa propre route (2 segments, jamais interceptée par server.js).
+// =====================================================================
+router.get('/:gestionnaireId/maintenance', authenticateToken, async (req, res) => {
+  try {
+    const { gestionnaireId } = req.params;
+    if (!estProprietaireOuAdmin(req, gestionnaireId)) {
+      return res.status(403).json({ success: false, message: 'Accès refusé.' });
+    }
+    const r = await pool.query(
+      `SELECT s.config, s.sous_domaine, s.domaine_perso,
+              g.nom_boutique, g.statut AS gestionnaire_statut
+       FROM sites s JOIN gestionnaires g ON g.id = s.gestionnaire_id
+       WHERE s.gestionnaire_id = $1 LIMIT 1`,
+      [gestionnaireId]
+    );
+    if (!r.rows.length) return res.status(404).json({ success: false, message: 'Site non trouvé.' });
+    const row = r.rows[0];
+    const cfg = row.config || {};
+    const etat = etatMaintenance(row);
+    return res.json({
+      success: true,
+      maintenance: etat.maintenance,
+      maintenance_imposee_admin: etat.imposee_admin,
+      generale_actif: cfg.generale?.mode_maintenance === true,
+      nom_boutique: row.nom_boutique || '',
+      adresse: row.domaine_perso || (row.sous_domaine ? `${row.sous_domaine}.e-vendstudio.ca` : null),
+      page: pageMaintenanceSure(cfg, cfg.generale?.message_maintenance || null),
+    });
+  } catch (err) {
+    console.error('GET /studio/sites/:gestionnaireId/maintenance', err);
     return res.status(500).json({ success: false, error: 'Erreur serveur' });
   }
 });

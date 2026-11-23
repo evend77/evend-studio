@@ -19,6 +19,7 @@ import TemplateCagnottePro            from '../templates/TemplateCagnottePro';
 import TemplateBoutiqueSimple         from '../templates/TemplateBoutiqueSimple';
 import TemplateBoutiqueComplete, { migrerComplete } from '../templates/TemplateBoutiqueComplete';
 import TemplateBoutiqueCatalogue from '../templates/TemplateBoutiqueCatalogue';
+import TemplateBoutiqueAgricole from '../templates/TemplateBoutiqueAgricole';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -49,7 +50,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -60,9 +61,10 @@ const API_BASE = '/api';
 const estMonoProduit = (t: string) => t === 'boutique-simple';
 const estCompleteBoutique = (t: string) => t === 'boutique-complete';
 const estCatalogueBoutique = (t: string) => t === 'boutique-catalogue';
+const estAgricoleBoutique = (t: string) => t === 'boutique-agricole';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -112,6 +114,16 @@ const DEMO_CONFIG_COMPLETE = { complete: { footer: { nomBoutique: 'Ma Boutique',
 // Catalogue Avancé : démonstration seulement (produits d'exemple jamais affichés sur une vraie boutique)
 const DEMO_PRODUITS_CATALOGUE = DEMO_PRODUITS_COMPLETE;
 const DEMO_CONFIG_MODE = { mode: { footer: { nomBoutique: 'Ma Boutique Mode', afficherPropulse: true } } };
+// Boutique Agricole : démonstration seulement — produits d'exemple (emojis, aucune photo) jamais affichés sur une vraie boutique
+const DEMO_PRODUITS_AGRICOLE = [
+  { id: 1, titre: 'Tomates anciennes', prix: 4.5, stock: 40, categorie: 'Légumes', description: 'Exemple de produit : remplacez-le par les vôtres.', photo_principale:'', emoji:'🍅' },
+  { id: 2, titre: 'Carottes', prix: 3.8, prix_promo: 2.99, stock: 60, categorie: 'Légumes', description: 'Exemple de produit de démonstration.', photo_principale:'', emoji:'🥕' },
+  { id: 3, titre: 'Chou frisé', prix: 3.2, stock: 30, categorie: 'Légumes', description: 'Exemple de produit de démonstration.', photo_principale:'', emoji:'🥬' },
+  { id: 4, titre: 'Pommes', prix: 5.5, stock: 50, categorie: 'Fruits', description: 'Exemple de produit de démonstration.', photo_principale:'', emoji:'🍎' },
+  { id: 5, titre: 'Oeufs de la ferme', prix: 6.0, stock: 25, categorie: 'Produits de la ferme', description: 'Exemple de produit de démonstration.', photo_principale:'', emoji:'🥚' },
+  { id: 6, titre: 'Miel', prix: 12.0, stock: 20, categorie: 'Produits de la ferme', description: 'Exemple de produit de démonstration.', photo_principale:'', emoji:'🍯' },
+];
+const DEMO_CONFIG_AGRICOLE = { ferme: { footer: { nomBoutique: 'Ma Ferme', afficherPropulse: true } } };
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
@@ -261,7 +273,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -301,6 +313,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Catalogue Avancé : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_CATALOGUE } : config;
       return <TemplateBoutiqueCatalogue config={isDemo ? configDemo : configCatalogueAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.avance) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-agricole') {
+      // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_AGRICOLE } : config;
+      return <TemplateBoutiqueAgricole config={isDemo ? configDemo : configFermeAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.ferme) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (estMonoProduit(templateId)) {
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_MONO } : config;

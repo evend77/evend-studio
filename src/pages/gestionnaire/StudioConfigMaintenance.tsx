@@ -1,7 +1,7 @@
 // CHEMIN : src/pages/gestionnaire/StudioConfigMaintenance.tsx
 // e-Vend Studio — Configuration → Page maintenance
 // Active/désactive la maintenance du site (tous templates) et personnalise la page vue par les visiteurs.
-// Routes : GET /api/studio/sites/:gestionnaireId  ·  PUT /api/studio/sites/:gestionnaireId/maintenance
+// Routes : GET /api/studio/sites/:gestionnaireId/maintenance  ·  PUT /api/studio/sites/:gestionnaireId/maintenance
 //          POST /api/studio/photos-vendeur/:gestionnaireId/upload (image)
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -83,19 +83,18 @@ export default function StudioConfigMaintenance({ gestionnaireId }: { gestionnai
   const charger = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/studio/sites/${gestionnaireId}`, {
+      const res = await fetch(`${API_BASE}/studio/sites/${gestionnaireId}/maintenance`, {
         credentials: 'include', headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error();
       const d = await res.json();
-      const g = d.config?.generale ?? {};
-      const p = g.maintenance_page ?? {};
-      setActif(g.mode_maintenance === true);
+      const p = d.page ?? {};
+      setActif(d.generale_actif === true);
       setImposee(d.maintenance_imposee_admin === true);
       setNomBoutique(d.nom_boutique || '');
       setC({
-        titre: p.titre ?? DEF.titre,
-        message: p.message ?? (g.message_maintenance || DEF.message),
+        titre: p.titre || DEF.titre,
+        message: p.message || DEF.message,
         image_url: p.image_url ?? '',
         couleur_fond: p.couleur_fond ?? DEF.couleur_fond,
         couleur_texte: p.couleur_texte ?? DEF.couleur_texte,

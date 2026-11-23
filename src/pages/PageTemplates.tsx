@@ -21,6 +21,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-simplisse-aliments':  'https://images.pexels.com/photos/264636/pexels-photo-264636.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-simplisse-numerique': 'https://images.pexels.com/photos/265087/pexels-photo-265087.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
   'multi-vendeur-premium': 'https://images.pexels.com/photos/4483610/pexels-photo-4483610.jpeg?auto=compress&cs=tinysrgb&w=800',
   'multi-vendeur-local':   'https://images.pexels.com/photos/375880/pexels-photo-375880.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -176,11 +177,11 @@ export const TEMPLATES: Template[] = [
     disponible: false, nouveau: false, couleur: '#0891b2',
   },
   {
-    id: 'agricole',
+    id: 'boutique-agricole',
     nom: 'Boutique Agricole',
     groupe: 'boutique-industrie',
-    description: 'Ferme maraîchère avec panier drawer intégré, catalogue produits, page Notre Ferme, style sombre terroir doré. Idéal pour producteurs locaux.',
-    fonctionnalites: ['Panier drawer latéral', 'Modal produit + quantité', 'Catalogue avec filtres', 'Page Notre Ferme'],
+    description: "Boutique de ferme au look terroir sombre et doré : produits de la ferme, page Notre ferme, philosophie, visites, panier et paiement Stripe ou PayPal, compte acheteur, blog, FAQ et contact. Textes, couleurs et police réglables.",
+    fonctionnalites: ['Notre ferme, philosophie et visites réglables', 'Panier, paiement Stripe ou PayPal et compte acheteur', 'Catalogue avec filtres, variantes et promos', 'Blog, FAQ et Contact sécurisé'],
     disponible: true, nouveau: true, couleur: '#c9854a',
   },
   // ── TRANSACTIONNEL MULTI-VENDEUR ──
@@ -387,6 +388,14 @@ export const TEMPLATES: Template[] = [
     description: 'Fond noir & brun doré. Galerie plein format, menu filtrable par catégorie, réservation, carte Google Maps, sections réordonnables.',
     fonctionnalites: ['Galerie plein format', 'Menu filtrable par catégorie', 'Réservation intégrée', 'Carte Google Maps'],
     disponible: true, nouveau: true, couleur: '#8b6914',
+  },
+  {
+    id: 'agricole',
+    nom: 'Vitrine Agricole',
+    groupe: 'vitrine-contact',
+    description: "Site vitrine de ferme, sans paiement en ligne : produits, Notre ferme, philosophie et visites. Le visiteur envoie une demande de commande par courriel, vous le contactez ensuite.",
+    fonctionnalites: ['Produits de la ferme', 'Notre ferme, philosophie et visites', 'Demande de commande par courriel', 'Textes, couleurs et sections réglables'],
+    disponible: true, nouveau: false, couleur: '#c9854a',
   },
   // ── PROFESSION ──
   {

@@ -163,6 +163,33 @@ export default function Dashboard({ vendeur, naviguerVers }: { vendeur: VendeurU
 
   useEffect(() => { charger(); }, [charger]);
 
+  // Statut réel du site (maintenance) — GET /api/studio/sites/:id/maintenance
+  const [maint, setMaint] = useState(false);
+  const [maintImposee, setMaintImposee] = useState(false);
+  const [maintSaving, setMaintSaving] = useState(false);
+  const [maintErreur, setMaintErreur] = useState('');
+  const tokenAuth = localStorage.getItem('token');
+  useEffect(() => {
+    fetch(`/api/studio/sites/${vendeur.id}/maintenance`, { credentials: 'include', headers: { Authorization: `Bearer ${tokenAuth}` } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) { setMaint(d.maintenance === true); setMaintImposee(d.maintenance_imposee_admin === true); } })
+      .catch(() => {});
+  }, [vendeur.id, tokenAuth]);
+  async function basculerMaintenance() {
+    setMaintSaving(true); setMaintErreur('');
+    try {
+      const r = await fetch(`/api/studio/sites/${vendeur.id}/maintenance`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tokenAuth}` },
+        body: JSON.stringify({ actif: !maint }),
+      });
+      if (!r.ok) throw new Error();
+      const d = await r.json();
+      setMaint(d.maintenance === true); setMaintImposee(d.maintenance_imposee_admin === true);
+    } catch { setMaintErreur('Impossible de modifier le mode maintenance.'); }
+    setMaintSaving(false);
+  }
+
   const nom = vendeur.nom_boutique || vendeur.nom || 'ma boutique';
   const mv = !!stats?.est_mv;
   const adresse = stats?.site?.adresse;
@@ -338,8 +365,21 @@ export default function Dashboard({ vendeur, naviguerVers }: { vendeur: VendeurU
             <div style={{ fontSize: 14, color: D.texte2, lineHeight: 1.7 }}>
               {stats.site ? (
                 <>
-                  <div>Statut : <b style={{ color: stats.site.publie ? D.vert : D.jaune }}>{stats.site.publie ? 'Publié' : 'Non publié'}</b></div>
+                  <div>Statut : {maint
+                    ? <b style={{ color: D.rouge }}>🛑 En maintenance</b>
+                    : adresse
+                      ? <b style={{ color: D.vert }}>🟢 En ligne</b>
+                      : <b style={{ color: D.jaune }}>Pas encore d'adresse</b>}</div>
                   {adresse && <div>Adresse : <a href={`https://${adresse}`} target="_blank" rel="noreferrer" style={{ color: '#a5b4fc' }}>{adresse}</a></div>}
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+                    <button onClick={basculerMaintenance} disabled={maintSaving || maintImposee}
+                      style={{ cursor: (maintSaving || maintImposee) ? 'not-allowed' : 'pointer', opacity: (maintSaving || maintImposee) ? 0.6 : 1, background: D.puce, color: D.texte, border: `1px solid ${D.bord}`, borderRadius: 10, padding: '8px 14px', fontSize: 13, fontWeight: 700 }}>
+                      {maint ? '▶️ Remettre le site en ligne' : '🚧 Mettre en maintenance'}
+                    </button>
+                    {naviguerVers && <button onClick={() => naviguerVers('studio-maintenance')} style={{ cursor: 'pointer', background: 'transparent', color: '#a5b4fc', border: 'none', fontSize: 13, textDecoration: 'underline' }}>Personnaliser la page</button>}
+                  </div>
+                  {maintImposee && <div style={{ fontSize: 12, color: D.jaune }}>🔒 Maintenance activée par l'administration — vous ne pouvez pas la désactiver.</div>}
+                  {maintErreur && <div style={{ fontSize: 12, color: D.rouge }}>{maintErreur}</div>}
                 </>
               ) : 'Choisis un template pour créer ton site.'}
             </div>

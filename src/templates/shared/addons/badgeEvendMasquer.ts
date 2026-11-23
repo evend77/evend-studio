@@ -46,3 +46,10 @@ export function configModeAvecBadge(config: any, addons: Record<string, boolean>
   const mode = (base && typeof base === 'object') ? base : {};
   return { ...config, mode: { ...mode, footer: { ...(mode.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Boutique Agricole : le pied de page se lit dans config.ferme.footer.afficherPropulse.
+// `base` = config.ferme déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configFermeAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const ferme = (base && typeof base === 'object') ? base : {};
+  return { ...config, ferme: { ...ferme, footer: { ...(ferme.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

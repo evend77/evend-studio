@@ -1,8 +1,15 @@
-// src/templates/TemplateAgricole.tsx
+// CHEMIN : src/templates/TemplateAgricole.tsx
 // e-Vend Studio — Template GRATUIT — Boutique Agricole
 // Style sombre terroir (#1a1612), doré (#c9854a), texte crème (#f5ede0)
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+
+// ─── SÉCURITÉ DES SAISIES ─────────────────────────────────────────────────────
+const API_BASE = '/api';
+const limiterSaisie = (v: any, max = 200): string => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, max);
+const nettoyerEnvoi = (v: any, max = 200): string => limiterSaisie(v, max * 2).replace(/<[^>]*>/g, '').replace(/[<>]/g, '').trim().slice(0, max);
+const urlSure = (u: any): string => { const t = String(u == null ? '' : u).trim(); return /^(https?:\/\/|\/(?!\/))/i.test(t) ? t : ''; };
+const COURRIEL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +36,8 @@ export interface ConfigAgricole {
   fermeHistoireTitre: string; fermeHistoireSousTitre: string;
   fermeHistoireTextes: string[]; fermeHistoirePhoto: string;
   fermeEngagementsTitre: string; fermeEngagementsSousTitre: string;
+  fermeEngagements: EngagementFerme[];
+  commandeBouton: string; commandeIntro: string; commandeConfirmation: string;
   fermeVisiteTitre: string; fermeVisiteTexte: string;
   fermeAdresse: string; fermeHoraires: string; fermeCp: string; fermeVille: string;
   adresse: string; telephone: string; email: string; heures: string;
@@ -74,6 +83,17 @@ export const CONFIG_AGRICOLE_DEFAUT: ConfigAgricole = {
   ],
   fermeHistoirePhoto:'https://images.pexels.com/photos/533280/pexels-photo-533280.jpeg?auto=compress&cs=tinysrgb&w=800',
   fermeEngagementsTitre:'Ce en quoi nous croyons', fermeEngagementsSousTitre:'NOS ENGAGEMENTS',
+  fermeEngagements:[
+    { icone:'🌿', titre:'Agriculture Naturelle', description:'Aucun pesticide, aucun engrais chimique. Un sol vivant et des insectes auxiliaires.' },
+    { icone:'☀️', titre:'Circuit Court', description:'De notre champ à votre table en quelques heures, sans intermédiaire.' },
+    { icone:'💧', titre:"Gestion de l'Eau", description:'Irrigation raisonnée par goutte-à-goutte, récupération des eaux de pluie.' },
+    { icone:'📍', titre:'Terroir Local', description:'Des variétés adaptées à notre sol et à notre climat du Québec.' },
+    { icone:'🗓️', titre:'Saisonnalité', description:'Nous ne cultivons que ce que la saison permet. Pas de forçage, pas de hors-sol.' },
+    { icone:'❤️', titre:'Passion', description:"Chaque légume est un acte d'amour envers la terre et ceux qui la dégustent." },
+  ],
+  commandeBouton:'Envoyer ma demande de commande',
+  commandeIntro:'Indiquez vos coordonnées : la ferme recevra votre demande et vous contactera pour confirmer la commande, le prix final et le ramassage ou la livraison.',
+  commandeConfirmation:'Votre demande a bien été envoyée. La ferme vous contactera pour confirmer votre commande.',
   fermeVisiteTitre:'Venez à la ferme',
   fermeVisiteTexte:'Nous accueillons les visiteurs les mercredis et samedis matin de 8h à 12h. Venez découvrir nos parcelles, rencontrer nos plants et repartir avec un panier de produits fraîchement cueillis.',
   fermeAdresse:'1234 rang de la Rivière', fermeHoraires:'Mercredi & Samedi · 8h – 12h',
@@ -101,10 +121,18 @@ function getPolice(p: string) {
 
 interface LignePanier { produit: ProduitAgricole; quantite: number; }
 
+// Photo produit : image si l'URL est sûre, sinon pastille 🌾 (jamais d'image cassée)
+function Photo({ src, alt, style, taille = 28 }: { src: string; alt: string; style?: React.CSSProperties; taille?: number }) {
+  const [erreur, setErreur] = useState(false);
+  const u = urlSure(src);
+  if (!u || erreur) return <div style={{ width:'100%', height:'100%', minHeight:'inherit', display:'flex', alignItems:'center', justifyContent:'center', fontSize:taille, background:'#2a1f14' }} aria-label={alt}>🌾</div>;
+  return <img src={u} alt={alt} style={style} onError={() => setErreur(true)} />;
+}
+
 // ─── MODAL PRODUIT ────────────────────────────────────────────────────────────
 
-function ModalProduit({ produit, cp, police, onClose, onAjouter }: {
-  produit: ProduitAgricole; cp: string; police: string;
+function ModalProduit({ produit, cp, police, isMobile, onClose, onAjouter }: {
+  produit: ProduitAgricole; cp: string; police: string; isMobile: boolean;
   onClose: () => void; onAjouter: (p: ProduitAgricole, q: number) => void;
 }) {
   const [quantite, setQuantite] = useState(1);
@@ -112,14 +140,14 @@ function ModalProduit({ produit, cp, police, onClose, onAjouter }: {
   const TEXTE = '#f5ede0';
   return (
     <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.88)', zIndex:400, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:FOND, borderRadius:16, width:'100%', maxWidth:680, overflow:'hidden', display:'flex', flexDirection:'row', boxShadow:'0 24px 64px rgba(0,0,0,0.7)', border:`1px solid ${cp}33` }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:FOND, borderRadius:16, width:'100%', maxWidth:680, overflow:'hidden', display:'flex', flexDirection:isMobile?'column':'row', maxHeight:'92vh', overflowY:'auto', boxShadow:'0 24px 64px rgba(0,0,0,0.7)', border:`1px solid ${cp}33` }}>
         {/* Photo */}
-        <div style={{ flex:'0 0 45%', minHeight:320, overflow:'hidden', background:'#2a1f14' }}>
-          <img src={produit.photo} alt={produit.nom} style={{ width:'100%', height:'100%', objectFit:'cover', minHeight:320, display:'block' }} onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+        <div style={{ flex:isMobile?'0 0 auto':'0 0 45%', minHeight:isMobile?200:320, height:isMobile?200:undefined, overflow:'hidden', background:'#2a1f14' }}>
+          <Photo src={produit.photo} alt={produit.nom} taille={64} style={{ width:'100%', height:'100%', objectFit:'cover', minHeight:isMobile?200:320, display:'block' }} />
         </div>
         {/* Infos */}
-        <div style={{ flex:1, padding:'32px 28px', display:'flex', flexDirection:'column', justifyContent:'space-between', position:'relative' }}>
-          <button onClick={onClose} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:TEXTE+'66', fontSize:22, cursor:'pointer' }}>✕</button>
+        <div style={{ flex:1, padding:isMobile?'24px 20px':'32px 28px', display:'flex', flexDirection:'column', justifyContent:'space-between', position:'relative' }}>
+          <button onClick={onClose} aria-label="Fermer" style={{ position:'absolute', top:10, right:12, background:'none', border:'none', color:TEXTE+'99', fontSize:22, cursor:'pointer', padding:8 }}>✕</button>
           <div>
             <p style={{ fontSize:11, color:cp, fontWeight:700, letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:10 }}>{produit.categorie}</p>
             <h2 style={{ fontFamily:police, fontSize:28, fontWeight:400, color:TEXTE, marginBottom:12 }}>{produit.nom}</h2>
@@ -147,70 +175,119 @@ function ModalProduit({ produit, cp, police, onClose, onAjouter }: {
 
 // ─── DRAWER PANIER ────────────────────────────────────────────────────────────
 
-function DrawerPanier({ lignes, onClose, onModifier, onSupprimer, cp }: {
+function DrawerPanier({ lignes, onClose, onModifier, onSupprimer, cp, vendeurId, config, onEnvoye }: {
   lignes: LignePanier[]; onClose: () => void;
   onModifier: (id:string, q:number) => void; onSupprimer: (id:string) => void; cp: string;
+  vendeurId: number; config: ConfigAgricole; onEnvoye: () => void;
 }) {
   const FOND = '#1e1912'; const TEXTE = '#f5ede0';
   const total = lignes.reduce((acc, l) => acc + l.produit.prix * l.quantite, 0);
-  const [commande, setCommande] = useState(false);
+  const [etape, setEtape] = useState<'panier'|'formulaire'|'envoye'>('panier');
+  const [f, setF] = useState({ nom:'', courriel:'', telephone:'', note:'' });
+  const [piege, setPiege] = useState('');
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState('');
+  const debut = useRef(Date.now());
+  const champ: React.CSSProperties = { width:'100%', padding:'10px 12px', background:'rgba(255,255,255,0.06)', border:`1px solid ${cp}44`, borderRadius:8, color:TEXTE, fontSize:14, fontFamily:'Inter, sans-serif', outline:'none', boxSizing:'border-box' };
+
+  const envoyer = async () => {
+    setErreur('');
+    const nom = nettoyerEnvoi(f.nom, 100), courriel = nettoyerEnvoi(f.courriel, 254), tel = nettoyerEnvoi(f.telephone, 40), note = nettoyerEnvoi(f.note, 1000);
+    if (nom.length < 2) { setErreur('Indiquez votre nom.'); return; }
+    if (!COURRIEL_OK.test(courriel)) { setErreur('Adresse courriel invalide.'); return; }
+    if (piege) { setEtape('envoye'); return; }                       // champ piège rempli = robot
+    if (Date.now() - debut.current < 3000) { setErreur('Veuillez patienter quelques secondes avant d\'envoyer.'); return; }
+    if (vendeurId <= 0) { setErreur("L'envoi n'est pas disponible en aperçu."); return; }
+    const detail = lignes.map(l => `- ${l.quantite} × ${nettoyerEnvoi(l.produit.nom, 100)} (${l.produit.prix.toFixed(2)} $ / ${nettoyerEnvoi(l.produit.unite, 20)}) = ${(l.produit.prix * l.quantite).toFixed(2)} $`).join('\n');
+    const message = `Demande de commande\n\n${detail}\n\nTotal estimé : ${total.toFixed(2)} $${note ? `\n\nNote du client : ${note}` : ''}`.slice(0, 4900);
+    setEnvoi(true);
+    try {
+      const res = await fetch(`${API_BASE}/studio/contact`, {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ nom_expediteur:nom, email_expediteur:courriel, telephone:tel, sujet:'Demande de commande', message, vendeur_id:vendeurId, template_id:'agricole', honeypot:'', form_start_time:debut.current }),
+      });
+      if (!res.ok) { try { const j = await res.json(); if (j && typeof j.message === 'string') setErreur(j.message.slice(0, 200)); else setErreur("Erreur lors de l'envoi."); } catch { setErreur("Erreur lors de l'envoi."); } setEnvoi(false); return; }
+      setEtape('envoye'); onEnvoye();
+    } catch { setErreur("Erreur lors de l'envoi. Réessayez."); }
+    setEnvoi(false);
+  };
+
   return (
     <>
       <div onClick={onClose} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:300 }} />
-      <div style={{ position:'fixed', top:0, right:0, bottom:0, width:380, background:FOND, zIndex:301, display:'flex', flexDirection:'column', boxShadow:'-8px 0 32px rgba(0,0,0,0.5)', border:`1px solid ${cp}22` }}>
-        {/* Header */}
+      <div style={{ position:'fixed', top:0, right:0, bottom:0, width:380, maxWidth:'100%', background:FOND, zIndex:301, display:'flex', flexDirection:'column', boxShadow:'-8px 0 32px rgba(0,0,0,0.5)', border:`1px solid ${cp}22` }}>
         <div style={{ padding:'24px 24px 16px', borderBottom:`1px solid ${cp}22`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <h2 style={{ fontFamily:"'Dancing Script', cursive", fontSize:28, fontWeight:400, color:TEXTE }}>Votre Panier</h2>
-          <button onClick={onClose} style={{ background:'none', border:'none', color:TEXTE+'66', fontSize:22, cursor:'pointer' }}>✕</button>
+          <button onClick={onClose} aria-label="Fermer" style={{ background:'none', border:'none', color:TEXTE+'99', fontSize:22, cursor:'pointer', padding:8 }}>✕</button>
         </div>
-        {/* Lignes */}
-        <div style={{ flex:1, overflowY:'auto', padding:'16px 24px' }}>
-          {lignes.length === 0 ? (
-            <div style={{ textAlign:'center', paddingTop:60 }}>
-              <p style={{ fontSize:36, marginBottom:16 }}>🧺</p>
-              <p style={{ fontFamily:"'Dancing Script', cursive", fontSize:22, color:TEXTE+'88', marginBottom:10 }}>Votre panier est vide</p>
-              <p style={{ fontSize:13, color:cp, cursor:'pointer' }} onClick={onClose}>Explorez nos récoltes →</p>
-            </div>
-          ) : lignes.map(ligne => (
-            <div key={ligne.produit.id} style={{ display:'flex', gap:12, alignItems:'center', padding:'14px 0', borderBottom:`1px solid ${cp}18` }}>
-              <div style={{ width:60, height:60, borderRadius:8, overflow:'hidden', flexShrink:0, background:'#2a1f14' }}>
-                <img src={ligne.produit.photo} alt={ligne.produit.nom} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+
+        {etape === 'envoye' ? (
+          <div style={{ flex:1, overflowY:'auto', padding:'32px 24px', textAlign:'center' as const }}>
+            <p style={{ fontSize:36, marginBottom:12 }}>✅</p>
+            <p style={{ fontSize:14, color:TEXTE+'cc', lineHeight:1.7, fontFamily:'Inter, sans-serif' }}>{config.commandeConfirmation}</p>
+            <button onClick={onClose} style={{ marginTop:20, background:'transparent', color:cp, border:`1px solid ${cp}88`, borderRadius:8, padding:'10px 22px', cursor:'pointer', fontFamily:'Inter, sans-serif', fontWeight:600 }}>Fermer</button>
+          </div>
+        ) : (
+          <div style={{ flex:1, overflowY:'auto', padding:'16px 24px' }}>
+            {lignes.length === 0 ? (
+              <div style={{ textAlign:'center', paddingTop:60 }}>
+                <p style={{ fontSize:36, marginBottom:16 }}>🧺</p>
+                <p style={{ fontFamily:"'Dancing Script', cursive", fontSize:22, color:TEXTE+'88', marginBottom:10 }}>Votre panier est vide</p>
+                <p style={{ fontSize:13, color:cp, cursor:'pointer' }} onClick={onClose}>Explorez nos récoltes →</p>
               </div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <p style={{ fontWeight:600, color:TEXTE, fontSize:14, marginBottom:2 }}>{ligne.produit.nom}</p>
-                <p style={{ fontSize:12, color:TEXTE+'66' }}>{ligne.produit.prix.toFixed(2)} $ / {ligne.produit.unite}</p>
-                <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:6 }}>
-                  <button onClick={() => onModifier(ligne.produit.id, ligne.quantite-1)} style={{ width:22, height:22, borderRadius:'50%', border:`1px solid ${cp}55`, background:'transparent', color:TEXTE, fontSize:14, cursor:'pointer', lineHeight:'1' }}>−</button>
-                  <span style={{ fontSize:13, color:TEXTE, minWidth:16, textAlign:'center' as const }}>{ligne.quantite}</span>
-                  <button onClick={() => onModifier(ligne.produit.id, ligne.quantite+1)} style={{ width:22, height:22, borderRadius:'50%', border:`1px solid ${cp}55`, background:'transparent', color:TEXTE, fontSize:14, cursor:'pointer', lineHeight:'1' }}>+</button>
+            ) : lignes.map(ligne => (
+              <div key={ligne.produit.id} style={{ display:'flex', gap:12, alignItems:'center', padding:'14px 0', borderBottom:`1px solid ${cp}18` }}>
+                <div style={{ width:60, height:60, borderRadius:8, overflow:'hidden', flexShrink:0, background:'#2a1f14' }}>
+                  <Photo src={ligne.produit.photo} alt={ligne.produit.nom} taille={24} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} />
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <p style={{ fontWeight:600, color:TEXTE, fontSize:14, marginBottom:2 }}>{ligne.produit.nom}</p>
+                  <p style={{ fontSize:12, color:TEXTE+'66' }}>{ligne.produit.prix.toFixed(2)} $ / {ligne.produit.unite}</p>
+                  <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:6 }}>
+                    <button onClick={() => onModifier(ligne.produit.id, ligne.quantite-1)} style={{ width:26, height:26, borderRadius:'50%', border:`1px solid ${cp}55`, background:'transparent', color:TEXTE, fontSize:14, cursor:'pointer', lineHeight:'1' }}>−</button>
+                    <span style={{ fontSize:13, color:TEXTE, minWidth:16, textAlign:'center' as const }}>{ligne.quantite}</span>
+                    <button onClick={() => onModifier(ligne.produit.id, ligne.quantite+1)} style={{ width:26, height:26, borderRadius:'50%', border:`1px solid ${cp}55`, background:'transparent', color:TEXTE, fontSize:14, cursor:'pointer', lineHeight:'1' }}>+</button>
+                  </div>
+                </div>
+                <div style={{ textAlign:'right' as const, flexShrink:0 }}>
+                  <p style={{ fontWeight:700, color:cp, fontSize:14 }}>{(ligne.produit.prix * ligne.quantite).toFixed(2)} $</p>
+                  <button onClick={() => onSupprimer(ligne.produit.id)} style={{ fontSize:11, color:TEXTE+'66', background:'none', border:'none', cursor:'pointer', marginTop:4 }}>Retirer</button>
                 </div>
               </div>
-              <div style={{ textAlign:'right' as const, flexShrink:0 }}>
-                <p style={{ fontWeight:700, color:cp, fontSize:14 }}>{(ligne.produit.prix * ligne.quantite).toFixed(2)} $</p>
-                <button onClick={() => onSupprimer(ligne.produit.id)} style={{ fontSize:11, color:TEXTE+'44', background:'none', border:'none', cursor:'pointer', marginTop:4 }}>Retirer</button>
-              </div>
-            </div>
-          ))}
-        </div>
-        {/* Footer panier */}
-        {lignes.length > 0 && (
-          <div style={{ padding:'16px 24px', borderTop:`1px solid ${cp}22` }}>
-            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:16 }}>
-              <span style={{ fontSize:15, color:TEXTE+'88' }}>Total</span>
-              <span style={{ fontSize:22, fontWeight:800, color:cp }}>{total.toFixed(2)} $</span>
-            </div>
-            {!commande ? (
-              <button onClick={() => setCommande(true)} style={{ width:'100%', background:cp, color:'#1a1612', border:'none', borderRadius:8, padding:'14px', fontWeight:800, fontSize:15, cursor:'pointer', fontFamily:'Inter, sans-serif', marginBottom:10 }}>
-                Commander — {total.toFixed(2)} $
-              </button>
-            ) : (
-              <div style={{ background:cp+'18', border:`1px solid ${cp}44`, borderRadius:10, padding:'16px', textAlign:'center' as const }}>
-                <p style={{ fontSize:22, marginBottom:8 }}>✅</p>
-                <p style={{ fontFamily:"'Dancing Script', cursive", fontSize:18, color:TEXTE, marginBottom:6 }}>Commande reçue !</p>
-                <p style={{ fontSize:13, color:TEXTE+'88', lineHeight:1.6 }}>Notre équipe vous contactera pour confirmer votre commande et organiser le ramassage ou la livraison.</p>
+            ))}
+
+            {lignes.length > 0 && etape === 'formulaire' && (
+              <div style={{ marginTop:18, display:'flex', flexDirection:'column', gap:10 }}>
+                <p style={{ fontSize:12, color:TEXTE+'99', lineHeight:1.6, fontFamily:'Inter, sans-serif' }}>{config.commandeIntro}</p>
+                <input style={champ} placeholder="Nom *" maxLength={100} value={f.nom} onChange={e => setF({ ...f, nom: limiterSaisie(e.target.value, 100) })} autoComplete="name" />
+                <input style={champ} type="email" placeholder="Courriel *" maxLength={254} value={f.courriel} onChange={e => setF({ ...f, courriel: limiterSaisie(e.target.value, 254) })} autoComplete="email" />
+                <input style={champ} type="tel" placeholder="Téléphone (optionnel)" maxLength={40} value={f.telephone} onChange={e => setF({ ...f, telephone: limiterSaisie(e.target.value, 40) })} autoComplete="tel" />
+                <textarea style={{ ...champ, minHeight:70, resize:'vertical' }} placeholder="Note (optionnelle)" maxLength={1000} value={f.note} onChange={e => setF({ ...f, note: limiterSaisie(e.target.value, 1000) })} />
+                <input type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" maxLength={100} value={piege} onChange={e => setPiege(limiterSaisie(e.target.value, 100))} style={{ position:'absolute', left:'-9999px', width:1, height:1, opacity:0 }} />
+                {erreur && <p style={{ fontSize:12, color:'#f87171', fontFamily:'Inter, sans-serif' }}>{erreur}</p>}
               </div>
             )}
-            <p style={{ fontSize:11, color:TEXTE+'33', textAlign:'center' as const, marginTop:8 }}>Paiement sécurisé Stripe bientôt disponible.</p>
+          </div>
+        )}
+
+        {lignes.length > 0 && etape !== 'envoye' && (
+          <div style={{ padding:'16px 24px', borderTop:`1px solid ${cp}22` }}>
+            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:16 }}>
+              <span style={{ fontSize:15, color:TEXTE+'88' }}>Total estimé</span>
+              <span style={{ fontSize:22, fontWeight:800, color:cp }}>{total.toFixed(2)} $</span>
+            </div>
+            {etape === 'panier' ? (
+              <button onClick={() => { debut.current = Date.now(); setEtape('formulaire'); }} style={{ width:'100%', background:cp, color:'#1a1612', border:'none', borderRadius:8, padding:'14px', fontWeight:800, fontSize:15, cursor:'pointer', fontFamily:'Inter, sans-serif' }}>
+                Demander cette commande
+              </button>
+            ) : (
+              <div style={{ display:'flex', gap:8 }}>
+                <button onClick={() => { setEtape('panier'); setErreur(''); }} style={{ flex:'0 0 auto', background:'transparent', color:TEXTE, border:`1px solid ${cp}55`, borderRadius:8, padding:'14px 16px', cursor:'pointer', fontFamily:'Inter, sans-serif' }}>←</button>
+                <button onClick={envoyer} disabled={envoi} style={{ flex:1, background:cp, color:'#1a1612', border:'none', borderRadius:8, padding:'14px', fontWeight:800, fontSize:14, cursor:envoi?'wait':'pointer', opacity:envoi?0.7:1, fontFamily:'Inter, sans-serif' }}>
+                  {envoi ? 'Envoi…' : config.commandeBouton}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -220,8 +297,8 @@ function DrawerPanier({ lignes, onClose, onModifier, onSupprimer, cp }: {
 
 // ─── CARTE PRODUIT ────────────────────────────────────────────────────────────
 
-function CarteProduit({ produit, cp, police, onClick, onAjouter }: {
-  produit: ProduitAgricole; cp: string; police: string;
+function CarteProduit({ produit, cp, police, isMobile, onClick, onAjouter }: {
+  produit: ProduitAgricole; cp: string; police: string; isMobile: boolean;
   onClick: () => void; onAjouter: (p:ProduitAgricole, q:number) => void;
 }) {
   return (
@@ -230,17 +307,14 @@ function CarteProduit({ produit, cp, police, onClick, onAjouter }: {
       onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.border = '1px solid rgba(255,255,255,0.06)'; }}>
       {/* Photo */}
       <div style={{ aspectRatio:'4/3', overflow:'hidden', background:'#2a1f14', position:'relative' }}>
-        <img src={produit.photo} alt={produit.nom} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform 0.4s' }}
-          onMouseEnter={e => { (e.target as HTMLImageElement).style.transform = 'scale(1.05)'; }}
-          onMouseLeave={e => { (e.target as HTMLImageElement).style.transform = 'scale(1)'; }}
-          onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />
+        <Photo src={produit.photo} alt={produit.nom} style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', transition:'transform 0.4s' }} />
         {/* Badge catégorie */}
         <div style={{ position:'absolute', top:12, left:12, background:'rgba(26,22,18,0.85)', backdropFilter:'blur(4px)', padding:'4px 10px', borderRadius:3 }}>
           <span style={{ fontSize:10, fontFamily:'Inter, sans-serif', letterSpacing:'0.12em', color:'#f5ede0cc', fontWeight:600, textTransform:'uppercase' as const }}>{produit.categorie}</span>
         </div>
         {/* Bouton + rapide */}
-        <button onClick={e => { e.stopPropagation(); onAjouter(produit, 1); }}
-          style={{ position:'absolute', bottom:12, right:12, width:36, height:36, borderRadius:'50%', background:cp, border:'none', color:'#1a1612', fontSize:20, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 12px rgba(0,0,0,0.4)', opacity:0, transition:'opacity 0.25s' }}
+        <button aria-label={`Ajouter ${produit.nom} au panier`} onClick={e => { e.stopPropagation(); onAjouter(produit, 1); }}
+          style={{ position:'absolute', bottom:12, right:12, width:36, height:36, borderRadius:'50%', background:cp, border:'none', color:'#1a1612', fontSize:20, cursor:'pointer', fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 4px 12px rgba(0,0,0,0.4)', opacity:isMobile?1:0, transition:'opacity 0.25s' }}
           onMouseEnter={e => { (e.currentTarget).style.opacity='1'; }}
           className="btn-plus">
           +
@@ -262,8 +336,9 @@ function CarteProduit({ produit, cp, police, onClick, onAjouter }: {
 
 interface Props { config?: Partial<ConfigAgricole>; siteId?: number; vendeurId?: number; }
 
-export default function TemplateAgricole({ config: configProp }: Props) {
-  const config = { ...CONFIG_AGRICOLE_DEFAUT, ...configProp };
+export default function TemplateAgricole({ config: configProp, vendeurId: vendeurIdProp }: Props) {
+  const config = { ...CONFIG_AGRICOLE_DEFAUT, ...configProp } as ConfigAgricole;
+  const vendeurId = Number(vendeurIdProp || config.vendeurId || 0);
   const sectionsActives = [...(config.sections||CONFIG_AGRICOLE_DEFAUT.sections)].filter(s=>s.actif).sort((a,b)=>a.ordre-b.ordre);
   const showSec = (id: string) => sectionsActives.some(s=>s.id===id);
   const cp = config.couleurAccent;   // '#c9854a'
@@ -276,12 +351,12 @@ export default function TemplateAgricole({ config: configProp }: Props) {
   const [panierOuvert, setPanierOuvert] = useState(false);
   const [produitActif, setProduitActif] = useState<ProduitAgricole | null>(null);
   const [lignes, setLignes]             = useState<LignePanier[]>([]);
-  const [isMobile, setIsMobile]         = useState(false);
+  const [isMobile, setIsMobile]         = useState(() => typeof window !== 'undefined' && Math.min(window.innerWidth, (window.screen && window.screen.width) || window.innerWidth) < 768);
   const [menuOuvert, setMenuOuvert]     = useState(false);
   const [flash, setFlash]               = useState('');
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth < 768);
+    const check = () => setIsMobile(Math.min(window.innerWidth, (window.screen && window.screen.width) || window.innerWidth) < 768);
     check(); window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
@@ -342,8 +417,8 @@ export default function TemplateAgricole({ config: configProp }: Props) {
 
       {/* ── NAVBAR ────────────────────────────────────────────────────────────── */}
       <nav style={{ position:'fixed', top:0, width:'100%', zIndex:200, background:`${cf}f2`, backdropFilter:'blur(12px)', borderBottom:`1px solid ${cp}18` }}>
-        <div style={{ maxWidth:1280, margin:'0 auto', padding:'0 28px', height:64, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <span style={{ fontFamily:police, fontSize:24, fontWeight:400, color:ct, cursor:'pointer' }} onClick={() => setPage('accueil')}>{config.nomFerme}</span>
+        <div style={{ maxWidth:1280, margin:'0 auto', padding:isMobile?'0 16px':'0 28px', height:64, display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 }}>
+          <span style={{ fontFamily:police, fontSize:isMobile?20:24, minWidth:0, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontWeight:400, color:ct, cursor:'pointer' }} onClick={() => { setPage('accueil'); setMenuOuvert(false); }}>{config.nomFerme}</span>
           {!isMobile && (
             <div style={{ display:'flex', gap:40 }}>
               {navItems.map(item => (
@@ -355,8 +430,8 @@ export default function TemplateAgricole({ config: configProp }: Props) {
             </div>
           )}
           <div style={{ display:'flex', gap:16, alignItems:'center' }}>
-            {isMobile && <button onClick={() => setMenuOuvert(!menuOuvert)} style={{ background:'none', border:'none', color:ct, fontSize:20, cursor:'pointer' }}>☰</button>}
-            <button onClick={() => setPanierOuvert(true)} style={{ position:'relative', background:'none', border:'none', cursor:'pointer', color:ct, fontSize:22 }}>
+            {isMobile && <button onClick={() => setMenuOuvert(!menuOuvert)} aria-label="Menu" aria-expanded={menuOuvert} style={{ background:'none', border:'none', color:ct, fontSize:24, cursor:'pointer', padding:'6px 8px' }}>{menuOuvert ? '✕' : '☰'}</button>}
+            <button onClick={() => setPanierOuvert(true)} aria-label="Panier" style={{ position:'relative', background:'none', border:'none', cursor:'pointer', color:ct, fontSize:22 }}>
               🧺
               {nbArticles > 0 && (
                 <span style={{ position:'absolute', top:-8, right:-10, background:cp, color:'#1a1612', borderRadius:'50%', width:18, height:18, fontSize:10, fontWeight:900, display:'flex', alignItems:'center', justifyContent:'center', fontFamily:'Inter, sans-serif' }}>
@@ -370,7 +445,7 @@ export default function TemplateAgricole({ config: configProp }: Props) {
           <div style={{ background:cf, borderTop:`1px solid ${cp}18`, padding:'12px 28px' }}>
             {navItems.map(item => (
               <div key={item.page} onClick={() => { setPage(item.page); setMenuOuvert(false); }}
-                style={{ padding:'12px 0', fontSize:12, fontFamily:'Inter, sans-serif', fontWeight:600, letterSpacing:'0.15em', color:page===item.page ? cp : ct+'aa', cursor:'pointer', borderBottom:`1px solid ${cp}15` }}>
+                style={{ padding:'14px 0', fontSize:12, fontFamily:'Inter, sans-serif', fontWeight:600, letterSpacing:'0.15em', color:page===item.page ? cp : ct+'aa', cursor:'pointer', borderBottom:`1px solid ${cp}15` }}>
                 {item.label}
               </div>
             ))}
@@ -379,74 +454,87 @@ export default function TemplateAgricole({ config: configProp }: Props) {
       </nav>
 
       {/* Modaux */}
-      {panierOuvert && <DrawerPanier lignes={lignes} onClose={() => setPanierOuvert(false)} onModifier={modifierQuantite} onSupprimer={id => setLignes(prev => prev.filter(l => l.produit.id !== id))} cp={cp} />}
-      {produitActif && <ModalProduit produit={produitActif} cp={cp} police={police} onClose={() => setProduitActif(null)} onAjouter={ajouterAuPanier} />}
+      {panierOuvert && <DrawerPanier lignes={lignes} onClose={() => setPanierOuvert(false)} onModifier={modifierQuantite} onSupprimer={id => setLignes(prev => prev.filter(l => l.produit.id !== id))} cp={cp} vendeurId={vendeurId} config={config} onEnvoye={() => setLignes([])} />}
+      {produitActif && <ModalProduit produit={produitActif} cp={cp} police={police} isMobile={isMobile} onClose={() => setProduitActif(null)} onAjouter={ajouterAuPanier} />}
 
       {/* ═══════════════════════════════ PAGE ACCUEIL ═══════════════════════════ */}
       {page === 'accueil' && (
         <div>
-          {/* HERO */}
-          {showSec('hero') && <section style={{ position:'relative', minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', paddingTop:64, overflow:'hidden' }}>
-            <div style={{ position:'absolute', inset:0 }}>
-              <img src={config.heroPhoto} alt="hero" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} onError={e => { (e.target as HTMLImageElement).style.background='#2a1f14'; }} />
-              <div style={{ position:'absolute', inset:0, background:'linear-gradient(to bottom, rgba(26,22,18,0.5) 0%, rgba(26,22,18,0.65) 50%, rgba(26,22,18,0.95) 100%)' }} />
-            </div>
-            <div style={{ position:'relative', zIndex:2, maxWidth:800, padding:'0 24px' }}>
-              <p style={{ fontSize:10, fontFamily:'Inter, sans-serif', letterSpacing:'0.3em', color:`${cp}99`, marginBottom:28, textTransform:'uppercase' as const }}>{config.heroSousTitre}</p>
-              <h1 style={{ fontFamily:police, fontSize:'clamp(52px, 9vw, 96px)', fontWeight:400, color:ct, lineHeight:1.05, marginBottom:4 }}>{config.heroTitre1}</h1>
-              <h1 style={{ fontFamily:police, fontSize:'clamp(52px, 9vw, 96px)', fontWeight:400, color:cp, lineHeight:1.05, marginBottom:30, fontStyle:'italic' }}>{config.heroTitre2}</h1>
-              <p style={{ fontSize:'clamp(14px, 1.8vw, 17px)', color:`${ct}cc`, maxWidth:540, margin:'0 auto 36px', lineHeight:1.8, fontFamily:'Inter, sans-serif' }}>{config.heroDescription}</p>
-              <button onClick={() => setPage('produits')} style={{ background:'transparent', color:ct, border:`1px solid ${cp}88`, borderRadius:30, padding:'14px 36px', fontSize:12, fontFamily:'Inter, sans-serif', fontWeight:600, letterSpacing:'0.15em', cursor:'pointer', textTransform:'uppercase' as const }}>
-                {config.heroBouton} ↓
-              </button>
-            </div>
-            <div style={{ position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%)', width:1, height:60, background:`linear-gradient(to bottom, transparent, ${cp}66)` }} />
-          </section>
-
-          }{/* fin hero */}
-
-          {/* PRODUITS VEDETTES */}
-          <section style={{ background:cf, padding:isMobile ? '64px 24px' : '80px 64px' }}>
-            <div style={{ maxWidth:1280, margin:'0 auto' }}>
-              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:40, flexWrap:'wrap', gap:12 }}>
-                <div>
-                  <p style={{ fontSize:11, fontFamily:'Inter, sans-serif', letterSpacing:'0.2em', color:cp, textTransform:'uppercase' as const, marginBottom:8 }}>{config.produitsSousTitre}</p>
-                  <h2 style={{ fontFamily:police, fontSize:'clamp(28px, 5vw, 48px)', fontWeight:400, color:ct, fontStyle:'italic' }}>{config.produitsTitre}</h2>
+          {sectionsActives.map(sec => {
+            if (sec.id === 'hero') return (
+              <section key="hero" style={{ position:'relative', minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', paddingTop:64, overflow:'hidden' }}>
+                <div style={{ position:'absolute', inset:0, background:'#2a1f14' }}>
+                  {urlSure(config.heroPhoto) && <img src={urlSure(config.heroPhoto)} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />}
+                  <div style={{ position:'absolute', inset:0, background:'linear-gradient(to bottom, rgba(26,22,18,0.5) 0%, rgba(26,22,18,0.65) 50%, rgba(26,22,18,0.95) 100%)' }} />
                 </div>
-                <span onClick={() => setPage('produits')} style={{ fontSize:12, fontFamily:'Inter, sans-serif', color:cp, letterSpacing:'0.1em', cursor:'pointer', fontWeight:600 }}>VOIR TOUT →</span>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:`repeat(auto-fill, minmax(${isMobile?'100%':'280px'}, 1fr))`, gap:24 }}>
-                {config.produits.filter(p => p.disponible).slice(0, 6).map(produit => (
-                  <CarteProduit key={produit.id} produit={produit} cp={cp} police={police} onClick={() => setProduitActif(produit)} onAjouter={ajouterAuPanier} />
-                ))}
-              </div>
-            </div>
-          </section>
-
-          {/* PHILOSOPHIE */}
-          <section style={{ position:'relative', minHeight:400, display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden' }}>
-            <div style={{ position:'absolute', inset:0 }}>
-              <img src={config.philosophiePhoto} alt="philosophie" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} onError={e => { (e.target as HTMLImageElement).style.background='#2a1f14'; }} />
-              <div style={{ position:'absolute', inset:0, background:'rgba(26,22,18,0.75)' }} />
-            </div>
-            <div style={{ position:'relative', zIndex:2, textAlign:'center', padding:'80px 24px' }}>
-              <p style={{ fontSize:10, fontFamily:'Inter, sans-serif', letterSpacing:'0.2em', color:cp, textTransform:'uppercase' as const, marginBottom:20 }}>NOTRE PHILOSOPHIE</p>
-              <h2 style={{ fontFamily:police, fontSize:'clamp(28px, 5vw, 56px)', fontWeight:400, color:ct, fontStyle:'italic' }}>{config.philosophieTitre}</h2>
-            </div>
-          </section>
-
-          {/* ENGAGEMENTS */}
-          <section style={{ background:cf, borderTop:`1px solid ${cp}22` }}>
-            <div style={{ maxWidth:1280, margin:'0 auto', padding:isMobile ? '64px 24px' : '80px 64px', display:'grid', gridTemplateColumns:`repeat(auto-fill, minmax(${isMobile?'100%':'280px'}, 1fr))`, gap:isMobile ? 40 : 0 }}>
-              {config.engagements.map((e, i) => (
-                <div key={i} style={{ padding:'0 40px', textAlign:'left', borderRight:!isMobile && i < config.engagements.length-1 ? `1px solid ${cp}22` : 'none' }}>
-                  <div style={{ width:48, height:48, borderRadius:'50%', border:`1px solid ${cp}55`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:24, fontSize:22 }}>{e.icone}</div>
-                  <h3 style={{ fontFamily:police, fontSize:22, fontWeight:400, color:ct, fontStyle:'italic', marginBottom:12 }}>{e.titre}</h3>
-                  <p style={{ fontSize:14, color:`${ct}88`, lineHeight:1.8, fontFamily:'Inter, sans-serif' }}>{e.description}</p>
+                <div style={{ position:'relative', zIndex:2, maxWidth:800, padding:'0 24px' }}>
+                  <p style={{ fontSize:10, fontFamily:'Inter, sans-serif', letterSpacing:'0.3em', color:`${cp}99`, marginBottom:28, textTransform:'uppercase' as const }}>{config.heroSousTitre}</p>
+                  <h1 style={{ fontFamily:police, fontSize:'clamp(40px, 9vw, 96px)', fontWeight:400, color:ct, lineHeight:1.05, marginBottom:4, wordBreak:'break-word' }}>{config.heroTitre1}</h1>
+                  <h1 style={{ fontFamily:police, fontSize:'clamp(40px, 9vw, 96px)', fontWeight:400, color:cp, lineHeight:1.05, marginBottom:30, fontStyle:'italic', wordBreak:'break-word' }}>{config.heroTitre2}</h1>
+                  <p style={{ fontSize:'clamp(14px, 1.8vw, 17px)', color:`${ct}cc`, maxWidth:540, margin:'0 auto 36px', lineHeight:1.8, fontFamily:'Inter, sans-serif' }}>{config.heroDescription}</p>
+                  <button onClick={() => setPage('produits')} style={{ background:'transparent', color:ct, border:`1px solid ${cp}88`, borderRadius:30, padding:'14px 36px', fontSize:12, fontFamily:'Inter, sans-serif', fontWeight:600, letterSpacing:'0.15em', cursor:'pointer', textTransform:'uppercase' as const }}>
+                    {config.heroBouton} ↓
+                  </button>
                 </div>
-              ))}
-            </div>
-          </section>
+                <div style={{ position:'absolute', bottom:0, left:'50%', transform:'translateX(-50%)', width:1, height:60, background:`linear-gradient(to bottom, transparent, ${cp}66)` }} />
+              </section>
+            );
+            if (sec.id === 'produits') return (
+              <section key="produits" style={{ background:cf, padding:isMobile ? '64px 24px' : '80px 64px' }}>
+                <div style={{ maxWidth:1280, margin:'0 auto' }}>
+                  <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', marginBottom:40, flexWrap:'wrap', gap:12 }}>
+                    <div>
+                      <p style={{ fontSize:11, fontFamily:'Inter, sans-serif', letterSpacing:'0.2em', color:cp, textTransform:'uppercase' as const, marginBottom:8 }}>{config.produitsSousTitre}</p>
+                      <h2 style={{ fontFamily:police, fontSize:'clamp(28px, 5vw, 48px)', fontWeight:400, color:ct, fontStyle:'italic' }}>{config.produitsTitre}</h2>
+                    </div>
+                    <span onClick={() => setPage('produits')} style={{ fontSize:12, fontFamily:'Inter, sans-serif', color:cp, letterSpacing:'0.1em', cursor:'pointer', fontWeight:600 }}>VOIR TOUT →</span>
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:`repeat(auto-fill, minmax(${isMobile?'100%':'280px'}, 1fr))`, gap:24 }}>
+                    {(() => { const dispo = config.produits.filter(p => p.disponible); const vedettes = dispo.filter(p => p.vedette); return (vedettes.length ? vedettes : dispo).slice(0, 6); })().map(produit => (
+                      <CarteProduit key={produit.id} produit={produit} cp={cp} police={police} isMobile={isMobile} onClick={() => setProduitActif(produit)} onAjouter={ajouterAuPanier} />
+                    ))}
+                  </div>
+                </div>
+              </section>
+            );
+            if (sec.id === 'philosophie') return (
+              <section key="philosophie" style={{ position:'relative', minHeight:400, display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', background:'#2a1f14' }}>
+                <div style={{ position:'absolute', inset:0 }}>
+                  {urlSure(config.philosophiePhoto) && <img src={urlSure(config.philosophiePhoto)} alt="" style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }} onError={e => { (e.target as HTMLImageElement).style.display='none'; }} />}
+                  <div style={{ position:'absolute', inset:0, background:'rgba(26,22,18,0.75)' }} />
+                </div>
+                <div style={{ position:'relative', zIndex:2, textAlign:'center', padding:'80px 24px' }}>
+                  <p style={{ fontSize:10, fontFamily:'Inter, sans-serif', letterSpacing:'0.2em', color:cp, textTransform:'uppercase' as const, marginBottom:20 }}>NOTRE PHILOSOPHIE</p>
+                  <h2 style={{ fontFamily:police, fontSize:'clamp(28px, 5vw, 56px)', fontWeight:400, color:ct, fontStyle:'italic' }}>{config.philosophieTitre}</h2>
+                </div>
+              </section>
+            );
+            if (sec.id === 'engagements') return (
+              <section key="engagements" style={{ background:cf, borderTop:`1px solid ${cp}22` }}>
+                <div style={{ maxWidth:1280, margin:'0 auto', padding:isMobile ? '64px 24px' : '80px 64px', display:'grid', gridTemplateColumns:`repeat(auto-fill, minmax(${isMobile?'100%':'280px'}, 1fr))`, gap:isMobile ? 40 : 0 }}>
+                  {(config.engagements || []).map((e, i) => (
+                    <div key={i} style={{ padding:isMobile?0:'0 40px', textAlign:'left', borderRight:!isMobile && i < config.engagements.length-1 ? `1px solid ${cp}22` : 'none' }}>
+                      <div style={{ width:48, height:48, borderRadius:'50%', border:`1px solid ${cp}55`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:24, fontSize:22 }}>{e.icone}</div>
+                      <h3 style={{ fontFamily:police, fontSize:22, fontWeight:400, color:ct, fontStyle:'italic', marginBottom:12 }}>{e.titre}</h3>
+                      <p style={{ fontSize:14, color:`${ct}88`, lineHeight:1.8, fontFamily:'Inter, sans-serif' }}>{e.description}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            );
+            if (sec.id === 'contact') return (
+              <section key="contact" style={{ background:cf, borderTop:`1px solid ${cp}22`, padding:isMobile ? '64px 24px' : '80px 64px', textAlign:'center' }}>
+                <p style={{ fontSize:11, fontFamily:'Inter, sans-serif', letterSpacing:'0.2em', color:cp, textTransform:'uppercase' as const, marginBottom:16 }}>CONTACT & HEURES</p>
+                <div style={{ display:'flex', flexDirection:'column', gap:10, alignItems:'center', fontFamily:'Inter, sans-serif', fontSize:15, color:`${ct}cc` }}>
+                  {config.adresse && <span>📍 {config.adresse}</span>}
+                  {config.telephone && <span>📞 {config.telephone}</span>}
+                  {config.email && <span>✉️ {config.email}</span>}
+                  {config.heures && <span style={{ color:cp, fontWeight:600 }}>🕗 {config.heures}</span>}
+                </div>
+              </section>
+            );
+            return null;
+          })}
         </div>
       )}
 
@@ -470,7 +558,7 @@ export default function TemplateAgricole({ config: configProp }: Props) {
             {/* Grille */}
             <div style={{ display:'grid', gridTemplateColumns:`repeat(auto-fill, minmax(${isMobile?'100%':'280px'}, 1fr))`, gap:24 }}>
               {produitsFiltres.filter(p => p.disponible).map(produit => (
-                <CarteProduit key={produit.id} produit={produit} cp={cp} police={police} onClick={() => setProduitActif(produit)} onAjouter={ajouterAuPanier} />
+                <CarteProduit key={produit.id} produit={produit} cp={cp} police={police} isMobile={isMobile} onClick={() => setProduitActif(produit)} onAjouter={ajouterAuPanier} />
               ))}
             </div>
           </div>
@@ -482,7 +570,7 @@ export default function TemplateAgricole({ config: configProp }: Props) {
         <div style={{ background:cf }}>
           {/* Histoire */}
           <section style={{ padding:isMobile ? '88px 24px 64px' : '96px 64px' }}>
-            <div style={{ maxWidth:1280, margin:'0 auto', display:'flex', gap:64, alignItems:'flex-start', flexWrap:'wrap', flexDirection:isMobile?'column':'row' }}>
+            <div style={{ maxWidth:1280, margin:'0 auto', display:'flex', gap:isMobile?32:64, alignItems:'flex-start', flexWrap:'wrap', flexDirection:isMobile?'column':'row' }}>
               <div style={{ flex:'1 1 380px' }}>
                 <p style={{ fontSize:11, fontFamily:'Inter, sans-serif', letterSpacing:'0.2em', color:cp, textTransform:'uppercase' as const, marginBottom:20 }}>{config.fermeHistoireSousTitre}</p>
                 <h2 style={{ fontFamily:police, fontSize:'clamp(26px, 4vw, 44px)', fontWeight:400, color:ct, fontStyle:'italic', lineHeight:1.3, marginBottom:32 }}>{config.fermeHistoireTitre}</h2>
@@ -490,8 +578,8 @@ export default function TemplateAgricole({ config: configProp }: Props) {
                   <p key={i} style={{ fontSize:15, color:`${ct}cc`, lineHeight:1.9, marginBottom:16, fontFamily:'Inter, sans-serif' }}>{texte}</p>
                 ))}
               </div>
-              <div style={{ flex:'1 1 340px', borderRadius:'0 60px 0 0', overflow:'hidden', maxHeight:520 }}>
-                <img src={config.fermeHistoirePhoto} alt="ferme" style={{ width:'100%', height:'100%', objectFit:'cover', minHeight:380, display:'block' }} onError={e => { (e.target as HTMLImageElement).style.background='#2a1f14'; }} />
+              <div style={{ flex:'1 1 340px', width:isMobile?'100%':undefined, borderRadius:'0 60px 0 0', overflow:'hidden', maxHeight:520, background:'#2a1f14' }}>
+                <Photo src={config.fermeHistoirePhoto} alt="ferme" taille={72} style={{ width:'100%', height:'100%', objectFit:'cover', minHeight:380, display:'block' }} />
               </div>
             </div>
           </section>
@@ -501,18 +589,11 @@ export default function TemplateAgricole({ config: configProp }: Props) {
             <p style={{ fontSize:11, fontFamily:'Inter, sans-serif', letterSpacing:'0.2em', color:cp, textTransform:'uppercase' as const, marginBottom:16 }}>{config.fermeEngagementsSousTitre}</p>
             <h2 style={{ fontFamily:police, fontSize:'clamp(26px, 4vw, 44px)', fontWeight:400, color:ct, fontStyle:'italic', marginBottom:56 }}>{config.fermeEngagementsTitre}</h2>
             <div style={{ display:'grid', gridTemplateColumns:`repeat(auto-fill, minmax(${isMobile?'100%':'260px'}, 1fr))`, gap:40, maxWidth:1000, margin:'0 auto', textAlign:'left' as const }}>
-              {[
-                { icone:'🌿', titre:'Agriculture Naturelle', desc:'Aucun pesticide, aucun engrais chimique. Un sol vivant et des insectes auxiliaires.' },
-                { icone:'☀️', titre:'Circuit Court', desc:'De notre champ à votre table en quelques heures, sans intermédiaire.' },
-                { icone:'💧', titre:"Gestion de l'Eau", desc:'Irrigation raisonnée par goutte-à-goutte, récupération des eaux de pluie.' },
-                { icone:'📍', titre:'Terroir Local', desc:'Des variétés adaptées à notre sol et à notre climat du Québec.' },
-                { icone:'🗓️', titre:'Saisonnalité', desc:'Nous ne cultivons que ce que la saison permet. Pas de forçage, pas de hors-sol.' },
-                { icone:'❤️', titre:'Passion', desc:"Chaque légume est un acte d'amour envers la terre et ceux qui la dégustent." },
-              ].map((e, i) => (
+              {(config.fermeEngagements || []).map((e, i) => (
                 <div key={i}>
                   <div style={{ width:44, height:44, borderRadius:'50%', border:`1px solid ${cp}55`, display:'flex', alignItems:'center', justifyContent:'center', marginBottom:20, fontSize:20 }}>{e.icone}</div>
                   <h3 style={{ fontFamily:police, fontSize:20, fontWeight:400, color:ct, fontStyle:'italic', marginBottom:10 }}>{e.titre}</h3>
-                  <p style={{ fontSize:13, color:`${ct}88`, lineHeight:1.8, fontFamily:'Inter, sans-serif' }}>{e.desc}</p>
+                  <p style={{ fontSize:13, color:`${ct}88`, lineHeight:1.8, fontFamily:'Inter, sans-serif' }}>{e.description}</p>
                 </div>
               ))}
             </div>
@@ -560,7 +641,7 @@ export default function TemplateAgricole({ config: configProp }: Props) {
           </div>
           <div style={{ borderTop:`1px solid ${cp}22`, paddingTop:24, display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:8 }}>
             <p style={{ fontSize:11, fontFamily:'Inter, sans-serif', letterSpacing:'0.1em', color:`${ct}44` }}>{config.copyright}</p>
-            <p style={{ fontSize:11, fontFamily:'Inter, sans-serif', letterSpacing:'0.1em', color:`${ct}33` }}>DE LA TERRE, POUR L'ÂME</p>
+            <p style={{ fontSize:11, fontFamily:'Inter, sans-serif', letterSpacing:'0.1em', color:`${ct}33` }}>{String(config.sloganFerme || '').toUpperCase()}</p>
           </div>
         </div>
       </footer>

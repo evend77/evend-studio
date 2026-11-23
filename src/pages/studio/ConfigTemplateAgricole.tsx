@@ -1,4 +1,4 @@
-// src/pages/studio/ConfigTemplateAgricole.tsx
+// CHEMIN : src/pages/studio/ConfigTemplateAgricole.tsx
 import React, { useState, useEffect } from 'react';
 import TemplateAgricole, { CONFIG_AGRICOLE_DEFAUT } from '../../templates/TemplateAgricole';
 import type { ConfigAgricole, SectionConfig, ProduitAgricole } from '../../templates/TemplateAgricole';
@@ -7,13 +7,14 @@ type Onglet = 'identite'|'sections'|'apparence'|'produits'|'philosophie'|'ferme'
 const CP = '#c9854a';
 const FOND = '#1a1612';
 
-const Inp = ({ value, onChange, placeholder, type='text' }: any) => (
-  <input type={type} value={value||''} placeholder={placeholder} onChange={e => onChange(e.target.value)}
+const nett = (v: any, max: number) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').slice(0, max);
+const Inp = ({ value, onChange, placeholder, type='text', max=300 }: any) => (
+  <input type={type} value={value||''} placeholder={placeholder} maxLength={max} onChange={e => onChange(nett(e.target.value, max))}
     style={{ width:'100%', padding:'8px 11px', border:'1.5px solid #e5e7eb', borderRadius:5, fontSize:13, outline:'none', background:'#fff', color:'#1a1a1a', boxSizing:'border-box' as any }}
     onFocus={e => e.target.style.borderColor=CP} onBlur={e => e.target.style.borderColor='#e5e7eb'} />
 );
-const Txt = ({ value, onChange, placeholder, rows=3 }: any) => (
-  <textarea value={value||''} placeholder={placeholder} rows={rows} onChange={e => onChange(e.target.value)}
+const Txt = ({ value, onChange, placeholder, rows=3, max=3000 }: any) => (
+  <textarea value={value||''} placeholder={placeholder} rows={rows} maxLength={max} onChange={e => onChange(nett(e.target.value, max))}
     style={{ width:'100%', padding:'8px 11px', border:'1.5px solid #e5e7eb', borderRadius:5, fontSize:13, outline:'none', resize:'vertical' as any, fontFamily:'inherit', background:'#fff', color:'#1a1a1a', boxSizing:'border-box' as any }}
     onFocus={e => e.target.style.borderColor=CP} onBlur={e => e.target.style.borderColor='#e5e7eb'} />
 );
@@ -72,6 +73,7 @@ export default function ConfigTemplateAgricole({ vendeurId, onSauvegarde }: Prop
   const [modeApercu, setModeApercu] = useState<'desktop'|'tablette'|'mobile'>('desktop');
   const [resetConfirm, setResetConfirm] = useState(false);
   const [produitEdite, setProduitEdite] = useState<number|null>(null);
+  const [supprProd, setSupprProd] = useState<number|null>(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -143,7 +145,7 @@ export default function ConfigTemplateAgricole({ vendeurId, onSauvegarde }: Prop
             <S titre="Identité de la ferme">
               <F label="Nom de la ferme"><Inp value={config.nomFerme} onChange={(v:string)=>set('nomFerme',v)} placeholder="Terra Nostra" /></F>
               <F label="Slogan"><Inp value={config.sloganFerme} onChange={(v:string)=>set('sloganFerme',v)} /></F>
-              <F label="URL du logo (vide = nom en cursive)"><Inp value={config.logoUrl} onChange={(v:string)=>set('logoUrl',v)} placeholder="https://..." /></F>
+              <F label="URL du logo (vide = nom en cursive)"><Inp max={1000} value={config.logoUrl} onChange={(v:string)=>set('logoUrl',v)} placeholder="https://..." /></F>
             </S>
             <S titre="Hero plein écran">
               <F label="Titre ligne 1"><Inp value={config.heroTitre1} onChange={(v:string)=>set('heroTitre1',v)} placeholder="De la Terre," /></F>
@@ -151,7 +153,7 @@ export default function ConfigTemplateAgricole({ vendeurId, onSauvegarde }: Prop
               <F label="Sous-titre (séparé par ·)"><Inp value={config.heroSousTitre} onChange={(v:string)=>set('heroSousTitre',v)} /></F>
               <F label="Description"><Txt value={config.heroDescription} onChange={(v:string)=>set('heroDescription',v)} rows={3} /></F>
               <F label="Texte bouton"><Inp value={config.heroBouton} onChange={(v:string)=>set('heroBouton',v)} /></F>
-              <F label="Photo hero (URL)"><Inp value={config.heroPhoto} onChange={(v:string)=>set('heroPhoto',v)} /></F>
+              <F label="Photo hero (URL)"><Inp max={1000} value={config.heroPhoto} onChange={(v:string)=>set('heroPhoto',v)} /></F>
               {config.heroPhoto && <img src={config.heroPhoto} alt="" style={{ width:'100%', height:72, objectFit:'cover', borderRadius:6, marginTop:4 }} onError={e=>{(e.target as HTMLImageElement).style.display='none';}} />}
             </S>
             <S titre="Engagements (section accueil)">
@@ -218,7 +220,12 @@ export default function ConfigTemplateAgricole({ vendeurId, onSauvegarde }: Prop
                       <p style={{ fontSize:11, color:'#888', margin:0 }}>{p.prix?.toFixed(2)}$ / {p.unite} {p.vedette?'⭐':''}</p>
                     </div>
                     <button onClick={()=>setProduitEdite(produitEdite===i?null:i)} style={{ background:'#f3f4f6', border:'none', borderRadius:4, padding:'3px 7px', fontSize:11, cursor:'pointer' }}>{produitEdite===i?'✕':'✏️'}</button>
-                    <Del onClick={()=>{if(window.confirm('Supprimer?')){set('produits',produits.filter((_,j)=>j!==i));if(produitEdite===i)setProduitEdite(null);}}} />
+                    {supprProd===i ? (
+                      <span style={{ display:'flex', gap:4, alignItems:'center' }}>
+                        <button onClick={()=>{set('produits',produits.filter((_,j)=>j!==i));if(produitEdite===i)setProduitEdite(null);setSupprProd(null);}} style={{ background:'#dc2626', border:'none', borderRadius:4, padding:'3px 7px', fontSize:10, color:'#fff', cursor:'pointer', fontWeight:700 }}>Supprimer</button>
+                        <button onClick={()=>setSupprProd(null)} style={{ background:'#f3f4f6', border:'none', borderRadius:4, padding:'3px 7px', fontSize:10, color:'#555', cursor:'pointer' }}>Annuler</button>
+                      </span>
+                    ) : <Del onClick={()=>setSupprProd(i)} />}
                   </div>
                   {produitEdite===i && (
                     <div style={{ marginTop:10 }}>
@@ -231,7 +238,7 @@ export default function ConfigTemplateAgricole({ vendeurId, onSauvegarde }: Prop
                         <F label="Méthode"><select value={p.methode} onChange={e=>updProduit(i,'methode',e.target.value)} style={{ width:'100%', padding:'8px 11px', border:'1.5px solid #e5e7eb', borderRadius:5, fontSize:13, background:'#fff', boxSizing:'border-box' as any }}>
                           {['Pleine Terre','Permaculture','Sous Serre','Biologique','Conventionnel'].map(m=><option key={m}>{m}</option>)}</select></F>
                       </div>
-                      <F label="Photo (URL)"><Inp value={p.photo} onChange={(v:string)=>updProduit(i,'photo',v)} /></F>
+                      <F label="Photo (URL)"><Inp max={1000} value={p.photo} onChange={(v:string)=>updProduit(i,'photo',v)} /></F>
                       <F label="Description"><Txt value={p.description} onChange={(v:string)=>updProduit(i,'description',v)} rows={2} /></F>
                       <div style={{ display:'flex', gap:16, marginTop:6 }}>
                         <label style={{ display:'flex', gap:6, alignItems:'center', fontSize:12, cursor:'pointer' }}><input type="checkbox" checked={p.disponible} onChange={e=>updProduit(i,'disponible',e.target.checked)} />Disponible</label>
@@ -249,7 +256,7 @@ export default function ConfigTemplateAgricole({ vendeurId, onSauvegarde }: Prop
           {onglet==='philosophie' && (
             <S titre="Section Philosophie">
               <F label="Titre (en cursive italique)"><Inp value={config.philosophieTitre} onChange={(v:string)=>set('philosophieTitre',v)} /></F>
-              <F label="Photo de fond (URL)"><Inp value={config.philosophiePhoto} onChange={(v:string)=>set('philosophiePhoto',v)} /></F>
+              <F label="Photo de fond (URL)"><Inp max={1000} value={config.philosophiePhoto} onChange={(v:string)=>set('philosophiePhoto',v)} /></F>
               {config.philosophiePhoto && <img src={config.philosophiePhoto} alt="" style={{ width:'100%', height:80, objectFit:'cover', borderRadius:6, marginTop:4 }} />}
             </S>
           )}
@@ -258,12 +265,22 @@ export default function ConfigTemplateAgricole({ vendeurId, onSauvegarde }: Prop
             <S titre="Notre Histoire">
               <F label="Label section"><Inp value={config.fermeHistoireSousTitre} onChange={(v:string)=>set('fermeHistoireSousTitre',v)} /></F>
               <F label="Titre en cursive"><Inp value={config.fermeHistoireTitre} onChange={(v:string)=>set('fermeHistoireTitre',v)} /></F>
-              <F label="Photo (URL)"><Inp value={config.fermeHistoirePhoto} onChange={(v:string)=>set('fermeHistoirePhoto',v)} /></F>
+              <F label="Photo (URL)"><Inp max={1000} value={config.fermeHistoirePhoto} onChange={(v:string)=>set('fermeHistoirePhoto',v)} /></F>
               <F label="Texte (ligne vide entre paragraphes)"><Txt value={(config.fermeHistoireTextes||[]).join('\n\n')} onChange={(v:string)=>set('fermeHistoireTextes',v.split('\n\n').filter(Boolean))} rows={6} /></F>
             </S>
             <S titre="Nos Engagements (page Ferme)">
               <F label="Label section"><Inp value={config.fermeEngagementsSousTitre} onChange={(v:string)=>set('fermeEngagementsSousTitre',v)} /></F>
               <F label="Titre section"><Inp value={config.fermeEngagementsTitre} onChange={(v:string)=>set('fermeEngagementsTitre',v)} /></F>
+              {(config.fermeEngagements||[]).map((eng,i) => (
+                <div key={i} style={{ display:'grid', gridTemplateColumns:'36px 1fr auto', gap:5, marginBottom:6, alignItems:'center' }}>
+                  <Inp max={8} value={eng.icone} onChange={(v:string)=>{const a=[...config.fermeEngagements];a[i]={...a[i],icone:v};set('fermeEngagements',a);}} />
+                  <Inp value={eng.titre} onChange={(v:string)=>{const a=[...config.fermeEngagements];a[i]={...a[i],titre:v};set('fermeEngagements',a);}} placeholder="Titre" />
+                  <Del onClick={()=>set('fermeEngagements',config.fermeEngagements.filter((_,j)=>j!==i))} />
+                  <div style={{ gridColumn:'1 / -1' }}><Inp value={eng.description} onChange={(v:string)=>{const a=[...config.fermeEngagements];a[i]={...a[i],description:v};set('fermeEngagements',a);}} placeholder="Description" max={500} /></div>
+                </div>
+              ))}
+              <button onClick={()=>set('fermeEngagements',[...(config.fermeEngagements||[]),{icone:'🌱',titre:'',description:''}])}
+                style={{ width:'100%', padding:'6px', border:`2px dashed ${CP}`, borderRadius:6, background:'transparent', color:CP, cursor:'pointer', fontSize:11, fontWeight:600 }}>+ Ajouter un engagement</button>
             </S>
             <S titre="Venez nous visiter">
               <F label="Titre"><Inp value={config.fermeVisiteTitre} onChange={(v:string)=>set('fermeVisiteTitre',v)} /></F>
@@ -277,7 +294,7 @@ export default function ConfigTemplateAgricole({ vendeurId, onSauvegarde }: Prop
             </S>
           </>)}
 
-          {onglet==='contact' && (
+          {onglet==='contact' && (<>
             <S titre="Coordonnées & Footer">
               <F label="Adresse complète"><Inp value={config.adresse} onChange={(v:string)=>set('adresse',v)} /></F>
               <F label="Téléphone"><Inp value={config.telephone} onChange={(v:string)=>set('telephone',v)} /></F>
@@ -286,7 +303,15 @@ export default function ConfigTemplateAgricole({ vendeurId, onSauvegarde }: Prop
               <F label="Slogan footer"><Inp value={config.sloganFooter} onChange={(v:string)=>set('sloganFooter',v)} /></F>
               <F label="Texte copyright"><Inp value={config.copyright} onChange={(v:string)=>set('copyright',v)} /></F>
             </S>
-          )}
+            <S titre="Demande de commande (panier)">
+              <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:8, padding:'8px 12px', marginBottom:10, fontSize:12, color:'#166534' }}>
+                💡 Le client envoie sa demande de commande : elle arrive par courriel à l'adresse de votre compte et dans votre Messagerie. Aucun paiement en ligne.
+              </div>
+              <F label="Introduction du formulaire"><Txt value={config.commandeIntro} onChange={(v:string)=>set('commandeIntro',v)} rows={3} max={500} /></F>
+              <F label="Texte du bouton d'envoi"><Inp value={config.commandeBouton} onChange={(v:string)=>set('commandeBouton',v)} max={60} /></F>
+              <F label="Message de confirmation"><Txt value={config.commandeConfirmation} onChange={(v:string)=>set('commandeConfirmation',v)} rows={3} max={500} /></F>
+            </S>
+          </>)}
         </div>
 
         {/* ── BARRE DU BAS ── */}

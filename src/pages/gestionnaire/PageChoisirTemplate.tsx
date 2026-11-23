@@ -438,6 +438,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [modalCompleteOuvert, setModalCompleteOuvert] = useState(false);
   const [paliersCatalogue, setPaliersCatalogue] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers du Catalogue Avancé (Prix Template) ; vide = aucune limite, pas de fenêtre
   const [modalCatalogueOuvert, setModalCatalogueOuvert] = useState(false);
+  const [paliersAgricole, setPaliersAgricole] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de la Boutique Agricole (Prix Template) ; vide = aucune limite, pas de fenêtre
+  const [modalAgricoleOuvert, setModalAgricoleOuvert] = useState(false);
 
   // Prix configurés dans le dashboard admin — si l'appel échoue, on retombe
   // simplement sur le prix codé en dur (ou "Gratuit") comme avant.
@@ -455,7 +457,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         }
         setPrixParTemplate(map);
         const info: Record<string, { prixMin: string; limiteMax: number }> = {};
-        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue']) {
+        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole']) {
           let pal: any = data.templates[id]?.prix_paliers;
           if (typeof pal === 'string') { try { pal = JSON.parse(pal); } catch { pal = null; } }
           if (!Array.isArray(pal) || pal.length === 0) continue;
@@ -464,6 +466,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           const min = ok.reduce((a: any, b: any) => (b.n < a.n ? b : a));
           info[id] = { prixMin: min.prix, limiteMax: Math.max(...ok.map((x: any) => x.limite)) };
           if (id === 'boutique-complete') setPaliersComplete(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
+          if (id === 'boutique-agricole') setPaliersAgricole(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-catalogue') setPaliersCatalogue(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
         }
         setInfoPaliers(info);
@@ -496,6 +499,19 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     }
     setModalCatalogueOuvert(false);
     onChoisir('boutique-catalogue');
+  };
+  // Boutique Agricole : même principe
+  const handleChoisirAgricole = () => { if (paliersAgricole.length > 0) setModalAgricoleOuvert(true); else onChoisir('boutique-agricole'); };
+  const handleConfirmerPalierAgricole = async (limite: number) => {
+    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include', body: JSON.stringify({ plan: `agricole-${limite}` }),
+      }).catch(() => {});
+    }
+    setModalAgricoleOuvert(false);
+    onChoisir('boutique-agricole');
   };
   const handleChoisirSimplisse = () => setModalSimplisseOuvert(true);
   const [modalPremiumOuvert, setModalPremiumOuvert] = useState(false);
@@ -600,6 +616,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           ]
         },
         {
+          titre: 'Ferme & producteurs',
+          templates: [
+            { id: 'agricole', titre: 'Vitrine Agricole', desc: "Site vitrine de ferme, sans paiement en ligne : vos produits, Notre ferme, philosophie et visites. Le visiteur envoie une demande de commande par courriel (Messagerie), vous le contactez ensuite. Textes, couleurs et sections réglables.", icone: '🌾', couleur: '#c9854a', disponible: true },
+          ]
+        },
+        {
           titre: 'Réservations (sans paiement en ligne)',
           templates: [
             { id: 'reservation-restaurant', titre: 'Restaurant & Café',  desc: 'Réservation de table par créneau horaire avec calendrier visuel.',         icone: '🍽️', couleur: '#f97316', disponible: true },
@@ -675,7 +697,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
               desc: "Produits numériques — PDF, guides, presets, musique, cours en ligne. Livraison instantanée par courriel. Bientôt.",
               icone: '💾', couleur: '#0891b2', disponible: false, badge: 'Bientôt', badgeCouleur: '#0891b2', pages: [],
             },
-            { id: 'agricole', titre: 'Boutique Agricole', desc: 'Ferme maraîchère avec panier intégré, catalogue produits, page Notre Ferme. Style terroir sombre doré.', icone: '🌱', couleur: '#c9854a', disponible: true },
+            {
+              id: 'boutique-agricole', titre: 'Boutique Agricole',
+              desc: "Boutique de ferme au look terroir sombre et doré : produits de la ferme, page Notre ferme, philosophie, visites, panier et paiement Stripe ou PayPal, compte acheteur, blog, FAQ et contact. Textes, couleurs, police et sections réglables.",
+              icone: '🌾', couleur: '#c9854a', disponible: true, badge: 'Nouveau', badgeCouleur: '#c9854a',
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'Notre ferme', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
+            },
           ]
         },
       ]
@@ -853,6 +880,14 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           nom="Catalogue Avancé" icone="🗂️" couleur="#3b82f6"
           onConfirmer={handleConfirmerPalierCatalogue}
           onAnnuler={() => setModalCatalogueOuvert(false)}
+        />
+      )}
+      {modalAgricoleOuvert && paliersAgricole.length > 0 && (
+        <ModalPalierComplete
+          paliers={paliersAgricole}
+          nom="Boutique Agricole" icone="🌾" couleur="#c9854a"
+          onConfirmer={handleConfirmerPalierAgricole}
+          onAnnuler={() => setModalAgricoleOuvert(false)}
         />
       )}
       {modalPremiumOuvert && (
@@ -1213,6 +1248,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                     const estMonoProduit   = t.id === 'boutique-simple';
                     const estComplete      = t.id === 'boutique-complete';
                     const estCatalogue     = t.id === 'boutique-catalogue';
+                    const estAgricole      = t.id === 'boutique-agricole';
                     return (
                       <div key={t.id} className="template-card"
                         onClick={() => {
@@ -1222,6 +1258,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estSimplisseMode) { handleChoisirSimplisseMode(); return; }
                           if (estComplete) { handleChoisirComplete(); return; }
                           if (estCatalogue) { handleChoisirCatalogue(); return; }
+                          if (estAgricole) { handleChoisirAgricole(); return; }
                           onChoisir(t.id);
                         }}
                         onMouseEnter={e => {
@@ -1301,6 +1338,15 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           </div>
                         )}
 
+                        {estAgricole && (
+                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
+                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
+                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Notre ferme · philosophie · visites : textes et sections réglables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
                         {estMonoProduit && (
                           <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
                             <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
@@ -1342,10 +1388,11 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                                 if (estSimplisseMode) { handleChoisirSimplisseMode(); return; }
                                 if (estComplete) { handleChoisirComplete(); return; }
                                 if (estCatalogue) { handleChoisirCatalogue(); return; }
+                                if (estAgricole) { handleChoisirAgricole(); return; }
                                 onChoisir(t.id);
                               }}
                               style={{ padding: '9px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit', boxShadow: `0 8px 16px -8px ${estSimplisse ? COULEUR_MP : t.couleur}` }}>
-                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : 'Choisir →'}
+                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : 'Choisir →'}
                             </button>
                           </div>
                         )}
