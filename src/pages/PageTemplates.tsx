@@ -34,6 +34,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-sport':             'https://images.pexels.com/photos/12918252/pexels-photo-12918252.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-joyau':             'https://images.pexels.com/photos/12636308/pexels-photo-12636308.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-ecume':             'https://images.pexels.com/photos/10493845/pexels-photo-10493845.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-audace':             'https://images.pexels.com/photos/12918252/pexels-photo-12918252.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -301,6 +302,14 @@ export const TEMPLATES: Template[] = [
     description: "Style simple et lumineux : bleu cobalt et rose, grande photo centrée, ruban ondulé qui défile, bandes rayées, avis sur fond rose et accordéon avec photo. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
     fonctionnalites: ['Bleu cobalt et rose réglables, mode clair ou sombre', 'Grande photo centrée, ruban ondulé, bandes rayées', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#2c4fe6',
+  },
+  {
+    id: 'boutique-audace',
+    nom: 'Simplisse Audace',
+    groupe: 'boutique-generique',
+    description: "Style affirmé : marine et vert lime, titres en majuscules, photos inclinées avec ombres dures, bandeau défilant avec étiquette, palmarès numéroté, onglets de catégories. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Marine et lime réglables, mode clair ou sombre', 'Photos inclinées, bandeau défilant, palmarès numéroté', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#c8ff2e',
   },
   {
     id: 'boutique-agricole',

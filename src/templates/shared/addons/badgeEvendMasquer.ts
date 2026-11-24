@@ -172,3 +172,10 @@ export function configEcumeAvecBadge(config: any, addons: Record<string, boolean
   const ecume = (base && typeof base === 'object') ? base : {};
   return { ...config, ecume: { ...ecume, footer: { ...(ecume.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Audace : le pied de page se lit dans config.audace.footer.afficherPropulse.
+// `base` = config.audace déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configAudaceAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const audace = (base && typeof base === 'object') ? base : {};
+  return { ...config, audace: { ...audace, footer: { ...(audace.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
