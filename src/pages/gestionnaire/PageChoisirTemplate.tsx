@@ -2,6 +2,7 @@
 // e-Vend Studio — Choix de template au premier login ou depuis le menu
 
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { TEMPLATES as CATALOGUE_TEMPLATES } from '../PageTemplates';
 
 const API_BASE = '/api';
@@ -441,6 +442,16 @@ function lisible(hex: string): string {
 export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props) {
   const [ongletCategorie, setOngletCategorie] = useState<'vitrines'|'boutiques'|'multivendeur'|'cagnottes'|'encheres'|'annonces'|'abonnements'|'locations'>('vitrines');
   const [descOuverte, setDescOuverte] = useState(false);
+  // Fenêtre « Détails » d'une carte de template (id du template ouvert, ou null)
+  const [detailsOuvert, setDetailsOuvert] = useState<string | null>(null);
+  useEffect(() => {
+    if (!detailsOuvert) return;
+    const surTouche = (e: KeyboardEvent) => { if (e.key === 'Escape') setDetailsOuvert(null); };
+    const ancien = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', surTouche);
+    return () => { window.removeEventListener('keydown', surTouche); document.body.style.overflow = ancien; };
+  }, [detailsOuvert]);
   const [modalSimplisseOuvert, setModalSimplisseOuvert] = useState(false);
   const [enregistrementPlan, setEnregistrementPlan] = useState(false);
   const [modalResetOuvert, setModalResetOuvert] = useState(false);
@@ -2032,6 +2043,331 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                     const estRallye      = t.id === 'boutique-rallye';
                     const estPaon      = t.id === 'boutique-paon';
                     const estPop      = t.id === 'boutique-pop';
+                    // Bloc « détails » : version courte pour la carte (3 puces), version complète pour la fenêtre Détails
+                    const rendreDetails = (mode: 'carte' | 'modal') => {
+                      const enCarte = mode === 'carte';
+                      const bx = (c: string): any => enCarte
+                        ? { marginBottom: 12 }
+                        : { marginBottom: 14, background: `${c}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${c}30` };
+                      const pst: any = enCarte
+                        ? { fontSize: 12, color: C.textLight, margin: 0, lineHeight: 1.45 }
+                        : { fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 };
+                      const lignesAff = (arr: string[]) => enCarte ? (
+                        <>
+                          {arr.slice(1, 4).map((l, i) => (
+                            <span key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 4 }}>
+                              <span style={{ width: 5, height: 5, borderRadius: '50%', background: t.couleur, flexShrink: 0, marginTop: 6 }} />
+                              <span>{l.replace(/^(✅|🧩)\s*/, '')}</span>
+                            </span>
+                          ))}
+                          {arr.length > 4 && <span style={{ fontSize: 11, color: C.textDim, marginLeft: 11, marginRight: 8 }}>+{arr.length - 4} autres</span>}
+                        </>
+                      ) : arr.map((l, i) => <span key={i}>{l}<br /></span>);
+                      return (
+                        <>
+                        {mode === 'modal' && t.pages && t.pages.length > 0 && (
+                          <div style={{ marginBottom: 14 }}>
+                            <p style={{ fontSize: 11, fontWeight: 600, color: C.textDim, margin: '0 0 6px', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Pages incluses</p>
+                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
+                              {t.pages.map((page: string) => (
+                                <span key={page} style={{ fontSize: 11, fontWeight: 600, background: `${t.couleur}25`, color: lisible(t.couleur), padding: '3px 9px', borderRadius: 6, border: `1px solid ${lisible(t.couleur)}55` }}>
+                                  {page}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {estComplete && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Compte acheteur · historique des commandes · favoris', '✅ Logo, couleurs et police réglables · compatible avec les add-ons'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estCatalogue && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Thème sombre ou clair · menu avec sous-menus et méga-menu réglables', '✅ Filtres avancés : prix, promo, stock, tri', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Compte acheteur · historique des commandes · favoris', '✅ Logo, couleurs et police réglables · compatible avec les add-ons'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estAgricole && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Notre ferme · philosophie · visites : textes et sections réglables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estArtisan && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Galerie de photos · blocs de collection · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estAuto && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Recherche par véhicule · Mon garage · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estJouets && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Chercheur de cadeau · diaporama · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estGothique && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Police gothique · image pleine largeur · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estBD && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Diaporama bulle de BD · cartes promo · compte à rebours · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estFuturiste && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Blocs noirs arrondis · accordéons · compte à rebours · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estTech && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Mosaïque · détails produit · tableau comparatif · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estRose && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Vagues · vitrine à points · tableau comparatif · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estBonbon && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Menu latéral · diaporama à flèches · bandeau dégradé · vidéo · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estSoleil && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Menu latéral · diaporama à légende orange · bandeau offre · vidéo · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estSentier && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Grande photo pleine largeur · bandeau d\'offre · compte à rebours · vidéo · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estChantier && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Bloc jaune avec photo et produits · bandeau d\'offre · compte à rebours · tableau comparatif · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estCafe && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Photo pleine largeur · cartes caramel · bandeau d\'offre · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estSakura && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Papeterie et créativité · titres manuscrits · lignes ondulées · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estSport && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Marine et menthe · titres très gras · photo pleine largeur · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estJoyau && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Crème et terre cuite · collections en cercles · calendrier d’événements · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estEcume && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Bleu cobalt et rose · grande photo centrée · ruban ondulé · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estAudace && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Marine et lime · photos inclinées · palmarès numéroté · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estCarnaval && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Couleurs franches · cadres noirs · onglets de collections · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estPatchwork && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Crème et terre cuite · pointillés · photos en arche · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estVigie && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Noir et bleu électrique · cartes fines · hero calme · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estAurore && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Noir et vert néon · vague lumineuse · cartes lumineuses · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estGalerie && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Noir et blanc éditorial · titres serif · collections en escalier · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estRallye && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Noir charbon et orange · étiquettes inclinées · offre du jour · avant/après · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estPaon && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Pétrole et rose poudré · titres serif géants · traits fins · ruban vente flash · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estPop && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Crème, rouge tomate et jaune · ombres décalées · bandes à vagues · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'])}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
+                        {estMonoProduit && (
+                          <div style={bx(t.couleur)}>
+                            <p style={pst}>
+                              {lignesAff(['✅ Géré depuis le tableau de bord — sans code', '✅ Un produit vendu, avec ses variantes et options (couleur, taille…) et leurs photos', '✅ Page de vente en blocs : ordre, affichage et contenu réglables', '✅ Accroches multiples · Vidéo YouTube ou Vimeo · Phrase défilante · Citation · Valeurs · Chronologie · Tableau comparatif', '✅ Bénéfices · Détails · Avis · FAQ · Appel final · Bannière promo', '✅ Panier & paiement Stripe ou PayPal intégré · Barre d\'achat fixe sur mobile', '✅ Footer configurable · Blog · À propos · Contact · Compte acheteur', '🧩 Add-ons au choix : avis, favoris, infolettre, analytique…'])}
+                            </p>
+                          </div>
+                        )}
+
+                        {(estSimplisse || estPremium) && (() => {
+                          // Valeurs de départ = paliers affichés dans la fenêtre de choix (repli si le dashboard admin ne répond pas)
+                          const rep = estPremium ? { prixMin: '18,99$', limiteMax: 500 } : { prixMin: '15,99$', limiteMax: 200 };
+                          const inf = infoPaliers[t.id] || rep;
+                          const lignes = estPremium
+                            ? ['✅ Géré depuis le tableau de bord — sans code', `✅ Jusqu'à ${inf.limiteMax} produits · Catégories · Variantes · Promos`, '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Footer configurable · Ticker défilant · Zoom image · Blog · FAQ · À propos', '🧩 Add-ons au choix : enchères, offres du jour, avis, favoris, infolettre…']
+                            : ['✅ Géré depuis le tableau de bord — sans code', `✅ Jusqu'à ${inf.limiteMax} produits · Catégories · Variantes · Promos`, '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Footer configurable · Bannière promo · Blog · FAQ', '🧩 Add-ons au choix : enchères, offres du jour, avis, favoris, infolettre…'];
+                          const coul = estPremium ? t.couleur : COULEUR_MP;
+                          return (
+                            <div style={bx(coul)}>
+                              <p style={pst}>
+                                {lignesAff(lignes)}
+                                💰 Dès <strong style={{ color: C.text }}>{inf.prixMin}/mois</strong> + taxes
+                              </p>
+                            </div>
+                          );
+                        })()}
+
+                        </>
+                      );
+                    };
                     return (
                       <div key={t.id} className="template-card"
                         onClick={() => {
@@ -2126,310 +2462,11 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                                 : <span style={{ fontSize: 10, background: `${t.couleur}18`, color: lisible(t.couleur), padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>Gratuit</span>
                               }
                             </div>
-                            <p style={{ fontSize: 13, color: C.textLight, lineHeight: 1.55, margin: 0 }}>{t.desc}</p>
+                            <p style={{ fontSize: 13, color: C.textLight, lineHeight: 1.55, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{t.desc}</p>
                           </div>
                         </div>
 
-                        {t.pages && t.pages.length > 0 && (
-                          <div style={{ marginBottom: 14 }}>
-                            <p style={{ fontSize: 11, fontWeight: 600, color: C.textDim, margin: '0 0 6px', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Pages incluses</p>
-                            <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
-                              {t.pages.map((page: string) => (
-                                <span key={page} style={{ fontSize: 11, fontWeight: 600, background: `${t.couleur}25`, color: lisible(t.couleur), padding: '3px 9px', borderRadius: 6, border: `1px solid ${lisible(t.couleur)}55` }}>
-                                  {page}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {estComplete && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Compte acheteur · historique des commandes · favoris', '✅ Logo, couleurs et police réglables · compatible avec les add-ons'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estCatalogue && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Thème sombre ou clair · menu avec sous-menus et méga-menu réglables', '✅ Filtres avancés : prix, promo, stock, tri', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Compte acheteur · historique des commandes · favoris', '✅ Logo, couleurs et police réglables · compatible avec les add-ons'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estAgricole && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Notre ferme · philosophie · visites : textes et sections réglables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estArtisan && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Galerie de photos · blocs de collection · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estAuto && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Recherche par véhicule · Mon garage · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estJouets && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Chercheur de cadeau · diaporama · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estGothique && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Police gothique · image pleine largeur · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estBD && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Diaporama bulle de BD · cartes promo · compte à rebours · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estFuturiste && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Blocs noirs arrondis · accordéons · compte à rebours · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estTech && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Mosaïque · détails produit · tableau comparatif · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estRose && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Vagues · vitrine à points · tableau comparatif · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estBonbon && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Menu latéral · diaporama à flèches · bandeau dégradé · vidéo · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estSoleil && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Menu latéral · diaporama à légende orange · bandeau offre · vidéo · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estSentier && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Grande photo pleine largeur · bandeau d\'offre · compte à rebours · vidéo · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estChantier && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Bloc jaune avec photo et produits · bandeau d\'offre · compte à rebours · tableau comparatif · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estCafe && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Photo pleine largeur · cartes caramel · bandeau d\'offre · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estSakura && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Papeterie et créativité · titres manuscrits · lignes ondulées · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estSport && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Marine et menthe · titres très gras · photo pleine largeur · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estJoyau && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Crème et terre cuite · collections en cercles · calendrier d’événements · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estEcume && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Bleu cobalt et rose · grande photo centrée · ruban ondulé · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estAudace && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Marine et lime · photos inclinées · palmarès numéroté · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estCarnaval && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Couleurs franches · cadres noirs · onglets de collections · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estPatchwork && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Crème et terre cuite · pointillés · photos en arche · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estVigie && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Noir et bleu électrique · cartes fines · hero calme · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estAurore && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Noir et vert néon · vague lumineuse · cartes lumineuses · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estGalerie && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Noir et blanc éditorial · titres serif · collections en escalier · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estRallye && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Noir charbon et orange · étiquettes inclinées · offre du jour · avant/après · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estPaon && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Pétrole et rose poudré · titres serif géants · traits fins · ruban vente flash · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estPop && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Crème, rouge tomate et jaune · ombres décalées · bandes à vagues · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
-                            </p>
-                          </div>
-                        )}
-
-                        {estMonoProduit && (
-                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
-                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Un produit vendu, avec ses variantes et options (couleur, taille…) et leurs photos', '✅ Page de vente en blocs : ordre, affichage et contenu réglables', '✅ Accroches multiples · Vidéo YouTube ou Vimeo · Phrase défilante · Citation · Valeurs · Chronologie · Tableau comparatif', '✅ Bénéfices · Détails · Avis · FAQ · Appel final · Bannière promo', '✅ Panier & paiement Stripe ou PayPal intégré · Barre d\'achat fixe sur mobile', '✅ Footer configurable · Blog · À propos · Contact · Compte acheteur', '🧩 Add-ons au choix : avis, favoris, infolettre, analytique…'].map((l, i) => <span key={i}>{l}<br /></span>)}
-                            </p>
-                          </div>
-                        )}
-
-                        {(estSimplisse || estPremium) && (() => {
-                          // Valeurs de départ = paliers affichés dans la fenêtre de choix (repli si le dashboard admin ne répond pas)
-                          const rep = estPremium ? { prixMin: '18,99$', limiteMax: 500 } : { prixMin: '15,99$', limiteMax: 200 };
-                          const inf = infoPaliers[t.id] || rep;
-                          const lignes = estPremium
-                            ? ['✅ Géré depuis le tableau de bord — sans code', `✅ Jusqu'à ${inf.limiteMax} produits · Catégories · Variantes · Promos`, '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Footer configurable · Ticker défilant · Zoom image · Blog · FAQ · À propos', '🧩 Add-ons au choix : enchères, offres du jour, avis, favoris, infolettre…']
-                            : ['✅ Géré depuis le tableau de bord — sans code', `✅ Jusqu'à ${inf.limiteMax} produits · Catégories · Variantes · Promos`, '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Footer configurable · Bannière promo · Blog · FAQ', '🧩 Add-ons au choix : enchères, offres du jour, avis, favoris, infolettre…'];
-                          const coul = estPremium ? t.couleur : COULEUR_MP;
-                          return (
-                            <div style={{ marginBottom: 14, background: `${coul}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${coul}30` }}>
-                              <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
-                                {lignes.map((l, i) => <span key={i}>{l}<br /></span>)}
-                                💰 Dès <strong style={{ color: C.text }}>{inf.prixMin}/mois</strong> + taxes
-                              </p>
-                            </div>
-                          );
-                        })()}
-
+                        {rendreDetails('carte')}
                         {t.disponible && (
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button
@@ -2478,6 +2515,64 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                               {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : estAuto ? '🚗 Auto →' : estJouets ? '🧸 Jouets →' : estGothique ? '🖤 Gothique →' : estBD ? '💥 BD →' : estFuturiste ? '⚡ Futuriste →' : estTech ? '🎮 Tech →' : estRose ? '🌸 Rosé →' : estBonbon ? '🍬 Bonbon →' : estSoleil ? '☀️ Soleil →' : estSentier ? '🚵 Sentier →' : estChantier ? '🔨 Chantier →' : estCafe ? '☕ Café →' : estSakura ? '🌸 Sakura →' : estSport ? '👟 Sport →' : estJoyau ? '💍 Joyau →' : estEcume ? '🌊 Écume →' : estAudace ? '🔥 Audace →' : estCarnaval ? '🎪 Carnaval →' : estPatchwork ? '🧵 Patchwork →' : estVigie ? '🛡️ Vigie →' : estAurore ? '🌌 Aurore →' : estGalerie ? '🏛️ Galerie →' : estRallye ? '🏁 Rallye →' : estPaon ? '🦚 Paon →' : estPop ? '🎈 Pop →' : 'Choisir →'}
                             </button>
                           </div>
+                        )}
+
+                        <button
+                          onClick={e => { e.stopPropagation(); setDetailsOuvert(t.id); }}
+                          style={{ marginTop: 10, background: 'none', border: 'none', padding: 0, color: C.textDim, fontSize: 12, cursor: 'pointer', textAlign: 'center' as const, width: '100%', fontFamily: 'inherit' }}>
+                          📖 Voir tous les détails →
+                        </button>
+
+                        {detailsOuvert === t.id && createPortal(
+                          <div
+                            role="dialog" aria-modal="true" aria-label={`Détails : ${t.titre}`}
+                            onClick={e => {
+                              // Clic sur le fond = fermer. Le bouton Choisir laisse passer le clic jusqu'à la carte (qui lance le choix).
+                              if (e.target === e.currentTarget) { e.stopPropagation(); setDetailsOuvert(null); return; }
+                              if (!(e.target as HTMLElement).closest('[data-choisir]')) e.stopPropagation();
+                            }}
+                            style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+                            <div style={{ position: 'relative' as const, width: 'min(580px, 100%)', maxHeight: '90vh', overflowY: 'auto' as const, fontFamily: "'Inter', sans-serif", background: '#15151d', border: `2px solid ${t.couleur}55`, borderRadius: 20, boxShadow: '0 24px 64px rgba(0,0,0,0.6)' }}>
+                              <button
+                                onClick={e => { e.stopPropagation(); setDetailsOuvert(null); }}
+                                aria-label="Fermer"
+                                style={{ position: 'absolute' as const, top: 10, right: 10, zIndex: 2, width: 34, height: 34, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.75)', background: 'rgba(0,0,0,0.65)', color: '#ffffff', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', lineHeight: 1 }}>
+                                ✕
+                              </button>
+                              <div style={{ aspectRatio: '16 / 10', background: `${t.couleur}20`, borderRadius: '18px 18px 0 0', overflow: 'hidden' }}>
+                                <img
+                                  src={`/apercus/${t.id}.jpg`}
+                                  alt={`Aperçu de ${t.titre}`}
+                                  onError={e => { const p = (e.currentTarget as HTMLImageElement).parentElement; if (p) p.style.display = 'none'; }}
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }}
+                                />
+                              </div>
+                              <div style={{ padding: '18px 20px 20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+                                  <div style={{ width: 44, height: 44, borderRadius: 10, background: `${t.couleur}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>{t.icone}</div>
+                                  <h3 style={{ fontSize: 18, fontWeight: 700, color: C.text, margin: 0, fontFamily: "'Sora', sans-serif" }}>{t.titre}</h3>
+                                </div>
+                                <p style={{ fontSize: 13, color: C.textLight, lineHeight: 1.6, margin: '0 0 16px' }}>{t.desc}</p>
+                                {rendreDetails('modal')}
+                                {t.disponible && (
+                                  <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); ouvrirApercu(t.id); }}
+                                      style={{ padding: '10px 16px', background: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.75)', borderRadius: 8, color: '#ffffff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                                      👁 Aperçu
+                                    </button>
+                                    <button
+                                      data-choisir="1"
+                                      onClick={() => setDetailsOuvert(null)}
+                                      style={{ padding: '10px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit' }}>
+                                      Choisir →
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>,
+                          document.body
                         )}
                       </div>
                     );
