@@ -179,3 +179,10 @@ export function configAudaceAvecBadge(config: any, addons: Record<string, boolea
   const audace = (base && typeof base === 'object') ? base : {};
   return { ...config, audace: { ...audace, footer: { ...(audace.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Carnaval : le pied de page se lit dans config.carnaval.footer.afficherPropulse.
+// `base` = config.carnaval déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configCarnavalAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const carnaval = (base && typeof base === 'object') ? base : {};
+  return { ...config, carnaval: { ...carnaval, footer: { ...(carnaval.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
