@@ -425,6 +425,19 @@ function ModalPalierComplete({ paliers, onConfirmer, onAnnuler, nom = 'Boutique 
 }
 
 // ─── Composant principal ──────────────────────────────────────────────────────
+// Couleur d'un template rendue lisible sur fond sombre : si elle est trop foncée, on l'éclaircit.
+function lisible(hex: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return '#ffffff';
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (lum >= 0.55) return hex;
+  const k = Math.min(1, (0.62 - lum) / (1 - lum) + 0.1);
+  const f = (v: number) => Math.round(v + (255 - v) * k).toString(16).padStart(2, '0');
+  return '#' + f(r) + f(g) + f(b);
+}
+
 export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props) {
   const [ongletCategorie, setOngletCategorie] = useState<'vitrines'|'boutiques'|'multivendeur'|'cagnottes'|'encheres'|'annonces'|'abonnements'|'locations'>('vitrines');
   const [descOuverte, setDescOuverte] = useState(false);
@@ -2077,6 +2090,20 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           position: 'relative' as const,
                         }}>
 
+                        {/* Aperçu : haut du site de démonstration (capture dans public/apercus/<id>.jpg). Clic = aperçu complet. */}
+                        <div
+                          onClick={e => { e.stopPropagation(); if (t.disponible) ouvrirApercu(t.id); }}
+                          title={t.disponible ? "Ouvrir l'aperçu complet" : undefined}
+                          style={{ margin: '-20px -20px 16px', borderRadius: '22px 22px 0 0', overflow: 'hidden', aspectRatio: '16 / 10', background: `${t.couleur}20`, cursor: t.disponible ? 'zoom-in' : 'not-allowed', position: 'relative' as const }}>
+                          <img
+                            src={`/apercus/${t.id}.jpg`}
+                            alt={`Aperçu de ${t.titre}`}
+                            loading="lazy"
+                            onError={e => { const p = (e.currentTarget as HTMLImageElement).parentElement; if (p) p.style.display = 'none'; }}
+                            style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', display: 'block' }}
+                          />
+                        </div>
+
                         {estSimplisse && (
                           <div style={{ position: 'absolute', top: -1, right: 16, background: COULEUR_MP, color: '#fff', fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: '0 0 8px 8px', letterSpacing: '0.05em' }}>
                             LE PLUS POPULAIRE
@@ -2093,10 +2120,10 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                               {!t.disponible
                                 ? <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.08)', color: C.textDim, padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>Bientôt</span>
                                 : t.badge
-                                ? <span style={{ fontSize: 10, background: `${t.badgeCouleur || t.couleur}18`, color: t.badgeCouleur || t.couleur, padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{t.badge}</span>
+                                ? <span style={{ fontSize: 10, background: `${t.badgeCouleur || t.couleur}18`, color: lisible(t.badgeCouleur || t.couleur), padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{t.badge}</span>
                                 : (prixParTemplate[t.id] || (t as any).prix) && (prixParTemplate[t.id] || (t as any).prix) !== 'Gratuit'
                                 ? <span style={{ fontSize: 10, background: 'rgba(245,158,11,0.15)', color: '#f59e0b', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{prixParTemplate[t.id] || (t as any).prix}</span>
-                                : <span style={{ fontSize: 10, background: `${t.couleur}18`, color: t.couleur, padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>Gratuit</span>
+                                : <span style={{ fontSize: 10, background: `${t.couleur}18`, color: lisible(t.couleur), padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>Gratuit</span>
                               }
                             </div>
                             <p style={{ fontSize: 13, color: C.textLight, lineHeight: 1.55, margin: 0 }}>{t.desc}</p>
@@ -2108,7 +2135,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                             <p style={{ fontSize: 11, fontWeight: 600, color: C.textDim, margin: '0 0 6px', textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Pages incluses</p>
                             <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: 5 }}>
                               {t.pages.map((page: string) => (
-                                <span key={page} style={{ fontSize: 11, fontWeight: 600, background: `${t.couleur}15`, color: t.couleur, padding: '3px 9px', borderRadius: 6, border: `1px solid ${t.couleur}30` }}>
+                                <span key={page} style={{ fontSize: 11, fontWeight: 600, background: `${t.couleur}25`, color: lisible(t.couleur), padding: '3px 9px', borderRadius: 6, border: `1px solid ${lisible(t.couleur)}55` }}>
                                   {page}
                                 </span>
                               ))}
@@ -2407,7 +2434,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           <div style={{ display: 'flex', gap: 8 }}>
                             <button
                               onClick={e => { e.stopPropagation(); ouvrirApercu(t.id); }}
-                              style={{ padding: '9px 14px', background: C.inputBg, border: `2px solid ${t.couleur}60`, borderRadius: 8, color: t.couleur, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                              style={{ padding: '9px 14px', background: 'rgba(255,255,255,0.12)', border: '2px solid rgba(255,255,255,0.75)', borderRadius: 8, color: '#ffffff', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
                               👁 Aperçu
                             </button>
                             <button

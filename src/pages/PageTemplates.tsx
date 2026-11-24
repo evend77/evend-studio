@@ -798,6 +798,27 @@ export function templatesDeCategorie(cat: Categorie, source: Template[]): Templa
 }
 
 
+// Couleur d'un template rendue lisible sur fond sombre : si elle est trop foncée, on l'éclaircit.
+function lisible(hex: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return '#ffffff';
+  const n = parseInt(m[1], 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  if (lum >= 0.55) return hex;
+  const k = Math.min(1, (0.62 - lum) / (1 - lum) + 0.1);
+  const f = (v: number) => Math.round(v + (255 - v) * k).toString(16).padStart(2, '0');
+  return '#' + f(r) + f(g) + f(b);
+}
+
+// Couleur de texte lisible sur un fond de la couleur du template (noir si le fond est clair, blanc sinon).
+function surCouleur(hex: string): string {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return '#ffffff';
+  const n = parseInt(m[1], 16);
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.55 ? '#111111' : '#ffffff';
+}
+
 // ─── APERÇU (ouvre la démo dans un nouvel onglet) ─────────────────────────────
 function ouvrirApercu(templateId: string) {
   const url = `/site-preview?forceTemplate=${templateId}&demo=true`;
@@ -828,10 +849,17 @@ function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommenc
       {/* Image */}
       <div style={{ position: 'relative', aspectRatio: '16/10', overflow: 'hidden', background: '#1a1a2e' }}>
         <img
-          src={PHOTOS[t.id] || PHOTOS.hero}
-          alt={t.nom}
-          style={{ width: '100%', height: '100%', objectFit: 'cover', transition: 'transform 0.4s ease', transform: survol ? 'scale(1.05)' : 'scale(1)' }}
-          onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          src={`/apercus/${t.id}.jpg`}
+          alt={`Aperçu de ${t.nom}`}
+          loading="lazy"
+          style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', transition: 'transform 0.4s ease', transform: survol ? 'scale(1.05)' : 'scale(1)' }}
+          onError={e => {
+            // Pas de capture pour ce template : on retombe sur la photo générique, puis on masque.
+            const im = e.target as HTMLImageElement;
+            const secours = PHOTOS[t.id] || PHOTOS.hero;
+            if (im.dataset.secours !== '1' && secours) { im.dataset.secours = '1'; im.src = secours; }
+            else im.style.display = 'none';
+          }}
         />
         {/* Overlay gradient */}
         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 60%)' }} />
@@ -854,7 +882,7 @@ function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommenc
       <div className="template-card-content" style={{ padding: '18px 20px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
           <h3 className="template-card-title" style={{ fontSize: 17, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>{t.nom}</h3>
-          <span className="template-card-price" style={{ background: estGratuit ? t.couleur + '20' : '#f59e0b22', color: estGratuit ? t.couleur : '#b45309', padding: '3px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap', marginLeft: 8 }}>
+          <span className="template-card-price" style={{ background: estGratuit ? t.couleur + '20' : '#f59e0b22', color: estGratuit ? lisible(t.couleur) : '#b45309', padding: '3px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap', marginLeft: 8 }}>
             {prixFinal}
           </span>
         </div>
@@ -885,7 +913,7 @@ function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommenc
               <button
                 className="template-card-btn-apercu"
                 onClick={e => { e.stopPropagation(); ouvrirApercu(t.id); }}
-                style={{ padding: '11px 14px', background: '#fff', border: `2px solid ${t.couleur}`, borderRadius: 10, color: t.couleur, fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
+                style={{ padding: '11px 14px', background: '#fff', border: `2px solid ${t.couleur}`, borderRadius: 10, color: '#111111', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0 }}>
                 👁 Aperçu
               </button>
               <button
@@ -894,7 +922,7 @@ function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommenc
                 style={{
                   flex: 1, padding: '11px', borderRadius: 10, border: 'none',
                   background: survol ? t.couleur : `${t.couleur}25`,
-                  color: survol ? '#fff' : t.couleur,
+                  color: survol ? surCouleur(t.couleur) : lisible(t.couleur),
                   fontSize: 13, fontWeight: 700, cursor: 'pointer',
                   transition: 'all 0.25s',
                 }}>
