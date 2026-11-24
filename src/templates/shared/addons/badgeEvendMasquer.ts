@@ -144,3 +144,10 @@ export function configCafeAvecBadge(config: any, addons: Record<string, boolean>
   const cafe = (base && typeof base === 'object') ? base : {};
   return { ...config, cafe: { ...cafe, footer: { ...(cafe.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Sakura : le pied de page se lit dans config.sakura.footer.afficherPropulse.
+// `base` = config.sakura déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configSakuraAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const sakura = (base && typeof base === 'object') ? base : {};
+  return { ...config, sakura: { ...sakura, footer: { ...(sakura.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
