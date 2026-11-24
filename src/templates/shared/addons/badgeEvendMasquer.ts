@@ -158,3 +158,10 @@ export function configSportAvecBadge(config: any, addons: Record<string, boolean
   const sport = (base && typeof base === 'object') ? base : {};
   return { ...config, sport: { ...sport, footer: { ...(sport.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Joyau : le pied de page se lit dans config.joyau.footer.afficherPropulse.
+// `base` = config.joyau déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configJoyauAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const joyau = (base && typeof base === 'object') ? base : {};
+  return { ...config, joyau: { ...joyau, footer: { ...(joyau.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
