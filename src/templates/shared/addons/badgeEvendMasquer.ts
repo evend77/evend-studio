@@ -193,3 +193,10 @@ export function configPatchworkAvecBadge(config: any, addons: Record<string, boo
   const patchwork = (base && typeof base === 'object') ? base : {};
   return { ...config, patchwork: { ...patchwork, footer: { ...(patchwork.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Vigie : le pied de page se lit dans config.vigie.footer.afficherPropulse.
+// `base` = config.vigie déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configVigieAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const vigie = (base && typeof base === 'object') ? base : {};
+  return { ...config, vigie: { ...vigie, footer: { ...(vigie.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
