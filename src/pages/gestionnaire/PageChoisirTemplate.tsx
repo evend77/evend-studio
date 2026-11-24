@@ -478,6 +478,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [modalAudaceOuvert, setModalAudaceOuvert] = useState(false);
   const [paliersCarnaval, setPaliersCarnaval] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de Simplisse Carnaval (Prix Template) ; vide = aucune limite, pas de fenêtre
   const [modalCarnavalOuvert, setModalCarnavalOuvert] = useState(false);
+  const [paliersPatchwork, setPaliersPatchwork] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de Simplisse Patchwork (Prix Template) ; vide = aucune limite, pas de fenêtre
+  const [modalPatchworkOuvert, setModalPatchworkOuvert] = useState(false);
 
   // Prix configurés dans le dashboard admin — si l'appel échoue, on retombe
   // simplement sur le prix codé en dur (ou "Gratuit") comme avant.
@@ -495,7 +497,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         }
         setPrixParTemplate(map);
         const info: Record<string, { prixMin: string; limiteMax: number }> = {};
-        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique', 'boutique-bd', 'boutique-futuriste', 'boutique-tech', 'boutique-rose', 'boutique-bonbon', 'boutique-soleil', 'boutique-sentier', 'boutique-chantier', 'boutique-cafe', 'boutique-sakura', 'boutique-sport', 'boutique-joyau', 'boutique-ecume', 'boutique-audace', 'boutique-carnaval']) {
+        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique', 'boutique-bd', 'boutique-futuriste', 'boutique-tech', 'boutique-rose', 'boutique-bonbon', 'boutique-soleil', 'boutique-sentier', 'boutique-chantier', 'boutique-cafe', 'boutique-sakura', 'boutique-sport', 'boutique-joyau', 'boutique-ecume', 'boutique-carnaval', 'boutique-patchwork']) {
           let pal: any = data.templates[id]?.prix_paliers;
           if (typeof pal === 'string') { try { pal = JSON.parse(pal); } catch { pal = null; } }
           if (!Array.isArray(pal) || pal.length === 0) continue;
@@ -523,6 +525,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           if (id === 'boutique-ecume') setPaliersEcume(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-audace') setPaliersAudace(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-carnaval') setPaliersCarnaval(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
+          if (id === 'boutique-patchwork') setPaliersPatchwork(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-agricole') setPaliersAgricole(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-catalogue') setPaliersCatalogue(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
         }
@@ -802,6 +805,18 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     }
     setModalCarnavalOuvert(false);
     onChoisir('boutique-carnaval');
+  };
+  const handleChoisirPatchwork = () => { if (paliersPatchwork.length > 0) setModalPatchworkOuvert(true); else onChoisir('boutique-patchwork'); };
+  const handleConfirmerPalierPatchwork = async (limite: number) => {
+    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include', body: JSON.stringify({ plan: `patchwork-${limite}` }),
+      }).catch(() => {});
+    }
+    setModalPatchworkOuvert(false);
+    onChoisir('boutique-patchwork');
   };
   const handleChoisirSimplisse = () => setModalSimplisseOuvert(true);
   const [modalPremiumOuvert, setModalPremiumOuvert] = useState(false);
@@ -1084,6 +1099,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
               id: 'boutique-carnaval', titre: 'Simplisse Carnaval',
               desc: "Style joyeux : bandes de couleurs franches, cadres noirs épais avec ombres dures, cartes à bandeau vert, onglets de collections, avis sur fond jaune, bandeau défilant avec étiquette. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
               icone: '🎪', couleur: '#ffc933', disponible: true, badge: 'Nouveau', badgeCouleur: '#ffc933',
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'À propos', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
+            },
+            {
+              id: 'boutique-patchwork', titre: 'Simplisse Patchwork',
+              desc: "Style doux et cousu : fond crème, cadres en pointillés comme des coutures, photos en arche, pastilles rondes, cartes arrondies à ombre légère, bandeau défilant avec étiquette. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+              icone: '🧵', couleur: '#f6d56a', disponible: true, badge: 'Nouveau', badgeCouleur: '#f6d56a',
               pages: ['Accueil', 'Catalogue', 'Fiche produit', 'À propos', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
             },
             {
@@ -1421,6 +1442,14 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           nom="Simplisse Carnaval" icone="🎪" couleur="#ffc933"
           onConfirmer={handleConfirmerPalierCarnaval}
           onAnnuler={() => setModalCarnavalOuvert(false)}
+        />
+      )}
+      {modalPatchworkOuvert && paliersPatchwork.length > 0 && (
+        <ModalPalierComplete
+          paliers={paliersPatchwork}
+          nom="Simplisse Patchwork" icone="🧵" couleur="#f6d56a"
+          onConfirmer={handleConfirmerPalierPatchwork}
+          onAnnuler={() => setModalPatchworkOuvert(false)}
         />
       )}
       {modalAgricoleOuvert && paliersAgricole.length > 0 && (
@@ -1809,6 +1838,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                     const estEcume      = t.id === 'boutique-ecume';
                     const estAudace      = t.id === 'boutique-audace';
                     const estCarnaval      = t.id === 'boutique-carnaval';
+                    const estPatchwork      = t.id === 'boutique-patchwork';
                     return (
                       <div key={t.id} className="template-card"
                         onClick={() => {
@@ -1838,6 +1868,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estEcume) { handleChoisirEcume(); return; }
                           if (estAudace) { handleChoisirAudace(); return; }
                           if (estCarnaval) { handleChoisirCarnaval(); return; }
+                          if (estPatchwork) { handleChoisirPatchwork(); return; }
                           onChoisir(t.id);
                         }}
                         onMouseEnter={e => {
@@ -2097,6 +2128,15 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           </div>
                         )}
 
+                        {estPatchwork && (
+                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
+                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
+                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Crème et terre cuite · pointillés · photos en arche · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
                         {estMonoProduit && (
                           <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
                             <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
@@ -2158,10 +2198,11 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estEcume) { handleChoisirEcume(); return; }
                           if (estAudace) { handleChoisirAudace(); return; }
                           if (estCarnaval) { handleChoisirCarnaval(); return; }
+                          if (estPatchwork) { handleChoisirPatchwork(); return; }
                                 onChoisir(t.id);
                               }}
                               style={{ padding: '9px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit', boxShadow: `0 8px 16px -8px ${estSimplisse ? COULEUR_MP : t.couleur}` }}>
-                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : estAuto ? '🚗 Auto →' : estJouets ? '🧸 Jouets →' : estGothique ? '🖤 Gothique →' : estBD ? '💥 BD →' : estFuturiste ? '⚡ Futuriste →' : estTech ? '🎮 Tech →' : estRose ? '🌸 Rosé →' : estBonbon ? '🍬 Bonbon →' : estSoleil ? '☀️ Soleil →' : estSentier ? '🚵 Sentier →' : estChantier ? '🔨 Chantier →' : estCafe ? '☕ Café →' : estSakura ? '🌸 Sakura →' : estSport ? '👟 Sport →' : estJoyau ? '💍 Joyau →' : estEcume ? '🌊 Écume →' : estAudace ? '🔥 Audace →' : estCarnaval ? '🎪 Carnaval →' : 'Choisir →'}
+                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : estAuto ? '🚗 Auto →' : estJouets ? '🧸 Jouets →' : estGothique ? '🖤 Gothique →' : estBD ? '💥 BD →' : estFuturiste ? '⚡ Futuriste →' : estTech ? '🎮 Tech →' : estRose ? '🌸 Rosé →' : estBonbon ? '🍬 Bonbon →' : estSoleil ? '☀️ Soleil →' : estSentier ? '🚵 Sentier →' : estChantier ? '🔨 Chantier →' : estCafe ? '☕ Café →' : estSakura ? '🌸 Sakura →' : estSport ? '👟 Sport →' : estJoyau ? '💍 Joyau →' : estEcume ? '🌊 Écume →' : estAudace ? '🔥 Audace →' : estCarnaval ? '🎪 Carnaval →' : estPatchwork ? '🧵 Patchwork →' : 'Choisir →'}
                             </button>
                           </div>
                         )}

@@ -15,7 +15,7 @@ const cfgMV = require('./studio_config_mv');
 const { chiffrer, dechiffrer } = require('../src/utils/chiffrement');
 
 // Clés de config des templates solo (un site n'en utilise qu'une). Ajouter ici chaque nouveau template passé.
-const CLES_TEMPLATES = ['premium', 'simplisse', 'simple', 'complete', 'avance', 'mode', 'ferme', 'artisan', 'auto', 'jouets', 'gothique', 'bd', 'futuriste', 'tech', 'rose', 'bonbon', 'soleil', 'sentier', 'chantier', 'cafe', 'sakura', 'sport', 'joyau', 'ecume', 'audace', 'carnaval'];
+const CLES_TEMPLATES = ['premium', 'simplisse', 'simple', 'complete', 'avance', 'mode', 'ferme', 'artisan', 'auto', 'jouets', 'gothique', 'bd', 'futuriste', 'tech', 'rose', 'bonbon', 'soleil', 'sentier', 'chantier', 'cafe', 'sakura', 'sport', 'joyau', 'ecume', 'audace', 'carnaval', 'patchwork'];
 
 // Clé de config d'un template solo d'après son identifiant (null = inconnu : on cherche alors dans toutes les clés ci-dessus).
 // Simplisse-Mode et Beauté seront ajoutés ici quand leur config d'inscription existera.
@@ -40,6 +40,7 @@ function cleDuTemplate(templateId) {
   if (t === 'boutique-ecume') return 'ecume';   // Simplisse Écume : comparaison EXACTE
   if (t === 'boutique-audace') return 'audace';   // Simplisse Audace : comparaison EXACTE
   if (t === 'boutique-carnaval') return 'carnaval';   // Simplisse Carnaval : comparaison EXACTE
+  if (t === 'boutique-patchwork') return 'patchwork';   // Simplisse Patchwork : comparaison EXACTE
   if (t === 'boutique-artisan') return 'artisan';   // Simplisse Artisan : comparaison EXACTE
   if (t === 'boutique-agricole') return 'ferme';   // Boutique Agricole : comparaison EXACTE
   if (t === 'boutique-catalogue') return 'avance';   // Catalogue Avancé : comparaison EXACTE

@@ -205,6 +205,7 @@ const TEMPLATE_BRANDING = {
   'boutique-ecume': { couleur: '#2c4fe6', fond: '#fcedf8', nom: 'Simplisse Écume', icone: '🌊' },
   'boutique-audace': { couleur: '#c8ff2e', fond: '#0e1330', nom: 'Simplisse Audace', icone: '🔥' },
   'boutique-carnaval': { couleur: '#ffc933', fond: '#d98cff', nom: 'Simplisse Carnaval', icone: '🎪' },
+  'boutique-patchwork': { couleur: '#f6d56a', fond: '#fbe9c8', nom: 'Simplisse Patchwork', icone: '🧵' },
 };
 
 const BRANDING_DEFAUT = { couleur: '#c9a96e', fond: '#1a1a2e', nom: 'e-Vend Studio', icone: '✨' };

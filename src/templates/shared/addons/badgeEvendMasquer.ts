@@ -186,3 +186,10 @@ export function configCarnavalAvecBadge(config: any, addons: Record<string, bool
   const carnaval = (base && typeof base === 'object') ? base : {};
   return { ...config, carnaval: { ...carnaval, footer: { ...(carnaval.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Patchwork : le pied de page se lit dans config.patchwork.footer.afficherPropulse.
+// `base` = config.patchwork déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configPatchworkAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const patchwork = (base && typeof base === 'object') ? base : {};
+  return { ...config, patchwork: { ...patchwork, footer: { ...(patchwork.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
