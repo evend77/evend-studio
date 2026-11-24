@@ -28,6 +28,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-bonbon':              'https://images.pexels.com/photos/1875919/pexels-photo-1875919.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-soleil':              'https://images.pexels.com/photos/796606/pexels-photo-796606.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-sentier':             'https://images.pexels.com/photos/30925315/pexels-photo-30925315.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-chantier':             'https://images.pexels.com/photos/8960996/pexels-photo-8960996.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -247,6 +248,14 @@ export const TEMPLATES: Template[] = [
     description: "Boutique sportive et sobre : fond noir et vert sauge, grande photo pleine largeur au titre en majuscules, produits sans cadre, bandeau d'offre, compte à rebours, vidéo YouTube ou Vimeo, pied de page sauge. Mode clair possible. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
     fonctionnalites: ['Noir et vert sauge réglables, mode clair possible', 'Grande photo pleine largeur au titre en majuscules', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#5d7157',
+  },
+  {
+    id: 'boutique-chantier',
+    nom: 'Simplisse Chantier',
+    groupe: 'boutique-industrie',
+    description: "Quincaillerie et outils : grand bloc jaune arrondi avec photo et deux produits, cartes blanches arrondies, bandeau d'offre jaune, compte à rebours, tableau comparatif, avis et blogue. Mode sombre possible. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Jaune, brun foncé et blanc réglables, mode sombre possible', 'Grand bloc jaune avec photo et deux produits', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#1c1309',
   },
   {
     id: 'boutique-agricole',

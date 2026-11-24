@@ -76,6 +76,7 @@ import ConfigMesPagesRose from './pages/gestionnaire/ConfigMesPagesRose';
 import ConfigMesPagesBonbon from './pages/gestionnaire/ConfigMesPagesBonbon';
 import ConfigMesPagesSoleil from './pages/gestionnaire/ConfigMesPagesSoleil';
 import ConfigMesPagesSentier from './pages/gestionnaire/ConfigMesPagesSentier';
+import ConfigMesPagesChantier from './pages/gestionnaire/ConfigMesPagesChantier';
 import ConfigMesPagesSimple        from './pages/gestionnaire/ConfigMesPagesSimple';
 import BoutiqueMonoProduit         from './pages/gestionnaire/BoutiqueMonoProduit';
 import ConfigMesPagesPremium       from './pages/gestionnaire/ConfigMesPagesPremium';
@@ -820,6 +821,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const estBoutiqueBonbon    = templateActif === 'boutique-bonbon';
   const estBoutiqueSoleil    = templateActif === 'boutique-soleil';
   const estBoutiqueSentier    = templateActif === 'boutique-sentier';
+  const estBoutiqueChantier    = templateActif === 'boutique-chantier';
   const estBoutique      = estBoutiqueSimple || estBoutiqueComplete;
   const estEnchere       = ['enchere-flash', 'enchere-galerie', 'enchere-live'].includes(templateActif);
   const estVitrinePro    = ['vitrine-pro-entrepreneur', 'vitrine-pro-tech', 'vitrine-pro-beaute', 'vitrine-pro-mariage', 'vitrine-pro-sante', 'vitrine-paysager', 'vitrine-avocat', 'vitrine-resto', 'vitrine-bistro', 'cours-piano', 'cours-langues', 'cours-web', 'cours-cuisine', 'cours-yoga', 'cours-equitation','cours-peinture','cours-danse','vitrine-foodtruck','vitrine-boulangerie','cours-coach'].includes(templateActif);
@@ -832,9 +834,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const aucunTemplate    = !templateActif;
   // Templates boutique « solo » : le gestionnaire est son propre vendeur (pages Boutique*, API /api/boutique)
   // Mono-produit (boutique-simple, comparé EXACTEMENT) : même moteur et mêmes pages boutique que Simplisse, avec UN seul produit
-  const estSolo          = estSimplisse || estPremium || estSimplisseMode || estBeaute || estBoutiqueSimple || estBoutiqueComplete || estBoutiqueCatalogue || estBoutiqueAgricole || estBoutiqueArtisan || estBoutiqueAuto || estBoutiqueJouets || estBoutiqueGothique || estBoutiqueBD || estBoutiqueFuturiste || estBoutiqueTech || estBoutiqueRose || estBoutiqueBonbon || estBoutiqueSoleil || estBoutiqueSentier;
-  const pagePlanSolo     = estBoutiqueSentier ? 'sentier-plan' : estBoutiqueSoleil ? 'soleil-plan' : estBoutiqueBonbon ? 'bonbon-plan' : estBoutiqueRose ? 'rose-plan' : estBoutiqueTech ? 'tech-plan' : estBoutiqueFuturiste ? 'futuriste-plan' : estBoutiqueBD ? 'bd-plan' : estBoutiqueGothique ? 'gothique-plan' : estBoutiqueJouets ? 'jouets-plan' : estBoutiqueAuto ? 'auto-plan' : estBoutiqueArtisan ? 'artisan-plan' : estBoutiqueAgricole ? 'agricole-plan' : estBoutiqueCatalogue ? 'catalogue-plan' : estBoutiqueComplete ? 'complete-plan' : estPremium ? 'premium-plan' : estSimplisseMode ? 'mode-plan' : estBeaute ? 'beaute-plan' : 'simplisse-plan';
-  const accentSolo       = estPremium ? '#c9a96e' : estBeaute ? '#ec4899' : estSimplisseMode ? '#722f37' : estBoutiqueSimple ? '#a855f7' : estBoutiqueComplete ? '#16a34a' : estBoutiqueCatalogue ? '#3b82f6' : estBoutiqueAgricole ? '#c9854a' : estBoutiqueArtisan ? '#111111' : estBoutiqueAuto ? '#d9670b' : estBoutiqueJouets ? '#de1b2d' : estBoutiqueGothique ? '#e8590c' : estBoutiqueBD ? '#1570e0' : estBoutiqueFuturiste ? '#1de48a' : estBoutiqueTech ? '#8b2cf5' : estBoutiqueRose ? '#e0147a' : estBoutiqueBonbon ? '#d81e7c' : estBoutiqueSoleil ? '#c95500' : estBoutiqueSentier ? '#5d7157' : '#4f46e5';
+  const estSolo          = estSimplisse || estPremium || estSimplisseMode || estBeaute || estBoutiqueSimple || estBoutiqueComplete || estBoutiqueCatalogue || estBoutiqueAgricole || estBoutiqueArtisan || estBoutiqueAuto || estBoutiqueJouets || estBoutiqueGothique || estBoutiqueBD || estBoutiqueFuturiste || estBoutiqueTech || estBoutiqueRose || estBoutiqueBonbon || estBoutiqueSoleil || estBoutiqueSentier || estBoutiqueChantier;
+  const pagePlanSolo     = estBoutiqueChantier ? 'chantier-plan' : estBoutiqueSentier ? 'sentier-plan' : estBoutiqueSoleil ? 'soleil-plan' : estBoutiqueBonbon ? 'bonbon-plan' : estBoutiqueRose ? 'rose-plan' : estBoutiqueTech ? 'tech-plan' : estBoutiqueFuturiste ? 'futuriste-plan' : estBoutiqueBD ? 'bd-plan' : estBoutiqueGothique ? 'gothique-plan' : estBoutiqueJouets ? 'jouets-plan' : estBoutiqueAuto ? 'auto-plan' : estBoutiqueArtisan ? 'artisan-plan' : estBoutiqueAgricole ? 'agricole-plan' : estBoutiqueCatalogue ? 'catalogue-plan' : estBoutiqueComplete ? 'complete-plan' : estPremium ? 'premium-plan' : estSimplisseMode ? 'mode-plan' : estBeaute ? 'beaute-plan' : 'simplisse-plan';
+  const accentSolo       = estPremium ? '#c9a96e' : estBeaute ? '#ec4899' : estSimplisseMode ? '#722f37' : estBoutiqueSimple ? '#a855f7' : estBoutiqueComplete ? '#16a34a' : estBoutiqueCatalogue ? '#3b82f6' : estBoutiqueAgricole ? '#c9854a' : estBoutiqueArtisan ? '#111111' : estBoutiqueAuto ? '#d9670b' : estBoutiqueJouets ? '#de1b2d' : estBoutiqueGothique ? '#e8590c' : estBoutiqueBD ? '#1570e0' : estBoutiqueFuturiste ? '#1de48a' : estBoutiqueTech ? '#8b2cf5' : estBoutiqueRose ? '#e0147a' : estBoutiqueBonbon ? '#d81e7c' : estBoutiqueSoleil ? '#c95500' : estBoutiqueSentier ? '#5d7157' : estBoutiqueChantier ? '#1c1309' : '#4f46e5';
   // Ajoute « Effets de boutique » au menu CONFIG MES PAGES des templates boutique solo, seulement si l'add-on est activé
   // Add-on « Offres du jour » (boutique solo) : une entrée sous « Liste des produits » quand l'add-on est activé
   const avecOffres = (m: MenuItem): MenuItem => addonsBoutique.offres_du_jour ? { ...m, sousMenu: (m.sousMenu || []).flatMap(it => it.id === 'annonces-liste' ? [it, { id: 'annonces-offres', label: 'Offres du jour', icon: '🔥' }] : [it]) } : m;
@@ -1089,6 +1091,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuConfigBonbon: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🍬',sousMenu:[{ id:'bonbon-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'bonbon-plan',label:'Mon plan & limites',icon:'📊' }] };
   const menuConfigSoleil: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'☀️',sousMenu:[{ id:'soleil-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'soleil-plan',label:'Mon plan & limites',icon:'📊' }] };
   const menuConfigSentier: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🚵',sousMenu:[{ id:'sentier-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'sentier-plan',label:'Mon plan & limites',icon:'📊' }] };
+  const menuConfigChantier: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🔨',sousMenu:[{ id:'chantier-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'chantier-plan',label:'Mon plan & limites',icon:'📊' }] };
   const menuConfigAgricole: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🌾',sousMenu:[{ id:'agricole-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'agricole-plan',label:'Mon plan & limites',icon:'📊' }] };
   const menuConfigComplete: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🏪',sousMenu:[{ id:'complete-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'complete-plan',label:'Mon plan & limites',icon:'📊' }] };
   const menuConfigMesPages: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🎨',sousMenu:[{ id:'simplisse-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'simplisse-plan',label:'Mon plan & limites',icon:'📊' }] };
@@ -1355,7 +1358,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuMesEffetsVisuels, // 🔥 AJOUT
       menuAddOn,
     ];
-  } else if (estSimplisse || estBoutiqueSimple || estBoutiqueComplete || estBoutiqueCatalogue || estBoutiqueAgricole || estBoutiqueArtisan || estBoutiqueAuto || estBoutiqueJouets || estBoutiqueGothique || estBoutiqueBD || estBoutiqueFuturiste || estBoutiqueTech || estBoutiqueRose || estBoutiqueBonbon || estBoutiqueSoleil || estBoutiqueSentier || estSimplisseMode) {
+  } else if (estSimplisse || estBoutiqueSimple || estBoutiqueComplete || estBoutiqueCatalogue || estBoutiqueAgricole || estBoutiqueArtisan || estBoutiqueAuto || estBoutiqueJouets || estBoutiqueGothique || estBoutiqueBD || estBoutiqueFuturiste || estBoutiqueTech || estBoutiqueRose || estBoutiqueBonbon || estBoutiqueSoleil || estBoutiqueSentier || estBoutiqueChantier || estSimplisseMode) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
       avecAvis(avecQuestions(avecEncheres(avecNegociations(avecOffres(estBoutiqueSimple ? menuVosAnnoncesMono : menuVosAnnoncesSimplisse))))),
@@ -1367,7 +1370,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ]},
       { id:'acheteurs',label:'MES ACHETEURS',icon:'👥',sousMenu:[{ id:'acheteurs-liste',label:'Liste des acheteurs',icon:'👥' }]},
       menuStudioSimplisse,
-      avecPerso(avecInfolettre(avecEtsy(avecEbay(avecAnalytique(avecPwa(avecFavicon(avecVerificateurAge(avecParutionFutur(avecFavoris(avecPopupAnnonce(avecChatbot(avecConfigEncheres(avecEffets(estSimplisseMode ? menuConfigMode : estBoutiqueSentier ? menuConfigSentier : estBoutiqueSoleil ? menuConfigSoleil : estBoutiqueBonbon ? menuConfigBonbon : estBoutiqueRose ? menuConfigRose : estBoutiqueTech ? menuConfigTech : estBoutiqueFuturiste ? menuConfigFuturiste : estBoutiqueBD ? menuConfigBD : estBoutiqueGothique ? menuConfigGothique : estBoutiqueJouets ? menuConfigJouets : estBoutiqueAuto ? menuConfigAuto : estBoutiqueArtisan ? menuConfigArtisan : estBoutiqueAgricole ? menuConfigAgricole : estBoutiqueCatalogue ? menuConfigCatalogue : estBoutiqueComplete ? menuConfigComplete : estBoutiqueSimple ? menuConfigMono : menuConfigMesPages)))))))))))))),
+      avecPerso(avecInfolettre(avecEtsy(avecEbay(avecAnalytique(avecPwa(avecFavicon(avecVerificateurAge(avecParutionFutur(avecFavoris(avecPopupAnnonce(avecChatbot(avecConfigEncheres(avecEffets(estSimplisseMode ? menuConfigMode : estBoutiqueChantier ? menuConfigChantier : estBoutiqueSentier ? menuConfigSentier : estBoutiqueSoleil ? menuConfigSoleil : estBoutiqueBonbon ? menuConfigBonbon : estBoutiqueRose ? menuConfigRose : estBoutiqueTech ? menuConfigTech : estBoutiqueFuturiste ? menuConfigFuturiste : estBoutiqueBD ? menuConfigBD : estBoutiqueGothique ? menuConfigGothique : estBoutiqueJouets ? menuConfigJouets : estBoutiqueAuto ? menuConfigAuto : estBoutiqueArtisan ? menuConfigArtisan : estBoutiqueAgricole ? menuConfigAgricole : estBoutiqueCatalogue ? menuConfigCatalogue : estBoutiqueComplete ? menuConfigComplete : estBoutiqueSimple ? menuConfigMono : menuConfigMesPages)))))))))))))),
       { id:'config',label:'CONFIGURATION',icon:'⚙️',sousMenu:[
         itemConfigGenerale,itemConfigMV,itemConfigPaiements,
         { id:'config-expedition',label:"Méthode d'expédition",icon:'🚚' },
@@ -1700,7 +1703,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         const idModif = parseInt(pageActive.replace('modifier-annonce?id=', ''), 10);
         if (Number.isInteger(idModif) && idModif > 0) return <BoutiqueCreerAnnonce key={`modif-${idModif}`} produitId={idModif} {...propsCreer} />;
       }
-      if (pageActive === 'premium-plan' || pageActive === 'simplisse-plan' || pageActive === 'complete-plan' || pageActive === 'catalogue-plan' || pageActive === 'agricole-plan' || pageActive === 'artisan-plan' || pageActive === 'auto-plan' || pageActive === 'jouets-plan' || pageActive === 'gothique-plan' || pageActive === 'bd-plan' || pageActive === 'futuriste-plan' || pageActive === 'tech-plan' || pageActive === 'rose-plan' || pageActive === 'bonbon-plan' || pageActive === 'soleil-plan' || pageActive === 'sentier-plan' || pageActive === 'mode-plan' || pageActive === 'beaute-plan') {
+      if (pageActive === 'premium-plan' || pageActive === 'simplisse-plan' || pageActive === 'complete-plan' || pageActive === 'catalogue-plan' || pageActive === 'agricole-plan' || pageActive === 'artisan-plan' || pageActive === 'auto-plan' || pageActive === 'jouets-plan' || pageActive === 'gothique-plan' || pageActive === 'bd-plan' || pageActive === 'futuriste-plan' || pageActive === 'tech-plan' || pageActive === 'rose-plan' || pageActive === 'bonbon-plan' || pageActive === 'soleil-plan' || pageActive === 'sentier-plan' || pageActive === 'chantier-plan' || pageActive === 'mode-plan' || pageActive === 'beaute-plan') {
         return <BoutiquePlan gestionnaireId={gestionnaire.id} accent={accentSolo} naviguerVers={setPageActive} onAddonsChange={setAddonsBoutique} />;
       }
       if (pageActive === 'boutique-effets') return <BoutiqueEffets gestionnaireId={gestionnaire.id} accent={accentSolo} />;
@@ -1820,7 +1823,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         }
         setTemplateIdChoisi(templateId);
         setGestionnaire(prev => ({ ...prev, site_template_id: templateId }));
-        if (templateId === 'boutique-sentier') {
+        if (templateId === 'boutique-chantier') {
+          setPageActive('chantier-config-pages');
+        } else if (templateId === 'boutique-sentier') {
           setPageActive('sentier-config-pages');
         } else if (templateId === 'boutique-soleil') {
           setPageActive('soleil-config-pages');
@@ -1915,6 +1920,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'bonbon-config-pages')    return <ConfigMesPagesBonbon      gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'soleil-config-pages')    return <ConfigMesPagesSoleil      gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'sentier-config-pages')    return <ConfigMesPagesSentier      gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'chantier-config-pages')    return <ConfigMesPagesChantier      gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simple-config-pages')    return <ConfigMesPagesSimple       gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-plan')         return <SimplissePlan              gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'simplisse-branding')     return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;

@@ -197,6 +197,7 @@ const TEMPLATE_BRANDING = {
   'boutique-bonbon': { couleur: '#d81e7c', fond: '#cdeaff', nom: 'Simplisse Bonbon', icone: '🍬' },
   'boutique-soleil': { couleur: '#c95500', fond: '#fff6c9', nom: 'Simplisse Soleil', icone: '☀️' },
   'boutique-sentier': { couleur: '#5d7157', fond: '#000000', nom: 'Simplisse Sentier', icone: '🚵' },
+  'boutique-chantier': { couleur: '#1c1309', fond: '#ffd60a', nom: 'Simplisse Chantier', icone: '🔨' },
 };
 
 const BRANDING_DEFAUT = { couleur: '#c9a96e', fond: '#1a1a2e', nom: 'e-Vend Studio', icone: '✨' };

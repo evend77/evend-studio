@@ -130,3 +130,10 @@ export function configSentierAvecBadge(config: any, addons: Record<string, boole
   const sentier = (base && typeof base === 'object') ? base : {};
   return { ...config, sentier: { ...sentier, footer: { ...(sentier.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Chantier : le pied de page se lit dans config.chantier.footer.afficherPropulse.
+// `base` = config.chantier déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configChantierAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const chantier = (base && typeof base === 'object') ? base : {};
+  return { ...config, chantier: { ...chantier, footer: { ...(chantier.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

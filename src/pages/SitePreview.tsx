@@ -31,6 +31,7 @@ import TemplateBoutiqueRose from '../templates/TemplateBoutiqueRose';
 import TemplateBoutiqueBonbon from '../templates/TemplateBoutiqueBonbon';
 import TemplateBoutiqueSoleil from '../templates/TemplateBoutiqueSoleil';
 import TemplateBoutiqueSentier from '../templates/TemplateBoutiqueSentier';
+import TemplateBoutiqueChantier from '../templates/TemplateBoutiqueChantier';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -61,7 +62,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge, configFuturisteAvecBadge, configTechAvecBadge, configRoseAvecBadge, configBonbonAvecBadge, configSoleilAvecBadge, configSentierAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge, configFuturisteAvecBadge, configTechAvecBadge, configRoseAvecBadge, configBonbonAvecBadge, configSoleilAvecBadge, configSentierAvecBadge, configChantierAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -84,9 +85,10 @@ const estRoseBoutique = (t: string) => t === 'boutique-rose';
 const estBonbonBoutique = (t: string) => t === 'boutique-bonbon';
 const estSoleilBoutique = (t: string) => t === 'boutique-soleil';
 const estSentierBoutique = (t: string) => t === 'boutique-sentier';
+const estChantierBoutique = (t: string) => t === 'boutique-chantier';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estChantierBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estChantierBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -727,6 +729,71 @@ const DEMO_CONFIG_SENTIER = { sentier: {
     paiements: 'Visa\nMastercard\nPayPal' },
 } };
 
+// Simplisse Chantier : démonstration seulement — photos libres de droits (Pexels, usage commercial permis sans attribution), jamais affichées sur une vraie boutique
+const DEMO_PRODUITS_CHANTIER = [
+  { id: 1,  titre: 'Perceuse sans fil',      prix: 129, stock: 8,  categorie: 'Outils électriques', description: 'Exemple de produit de démonstration.', sku: 'OE-1001', photo_principale: PX(8811530) },
+  { id: 2,  titre: 'Perceuse à percussion',  prix: 159, prix_promo: 129, stock: 5, categorie: 'Outils électriques', description: 'Exemple de produit de démonstration.', sku: 'OE-1002', photo_principale: PX(6790808) },
+  { id: 3,  titre: 'Scie circulaire',        prix: 189, stock: 0,  categorie: 'Outils électriques', description: 'Exemple de produit de démonstration.', sku: 'OE-1003', photo_principale: PX(20317629) },
+  { id: 4,  titre: 'Meuleuse d\'angle',      prix: 99,  stock: 12, categorie: 'Outils électriques', description: 'Exemple de produit de démonstration.', sku: 'OE-1004', photo_principale: PX(5466156) },
+  { id: 5,  titre: 'Coffret de douilles',    prix: 79,  stock: 15, categorie: 'Outils à main', description: 'Exemple de produit de démonstration.', sku: 'OM-2001', photo_principale: PX(9607054) },
+  { id: 6,  titre: 'Ensemble d\'outils',     prix: 119, prix_promo: 89, stock: 9, categorie: 'Outils à main', description: 'Exemple de produit de démonstration.', sku: 'OM-2002', photo_principale: PX(175039) },
+  { id: 7,  titre: 'Boîte à outils garnie',  prix: 149, stock: 6,  categorie: 'Outils à main', description: 'Exemple de produit de démonstration.', sku: 'OM-2003', photo_principale: PX(8985454) },
+  { id: 8,  titre: 'Casque et gants',        prix: 45,  stock: 20, categorie: 'Sécurité', description: 'Exemple de produit de démonstration.', sku: 'SE-3001', photo_principale: PX(8488037) },
+  { id: 9,  titre: 'Équipement de protection', prix: 39, stock: 25, categorie: 'Sécurité', description: 'Exemple de produit de démonstration.', sku: 'SE-3002', photo_principale: PX(8487733) },
+  { id: 10, titre: 'Quincaillerie assortie', prix: 24,  stock: 40, categorie: 'Matériaux', description: 'Exemple de produit de démonstration.', sku: 'MA-4001', photo_principale: PX(19582317) },
+];
+const DEMO_ARTICLES_CHANTIER = [
+  { id: 9001, titre: 'Exemple : choisir sa première perceuse', slug: 'exemple-perceuse', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(5974053), date_publication: new Date(Date.now() - 5 * 864e5).toISOString(), categorie: 'Conseils', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9002, titre: 'Exemple : bien équiper son atelier', slug: 'exemple-atelier', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(5357150), date_publication: new Date(Date.now() - 12 * 864e5).toISOString(), categorie: 'Guides', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9003, titre: 'Exemple : la sécurité sur le chantier', slug: 'exemple-securite', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(7788227), date_publication: new Date(Date.now() - 20 * 864e5).toISOString(), categorie: 'Guides', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+];
+const CHANTIER_FIN_DEMO = (() => { const d = new Date(Date.now() + 15 * 864e5); const z = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; })();
+const DEMO_CONFIG_CHANTIER = { chantier: {
+  accueil: {
+    hero: { titre: 'L\'avenir du chantier', sousTitre: 'Exemple de démonstration', boutonLabel: 'Magasiner', boutonLien: '/catalogue', photo: PX(8960996, 1600), style: 'image-fond' },
+    entete: { barreHaut: { actif: true, gauche: 'Exemple de démonstration : message de la barre du haut', droite: 'Aide | contact\nBlogue | blog' } },
+    diaporama: [
+      { surtitre: 'Exemple de démonstration', titre: 'L\'*avenir* du chantier', texte: 'Exemple de démonstration : remplacez ce texte par le vôtre.', bouton: 'Magasiner', lien: 'catalogue', photo: PX(8960996, 1600) },
+      { surtitre: 'Nouveautés', titre: 'Les *outils* de la semaine', texte: 'Exemple de démonstration : un deuxième message.', bouton: 'Voir les outils', lien: 'catalogue', photo: PX(5974053, 1600) },
+      { surtitre: 'Sécurité', titre: 'Travaillez en *sécurité*', texte: 'Exemple de démonstration : un troisième message.', bouton: 'Voir la sécurité', lien: 'cat:Sécurité', photo: PX(8488037, 1600) },
+    ],
+    onde: { messages: 'Exemple : un premier message\nExemple : un deuxième message\nExemple : un troisième message' },
+    parcourir: { titre: 'Magasiner pour', nombre: 6 },
+    vedette: { titre: 'Nos *incontournables*', sousTitre: 'Exemple de démonstration', categorie: '', nombre: 10 },
+    grostexte: { texte: 'Des outils et du matériel choisis par des *pros* du chantier', photos: '', sousTexte: 'Exemple de démonstration : présentez ici votre boutique en quelques phrases. Ce texte est remplacé par le vôtre.', bouton: 'En savoir plus', lien: 'a-propos' },
+    bandepromo: { titre: '*Offres* de la semaine', texte: 'Exemple de démonstration : une offre à mettre en avant.', bouton: 'Voir les offres', lien: 'catalogue' },
+    video: { titre: 'Notre boutique en *vidéo*', sousTitre: 'Exemple de démonstration', url: '' },
+    collections: { titre: 'Magasiner par *collection*', sousTitre: 'Exemple de démonstration' },
+    vitrine: { photo: PX(175039, 1200), points: '30 | 40 | catalogue\n62 | 58 | catalogue', categorie: 'Outils à main', nombre: 4, bouton: 'Choisir' },
+    nouveautes: { titre: 'Nouveautés', sousTitre: '', categorie: '', nombre: 10 },
+    trouveur: { etiquette: 'Trouvez votre outil', titre: 'Que cherchez-vous ?', photo: PX(1029243, 1000), options: 'Un outil électrique | cat:Outils électriques\nUn outil à main | cat:Outils à main\nDe la sécurité | cat:Sécurité' },
+    comparatif: { titre: 'Comparez nos *perceuses*', sousTitre: 'Exemple de démonstration : tableau saisi à la main', libelle: 'Nos outils', produits: PX(8811530, 600) + ' | Perceuse sans fil | 129 $ | catalogue\n' + PX(6790808, 600) + ' | Perceuse à percussion | 159 $ | catalogue\n' + PX(5974053, 600) + ' | Perceuse sur colonne | 249 $ | catalogue', criteres: 'Sans fil | oui | non | non\nPercussion | non | oui | non\nPoids | léger | moyen | lourd' },
+    temoignagesTitre: 'Avis de nos *clients*', temoignagesSousTitre: 'Exemple de démonstration', temoignagesPhotos: PX(7788227, 700) + '\n' + PX(8960996, 700),
+    avantages: [],
+    galerie: { titre: 'Sur les *réseaux*', sousTitre: 'Exemple de démonstration', items: PX(1029243, 600) + ' | catalogue\n' + PX(5357150, 600) + ' | catalogue\n' + PX(9607054, 600) + ' | catalogue\n' + PX(8985454, 600) + ' | catalogue\n' + PX(19582317, 600) + ' | catalogue' },
+    pastilles: { titre: 'Nos *garanties*', items: '🔒 | Paiement sécurisé\n🚚 | Livraison suivie\n↩️ | Retours simples\n🔨 | Outils éprouvés' },
+    blogApercu: { titre: 'Notre *blogue*', sousTitre: 'Exemple de démonstration', bouton: 'Lire le blogue' },
+    grandnom: { texte: 'Chantier' },
+    ticker: { messages: 'Exemple : un message de votre boutique\nExemple : un autre message', vitesse: 'normale', couleurFond: '#ffd60a', couleurTexte: '#1c1309', couleurAccent: '#1c1309', icone: '🔨', lien: '' },
+    bandeaux: [{ titre: 'Un moment pour *bâtir*', sousTitre: 'Exemple de démonstration : un texte court sous le titre.', bouton: 'Découvrir', lien: 'catalogue', bouton2: 'En savoir plus', lien2: 'a-propos', photo: PX(8960996, 1800) }],
+    focus: { titre: 'Outil *vedette*', texte: 'Exemple de démonstration', bouton: 'Découvrir', lien: 'catalogue', photo: PX(8811530, 1000), categorie: '', nombre: 4 },
+    etapes: { titre: 'Pourquoi *choisir* nos produits', photo: PX(5710870, 1200), items: 'Premier point fort | Exemple de démonstration : décrivez ici un avantage réel de votre boutique.\nDeuxième point fort | Exemple de démonstration : un deuxième avantage.\nTroisième point fort | Exemple de démonstration : un troisième avantage.', bouton: 'En savoir plus', lien: 'a-propos' },
+    presentation: { titre: 'À propos de la *boutique*', texte: 'Exemple de démonstration : présentez ici votre boutique, votre sélection et ce qui vous distingue. Ce texte est remplacé par le vôtre.', bouton: 'En savoir plus', lien: 'a-propos', photo: PX(5710870, 1200), inverser: false },
+    tuiles: [
+      { titre: 'Les *plus vendus*', texte: 'Exemple de démonstration : une carte promo.', bouton: 'Voir maintenant', lien: 'catalogue', photo: PX(8811530, 1000), couleur: '' },
+      { titre: 'Nos *équipements de sécurité*', texte: 'Exemple de démonstration : une deuxième carte promo.', bouton: 'Voir maintenant', lien: 'cat:Sécurité', photo: PX(8487733, 1000), couleur: '' },
+    ],
+    marques: { items: ' | Marque exemple 1 | \n | Marque exemple 2 | \n | Marque exemple 3 | \n | Marque exemple 4 | ' },
+    decompte: { titre: 'Une *vente* se termine bientôt', sousTitre: 'Exemple de démonstration : date fictive', fin: CHANTIER_FIN_DEMO, photo: PX(175039, 1600), bouton: 'En savoir plus', lien: 'contact' },
+    accordeon: { titre: 'Caractéristiques', items: 'Première caractéristique | Exemple de démonstration : le détail s\'affiche ici.\nDeuxième caractéristique | Exemple de démonstration : le détail s\'affiche ici.' },
+    accordeon2: { titre: 'Questions fréquentes', items: 'Première question ? | Exemple de démonstration : la réponse s\'affiche ici.\nDeuxième question ? | Exemple de démonstration : la réponse s\'affiche ici.' },
+  },
+  footer: { nomBoutique: 'Ma quincaillerie Chantier', slogan: 'Exemple de démonstration', afficherPropulse: true,
+    reseaux: { facebook: 'https://facebook.com', instagram: 'https://instagram.com' },
+    aide: { titre: 'Besoin d\'aide ?', texte: 'Exemple de démonstration : une équipe pour vous conseiller.', bouton: 'Nous joindre', lien: 'contact', photo: '' },
+    paiements: 'Visa\nMastercard\nPayPal' },
+} };
+
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
@@ -876,7 +943,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : estFuturisteBoutique(templateId) ? DEMO_CONFIG_FUTURISTE : estTechBoutique(templateId) ? DEMO_CONFIG_TECH : estRoseBoutique(templateId) ? DEMO_CONFIG_ROSE : estBonbonBoutique(templateId) ? DEMO_CONFIG_BONBON : estSoleilBoutique(templateId) ? DEMO_CONFIG_SOLEIL : estSentierBoutique(templateId) ? DEMO_CONFIG_SENTIER : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : estFuturisteBoutique(templateId) ? DEMO_CONFIG_FUTURISTE : estTechBoutique(templateId) ? DEMO_CONFIG_TECH : estRoseBoutique(templateId) ? DEMO_CONFIG_ROSE : estBonbonBoutique(templateId) ? DEMO_CONFIG_BONBON : estSoleilBoutique(templateId) ? DEMO_CONFIG_SOLEIL : estSentierBoutique(templateId) ? DEMO_CONFIG_SENTIER : estChantierBoutique(templateId) ? DEMO_CONFIG_CHANTIER : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -971,6 +1038,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Simplisse Sentier : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_SENTIER, __articles_demo__: DEMO_ARTICLES_SENTIER } : config;
       return <TemplateBoutiqueSentier config={isDemo ? configDemo : configSentierAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.sentier) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-chantier') {
+      // Simplisse Chantier : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_CHANTIER, __articles_demo__: DEMO_ARTICLES_CHANTIER } : config;
+      return <TemplateBoutiqueChantier config={isDemo ? configDemo : configChantierAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.chantier) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId === 'boutique-agricole') {
       // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
