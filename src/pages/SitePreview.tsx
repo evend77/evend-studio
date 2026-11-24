@@ -45,6 +45,7 @@ import TemplateBoutiqueAurore from '../templates/TemplateBoutiqueAurore';
 import TemplateBoutiqueGalerie from '../templates/TemplateBoutiqueGalerie';
 import TemplateBoutiqueRallye from '../templates/TemplateBoutiqueRallye';
 import TemplateBoutiquePaon from '../templates/TemplateBoutiquePaon';
+import TemplateBoutiquePop from '../templates/TemplateBoutiquePop';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -75,7 +76,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge, configFuturisteAvecBadge, configTechAvecBadge, configRoseAvecBadge, configBonbonAvecBadge, configSoleilAvecBadge, configSentierAvecBadge, configChantierAvecBadge, configCafeAvecBadge, configSakuraAvecBadge, configSportAvecBadge, configJoyauAvecBadge, configEcumeAvecBadge, configAudaceAvecBadge, configCarnavalAvecBadge, configPatchworkAvecBadge, configVigieAvecBadge, configAuroreAvecBadge, configGalerieAvecBadge, configRallyeAvecBadge, configPaonAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge, configFuturisteAvecBadge, configTechAvecBadge, configRoseAvecBadge, configBonbonAvecBadge, configSoleilAvecBadge, configSentierAvecBadge, configChantierAvecBadge, configCafeAvecBadge, configSakuraAvecBadge, configSportAvecBadge, configJoyauAvecBadge, configEcumeAvecBadge, configAudaceAvecBadge, configCarnavalAvecBadge, configPatchworkAvecBadge, configVigieAvecBadge, configAuroreAvecBadge, configGalerieAvecBadge, configRallyeAvecBadge, configPaonAvecBadge, configPopAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -112,9 +113,10 @@ const estAuroreBoutique = (t: string) => t === 'boutique-aurore';
 const estGalerieBoutique = (t: string) => t === 'boutique-galerie';
 const estRallyeBoutique = (t: string) => t === 'boutique-rallye';
 const estPaonBoutique = (t: string) => t === 'boutique-paon';
+const estPopBoutique = (t: string) => t === 'boutique-pop';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estChantierBoutique(t) || estCafeBoutique(t) || estSakuraBoutique(t) || estSportBoutique(t) || estJoyauBoutique(t) || estEcumeBoutique(t) || estAudaceBoutique(t) || estCarnavalBoutique(t) || estPatchworkBoutique(t) || estVigieBoutique(t) || estAuroreBoutique(t) || estGalerieBoutique(t) || estRallyeBoutique(t) || estPaonBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estChantierBoutique(t) || estCafeBoutique(t) || estSakuraBoutique(t) || estSportBoutique(t) || estJoyauBoutique(t) || estEcumeBoutique(t) || estAudaceBoutique(t) || estCarnavalBoutique(t) || estPatchworkBoutique(t) || estVigieBoutique(t) || estAuroreBoutique(t) || estGalerieBoutique(t) || estRallyeBoutique(t) || estPaonBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estChantierBoutique(t) || estCafeBoutique(t) || estSakuraBoutique(t) || estSportBoutique(t) || estJoyauBoutique(t) || estEcumeBoutique(t) || estAudaceBoutique(t) || estCarnavalBoutique(t) || estPatchworkBoutique(t) || estVigieBoutique(t) || estAuroreBoutique(t) || estGalerieBoutique(t) || estRallyeBoutique(t) || estPaonBoutique(t) || estPopBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estChantierBoutique(t) || estCafeBoutique(t) || estSakuraBoutique(t) || estSportBoutique(t) || estJoyauBoutique(t) || estEcumeBoutique(t) || estAudaceBoutique(t) || estCarnavalBoutique(t) || estPatchworkBoutique(t) || estVigieBoutique(t) || estAuroreBoutique(t) || estGalerieBoutique(t) || estRallyeBoutique(t) || estPaonBoutique(t) || estPopBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -1685,6 +1687,76 @@ const DEMO_CONFIG_PAON = { paon: {
     paiements: 'Visa\nMastercard\nPayPal' },
 } };
 
+// Simplisse Pop : démonstration seulement — photos libres de droits (Pexels, usage commercial permis sans attribution), jamais affichées sur une vraie boutique
+const DEMO_PRODUITS_POP = [
+  { id: 1, titre: 'Cahier à spirale', prix: 9, stock: 15, categorie: 'Cahiers', description: 'Exemple de produit de démonstration.', sku: 'CA-1001', photo_principale: PX(6193017) },
+  { id: 2, titre: 'Cahiers colorés', prix: 18, prix_promo: 14, stock: 15, categorie: 'Cahiers', description: 'Exemple de produit de démonstration.', sku: 'CA-1002', photo_principale: PX(6193089) },
+  { id: 3, titre: 'Carnet de croquis', prix: 12, stock: 15, categorie: 'Cahiers', description: 'Exemple de produit de démonstration.', sku: 'CA-1003', photo_principale: PX(5088019) },
+  { id: 4, titre: 'Boîte de peinture', prix: 29, stock: 15, categorie: 'Peinture', description: 'Exemple de produit de démonstration.', sku: 'PE-2001', photo_principale: PX(6925028) },
+  { id: 5, titre: 'Set de pinceaux', prix: 22, prix_promo: 17, stock: 15, categorie: 'Peinture', description: 'Exemple de produit de démonstration.', sku: 'PE-2002', photo_principale: PX(3777876) },
+  { id: 6, titre: 'Atelier créatif', prix: 45, stock: 15, categorie: 'Peinture', description: 'Exemple de produit de démonstration.', sku: 'PE-2003', photo_principale: PX(29589096) },
+  { id: 7, titre: 'Crayons de couleur', prix: 15, stock: 15, categorie: 'Crayons', description: 'Exemple de produit de démonstration.', sku: 'CR-3001', photo_principale: PX(5554656) },
+  { id: 8, titre: 'Marqueurs assortis', prix: 19, stock: 0, categorie: 'Crayons', description: 'Exemple de produit de démonstration.', sku: 'CR-3002', photo_principale: PX(4968504) },
+  { id: 9, titre: 'Crayons et trombones', prix: 11, prix_promo: 9, stock: 15, categorie: 'Crayons', description: 'Exemple de produit de démonstration.', sku: 'CR-3003', photo_principale: PX(7054779) },
+  { id: 10, titre: 'Kit de bricolage', prix: 24, stock: 15, categorie: 'Loisirs', description: 'Exemple de produit de démonstration.', sku: 'LO-4001', photo_principale: PX(17042499) },
+  { id: 11, titre: 'Rubans adhésifs', prix: 8, stock: 15, categorie: 'Loisirs', description: 'Exemple de produit de démonstration.', sku: 'LO-4002', photo_principale: PX(8250941) },
+];
+const DEMO_ARTICLES_POP = [
+  { id: 9001, titre: 'Exemple : bien choisir son carnet', slug: 'exemple-filtre', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(5382917), date_publication: new Date(Date.now() - 5 * 864e5).toISOString(), categorie: 'Conseils', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9002, titre: 'Exemple : démarrer la peinture à l’aquarelle', slug: 'exemple-torrefaction', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(17042499), date_publication: new Date(Date.now() - 12 * 864e5).toISOString(), categorie: 'Guides', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9003, titre: 'Exemple : organiser son coin créatif', slug: 'exemple-mouture', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(6193089), date_publication: new Date(Date.now() - 20 * 864e5).toISOString(), categorie: 'Guides', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+];
+const POP_FIN_DEMO = (() => { const d = new Date(Date.now() + 15 * 864e5); const z = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; })();
+const DEMO_CONFIG_POP = { pop: {
+  accueil: {
+    hero: { titre: 'Le geste, la matière', sousTitre: 'Exemple de démonstration', boutonLabel: 'Magasiner', boutonLien: '/catalogue', photo: PX(28503352, 1600), style: 'image-fond' },
+    entete: { barreHaut: { actif: true, gauche: 'Exemple de démonstration : message de la barre du haut', droite: 'Aide | contact\nBlogue | blog' } },
+    diaporama: [
+      { surtitre: 'Exemple de démonstration', titre: 'Créez *sans limites*', texte: 'Exemple de démonstration : remplacez ce texte par le vôtre.', bouton: 'Magasiner', lien: 'catalogue', photo: PX(6193089, 1600), badge: 'Nouveau' },
+      { surtitre: 'Nouveautés', titre: 'Les *nouveautés* du moment', texte: 'Exemple de démonstration : un deuxième message.', bouton: 'Voir les nouveautés', lien: 'catalogue', photo: PX(5554656, 1600) },
+      { surtitre: 'Peinture', titre: 'Un atelier *coloré*', texte: 'Exemple de démonstration : un troisième message.', bouton: 'Voir la peinture', lien: 'cat:Peinture', photo: PX(17042499, 1600), badge: '-20 %' },
+    ],
+    onde: { messages: 'Exemple : un premier message\nExemple : un deuxième message\nExemple : un troisième message' },
+    mosaique: { photo: PX(17042499, 1000), titre: 'Explorez l’atelier', texte: 'Exemple de démonstration : du matériel coloré pour dessiner, peindre et bricoler.', bouton: 'Magasiner', lien: 'catalogue', photos: PX(3777876, 600) + ' | cat:Crayons\n' + PX(5554656, 600) + ' | cat:Crayons\n' + PX(5088019, 600) + ' | cat:Crayons\n' + PX(4968504, 600) + ' | cat:Loisirs' },
+    offrejour: { etiquette: 'Offre du jour', badge: 'Nouveau', accroche: 'Dépêchez-vous : se termine dans', fin: POP_FIN_DEMO, gros: 'Rabais 40 %', categorie: 'Cahiers', bouton: 'Voir le produit', tuiles: 'Offres limitées | ' + PX(5554656, 900) + ' | catalogue\nTrouvez votre matériel | ' + PX(6193089, 900) + ' | catalogue' },
+    avantapres: { surtitre: 'Exemple de démonstration', titre: 'Un bureau *transformé*', texte: 'Exemple de démonstration : deux photos de votre choix et un curseur pour les comparer.', photoAvant: PX(5382917, 1400), photoApres: PX(28503352, 1400), etiquetteAvant: 'Avant', etiquetteApres: 'Après', categorie: 'Cahiers', nombre: 3 },
+    parcourir: { titre: 'Magasiner par catégorie', nombre: 6 },
+    top10: { titre: 'Notre *sélection*', sousTitre: 'Exemple de démonstration', categorie: '', nombre: 8 },
+    vedette: { titre: 'Nos *meilleurs vendeurs*', sousTitre: 'Exemple de démonstration', categorie: '', nombre: 10 },
+    grostexte: { texte: 'Du matériel pensé pour *créer*', photos: '', sousTexte: 'Exemple de démonstration : présentez ici votre boutique en quelques phrases. Ce texte est remplacé par le vôtre.', bouton: 'En savoir plus', lien: 'a-propos' },
+    bandepromo: { titre: '*Offre* du mois', texte: 'Exemple de démonstration : une offre à mettre en avant.', bouton: 'Voir l\'offre', lien: 'catalogue' },
+    video: { titre: 'Notre boutique en *vidéo*', sousTitre: 'Exemple de démonstration', url: '' },
+    collections: { titre: 'Collections', sousTitre: 'Exemple de démonstration' },
+    vitrine: { photo: PX(5382917, 1200), points: '30 | 40 | catalogue\n62 | 58 | catalogue', categorie: 'Peinture', nombre: 4, bouton: 'Choisir' },
+    nouveautes: { titre: 'Nouveautés', sousTitre: '', categorie: '', nombre: 10 },
+    trouveur: { etiquette: 'Trouvez votre matériel', titre: 'Que cherchez-vous ?', photo: PX(17042499, 1000), options: 'Un cahier | cat:Cahiers\nDes crayons | cat:Crayons\nDu bricolage | cat:Loisirscat:Cahiers' },
+    comparatif: { titre: 'Comparez nos *produits*', sousTitre: 'Exemple de démonstration : tableau saisi à la main', libelle: 'Nos produits', produits: PX(6193089, 600) + ' | Cahiers | 257 $ | catalogue\n' + PX(28503352, 600) + ' | Crayons | 198 $ | catalogue\n' + PX(5554656, 600) + ' | Peinture | 330 $ | catalogue', criteres: 'Usage | chantier | atelier | plein air\nPoids | léger | moyen | léger\nGarantie | 2 ans | 1 an | 1 an' },
+    temoignagesTitre: 'Avis de nos *clients*', temoignagesSousTitre: 'Exemple de démonstration', temoignagesPhotos: PX(4968504, 700) + '\n' + PX(6925028, 700),
+    avantages: [],
+    pop: { titre: 'Sur les *réseaux*', sousTitre: 'Exemple de démonstration', items: PX(3777876, 600) + ' | catalogue\n' + PX(5382917, 600) + ' | catalogue\n' + PX(17042499, 600) + ' | catalogue\n' + PX(6193089, 600) + ' | catalogue\n' + PX(28503352, 600) + ' | catalogue' },
+    pastilles: { titre: 'Nos *garanties*', items: '🔒 | Paiement sécurisé\n🚚 | Livraison suivie\n↩️ | Retours simples\n✅ | Qualité vérifiée' },
+    blogApercu: { titre: 'Notre *blogue*', sousTitre: 'Exemple de démonstration', bouton: 'Lire le blogue' },
+    bandes: true, couleurBande: '#ffd166',
+    ticker: { messages: 'Exemple : un message de votre boutique\nExemple : un autre message', vitesse: 'normale', couleurFond: '#fff7e6', couleurTexte: '#d93d23', couleurAccent: '#d93d23', icone: '✦', lien: '' },
+    bandeaux: [{ titre: 'Prêt à *créer* ?', sousTitre: 'Exemple de démonstration : un texte court sous le titre.', bouton: 'Découvrir', lien: 'catalogue', bouton2: 'En savoir plus', lien2: 'a-propos', photo: PX(5554656, 1800) }],
+    focus: { titre: 'Sélection *vedette*', texte: 'Exemple de démonstration', bouton: 'Découvrir', lien: 'catalogue', photo: PX(4968504, 1000), categorie: '', nombre: 4 },
+    etapes: { titre: 'Pourquoi *nous choisir*', photo: PX(6925028, 1200), items: 'Premier point fort | Exemple de démonstration : décrivez ici un avantage réel de votre boutique.\nDeuxième point fort | Exemple de démonstration : un deuxième avantage.\nTroisième point fort | Exemple de démonstration : un troisième avantage.', bouton: 'En savoir plus', lien: 'a-propos' },
+    presentation: { titre: 'À propos de la *boutique*', texte: 'Exemple de démonstration : présentez ici votre boutique, votre sélection et ce qui vous distingue. Ce texte est remplacé par le vôtre.', bouton: 'En savoir plus', lien: 'a-propos', photo: PX(3777876, 1200), inverser: false },
+    tuiles: [
+      { titre: 'Les *plus vendus*', texte: 'Exemple de démonstration : une carte promo.', bouton: 'Voir maintenant', lien: 'catalogue', photo: PX(5382917, 1000), couleur: '' },
+      { titre: 'Nos *accessoires*', texte: 'Exemple de démonstration : une deuxième carte promo.', bouton: 'Voir maintenant', lien: 'cat:Cahiers', photo: PX(17042499, 1000), couleur: '' },
+    ],
+    marques: { items: ' | Marque exemple 1 | \n | Marque exemple 2 | \n | Marque exemple 3 | \n | Marque exemple 4 | ' },
+    decompte: { titre: 'Une *vente* se termine bientôt', sousTitre: 'Exemple de démonstration : date fictive', fin: POP_FIN_DEMO, photo: PX(6193089, 1600), bouton: 'En savoir plus', lien: 'contact' },
+    accordeon: { titre: 'Caractéristiques', items: 'Première caractéristique | Exemple de démonstration : le détail s\'affiche ici.\nDeuxième caractéristique | Exemple de démonstration : le détail s\'affiche ici.' },
+    accordeon2: { titre: 'Questions fréquentes', items: 'Première question ? | Exemple de démonstration : la réponse s\'affiche ici.\nDeuxième question ? | Exemple de démonstration : la réponse s\'affiche ici.' },
+  },
+  footer: { nomBoutique: 'Ma boutique Pop', slogan: 'Exemple de démonstration', afficherPropulse: true,
+    reseaux: { facebook: 'https://facebook.com', instagram: 'https://instagram.com' },
+    aide: { titre: 'Besoin d\'aide ?', texte: 'Exemple de démonstration : une équipe pour vous conseiller.', bouton: 'Nous joindre', lien: 'contact', photo: '' },
+    paiements: 'Visa\nMastercard\nPayPal' },
+} };
+
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
@@ -1834,7 +1906,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : estFuturisteBoutique(templateId) ? DEMO_CONFIG_FUTURISTE : estTechBoutique(templateId) ? DEMO_CONFIG_TECH : estRoseBoutique(templateId) ? DEMO_CONFIG_ROSE : estBonbonBoutique(templateId) ? DEMO_CONFIG_BONBON : estSoleilBoutique(templateId) ? DEMO_CONFIG_SOLEIL : estSentierBoutique(templateId) ? DEMO_CONFIG_SENTIER : estChantierBoutique(templateId) ? DEMO_CONFIG_CHANTIER : estCafeBoutique(templateId) ? DEMO_CONFIG_CAFE : estSakuraBoutique(templateId) ? DEMO_CONFIG_SAKURA : estSportBoutique(templateId) ? DEMO_CONFIG_SPORT : estJoyauBoutique(templateId) ? DEMO_CONFIG_JOYAU : estEcumeBoutique(templateId) ? DEMO_CONFIG_ECUME : estAudaceBoutique(templateId) ? DEMO_CONFIG_AUDACE : estCarnavalBoutique(templateId) ? DEMO_CONFIG_CARNAVAL : estPatchworkBoutique(templateId) ? DEMO_CONFIG_PATCHWORK : estVigieBoutique(templateId) ? DEMO_CONFIG_VIGIE : estAuroreBoutique(templateId) ? DEMO_CONFIG_AURORE : estGalerieBoutique(templateId) ? DEMO_CONFIG_GALERIE : estRallyeBoutique(templateId) ? DEMO_CONFIG_RALLYE : estPaonBoutique(templateId) ? DEMO_CONFIG_PAON : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : estFuturisteBoutique(templateId) ? DEMO_CONFIG_FUTURISTE : estTechBoutique(templateId) ? DEMO_CONFIG_TECH : estRoseBoutique(templateId) ? DEMO_CONFIG_ROSE : estBonbonBoutique(templateId) ? DEMO_CONFIG_BONBON : estSoleilBoutique(templateId) ? DEMO_CONFIG_SOLEIL : estSentierBoutique(templateId) ? DEMO_CONFIG_SENTIER : estChantierBoutique(templateId) ? DEMO_CONFIG_CHANTIER : estCafeBoutique(templateId) ? DEMO_CONFIG_CAFE : estSakuraBoutique(templateId) ? DEMO_CONFIG_SAKURA : estSportBoutique(templateId) ? DEMO_CONFIG_SPORT : estJoyauBoutique(templateId) ? DEMO_CONFIG_JOYAU : estEcumeBoutique(templateId) ? DEMO_CONFIG_ECUME : estAudaceBoutique(templateId) ? DEMO_CONFIG_AUDACE : estCarnavalBoutique(templateId) ? DEMO_CONFIG_CARNAVAL : estPatchworkBoutique(templateId) ? DEMO_CONFIG_PATCHWORK : estVigieBoutique(templateId) ? DEMO_CONFIG_VIGIE : estAuroreBoutique(templateId) ? DEMO_CONFIG_AURORE : estGalerieBoutique(templateId) ? DEMO_CONFIG_GALERIE : estRallyeBoutique(templateId) ? DEMO_CONFIG_RALLYE : estPaonBoutique(templateId) ? DEMO_CONFIG_PAON : estPopBoutique(templateId) ? DEMO_CONFIG_POP : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -1999,6 +2071,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Simplisse Paon : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_PAON, __articles_demo__: DEMO_ARTICLES_PAON } : config;
       return <TemplateBoutiquePaon config={isDemo ? configDemo : configPaonAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.paon) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-pop') {
+      // Simplisse Pop : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_POP, __articles_demo__: DEMO_ARTICLES_POP } : config;
+      return <TemplateBoutiquePop config={isDemo ? configDemo : configPopAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.pop) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId === 'boutique-agricole') {
       // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.

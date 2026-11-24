@@ -228,3 +228,10 @@ export function configPaonAvecBadge(config: any, addons: Record<string, boolean>
   const paon = (base && typeof base === 'object') ? base : {};
   return { ...config, paon: { ...paon, footer: { ...(paon.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Pop : le pied de page se lit dans config.pop.footer.afficherPropulse.
+// `base` = config.pop déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configPopAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const pop = (base && typeof base === 'object') ? base : {};
+  return { ...config, pop: { ...pop, footer: { ...(pop.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
