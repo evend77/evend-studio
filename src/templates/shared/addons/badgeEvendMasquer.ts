@@ -151,3 +151,10 @@ export function configSakuraAvecBadge(config: any, addons: Record<string, boolea
   const sakura = (base && typeof base === 'object') ? base : {};
   return { ...config, sakura: { ...sakura, footer: { ...(sakura.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Sport : le pied de page se lit dans config.sport.footer.afficherPropulse.
+// `base` = config.sport déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configSportAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const sport = (base && typeof base === 'object') ? base : {};
+  return { ...config, sport: { ...sport, footer: { ...(sport.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

@@ -31,6 +31,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-chantier':             'https://images.pexels.com/photos/8960996/pexels-photo-8960996.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-cafe':             'https://images.pexels.com/photos/4940744/pexels-photo-4940744.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-sakura':             'https://images.pexels.com/photos/92340/pexels-photo-92340.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-sport':             'https://images.pexels.com/photos/12918252/pexels-photo-12918252.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -274,6 +275,14 @@ export const TEMPLATES: Template[] = [
     description: "Papeterie et créativité : fond rose pâle, corail, titres manuscrits, photo centrée avec flèches, lignes ondulées, bande défilante à motif d’écailles, avis et blogue. Mode sombre possible. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
     fonctionnalites: ['Rose pâle et corail réglables, mode sombre possible', 'Photo centrée, titres manuscrits', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#e0525c',
+  },
+  {
+    id: 'boutique-sport',
+    nom: 'Simplisse Sport',
+    groupe: 'boutique-industrie',
+    description: "Sport et souliers : marine et vert menthe, titres très gras, photo pleine largeur avec encoche en V, bande géante qui défile, séparateurs en chevrons, avis et blogue. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Marine et menthe réglables, mode clair ou sombre', 'Photo pleine largeur, titres très gras', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#4de3c1',
   },
   {
     id: 'boutique-agricole',
