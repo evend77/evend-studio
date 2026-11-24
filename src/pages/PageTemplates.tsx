@@ -43,6 +43,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-rallye':             'https://images.pexels.com/photos/5383809/pexels-photo-5383809.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-paon':             'https://images.pexels.com/photos/4013073/pexels-photo-4013073.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-pop':             'https://images.pexels.com/photos/5382917/pexels-photo-5382917.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-nocturne':        '/apercus/boutique-nocturne.jpg',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -382,6 +383,14 @@ export const TEMPLATES: Template[] = [
     description: "Style ludique : crème, rouge tomate et jaune, gros traits noirs et ombres décalées, boutons en pastille, bandes à vagues, grand bandeau défilant, compte à rebours en cases. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
     fonctionnalites: ['Crème, rouge tomate et jaune réglables, mode clair ou sombre', 'Bandes à vagues, compte à rebours, tuiles de couleur', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#d93d23',
+  },
+  {
+    id: 'boutique-nocturne',
+    nom: 'Simplisse Nocturne',
+    groupe: 'boutique-generique',
+    description: "Style féerique : violet nuit et menthe, titres serif, fond étoilé qui scintille, photo en bulle, bandes à vagues, ornements étoilés. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Violet nuit et menthe réglables, mode clair ou sombre', 'Fond étoilé, bandes à vagues, titres serif', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#6d4fd8',
   },
   {
     id: 'boutique-agricole',

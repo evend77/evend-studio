@@ -235,3 +235,10 @@ export function configPopAvecBadge(config: any, addons: Record<string, boolean> 
   const pop = (base && typeof base === 'object') ? base : {};
   return { ...config, pop: { ...pop, footer: { ...(pop.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Nocturne : le pied de page se lit dans config.nocturne.footer.afficherPropulse.
+// `base` = config.nocturne déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configNocturneAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const nocturne = (base && typeof base === 'object') ? base : {};
+  return { ...config, nocturne: { ...nocturne, footer: { ...(nocturne.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
