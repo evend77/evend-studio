@@ -207,3 +207,10 @@ export function configAuroreAvecBadge(config: any, addons: Record<string, boolea
   const aurore = (base && typeof base === 'object') ? base : {};
   return { ...config, aurore: { ...aurore, footer: { ...(aurore.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Galerie : le pied de page se lit dans config.galerie.footer.afficherPropulse.
+// `base` = config.galerie déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configGalerieAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const galerie = (base && typeof base === 'object') ? base : {};
+  return { ...config, galerie: { ...galerie, footer: { ...(galerie.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
