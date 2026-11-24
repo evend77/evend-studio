@@ -214,3 +214,10 @@ export function configGalerieAvecBadge(config: any, addons: Record<string, boole
   const galerie = (base && typeof base === 'object') ? base : {};
   return { ...config, galerie: { ...galerie, footer: { ...(galerie.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Rallye : le pied de page se lit dans config.rallye.footer.afficherPropulse.
+// `base` = config.rallye déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configRallyeAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const rallye = (base && typeof base === 'object') ? base : {};
+  return { ...config, rallye: { ...rallye, footer: { ...(rallye.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
