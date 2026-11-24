@@ -137,3 +137,10 @@ export function configChantierAvecBadge(config: any, addons: Record<string, bool
   const chantier = (base && typeof base === 'object') ? base : {};
   return { ...config, chantier: { ...chantier, footer: { ...(chantier.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Café : le pied de page se lit dans config.cafe.footer.afficherPropulse.
+// `base` = config.cafe déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configCafeAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const cafe = (base && typeof base === 'object') ? base : {};
+  return { ...config, cafe: { ...cafe, footer: { ...(cafe.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

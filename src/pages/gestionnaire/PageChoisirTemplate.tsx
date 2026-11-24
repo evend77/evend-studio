@@ -464,6 +464,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [modalSentierOuvert, setModalSentierOuvert] = useState(false);
   const [paliersChantier, setPaliersChantier] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de Simplisse Chantier (Prix Template) ; vide = aucune limite, pas de fenêtre
   const [modalChantierOuvert, setModalChantierOuvert] = useState(false);
+  const [paliersCafe, setPaliersCafe] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de Simplisse Café (Prix Template) ; vide = aucune limite, pas de fenêtre
+  const [modalCafeOuvert, setModalCafeOuvert] = useState(false);
 
   // Prix configurés dans le dashboard admin — si l'appel échoue, on retombe
   // simplement sur le prix codé en dur (ou "Gratuit") comme avant.
@@ -481,7 +483,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         }
         setPrixParTemplate(map);
         const info: Record<string, { prixMin: string; limiteMax: number }> = {};
-        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique', 'boutique-bd', 'boutique-futuriste', 'boutique-tech', 'boutique-rose', 'boutique-bonbon', 'boutique-soleil', 'boutique-sentier', 'boutique-chantier']) {
+        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique', 'boutique-bd', 'boutique-futuriste', 'boutique-tech', 'boutique-rose', 'boutique-bonbon', 'boutique-soleil', 'boutique-sentier', 'boutique-chantier', 'boutique-cafe']) {
           let pal: any = data.templates[id]?.prix_paliers;
           if (typeof pal === 'string') { try { pal = JSON.parse(pal); } catch { pal = null; } }
           if (!Array.isArray(pal) || pal.length === 0) continue;
@@ -502,6 +504,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           if (id === 'boutique-soleil') setPaliersSoleil(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-sentier') setPaliersSentier(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-chantier') setPaliersChantier(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
+          if (id === 'boutique-cafe') setPaliersCafe(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-agricole') setPaliersAgricole(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-catalogue') setPaliersCatalogue(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
         }
@@ -697,6 +700,18 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     }
     setModalChantierOuvert(false);
     onChoisir('boutique-chantier');
+  };
+  const handleChoisirCafe = () => { if (paliersCafe.length > 0) setModalCafeOuvert(true); else onChoisir('boutique-cafe'); };
+  const handleConfirmerPalierCafe = async (limite: number) => {
+    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
+      const token = localStorage.getItem('token');
+      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include', body: JSON.stringify({ plan: `cafe-${limite}` }),
+      }).catch(() => {});
+    }
+    setModalCafeOuvert(false);
+    onChoisir('boutique-cafe');
   };
   const handleChoisirSimplisse = () => setModalSimplisseOuvert(true);
   const [modalPremiumOuvert, setModalPremiumOuvert] = useState(false);
@@ -937,6 +952,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
               id: 'boutique-chantier', titre: 'Simplisse Chantier',
               desc: "Quincaillerie et outils : grand bloc jaune arrondi avec photo et deux produits, cartes blanches arrondies, bandeau d'offre jaune, compte à rebours, tableau comparatif, avis et blogue. Mode sombre possible. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
               icone: '🔨', couleur: '#1c1309', disponible: true, badge: 'Nouveau', badgeCouleur: '#1c1309',
+              pages: ['Accueil', 'Catalogue', 'Fiche produit', 'À propos', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
+            },
+            {
+              id: 'boutique-cafe', titre: 'Simplisse Café',
+              desc: "Café et torréfaction : photo pleine largeur avec titre en bas à gauche, cartes caramel arrondies, bandeau d'offre brun, compte à rebours, avis et blogue. Mode sombre brun possible. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+              icone: '☕', couleur: '#2a1608', disponible: true, badge: 'Nouveau', badgeCouleur: '#2a1608',
               pages: ['Accueil', 'Catalogue', 'Fiche produit', 'À propos', 'Blog', 'FAQ', 'Contact', 'Panier', 'Compte'],
             },
             {
@@ -1218,6 +1239,14 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           nom="Simplisse Chantier" icone="🔨" couleur="#1c1309"
           onConfirmer={handleConfirmerPalierChantier}
           onAnnuler={() => setModalChantierOuvert(false)}
+        />
+      )}
+      {modalCafeOuvert && paliersCafe.length > 0 && (
+        <ModalPalierComplete
+          paliers={paliersCafe}
+          nom="Simplisse Café" icone="☕" couleur="#2a1608"
+          onConfirmer={handleConfirmerPalierCafe}
+          onAnnuler={() => setModalCafeOuvert(false)}
         />
       )}
       {modalAgricoleOuvert && paliersAgricole.length > 0 && (
@@ -1598,7 +1627,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                     const estBonbon        = t.id === 'boutique-bonbon';
                     const estSoleil        = t.id === 'boutique-soleil';
                     const estSentier        = t.id === 'boutique-sentier';
-                    const estChantier      = t.id === 'boutique-chantier';
+                    const estChantier        = t.id === 'boutique-chantier';
+                    const estCafe      = t.id === 'boutique-cafe';
                     return (
                       <div key={t.id} className="template-card"
                         onClick={() => {
@@ -1621,6 +1651,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estSoleil) { handleChoisirSoleil(); return; }
                           if (estSentier) { handleChoisirSentier(); return; }
                           if (estChantier) { handleChoisirChantier(); return; }
+                          if (estCafe) { handleChoisirCafe(); return; }
                           onChoisir(t.id);
                         }}
                         onMouseEnter={e => {
@@ -1817,6 +1848,15 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           </div>
                         )}
 
+                        {estCafe && (
+                          <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
+                            <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
+                              {['✅ Géré depuis le tableau de bord — sans code', '✅ Photo pleine largeur · cartes caramel · bandeau d\'offre · avis · blogue · sections masquables et réordonnables', infoPaliers[t.id] ? `✅ Jusqu'à ${infoPaliers[t.id].limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos', '✅ Panier & paiement Stripe ou PayPal intégré', '🧩 Add-ons au choix'].map((l, i) => <span key={i}>{l}<br /></span>)}
+                              {infoPaliers[t.id] && <>💰 Dès <strong style={{ color: C.text }}>{infoPaliers[t.id].prixMin}/mois</strong> + taxes</>}
+                            </p>
+                          </div>
+                        )}
+
                         {estMonoProduit && (
                           <div style={{ marginBottom: 14, background: `${t.couleur}12`, borderRadius: 8, padding: '10px 12px', border: `1px solid ${t.couleur}30` }}>
                             <p style={{ fontSize: 11, color: C.textLight, margin: 0, lineHeight: 1.6 }}>
@@ -1871,10 +1911,11 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estSoleil) { handleChoisirSoleil(); return; }
                           if (estSentier) { handleChoisirSentier(); return; }
                           if (estChantier) { handleChoisirChantier(); return; }
+                          if (estCafe) { handleChoisirCafe(); return; }
                                 onChoisir(t.id);
                               }}
                               style={{ padding: '9px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit', boxShadow: `0 8px 16px -8px ${estSimplisse ? COULEUR_MP : t.couleur}` }}>
-                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : estAuto ? '🚗 Auto →' : estJouets ? '🧸 Jouets →' : estGothique ? '🖤 Gothique →' : estBD ? '💥 BD →' : estFuturiste ? '⚡ Futuriste →' : estTech ? '🎮 Tech →' : estRose ? '🌸 Rosé →' : estBonbon ? '🍬 Bonbon →' : estSoleil ? '☀️ Soleil →' : estSentier ? '🚵 Sentier →' : estChantier ? '🔨 Chantier →' : 'Choisir →'}
+                              {estSimplisse ? '🛍 Simplisse →' : estPremium ? '💎 Premium →' : estSimplisseMode ? '👗 Mode →' : estAgricole ? '🌾 Agricole →' : estArtisan ? '🎨 Artisan →' : estAuto ? '🚗 Auto →' : estJouets ? '🧸 Jouets →' : estGothique ? '🖤 Gothique →' : estBD ? '💥 BD →' : estFuturiste ? '⚡ Futuriste →' : estTech ? '🎮 Tech →' : estRose ? '🌸 Rosé →' : estBonbon ? '🍬 Bonbon →' : estSoleil ? '☀️ Soleil →' : estSentier ? '🚵 Sentier →' : estChantier ? '🔨 Chantier →' : estCafe ? '☕ Café →' : 'Choisir →'}
                             </button>
                           </div>
                         )}

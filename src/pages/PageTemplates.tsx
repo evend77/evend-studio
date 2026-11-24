@@ -29,6 +29,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-soleil':              'https://images.pexels.com/photos/796606/pexels-photo-796606.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-sentier':             'https://images.pexels.com/photos/30925315/pexels-photo-30925315.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-chantier':             'https://images.pexels.com/photos/8960996/pexels-photo-8960996.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-cafe':             'https://images.pexels.com/photos/4940744/pexels-photo-4940744.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -256,6 +257,14 @@ export const TEMPLATES: Template[] = [
     description: "Quincaillerie et outils : grand bloc jaune arrondi avec photo et deux produits, cartes blanches arrondies, bandeau d'offre jaune, compte à rebours, tableau comparatif, avis et blogue. Mode sombre possible. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
     fonctionnalites: ['Jaune, brun foncé et blanc réglables, mode sombre possible', 'Grand bloc jaune avec photo et deux produits', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#1c1309',
+  },
+  {
+    id: 'boutique-cafe',
+    nom: 'Simplisse Café',
+    groupe: 'boutique-industrie',
+    description: "Café et torréfaction : photo pleine largeur avec titre en bas à gauche, cartes caramel arrondies, bandeau d'offre brun, compte à rebours, avis et blogue. Mode sombre brun possible. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Caramel et brun réglables, mode sombre possible', 'Photo pleine largeur, titre en bas à gauche', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#2a1608',
   },
   {
     id: 'boutique-agricole',
