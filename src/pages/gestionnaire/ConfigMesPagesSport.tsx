@@ -301,7 +301,7 @@ const CONFIG_DEFAUT: ConfigSport = {
     banniere: { ...BANNIERE_DEFAUT },
     sections: SECTIONS_ACCUEIL,
     couleurPrimaire:   CP,
-    couleurSecondaire: '#17233b',
+    couleurSecondaire: '#b9c5de',
     couleurFondPage:   '',
     couleurTexte:      '',
     police: 'Archivo',

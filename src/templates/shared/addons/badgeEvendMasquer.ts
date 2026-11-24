@@ -165,3 +165,10 @@ export function configJoyauAvecBadge(config: any, addons: Record<string, boolean
   const joyau = (base && typeof base === 'object') ? base : {};
   return { ...config, joyau: { ...joyau, footer: { ...(joyau.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Écume : le pied de page se lit dans config.ecume.footer.afficherPropulse.
+// `base` = config.ecume déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configEcumeAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const ecume = (base && typeof base === 'object') ? base : {};
+  return { ...config, ecume: { ...ecume, footer: { ...(ecume.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

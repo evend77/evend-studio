@@ -302,7 +302,7 @@ const CONFIG_DEFAUT: ConfigJoyau = {
     banniere: { ...BANNIERE_DEFAUT },
     sections: SECTIONS_ACCUEIL,
     couleurPrimaire:   CP,
-    couleurSecondaire: '#f5ede3',
+    couleurSecondaire: '#4a4038',
     couleurFondPage:   '',
     couleurTexte:      '',
     police: 'Playfair Display',

@@ -202,6 +202,7 @@ const TEMPLATE_BRANDING = {
   'boutique-sakura': { couleur: '#e0525c', fond: '#fbe6e4', nom: 'Simplisse Sakura', icone: '🌸' },
   'boutique-sport': { couleur: '#4de3c1', fond: '#0f1829', nom: 'Simplisse Sport', icone: '👟' },
   'boutique-joyau': { couleur: '#b4532a', fond: '#f5ede3', nom: 'Simplisse Joyau', icone: '💍' },
+  'boutique-ecume': { couleur: '#2c4fe6', fond: '#fcedf8', nom: 'Simplisse Écume', icone: '🌊' },
 };
 
 const BRANDING_DEFAUT = { couleur: '#c9a96e', fond: '#1a1a2e', nom: 'e-Vend Studio', icone: '✨' };

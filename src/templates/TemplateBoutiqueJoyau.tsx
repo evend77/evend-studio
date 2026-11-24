@@ -137,7 +137,7 @@ const CFG_DEF: ConfigJoyau = {
     { id:'selection', label:'Notre sélection (rangée)', icone:'💎', actif:false, ordre:31 },
     { id:'promo', label:'Promos', icone:'💲', actif:false, ordre:32 },
     { id:'newsletter', label:'Infolettre', icone:'📧', actif:false, ordre:33 }
-  ], couleurPrimaire:CP, couleurSecondaire:'#f5ede3', couleurFondPage:'', couleurTexte:'', police:'Playfair Display', mode:'clair', afficherBascule:false, afficherRemonter:true },
+  ], couleurPrimaire:CP, couleurSecondaire:'#4a4038', couleurFondPage:'', couleurTexte:'', police:'Playfair Display', mode:'clair', afficherBascule:false, afficherRemonter:true },
   catalogue: { titre:'Nos produits', sousTitre:'Tous nos produits disponibles.', colonnes:3, afficherFiltres:true, afficherRecherche:true, afficherPrix:true, afficherStock:true, banniere:BAN_DEF, hero:HERO_DEF, sections:[] },
   faq: { titre:'Questions fréquentes', sousTitre:'Trouvez rapidement les réponses à vos questions.', hero:HERO_DEF, banniere:BAN_DEF, items:[] },
   blog: { titre:'Notre blogue', sousTitre:'Actualités, conseils et nouveautés.', hero:HERO_DEF, banniere:BAN_DEF, afficherAuteur:true, afficherDate:true, colonnes:3 },

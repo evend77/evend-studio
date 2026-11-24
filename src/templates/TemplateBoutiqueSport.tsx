@@ -136,7 +136,7 @@ const CFG_DEF: ConfigSport = {
     { id:'selection', label:'Notre sélection (rangée)', icone:'💎', actif:false, ordre:30 },
     { id:'promo', label:'Promos', icone:'💲', actif:false, ordre:31 },
     { id:'newsletter', label:'Infolettre', icone:'📧', actif:false, ordre:32 }
-  ], couleurPrimaire:CP, couleurSecondaire:'#17233b', couleurFondPage:'', couleurTexte:'', police:'Archivo', mode:'sombre', afficherBascule:false, afficherRemonter:true },
+  ], couleurPrimaire:CP, couleurSecondaire:'#b9c5de', couleurFondPage:'', couleurTexte:'', police:'Archivo', mode:'sombre', afficherBascule:false, afficherRemonter:true },
   catalogue: { titre:'Nos produits', sousTitre:'Tous nos produits disponibles.', colonnes:3, afficherFiltres:true, afficherRecherche:true, afficherPrix:true, afficherStock:true, banniere:BAN_DEF, hero:HERO_DEF, sections:[] },
   faq: { titre:'Questions fréquentes', sousTitre:'Trouvez rapidement les réponses à vos questions.', hero:HERO_DEF, banniere:BAN_DEF, items:[] },
   blog: { titre:'Notre blogue', sousTitre:'Actualités, conseils et nouveautés.', hero:HERO_DEF, banniere:BAN_DEF, afficherAuteur:true, afficherDate:true, colonnes:3 },
