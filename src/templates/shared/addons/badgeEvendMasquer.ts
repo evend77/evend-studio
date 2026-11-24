@@ -200,3 +200,10 @@ export function configVigieAvecBadge(config: any, addons: Record<string, boolean
   const vigie = (base && typeof base === 'object') ? base : {};
   return { ...config, vigie: { ...vigie, footer: { ...(vigie.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Aurore : le pied de page se lit dans config.aurore.footer.afficherPropulse.
+// `base` = config.aurore déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configAuroreAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const aurore = (base && typeof base === 'object') ? base : {};
+  return { ...config, aurore: { ...aurore, footer: { ...(aurore.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}
