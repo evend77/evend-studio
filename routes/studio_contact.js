@@ -213,6 +213,7 @@ const TEMPLATE_BRANDING = {
   'boutique-paon': { couleur: '#e3c9c4', fond: '#032b37', nom: 'Simplisse Paon', icone: '🦚' },
   'boutique-pop': { couleur: '#d93d23', fond: '#fff7e6', nom: 'Simplisse Pop', icone: '🎈' },
   'boutique-nocturne': { couleur: '#8b6fe8', fond: '#130d28', nom: 'Simplisse Nocturne', icone: '🌙' },
+  'boutique-orbite': { couleur: '#d81b60', fond: '#0f1240', nom: 'Simplisse Orbite', icone: '🪐' },
 };
 
 const BRANDING_DEFAUT = { couleur: '#c9a96e', fond: '#1a1a2e', nom: 'e-Vend Studio', icone: '✨' };

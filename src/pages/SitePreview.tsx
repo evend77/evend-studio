@@ -47,6 +47,7 @@ import TemplateBoutiqueRallye from '../templates/TemplateBoutiqueRallye';
 import TemplateBoutiquePaon from '../templates/TemplateBoutiquePaon';
 import TemplateBoutiquePop from '../templates/TemplateBoutiquePop';
 import TemplateBoutiqueNocturne from '../templates/TemplateBoutiqueNocturne';
+import TemplateBoutiqueOrbite from '../templates/TemplateBoutiqueOrbite';
 import TemplateAgricole               from '../templates/TemplateAgricole';
 import TemplateVitrineProSante        from '../templates/TemplateVitrineProSante';
 import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMariage';
@@ -77,7 +78,7 @@ import TemplateBoutiqueSimplisseMode, { migrerMode } from '../templates/Template
 import TemplateBoutiquePremium        from '../templates/TemplateBoutiquePremium';
 import TemplateBoutiqueBeaute         from '../templates/TemplateBoutiqueBeaute';
 import TemplateMultiVendeurPremium    from '../templates/multivendeur/TemplateMultiVendeurPremium';
-import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge, configFuturisteAvecBadge, configTechAvecBadge, configRoseAvecBadge, configBonbonAvecBadge, configSoleilAvecBadge, configSentierAvecBadge, configChantierAvecBadge, configCafeAvecBadge, configSakuraAvecBadge, configSportAvecBadge, configJoyauAvecBadge, configEcumeAvecBadge, configAudaceAvecBadge, configCarnavalAvecBadge, configPatchworkAvecBadge, configVigieAvecBadge, configAuroreAvecBadge, configGalerieAvecBadge, configRallyeAvecBadge, configPaonAvecBadge, configPopAvecBadge, configNocturneAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
+import { configPremiumAvecBadge, configSimplisseAvecBadge, configSimpleAvecBadge, configCompleteAvecBadge, configCatalogueAvecBadge, configModeAvecBadge, configFermeAvecBadge, configArtisanAvecBadge, configAutoAvecBadge, configJouetsAvecBadge, configGothiqueAvecBadge, configBDAvecBadge, configFuturisteAvecBadge, configTechAvecBadge, configRoseAvecBadge, configBonbonAvecBadge, configSoleilAvecBadge, configSentierAvecBadge, configChantierAvecBadge, configCafeAvecBadge, configSakuraAvecBadge, configSportAvecBadge, configJoyauAvecBadge, configEcumeAvecBadge, configAudaceAvecBadge, configCarnavalAvecBadge, configPatchworkAvecBadge, configVigieAvecBadge, configAuroreAvecBadge, configGalerieAvecBadge, configRallyeAvecBadge, configPaonAvecBadge, configPopAvecBadge, configNocturneAvecBadge, configOrbiteAvecBadge } from '../templates/shared/addons/badgeEvendMasquer';
 import EffetsBoutiqueSolo             from '../components/EffetsBoutiqueSolo';   // add-on « Effets de boutique » : décorations de saison / de vente et musique de fond
 
 const API_BASE = '/api';
@@ -116,9 +117,10 @@ const estRallyeBoutique = (t: string) => t === 'boutique-rallye';
 const estPaonBoutique = (t: string) => t === 'boutique-paon';
 const estPopBoutique = (t: string) => t === 'boutique-pop';
 const estNocturneBoutique = (t: string) => t === 'boutique-nocturne';
+const estOrbiteBoutique = (t: string) => t === 'boutique-orbite';
 const estModeBoutique = (t: string) => t.startsWith('boutique-simplisse-mode');
-const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estChantierBoutique(t) || estCafeBoutique(t) || estSakuraBoutique(t) || estSportBoutique(t) || estJoyauBoutique(t) || estEcumeBoutique(t) || estAudaceBoutique(t) || estCarnavalBoutique(t) || estPatchworkBoutique(t) || estVigieBoutique(t) || estAuroreBoutique(t) || estGalerieBoutique(t) || estRallyeBoutique(t) || estPaonBoutique(t) || estPopBoutique(t) || estNocturneBoutique(t) || estModeBoutique(t);
-const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estChantierBoutique(t) || estCafeBoutique(t) || estSakuraBoutique(t) || estSportBoutique(t) || estJoyauBoutique(t) || estEcumeBoutique(t) || estAudaceBoutique(t) || estCarnavalBoutique(t) || estPatchworkBoutique(t) || estVigieBoutique(t) || estAuroreBoutique(t) || estGalerieBoutique(t) || estRallyeBoutique(t) || estPaonBoutique(t) || estPopBoutique(t) || estNocturneBoutique(t);
+const estSimplisseSeul = (t: string) => (t.startsWith('boutique-simplisse') && !t.startsWith('boutique-simplisse-mode')) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estChantierBoutique(t) || estCafeBoutique(t) || estSakuraBoutique(t) || estSportBoutique(t) || estJoyauBoutique(t) || estEcumeBoutique(t) || estAudaceBoutique(t) || estCarnavalBoutique(t) || estPatchworkBoutique(t) || estVigieBoutique(t) || estAuroreBoutique(t) || estGalerieBoutique(t) || estRallyeBoutique(t) || estPaonBoutique(t) || estPopBoutique(t) || estNocturneBoutique(t) || estOrbiteBoutique(t) || estModeBoutique(t);
+const estBoutiqueSolo = (t: string) => ['boutique-premium', 'boutique-simplisse', 'boutique-beaute'].some(p => t.startsWith(p)) || estMonoProduit(t) || estCompleteBoutique(t) || estCatalogueBoutique(t) || estAgricoleBoutique(t) || estArtisanBoutique(t) || estAutoBoutique(t) || estJouetsBoutique(t) || estGothiqueBoutique(t) || estBDBoutique(t) || estFuturisteBoutique(t) || estTechBoutique(t) || estRoseBoutique(t) || estBonbonBoutique(t) || estSoleilBoutique(t) || estSentierBoutique(t) || estChantierBoutique(t) || estCafeBoutique(t) || estSakuraBoutique(t) || estSportBoutique(t) || estJoyauBoutique(t) || estEcumeBoutique(t) || estAudaceBoutique(t) || estCarnavalBoutique(t) || estPatchworkBoutique(t) || estVigieBoutique(t) || estAuroreBoutique(t) || estGalerieBoutique(t) || estRallyeBoutique(t) || estPaonBoutique(t) || estPopBoutique(t) || estNocturneBoutique(t) || estOrbiteBoutique(t);
 
 interface SitePreviewProps {
   vendeurIdProp?: number | string;
@@ -1829,6 +1831,65 @@ const DEMO_CONFIG_NOCTURNE = { nocturne: {
     paiements: 'Visa\nMastercard\nPayPal' },
 } };
 
+// Simplisse Orbite : démonstration seulement — photos libres de droits (Pexels, usage commercial permis sans attribution), jamais affichées sur une vraie boutique
+const DEMO_PRODUITS_ORBITE = [
+  { id: 1, titre: 'Lampe de table design', prix: 64, stock: 15, categorie: 'Lampes de table', description: 'Exemple de produit de démonstration.', sku: 'LT-1001', photo_principale: PX(34237532) },
+  { id: 2, titre: 'Lampe rose et jaune', prix: 58, prix_promo: 46, stock: 15, categorie: 'Lampes de table', description: 'Exemple de produit de démonstration.', sku: 'LT-1002', photo_principale: PX(1023067) },
+  { id: 3, titre: 'Lampe de bureau chaude', prix: 49, stock: 15, categorie: 'Lampes de table', description: 'Exemple de produit de démonstration.', sku: 'LT-1003', photo_principale: PX(33164413) },
+  { id: 4, titre: 'Lampe de chevet', prix: 42, stock: 15, categorie: 'Lampes de table', description: 'Exemple de produit de démonstration.', sku: 'LT-1004', photo_principale: PX(30107913) },
+  { id: 5, titre: 'Duo de suspensions noires', prix: 120, stock: 15, categorie: 'Suspensions', description: 'Exemple de produit de démonstration.', sku: 'SU-2001', photo_principale: PX(408847) },
+  { id: 6, titre: 'Suspension en verre', prix: 98, prix_promo: 79, stock: 15, categorie: 'Suspensions', description: 'Exemple de produit de démonstration.', sku: 'SU-2002', photo_principale: PX(13613289) },
+  { id: 7, titre: 'Lampe d’ambiance salon', prix: 76, stock: 0, categorie: 'Ambiance', description: 'Exemple de produit de démonstration.', sku: 'AM-3001', photo_principale: PX(34726411) },
+  { id: 8, titre: 'Lampe sur plateau', prix: 54, stock: 15, categorie: 'Ambiance', description: 'Exemple de produit de démonstration.', sku: 'AM-3002', photo_principale: PX(21649114) },
+  { id: 9, titre: 'Veilleuse minimaliste', prix: 28, stock: 15, categorie: 'Veilleuses', description: 'Exemple de produit de démonstration.', sku: 'VE-4001', photo_principale: PX(33096005) },
+  { id: 10, titre: 'Projecteur de galaxie', prix: 45, prix_promo: 36, stock: 15, categorie: 'Veilleuses', description: 'Exemple de produit de démonstration.', sku: 'VE-4002', photo_principale: PX(4021523) },
+  { id: 11, titre: 'Enseigne néon', prix: 69, stock: 15, categorie: 'Veilleuses', description: 'Exemple de produit de démonstration.', sku: 'VE-4003', photo_principale: PX(10827984) },
+];
+const DEMO_ARTICLES_ORBITE = [
+  { id: 9001, titre: 'Exemple : choisir sa lampe de chevet', slug: 'exemple-filtre', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(33096005), date_publication: new Date(Date.now() - 5 * 864e5).toISOString(), categorie: 'Conseils', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9002, titre: 'Exemple : réussir l’éclairage d’un salon', slug: 'exemple-torrefaction', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(30107913), date_publication: new Date(Date.now() - 12 * 864e5).toISOString(), categorie: 'Guides', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+  { id: 9003, titre: 'Exemple : une suspension en cinq étapes', slug: 'exemple-mouture', extrait: 'Article d\'exemple de la démonstration.', image_couverture: PX(13344261), date_publication: new Date(Date.now() - 20 * 864e5).toISOString(), categorie: 'Guides', contenu: 'Exemple de démonstration : votre vrai blogue remplace cet article.' },
+];
+const ORBITE_FIN_DEMO = (() => { const d = new Date(Date.now() + 15 * 864e5); const z = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; })();
+const DEMO_CONFIG_ORBITE = { orbite: {
+  accueil: {
+    hero: { titre: 'Des lueurs pour rêver', sousTitre: 'Exemple de démonstration', boutonLabel: 'Magasiner', boutonLien: '/catalogue', photo: PX(4021523, 1600), style: 'image-fond' },
+    entete: { barreHaut: { actif: true, gauche: 'Exemple de démonstration : message de la barre du haut', droite: 'Aide | contact\nBlogue | blog' } },
+    diaporama: [
+      { surtitre: 'Livraison rapide · Garantie 2 ans · Nouveautés chaque mois', titre: 'Des lueurs pour *rêver*', texte: 'Exemple de démonstration : remplacez ce texte par le vôtre. Chaque luminaire est choisi avec soin pour habiller vos soirées.', bouton: 'Magasiner', lien: 'catalogue', photo: PX(4021523, 1600), photo2: PX(1023067, 500), badge: 'Nouveau' },
+      { surtitre: 'Veilleuses · Douces et colorées', titre: 'Un coin *doux* chez vous', texte: 'Exemple de démonstration : un deuxième message.', bouton: 'Voir les veilleuses', lien: 'cat:Veilleuses', photo: PX(10827984, 1600) },
+      { surtitre: 'Suspensions · Design', titre: 'Une *lumière* qui suspend le temps', texte: 'Exemple de démonstration : un troisième message.', bouton: 'Voir les suspensions', lien: 'cat:Suspensions', photo: PX(13613289, 1600), badge: '-20 %' },
+    ],
+    parcourir: { titre: 'Magasiner par catégorie', nombre: 6 },
+    vedette: { titre: 'Nos *meilleurs vendeurs*', sousTitre: 'Exemple de démonstration', categorie: '', nombre: 10 },
+    pastilles: { titre: 'Nos *garanties*', items: '🔒 | Paiement sécurisé\n🚚 | Livraison soignée\n↩️ | Retours simples\n💡 | Garantie 2 ans' },
+    presentation: { titre: 'À propos de la *boutique*', texte: 'Exemple de démonstration : présentez ici votre boutique, votre sélection et ce qui vous distingue. Ce texte est remplacé par le vôtre.', bouton: 'En savoir plus', lien: 'a-propos', photo: PX(34726411, 1200), inverser: false },
+    etapes: { titre: 'Comment ça *marche*', photo: PX(33164413, 1200), items: 'Choisissez | Exemple de démonstration : parcourez le catalogue et ajoutez vos coups de cœur au panier.\nCommandez | Exemple de démonstration : paiement sécurisé et confirmation immédiate.\nRecevez | Exemple de démonstration : livraison soignée, prête à brancher.', bouton: 'En savoir plus', lien: 'a-propos' },
+    avantages: [
+      { ico: '✨', titre: 'Pièces choisies', desc: 'Exemple de démonstration : décrivez ici un engagement réel de votre boutique.' },
+      { ico: '🎨', titre: 'Ambiances variées', desc: 'Exemple de démonstration : un deuxième engagement.' },
+      { ico: '🔧', titre: 'Prêt à poser', desc: 'Exemple de démonstration : un troisième engagement.' },
+      { ico: '💬', titre: 'Conseils offerts', desc: 'Exemple de démonstration : un quatrième engagement.' },
+    ],
+    temoignagesTitre: 'Avis de nos *clients*', temoignagesSousTitre: 'Exemple de démonstration', temoignagesPhotos: PX(1982095, 700) + '\n' + PX(793012, 700),
+    decompte: { titre: 'Une *vente* se termine bientôt', sousTitre: 'Exemple de démonstration : date fictive', fin: ORBITE_FIN_DEMO, photo: PX(3213577, 1600), bouton: 'En savoir plus', lien: 'contact' },
+    tuiles: [
+      { titre: 'Les *plus vendues*', texte: 'Exemple de démonstration : une carte promo.', bouton: 'Voir maintenant', lien: 'catalogue', photo: PX(30107913, 1000), couleur: '' },
+      { titre: 'Nos *veilleuses*', texte: 'Exemple de démonstration : une deuxième carte promo.', bouton: 'Voir maintenant', lien: 'cat:Veilleuses', photo: PX(33096005, 1000), couleur: '' },
+    ],
+    blogApercu: { titre: 'Notre *blogue*', sousTitre: 'Exemple de démonstration', bouton: 'Lire le blogue' },
+    accordeon2: { titre: 'Questions fréquentes', items: 'Première question ? | Exemple de démonstration : la réponse s\'affiche ici.\nDeuxième question ? | Exemple de démonstration : la réponse s\'affiche ici.\nTroisième question ? | Exemple de démonstration : la réponse s\'affiche ici.' },
+    marques: { items: ' | Marque exemple 1 | \n | Marque exemple 2 | \n | Marque exemple 3 | \n | Marque exemple 4 | ' },
+    bandes: true, couleurBande: '#14194f', etoiles: true, ornements: true, boutonFlottant: true, flottantTexte: 'Découvrir la boutique', flottantLien: '/catalogue',
+    photoBande1: PX(7603274, 1800), photoBande2: PX(10828609, 1800), photoBande3: PX(3213577, 1800),
+    ticker: { messages: 'Exemple : un message de votre boutique\nExemple : un autre message', vitesse: 'normale', couleurFond: '#0f1240', couleurTexte: '#e6e8ff', couleurAccent: '#ffe9a3', icone: '✦', lien: '' },
+  },
+  footer: { nomBoutique: 'Ma boutique Orbite', slogan: 'Exemple de démonstration', afficherPropulse: true,
+    reseaux: { facebook: 'https://facebook.com', instagram: 'https://instagram.com' },
+    aide: { titre: 'Besoin d\'aide ?', texte: 'Exemple de démonstration : une équipe pour vous conseiller.', bouton: 'Nous joindre', lien: 'contact', photo: '' },
+    paiements: 'Visa\nMastercard\nPayPal' },
+} };
+
 const DEMO_CONFIG_CATALOGUE = { avance: { footer: { nomBoutique: 'Ma Boutique', afficherPropulse: true } } };
 
 // Mono-produit : UN seul produit, avec options (démonstration seulement — une vraie boutique n'affiche jamais ces exemples)
@@ -1978,7 +2039,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
   const templateId = forceTemplate || siteData?.template_id || 'vitrine';
   const siteId     = siteData?.id;
   const configBD   = isDemo
-    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : estFuturisteBoutique(templateId) ? DEMO_CONFIG_FUTURISTE : estTechBoutique(templateId) ? DEMO_CONFIG_TECH : estRoseBoutique(templateId) ? DEMO_CONFIG_ROSE : estBonbonBoutique(templateId) ? DEMO_CONFIG_BONBON : estSoleilBoutique(templateId) ? DEMO_CONFIG_SOLEIL : estSentierBoutique(templateId) ? DEMO_CONFIG_SENTIER : estChantierBoutique(templateId) ? DEMO_CONFIG_CHANTIER : estCafeBoutique(templateId) ? DEMO_CONFIG_CAFE : estSakuraBoutique(templateId) ? DEMO_CONFIG_SAKURA : estSportBoutique(templateId) ? DEMO_CONFIG_SPORT : estJoyauBoutique(templateId) ? DEMO_CONFIG_JOYAU : estEcumeBoutique(templateId) ? DEMO_CONFIG_ECUME : estAudaceBoutique(templateId) ? DEMO_CONFIG_AUDACE : estCarnavalBoutique(templateId) ? DEMO_CONFIG_CARNAVAL : estPatchworkBoutique(templateId) ? DEMO_CONFIG_PATCHWORK : estVigieBoutique(templateId) ? DEMO_CONFIG_VIGIE : estAuroreBoutique(templateId) ? DEMO_CONFIG_AURORE : estGalerieBoutique(templateId) ? DEMO_CONFIG_GALERIE : estRallyeBoutique(templateId) ? DEMO_CONFIG_RALLYE : estPaonBoutique(templateId) ? DEMO_CONFIG_PAON : estPopBoutique(templateId) ? DEMO_CONFIG_POP : estNocturneBoutique(templateId) ? DEMO_CONFIG_NOCTURNE : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
+    ? (estModeBoutique(templateId) ? DEMO_CONFIG_MODE : templateId.startsWith('boutique-simplisse') ? DEMO_CONFIG_SIMPLISSE : estMonoProduit(templateId) ? DEMO_CONFIG_SIMPLE : estCompleteBoutique(templateId) ? DEMO_CONFIG_COMPLETE : estCatalogueBoutique(templateId) ? DEMO_CONFIG_CATALOGUE : estAgricoleBoutique(templateId) ? DEMO_CONFIG_AGRICOLE : estArtisanBoutique(templateId) ? DEMO_CONFIG_ARTISAN : estAutoBoutique(templateId) ? DEMO_CONFIG_AUTO : estJouetsBoutique(templateId) ? DEMO_CONFIG_JOUETS : estGothiqueBoutique(templateId) ? DEMO_CONFIG_GOTHIQUE : estBDBoutique(templateId) ? DEMO_CONFIG_BD : estFuturisteBoutique(templateId) ? DEMO_CONFIG_FUTURISTE : estTechBoutique(templateId) ? DEMO_CONFIG_TECH : estRoseBoutique(templateId) ? DEMO_CONFIG_ROSE : estBonbonBoutique(templateId) ? DEMO_CONFIG_BONBON : estSoleilBoutique(templateId) ? DEMO_CONFIG_SOLEIL : estSentierBoutique(templateId) ? DEMO_CONFIG_SENTIER : estChantierBoutique(templateId) ? DEMO_CONFIG_CHANTIER : estCafeBoutique(templateId) ? DEMO_CONFIG_CAFE : estSakuraBoutique(templateId) ? DEMO_CONFIG_SAKURA : estSportBoutique(templateId) ? DEMO_CONFIG_SPORT : estJoyauBoutique(templateId) ? DEMO_CONFIG_JOYAU : estEcumeBoutique(templateId) ? DEMO_CONFIG_ECUME : estAudaceBoutique(templateId) ? DEMO_CONFIG_AUDACE : estCarnavalBoutique(templateId) ? DEMO_CONFIG_CARNAVAL : estPatchworkBoutique(templateId) ? DEMO_CONFIG_PATCHWORK : estVigieBoutique(templateId) ? DEMO_CONFIG_VIGIE : estAuroreBoutique(templateId) ? DEMO_CONFIG_AURORE : estGalerieBoutique(templateId) ? DEMO_CONFIG_GALERIE : estRallyeBoutique(templateId) ? DEMO_CONFIG_RALLYE : estPaonBoutique(templateId) ? DEMO_CONFIG_PAON : estPopBoutique(templateId) ? DEMO_CONFIG_POP : estNocturneBoutique(templateId) ? DEMO_CONFIG_NOCTURNE : estOrbiteBoutique(templateId) ? DEMO_CONFIG_ORBITE : templateId === 'agricole' ? {} : DEMO_CONFIG_GENERIQUE)
     : (siteData?.config || {});
   const config = { ...configBD, vendeurId: Number(vendeurId || 0) };
 
@@ -2153,6 +2214,11 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Simplisse Nocturne : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_NOCTURNE, __articles_demo__: DEMO_ARTICLES_NOCTURNE } : config;
       return <TemplateBoutiqueNocturne config={isDemo ? configDemo : configNocturneAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.nocturne) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    }
+    if (templateId === 'boutique-orbite') {
+      // Simplisse Orbite : vraies annonces du gestionnaire ; en démo seulement, des produits et photos d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
+      const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_ORBITE, __articles_demo__: DEMO_ARTICLES_ORBITE } : config;
+      return <TemplateBoutiqueOrbite config={isDemo ? configDemo : configOrbiteAvecBadge(configDemo, addonsBoutique, (configDemo && configDemo.orbite) || {})} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
     if (templateId === 'boutique-agricole') {
       // Boutique Agricole : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.

@@ -242,3 +242,10 @@ export function configNocturneAvecBadge(config: any, addons: Record<string, bool
   const nocturne = (base && typeof base === 'object') ? base : {};
   return { ...config, nocturne: { ...nocturne, footer: { ...(nocturne.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Orbite : le pied de page se lit dans config.orbite.footer.afficherPropulse.
+// `base` = config.orbite déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configOrbiteAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const orbite = (base && typeof base === 'object') ? base : {};
+  return { ...config, orbite: { ...orbite, footer: { ...(orbite.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

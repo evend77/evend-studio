@@ -44,6 +44,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-paon':             'https://images.pexels.com/photos/4013073/pexels-photo-4013073.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-pop':             'https://images.pexels.com/photos/5382917/pexels-photo-5382917.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-nocturne':        '/apercus/boutique-nocturne.jpg',
+  'boutique-orbite':          '/apercus/boutique-orbite.jpg',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -391,6 +392,14 @@ export const TEMPLATES: Template[] = [
     description: "Style féerique : violet nuit et menthe, titres serif, fond étoilé qui scintille, photo en bulle, bandes à vagues, ornements étoilés. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
     fonctionnalites: ['Violet nuit et menthe réglables, mode clair ou sombre', 'Fond étoilé, bandes à vagues, titres serif', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#6d4fd8',
+  },
+  {
+    id: 'boutique-orbite',
+    nom: 'Simplisse Orbite',
+    groupe: 'boutique-generique',
+    description: "Style cosmique : marine profond et crème, grand titre sur photo, sphères colorées qui flottent, cartes en verre, fonds photo en bandes, titres à chasse fixe. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Marine, crème et sphères colorées réglables, mode clair ou sombre', 'Grand titre sur photo, fonds photo en bandes, cartes en verre', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#d81b60',
   },
   {
     id: 'boutique-agricole',
