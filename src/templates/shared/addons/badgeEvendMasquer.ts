@@ -221,3 +221,10 @@ export function configRallyeAvecBadge(config: any, addons: Record<string, boolea
   const rallye = (base && typeof base === 'object') ? base : {};
   return { ...config, rallye: { ...rallye, footer: { ...(rallye.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
 }
+
+// Template Simplisse Paon : le pied de page se lit dans config.paon.footer.afficherPropulse.
+// `base` = config.paon déjà lue : on n'écrase jamais la config du gestionnaire.
+export function configPaonAvecBadge(config: any, addons: Record<string, boolean> | null | undefined, base: any): any {
+  const paon = (base && typeof base === 'object') ? base : {};
+  return { ...config, paon: { ...paon, footer: { ...(paon.footer || {}), afficherPropulse: !badgeMasque(addons) } } };
+}

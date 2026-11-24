@@ -41,6 +41,7 @@ export const PHOTOS: Record<string, string> = {
   'boutique-aurore':             'https://images.pexels.com/photos/39572247/pexels-photo-39572247.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-galerie':             'https://images.pexels.com/photos/2962086/pexels-photo-2962086.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-rallye':             'https://images.pexels.com/photos/5383809/pexels-photo-5383809.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'boutique-paon':             'https://images.pexels.com/photos/4013073/pexels-photo-4013073.jpeg?auto=compress&cs=tinysrgb&w=800',
   'agricole':                     'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   'boutique-agricole':             'https://images.pexels.com/photos/2255801/pexels-photo-2255801.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Multi-vendeur
@@ -364,6 +365,14 @@ export const TEMPLATES: Template[] = [
     description: "Style atelier : fond noir charbon et orange vif, étiquettes et logo inclinés, barre de menu orange, offre du jour avec compte à rebours, comparateur avant/après, cartes blanches. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
     fonctionnalites: ['Noir charbon et orange réglables, mode clair ou sombre', 'Offre du jour avec compte à rebours, mosaïque, avant/après', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
     disponible: true, nouveau: true, couleur: '#ff6a10',
+  },
+  {
+    id: 'boutique-paon',
+    nom: 'Simplisse Paon',
+    groupe: 'boutique-generique',
+    description: "Style éditorial : bleu pétrole et rose poudré en bandes alternées, énormes titres serif, traits fins, boutons à contour arrondi, ruban de promotion en diagonale, ventes flash avec compte à rebours. Mode clair ou sombre. Tout est réglable, avec panier, compte acheteur et tous les add-ons.",
+    fonctionnalites: ['Pétrole et rose poudré réglables, mode clair ou sombre', 'Offre spéciale, ventes flash avec compte à rebours, collections', 'Sections masquables et réordonnables', 'Panier, paiement Stripe ou PayPal et compte acheteur'],
+    disponible: true, nouveau: true, couleur: '#e3c9c4',
   },
   {
     id: 'boutique-agricole',
