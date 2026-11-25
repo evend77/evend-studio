@@ -198,6 +198,8 @@ app.use('/api/acheteurs-studio', require('./routes/acheteurs-studio'));
 // 💝 DONS — CAGNOTTEPRO
 // =====================================================================
 app.use('/api/dons', require('./routes/cagnotte_dons'));
+// Prix publics des cagnottes (lecture seule, sans connexion) : lus dans les réglages de la page admin
+app.use('/api/cagnotte/prix', require('./routes/cagnotte_prix_public'));
 app.use('/api/cagnotte/campagne', require('./routes/cagnotte_campagne'));
 app.use('/api/gestionnaire/cagnotte-paiement', require('./routes/cagnotte_paiement_config'));
 app.use('/api/admin/cagnotte', require('./routes/cagnotte_admin'));
@@ -1201,6 +1203,7 @@ app.listen(port, () => {
   console.log(`📅 Réservations: GET  /api/reservations/vendeur`);
   console.log(`🎭 Sièges:       GET  /api/sieges/public/:siteId`);
   console.log(`💝 Dons:         GET  /api/dons/gestionnaire`);
+  console.log(`💝 Prix cagnotte: GET  /api/cagnotte/prix`);
   console.log(`👑 Admin:        GET  /api/admin/gestionnaires`);
   console.log(`🧪 Test BD:      GET  /api/test`);
   console.log(`🔒 Caddy ask:    GET  /caddy/ask?domain=...`);

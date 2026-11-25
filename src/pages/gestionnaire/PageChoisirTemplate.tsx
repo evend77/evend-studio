@@ -447,6 +447,64 @@ function claire(hex: string): boolean {
   return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.62;
 }
 
+// ─── Encadré « Prix d'une cagnotte » : lu en direct dans les réglages de l'admin (aucun prix codé ici) ───
+interface EtatPrixCagnotte {
+  paliers: { id: string; nom: string; objectif_max: number | null; prix: number }[];
+  duree_max_jours: number; devise: string; objectif?: number;
+  remboursement: { actif: boolean; pct: number };
+  apercu?: { palier: { id: string; nom: string }; prix: number } | null;
+}
+function EncadrePrixCagnotte() {
+  const [etat, setEtat] = useState<EtatPrixCagnotte | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    const token = localStorage.getItem('token');
+    fetch('/api/cagnotte/campagne/etat', { credentials: 'include', headers: token ? { Authorization: `Bearer ${token}` } : {} })
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (vivant && d && Array.isArray(d.paliers) && d.paliers.length) setEtat(d); })
+      .catch(() => { /* l'encadré est simplement masqué */ });
+    return () => { vivant = false; };
+  }, []);
+  if (!etat) return null;
+  const argent = (n: number) => new Intl.NumberFormat('fr-CA', { style: 'currency', currency: etat.devise || 'CAD', maximumFractionDigits: n % 1 === 0 ? 0 : 2 }).format(n);
+  const tries = [...etat.paliers].sort((a, b) => (a.objectif_max === null ? Infinity : a.objectif_max) - (b.objectif_max === null ? Infinity : b.objectif_max));
+  const palierActuel = etat.apercu ? etat.apercu.palier.id : null;
+  const libelleObjectif = (p: { objectif_max: number | null }, i: number) => {
+    if (p.objectif_max === null) return i > 0 && tries[i - 1].objectif_max !== null ? `Plus de ${argent(tries[i - 1].objectif_max as number)}` : 'Objectif illimité';
+    return `Objectif jusqu'à ${argent(p.objectif_max)}`;
+  };
+  return (
+    <div style={{ marginBottom: 24, borderRadius: 16, border: '1px solid rgba(251,191,36,0.45)', background: 'linear-gradient(135deg, rgba(251,191,36,0.10), rgba(255,255,255,0.03))', padding: '18px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 22 }}>💝</span>
+        <h3 style={{ margin: 0, fontFamily: "'Sora', sans-serif", fontSize: 17, fontWeight: 800, color: '#fff' }}>Combien coûte une cagnotte ?</h3>
+      </div>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.72)' }}>
+        Un <b style={{ color: '#fff' }}>prix fixe, payé une seule fois par campagne</b>, selon l'objectif que vous fixez. <b style={{ color: '#fff' }}>Aucune commission</b> sur les dons : l'argent va directement dans votre compte Stripe ou PayPal. Les taxes s'ajoutent au prix.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+        {tries.map((p, i) => {
+          const actif = palierActuel === p.id;
+          return (
+            <div key={p.id} style={{ borderRadius: 12, padding: '12px 14px', border: actif ? '2px solid #fbbf24' : '1px solid rgba(255,255,255,0.14)', background: actif ? 'rgba(251,191,36,0.14)' : 'rgba(0,0,0,0.22)' }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{p.nom}{actif ? ' · votre palier' : ''}</div>
+              <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: '2px 0' }}>{argent(p.prix)}</div>
+              <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)' }}>{libelleObjectif(p, i)}</div>
+            </div>
+          );
+        })}
+      </div>
+      <ul style={{ margin: '14px 0 0', padding: '0 0 0 18px', fontSize: 12.5, lineHeight: 1.7, color: 'rgba(255,255,255,0.7)' }}>
+        <li>Durée maximale d'une campagne : <b style={{ color: '#fff' }}>{etat.duree_max_jours} jours</b>.</li>
+        {etat.remboursement && etat.remboursement.actif && <li>Si votre campagne se termine <b style={{ color: '#fff' }}>sans aucun don</b>, {etat.remboursement.pct} % du prix payé vous est remboursé.</li>}
+        <li>{etat.objectif && etat.objectif > 0
+          ? <>Votre objectif actuel est de <b style={{ color: '#fff' }}>{argent(etat.objectif)}</b> (modifiable dans « Ma campagne » avant de publier).</>
+          : <>Le palier est choisi selon l'objectif que vous indiquerez dans « Ma campagne ».</>}</li>
+      </ul>
+    </div>
+  );
+}
+
 export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props) {
   const [ongletCategorie, setOngletCategorie] = useState<'vitrines'|'boutiques'|'multivendeur'|'cagnottes'|'encheres'|'annonces'|'abonnements'|'locations'>('vitrines');
   const [descOuverte, setDescOuverte] = useState(false);
@@ -464,6 +522,20 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [enregistrementPlan, setEnregistrementPlan] = useState(false);
   const [modalResetOuvert, setModalResetOuvert] = useState(false);
   const [prixParTemplate, setPrixParTemplate] = useState<Record<string, string>>({});
+  // Prix des cagnottes : « À partir de X » lu en direct dans les réglages de l'admin
+  const [prixCagnotteTexte, setPrixCagnotteTexte] = useState('');
+  useEffect(() => {
+    fetch('/api/cagnotte/prix')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d || !d.success || !Array.isArray(d.paliers) || !d.paliers.length) return;
+        const min = Math.min(...d.paliers.map((x: { prix: number }) => x.prix));
+        const f = new Intl.NumberFormat('fr-CA', { style: 'currency', currency: d.devise || 'CAD', maximumFractionDigits: min % 1 === 0 ? 0 : 2 }).format(min);
+        setPrixCagnotteTexte(`À partir de ${f} / campagne`);
+      })
+      .catch(() => { /* silencieux */ });
+  }, []);
+  const prixDe = (t: any): string => (String(t.id).startsWith('cagnotte-') && prixCagnotteTexte ? prixCagnotteTexte : (prixParTemplate[t.id] || t.prix || ''));
   // Paliers réels (Prix Template, dashboard admin) : prix de départ et nombre maximal de produits affichés sur les cartes Simplisse / Premium
   const [infoPaliers, setInfoPaliers] = useState<Record<string, { prixMin: string; limiteMax: number }>>({});
   const [paliersComplete, setPaliersComplete] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de la Boutique Complète (Prix Template) ; vide = aucune limite, pas de fenêtre
@@ -1936,6 +2008,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         const aVenir = !!(categorie as any).aVenir;
         return (
           <div key={categorie.id}>
+            {categorie.id === 'cagnottes' && <EncadrePrixCagnotte />}
             {/* Description améliorée avec toggle */}
             <div style={{ marginBottom: 28 }}>
               <button
@@ -2522,8 +2595,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                                 ? <span style={{ fontSize: 11, background: 'transparent', color: '#fff', padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>Bientôt</span>
                                 : t.badge
                                 ? <span style={{ fontSize: 11, background: 'transparent', color: '#fff', padding: '3px 10px', borderRadius: 20, fontWeight: 700 }}>{t.badge}</span>
-                                : (prixParTemplate[t.id] || (t as any).prix) && (prixParTemplate[t.id] || (t as any).prix) !== 'Gratuit'
-                                ? <span style={{ fontSize: 11, background: 'transparent', color: '#fbbf24', padding: '3px 10px', borderRadius: 20, fontWeight: 700 }}>{prixParTemplate[t.id] || (t as any).prix}</span>
+                                : prixDe(t) && prixDe(t) !== 'Gratuit'
+                                ? <span style={{ fontSize: 11, background: 'transparent', color: '#fbbf24', padding: '3px 10px', borderRadius: 20, fontWeight: 700 }}>{prixDe(t)}</span>
                                 : <span style={{ fontSize: 11, background: 'transparent', color: '#fff', padding: '3px 10px', borderRadius: 20, fontWeight: 700 }}>Gratuit</span>
                               }
                             </span>

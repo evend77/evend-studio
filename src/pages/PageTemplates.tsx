@@ -957,11 +957,63 @@ function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommenc
 
 // ─── COMPOSANT PRINCIPAL ──────────────────────────────────────────────────────
 
+// ─── Prix d'une cagnotte : lus en direct dans les réglages de l'admin (route publique, aucun prix codé ici) ───
+interface PrixCagnotte {
+  paliers: { id: string; nom: string; objectif_max: number | null; prix: number }[];
+  duree_max_jours: number; devise: string; remboursement: { actif: boolean; pct: number };
+}
+function formaterArgent(n: number, devise: string): string {
+  return new Intl.NumberFormat('fr-CA', { style: 'currency', currency: devise || 'CAD', maximumFractionDigits: n % 1 === 0 ? 0 : 2 }).format(n);
+}
+function EncadrePrixCagnotte({ prix }: { prix: PrixCagnotte }) {
+  const tries = [...prix.paliers].sort((a, b) => (a.objectif_max === null ? Infinity : a.objectif_max) - (b.objectif_max === null ? Infinity : b.objectif_max));
+  const argent = (n: number) => formaterArgent(n, prix.devise);
+  const libelle = (p: { objectif_max: number | null }, i: number) => {
+    if (p.objectif_max === null) return i > 0 && tries[i - 1].objectif_max !== null ? `Plus de ${argent(tries[i - 1].objectif_max as number)}` : 'Objectif illimité';
+    return `Objectif jusqu'à ${argent(p.objectif_max)}`;
+  };
+  return (
+    <div style={{ margin: '0 0 28px', borderRadius: 16, border: '1px solid rgba(236,72,153,0.45)', background: 'linear-gradient(135deg, rgba(236,72,153,0.10), rgba(255,255,255,0.03))', padding: '18px 20px', maxWidth: 900 }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800, color: '#fff' }}>💝 Combien coûte une cagnotte ?</h3>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)' }}>
+        Un <b style={{ color: '#fff' }}>prix fixe, payé une seule fois par campagne</b>, selon votre objectif. <b style={{ color: '#fff' }}>Aucune commission</b> sur les dons : l'argent va directement dans votre compte Stripe ou PayPal. Taxes en sus.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+        {tries.map((p, i) => (
+          <div key={p.id} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.25)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#f9a8d4', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{p.nom}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: '2px 0' }}>{argent(p.prix)}</div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)' }}>{libelle(p, i)}</div>
+          </div>
+        ))}
+      </div>
+      <p style={{ margin: '12px 0 0', fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
+        Durée maximale : {prix.duree_max_jours} jours.{prix.remboursement && prix.remboursement.actif ? ` Sans aucun don, ${prix.remboursement.pct} % du prix payé est remboursé.` : ''}
+      </p>
+    </div>
+  );
+}
+
 export default function PageTemplates() {
   const navigate = useNavigate();
   const [filtreCategorie, setFiltreCategorie] = useState<string>('tous');
   const [recherche, setRecherche] = useState('');
   const [prixParTemplate, setPrixParTemplate] = useState<Record<string, string>>({});
+  const [prixCagnotte, setPrixCagnotte] = useState<PrixCagnotte | null>(null);
+  useEffect(() => {
+    fetch('/api/cagnotte/prix')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && d.success && Array.isArray(d.paliers) && d.paliers.length) setPrixCagnotte(d); })
+      .catch(() => { /* silencieux : les cartes gardent le prix du dashboard admin */ });
+  }, []);
+  // Une carte cagnotte affiche « À partir de X » (le plus bas palier), toujours à jour avec l'admin.
+  const prixAfficheDe = (t: Template): string | undefined => {
+    if (t.groupe === 'cagnotte' && prixCagnotte) {
+      const min = Math.min(...prixCagnotte.paliers.map(p => p.prix));
+      return `À partir de ${formaterArgent(min, prixCagnotte.devise)} / campagne`;
+    }
+    return prixParTemplate[t.id];
+  };
 
   // Prix réels configurés dans le dashboard admin — si l'appel échoue,
   // les cartes retombent simplement sur t.prix codé en dur (ou "Gratuit").
@@ -1161,6 +1213,8 @@ export default function PageTemplates() {
                     <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, maxWidth: 820 }}>{categorie.seoDesc}</p>
                   </div>
 
+                  {categorie.id === 'cagnottes' && prixCagnotte && <EncadrePrixCagnotte prix={prixCagnotte} />}
+
                   {/* Sous-groupes internes (si plusieurs) sinon grille directe */}
                   {sousGroupeIds.length > 1 ? (
                     sousGroupeIds.map(gId => {
@@ -1175,7 +1229,7 @@ export default function PageTemplates() {
                           <div className="templates-mobile-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
                             {tempsSousGroupe.map((t, i) => (
                               <div key={t.id} className="fade-up" style={{ animationDelay: `${i * 0.06}s` }}>
-                                <CarteTemplate t={t} onCommencer={onCommencer} prixAffiche={prixParTemplate[t.id]} />
+                                <CarteTemplate t={t} onCommencer={onCommencer} prixAffiche={prixAfficheDe(t)} />
                               </div>
                             ))}
                           </div>
@@ -1186,7 +1240,7 @@ export default function PageTemplates() {
                     <div className="templates-mobile-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 22 }}>
                       {tempsCategorie.map((t, i) => (
                         <div key={t.id} className="fade-up" style={{ animationDelay: `${i * 0.06}s` }}>
-                          <CarteTemplate t={t} onCommencer={onCommencer} prixAffiche={prixParTemplate[t.id]} />
+                          <CarteTemplate t={t} onCommencer={onCommencer} prixAffiche={prixAfficheDe(t)} />
                         </div>
                       ))}
                     </div>
