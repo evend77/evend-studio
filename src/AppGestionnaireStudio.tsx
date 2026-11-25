@@ -1261,6 +1261,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuAddOn,
     ];
   } else if (estCagnotte) {
+    // Cagnotte : pas de collaborateurs, badges, blogs, FAQ, chat, branding, analytique, effets, add-ons
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       {
@@ -1268,20 +1269,13 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         sousMenu: [
           { id: 'cagnotte-config',     label: 'Ma campagne',          icon: '✏️' },
           { id: 'commandes-cagnotte',  label: 'Ma Cagnotte',          icon: '💝' },
-          { id: 'commandes-documents', label: 'Documents',            icon: '📄' },
         ]
       },
-      menuSousVendeurs,
-      menuBadges,
-      menuBlogsSV,
-      menuFaqsSV,
-      menuChatSV,
       menuStudio,
       {
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [
           itemConfigGenerale,
-          itemConfigMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404, itemMaintenance,
@@ -1294,11 +1288,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuProfil,
       menuMessagerie,
-      menuBrandingOptions,
-      ...(options?.analytique ? [menuMesAnalytique] : []),
-      ...(options?.chatbot ? [menuMesChatbot] : []),
-      menuMesEffetsVisuels, // 🔥 AJOUT
-      menuAddOn,
     ];
   } else if (estVitrinePro) {
     menuItems = [
