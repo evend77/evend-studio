@@ -1336,16 +1336,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     {
       id: 'cagnottes' as const,
       titre: '💝 Cagnottes',
-      desc: 'Collecte de fonds en ligne — recevez des dons via Stripe directement dans votre compte.',
+      desc: 'Collecte de fonds en ligne — dons directement sur votre Stripe / PayPal. Prix fixe par campagne, aucune commission.',
       couleurGroupe: '#ec4899',
       sousGroupes: [
         {
           templates: [
-            { id: 'cagnotte-personnel',     titre: 'Personnel',     desc: "Besoin d'aide financière, frais médicaux, accident de vie.",         icone: '❤️', couleur: '#ec4899', disponible: true },
-            { id: 'cagnotte-projet',        titre: 'Projet',        desc: 'Financer un projet créatif, artistique ou entrepreneurial.',           icone: '🚀', couleur: '#6366f1', disponible: true },
-            { id: 'cagnotte-communaute',    titre: 'Communauté',    desc: 'Cause collective, association, équipe sportive, école.',               icone: '🤝', couleur: '#0ea5e9', disponible: true },
-            { id: 'cagnotte-environnement', titre: 'Environnement', desc: 'Cause verte, protection des animaux, nature.',                         icone: '🌿', couleur: '#16a34a', disponible: true },
-            { id: 'cagnotte-urgence',       titre: 'Urgence',       desc: 'Catastrophe naturelle, sinistre, crise humanitaire.',                  icone: '🆘', couleur: '#dc2626', disponible: true },
+            { id: 'cagnotte-classique',    titre: 'Cagnotte Classique', desc: 'Page de collecte élégante : dons par carte et PayPal sur votre propre compte, aucune commission, prix fixe par campagne.', icone: '💝', couleur: '#c9a96e', disponible: true },
           ]
         },
       ]

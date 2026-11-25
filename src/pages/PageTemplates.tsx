@@ -61,11 +61,7 @@ export const PHOTOS: Record<string, string> = {
   'reservation-service':  'https://images.pexels.com/photos/3993212/pexels-photo-3993212.jpeg?auto=compress&cs=tinysrgb&w=800',
   'reservation-spectacle':'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Cagnotte
-  'cagnotte-personnel':   'https://images.pexels.com/photos/6646918/pexels-photo-6646918.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'cagnotte-projet':      'https://images.pexels.com/photos/3184338/pexels-photo-3184338.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'cagnotte-communaute':  'https://images.pexels.com/photos/6646914/pexels-photo-6646914.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'cagnotte-environnement':'https://images.pexels.com/photos/1072824/pexels-photo-1072824.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'cagnotte-urgence':     'https://images.pexels.com/photos/5699516/pexels-photo-5699516.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'cagnotte-classique':   '/apercus/cagnotte-classique.jpg',
   // Profession
   'vitrine-avocat':           'https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800',
   'salon-coiffure':           'https://images.pexels.com/photos/3065209/pexels-photo-3065209.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -674,45 +670,14 @@ export const TEMPLATES: Template[] = [
   },
   // ── CAGNOTTE ──
   {
-    id: 'cagnotte-personnel',
-    nom: 'Personnel',
+    id: 'cagnotte-classique',
+    nom: 'Cagnotte Classique',
     groupe: 'cagnotte',
-    description: 'Aide financière, frais médicaux, accident de vie. Collectez des dons via Stripe.',
-    fonctionnalites: ['Barre de progression', 'Dons via Stripe', 'Messages donateurs', 'Anonymat optionnel'],
-    disponible: true, nouveau: false, couleur: '#ec4899',
+    description: 'Page de collecte de fonds élégante : barre de progression, dons par carte et PayPal directement sur votre compte, aucune commission. Prix fixe par campagne.',
+    fonctionnalites: ['Barre de progression', 'Stripe et PayPal à vous', 'Aucune commission', 'Messages et mises à jour'],
+    disponible: true, nouveau: true, couleur: '#c9a96e',
   },
-  {
-    id: 'cagnotte-projet',
-    nom: 'Projet',
-    groupe: 'cagnotte',
-    description: 'Financer un projet créatif, artistique ou entrepreneurial. Montants suggérés.',
-    fonctionnalites: ['Objectif de financement', 'Mises à jour', 'Montants suggérés', 'Partage réseaux sociaux'],
-    disponible: true, nouveau: false, couleur: '#6366f1',
-  },
-  {
-    id: 'cagnotte-communaute',
-    nom: 'Communauté',
-    groupe: 'cagnotte',
-    description: 'Association, équipe sportive, école. Mobilisez votre communauté.',
-    fonctionnalites: ['Page campagne', 'Compteur donateurs', 'Objectif affiché', 'Délai campagne'],
-    disponible: true, nouveau: false, couleur: '#0ea5e9',
-  },
-  {
-    id: 'cagnotte-environnement',
-    nom: 'Environnement',
-    groupe: 'cagnotte',
-    description: 'Cause verte, protection des animaux, nature. Sensibilisez et collectez.',
-    fonctionnalites: ['Design naturel', 'Barre de progression', 'Dons Stripe', 'Historique dons'],
-    disponible: true, nouveau: false, couleur: '#16a34a',
-  },
-  {
-    id: 'cagnotte-urgence',
-    nom: 'Urgence',
-    groupe: 'cagnotte',
-    description: 'Catastrophe naturelle, sinistre, crise humanitaire. Récolte de fonds rapide.',
-    fonctionnalites: ['Mise en ligne rapide', 'Dons instantanés', 'Compteur temps réel', 'Partage viral'],
-    disponible: true, nouveau: false, couleur: '#dc2626',
-  },
+
   // ── ENCHÈRES ──
   {
     id: 'enchere-flash',
@@ -750,7 +715,7 @@ export const GROUPES: { id: Groupe; label: string; icone: string; couleur: strin
   { id: 'resto',              label: 'Restaurant & Fast Food',             icone: '🍔', couleur: '#e8820a', desc: 'Menu, réservation de table, avis et carte Google Maps' },
   { id: 'profession',         label: 'Profession',                        icone: '💼', couleur: '#c9a84c', desc: "Sites professionnels dédiés aux services : avocat, coiffure et plus" },
   { id: 'reservation',        label: 'Formulaires & Réservations',         icone: '📅', couleur: '#6366f1', desc: 'Système de réservation intégré — sans paiement en ligne' },
-  { id: 'cagnotte',           label: 'CagnottePro',                       icone: '💝', couleur: '#ec4899', desc: 'Collecte de fonds en ligne — recevez des dons via Stripe' },
+  { id: 'cagnotte',           label: 'Cagnottes',                          icone: '💝', couleur: '#ec4899', desc: 'Collecte de fonds en ligne — dons sur votre propre Stripe / PayPal, prix fixe par campagne, aucune commission' },
   { id: 'enchere',            label: 'Enchères en ligne',                  icone: '🔨', couleur: '#dc2626', desc: "Sites d'enchères en temps réel — du mono-produit au méga site multi-lots" },
 ];
 

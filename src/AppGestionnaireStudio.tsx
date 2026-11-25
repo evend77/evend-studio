@@ -15,6 +15,7 @@ const API_BASE = '/api';
 
 // ── e-Vend Studio ──
 import MaCagnotte                   from './pages/studio/MaCagnotte';
+import ConfigMesPagesCagnotte         from './pages/gestionnaire/ConfigMesPagesCagnotte';
 import ModelesCourrielStudio from './pages/gestionnaire/ModelesCourrielStudio';
 import GestionReservations   from './pages/studio/GestionReservations';
 import MesReservationsEcole  from './pages/gestionnaire/MesReservationsEcole';
@@ -443,6 +444,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const getToken = () => localStorage.getItem('token');
 
   const [pageActive, setPageActive]         = useState('dashboard');
+  // Retour de la page de paiement d'une campagne de cagnotte (?cagnotte=paye|annule) : on ouvre « Ma Cagnotte »
+  useEffect(() => { try { if (new URLSearchParams(window.location.search).get('cagnotte')) setPageActive('commandes-cagnotte'); } catch (e) { /* ignore */ } }, []);
   const [templateIdChoisi, setTemplateIdChoisi] = useState<string>('');
   // Message affiché quand le serveur refuse un changement de template (ex. trop d'annonces actives pour la limite du nouveau)
   const [erreurTemplate, setErreurTemplate] = useState<string>('');
@@ -1263,8 +1266,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       {
         id: 'commandes', label: 'MA CAGNOTTE', icon: '💝',
         sousMenu: [
+          { id: 'cagnotte-config',     label: 'Ma campagne',          icon: '✏️' },
           { id: 'commandes-cagnotte',  label: 'Ma Cagnotte',          icon: '💝' },
-          { id: 'commandes-paiements', label: 'Paiements reçus',      icon: '💰' },
           { id: 'commandes-documents', label: 'Documents',            icon: '📄' },
         ]
       },
@@ -1803,6 +1806,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mes-chatbot') return <ChatbotConfig gestionnaireId={gestionnaire.id} modeMV={estMultiVendeur} />;
     if (pageActive === 'mes-effets-visuels') return <ConfigStoreEffects gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'cagnotte-config') return <ConfigMesPagesCagnotte gestionnaireId={gestionnaire.id} naviguer={setPageActive} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-liste') return <StudioSousVendeurs    gestionnaireId={gestionnaire.id} />;
@@ -1877,7 +1881,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         }
         setTemplateIdChoisi(templateId);
         setGestionnaire(prev => ({ ...prev, site_template_id: templateId }));
-        if (templateId === 'boutique-orbite') {
+        if (templateId === 'cagnotte-classique') {
+          setPageActive('cagnotte-config');
+        } else if (templateId === 'boutique-orbite') {
           setPageActive('orbite-config-pages');
         } else if (templateId === 'boutique-nocturne') {
           setPageActive('nocturne-config-pages');

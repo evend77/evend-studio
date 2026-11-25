@@ -15,7 +15,7 @@ import VerificateurAge                from '../components/VerificateurAge';
 import TemplateVitrine                from '../templates/TemplateVitrine';
 import TemplateReservation            from '../templates/TemplateReservation';
 import TemplateSpectacle              from '../templates/TemplateSpectacle';
-import TemplateCagnottePro            from '../templates/TemplateCagnottePro';
+import TemplateCagnotteClassique      from '../templates/TemplateCagnotteClassique';
 import TemplateBoutiqueSimple         from '../templates/TemplateBoutiqueSimple';
 import TemplateBoutiqueComplete, { migrerComplete } from '../templates/TemplateBoutiqueComplete';
 import TemplateBoutiqueCatalogue from '../templates/TemplateBoutiqueCatalogue';
@@ -2265,7 +2265,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Add-on « Cacher le branding » : badge « Propulsé par » masqué seulement si l'add-on est activé
       return <TemplateBoutiqueSimplisse config={isDemo ? configDemo : configSimplisseAvecBadge(configDemo, addonsBoutique)} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
-    if (templateId.startsWith('cagnotte-'))        return <TemplateCagnottePro config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    if (templateId.startsWith('cagnotte-'))        return <TemplateCagnotteClassique config={{ ...(config as any), ...(((config as any).cagnotte && typeof (config as any).cagnotte === 'object') ? (config as any).cagnotte : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'reservation-spectacle')    return <TemplateSpectacle config={config} siteId={siteId} />;
     if (templateId.startsWith('reservation-'))     return <TemplateReservation config={config} siteId={siteId} />;
     return <TemplateVitrine config={config} />;
