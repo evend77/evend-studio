@@ -104,6 +104,11 @@ app.post('/api/webhooks/boutique-stripe/:gestionnaireId', express.raw({ type: 'a
 app.use('/api/webhooks/boutique-stripe', require('./routes/boutique_webhook_stripe'));
 app.post('/api/webhooks/boutique-paypal/:gestionnaireId', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/boutique-paypal', require('./routes/boutique_webhook_paypal'));
+// ✅ Webhooks des dons de CAGNOTTE — Stripe et PayPal PROPRES à chaque gestionnaire — body brut obligatoire (avant express.json)
+app.post('/api/webhooks/cagnotte-stripe/:gestionnaireId', express.raw({ type: 'application/json' }));
+app.use('/api/webhooks/cagnotte-stripe', require('./routes/cagnotte_webhook_stripe'));
+app.post('/api/webhooks/cagnotte-paypal/:gestionnaireId', express.raw({ type: 'application/json' }));
+app.use('/api/webhooks/cagnotte-paypal', require('./routes/cagnotte_webhook_paypal'));
 // ✅ Webhook de suivi EasyPost des étiquettes des templates boutique (solo) — signature HMAC sur le corps brut (avant express.json)
 app.post('/api/webhooks/boutique-etiquettes/easypost', express.raw({ type: 'application/json' }));
 app.use('/api/webhooks/boutique-etiquettes', require('./routes/boutique_webhook_etiquettes'));
@@ -192,7 +197,10 @@ app.use('/api/acheteurs-studio', require('./routes/acheteurs-studio'));
 // =====================================================================
 // 💝 DONS — CAGNOTTEPRO
 // =====================================================================
-app.use('/api/dons', require('./routes/dons'));
+app.use('/api/dons', require('./routes/cagnotte_dons'));
+app.use('/api/cagnotte/campagne', require('./routes/cagnotte_campagne'));
+app.use('/api/gestionnaire/cagnotte-paiement', require('./routes/cagnotte_paiement_config'));
+app.use('/api/admin/cagnotte', require('./routes/cagnotte_admin'));
 
 // =====================================================================
 // 🎭 SIÈGES SPECTACLE
@@ -555,6 +563,8 @@ require('./services/studio_encheres').demarrerEncheres();
 require('./services/studio_paiement').demarrerBalayage();
 // 🛍️ Templates boutique (solo) : même rôle pour les commandes boutique (ne touche pas au MV)
 require('./services/boutique_paiement').demarrerBalayage();
+// 💝 Cagnotte : ferme les campagnes arrivées à échéance (remboursement partiel si aucun don) et annule les paiements jamais faits
+require('./services/cagnotte_campagnes').demarrerBalayage();
 
 // =====================================================================
 // 🏅 BADGES VENDEUR STUDIO
@@ -1190,7 +1200,7 @@ app.listen(port, () => {
   console.log(`📦 Annonces:     POST /api/creer-annonce`);
   console.log(`📅 Réservations: GET  /api/reservations/vendeur`);
   console.log(`🎭 Sièges:       GET  /api/sieges/public/:siteId`);
-  console.log(`💝 Dons:         GET  /api/dons/vendeur`);
+  console.log(`💝 Dons:         GET  /api/dons/gestionnaire`);
   console.log(`👑 Admin:        GET  /api/admin/gestionnaires`);
   console.log(`🧪 Test BD:      GET  /api/test`);
   console.log(`🔒 Caddy ask:    GET  /caddy/ask?domain=...`);
