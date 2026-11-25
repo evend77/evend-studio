@@ -1436,7 +1436,6 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
       sousGroupes: [
         {
           templates: [
-            { id: 'enchere-flash',   titre: 'Enchère Flash',   desc: 'Un produit, tension maximale. Compte à rebours géant + mises en temps réel.', icone: '⚡', couleur: '#dc2626', disponible: true },
             { id: 'enchere-galerie', titre: 'Enchère Galerie', desc: 'Plusieurs lots, style maison de ventes. Filtres + modal par lot.',             icone: '🏛', couleur: '#c9a96e', disponible: true },
             { id: 'enchere-live',    titre: 'Enchère Live',    desc: 'Méga site style bourse — ticker défilant, sidebar lots, proxy bid auto.',      icone: '📡', couleur: '#6366f1', disponible: true },
           ]

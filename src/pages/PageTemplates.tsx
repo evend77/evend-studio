@@ -90,7 +90,6 @@ export const PHOTOS: Record<string, string> = {
   'cours-danse':              'https://images.pexels.com/photos/1701202/pexels-photo-1701202.jpeg?auto=compress&cs=tinysrgb&w=800',
   'cours-coach':              'https://images.pexels.com/photos/3822622/pexels-photo-3822622.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Enchères
-  'enchere-flash':        'https://images.pexels.com/photos/3943716/pexels-photo-3943716.jpeg?auto=compress&cs=tinysrgb&w=800',
   'enchere-galerie':      'https://images.pexels.com/photos/1021876/pexels-photo-1021876.jpeg?auto=compress&cs=tinysrgb&w=800',
   'enchere-live':         'https://images.pexels.com/photos/6693661/pexels-photo-6693661.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
@@ -697,14 +696,6 @@ export const TEMPLATES: Template[] = [
   },
 
   // ── ENCHÈRES ──
-  {
-    id: 'enchere-flash',
-    nom: 'Enchère Flash',
-    groupe: 'enchere',
-    description: 'Un produit, une page, tension maximale. Compte à rebours géant, mises en temps réel, proxy bid.',
-    fonctionnalites: ['Compte à rebours live', 'Mises temps réel', 'Proxy bidding', 'Historique des mises'],
-    disponible: true, nouveau: true, couleur: '#dc2626',
-  },
   {
     id: 'enchere-galerie',
     nom: 'Enchère Galerie',

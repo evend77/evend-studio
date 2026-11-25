@@ -864,7 +864,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const estBoutiqueNocturne    = templateActif === 'boutique-nocturne';
   const estBoutiqueOrbite    = templateActif === 'boutique-orbite';
   const estBoutique      = estBoutiqueSimple || estBoutiqueComplete;
-  const estEnchere       = ['enchere-flash', 'enchere-galerie', 'enchere-live'].includes(templateActif);
+  const estEnchere       = ['enchere-galerie', 'enchere-live'].includes(templateActif);
   const estVitrinePro    = ['vitrine-pro-entrepreneur', 'vitrine-pro-tech', 'vitrine-pro-beaute', 'vitrine-pro-mariage', 'vitrine-pro-sante', 'vitrine-paysager', 'vitrine-avocat', 'vitrine-resto', 'vitrine-bistro', 'cours-piano', 'cours-langues', 'cours-web', 'cours-cuisine', 'cours-yoga', 'cours-equitation','cours-peinture','cours-danse','vitrine-foodtruck','vitrine-boulangerie','cours-coach'].includes(templateActif);
   const estSalon         = templateActif === 'salon-coiffure';
   const estSimplisse     = templateActif.startsWith('boutique-simplisse') && !templateActif.startsWith('boutique-simplisse-mode');
@@ -1946,7 +1946,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           setPageActive('beaute-config-pages');
         } else if (templateId.startsWith('multi-vendeur-premium')) {
           setPageActive('mv-premium-plan');
-        } else if (['enchere-flash', 'enchere-galerie', 'enchere-live'].includes(templateId)) {
+        } else if (['enchere-galerie', 'enchere-live'].includes(templateId)) {
           setPageActive('studio-config-template');
         } else {
           setPageActive('studio-config-template');

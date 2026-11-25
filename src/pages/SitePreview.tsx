@@ -56,7 +56,6 @@ import TemplateVitrineProMariage      from '../templates/TemplateVitrineProMaria
 import TemplateVitrineProBeaute       from '../templates/TemplateVitrineProBeaute';
 import TemplateVitrineProTech         from '../templates/TemplateVitrineProTech';
 import TemplateVitrineProEntrepreneur from '../templates/TemplateVitrineProEntrepreneur';
-import TemplateEnchereFlash           from '../templates/TemplateEnchereFlash';
 import TemplateEnchereGalerie         from '../templates/TemplateEnchereGalerie';
 import TemplateEnchereLive            from '../templates/TemplateEnchereLive';
 import TemplateSalon                  from '../templates/TemplateSalon';
@@ -2069,7 +2068,6 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     if (templateId === 'vitrine-pro-beaute')       return <TemplateVitrineProBeaute config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'vitrine-pro-tech')         return <TemplateVitrineProTech config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'vitrine-pro-entrepreneur') return <TemplateVitrineProEntrepreneur config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
-    if (templateId === 'enchere-flash')            return <TemplateEnchereFlash config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'enchere-galerie')          return <TemplateEnchereGalerie config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'enchere-live')             return <TemplateEnchereLive config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'boutique-complete') {
