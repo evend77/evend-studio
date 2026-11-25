@@ -15,6 +15,7 @@ const API_BASE = '/api';
 
 // ── e-Vend Studio ──
 import MaCagnotte                   from './pages/gestionnaire/MaCagnotte';
+import MesEncheresSite from './pages/gestionnaire/MesEncheresSite';
 import ConfigMesPagesCagnotte         from './pages/gestionnaire/ConfigMesPagesCagnotte';
 import ModelesCourrielStudio from './pages/gestionnaire/ModelesCourrielStudio';
 import GestionReservations   from './pages/studio/GestionReservations';
@@ -1277,13 +1278,9 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         sousMenu: [
           itemConfigGenerale,
           itemConfigPaiements,
-          { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
-          itemPage404, itemMaintenance,
           itemPolitiques,
-          itemPages,
           itemSeo,
           itemCookies,
-          itemPhotos, itemFormulaireContact, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
         ]
       },
       menuProfil,
@@ -1365,27 +1362,20 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuAddOn,
     ];
   } else if (estEnchere) {
+    // Enchère Galerie / Live : pas de collaborateurs, badges, blogs, FAQ, chat, branding, analytique, effets, add-ons
     menuItems = [
       { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
       {
         id: 'commandes', label: 'MES ENCHÈRES', icon: '🔨',
         sousMenu: [
-          { id: 'annonces-encheres', label: 'Mes enchères actives', icon: '🔨' },
-          { id: 'commandes-paiements', label: 'Paiements reçus',   icon: '💰' },
-          { id: 'commandes-documents', label: 'Documents',         icon: '📄' },
+          { id: 'encheres-site', label: 'Mes lots & enchères', icon: '🔨' },
         ]
       },
-      menuSousVendeurs,
-      menuBadges,
-      menuBlogsSV,
-      menuFaqsSV,
-      menuChatSV,
       menuStudio,
       {
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [
           itemConfigGenerale,
-          itemConfigMV,
           itemConfigPaiements,
           { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
           itemPage404, itemMaintenance,
@@ -1398,11 +1388,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       },
       menuProfil,
       menuMessagerie,
-      menuBrandingOptions,
-      ...(options?.analytique ? [menuMesAnalytique] : []),
-      ...(options?.chatbot ? [menuMesChatbot] : []),
-      menuMesEffetsVisuels, // 🔥 AJOUT
-      menuAddOn,
     ];
   } else if (estSimplisse || estBoutiqueSimple || estBoutiqueComplete || estBoutiqueCatalogue || estBoutiqueAgricole || estBoutiqueArtisan || estBoutiqueAuto || estBoutiqueJouets || estBoutiqueGothique || estBoutiqueBD || estBoutiqueFuturiste || estBoutiqueTech || estBoutiqueRose || estBoutiqueBonbon || estBoutiqueSoleil || estBoutiqueSentier || estBoutiqueChantier || estBoutiqueCafe || estBoutiqueSakura || estBoutiqueSport || estBoutiqueJoyau || estBoutiqueEcume || estBoutiqueAudace || estBoutiqueCarnaval || estBoutiquePatchwork || estBoutiqueVigie || estBoutiqueAurore || estBoutiqueGalerie || estBoutiqueRallye || estBoutiquePaon || estBoutiquePop || estBoutiqueNocturne || estBoutiqueOrbite || estSimplisseMode) {
     menuItems = [
@@ -1795,6 +1780,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mes-chatbot') return <ChatbotConfig gestionnaireId={gestionnaire.id} modeMV={estMultiVendeur} />;
     if (pageActive === 'mes-effets-visuels') return <ConfigStoreEffects gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'encheres-site') return <MesEncheresSite gestionnaireId={gestionnaire.id} templateId={templateActif} />;
     if (pageActive === 'cagnotte-config') return <ConfigMesPagesCagnotte gestionnaireId={gestionnaire.id} naviguer={setPageActive} templateId={templateActif} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
@@ -1947,7 +1933,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         } else if (templateId.startsWith('multi-vendeur-premium')) {
           setPageActive('mv-premium-plan');
         } else if (['enchere-galerie', 'enchere-live'].includes(templateId)) {
-          setPageActive('studio-config-template');
+          setPageActive('encheres-site');
         } else {
           setPageActive('studio-config-template');
         }

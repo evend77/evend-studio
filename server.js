@@ -200,6 +200,8 @@ app.use('/api/acheteurs-studio', require('./routes/acheteurs-studio'));
 app.use('/api/dons', require('./routes/cagnotte_dons'));
 // Prix publics des cagnottes (lecture seule, sans connexion) : lus dans les réglages de la page admin
 app.use('/api/cagnotte/prix', require('./routes/cagnotte_prix_public'));
+app.use('/api/encheres-studio', require('./routes/enchere_site'));                    // Enchères (sites Galerie/Live) — PUBLIC
+app.use('/api/studio/encheres-site', require('./routes/enchere_site_admin'));           // Enchères (sites Galerie/Live) — GESTIONNAIRE
 app.use('/api/cagnotte/campagne', require('./routes/cagnotte_campagne'));
 app.use('/api/gestionnaire/cagnotte-paiement', require('./routes/cagnotte_paiement_config'));
 app.use('/api/admin/cagnotte', require('./routes/cagnotte_admin'));
@@ -561,6 +563,7 @@ app.use('/api/marketplace/:gid/questions', require('./routes/studio_questions'))
 app.use('/api/marketplace/:gid/offres', require('./routes/studio_offres'));   // add-on « Offres du jour »
 app.use('/api/marketplace/:gid/negociations', require('./routes/studio_negociations'));   // add-on « Faire une offre »
 require('./services/studio_encheres').demarrerEncheres();
+require('./services/enchere_site').demarrerEncheres();   // fermeture auto des lots des sites Galerie/Live
 // Paiement des commandes : remet en vente le stock des commandes jamais payées (toutes les 5 min)
 require('./services/studio_paiement').demarrerBalayage();
 // 🛍️ Templates boutique (solo) : même rôle pour les commandes boutique (ne touche pas au MV)
@@ -1204,6 +1207,7 @@ app.listen(port, () => {
   console.log(`🎭 Sièges:       GET  /api/sieges/public/:siteId`);
   console.log(`💝 Dons:         GET  /api/dons/gestionnaire`);
   console.log(`💝 Prix cagnotte: GET  /api/cagnotte/prix`);
+  console.log(`🔨 Enchères sites: /api/encheres-studio  ·  /api/studio/encheres-site`);
   console.log(`👑 Admin:        GET  /api/admin/gestionnaires`);
   console.log(`🧪 Test BD:      GET  /api/test`);
   console.log(`🔒 Caddy ask:    GET  /caddy/ask?domain=...`);

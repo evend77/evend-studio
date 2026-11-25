@@ -791,6 +791,14 @@ export function templatesDeCategorie(cat: Categorie, source: Template[]): Templa
 
 
 // Couleur d'un template rendue lisible sur fond sombre : si elle est trop foncée, on l'éclaircit.
+// Texte du bandeau-titre d'une carte : foncé sur une couleur claire, blanc sinon.
+function claire(hex: string): boolean {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.62;
+}
+
 function lisible(hex: string): string {
   const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
   if (!m) return '#ffffff';
@@ -838,6 +846,15 @@ function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommenc
         opacity: t.disponible ? 1 : 0.55,
         display: 'flex', flexDirection: 'column',
       }}>
+      {/* Bandeau-titre en couleur du modèle : nom + prix (même style que « Choisir un template ») */}
+      <div className="template-card-band" style={{ padding: '13px 18px', background: `linear-gradient(100deg, ${t.couleur}, ${t.couleur}bb)`, display: 'flex', alignItems: 'center', gap: 12, minHeight: 58 }}>
+        <span style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(0,0,0,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>{t.icone || '📄'}</span>
+        <h3 className="template-card-title" style={{ flex: 1, minWidth: 0, fontSize: 19, fontWeight: 800, letterSpacing: '0.01em', lineHeight: 1.15, margin: 0, color: claire(t.couleur) ? '#14141c' : '#fff', textShadow: claire(t.couleur) ? 'none' : '0 1px 6px rgba(0,0,0,0.45)', overflowWrap: 'anywhere' }}>{t.nom}</h3>
+        <span className="template-card-price" style={{ flexShrink: 0, background: 'rgba(0,0,0,0.38)', color: !t.disponible ? '#fff' : estGratuit ? '#fff' : '#fbbf24', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
+          {!t.disponible ? 'Bientôt' : prixFinal}
+        </span>
+      </div>
+
       {/* Image */}
       <div style={{ position: 'relative', aspectRatio: '16/10', overflow: 'hidden', background: '#1a1a2e' }}>
         <img
@@ -871,13 +888,7 @@ function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommenc
       </div>
 
       {/* Contenu */}
-      <div className="template-card-content" style={{ padding: '18px 20px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
-          <h3 className="template-card-title" style={{ fontSize: 17, fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>{t.nom}</h3>
-          <span className="template-card-price" style={{ background: estGratuit ? t.couleur + '20' : '#f59e0b22', color: estGratuit ? lisible(t.couleur) : '#b45309', padding: '3px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap', marginLeft: 8 }}>
-            {prixFinal}
-          </span>
-        </div>
+      <div className="template-card-content" style={{ padding: '16px 20px 20px', flex: 1, display: 'flex', flexDirection: 'column' }}>
 
         <p className="template-card-desc" style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', lineHeight: 1.6, marginBottom: 14, flex: 1 }}>
           {t.description}
@@ -1077,6 +1088,7 @@ export default function PageTemplates() {
             gap: 10px !important;
           }
           .template-card-content { padding: 10px 10px 12px !important; }
+          .template-card-band { padding: 8px 10px !important; min-height: 44px !important; gap: 8px !important; }
           .template-card-title { font-size: 13px !important; }
           .template-card-price { font-size: 9px !important; padding: 2px 7px !important; margin-left: 4px !important; }
           .template-card-desc { display: none !important; }

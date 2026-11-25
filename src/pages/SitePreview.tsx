@@ -2068,8 +2068,8 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     if (templateId === 'vitrine-pro-beaute')       return <TemplateVitrineProBeaute config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'vitrine-pro-tech')         return <TemplateVitrineProTech config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'vitrine-pro-entrepreneur') return <TemplateVitrineProEntrepreneur config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
-    if (templateId === 'enchere-galerie')          return <TemplateEnchereGalerie config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
-    if (templateId === 'enchere-live')             return <TemplateEnchereLive config={config} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    if (templateId === 'enchere-galerie')          return <TemplateEnchereGalerie config={{ ...(config as any), ...(((config as any).enchere && typeof (config as any).enchere === 'object') ? (config as any).enchere : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    if (templateId === 'enchere-live')             return <TemplateEnchereLive config={{ ...(config as any), ...(((config as any).enchere && typeof (config as any).enchere === 'object') ? (config as any).enchere : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'boutique-complete') {
       // Boutique Complète : vraies annonces du gestionnaire ; en démo seulement, des produits d'exemple. Badge « Propulsé par » masqué seulement avec l'add-on.
       const configDemo = isDemo ? { ...config, __produits_demo__: DEMO_PRODUITS_COMPLETE } : config;
