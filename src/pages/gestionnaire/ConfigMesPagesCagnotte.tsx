@@ -5,11 +5,12 @@
 import { useState, useEffect, useRef } from 'react';
 import TemplateCagnotteClassique, { CONFIG_CAGNOTTE_DEFAUT, MODELES_CAGNOTTE, type ConfigCagnotte, type SousTypeCagnotte } from '../../templates/TemplateCagnotteClassique';
 import TemplateCagnotteCause, { CONFIG_CAUSE_DEFAUT, PALETTES_CAUSE, SECTIONS_CAUSE, type ConfigCause } from '../../templates/TemplateCagnotteCause';
+import TemplateCagnotteHorizon, { CONFIG_HORIZON_DEFAUT, PALETTES_HORIZON, SECTIONS_HORIZON, type ConfigHorizon } from '../../templates/TemplateCagnotteHorizon';
 
 interface Props {
   gestionnaireId: number;
   naviguer?: (page: string) => void;   // pour le bouton « Aller publier »
-  templateId?: string;                 // 'cagnotte-classique' (défaut) ou 'cagnotte-cause'
+  templateId?: string;                 // 'cagnotte-classique' (défaut), 'cagnotte-cause' ou 'cagnotte-horizon'
 }
 
 interface EtatCampagne {
@@ -22,6 +23,7 @@ interface EtatCampagne {
 const POLICES: { v: ConfigCagnotte['police']; label: string }[] = [{ v: 'moderne', label: 'Moderne' }, { v: 'classique', label: 'Classique' }, { v: 'manuscrite', label: 'Manuscrite' }];
 const ONGLETS = [{ id: 'campagne', label: '🎯 Campagne' }, { id: 'organisateur', label: '👤 Organisateur' }, { id: 'dons', label: '💝 Dons' }, { id: 'apparence', label: '🎨 Apparence' }, { id: 'nouvelles', label: '📰 Mises à jour' }, { id: 'contact', label: '🔗 Liens' }] as const;
 const ONGLETS_CAUSE = [{ id: 'campagne', label: '🎯 Campagne' }, { id: 'thermo', label: '🌡️ Thermomètre' }, { id: 'histoire', label: '📖 Histoire & photos' }, { id: 'impact', label: '💥 Impact & raisons' }, { id: 'chrono', label: '⏱ Chronologie' }, { id: 'galerie', label: '🖼 Galerie & vidéo' }, { id: 'preuves', label: '💬 Témoignages, équipe, FAQ' }, { id: 'organisateur', label: '👤 Organisateur' }, { id: 'dons', label: '💝 Dons' }, { id: 'apparence', label: '🎨 Apparence' }, { id: 'sections', label: '👁 Sections affichées' }, { id: 'nouvelles', label: '📰 Mises à jour' }, { id: 'contact', label: '🔗 Liens' }];
+const ONGLETS_HORIZON = [{ id: 'campagne', label: '🎯 Campagne' }, { id: 'thermo', label: '🌡️ Thermomètre' }, { id: 'histoire', label: '📖 Histoire & photos' }, { id: 'impact', label: '💥 Impact & raisons' }, { id: 'chrono', label: '⏱ Chronologie' }, { id: 'fonds', label: '📊 Fonds, points clés, partenaires' }, { id: 'galerie', label: '🖼 Galerie & vidéo' }, { id: 'preuves', label: '💬 Témoignages, équipe, FAQ' }, { id: 'organisateur', label: '👤 Organisateur' }, { id: 'dons', label: '💝 Dons' }, { id: 'apparence', label: '🎨 Apparence' }, { id: 'sections', label: '👁 Sections affichées' }, { id: 'nouvelles', label: '📰 Mises à jour' }, { id: 'contact', label: '🔗 Liens' }];
 type Onglet = string;
 
 const jourISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -33,9 +35,10 @@ function entetes(): HeadersInit {
 }
 
 export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templateId }: Props) {
-  const estCause = templateId === 'cagnotte-cause';
-  const ONGLETS_ACTIFS = estCause ? ONGLETS_CAUSE : ONGLETS;
-  const [cfg, setCfg] = useState<ConfigCause>((estCause ? CONFIG_CAUSE_DEFAUT : CONFIG_CAGNOTTE_DEFAUT) as ConfigCause);
+  const estHorizon = templateId === 'cagnotte-horizon';
+  const estCause = templateId === 'cagnotte-cause' || estHorizon;   // « Cause » et « Horizon » partagent les réglages avancés
+  const ONGLETS_ACTIFS = estHorizon ? ONGLETS_HORIZON : estCause ? ONGLETS_CAUSE : ONGLETS;
+  const [cfg, setCfg] = useState<ConfigHorizon>((estHorizon ? CONFIG_HORIZON_DEFAUT : estCause ? CONFIG_CAUSE_DEFAUT : CONFIG_CAGNOTTE_DEFAUT) as ConfigHorizon);
   const [onglet, setOnglet] = useState<Onglet>('campagne');
   const [etat, setEtat] = useState<EtatCampagne | null>(null);
   const [sauv, setSauv] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
@@ -62,14 +65,14 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
         const brut = data && data.config && typeof data.config === 'object' ? data.config.cagnotte : null;
-        if (brut && typeof brut === 'object') setCfg(prev => ({ ...prev, ...(estCause && brut.kicker === undefined ? { ...brut, couleurPrincipale: prev.couleurPrincipale, couleurSecondaire: prev.couleurSecondaire, couleurFond: prev.couleurFond, couleurTexte: prev.couleurTexte, police: prev.police } : brut), montantsSuggeres: Array.isArray(brut.montantsSuggeres) && brut.montantsSuggeres.length ? brut.montantsSuggeres : prev.montantsSuggeres, misesAJour: Array.isArray(brut.misesAJour) ? brut.misesAJour : prev.misesAJour }));
+        if (brut && typeof brut === 'object') setCfg(prev => ({ ...prev, ...(estCause && (brut.kicker === undefined || (estHorizon ? brut.themeId !== 'horizon' : (!!brut.themeId && brut.themeId !== 'cause'))) ? { ...brut, couleurPrincipale: prev.couleurPrincipale, couleurSecondaire: prev.couleurSecondaire, couleurFond: prev.couleurFond, couleurTexte: prev.couleurTexte, couleurAccent2: prev.couleurAccent2, couleurAccent3: prev.couleurAccent3, police: prev.police } : brut), montantsSuggeres: Array.isArray(brut.montantsSuggeres) && brut.montantsSuggeres.length ? brut.montantsSuggeres : prev.montantsSuggeres, misesAJour: Array.isArray(brut.misesAJour) ? brut.misesAJour : prev.misesAJour }));
       })
       .catch(() => {})
       .finally(() => { charge.current = true; });
     chargerEtat();
   }, [gestionnaireId]);
 
-  const maj = (p: Partial<ConfigCause>) => { setCfg(c => ({ ...c, ...p })); setModifie(true); };
+  const maj = (p: Partial<ConfigHorizon>) => { setCfg(c => ({ ...c, ...p })); setModifie(true); };
   const dureeMax = etat ? etat.duree_max_jours : 90;
   const maxDate = jourISO(new Date(Date.now() + dureeMax * 86400000));
   const minDate = jourISO(new Date(Date.now() + 2 * 86400000));
@@ -94,8 +97,8 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
     if (!montants.length) { setMsg('Ajoutez au moins un montant suggéré.'); setOnglet('dons'); setSauv('err'); return; }
     setSauv('loading');
     try {
-      const donnees: ConfigCause = { ...cfg, objectifMontant: objectif, montantsSuggeres: Array.from(new Set<number>(montants)).sort((a: number, b: number) => a - b) };
-      const res = await fetch(`/api/studio/sites/${gestionnaireId}/config`, { method: 'PUT', headers: entetes(), credentials: 'include', body: JSON.stringify({ config: { cagnotte: donnees }, template_id: estCause ? 'cagnotte-cause' : 'cagnotte-classique' }) });
+      const donnees: ConfigHorizon = { ...cfg, ...(estCause ? { themeId: (estHorizon ? 'horizon' : 'cause') as 'horizon' | 'cause' } : {}), objectifMontant: objectif, montantsSuggeres: Array.from(new Set<number>(montants)).sort((a: number, b: number) => a - b) };
+      const res = await fetch(`/api/studio/sites/${gestionnaireId}/config`, { method: 'PUT', headers: entetes(), credentials: 'include', body: JSON.stringify({ config: { cagnotte: donnees }, template_id: estHorizon ? 'cagnotte-horizon' : estCause ? 'cagnotte-cause' : 'cagnotte-classique' }) });
       if (!res.ok) throw new Error();
       setCfg(donnees); setModifie(false); setSauv('ok'); chargerEtat();
       setTimeout(() => setSauv('idle'), 2500);
@@ -170,6 +173,8 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
                 <p style={aide}>Le grand thermomètre du haut de page monte à mesure que les dons arrivent. Les paliers s'affichent à côté et se cochent quand ils sont atteints.</p>
                 <Champ label="Texte au-dessus du titre"><Texte v={cfg.kicker} on={v => maj({ kicker: v })} max={60} /></Champ>
                 <Champ label="Texte du bouton de don"><Texte v={cfg.texteBoutonDon} on={v => maj({ texteBoutonDon: v })} max={30} /></Champ>
+                {estHorizon && <Champ label="Barre du haut — texte de gauche"><Texte v={cfg.barreGauche} on={v => maj({ barreGauche: v })} max={100} /></Champ>}
+                {estHorizon && <Champ label="Barre du haut — texte de droite (ou courriel)"><Texte v={cfg.barreDroite} on={v => maj({ barreDroite: v })} max={100} /></Champ>}
                 <Champ label="Paliers du thermomètre (jusqu'à 5)" aide="Chaque palier est un montant atteint sur le chemin de l'objectif (ex. 12 500 $ = « Terrain préparé »).">
                   <ListeEditable items={cfg.jalonsThermo} on={v => maj({ jalonsThermo: v })} max={5} vide={{ montant: 0, libelle: '' }} titre={(x: any) => x.libelle || 'Palier'}
                     champs={[{ k: 'montant', label: 'Montant ($)', type: 'nombre' }, { k: 'libelle', label: 'Libellé', max: 40 }]} />
@@ -215,6 +220,25 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
                 </Champ>
               </>
             )}
+            {estHorizon && onglet === 'fonds' && (
+              <>
+                <Champ label="Titre « Points clés »" aide="Liste à flèches affichée sous la présentation (ex. « Plus de 8 000 livres »)."><Texte v={cfg.titrePointsCles} on={v => maj({ titrePointsCles: v })} max={80} /></Champ>
+                <Champ label="Points clés (jusqu'à 12)">
+                  <ListeEditable items={cfg.pointsCles} on={v => maj({ pointsCles: v })} max={12} vide={{ texte: '' }} titre={(x: any) => x.texte || 'Point clé'} champs={[{ k: 'texte', label: 'Texte', max: 60 }]} />
+                </Champ>
+                <Champ label="Titre « Utilisation des fonds »"><Texte v={cfg.titreRepartition} on={v => maj({ titreRepartition: v })} max={80} /></Champ>
+                <Champ label="Texte d'introduction"><Zone v={cfg.texteRepartition} on={v => maj({ texteRepartition: v })} max={500} rows={3} /></Champ>
+                <Champ label="Répartition des fonds (jusqu'à 8)" aide="Chaque ligne est une part en %. Le camembert et le tableau (avec les montants calculés sur votre objectif) se mettent à jour tout seuls.">
+                  <ListeEditable items={cfg.repartition} on={v => maj({ repartition: v })} max={8} vide={{ libelle: '', pct: 0 }} titre={(x: any) => x.libelle || 'Poste'}
+                    champs={[{ k: 'libelle', label: 'Poste de dépense', max: 60 }, { k: 'pct', label: 'Part (%)', type: 'nombre' }]} />
+                </Champ>
+                <Champ label="Titre « Partenaires »"><Texte v={cfg.titrePartenaires} on={v => maj({ titrePartenaires: v })} max={80} /></Champ>
+                <Champ label="Partenaires (jusqu'à 10)" aide="Un logo (adresse https://…) ou simplement le nom. Le lien est facultatif.">
+                  <ListeEditable items={cfg.partenaires} on={v => maj({ partenaires: v })} max={10} vide={{ nom: '', logoUrl: '', lien: '' }} titre={(x: any) => x.nom || 'Partenaire'}
+                    champs={[{ k: 'nom', label: 'Nom', max: 60 }, { k: 'logoUrl', label: 'Logo (adresse https://…)', max: 1000, ph: 'https://…' }, { k: 'lien', label: 'Lien (https://…)', max: 500, ph: 'https://…' }]} />
+                </Champ>
+              </>
+            )}
             {estCause && onglet === 'galerie' && (
               <>
                 <Champ label="Titre de la galerie"><Texte v={cfg.titreGalerie} on={v => maj({ titreGalerie: v })} max={80} /></Champ>
@@ -231,7 +255,7 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
                 <Champ label="Titre « Témoignages »"><Texte v={cfg.titreTemoignages} on={v => maj({ titreTemoignages: v })} max={80} /></Champ>
                 <Champ label="Témoignages (jusqu'à 12)">
                   <ListeEditable items={cfg.temoignages} on={v => maj({ temoignages: v })} max={12} vide={{ nom: '', role: '', texte: '', date: '' }} titre={(x: any) => x.nom || 'Témoignage'}
-                    champs={[{ k: 'nom', label: 'Nom', max: 60 }, { k: 'role', label: 'Rôle (ex. Bénévole)', max: 60 }, { k: 'texte', label: 'Témoignage', type: 'zone', max: 600 }]} />
+                    champs={[{ k: 'nom', label: 'Nom', max: 60 }, { k: 'role', label: 'Rôle (ex. Bénévole)', max: 60 }, ...(estHorizon ? [{ k: 'photoUrl', label: 'Photo (facultatif)', max: 1000, ph: 'https://…' }] : []), { k: 'texte', label: 'Témoignage', type: 'zone', max: 600 }]} />
                 </Champ>
                 <Champ label="Titre « Équipe »"><Texte v={cfg.titreEquipe} on={v => maj({ titreEquipe: v })} max={80} /></Champ>
                 <Champ label="Membres de l'équipe (jusqu'à 12)">
@@ -251,7 +275,7 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
               <>
                 <p style={aide}>Décochez une section pour la cacher de votre page. Une section sans contenu est de toute façon masquée automatiquement.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 10, marginBottom: 14 }}>
-                  {SECTIONS_CAUSE.map(sc => (
+                  {(estHorizon ? SECTIONS_HORIZON : SECTIONS_CAUSE).map(sc => (
                     <label key={sc.id} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14, color: '#333', cursor: 'pointer', padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: 10 }}>
                       <input type="checkbox" checked={!(cfg.sectionsVisibles && cfg.sectionsVisibles[sc.id] === false)} onChange={e => maj({ sectionsVisibles: { ...(cfg.sectionsVisibles || {}), [sc.id]: e.target.checked } })} /> {sc.label}
                     </label>
@@ -291,8 +315,8 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
               <>
                 <Champ label="Palettes toutes prêtes" aide="Un clic applique les couleurs. Vous pouvez ensuite les ajuster une par une.">
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {PALETTES_CAUSE.map(pl => (
-                      <button key={pl.id} onClick={() => maj({ couleurPrincipale: pl.principale, couleurFond: pl.fond, couleurSecondaire: pl.cartes, couleurTexte: pl.texte })}
+                    {(estHorizon ? PALETTES_HORIZON : PALETTES_CAUSE).map((pl: any) => (
+                      <button key={pl.id} onClick={() => maj({ couleurPrincipale: pl.principale, couleurFond: pl.fond, couleurSecondaire: pl.cartes, couleurTexte: pl.texte, ...(pl.a2 ? { couleurAccent2: pl.a2, couleurAccent3: pl.a3 } : {}) })}
                         style={{ ...btnOnglet, display: 'flex', alignItems: 'center', gap: 8 }}>
                         <span style={{ display: 'inline-flex', width: 34, height: 18, borderRadius: 9, overflow: 'hidden', border: '1px solid #d1d5db' }}>
                           <span style={{ flex: 1, background: pl.fond }} /><span style={{ flex: 1, background: pl.cartes }} /><span style={{ flex: 1, background: pl.principale }} />
@@ -306,10 +330,12 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
                   <Couleur label="Fond de page" v={cfg.couleurFond} on={v => maj({ couleurFond: v })} />
                   <Couleur label="Fond des cartes" v={cfg.couleurSecondaire} on={v => maj({ couleurSecondaire: v })} />
                   <Couleur label="Texte" v={cfg.couleurTexte} on={v => maj({ couleurTexte: v })} />
+                  {estHorizon && <Couleur label="Accent 2 (violet)" v={cfg.couleurAccent2} on={v => maj({ couleurAccent2: v })} />}
+                  {estHorizon && <Couleur label="Accent 3 (bandeaux)" v={cfg.couleurAccent3} on={v => maj({ couleurAccent3: v })} />}
                 </div>
                 <Champ label="Police des titres">
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    {[{ v: 'moderne', label: 'Arrondie moderne' }, { v: 'classique', label: 'Élégante (serif)' }].map(pl => <button key={pl.v} onClick={() => maj({ police: pl.v as ConfigCagnotte['police'] })} style={{ ...btnOnglet, ...(cfg.police === pl.v || (pl.v === 'moderne' && cfg.police === 'manuscrite') ? { borderColor: '#c9a96e', background: '#c9a96e18' } : {}) }}>{pl.label}</button>)}
+                    {[{ v: 'moderne', label: estHorizon ? 'Moderne (Ubuntu)' : 'Arrondie moderne' }, { v: 'classique', label: 'Élégante (serif)' }].map(pl => <button key={pl.v} onClick={() => maj({ police: pl.v as ConfigCagnotte['police'] })} style={{ ...btnOnglet, ...(cfg.police === pl.v || (pl.v === 'moderne' && cfg.police === 'manuscrite') ? { borderColor: '#c9a96e', background: '#c9a96e18' } : {}) }}>{pl.label}</button>)}
                   </div>
                 </Champ>
               </>
@@ -357,7 +383,7 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
           {apercuDesktop === false && (
             <div style={{ marginTop: 14 }}>
               <button onClick={() => setApercuOuvert(o => !o)} style={btnSec}>{apercuOuvert ? 'Masquer l\'aperçu' : '👁 Voir l\'aperçu'}</button>
-              {apercuOuvert && <Apercu cfg={cfg} cause={estCause} largeurBoite={Math.min(largeur - 24, 420)} />}
+              {apercuOuvert && <Apercu cfg={cfg} cause={estCause} horizon={estHorizon} largeurBoite={Math.min(largeur - 24, 420)} />}
             </div>
           )}
         </div>
@@ -365,7 +391,7 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
         {apercuDesktop && (
           <div style={{ position: 'sticky', top: 16, width: 380, flexShrink: 0 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Aperçu (chiffres de démonstration)</p>
-            <Apercu cfg={cfg} cause={estCause} largeurBoite={380} />
+            <Apercu cfg={cfg} cause={estCause} horizon={estHorizon} largeurBoite={380} />
           </div>
         )}
       </div>
@@ -382,12 +408,12 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
 }
 
 // ─── Aperçu réduit du template (sans siteId : chiffres de démonstration, aucun vrai don possible) ───
-function Apercu({ cfg, cause, largeurBoite }: { cfg: ConfigCause; cause: boolean; largeurBoite: number }) {
+function Apercu({ cfg, cause, horizon, largeurBoite }: { cfg: ConfigHorizon; cause: boolean; horizon: boolean; largeurBoite: number }) {
   const echelle = largeurBoite / 420;
   return (
     <div style={{ width: largeurBoite, height: 640 * echelle * 1.0, overflow: 'hidden', border: '1px solid #e5e7eb', borderRadius: 14, background: '#fff', marginTop: 8, position: 'relative' }}>
       <div style={{ width: 420, height: 640 / echelle * 1, transform: `scale(${echelle})`, transformOrigin: 'top left', overflowY: 'auto', overflowX: 'hidden' }}>
-        {cause ? <TemplateCagnotteCause config={cfg} isPreviewMobile /> : <TemplateCagnotteClassique config={cfg} isPreviewMobile />}
+        {horizon ? <TemplateCagnotteHorizon config={cfg} isPreviewMobile /> : cause ? <TemplateCagnotteCause config={cfg} isPreviewMobile /> : <TemplateCagnotteClassique config={cfg} isPreviewMobile />}
       </div>
     </div>
   );

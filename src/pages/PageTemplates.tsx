@@ -63,6 +63,7 @@ export const PHOTOS: Record<string, string> = {
   // Cagnotte
   'cagnotte-classique':   '/apercus/cagnotte-classique.jpg',
   'cagnotte-cause':       '/apercus/cagnotte-cause.jpg',
+  'cagnotte-horizon':     '/apercus/cagnotte-horizon.jpg',
   // Profession
   'vitrine-avocat':           'https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800',
   'salon-coiffure':           'https://images.pexels.com/photos/3065209/pexels-photo-3065209.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -685,6 +686,14 @@ export const TEMPLATES: Template[] = [
     description: 'Page complète pour une grande cause : grand thermomètre animé, sections avec photos, chronologie, galerie, vidéo, témoignages, équipe et FAQ. Dons directement sur votre compte, aucune commission.',
     fonctionnalites: ['Thermomètre animé', 'Sections et galerie photos', 'Chronologie et impact des dons', 'Témoignages, équipe, FAQ'],
     disponible: true, nouveau: true, couleur: '#e2651a',
+  },
+  {
+    id: 'cagnotte-horizon',
+    nom: 'Cagnotte Horizon',
+    groupe: 'cagnotte',
+    description: 'Style lancement de projet, bleu nuit et jaune : thermomètre géant, vidéo YouTube, chronologie numérotée, utilisation des fonds en graphique, partenaires et compte à rebours. Dons sur votre propre compte, aucune commission.',
+    fonctionnalites: ['Thermomètre géant', 'Vidéo YouTube', 'Chronologie et graphique des fonds', 'Partenaires et compte à rebours'],
+    disponible: true, nouveau: true, couleur: '#fdb913',
   },
 
   // ── ENCHÈRES ──

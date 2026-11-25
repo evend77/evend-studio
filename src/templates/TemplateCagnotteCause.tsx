@@ -16,7 +16,7 @@ import {
 export interface BlocHistoire { titre: string; texte: string; photoUrl: string; position: 'gauche' | 'droite' }
 export interface Etape { date: string; titre: string; texte: string; photoUrl: string }
 export interface PhotoGalerie { url: string; legende: string }
-export interface Temoignage { nom: string; role: string; texte: string; date: string }
+export interface Temoignage { nom: string; role: string; texte: string; date: string; photoUrl?: string }
 export interface MembreEquipe { nom: string; role: string; photoUrl: string }
 export interface Question { q: string; r: string }
 export interface Impact { montant: number; texte: string }
@@ -24,9 +24,10 @@ export interface Chiffre { valeur: string; libelle: string }
 export interface Raison { titre: string; texte: string }
 export interface JalonThermo { montant: number; libelle: string }
 
-export type SectionCause = 'chiffres' | 'histoire' | 'raisons' | 'impacts' | 'compteRebours' | 'video' | 'chronologie' | 'galerie' | 'nouvelles' | 'temoignages' | 'equipe' | 'faq' | 'donateurs';
+export type SectionCause = 'pointsCles' | 'repartition' | 'partenaires' | 'chiffres' | 'histoire' | 'raisons' | 'impacts' | 'compteRebours' | 'video' | 'chronologie' | 'galerie' | 'nouvelles' | 'temoignages' | 'equipe' | 'faq' | 'donateurs';
 
 export interface ConfigCause extends ConfigCagnotte {
+  themeId?: 'cause' | 'horizon';   // modèle pour lequel les couleurs ont été choisies
   kicker: string;
   texteBoutonDon: string;
   // Thermomètre
@@ -186,14 +187,14 @@ export const CONFIG_CAUSE_DEFAUT: ConfigCause = {
 };
 
 // ─── HELPERS ────────────────────────────────────────────────────────
-const httpsUrl = (u: any) => typeof u === 'string' && /^https:\/\//i.test(u.trim());
-const tab = <T,>(v: any, defaut: T[]): T[] => (Array.isArray(v) ? v.filter(x => x && typeof x === 'object') as T[] : defaut);
+export const httpsUrl = (u: any) => typeof u === 'string' && /^https:\/\//i.test(u.trim());
+export const tab = <T,>(v: any, defaut: T[]): T[] => (Array.isArray(v) ? v.filter(x => x && typeof x === 'object') as T[] : defaut);
 const lum = (hex: string) => {
   const n = parseInt(hex.slice(1), 16); const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 };
-const texteSur = (bg: string) => (lum(bg) > 0.6 ? '#1a1a1a' : '#ffffff');
-const idYoutube = (u: string): string | null => {
+export const texteSur = (bg: string) => (lum(bg) > 0.6 ? '#1a1a1a' : '#ffffff');
+export const idYoutube = (u: string): string | null => {
   if (!httpsUrl(u)) return null;
   const m = u.match(/^https:\/\/(?:www\.|m\.)?(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{11})(?:[?&#/]|$)/i);
   return m ? m[1] : null;
@@ -202,7 +203,7 @@ const FONT_TITRE = "'Comfortaa', 'Nunito', sans-serif";
 const FONT_TITRE_CLASSIQUE = "'Playfair Display', Georgia, serif";
 
 // ─── PHOTO (ou emplacement de démonstration en aperçu) ────────────────────────
-function Photo({ url, apercu, etiquette, style, cp, cc }: { url: string; apercu: boolean; etiquette?: string; style?: React.CSSProperties; cp: string; cc: string }) {
+export function Photo({ url, apercu, etiquette, style, cp, cc }: { url: string; apercu: boolean; etiquette?: string; style?: React.CSSProperties; cp: string; cc: string }) {
   const [casse, setCasse] = useState(false);
   useEffect(() => { setCasse(false); }, [url]);
   if (httpsUrl(url) && !casse) {
@@ -216,10 +217,10 @@ function Photo({ url, apercu, etiquette, style, cp, cc }: { url: string; apercu:
     </div>
   );
 }
-const aPhoto = (url: string, apercu: boolean) => apercu || httpsUrl(url);
+export const aPhoto = (url: string, apercu: boolean) => apercu || httpsUrl(url);
 
 // ─── THERMOMÈTRE ──────────────────────────────────────────────────────
-function Thermometre({ pct, total, objectif, jalons, cp, texte, hauteur }: { pct: number; total: number; objectif: number; jalons: JalonThermo[]; cp: string; texte: string; hauteur: number }) {
+export function Thermometre({ pct, total, objectif, jalons, cp, texte, hauteur, police }: { pct: number; total: number; objectif: number; jalons: JalonThermo[]; cp: string; texte: string; hauteur: number; police?: string }) {
   const [monte, setMonte] = useState(false);
   useEffect(() => { const t = setTimeout(() => setMonte(true), 250); return () => clearTimeout(t); }, []);
   const H = hauteur;                       // hauteur du tube
@@ -259,7 +260,7 @@ function Thermometre({ pct, total, objectif, jalons, cp, texte, hauteur }: { pct
       </div>
       {/* Bulbe */}
       <div style={{ position: 'absolute', left: CX - B / 2, top: H - Math.round(B * 0.16), width: B, height: B, borderRadius: '50%', background: fond, border: `4px solid ${texte}38`, boxShadow: `0 0 60px ${cp}99, inset 0 -16px 34px #00000050, inset 0 10px 24px rgba(255,255,255,.18)`, zIndex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <span style={{ fontSize: Math.round(B * 0.28), fontWeight: 800, color: texteSur(cp), fontFamily: FONT_TITRE, textShadow: '0 2px 10px rgba(0,0,0,.25)' }}>{pct} %</span>
+        <span style={{ fontSize: Math.round(B * 0.28), fontWeight: 800, color: texteSur(cp), fontFamily: police || FONT_TITRE, textShadow: '0 2px 10px rgba(0,0,0,.25)' }}>{pct} %</span>
         <div style={{ position: 'absolute', top: Math.round(B * 0.12), left: Math.round(B * 0.16), width: Math.round(B * 0.24), height: Math.round(B * 0.13), borderRadius: '50%', background: 'rgba(255,255,255,.4)', transform: 'rotate(-35deg)' }} />
       </div>
       {/* Col de raccord tube/bulbe */}
@@ -277,7 +278,7 @@ function Thermometre({ pct, total, objectif, jalons, cp, texte, hauteur }: { pct
       {/* Montant actuel */}
       <div style={{ position: 'absolute', left: CX + W / 2 + 4, top: monte ? Math.max(0, Math.min(H - 26, yActuel - 22)) : H - 26, zIndex: 5, transition: 'top 2.2s cubic-bezier(.2,.8,.2,1)', display: 'flex', alignItems: 'center' }}>
         <span style={{ width: 0, height: 0, borderTop: '10px solid transparent', borderBottom: '10px solid transparent', borderRight: `11px solid ${cp}` }} />
-        <span style={{ background: cp, color: texteSur(cp), fontWeight: 800, fontSize: gros ? 19 : 16, padding: gros ? '8px 16px' : '6px 12px', borderRadius: 10, whiteSpace: 'nowrap', boxShadow: `0 8px 26px ${cp}77`, fontFamily: FONT_TITRE }}>{argent(Math.round(total))}</span>
+        <span style={{ background: cp, color: texteSur(cp), fontWeight: 800, fontSize: gros ? 19 : 16, padding: gros ? '8px 16px' : '6px 12px', borderRadius: 10, whiteSpace: 'nowrap', boxShadow: `0 8px 26px ${cp}77`, fontFamily: police || FONT_TITRE }}>{argent(Math.round(total))}</span>
       </div>
     </div>
   );
@@ -313,7 +314,7 @@ interface Props {
 export default function TemplateCagnotteCause({ config: configPartiel, isPreviewMobile = false, siteId }: Props) {
   const brut = (configPartiel || {}) as Partial<ConfigCause>;
   // Réglages enregistrés avec un autre modèle (pas de « kicker ») : on garde les couleurs et la police propres à ce modèle
-  const autreModele = brut.kicker === undefined;
+  const autreModele = brut.kicker === undefined || (!!brut.themeId && brut.themeId !== 'cause');
   const brutNet: Partial<ConfigCause> = { ...brut };
   if (autreModele) { delete brutNet.couleurPrincipale; delete brutNet.couleurSecondaire; delete brutNet.couleurFond; delete brutNet.couleurTexte; delete brutNet.police; }
   const config: ConfigCause = { ...CONFIG_CAUSE_DEFAUT, ...brutNet };

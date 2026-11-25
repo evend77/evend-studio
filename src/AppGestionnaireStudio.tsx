@@ -1881,7 +1881,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         }
         setTemplateIdChoisi(templateId);
         setGestionnaire(prev => ({ ...prev, site_template_id: templateId }));
-        if (templateId === 'cagnotte-classique' || templateId === 'cagnotte-cause') {
+        if (templateId === 'cagnotte-classique' || templateId === 'cagnotte-cause' || templateId === 'cagnotte-horizon') {
           setPageActive('cagnotte-config');
         } else if (templateId === 'boutique-orbite') {
           setPageActive('orbite-config-pages');

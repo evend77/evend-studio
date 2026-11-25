@@ -17,6 +17,7 @@ import TemplateReservation            from '../templates/TemplateReservation';
 import TemplateSpectacle              from '../templates/TemplateSpectacle';
 import TemplateCagnotteClassique      from '../templates/TemplateCagnotteClassique';
 import TemplateCagnotteCause          from '../templates/TemplateCagnotteCause';
+import TemplateCagnotteHorizon        from '../templates/TemplateCagnotteHorizon';
 import TemplateBoutiqueSimple         from '../templates/TemplateBoutiqueSimple';
 import TemplateBoutiqueComplete, { migrerComplete } from '../templates/TemplateBoutiqueComplete';
 import TemplateBoutiqueCatalogue from '../templates/TemplateBoutiqueCatalogue';
@@ -2266,6 +2267,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       // Add-on « Cacher le branding » : badge « Propulsé par » masqué seulement si l'add-on est activé
       return <TemplateBoutiqueSimplisse config={isDemo ? configDemo : configSimplisseAvecBadge(configDemo, addonsBoutique)} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     }
+    if (templateId === 'cagnotte-horizon')         return <TemplateCagnotteHorizon config={{ ...(config as any), ...(((config as any).cagnotte && typeof (config as any).cagnotte === 'object') ? (config as any).cagnotte : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'cagnotte-cause')           return <TemplateCagnotteCause config={{ ...(config as any), ...(((config as any).cagnotte && typeof (config as any).cagnotte === 'object') ? (config as any).cagnotte : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId.startsWith('cagnotte-'))        return <TemplateCagnotteClassique config={{ ...(config as any), ...(((config as any).cagnotte && typeof (config as any).cagnotte === 'object') ? (config as any).cagnotte : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'reservation-spectacle')    return <TemplateSpectacle config={config} siteId={siteId} />;

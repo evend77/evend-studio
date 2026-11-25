@@ -64,7 +64,7 @@ function configSite(site) {
   return c.cagnotte && typeof c.cagnotte === 'object' ? { ...c, ...c.cagnotte } : c;
 }
 // Titre du texte d'exemple du template : on refuse de publier une campagne qui n'a pas été personnalisée
-const TITRES_EXEMPLE = ['Rénover la patinoire du quartier', 'Un nouveau refuge pour les animaux du quartier'];
+const TITRES_EXEMPLE = ['Rénover la patinoire du quartier', 'Un nouveau refuge pour les animaux du quartier', 'Une bibliothèque pour tout le quartier'];
 const TITRE_EXEMPLE = TITRES_EXEMPLE[0];
 const estExemple = (cfg) => TITRES_EXEMPLE.includes(String(cfg.nomCampagne || '').trim());
 async function urlDuSite(site) {
