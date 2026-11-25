@@ -43,12 +43,16 @@ export default function MaCagnotte({ vendeurId }: { vendeurId: number }) {
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: '#f7f7f5', minHeight: '100vh', padding: mobile ? '16px 12px 40px' : '28px 32px 40px', boxSizing: 'border-box' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, flexWrap: 'wrap' }}>
         <div style={{ width: 44, height: 44, borderRadius: 12, background: `${OR}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>💝</div>
-        <div>
+        <div style={{ flex: 1, minWidth: 200 }}>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Ma Cagnotte</h1>
           <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Publiez votre campagne, suivez vos dons, branchez vos paiements.</p>
         </div>
+        <a href="https://e-vendstudio.ca/documents/template-ma-cagnotte" target="_blank" rel="noopener noreferrer"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: '#1a1a1a', color: '#fff', fontSize: 13.5, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+          📖 Guide de la cagnotte ↗
+        </a>
       </div>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
         {([['publication', '🚀 Publication'], ['dons', '💝 Dons reçus'], ['paiements', '💳 Paiements']] as const).map(([id, label]) => (

@@ -14,7 +14,7 @@ import ConfigStoreEffects from './pages/gestionnaire/ConfigStoreEffects';
 const API_BASE = '/api';
 
 // ── e-Vend Studio ──
-import MaCagnotte                   from './pages/studio/MaCagnotte';
+import MaCagnotte                   from './pages/gestionnaire/MaCagnotte';
 import ConfigMesPagesCagnotte         from './pages/gestionnaire/ConfigMesPagesCagnotte';
 import ModelesCourrielStudio from './pages/gestionnaire/ModelesCourrielStudio';
 import GestionReservations   from './pages/studio/GestionReservations';

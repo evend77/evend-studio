@@ -111,12 +111,16 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templ
     <div style={{ background: '#f7f7f5', minHeight: '100vh', padding: largeur < 700 ? '16px 12px 90px' : '28px 28px 90px', fontFamily: "'Inter', sans-serif", boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', maxWidth: 1500 }}>
         <div style={{ flex: 1, minWidth: 0, maxWidth: 820 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16, flexWrap: 'wrap' }}>
             <div style={{ width: 44, height: 44, borderRadius: 12, background: '#c9a96e22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22 }}>💝</div>
-            <div>
+            <div style={{ flex: 1, minWidth: 200 }}>
               <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', margin: 0 }}>Ma campagne</h1>
               <p style={{ fontSize: 13, color: '#888', margin: 0 }}>Texte, objectif, photos et couleurs de votre page de dons.</p>
             </div>
+            <a href="https://e-vendstudio.ca/documents/template-ma-cagnotte" target="_blank" rel="noopener noreferrer"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 16px', borderRadius: 10, background: '#1a1a1a', color: '#fff', fontSize: 13.5, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap' }}>
+              📖 Guide de la cagnotte ↗
+            </a>
           </div>
 
           {/* Prix de publication */}
