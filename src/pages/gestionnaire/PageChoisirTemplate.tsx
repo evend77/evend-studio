@@ -439,6 +439,14 @@ function lisible(hex: string): string {
   return '#' + f(r) + f(g) + f(b);
 }
 
+// Texte du bandeau-titre d'une carte : foncé sur une couleur claire, blanc sinon.
+function claire(hex: string): boolean {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return false;
+  const n = parseInt(m[1], 16);
+  return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255 > 0.62;
+}
+
 export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props) {
   const [ongletCategorie, setOngletCategorie] = useState<'vitrines'|'boutiques'|'multivendeur'|'cagnottes'|'encheres'|'annonces'|'abonnements'|'locations'>('vitrines');
   const [descOuverte, setDescOuverte] = useState(false);
@@ -2504,11 +2512,29 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           position: 'relative' as const,
                         }}>
 
+                        {/* Bandeau-titre en couleur du modèle, au-dessus de la photo */}
+                        <div style={{ margin: '-20px -20px 0', padding: '13px 18px', borderRadius: '22px 22px 0 0', background: `linear-gradient(100deg, ${t.couleur}, ${t.couleur}bb)`, display: 'flex', alignItems: 'center', gap: 12, minHeight: 58 }}>
+                          <span style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(0,0,0,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>{t.icone}</span>
+                          <h3 style={{ flex: 1, minWidth: 0, fontSize: 19, fontWeight: 800, letterSpacing: '0.01em', lineHeight: 1.15, margin: 0, fontFamily: "'Sora', sans-serif", color: claire(t.couleur) ? '#14141c' : '#fff', textShadow: claire(t.couleur) ? 'none' : '0 1px 6px rgba(0,0,0,0.45)', overflowWrap: 'anywhere' as const }}>{t.titre}</h3>
+                          <span style={{ flexShrink: 0, display: 'flex' }}>
+                            <span style={{ background: 'rgba(0,0,0,0.38)', borderRadius: 20, display: 'inline-flex' }}>
+                              {!t.disponible
+                                ? <span style={{ fontSize: 11, background: 'transparent', color: '#fff', padding: '3px 10px', borderRadius: 20, fontWeight: 600 }}>Bientôt</span>
+                                : t.badge
+                                ? <span style={{ fontSize: 11, background: 'transparent', color: '#fff', padding: '3px 10px', borderRadius: 20, fontWeight: 700 }}>{t.badge}</span>
+                                : (prixParTemplate[t.id] || (t as any).prix) && (prixParTemplate[t.id] || (t as any).prix) !== 'Gratuit'
+                                ? <span style={{ fontSize: 11, background: 'transparent', color: '#fbbf24', padding: '3px 10px', borderRadius: 20, fontWeight: 700 }}>{prixParTemplate[t.id] || (t as any).prix}</span>
+                                : <span style={{ fontSize: 11, background: 'transparent', color: '#fff', padding: '3px 10px', borderRadius: 20, fontWeight: 700 }}>Gratuit</span>
+                              }
+                            </span>
+                          </span>
+                        </div>
+
                         {/* Aperçu : haut du site de démonstration (capture dans public/apercus/<id>.jpg). Clic = aperçu complet. */}
                         <div
                           onClick={e => { e.stopPropagation(); if (t.disponible) ouvrirApercu(t.id); }}
                           title={t.disponible ? "Ouvrir l'aperçu complet" : undefined}
-                          style={{ margin: '-20px -20px 16px', borderRadius: '22px 22px 0 0', overflow: 'hidden', aspectRatio: '16 / 10', background: `${t.couleur}20`, cursor: t.disponible ? 'zoom-in' : 'not-allowed', position: 'relative' as const }}>
+                          style={{ margin: '0 -20px 16px', overflow: 'hidden', aspectRatio: '16 / 10', background: `${t.couleur}20`, cursor: t.disponible ? 'zoom-in' : 'not-allowed', position: 'relative' as const }}>
                           <img
                             src={`/apercus/${t.id}.jpg`}
                             alt={`Aperçu de ${t.titre}`}
@@ -2519,30 +2545,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                         </div>
 
                         {estSimplisse && (
-                          <div style={{ position: 'absolute', top: -1, right: 16, background: COULEUR_MP, color: '#fff', fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: '0 0 8px 8px', letterSpacing: '0.05em' }}>
+                          <div style={{ position: 'absolute', top: 58, right: 16, background: COULEUR_MP, color: '#fff', fontSize: 10, fontWeight: 700, padding: '4px 12px', borderRadius: '0 0 8px 8px', letterSpacing: '0.05em', zIndex: 2 }}>
                             LE PLUS POPULAIRE
                           </div>
                         )}
 
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 14, marginTop: estSimplisse ? 10 : 0 }}>
-                          <div style={{ width: 44, height: 44, borderRadius: 10, background: `${t.couleur}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, flexShrink: 0 }}>
-                            {t.icone}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 5, flexWrap: 'wrap' as const }}>
-                              <h3 style={{ fontSize: 15, fontWeight: 700, color: C.text, margin: 0, fontFamily: "'Sora', sans-serif" }}>{t.titre}</h3>
-                              {!t.disponible
-                                ? <span style={{ fontSize: 10, background: 'rgba(255,255,255,0.08)', color: C.textDim, padding: '2px 8px', borderRadius: 20, fontWeight: 600 }}>Bientôt</span>
-                                : t.badge
-                                ? <span style={{ fontSize: 10, background: `${t.badgeCouleur || t.couleur}18`, color: lisible(t.badgeCouleur || t.couleur), padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{t.badge}</span>
-                                : (prixParTemplate[t.id] || (t as any).prix) && (prixParTemplate[t.id] || (t as any).prix) !== 'Gratuit'
-                                ? <span style={{ fontSize: 10, background: 'rgba(245,158,11,0.15)', color: '#f59e0b', padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>{prixParTemplate[t.id] || (t as any).prix}</span>
-                                : <span style={{ fontSize: 10, background: `${t.couleur}18`, color: lisible(t.couleur), padding: '2px 8px', borderRadius: 20, fontWeight: 700 }}>Gratuit</span>
-                              }
-                            </div>
-                            <p style={{ fontSize: 13, color: C.textLight, lineHeight: 1.55, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{t.desc}</p>
-                          </div>
-                        </div>
+                        <p style={{ fontSize: 13, color: C.textLight, lineHeight: 1.55, margin: '0 0 14px', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' }}>{t.desc}</p>
 
                         {rendreDetails('carte')}
                         {t.disponible && (
