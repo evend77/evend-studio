@@ -1342,6 +1342,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         {
           templates: [
             { id: 'cagnotte-classique',    titre: 'Cagnotte Classique', desc: 'Page de collecte élégante : dons par carte et PayPal sur votre propre compte, aucune commission, prix fixe par campagne.', icone: '💝', couleur: '#c9a96e', disponible: true },
+            { id: 'cagnotte-cause',        titre: 'Cagnotte Cause', desc: 'Page complète pour une grande cause : thermomètre animé, photos, chronologie, vidéo, témoignages et FAQ. Dons sur votre propre compte, aucune commission.', icone: '🌡️', couleur: '#e2651a', disponible: true },
           ]
         },
       ]

@@ -57,10 +57,16 @@ async function siteDuGestionnaire(gid) {
   const r = await pool.query('SELECT id, slug, domaine_custom, config FROM sites WHERE gestionnaire_id = $1 ORDER BY id LIMIT 1', [gid]);
   return r.rows[0] || null;
 }
+// La configuration de la cagnotte est rangée dans sites.config.cagnotte (comme les autres templates) ; les anciennes clés à plat restent lues.
 function configSite(site) {
   let c = site && site.config; if (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) { c = {}; } }
-  return c || {};
+  c = c && typeof c === 'object' ? c : {};
+  return c.cagnotte && typeof c.cagnotte === 'object' ? { ...c, ...c.cagnotte } : c;
 }
+// Titre du texte d'exemple du template : on refuse de publier une campagne qui n'a pas été personnalisée
+const TITRES_EXEMPLE = ['Rénover la patinoire du quartier', 'Un nouveau refuge pour les animaux du quartier'];
+const TITRE_EXEMPLE = TITRES_EXEMPLE[0];
+const estExemple = (cfg) => TITRES_EXEMPLE.includes(String(cfg.nomCampagne || '').trim());
 async function urlDuSite(site) {
   const d = site && (site.domaine_custom || (site.slug ? `${site.slug}.e-vendstudio.ca` : ''));
   return d ? `https://${d}` : null;
@@ -111,7 +117,8 @@ async function etat(gid) {
   const paiement = require('./cagnotte_paiement');
   const modes = paiement.modesDisponibles(await paiement.config(gid));
   out.modes = { stripe: modes.stripe, paypal: modes.paypal, env: modes.env };
-  if (!cfg.nomCampagne || !String(cfg.nomCampagne).trim()) out.problemes.push('Donnez un titre à votre campagne (page « Ma campagne »).');
+  if (!cfg.nomCampagne || !String(cfg.nomCampagne).trim()) out.problemes.push('Donnez un titre à votre campagne (menu « Ma campagne »).');
+  else if (estExemple(cfg)) out.problemes.push("Remplacez le texte d'exemple par votre propre campagne (menu « Ma campagne »).");
   if (!(objectif > 0)) out.problemes.push("Indiquez l'objectif en dollars de votre campagne.");
   if (!modes.stripe && !modes.paypal) out.problemes.push('Branchez Stripe et/ou PayPal (onglet « Paiements ») pour pouvoir recevoir les dons.');
   if (objectif > 0) {
@@ -121,7 +128,7 @@ async function etat(gid) {
 }
 
 // ── Paiement du prix de publication (Stripe de l'admin) ──────────────────────
-async function creerPaiementPublication(gid, province) {
+async function creerPaiementPublication(gid, province, urlRetour) {
   await schema.pret();
   if (!PROVINCES.includes(province)) refus('Choisissez la province pour le calcul des taxes.');
   const rg = await reglages();
@@ -131,6 +138,7 @@ async function creerPaiementPublication(gid, province) {
   const objectif = Number(cfg.objectifMontant) || 0;
   if (!(objectif > 0)) refus("Indiquez d'abord l'objectif de votre campagne.");
   if (!cfg.nomCampagne || !String(cfg.nomCampagne).trim()) refus("Donnez d'abord un titre à votre campagne.");
+  if (estExemple(cfg)) refus("Remplacez d'abord le texte d'exemple par votre propre campagne.");
   const paiement = require('./cagnotte_paiement');
   const modes = paiement.modesDisponibles(await paiement.config(gid));
   if (!modes.stripe && !modes.paypal) refus("Branchez d'abord Stripe et/ou PayPal : sans cela, personne ne pourrait vous envoyer de dons.", 409);
@@ -148,7 +156,8 @@ async function creerPaiementPublication(gid, province) {
   }
   const dv = devis(rg, objectif, province);
   if (dv.totalC < 50) refus('Le montant est trop bas pour un paiement en ligne.', 409);
-  const urlBase = (process.env.FRONTEND_URL || 'https://api.e-vend.ca').replace(/\/+$/, '');
+  // Retour sur Studio : l'adresse que le gestionnaire utilise en ce moment (sinon FRONTEND_URL)
+  const urlBase = String(urlRetour || process.env.FRONTEND_URL || 'https://api.e-vend.ca').replace(/\/+$/, '');
   const { stripe, env } = await stripePlateforme();
   const devise = rg.devise.toLowerCase();
 

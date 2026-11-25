@@ -1806,7 +1806,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mes-chatbot') return <ChatbotConfig gestionnaireId={gestionnaire.id} modeMV={estMultiVendeur} />;
     if (pageActive === 'mes-effets-visuels') return <ConfigStoreEffects gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
-    if (pageActive === 'cagnotte-config') return <ConfigMesPagesCagnotte gestionnaireId={gestionnaire.id} naviguer={setPageActive} />;
+    if (pageActive === 'cagnotte-config') return <ConfigMesPagesCagnotte gestionnaireId={gestionnaire.id} naviguer={setPageActive} templateId={templateActif} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
     if (pageActive === 'collaborateurs-liste') return <StudioSousVendeurs    gestionnaireId={gestionnaire.id} />;
@@ -1881,7 +1881,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         }
         setTemplateIdChoisi(templateId);
         setGestionnaire(prev => ({ ...prev, site_template_id: templateId }));
-        if (templateId === 'cagnotte-classique') {
+        if (templateId === 'cagnotte-classique' || templateId === 'cagnotte-cause') {
           setPageActive('cagnotte-config');
         } else if (templateId === 'boutique-orbite') {
           setPageActive('orbite-config-pages');

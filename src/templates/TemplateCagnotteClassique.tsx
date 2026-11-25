@@ -114,12 +114,12 @@ function getGoogleFonts(p: string) {
   }
 }
 const EMOJI_TYPE: Record<SousTypeCagnotte, string> = { personnel: '❤️', projet: '🚀', communaute: '🤝', environnement: '🌿', urgence: '🆘' };
-const couleurValide = (c: any, defaut: string) => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) ? c : defaut);
+export const couleurValide = (c: any, defaut: string) => (typeof c === 'string' && /^#[0-9a-fA-F]{6}$/.test(c) ? c : defaut);
 // Lien réseau social : accepte un nom d'utilisateur ou une adresse https complète
-const lienReseau = (base: string, v: string) => (/^https:\/\//i.test(v) ? v : `${base}${encodeURIComponent(v.replace(/^@/, '').trim())}`);
-const argent = (n: number) => `${Number.isInteger(n) ? n.toLocaleString('fr-CA') : n.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
+export const lienReseau = (base: string, v: string) => (/^https:\/\//i.test(v) ? v : `${base}${encodeURIComponent(v.replace(/^@/, '').trim())}`);
+export const argent = (n: number) => `${Number.isInteger(n) ? n.toLocaleString('fr-CA') : n.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} $`;
 
-interface EtatPublic {
+export interface EtatPublic {
   statut: 'non_publiee' | 'publiee' | 'terminee';
   ouvert: boolean;
   fin_le: string | null;
@@ -132,11 +132,12 @@ interface EtatPublic {
   dons: { id: number; nom_donateur: string; montant: string; message: string | null; created_at: string }[];
 }
 
-const AVIS_LEGAL = "Les dons sont versés directement à l'organisateur, qui est seul responsable de la collecte et de l'utilisation des fonds. e-Vend Studio ne perçoit aucune commission sur les dons. Sauf mention contraire de l'organisateur, un don ne donne pas droit à un reçu fiscal.";
+export const AVIS_LEGAL = "Les dons sont versés directement à l'organisateur, qui est seul responsable de la collecte et de l'utilisation des fonds. e-Vend Studio ne perçoit aucune commission sur les dons. Sauf mention contraire de l'organisateur, un don ne donne pas droit à un reçu fiscal.";
 
 // ─── MODAL DE DON ──────────────────────────────────────────────────────
-interface ModalDonProps {
+export interface ModalDonProps {
   config: ConfigCagnotte;
+  montantInitial?: number;
   cp: string; cs: string;
   siteId?: number;
   modes: { stripe: boolean; paypal: boolean };
@@ -146,9 +147,10 @@ interface ModalDonProps {
   onClose: () => void;
 }
 
-function ModalDon({ config, cp, cs, siteId, modes, minimum, maximum, apercu, onClose }: ModalDonProps) {
-  const [montant, setMontant] = useState<number | ''>(config.montantsSuggeres[1] || config.montantsSuggeres[0] || 25);
-  const [montantCustom, setMontantCustom] = useState('');
+export function ModalDon({ config, cp, cs, siteId, modes, minimum, maximum, apercu, onClose, montantInitial }: ModalDonProps) {
+  const initialPerso = !!montantInitial && montantInitial > 0 && config.montantsSuggeres.indexOf(montantInitial) < 0;
+  const [montant, setMontant] = useState<number | ''>(initialPerso ? '' : (montantInitial && montantInitial > 0 ? montantInitial : (config.montantsSuggeres[1] || config.montantsSuggeres[0] || 25)));
+  const [montantCustom, setMontantCustom] = useState(initialPerso ? String(montantInitial) : '');
   const [nomDonateur, setNomDonateur] = useState('');
   const [anonyme, setAnonyme] = useState(false);
   const [message, setMessage] = useState('');
@@ -301,6 +303,8 @@ export default function TemplateCagnotteClassique({ config: configPartiel, isPre
   if (!Array.isArray(config.misesAJour)) config.misesAJour = [];
   const largeur = useLargeur();
   const isMobile = isPreviewMobile || largeur <= 768;
+  // En aperçu réduit (page de configuration), les unités vw suivraient la fenêtre du navigateur : tailles fixes
+  const taille = (min: number, vw: number, max: number) => (isPreviewMobile ? `${Math.round(min + (max - min) * 0.1)}px` : `clamp(${min}px, ${vw}vw, ${max}px)`);
   const police = getPoliceCSS(config.police);
   const heroRef = useRef<HTMLDivElement>(null);
   const cp = couleurValide(config.couleurPrincipale, '#c9a96e');
@@ -426,8 +430,8 @@ export default function TemplateCagnotteClassique({ config: configPartiel, isPre
           <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(180deg, ${cs}99 0%, ${cs}dd 100%)` }} />
           <div style={{ position: 'relative', zIndex: 2, maxWidth: 700, padding: '80px 20px 40px' }}>
             <p style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: cp, marginBottom: 14 }}>{emoji} Campagne de dons</p>
-            <h1 style={{ fontSize: 'clamp(28px, 6vw, 58px)', fontWeight: 700, color: '#fff', lineHeight: 1.1, marginBottom: 16, overflowWrap: 'anywhere' }}>{config.nomCampagne}</h1>
-            <p style={{ fontSize: 'clamp(14px, 2vw, 18px)', color: 'rgba(255,255,255,0.8)', lineHeight: 1.6, maxWidth: 540, margin: '0 auto 32px' }}>{config.slogan}</p>
+            <h1 style={{ fontSize: taille(28, 6, 58), fontWeight: 700, color: '#fff', lineHeight: 1.1, marginBottom: 16, overflowWrap: 'anywhere' }}>{config.nomCampagne}</h1>
+            <p style={{ fontSize: taille(14, 2, 18), color: 'rgba(255,255,255,0.8)', lineHeight: 1.6, maxWidth: 540, margin: '0 auto 32px' }}>{config.slogan}</p>
             <button onClick={ouvrirDon} disabled={!donsOuverts} className="cg-btn" style={{ fontSize: 17, padding: '15px 40px' }}>{donsOuverts ? '💝 Faire un don maintenant' : libelleBouton}</button>
           </div>
           <div style={{ position: 'absolute', bottom: 24, left: '50%', color: 'rgba(255,255,255,0.5)', fontSize: 20, animation: 'cg-bounce 2s infinite' }}>↓</div>
@@ -447,7 +451,7 @@ export default function TemplateCagnotteClassique({ config: configPartiel, isPre
               {config.photoCampagne && (
                 <img src={config.photoCampagne} alt="" style={{ width: '100%', borderRadius: 12, marginBottom: 32, boxShadow: `0 8px 32px ${cs}20`, objectFit: 'cover', maxHeight: 380 }} onError={e => (e.currentTarget.style.display = 'none')} />
               )}
-              <h2 style={{ fontSize: 'clamp(20px, 3vw, 28px)', fontWeight: 700, color: cs, marginBottom: 6 }}>À propos de cette campagne</h2>
+              <h2 style={{ fontSize: taille(20, 3, 28), fontWeight: 700, color: cs, marginBottom: 6 }}>À propos de cette campagne</h2>
               <div className="cg-sep" />
               <div style={{ fontSize: 15, color: `${ct}cc`, lineHeight: 1.8, whiteSpace: 'pre-line', marginBottom: 40, overflowWrap: 'anywhere' }}>{config.descriptionCampagne}</div>
 
@@ -526,7 +530,7 @@ export default function TemplateCagnotteClassique({ config: configPartiel, isPre
         <section style={{ padding: '56px 20px', background: `${cp}10`, borderTop: `1px solid ${cp}20` }}>
           <div style={{ maxWidth: 600, margin: '0 auto', textAlign: 'center' }}>
             <p style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: cp, marginBottom: 12 }}>Partagez</p>
-            <h2 style={{ fontSize: 'clamp(20px, 3vw, 30px)', fontWeight: 700, color: cs, marginBottom: 8 }}>Aidez-nous à passer le mot !</h2>
+            <h2 style={{ fontSize: taille(20, 3, 30), fontWeight: 700, color: cs, marginBottom: 8 }}>Aidez-nous à passer le mot !</h2>
             <div className="cg-sep cg-sep-c" />
             <p style={{ fontSize: 14, color: `${ct}aa`, marginBottom: 24 }}>Chaque partage peut faire la différence.</p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -550,7 +554,7 @@ export default function TemplateCagnotteClassique({ config: configPartiel, isPre
 
 const btnSocial = (bg: string): React.CSSProperties => ({ padding: '10px 20px', background: bg, borderRadius: 8, color: '#fff', textDecoration: 'none', fontSize: 13, fontWeight: 600, display: 'inline-block' });
 
-function useLargeur() {
+export function useLargeur() {
   const [w, setW] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
   useEffect(() => {
     const f = () => setW(window.innerWidth);

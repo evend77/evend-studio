@@ -62,6 +62,7 @@ export const PHOTOS: Record<string, string> = {
   'reservation-spectacle':'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Cagnotte
   'cagnotte-classique':   '/apercus/cagnotte-classique.jpg',
+  'cagnotte-cause':       '/apercus/cagnotte-cause.jpg',
   // Profession
   'vitrine-avocat':           'https://images.pexels.com/photos/5668858/pexels-photo-5668858.jpeg?auto=compress&cs=tinysrgb&w=800',
   'salon-coiffure':           'https://images.pexels.com/photos/3065209/pexels-photo-3065209.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -676,6 +677,14 @@ export const TEMPLATES: Template[] = [
     description: 'Page de collecte de fonds élégante : barre de progression, dons par carte et PayPal directement sur votre compte, aucune commission. Prix fixe par campagne.',
     fonctionnalites: ['Barre de progression', 'Stripe et PayPal à vous', 'Aucune commission', 'Messages et mises à jour'],
     disponible: true, nouveau: true, couleur: '#c9a96e',
+  },
+  {
+    id: 'cagnotte-cause',
+    nom: 'Cagnotte Cause',
+    groupe: 'cagnotte',
+    description: 'Page complète pour une grande cause : grand thermomètre animé, sections avec photos, chronologie, galerie, vidéo, témoignages, équipe et FAQ. Dons directement sur votre compte, aucune commission.',
+    fonctionnalites: ['Thermomètre animé', 'Sections et galerie photos', 'Chronologie et impact des dons', 'Témoignages, équipe, FAQ'],
+    disponible: true, nouveau: true, couleur: '#e2651a',
   },
 
   // ── ENCHÈRES ──

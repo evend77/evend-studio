@@ -4,10 +4,12 @@
 
 import { useState, useEffect, useRef } from 'react';
 import TemplateCagnotteClassique, { CONFIG_CAGNOTTE_DEFAUT, MODELES_CAGNOTTE, type ConfigCagnotte, type SousTypeCagnotte } from '../../templates/TemplateCagnotteClassique';
+import TemplateCagnotteCause, { CONFIG_CAUSE_DEFAUT, PALETTES_CAUSE, SECTIONS_CAUSE, type ConfigCause } from '../../templates/TemplateCagnotteCause';
 
 interface Props {
   gestionnaireId: number;
   naviguer?: (page: string) => void;   // pour le bouton « Aller publier »
+  templateId?: string;                 // 'cagnotte-classique' (défaut) ou 'cagnotte-cause'
 }
 
 interface EtatCampagne {
@@ -19,7 +21,8 @@ interface EtatCampagne {
 
 const POLICES: { v: ConfigCagnotte['police']; label: string }[] = [{ v: 'moderne', label: 'Moderne' }, { v: 'classique', label: 'Classique' }, { v: 'manuscrite', label: 'Manuscrite' }];
 const ONGLETS = [{ id: 'campagne', label: '🎯 Campagne' }, { id: 'organisateur', label: '👤 Organisateur' }, { id: 'dons', label: '💝 Dons' }, { id: 'apparence', label: '🎨 Apparence' }, { id: 'nouvelles', label: '📰 Mises à jour' }, { id: 'contact', label: '🔗 Liens' }] as const;
-type Onglet = typeof ONGLETS[number]['id'];
+const ONGLETS_CAUSE = [{ id: 'campagne', label: '🎯 Campagne' }, { id: 'thermo', label: '🌡️ Thermomètre' }, { id: 'histoire', label: '📖 Histoire & photos' }, { id: 'impact', label: '💥 Impact & raisons' }, { id: 'chrono', label: '⏱ Chronologie' }, { id: 'galerie', label: '🖼 Galerie & vidéo' }, { id: 'preuves', label: '💬 Témoignages, équipe, FAQ' }, { id: 'organisateur', label: '👤 Organisateur' }, { id: 'dons', label: '💝 Dons' }, { id: 'apparence', label: '🎨 Apparence' }, { id: 'sections', label: '👁 Sections affichées' }, { id: 'nouvelles', label: '📰 Mises à jour' }, { id: 'contact', label: '🔗 Liens' }];
+type Onglet = string;
 
 const jourISO = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const argent = (n: number) => `${n.toLocaleString('fr-CA')} $`;
@@ -29,8 +32,10 @@ function entetes(): HeadersInit {
   return { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 }
 
-export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer }: Props) {
-  const [cfg, setCfg] = useState<ConfigCagnotte>(CONFIG_CAGNOTTE_DEFAUT);
+export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer, templateId }: Props) {
+  const estCause = templateId === 'cagnotte-cause';
+  const ONGLETS_ACTIFS = estCause ? ONGLETS_CAUSE : ONGLETS;
+  const [cfg, setCfg] = useState<ConfigCause>((estCause ? CONFIG_CAUSE_DEFAUT : CONFIG_CAGNOTTE_DEFAUT) as ConfigCause);
   const [onglet, setOnglet] = useState<Onglet>('campagne');
   const [etat, setEtat] = useState<EtatCampagne | null>(null);
   const [sauv, setSauv] = useState<'idle' | 'loading' | 'ok' | 'err'>('idle');
@@ -57,14 +62,14 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer }: Pro
       .then(r => (r.ok ? r.json() : null))
       .then(data => {
         const brut = data && data.config && typeof data.config === 'object' ? data.config.cagnotte : null;
-        if (brut && typeof brut === 'object') setCfg(prev => ({ ...prev, ...brut, montantsSuggeres: Array.isArray(brut.montantsSuggeres) && brut.montantsSuggeres.length ? brut.montantsSuggeres : prev.montantsSuggeres, misesAJour: Array.isArray(brut.misesAJour) ? brut.misesAJour : prev.misesAJour }));
+        if (brut && typeof brut === 'object') setCfg(prev => ({ ...prev, ...(estCause && brut.kicker === undefined ? { ...brut, couleurPrincipale: prev.couleurPrincipale, couleurSecondaire: prev.couleurSecondaire, couleurFond: prev.couleurFond, couleurTexte: prev.couleurTexte, police: prev.police } : brut), montantsSuggeres: Array.isArray(brut.montantsSuggeres) && brut.montantsSuggeres.length ? brut.montantsSuggeres : prev.montantsSuggeres, misesAJour: Array.isArray(brut.misesAJour) ? brut.misesAJour : prev.misesAJour }));
       })
       .catch(() => {})
       .finally(() => { charge.current = true; });
     chargerEtat();
   }, [gestionnaireId]);
 
-  const maj = (p: Partial<ConfigCagnotte>) => { setCfg(c => ({ ...c, ...p })); setModifie(true); };
+  const maj = (p: Partial<ConfigCause>) => { setCfg(c => ({ ...c, ...p })); setModifie(true); };
   const dureeMax = etat ? etat.duree_max_jours : 90;
   const maxDate = jourISO(new Date(Date.now() + dureeMax * 86400000));
   const minDate = jourISO(new Date(Date.now() + 2 * 86400000));
@@ -89,8 +94,8 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer }: Pro
     if (!montants.length) { setMsg('Ajoutez au moins un montant suggéré.'); setOnglet('dons'); setSauv('err'); return; }
     setSauv('loading');
     try {
-      const donnees = { ...cfg, objectifMontant: objectif, montantsSuggeres: Array.from(new Set<number>(montants)).sort((a: number, b: number) => a - b) };
-      const res = await fetch(`/api/studio/sites/${gestionnaireId}/config`, { method: 'PUT', headers: entetes(), credentials: 'include', body: JSON.stringify({ config: { cagnotte: donnees }, template_id: 'cagnotte-classique' }) });
+      const donnees: ConfigCause = { ...cfg, objectifMontant: objectif, montantsSuggeres: Array.from(new Set<number>(montants)).sort((a: number, b: number) => a - b) };
+      const res = await fetch(`/api/studio/sites/${gestionnaireId}/config`, { method: 'PUT', headers: entetes(), credentials: 'include', body: JSON.stringify({ config: { cagnotte: donnees }, template_id: estCause ? 'cagnotte-cause' : 'cagnotte-classique' }) });
       if (!res.ok) throw new Error();
       setCfg(donnees); setModifie(false); setSauv('ok'); chargerEtat();
       setTimeout(() => setSauv('idle'), 2500);
@@ -124,7 +129,7 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer }: Pro
           </div>
 
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 14 }}>
-            {ONGLETS.map(o => <button key={o.id} onClick={() => setOnglet(o.id)} style={{ ...btnOnglet, ...(onglet === o.id ? btnOngletActif : {}) }}>{o.label}</button>)}
+            {ONGLETS_ACTIFS.map(o => <button key={o.id} onClick={() => setOnglet(o.id)} style={{ ...btnOnglet, ...(onglet === o.id ? btnOngletActif : {}) }}>{o.label}</button>)}
           </div>
 
           <div style={carte}>
@@ -160,6 +165,100 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer }: Pro
                 <Champ label="Grande photo du haut de page (adresse https://…)"><Texte v={cfg.photoHeroUrl} on={v => maj({ photoHeroUrl: v })} max={1000} placeholder="https://…" /></Champ>
               </>
             )}
+            {estCause && onglet === 'thermo' && (
+              <>
+                <p style={aide}>Le grand thermomètre du haut de page monte à mesure que les dons arrivent. Les paliers s'affichent à côté et se cochent quand ils sont atteints.</p>
+                <Champ label="Texte au-dessus du titre"><Texte v={cfg.kicker} on={v => maj({ kicker: v })} max={60} /></Champ>
+                <Champ label="Texte du bouton de don"><Texte v={cfg.texteBoutonDon} on={v => maj({ texteBoutonDon: v })} max={30} /></Champ>
+                <Champ label="Paliers du thermomètre (jusqu'à 5)" aide="Chaque palier est un montant atteint sur le chemin de l'objectif (ex. 12 500 $ = « Terrain préparé »).">
+                  <ListeEditable items={cfg.jalonsThermo} on={v => maj({ jalonsThermo: v })} max={5} vide={{ montant: 0, libelle: '' }} titre={(x: any) => x.libelle || 'Palier'}
+                    champs={[{ k: 'montant', label: 'Montant ($)', type: 'nombre' }, { k: 'libelle', label: 'Libellé', max: 40 }]} />
+                </Champ>
+                <Champ label="Chiffres du bandeau (jusqu'à 2)" aide="Le bandeau affiche déjà le % atteint et les jours restants. Ajoutez vos propres chiffres : « 10 ans — d'expérience ».">
+                  <ListeEditable items={cfg.chiffres} on={v => maj({ chiffres: v })} max={2} vide={{ valeur: '', libelle: '' }} titre={(x: any) => x.valeur || 'Chiffre'}
+                    champs={[{ k: 'valeur', label: 'Valeur', max: 14 }, { k: 'libelle', label: 'Libellé', max: 40 }]} />
+                </Champ>
+                <Champ label="Compte à rebours — titre"><Texte v={cfg.titreCompteRebours} on={v => maj({ titreCompteRebours: v })} max={60} /></Champ>
+                <Champ label="Compte à rebours — texte" aide="S'affiche seulement quand la campagne est ouverte et a une date de fin."><Zone v={cfg.texteCompteRebours} on={v => maj({ texteCompteRebours: v })} max={300} rows={2} /></Champ>
+              </>
+            )}
+            {estCause && onglet === 'histoire' && (
+              <>
+                <p style={aide}>Le texte principal et la photo de campagne se règlent dans l'onglet « Campagne ». Ici, ajoutez des sections avec photo à côté du texte, en alternance gauche/droite.</p>
+                <Champ label="Titre de la section"><Texte v={cfg.titreHistoire} on={v => maj({ titreHistoire: v })} max={80} /></Champ>
+                <Champ label="Sections avec photo (jusqu'à 8)">
+                  <ListeEditable items={cfg.blocsHistoire} on={v => maj({ blocsHistoire: v })} max={8} vide={{ titre: '', texte: '', photoUrl: '', position: 'droite' }} titre={(x: any) => x.titre || 'Section'}
+                    champs={[{ k: 'titre', label: 'Titre', max: 100 }, { k: 'texte', label: 'Texte', type: 'zone', max: 2000 }, { k: 'photoUrl', label: 'Photo (adresse https://…)', max: 1000, ph: 'https://…' }, { k: 'position', label: 'Photo à', type: 'choix', choix: [{ v: 'droite', label: 'Droite' }, { v: 'gauche', label: 'Gauche' }] }]} />
+                </Champ>
+              </>
+            )}
+            {estCause && onglet === 'impact' && (
+              <>
+                <Champ label="Titre « Pourquoi »"><Texte v={cfg.titreRaisons} on={v => maj({ titreRaisons: v })} max={80} /></Champ>
+                <Champ label="Raisons / points forts (jusqu'à 9)" aide="Affichées en cartes numérotées (01, 02, 03…).">
+                  <ListeEditable items={cfg.raisons} on={v => maj({ raisons: v })} max={9} vide={{ titre: '', texte: '' }} titre={(x: any) => x.titre || 'Raison'}
+                    champs={[{ k: 'titre', label: 'Titre', max: 80 }, { k: 'texte', label: 'Texte', type: 'zone', max: 400 }]} />
+                </Champ>
+                <Champ label="Titre « Votre don en action »"><Texte v={cfg.titreImpacts} on={v => maj({ titreImpacts: v })} max={80} /></Champ>
+                <Champ label="Ce que permet chaque montant (jusqu'à 8)" aide="Cliquer sur une carte ouvre la fenêtre de don avec ce montant déjà choisi.">
+                  <ListeEditable items={cfg.impacts} on={v => maj({ impacts: v })} max={8} vide={{ montant: 0, texte: '' }} titre={(x: any) => (x.montant ? `${x.montant} $` : 'Montant')}
+                    champs={[{ k: 'montant', label: 'Montant ($)', type: 'nombre' }, { k: 'texte', label: 'Ce que ça permet', type: 'zone', max: 200 }]} />
+                </Champ>
+              </>
+            )}
+            {estCause && onglet === 'chrono' && (
+              <>
+                <Champ label="Titre de la section"><Texte v={cfg.titreChronologie} on={v => maj({ titreChronologie: v })} max={80} /></Champ>
+                <Champ label="Étapes (jusqu'à 12)" aide="Dans l'ordre d'affichage. Le « repère » est libre : une date, une saison, « Phase 1 »…">
+                  <ListeEditable items={cfg.chronologie} on={v => maj({ chronologie: v })} max={12} vide={{ date: '', titre: '', texte: '', photoUrl: '' }} titre={(x: any) => x.titre || 'Étape'}
+                    champs={[{ k: 'date', label: 'Repère (date, saison…)', max: 40 }, { k: 'titre', label: 'Titre', max: 100 }, { k: 'texte', label: 'Description', type: 'zone', max: 500 }, { k: 'photoUrl', label: 'Photo (facultatif)', max: 1000, ph: 'https://…' }]} />
+                </Champ>
+              </>
+            )}
+            {estCause && onglet === 'galerie' && (
+              <>
+                <Champ label="Titre de la galerie"><Texte v={cfg.titreGalerie} on={v => maj({ titreGalerie: v })} max={80} /></Champ>
+                <Champ label="Photos (jusqu'à 18)" aide="Un clic sur une photo l'agrandit. La première photo est affichée en grand.">
+                  <ListeEditable items={cfg.galerie} on={v => maj({ galerie: v })} max={18} vide={{ url: '', legende: '' }} titre={(x: any) => x.legende || 'Photo'}
+                    champs={[{ k: 'url', label: 'Photo (adresse https://…)', max: 1000, ph: 'https://…' }, { k: 'legende', label: 'Légende', max: 100 }]} />
+                </Champ>
+                <Champ label="Vidéo YouTube (adresse https://…, facultatif)" aide="Collez le lien de votre vidéo YouTube (youtube.com ou youtu.be)."><Texte v={cfg.videoUrl} on={v => maj({ videoUrl: v })} max={300} placeholder="https://www.youtube.com/watch?v=…" /></Champ>
+                <Champ label="Titre de la vidéo"><Texte v={cfg.titreVideo} on={v => maj({ titreVideo: v })} max={80} /></Champ>
+              </>
+            )}
+            {estCause && onglet === 'preuves' && (
+              <>
+                <Champ label="Titre « Témoignages »"><Texte v={cfg.titreTemoignages} on={v => maj({ titreTemoignages: v })} max={80} /></Champ>
+                <Champ label="Témoignages (jusqu'à 12)">
+                  <ListeEditable items={cfg.temoignages} on={v => maj({ temoignages: v })} max={12} vide={{ nom: '', role: '', texte: '', date: '' }} titre={(x: any) => x.nom || 'Témoignage'}
+                    champs={[{ k: 'nom', label: 'Nom', max: 60 }, { k: 'role', label: 'Rôle (ex. Bénévole)', max: 60 }, { k: 'texte', label: 'Témoignage', type: 'zone', max: 600 }]} />
+                </Champ>
+                <Champ label="Titre « Équipe »"><Texte v={cfg.titreEquipe} on={v => maj({ titreEquipe: v })} max={80} /></Champ>
+                <Champ label="Membres de l'équipe (jusqu'à 12)">
+                  <ListeEditable items={cfg.equipe} on={v => maj({ equipe: v })} max={12} vide={{ nom: '', role: '', photoUrl: '' }} titre={(x: any) => x.nom || 'Membre'}
+                    champs={[{ k: 'nom', label: 'Nom', max: 60 }, { k: 'role', label: 'Rôle', max: 80 }, { k: 'photoUrl', label: 'Photo (facultatif)', max: 1000, ph: 'https://…' }]} />
+                </Champ>
+                <Champ label="Titre « Questions fréquentes »"><Texte v={cfg.titreFaq} on={v => maj({ titreFaq: v })} max={80} /></Champ>
+                <Champ label="Questions fréquentes (jusqu'à 15)">
+                  <ListeEditable items={cfg.faq} on={v => maj({ faq: v })} max={15} vide={{ q: '', r: '' }} titre={(x: any) => x.q || 'Question'}
+                    champs={[{ k: 'q', label: 'Question', max: 160 }, { k: 'r', label: 'Réponse', type: 'zone', max: 800 }]} />
+                </Champ>
+                <Champ label="Appel final — titre"><Texte v={cfg.titreFinal} on={v => maj({ titreFinal: v })} max={80} /></Champ>
+                <Champ label="Appel final — texte"><Zone v={cfg.texteFinal} on={v => maj({ texteFinal: v })} max={300} rows={2} /></Champ>
+              </>
+            )}
+            {estCause && onglet === 'sections' && (
+              <>
+                <p style={aide}>Décochez une section pour la cacher de votre page. Une section sans contenu est de toute façon masquée automatiquement.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 10, marginBottom: 14 }}>
+                  {SECTIONS_CAUSE.map(sc => (
+                    <label key={sc.id} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14, color: '#333', cursor: 'pointer', padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: 10 }}>
+                      <input type="checkbox" checked={!(cfg.sectionsVisibles && cfg.sectionsVisibles[sc.id] === false)} onChange={e => maj({ sectionsVisibles: { ...(cfg.sectionsVisibles || {}), [sc.id]: e.target.checked } })} /> {sc.label}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
             {onglet === 'organisateur' && (
               <>
                 <Champ label="Nom affiché dans le menu du haut"><Texte v={cfg.nomEntreprise} on={v => maj({ nomEntreprise: v })} max={80} /></Champ>
@@ -188,7 +287,34 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer }: Pro
                 <p style={{ ...aide, marginTop: 14 }}>💳 Pour recevoir les dons, branchez votre Stripe et/ou PayPal dans « Ma Cagnotte » → Paiements.</p>
               </>
             )}
-            {onglet === 'apparence' && (
+            {onglet === 'apparence' && estCause && (
+              <>
+                <Champ label="Palettes toutes prêtes" aide="Un clic applique les couleurs. Vous pouvez ensuite les ajuster une par une.">
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {PALETTES_CAUSE.map(pl => (
+                      <button key={pl.id} onClick={() => maj({ couleurPrincipale: pl.principale, couleurFond: pl.fond, couleurSecondaire: pl.cartes, couleurTexte: pl.texte })}
+                        style={{ ...btnOnglet, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ display: 'inline-flex', width: 34, height: 18, borderRadius: 9, overflow: 'hidden', border: '1px solid #d1d5db' }}>
+                          <span style={{ flex: 1, background: pl.fond }} /><span style={{ flex: 1, background: pl.cartes }} /><span style={{ flex: 1, background: pl.principale }} />
+                        </span>{pl.label}
+                      </button>
+                    ))}
+                  </div>
+                </Champ>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
+                  <Couleur label="Couleur d'accent" v={cfg.couleurPrincipale} on={v => maj({ couleurPrincipale: v })} />
+                  <Couleur label="Fond de page" v={cfg.couleurFond} on={v => maj({ couleurFond: v })} />
+                  <Couleur label="Fond des cartes" v={cfg.couleurSecondaire} on={v => maj({ couleurSecondaire: v })} />
+                  <Couleur label="Texte" v={cfg.couleurTexte} on={v => maj({ couleurTexte: v })} />
+                </div>
+                <Champ label="Police des titres">
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    {[{ v: 'moderne', label: 'Arrondie moderne' }, { v: 'classique', label: 'Élégante (serif)' }].map(pl => <button key={pl.v} onClick={() => maj({ police: pl.v as ConfigCagnotte['police'] })} style={{ ...btnOnglet, ...(cfg.police === pl.v || (pl.v === 'moderne' && cfg.police === 'manuscrite') ? { borderColor: '#c9a96e', background: '#c9a96e18' } : {}) }}>{pl.label}</button>)}
+                  </div>
+                </Champ>
+              </>
+            )}
+            {onglet === 'apparence' && !estCause && (
               <>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 14 }}>
                   <Couleur label="Couleur principale" v={cfg.couleurPrincipale} on={v => maj({ couleurPrincipale: v })} />
@@ -231,7 +357,7 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer }: Pro
           {apercuDesktop === false && (
             <div style={{ marginTop: 14 }}>
               <button onClick={() => setApercuOuvert(o => !o)} style={btnSec}>{apercuOuvert ? 'Masquer l\'aperçu' : '👁 Voir l\'aperçu'}</button>
-              {apercuOuvert && <Apercu cfg={cfg} largeurBoite={Math.min(largeur - 24, 420)} />}
+              {apercuOuvert && <Apercu cfg={cfg} cause={estCause} largeurBoite={Math.min(largeur - 24, 420)} />}
             </div>
           )}
         </div>
@@ -239,7 +365,7 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer }: Pro
         {apercuDesktop && (
           <div style={{ position: 'sticky', top: 16, width: 380, flexShrink: 0 }}>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 8px' }}>Aperçu (chiffres de démonstration)</p>
-            <Apercu cfg={cfg} largeurBoite={380} />
+            <Apercu cfg={cfg} cause={estCause} largeurBoite={380} />
           </div>
         )}
       </div>
@@ -256,13 +382,50 @@ export default function ConfigMesPagesCagnotte({ gestionnaireId, naviguer }: Pro
 }
 
 // ─── Aperçu réduit du template (sans siteId : chiffres de démonstration, aucun vrai don possible) ───
-function Apercu({ cfg, largeurBoite }: { cfg: ConfigCagnotte; largeurBoite: number }) {
+function Apercu({ cfg, cause, largeurBoite }: { cfg: ConfigCause; cause: boolean; largeurBoite: number }) {
   const echelle = largeurBoite / 420;
   return (
     <div style={{ width: largeurBoite, height: 640 * echelle * 1.0, overflow: 'hidden', border: '1px solid #e5e7eb', borderRadius: 14, background: '#fff', marginTop: 8, position: 'relative' }}>
-      <div style={{ width: 420, height: 640 / echelle * 1, transform: `scale(${echelle})`, transformOrigin: 'top left', overflowY: 'auto', overflowX: 'hidden', pointerEvents: 'none' }}>
-        <TemplateCagnotteClassique config={cfg} isPreviewMobile />
+      <div style={{ width: 420, height: 640 / echelle * 1, transform: `scale(${echelle})`, transformOrigin: 'top left', overflowY: 'auto', overflowX: 'hidden' }}>
+        {cause ? <TemplateCagnotteCause config={cfg} isPreviewMobile /> : <TemplateCagnotteClassique config={cfg} isPreviewMobile />}
       </div>
+    </div>
+  );
+}
+
+// ─── Éditeur de liste (sections, étapes, photos, témoignages…) ───
+interface ChampSpec { k: string; label: string; type?: 'texte' | 'zone' | 'nombre' | 'choix'; max?: number; ph?: string; choix?: { v: string; label: string }[] }
+function ListeEditable({ items, on, champs, vide, max, titre }: { items: any; on: (v: any[]) => void; champs: ChampSpec[]; vide: Record<string, any>; max: number; titre: (x: any) => string }) {
+  const liste: any[] = Array.isArray(items) ? items.filter(x => x && typeof x === 'object') : [];
+  const set = (i: number, k: string, v: any) => on(liste.map((x, j) => (j === i ? { ...x, [k]: v } : x)));
+  const deplacer = (i: number, d: number) => { const n = i + d; if (n < 0 || n >= liste.length) return; const a = [...liste]; const t = a[i]; a[i] = a[n]; a[n] = t; on(a); };
+  return (
+    <div>
+      {liste.map((it, i) => (
+        <div key={i} style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 10, background: '#fafafa' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+            <span style={{ flex: 1, fontSize: 13, fontWeight: 700, color: '#333', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i + 1}. {titre(it)}</span>
+            <button type="button" onClick={() => deplacer(i, -1)} disabled={i === 0} style={{ ...btnSec, padding: '4px 10px' }} aria-label="Monter">↑</button>
+            <button type="button" onClick={() => deplacer(i, 1)} disabled={i === liste.length - 1} style={{ ...btnSec, padding: '4px 10px' }} aria-label="Descendre">↓</button>
+            <button type="button" onClick={() => on(liste.filter((_, j) => j !== i))} style={{ ...btnX, width: 34, height: 28 }} aria-label="Supprimer">✕</button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 10 }}>
+            {champs.map(c => (
+              <div key={c.k} style={c.type === 'zone' ? { gridColumn: '1 / -1' } : undefined}>
+                <label style={{ display: 'block', fontSize: 11.5, fontWeight: 700, color: '#666', marginBottom: 4 }}>{c.label}</label>
+                {c.type === 'zone'
+                  ? <textarea style={{ ...champ, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }} rows={3} maxLength={c.max} value={it[c.k] || ''} onChange={e => set(i, c.k, e.target.value)} />
+                  : c.type === 'choix'
+                    ? <select style={champ} value={it[c.k] || (c.choix && c.choix[0].v)} onChange={e => set(i, c.k, e.target.value)}>{(c.choix || []).map(o => <option key={o.v} value={o.v}>{o.label}</option>)}</select>
+                    : c.type === 'nombre'
+                      ? <input style={champ} inputMode="numeric" value={it[c.k] ? String(it[c.k]) : ''} onChange={e => set(i, c.k, Number(e.target.value.replace(/\D/g, '')))} />
+                      : <input style={champ} value={it[c.k] || ''} maxLength={c.max} placeholder={c.ph} onChange={e => set(i, c.k, e.target.value)} />}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      <button type="button" disabled={liste.length >= max} onClick={() => on([...liste, { ...vide }])} style={btnSec}>+ Ajouter{liste.length >= max ? ` (maximum ${max})` : ''}</button>
     </div>
   );
 }
