@@ -112,10 +112,10 @@ function nettoyer(b) {
   else { o.prix = r2(b.prix); if (!(o.prix >= 0) || o.prix > 1e9) throw new ErreurAnnonce('Prix invalide.'); }
   o.photos = (Array.isArray(b.photos) ? b.photos : []).map((p) => String(p || '').trim()).filter((p) => /^https:\/\//i.test(p) && p.length < 1000).slice(0, 12);
   o.vedette = !!b.vedette;
-  // Champs libres « Détails » (ex. Année : 2019) — jusqu'à 12 paires, texte seulement
+  // Champs libres « Détails » (ex. Année : 2019) — jusqu'à 30 paires, texte seulement
   const det = {};
   if (b.details && typeof b.details === 'object' && !Array.isArray(b.details)) {
-    for (const [k, v] of Object.entries(b.details).slice(0, 12)) { const kk = txt(k, 40), vv = txt(v, 120); if (kk && vv) det[kk] = vv; }
+    for (const [k, v] of Object.entries(b.details).slice(0, 30)) { const kk = txt(k, 40), vv = txt(v, 300); if (kk && vv) det[kk] = vv; }
   }
   o.details = det;
   return o;

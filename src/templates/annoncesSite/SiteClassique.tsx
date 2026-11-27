@@ -25,6 +25,9 @@ export interface ProfilAnnonces {
   puces: (a: AnnoncePub) => string[];                  // puces affichées sur la carte
   suffixePrix?: (a: AnnoncePub) => string;             // ex. « /mois »
   avis: string;                                        // bas de page
+  groupes?: { titre: string; cles: string[] }[];       // fiche : tableaux regroupés (ex. Caractéristiques, Évaluation, Finances)
+  carteCle?: string;                                   // fiche : champ « adresse » → carte Google (sinon le lieu de l'annonce)
+  calculs?: (a: AnnoncePub) => { label: string; valeur: string }[];   // fiche : valeurs calculées (ex. rendement brut)
 }
 
 function Carte({ a, couleur, police, profil, onClick }: { a: AnnoncePub; couleur: string; police: string; profil: ProfilAnnonces; onClick: () => void }) {
@@ -60,6 +63,8 @@ export function Detail({ a, gid, demo: estDemo, cfg, police, profil, onClose }: 
   const debutTouche = (e: React.TouchEvent) => { toucheX.current = e.touches[0].clientX; };
   const finTouche = (e: React.TouchEvent) => { const x0 = toucheX.current; toucheX.current = null; if (x0 == null || nb < 2) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) aller(dx < 0 ? 1 : -1); };
   const det = Object.entries(a.details || {});
+  const adresseCarte = profil.carteCle ? ((a.details || {})[profil.carteCle] || a.lieu || '').trim() : '';
+  const carteSrc = adresseCarte ? `https://www.google.com/maps?q=${encodeURIComponent(adresseCarte)}&output=embed&hl=fr` : '';
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { if (plein) setPlein(false); else onClose(); }
@@ -89,7 +94,28 @@ export function Detail({ a, gid, demo: estDemo, cfg, police, profil, onClose }: 
             <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1f2937', margin: '18px 0 4px', lineHeight: 1.25 }}>{a.titre}</h2>
             <p style={{ fontSize: 26, fontWeight: 900, color: cp, margin: '0 0 6px' }}>{fmtPrix(a)}{a.prix != null && profil.suffixePrix ? <span style={{ fontSize: 14, fontWeight: 700, color: '#6b7280' }}> {profil.suffixePrix(a)}</span> : null}</p>
             <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px' }}>{a.lieu ? `📍 ${a.lieu} · ` : ''}Publiée {ilYa(a.datePublication)}</p>
-            {det.length > 0 && <div style={{ background: '#fff', border: '1px solid #e7e2d8', borderRadius: 10, padding: '4px 14px', marginBottom: 14 }}>{det.map(([k, v]) => <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid #f1ede3', fontSize: 14 }}><span style={{ color: '#6b7280' }}>{k}</span><strong style={{ color: '#1f2937', textAlign: 'right' }}>{v}</strong></div>)}</div>}
+            {(() => {
+              const tableau = (titre: string, lignes: [string, string][], cle: string) => lignes.length ? (
+                <div key={cle} style={{ marginBottom: 14 }}>
+                  {titre && <h3 style={{ fontSize: 15, fontWeight: 800, color: '#1f2937', margin: '0 0 6px' }}>{titre}</h3>}
+                  <div style={{ background: '#fff', border: '1px solid #e7e2d8', borderRadius: 10, padding: '4px 14px' }}>{lignes.map(([k, v]) => <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid #f1ede3', fontSize: 14 }}><span style={{ color: '#6b7280' }}>{k}</span><strong style={{ color: '#1f2937', textAlign: 'right', overflowWrap: 'anywhere' }}>{v}</strong></div>)}</div>
+                </div>) : null;
+              const calc = profil.calculs ? profil.calculs(a) : [];
+              if (!profil.groupes) return tableau('', det as [string, string][], 'det');
+              const utilises = new Set<string>();
+              const blocs = profil.groupes.map((g) => {
+                const l = g.cles.filter((k) => (a.details || {})[k]).map((k) => { utilises.add(k); return [k, a.details[k]] as [string, string]; });
+                if (g.titre === 'Informations financières') calc.forEach((c) => l.push([c.label, c.valeur]));
+                return tableau(g.titre, l, g.titre);
+              });
+              return <>{blocs}{tableau('Autres détails', det.filter(([k]) => !utilises.has(k)) as [string, string][], 'autres')}</>;
+            })()}
+            {carteSrc && (
+              <div style={{ marginBottom: 14 }}>
+                <h3 style={{ fontSize: 15, fontWeight: 800, color: '#1f2937', margin: '0 0 6px' }}>Emplacement</h3>
+                <iframe title={`Carte : ${adresseCarte}`} src={carteSrc} loading="lazy" referrerPolicy="no-referrer-when-downgrade" style={{ width: '100%', height: 260, border: 0, borderRadius: 10, background: '#efe9dc' }} />
+                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(adresseCarte)}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-block', marginTop: 6, fontSize: 13, fontWeight: 700, color: cp }}>Ouvrir dans Google Maps ↗</a>
+              </div>)}
             {a.description && <p style={{ fontSize: 15, color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap', margin: 0 }}>{a.description}</p>}
           </div>
           <div style={{ minWidth: 0 }}>

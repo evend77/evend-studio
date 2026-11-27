@@ -11,6 +11,7 @@ import ApparenceNeon from './ApparenceNeon';
 import { PROFIL_GENERAL } from '../../templates/TemplateAnnoncesClassique';
 import { PROFIL_AUTO } from '../../templates/TemplateAnnoncesAutoClassique';
 import { PROFIL_IMMO } from '../../templates/TemplateAnnoncesImmoClassique';
+import { PROFIL_IMMEUBLE } from '../../templates/TemplateAnnoncesImmeuble';
 import ChampPhotos from './ChampPhotos';
 
 interface Props { gestionnaireId: number; templateId?: string; ongletInitial?: 'annonces' | 'messages' | 'apparence' | 'reglages'; }
@@ -75,6 +76,32 @@ const PROFILS: Record<string, ProfilGestion> = {
   },
   'annonces-volt': { categories: [], champs: [], couleur: '#ffd60a', fond: '#121212', nomDefaut: 'VOLT', sloganDefaut: '' },
   'annonces-neon': { categories: [], champs: [], couleur: '#00d84a', fond: '#000000', nomDefaut: 'Néon', sloganDefaut: '' },
+  'annonces-immeuble': {
+    categories: ['Duplex', 'Triplex', 'Quadruplex', 'Multiplex (5 logements et +)', 'Immeuble commercial', 'Immeuble mixte', 'Autre'],
+    champs: [
+      { cle: 'Adresse', label: 'Adresse (sert à afficher la carte Google)', placeholder: '4087 rue Saint-Hubert, Montréal' },
+      { cle: 'Type de bâtiment', label: 'Type de bâtiment', type: 'select', options: ['Isolé', 'Jumelé', 'En rangée'] },
+      { cle: 'Nombre de logements', label: 'Nombre de logements', type: 'number', placeholder: '3' },
+      { cle: 'Année de construction', label: 'Année de construction', type: 'number', placeholder: '1962' },
+      { cle: 'Superficie habitable', label: 'Superficie habitable', type: 'number', unite: 'pi²', placeholder: '2450' },
+      { cle: 'Superficie du terrain', label: 'Superficie du terrain', type: 'number', unite: 'pi²', placeholder: '3400' },
+      { cle: 'Dimensions du bâtiment', label: 'Dimensions du bâtiment', placeholder: '25 x 50 pi' },
+      { cle: 'Dimensions du terrain', label: 'Dimensions du terrain', placeholder: '7,62 x 41,5 m' },
+      { cle: 'Type de vendeur', label: 'Type de vendeur', type: 'select', options: ['Propriétaire', 'Courtier', 'Promoteur'] },
+      { cle: 'Occupation', label: 'Occupation', placeholder: 'Libre dans 90 jours' },
+      { cle: 'Évaluation du bâtiment', label: 'Évaluation municipale — bâtiment', type: 'number', unite: '$', placeholder: '412000' },
+      { cle: 'Évaluation du terrain', label: 'Évaluation municipale — terrain', type: 'number', unite: '$', placeholder: '215000' },
+      { cle: 'Évaluation totale', label: 'Évaluation municipale — totale', type: 'number', unite: '$', placeholder: '627000' },
+      { cle: "Année d'évaluation", label: "Année d'évaluation", type: 'number', placeholder: '2026' },
+      { cle: 'Revenus bruts annuels', label: 'Revenus bruts annuels', type: 'number', unite: '$', placeholder: '42000' },
+      { cle: 'Taxes municipales', label: 'Taxes municipales (annuel)', type: 'number', unite: '$', placeholder: '4980' },
+      { cle: 'Taxes scolaires', label: 'Taxes scolaires (annuel)', type: 'number', unite: '$', placeholder: '540' },
+      { cle: 'Dépenses annuelles', label: 'Autres dépenses annuelles', type: 'number', unite: '$', placeholder: '9000' },
+      { cle: 'Inclusions', label: 'Inclusions', placeholder: 'Luminaires, électroménagers…' },
+      { cle: 'Exclusions', label: 'Exclusions', placeholder: 'Aucune' },
+    ],
+    couleur: '#1e3a5f', fond: '#f4f6fa', nomDefaut: 'Immeubles à revenus', sloganDefaut: 'Duplex, triplex, multiplex : trouvez votre prochain placement', aidePrix: 'Prix demandé pour l\'immeuble. Le rendement brut s\'affiche automatiquement si vous remplissez aussi les revenus bruts annuels.',
+  },
   'annonces-auto-lease': {
     categories: ['Voiture', 'VUS / Camionnette', 'Fourgonnette', 'Moto', 'Autre'],
     champs: [
@@ -168,7 +195,7 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId, ongletInit
     setOccupe(true);
     try { setRg(await appel(`${API}/reglages`, { method: 'PUT', body: JSON.stringify(rg) })); flash(true, 'Réglages enregistrés.'); } catch (e: any) { flash(false, e.message); } finally { setOccupe(false); }
   };
-  const DEFAUTS_CLASSIQUE: Record<string, typeof PROFIL_GENERAL.defaut> = { 'annonces-classique': PROFIL_GENERAL.defaut, 'annonces-auto-classique': PROFIL_AUTO.defaut, 'annonces-immo-classique': PROFIL_IMMO.defaut };
+  const DEFAUTS_CLASSIQUE: Record<string, typeof PROFIL_GENERAL.defaut> = { 'annonces-classique': PROFIL_GENERAL.defaut, 'annonces-auto-classique': PROFIL_AUTO.defaut, 'annonces-immo-classique': PROFIL_IMMO.defaut, 'annonces-immeuble': PROFIL_IMMEUBLE.defaut };
 
   const visibles = liste.filter((a) => filtre === 'toutes' || a.statut === filtre);
   const nbActives = liste.filter((a) => a.statut === 'active').length;

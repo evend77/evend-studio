@@ -100,6 +100,7 @@ export const PHOTOS: Record<string, string> = {
   'annonces-auto-lease': 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-volt': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-neon': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'annonces-immeuble': 'https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
 
 // ─── DONNÉES VRAIS TEMPLATES ──────────────────────────────────────────────────
@@ -770,6 +771,14 @@ export const TEMPLATES: Template[] = [
     description: "Petites annonces généralistes sur fond noir avec accent néon et halo dégradé : grande bannière centrée, étiquette inclinée, avantages, catégories en pastilles, annonces à la une, bandeau d'offre avec compte à rebours, catalogue complet, FAQ et contact. Couleurs, polices, photos, textes et sections entièrement configurables. Affichage seulement.",
     fonctionnalites: ['Noir & néon avec halo', 'Étiquette inclinée', 'Offre avec compte à rebours', 'Sections réordonnables'],
     disponible: true, nouveau: true, couleur: '#00d84a',
+  },
+  {
+    id: 'annonces-immeuble',
+    nom: 'Immeubles à revenus',
+    groupe: 'annonces',
+    description: "Annonces de duplex, triplex, multiplex et immeubles commerciaux : fiche détaillée avec tableaux (caractéristiques, évaluation municipale, taxes et revenus), rendement brut calculé automatiquement et carte Google selon l'adresse. Filtres par type, nombre de logements et revenus. Affichage seulement, aucun paiement.",
+    fonctionnalites: ['Carte Google selon l\'adresse', 'Évaluation, taxes et revenus', 'Rendement brut calculé', 'Formulaire de contact'],
+    disponible: true, nouveau: true, couleur: '#1e3a5f',
   },
   {
     id: 'annonces-immo-classique',
