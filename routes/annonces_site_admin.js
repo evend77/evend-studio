@@ -5,6 +5,7 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const svc = require('../services/annonces_site');
+const lim = require('../services/annonces_limites');
 
 const router = express.Router();
 router.use(authenticateToken);
@@ -30,6 +31,17 @@ router.delete('/annonces/:id', async (req, res) => { try { await svc.supprimer(g
 router.get('/messages', async (req, res) => { try { res.json({ messages: await svc.messages(g(req)) }); } catch (e) { erreur(res, e, 'GET messages'); } });
 router.post('/messages/:id/lu', async (req, res) => { try { await svc.marquerLu(g(req), id(req), (req.body || {}).lu); res.json({ success: true }); } catch (e) { erreur(res, e, 'lu'); } });
 router.delete('/messages/:id', async (req, res) => { try { await svc.supprimerMessage(g(req), id(req)); res.json({ success: true }); } catch (e) { erreur(res, e, 'DELETE message'); } });
+// Plan & limites : même forme que GET/PUT /api/boutique/gestionnaire/plan (la page « Mon plan & limites » est la même)
+router.get('/plan', async (req, res) => { try { res.json(await lim.etatPourPage(g(req))); } catch (e) { erreur(res, e, 'GET plan'); } });
+router.put('/plan', async (req, res) => {
+  try {
+    const b = req.body || {};
+    const limite = parseInt(b.limite, 10);
+    if (!Number.isInteger(limite) || limite < 1) return res.status(400).json({ message: 'Palier invalide.' });
+    const tid = typeof b.template_id === 'string' ? b.template_id.slice(0, 80) : '';
+    res.json({ success: true, ...(await lim.changerPalier(g(req), limite, tid || undefined)) });
+  } catch (e) { erreur(res, e, 'PUT plan'); }
+});
 router.get('/reglages', async (req, res) => { try { res.json(await svc.reglages(g(req))); } catch (e) { erreur(res, e, 'GET reglages'); } });
 router.put('/reglages', async (req, res) => { try { res.json(await svc.sauverReglages(g(req), req.body || {})); } catch (e) { erreur(res, e, 'PUT reglages'); } });
 

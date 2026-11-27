@@ -540,6 +540,9 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [infoPaliers, setInfoPaliers] = useState<Record<string, { prixMin: string; limiteMax: number }>>({});
   const [paliersComplete, setPaliersComplete] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de la Boutique Complète (Prix Template) ; vide = aucune limite, pas de fenêtre
   const [modalCompleteOuvert, setModalCompleteOuvert] = useState(false);
+  // Petites annonces (annonces-*) : paliers de chaque template (Prix Template) ; template dont la fenêtre de palier est ouverte
+  const [paliersAnnonces, setPaliersAnnonces] = useState<Record<string, { limite: number; prix: string; label: string }[]>>({});
+  const [modalAnnoncesId, setModalAnnoncesId] = useState<string | null>(null);
   const [paliersCatalogue, setPaliersCatalogue] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers du Catalogue Avancé (Prix Template) ; vide = aucune limite, pas de fenêtre
   const [modalCatalogueOuvert, setModalCatalogueOuvert] = useState(false);
   const [paliersAgricole, setPaliersAgricole] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de la Boutique Agricole (Prix Template) ; vide = aucune limite, pas de fenêtre
@@ -657,11 +660,46 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           if (id === 'boutique-agricole') setPaliersAgricole(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-catalogue') setPaliersCatalogue(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
         }
+        const pa: Record<string, { limite: number; prix: string; label: string }[]> = {};
+        for (const t of CATALOGUE_TEMPLATES) {
+          if (!t.id.startsWith('annonces-')) continue;
+          let pal: any = data.templates[t.id]?.prix_paliers;
+          if (typeof pal === 'string') { try { pal = JSON.parse(pal); } catch { pal = null; } }
+          if (!Array.isArray(pal)) continue;
+          const l = pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite);
+          if (l.length) pa[t.id] = l;
+        }
+        setPaliersAnnonces(pa);
         setInfoPaliers(info);
       })
       .catch(() => { /* silencieux — fallback sur les prix codés en dur */ });
   }, []);
 
+  // Petites annonces : même principe que les boutiques (fenêtre de palier seulement si des paliers sont configurés dans Prix Template).
+  // Le palier est enregistré AVANT d'appliquer le template ; le serveur le conserve (et refuse si les annonces actives dépassent le palier).
+  const handleChoisirAnnonces = (templateId: string) => { if ((paliersAnnonces[templateId] || []).length > 0) setModalAnnoncesId(templateId); else onChoisir(templateId); };
+  const handleConfirmerPalierAnnonces = async (limite: number) => {
+    const templateId = modalAnnoncesId;
+    if (!templateId) return;
+    if (Number.isInteger(limite) && limite > 0) {
+      const token = localStorage.getItem('token');
+      try {
+        const r = await fetch(`${API_BASE}/studio/annonces-site/plan`, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          credentials: 'include', body: JSON.stringify({ limite, template_id: templateId }),
+        });
+        if (!r.ok) {
+          let m = 'Impossible de choisir ce palier.';
+          try { const d = await r.json(); if (d && d.message) m = d.message; } catch { /* réponse non JSON */ }
+          setModalAnnoncesId(null);   // referme la fenêtre (elle se réinitialise à la réouverture)
+          window.alert(m);
+          return;
+        }
+      } catch { setModalAnnoncesId(null); window.alert('Erreur réseau. Vérifiez votre connexion.'); return; }
+    }
+    setModalAnnoncesId(null);
+    onChoisir(templateId);
+  };
   // Boutique Complète : fenêtre de palier seulement si des paliers sont configurés dans Prix Template ; sinon aucune limite → choix direct
   const handleChoisirComplete = () => { if (paliersComplete.length > 0) setModalCompleteOuvert(true); else onChoisir('boutique-complete'); };
   const handleConfirmerPalierComplete = async (limite: number) => {
@@ -1565,6 +1603,17 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           onAnnuler={() => setModalModeOuvert(false)}
         />
       )}
+      {modalAnnoncesId && (paliersAnnonces[modalAnnoncesId] || []).length > 0 && (() => {
+        const tpl = CATALOGUE_TEMPLATES.find(x => x.id === modalAnnoncesId);
+        return (
+          <ModalPalierComplete
+            paliers={paliersAnnonces[modalAnnoncesId] || []}
+            nom={tpl ? tpl.nom : 'Petites annonces'} icone={(tpl && tpl.icone) || '📋'} couleur={(tpl && tpl.couleur) || '#0f766e'}
+            onConfirmer={handleConfirmerPalierAnnonces}
+            onAnnuler={() => setModalAnnoncesId(null)}
+          />
+        );
+      })()}
       {modalCompleteOuvert && paliersComplete.length > 0 && (
         <ModalPalierComplete
           paliers={paliersComplete}
@@ -2581,6 +2630,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estPop) { handleChoisirPop(); return; }
                           if (estNocturne) { handleChoisirNocturne(); return; }
                           if (estOrbite) { handleChoisirOrbite(); return; }
+                          if (t.id.startsWith('annonces-')) { handleChoisirAnnonces(t.id); return; }
                           onChoisir(t.id);
                         }}
                         onMouseEnter={e => {
@@ -2688,6 +2738,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                           if (estPop) { handleChoisirPop(); return; }
                           if (estNocturne) { handleChoisirNocturne(); return; }
                           if (estOrbite) { handleChoisirOrbite(); return; }
+                                if (t.id.startsWith('annonces-')) { handleChoisirAnnonces(t.id); return; }
                                 onChoisir(t.id);
                               }}
                               style={{ padding: '9px 20px', background: estSimplisse ? COULEUR_MP : t.couleur, border: 'none', borderRadius: 8, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', flex: 1, fontFamily: 'inherit', boxShadow: `0 8px 16px -8px ${estSimplisse ? COULEUR_MP : t.couleur}` }}>

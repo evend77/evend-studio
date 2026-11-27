@@ -6,6 +6,7 @@
 
 const pool = require('../db');
 const { nettoyerTexte } = require('../utils/sanitize'); // nettoyage standard e-Vend Studio (sanitize-html)
+const LIM = require('./annonces_limites');       // paliers (Prix Template) : nombre d'annonces actives permis
 
 const DDL = [
   `CREATE TABLE IF NOT EXISTS ann_reglages (
@@ -223,6 +224,7 @@ function expirationDepuis(jours) { return jours > 0 ? new Date(Date.now() + jour
 
 async function creer(gid, b) {
   await pret();
+  await LIM.verifierActivation(gid, 1);
   const o = nettoyer(b);
   const rg = await reglages(gid);
   const jours = b.dureeJours !== undefined && b.dureeJours !== '' ? Math.max(0, Math.min(365, parseInt(b.dureeJours, 10) || 0)) : rg.duree_defaut_jours;
@@ -243,9 +245,19 @@ async function modifier(gid, id, b) {
   if (!r.rows[0]) throw new ErreurAnnonce('Annonce introuvable.', 404);
 }
 
+// Une annonce déjà active et non expirée compte déjà dans le palier : seule une annonce qui le devient ajoute 1
+async function verifierSiNonComptee(gid, id) {
+  const r = await pool.query(
+    `SELECT (statut = 'active' AND (date_expiration IS NULL OR date_expiration > NOW())) AS comptee
+       FROM ann_annonces WHERE id=$1 AND gestionnaire_id=$2 AND statut <> 'supprimee'`, [id, gid]);
+  if (!r.rows[0]) throw new ErreurAnnonce('Annonce introuvable.', 404);
+  if (!r.rows[0].comptee) await LIM.verifierActivation(gid, 1);
+}
+
 async function changerStatut(gid, id, statut) {
   await pret();
   if (!['active', 'vendue', 'archivee'].includes(statut)) throw new ErreurAnnonce('Statut invalide.');
+  if (statut === 'active') await verifierSiNonComptee(gid, id);
   const r = await pool.query(`UPDATE ann_annonces SET statut=$3, updated_at=NOW() WHERE id=$1 AND gestionnaire_id=$2 AND statut <> 'supprimee' RETURNING id`, [id, gid, statut]);
   if (!r.rows[0]) throw new ErreurAnnonce('Annonce introuvable.', 404);
 }
@@ -254,6 +266,7 @@ async function renouveler(gid, id, jours) {
   await pret();
   const rg = await reglages(gid);
   const j = jours !== undefined && jours !== '' ? Math.max(0, Math.min(365, parseInt(jours, 10) || 0)) : rg.duree_defaut_jours;
+  await verifierSiNonComptee(gid, id);
   const r = await pool.query(`UPDATE ann_annonces SET statut='active', date_expiration=$3, created_at=NOW(), updated_at=NOW() WHERE id=$1 AND gestionnaire_id=$2 AND statut <> 'supprimee' RETURNING id`, [id, gid, expirationDepuis(j)]);
   if (!r.rows[0]) throw new ErreurAnnonce('Annonce introuvable.', 404);
 }

@@ -16,6 +16,9 @@ interface Props {
   accent?: string;
   naviguerVers?: (page: string) => void;
   onAddonsChange?: (actifs: Record<string, boolean>) => void;   // prévient le menu quand un add-on est activé / désactivé
+  base?: string;          // autre API de même forme (petites annonces : /api/studio/annonces-site) ; défaut = boutique
+  sansAddons?: boolean;   // petites annonces : pas d'add-ons boutique
+  pageListe?: string;     // page « Voir mes annonces » (défaut : liste des annonces boutique)
 }
 
 const COULEURS = ['#c9a96e', '#a78bfa', '#f472b6', '#fb923c', '#ef4444', '#14b8a6', '#3b82f6'];
@@ -31,7 +34,7 @@ function prixAffiche(prix: string): string {
   return /[$€]/.test(p) ? p : `${p} $`;
 }
 
-export default function BoutiquePlan({ accent, naviguerVers, onAddonsChange }: Props) {
+export default function BoutiquePlan({ accent, naviguerVers, onAddonsChange, base, sansAddons, pageListe }: Props) {
   const couleurBase = accent || '#c9a96e';
   const [etat, setEtat] = useState<EtatPlan | null>(null);
   const [chargement, setChargement] = useState(true);
@@ -43,7 +46,7 @@ export default function BoutiquePlan({ accent, naviguerVers, onAddonsChange }: P
   const notifier = (type: 'ok' | 'err', texte: string) => { setMsg({ type, texte }); setTimeout(() => setMsg(null), 4500); };
 
   const charger = async () => {
-    const r = await bq('/plan');
+    const r = await bq('/plan', { base });
     if (r.ok) { setEtat(r.data as EtatPlan); setErreurChargement(''); } else setErreurChargement(messageErreur(r));
     setChargement(false);
   };
@@ -71,7 +74,7 @@ export default function BoutiquePlan({ accent, naviguerVers, onAddonsChange }: P
             Votre template actuel n'a pas de limite d'annonces. Vous avez {etat.nb_actifs} annonce{etat.nb_actifs > 1 ? 's' : ''} active{etat.nb_actifs > 1 ? 's' : ''}.
           </p>
         </div>
-        <BoutiqueAddons couleur={couleurBase} palier={null} onChange={onAddonsChange} />
+        {!sansAddons && <BoutiqueAddons couleur={couleurBase} palier={null} onChange={onAddonsChange} />}
       </>
     );
   }
@@ -93,7 +96,7 @@ export default function BoutiquePlan({ accent, naviguerVers, onAddonsChange }: P
   const sauvegarder = async () => {
     if (!palierCible) return;
     setEnCours(true);
-    const r = await bq('/plan', { method: 'PUT', body: { limite: palierCible.limite } });
+    const r = await bq('/plan', { method: 'PUT', body: { limite: palierCible.limite }, base });
     setEnCours(false);
     const nom = nomPalier(palierCible, idxCible);
     const lim = palierCible.limite;
@@ -180,12 +183,12 @@ export default function BoutiquePlan({ accent, naviguerVers, onAddonsChange }: P
         })}
       </div>
       <p style={{ fontSize: 12, color: D.discret, textAlign: 'center', margin: '0 0 6px' }}>Pour changer de template, rendez-vous dans « Choisir un template » : votre palier est ajusté automatiquement.</p>
-      {naviguerVers && <div style={{ textAlign: 'center', marginBottom: 8 }}><button onClick={() => naviguerVers('annonces-liste')} style={{ background: 'none', border: 'none', color: couleurBase, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>Voir mes annonces →</button></div>}
+      {naviguerVers && <div style={{ textAlign: 'center', marginBottom: 8 }}><button onClick={() => naviguerVers(pageListe || 'annonces-liste')} style={{ background: 'none', border: 'none', color: couleurBase, cursor: 'pointer', fontWeight: 700, fontSize: 13 }}>Voir mes annonces →</button></div>}
 
       {msg && <div style={{ textAlign: 'center', color: msg.type === 'ok' ? '#34d399' : '#f87171', fontWeight: 700, margin: '14px 0' }}>{msg.type === 'ok' ? '✅' : '❌'} {msg.texte}</div>}
 
       {/* Add-ons + récapitulatif (palier + add-ons = total réel) */}
-      <BoutiqueAddons couleur={couleurCourante} palier={{ label: nomPalier(actuel, indexActuel), prix: actuel.prix }} onChange={onAddonsChange} />
+      {!sansAddons && <BoutiqueAddons couleur={couleurCourante} palier={{ label: nomPalier(actuel, indexActuel), prix: actuel.prix }} onChange={onAddonsChange} />}
 
       {/* Confirmation de changement de palier */}
       {palierCible && (() => {

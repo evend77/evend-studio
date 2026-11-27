@@ -8,15 +8,15 @@ import { normaliserConfig, urlHttps, SCHEMA, SECTIONS_INFO, RESEAUX, SECTION_IDS
 
 interface Props { gestionnaireId: number; templateId: string; }
 
-const entetes = (): HeadersInit => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') || ''}` });
-const champ: React.CSSProperties = { width: '100%', padding: '9px 11px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff', color: '#111827' };
-const lbl: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 4 };
-const carte: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 18, marginBottom: 14 };
-const btn = (c = '#0f766e', plein = true): React.CSSProperties => ({ padding: '8px 14px', borderRadius: 8, border: plein ? 'none' : `1px solid ${c}`, background: plein ? c : '#fff', color: plein ? '#fff' : c, fontWeight: 700, fontSize: 13, cursor: 'pointer' });
-const petit: React.CSSProperties = { width: 32, height: 32, borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 14, flexShrink: 0 };
+export const entetes = (): HeadersInit => ({ 'Content-Type': 'application/json', Authorization: `Bearer ${localStorage.getItem('token') || ''}` });
+export const champ: React.CSSProperties = { width: '100%', padding: '9px 11px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff', color: '#111827' };
+export const lbl: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, color: '#374151', marginBottom: 4 };
+export const carte: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 18, marginBottom: 14 };
+export const btn = (c = '#0f766e', plein = true): React.CSSProperties => ({ padding: '8px 14px', borderRadius: 8, border: plein ? 'none' : `1px solid ${c}`, background: plein ? c : '#fff', color: plein ? '#fff' : c, fontWeight: 700, fontSize: 13, cursor: 'pointer' });
+export const petit: React.CSSProperties = { width: 32, height: 32, borderRadius: 8, border: '1px solid #d1d5db', background: '#fff', cursor: 'pointer', fontSize: 14, flexShrink: 0 };
 
 // ── Un champ du schéma ────────────────────────────────────────────────────────
-function ChampEditeur({ ch, valeur, onChange, gid }: { ch: Champ; valeur: any; onChange: (v: any) => void; gid: number }) {
+export function ChampEditeur({ ch, valeur, onChange, gid }: { ch: Champ; valeur: any; onChange: (v: any) => void; gid: number }) {
   if (ch.t === 'liste') {
     const items: any[] = Array.isArray(valeur) ? valeur : [];
     const max = ch.maxItems || 8;

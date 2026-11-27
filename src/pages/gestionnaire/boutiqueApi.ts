@@ -14,7 +14,7 @@ function jeton(): string | null {
   try { return localStorage.getItem('token'); } catch (e) { return null; }
 }
 
-export async function bq(chemin: string, options: { method?: string; body?: any } = {}): Promise<ReponseBq> {
+export async function bq(chemin: string, options: { method?: string; body?: any; base?: string } = {}): Promise<ReponseBq> {   // base : autre API de même forme (ex. petites annonces) ; défaut = BQ
   const headers: Record<string, string> = {};
   const t = jeton();
   if (t) headers.Authorization = `Bearer ${t}`;
@@ -24,7 +24,7 @@ export async function bq(chemin: string, options: { method?: string; body?: any 
     init.body = JSON.stringify(options.body);
   }
   try {
-    const r = await fetch(BQ + chemin, init);
+    const r = await fetch((options.base || BQ) + chemin, init);
     let data: any = {};
     try { data = await r.json(); } catch (e) { data = {}; }
     return { ok: r.ok, status: r.status, data };

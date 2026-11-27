@@ -2,7 +2,7 @@
 // e-Vend Studio — Petites annonces « Auto Classique » (voitures, VUS, motos, VR, bateaux) — affichage seulement.
 // Les annonces viennent de « Mes annonces » (API /api/annonces-studio). L'apparence vient de config.annonces.
 
-import SiteClassique, { type ProfilAnnonces, type ConfigAnnoncesClassique } from './annoncesSite/SiteClassique';
+import SiteClassique, { type ProfilAnnonces } from './annoncesSite/SiteClassique';
 import { nbDe, type AnnoncePub } from './annoncesSite/moteur';
 
 const il = (j: number) => new Date(Date.now() - j * 86400000).toISOString();
@@ -34,5 +34,5 @@ export const PROFIL_AUTO: ProfilAnnonces = {
   avis: "Les annonces sont affichées à titre informatif. Aucune transaction n'est effectuée sur ce site : les échanges se font directement avec l'annonceur. Vérifiez le véhicule (historique, inspection) avant tout paiement.",
 };
 
-interface Props { config?: Partial<ConfigAnnoncesClassique>; siteId?: number; vendeurId?: number; }
+interface Props { config?: Record<string, any>; siteId?: number; vendeurId?: number; }
 export default function TemplateAnnoncesAutoClassique(props: Props) { return <SiteClassique profil={PROFIL_AUTO} {...props} />; }

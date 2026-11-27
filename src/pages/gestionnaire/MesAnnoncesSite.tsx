@@ -4,6 +4,10 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import ApparenceAutoShowroom from './ApparenceAutoShowroom';
+import ApparenceClassique from './ApparenceClassique';
+import { PROFIL_GENERAL } from '../../templates/TemplateAnnoncesClassique';
+import { PROFIL_AUTO } from '../../templates/TemplateAnnoncesAutoClassique';
+import { PROFIL_IMMO } from '../../templates/TemplateAnnoncesImmoClassique';
 import ChampPhotos from './ChampPhotos';
 
 interface Props { gestionnaireId: number; templateId?: string; }
@@ -98,7 +102,6 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
   const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
   const [form, setForm] = useState<typeof VIDE | null>(null);
   const [edition, setEdition] = useState<AnnonceG | null>(null);
-  const [cfg, setCfg] = useState<Record<string, string>>({});
   const [rg, setRg] = useState<Reglages>({ duree_defaut_jours: 30, notifier_messages: true });
   const [occupe, setOccupe] = useState(false);
   const [filtre, setFiltre] = useState<'toutes' | 'active' | 'expiree' | 'vendue' | 'archivee'>('toutes');
@@ -115,8 +118,6 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
   useEffect(() => {
     charger();
     appel(`${API}/reglages`).then(setRg).catch(() => {});
-    fetch(`/api/studio/sites/${gestionnaireId}`, { headers: entetes(), credentials: 'include' }).then((r) => (r.ok ? r.json() : null))
-      .then((d) => { const c = d && d.config && d.config.annonces; if (c && typeof c === 'object') setCfg(c); }).catch(() => {});
   }, [charger, gestionnaireId]);
 
   const categoriesConnues = Array.from(new Set([...profil.categories, ...liste.map((a) => a.categorie).filter(Boolean)]));
@@ -146,17 +147,11 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
   const action = async (fn: () => Promise<any>, ok: string) => { try { await fn(); flash(true, ok); charger(); } catch (e: any) { flash(false, e.message); } };
   const statut = (a: AnnonceG, s: string, ok: string) => action(() => appel(`${API}/annonces/${a.id}/statut`, { method: 'POST', body: JSON.stringify({ statut: s }) }), ok);
 
-  const sauverApparence = async () => {
-    setOccupe(true);
-    try { await appel(`/api/studio/sites/${gestionnaireId}/config`, { method: 'PUT', body: JSON.stringify({ config: { annonces: cfg }, template_id: templateId || 'annonces-classique' }) }); flash(true, 'Apparence enregistrée.'); }
-    catch (e: any) { flash(false, e.message); } finally { setOccupe(false); }
-  };
   const sauverReglages = async () => {
     setOccupe(true);
     try { setRg(await appel(`${API}/reglages`, { method: 'PUT', body: JSON.stringify(rg) })); flash(true, 'Réglages enregistrés.'); } catch (e: any) { flash(false, e.message); } finally { setOccupe(false); }
   };
-  const sc = (k: string) => (v: string) => setCfg((p) => ({ ...p, [k]: v }));
-  const c = (k: string) => cfg[k] || '';
+  const DEFAUTS_CLASSIQUE: Record<string, typeof PROFIL_GENERAL.defaut> = { 'annonces-classique': PROFIL_GENERAL.defaut, 'annonces-auto-classique': PROFIL_AUTO.defaut, 'annonces-immo-classique': PROFIL_IMMO.defaut };
 
   const visibles = liste.filter((a) => filtre === 'toutes' || a.statut === filtre);
   const nbActives = liste.filter((a) => a.statut === 'active').length;
@@ -252,23 +247,7 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
 
       {onglet === 'apparence' && templateId === 'annonces-auto-showroom' && <ApparenceAutoShowroom gestionnaireId={gestionnaireId} templateId={templateId} />}
 
-      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && (
-        <div style={carte}>
-          <p style={{ fontSize: 13, color: '#6b7280', marginTop: 0 }}>Personnalisez l'allure de votre site. Les annonces se gèrent dans l'onglet « Annonces ».</p>
-          <Champ label="Nom du site" valeur={c('nomSite')} onChange={sc('nomSite')} placeholder={profil.nomDefaut} />
-          <Champ label="Slogan (titre de la page d'accueil)" valeur={c('slogan')} onChange={sc('slogan')} placeholder={profil.sloganDefaut} />
-          <Champ label="Logo (adresse https://…)" valeur={c('logoUrl')} onChange={sc('logoUrl')} />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 12 }}>
-            <div><label style={lbl}>Couleur principale</label><input type="color" style={{ ...champ, padding: 3, height: 40 }} value={/^#[0-9a-fA-F]{6}$/.test(c('couleurPrincipale')) ? c('couleurPrincipale') : profil.couleur} onChange={(e) => sc('couleurPrincipale')(e.target.value)} /></div>
-            <div><label style={lbl}>Couleur de fond</label><input type="color" style={{ ...champ, padding: 3, height: 40 }} value={/^#[0-9a-fA-F]{6}$/.test(c('couleurFond')) ? c('couleurFond') : profil.fond} onChange={(e) => sc('couleurFond')(e.target.value)} /></div>
-          </div>
-          <div style={{ marginBottom: 12 }}><label style={lbl}>Police</label><select style={champ} value={c('police') || 'classique'} onChange={(e) => sc('police')(e.target.value)}><option value="classique">Classique (avec empattements)</option><option value="moderne">Moderne</option></select></div>
-          <div style={{ marginBottom: 12 }}><label style={lbl}>À propos (affiché en bas de page)</label><textarea style={{ ...champ, minHeight: 70 }} value={c('apropos')} onChange={(e) => sc('apropos')(e.target.value)} /></div>
-          <Champ label="Courriel affiché en bas de page" type="email" valeur={c('email')} onChange={sc('email')} aide="Facultatif. Les messages des visiteurs arrivent à votre courriel de compte, même si vous laissez ceci vide." />
-          <Champ label="Téléphone affiché en bas de page" valeur={c('telephone')} onChange={sc('telephone')} />
-          <button style={btn()} disabled={occupe} onClick={sauverApparence}>{occupe ? '⏳' : 'Enregistrer'}</button>
-        </div>
-      )}
+      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && <ApparenceClassique gestionnaireId={gestionnaireId} templateId={templateId || 'annonces-classique'} defaut={DEFAUTS_CLASSIQUE[templateId || 'annonces-classique'] || PROFIL_GENERAL.defaut} />}
 
       {onglet === 'reglages' && (
         <div style={carte}>

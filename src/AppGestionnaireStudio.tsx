@@ -1399,6 +1399,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         id: 'commandes', label: 'MES ANNONCES', icon: '📋',
         sousMenu: [
           { id: 'annonces-site', label: 'Mes annonces', icon: '📋' },
+          { id: 'annonces-plan', label: 'Mon plan & limites', icon: '📊' },
         ]
       },
       menuStudio,
@@ -1812,6 +1813,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'encheres-site') return <MesEncheresSite gestionnaireId={gestionnaire.id} templateId={templateActif} />;
     if (pageActive === 'annonces-site') return <MesAnnoncesSite gestionnaireId={gestionnaire.id} templateId={templateActif} />;
+    if (pageActive === 'annonces-plan') return <BoutiquePlan gestionnaireId={gestionnaire.id} accent="#0f766e" naviguerVers={setPageActive} base="/api/studio/annonces-site" sansAddons pageListe="annonces-site" />;
     if (pageActive === 'cagnotte-config') return <ConfigMesPagesCagnotte gestionnaireId={gestionnaire.id} naviguer={setPageActive} templateId={templateActif} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;

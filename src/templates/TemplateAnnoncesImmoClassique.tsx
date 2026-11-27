@@ -2,7 +2,7 @@
 // e-Vend Studio — Petites annonces « Immobilier Classique » (maisons, condos, appartements, terrains, commercial) — affichage seulement.
 // Les annonces viennent de « Mes annonces » (API /api/annonces-studio). L'apparence vient de config.annonces.
 
-import SiteClassique, { type ProfilAnnonces, type ConfigAnnoncesClassique } from './annoncesSite/SiteClassique';
+import SiteClassique, { type ProfilAnnonces } from './annoncesSite/SiteClassique';
 import { nbDe, type AnnoncePub } from './annoncesSite/moteur';
 
 const il = (j: number) => new Date(Date.now() - j * 86400000).toISOString();
@@ -35,5 +35,5 @@ export const PROFIL_IMMO: ProfilAnnonces = {
   avis: "Les annonces sont affichées à titre informatif. Aucune transaction n'est effectuée sur ce site : les échanges se font directement avec l'annonceur. Vérifiez les renseignements (titre de propriété, bail, inspection) avant toute entente.",
 };
 
-interface Props { config?: Partial<ConfigAnnoncesClassique>; siteId?: number; vendeurId?: number; }
+interface Props { config?: Record<string, any>; siteId?: number; vendeurId?: number; }
 export default function TemplateAnnoncesImmoClassique(props: Props) { return <SiteClassique profil={PROFIL_IMMO} {...props} />; }

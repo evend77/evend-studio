@@ -363,6 +363,17 @@ app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (re
     }
   }
 
+  // 📋 Templates petites annonces (annonces-*) : même règle de palier, selon les annonces actives. Sans effet pour les autres templates.
+  if (template_id && req.user.role !== 'admin') {
+    try {
+      const ra = await require('./services/annonces_limites').appliquerChangementTemplate(parseInt(req.params.gestionnaireId, 10), template_id);
+      if (!ra.ok) return res.status(409).json({ message: ra.message, code: ra.code });
+    } catch (err) {
+      console.error('annonces_limites.appliquerChangementTemplate', err);
+      return res.status(500).json({ message: 'Erreur serveur.' });
+    }
+  }
+
   try {
     const result = await pool.query(
       `INSERT INTO sites (gestionnaire_id, config, sous_type, template_id, slug, domaine_custom, publie, updated_at)

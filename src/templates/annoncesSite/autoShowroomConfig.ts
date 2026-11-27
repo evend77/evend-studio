@@ -4,13 +4,13 @@
 
 // NB : le nettoyage de texte (balises, caractères de contrôle) est fait côté serveur par utils/sanitize.js (nettoyerTexte).
 // Ici : seulement bornage de longueur + contrôle des liens/couleurs à l'affichage (React échappe déjà tout texte).
-const texte = (v: unknown, max = 200): string => (typeof v === 'string' || typeof v === 'number' ? String(v).replace(/[\r\n\t]+/g, ' ').trim().slice(0, max) : '');
-const paragraphe = (v: unknown, max = 2000): string => (typeof v === 'string' ? v.replace(/\r\n?/g, '\n').trim().slice(0, max) : '');
+export const texte = (v: unknown, max = 200): string => (typeof v === 'string' || typeof v === 'number' ? String(v).replace(/[\r\n\t]+/g, ' ').trim().slice(0, max) : '');
+export const paragraphe = (v: unknown, max = 2000): string => (typeof v === 'string' ? v.replace(/\r\n?/g, '\n').trim().slice(0, max) : '');
 const emoji = (v: unknown): string => texte(v, 6);
 const dateIso = (v: unknown): string => { const t = texte(v, 30); return /^\d{4}-\d{2}-\d{2}/.test(t) && !Number.isNaN(new Date(t.replace(' ', 'T')).getTime()) ? t : ''; };
-const telephone = (v: unknown): string => { const t = texte(v, 25); return /^[0-9+()\-.\s]{4,25}$/.test(t) ? t : ''; };
-const courriel = (v: unknown): string => { const t = texte(v, 200).toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t) ? t : ''; };
-const couleur = (v: unknown, defaut: string): string => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim()) ? v.trim().toLowerCase() : defaut);
+export const telephone = (v: unknown): string => { const t = texte(v, 25); return /^[0-9+()\-.\s]{4,25}$/.test(t) ? t : ''; };
+export const courriel = (v: unknown): string => { const t = texte(v, 200).toLowerCase(); return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(t) ? t : ''; };
+export const couleur = (v: unknown, defaut: string): string => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.trim()) ? v.trim().toLowerCase() : defaut);
 /** URL https uniquement (images, réseaux). Refuse javascript:, data:, http:… */
 export function urlHttps(v: unknown): string {
   if (typeof v !== 'string') return '';
@@ -146,7 +146,7 @@ export const RESEAUX = ['facebook', 'instagram', 'youtube', 'twitter', 'tiktok',
 export const DEFAUTS_GLOBAUX = { nomSite: 'Auto Showroom', logoUrl: '', couleurPrincipale: '#f15a22', couleurAccent: '#5b3fc4', couleurSombre: '#2f3033', couleurFond: '#f5f5f5', police: 'arrondie' as const, telephone: '', courriel: '', adresse: '', piedTexte: '' };
 
 // ─── Normalisation : toute valeur est assainie selon son type ──────────────────────
-function normChamp(raw: unknown, ch: Champ, defaut: any): any {
+export function normChamp(raw: unknown, ch: Champ, defaut: any, idsLiens: string[] = [...SECTION_IDS]): any {
   const brut = raw === undefined ? defaut : raw;
   switch (ch.t) {
     case 'text':  return texte(brut, ch.max || 200);
@@ -154,11 +154,11 @@ function normChamp(raw: unknown, ch: Champ, defaut: any): any {
     case 'img':   return urlHttps(brut);
     case 'emoji': return emoji(brut);
     case 'date':  return dateIso(brut);
-    case 'lien':  { const l = lien(brut, [...SECTION_IDS]); return l ? (l.type === 'ancre' ? `#${l.valeur}` : l.valeur) : ''; }
+    case 'lien':  { const l = lien(brut, idsLiens); return l ? (l.type === 'ancre' ? `#${l.valeur}` : l.valeur) : ''; }
     case 'puces': { const a = Array.isArray(brut) ? brut : (typeof brut === 'string' ? brut.split('\n') : []); return a.map((x) => texte(x, ch.max || 120)).filter(Boolean).slice(0, ch.maxItems || 10); }
     case 'liste': {
       const a = Array.isArray(brut) ? brut : [];
-      return a.slice(0, ch.maxItems || 8).map((it) => { const o: Record<string, any> = {}; (ch.sub || []).forEach((s) => { o[s.k] = normChamp(it && typeof it === 'object' ? (it as any)[s.k] : undefined, s, s.t === 'liste' || s.t === 'puces' ? [] : ''); }); return o; })
+      return a.slice(0, ch.maxItems || 8).map((it) => { const o: Record<string, any> = {}; (ch.sub || []).forEach((s) => { o[s.k] = normChamp(it && typeof it === 'object' ? (it as any)[s.k] : undefined, s, s.t === 'liste' || s.t === 'puces' ? [] : '', idsLiens); }); return o; })
         .filter((o) => Object.values(o).some((v) => (Array.isArray(v) ? v.length : !!v)));
     }
   }

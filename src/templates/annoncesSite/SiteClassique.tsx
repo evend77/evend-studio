@@ -3,6 +3,8 @@
 // Même apparence que « Annonces Classique », avec filtres par détails (marque, année, chambres…) et puces de fiche.
 
 import { useState, useEffect } from 'react';
+import { normaliserConfig, RESEAUX, type SectionId } from './classiqueConfig';
+import { telHref } from './autoShowroomConfig';
 import { useAnnonces, FormulaireContact, fmtPrix, ilYa, FILTRES_VIDES, filtresActifs, type AnnoncePub, type Filtres } from './moteur';
 
 export interface ConfigAnnoncesClassique {
@@ -81,14 +83,27 @@ export function Detail({ a, gid, demo: estDemo, cfg, police, profil, onClose }: 
   );
 }
 
-interface Props { profil: ProfilAnnonces; config?: Partial<ConfigAnnoncesClassique>; siteId?: number; vendeurId?: number; }
+interface Props { profil: ProfilAnnonces; config?: Record<string, any>; siteId?: number; vendeurId?: number; }
+
+function allerA(id: string) { const el = document.getElementById(id); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+
+/** Bouton de section : lien #ancre (défilement), tel:, mailto: ou https:// (nouvel onglet). Sans texte ou sans lien : rien. */
+function Bouton({ texte, lien, style }: { texte: string; lien: string; style: React.CSSProperties }) {
+  if (!texte || !lien) return null;
+  if (lien.charAt(0) === '#') return <button onClick={() => allerA(lien.slice(1))} style={{ ...style, border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>{texte}</button>;
+  const ext = lien.indexOf('https:') === 0;
+  return <a href={lien} target={ext ? '_blank' : undefined} rel="noopener noreferrer" style={{ ...style, textDecoration: 'none', display: 'inline-block' }}>{texte}</a>;
+}
 
 export default function SiteClassique({ profil, config: configProp, vendeurId }: Props) {
-  const cfg: ConfigAnnoncesClassique = { ...profil.defaut, ...Object.fromEntries(Object.entries(configProp || {}).filter(([, v]) => v !== '' && v != null)) } as ConfigAnnoncesClassique;
+  const cfg = normaliserConfig(configProp, profil.defaut);
   const gid = Number(vendeurId || 0);
   const cp = cfg.couleurPrincipale;
+  const ct = cfg.couleurTexte;
   const police = cfg.police === 'moderne' ? "'Inter', sans-serif" : "'Source Serif 4', Georgia, serif";
   const police2 = "'Inter', sans-serif";
+  // Forme attendue par la fiche détaillée (Detail)
+  const cfgDetail: ConfigAnnoncesClassique = { nomSite: cfg.nomSite, slogan: '', logoUrl: cfg.logoUrl, couleurPrincipale: cp, couleurFond: cfg.couleurFond, police: cfg.police, apropos: '', email: cfg.courriel, telephone: cfg.telephone };
 
   const [f, setF] = useState<Filtres>(FILTRES_VIDES);
   const [saisie, setSaisie] = useState('');
@@ -101,34 +116,44 @@ export default function SiteClassique({ profil, config: configProp, vendeurId }:
   const chercher = () => set({ q: saisie.trim(), lieu: lieuSaisie.trim() });
 
   const champ: React.CSSProperties = { padding: '12px 14px', border: '1px solid #d6d3cc', borderRadius: 10, fontSize: 15, fontFamily: police2, background: '#fff', color: '#1f2937', minWidth: 0, boxSizing: 'border-box' };
+  const conteneur: React.CSSProperties = { maxWidth: 1180, margin: '0 auto', padding: '0 18px' };
+  const titreSec: React.CSSProperties = { fontFamily: police, fontSize: 'clamp(22px, 3.5vw, 30px)', fontWeight: 800, color: ct, margin: '0 0 8px', textAlign: 'center' };
+  const texteSec: React.CSSProperties = { fontSize: 15, color: '#4b5563', lineHeight: 1.7, margin: '0 auto 22px', maxWidth: 680, textAlign: 'center', whiteSpace: 'pre-wrap' };
+  const carteSec: React.CSSProperties = { background: '#fff', border: '1px solid #e7e2d8', borderRadius: 14, padding: 18 };
+  const C = cfg.contenu;
+  const aireBouton: React.CSSProperties = { marginTop: 18, padding: '12px 26px', background: '#fff', color: cp, borderRadius: 10, fontWeight: 800, fontSize: 15 };
 
-  return (
-    <div style={{ minHeight: '100vh', background: cfg.couleurFond, color: '#1f2937', fontFamily: police2 }}>
-      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;700;800&family=Inter:wght@400;500;600;700;800&display=swap" />
-      <style>{`* { box-sizing: border-box; } img { display:block; } input::placeholder, textarea::placeholder { color:#9ca3af; } .ann-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap:18px; }
-        @media (max-width: 640px) { .ann-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px; } .ann-recherche { flex-direction: column !important; } .ann-recherche > * { width:100% !important; flex:none !important; } }`}</style>
-
-      <header style={{ background: '#fff', borderBottom: '1px solid #e7e2d8' }}>
-        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
-          {cfg.logoUrl ? <img src={cfg.logoUrl} alt="logo" style={{ height: 38, objectFit: 'contain' }} /> : <div style={{ width: 38, height: 38, borderRadius: 10, background: cp, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{profil.icone}</div>}
-          <span style={{ fontFamily: police, fontSize: 22, fontWeight: 800, color: '#1f2937' }}>{cfg.nomSite}</span>
-        </div>
-      </header>
-
-      <section style={{ background: `linear-gradient(135deg, ${cp}, ${cp}cc)`, padding: '34px 18px 38px' }}>
-        <div style={{ maxWidth: 1000, margin: '0 auto', textAlign: 'center' }}>
-          <h1 style={{ fontFamily: police, fontSize: 'clamp(24px, 4.5vw, 38px)', color: '#fff', fontWeight: 800, margin: '0 0 8px', lineHeight: 1.15 }}>{cfg.slogan}</h1>
-          <div className="ann-recherche" style={{ display: 'flex', gap: 8, marginTop: 18 }}>
+  const visibles = cfg.sections.filter((s) => s.visible).map((s) => s.id);
+  const ih = visibles.indexOf('hero');
+  const fusion = ih >= 0 && visibles[ih + 1] === 'recherche';   // bannière suivie de la recherche : une seule bande
+  const barreRecherche = (
+    <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+      <div className="ann-recherche" style={{ display: 'flex', gap: 8, marginTop: 18 }}>
             <input style={{ ...champ, flex: 3 }} placeholder={profil.recherche} value={saisie} onChange={(e) => setSaisie(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && chercher()} />
             <input style={{ ...champ, flex: 2 }} placeholder={profil.lieuPlaceholder} value={lieuSaisie} onChange={(e) => setLieuSaisie(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && chercher()} />
-            <button onClick={chercher} style={{ padding: '12px 24px', background: '#1f2937', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>🔍 Chercher</button>
+            <button onClick={chercher} style={{ padding: '12px 24px', background: '#1f2937', color: '#fff', border: 'none', borderRadius: 10, fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>🔍 {cfg.contenu.recherche.btnTexte || 'Chercher'}</button>
           </div>
+    </div>
+  );
+
+  const sections: Record<SectionId, React.ReactNode> = {
+    hero: (
+      <section style={{ background: C.hero.image ? `linear-gradient(rgba(0,0,0,.5), rgba(0,0,0,.5)), url("${C.hero.image}") center / cover` : `linear-gradient(135deg, ${cp}, ${cp}cc)`, padding: '44px 18px 48px' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto', textAlign: 'center' }}>
+          {C.hero.titre && <h1 style={{ fontFamily: police, fontSize: 'clamp(24px, 4.5vw, 38px)', color: '#fff', fontWeight: 800, margin: '0 0 8px', lineHeight: 1.15 }}>{C.hero.titre}</h1>}
+          {C.hero.texte && <p style={{ fontSize: 16, color: 'rgba(255,255,255,.92)', margin: '0 auto', maxWidth: 640, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{C.hero.texte}</p>}
+          <Bouton texte={C.hero.btnTexte} lien={C.hero.btnLien} style={aireBouton} />
+          {fusion && <div style={{ marginTop: 20 }}>{barreRecherche}</div>}
         </div>
       </section>
-
-      <main style={{ maxWidth: 1180, margin: '0 auto', padding: '22px 18px 50px' }}>
-        {r.demo && <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '10px 14px', color: '#92400e', fontSize: 13, marginBottom: 16 }}>Aperçu avec des annonces d'exemple. Vos vraies annonces s'afficheront ici une fois ajoutées dans « Mes annonces ».</div>}
-
+    ),
+    recherche: fusion ? null : (
+      <section style={{ background: `linear-gradient(135deg, ${cp}, ${cp}cc)`, padding: '16px 18px 20px' }}>
+        {barreRecherche}
+      </section>
+    ),
+    categories: r.categories.length > 0 ? (
+      <div style={{ ...conteneur, paddingTop: 22 }}>
         {r.categories.length > 0 && (
           <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 8, marginBottom: 14 }}>
             {[{ nom: '', n: r.categories.reduce((s, c) => s + c.n, 0) }, ...r.categories].map((c) => (
@@ -136,7 +161,12 @@ export default function SiteClassique({ profil, config: configProp, vendeurId }:
             ))}
           </div>
         )}
-
+      </div>
+    ) : null,
+    annonces: (
+      <main style={{ ...conteneur, padding: '22px 18px 40px' }}>
+        {C.annonces.titre && <h2 style={{ ...titreSec, textAlign: 'left', margin: '0 0 14px' }}>{C.annonces.titre}</h2>}
+        {r.demo && <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '10px 14px', color: '#92400e', fontSize: 13, marginBottom: 16 }}>Aperçu avec des annonces d'exemple. Vos vraies annonces s'afficheront ici une fois ajoutées dans « Mes annonces ».</div>}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
           <p style={{ fontSize: 14, color: '#6b7280', margin: 0 }}>{r.loading ? 'Chargement…' : `${r.total} annonce${r.total !== 1 ? 's' : ''}`}</p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -181,7 +211,7 @@ export default function SiteClassique({ profil, config: configProp, vendeurId }:
         {!r.loading && r.annonces.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '60px 16px', color: '#6b7280' }}>
             <div style={{ fontSize: 44, marginBottom: 8 }}>🗂️</div>
-            <p style={{ fontSize: 16, margin: '0 0 12px' }}>Aucune annonce ne correspond.</p>
+            <p style={{ fontSize: 16, margin: '0 0 12px' }}>{cfg.contenu.annonces.vide || 'Aucune annonce ne correspond.'}</p>
             {filtresActifs(f) && <button onClick={() => { setF(FILTRES_VIDES); setSaisie(''); setLieuSaisie(''); }} style={{ padding: '9px 18px', background: cp, color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: 'pointer' }}>Voir toutes les annonces</button>}
           </div>
         ) : (
@@ -196,14 +226,88 @@ export default function SiteClassique({ profil, config: configProp, vendeurId }:
           </div>
         )}
       </main>
+    ),
+    avantages: C.avantages.items.length > 0 ? (
+      <section style={{ padding: '38px 18px', background: '#fff', borderTop: '1px solid #e7e2d8' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto' }}>
+          {C.avantages.titre && <h2 style={titreSec}>{C.avantages.titre}</h2>}
+          {C.avantages.texte && <p style={texteSec}>{C.avantages.texte}</p>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 16 }}>
+            {C.avantages.items.map((it: any, i: number) => (
+              <div key={i} style={{ ...carteSec, background: cfg.couleurFond, textAlign: 'center' }}>
+                {it.icone && <div style={{ fontSize: 32, marginBottom: 8 }}>{it.icone}</div>}
+                {it.titre && <h3 style={{ fontSize: 16, fontWeight: 800, color: ct, margin: '0 0 6px' }}>{it.titre}</h3>}
+                {it.texte && <p style={{ fontSize: 14, color: '#4b5563', lineHeight: 1.6, margin: 0 }}>{it.texte}</p>}
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    ) : null,
+    apropos: (C.apropos.texte || C.apropos.image || C.apropos.points.length > 0) ? (
+      <section style={{ padding: '38px 18px', borderTop: '1px solid #e7e2d8' }}>
+        <div style={{ maxWidth: 1000, margin: '0 auto', display: 'grid', gridTemplateColumns: C.apropos.image ? 'repeat(auto-fit, minmax(280px, 1fr))' : '1fr', gap: 26, alignItems: 'center' }}>
+          <div>
+            {C.apropos.titre && <h2 style={{ ...titreSec, textAlign: C.apropos.image ? 'left' : 'center' }}>{C.apropos.titre}</h2>}
+            {C.apropos.texte && <p style={{ ...texteSec, textAlign: C.apropos.image ? 'left' : 'center', margin: C.apropos.image ? '0 0 14px' : '0 auto 14px' }}>{C.apropos.texte}</p>}
+            {C.apropos.points.length > 0 && <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 8, maxWidth: 520, marginLeft: C.apropos.image ? 0 : 'auto', marginRight: C.apropos.image ? 0 : 'auto' }}>{C.apropos.points.map((p: string, i: number) => <li key={i} style={{ fontSize: 14, color: '#374151' }}><span style={{ color: cp, fontWeight: 800 }}>✓</span> {p}</li>)}</ul>}
+          </div>
+          {C.apropos.image && <img src={C.apropos.image} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.visibility = 'hidden'; }} style={{ width: '100%', borderRadius: 14, objectFit: 'cover', maxHeight: 340 }} />}
+        </div>
+      </section>
+    ) : null,
+    faq: C.faq.items.length > 0 ? (
+      <section style={{ padding: '38px 18px', background: '#fff', borderTop: '1px solid #e7e2d8' }}>
+        <div style={{ maxWidth: 800, margin: '0 auto' }}>
+          {C.faq.titre && <h2 style={titreSec}>{C.faq.titre}</h2>}
+          {C.faq.texte && <p style={texteSec}>{C.faq.texte}</p>}
+          {C.faq.items.map((it: any, i: number) => (
+            <details key={i} style={{ ...carteSec, marginBottom: 10, padding: '12px 16px' }}>
+              <summary style={{ cursor: 'pointer', fontWeight: 700, fontSize: 15, color: ct }}>{it.q}</summary>
+              <p style={{ fontSize: 14, color: '#4b5563', lineHeight: 1.7, margin: '10px 0 2px', whiteSpace: 'pre-wrap' }}>{it.r}</p>
+            </details>
+          ))}
+        </div>
+      </section>
+    ) : null,
+    contact: (C.contact.texte || cfg.telephone || cfg.courriel || cfg.adresse || RESEAUX.some((k) => cfg.reseaux[k])) ? (
+      <section style={{ padding: '34px 18px', borderTop: '1px solid #e7e2d8', background: '#fff', textAlign: 'center' }}>
+        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+          {C.contact.titre && <h2 style={titreSec}>{C.contact.titre}</h2>}
+          {C.contact.texte && <p style={texteSec}>{C.contact.texte}</p>}
+          <p style={{ fontSize: 14, color: '#4b5563', margin: '0 0 8px', lineHeight: 1.9 }}>
+            {cfg.telephone && <a href={telHref(cfg.telephone)} style={{ color: cp, fontWeight: 700 }}>📞 {cfg.telephone}</a>}
+            {cfg.telephone && cfg.courriel ? ' · ' : ''}
+            {cfg.courriel && <a href={`mailto:${cfg.courriel}`} style={{ color: cp, fontWeight: 700 }}>✉️ {cfg.courriel}</a>}
+            {(cfg.telephone || cfg.courriel) && cfg.adresse ? ' · ' : ''}
+            {cfg.adresse && <span>📍 {cfg.adresse}</span>}
+          </p>
+          {RESEAUX.some((k) => cfg.reseaux[k]) && <p style={{ fontSize: 13, margin: 0 }}>{RESEAUX.filter((k) => cfg.reseaux[k]).map((k) => <a key={k} href={cfg.reseaux[k]} target="_blank" rel="noopener noreferrer" style={{ color: cp, fontWeight: 700, margin: '0 8px', textTransform: 'capitalize' }}>{k}</a>)}</p>}
+        </div>
+      </section>
+    ) : null,
+  };
 
-      <footer style={{ borderTop: '1px solid #e7e2d8', background: '#fff', padding: '26px 18px', textAlign: 'center' }}>
-        {cfg.apropos && <p style={{ maxWidth: 640, margin: '0 auto 12px', fontSize: 14, color: '#4b5563', lineHeight: 1.7 }}>{cfg.apropos}</p>}
-        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 4px' }}>{cfg.email && <a href={`mailto:${cfg.email}`} style={{ color: cp }}>{cfg.email}</a>}{cfg.email && cfg.telephone ? ' · ' : ''}{cfg.telephone}</p>
-        <p style={{ fontSize: 11, color: '#9ca3af', maxWidth: 560, margin: '10px auto 0', lineHeight: 1.6 }}>{profil.avis}</p>
+  return (
+    <div style={{ minHeight: '100vh', background: cfg.couleurFond, color: ct, fontFamily: police2 }}>
+      <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;700;800&family=Inter:wght@400;500;600;700;800&display=swap" />
+      <style>{`* { box-sizing: border-box; } img { display:block; } input::placeholder, textarea::placeholder { color:#9ca3af; } .ann-grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap:18px; }
+        @media (max-width: 640px) { .ann-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap:10px; } .ann-recherche { flex-direction: column !important; } .ann-recherche > * { width:100% !important; flex:none !important; } }`}</style>
+
+      <header style={{ background: cfg.couleurEntete, borderBottom: '1px solid #e7e2d8' }}>
+        <div style={{ maxWidth: 1180, margin: '0 auto', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {cfg.logoUrl ? <img src={cfg.logoUrl} alt="logo" style={{ height: 38, objectFit: 'contain' }} /> : <div style={{ width: 38, height: 38, borderRadius: 10, background: cp, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>{profil.icone}</div>}
+          <span style={{ fontFamily: police, fontSize: 22, fontWeight: 800, color: ct }}>{cfg.nomSite}</span>
+        </div>
+      </header>
+
+      {visibles.map((id) => <div key={id} id={id}>{sections[id]}</div>)}
+
+      <footer style={{ borderTop: '1px solid #e7e2d8', background: '#fff', padding: '20px 18px', textAlign: 'center' }}>
+        <p style={{ fontSize: 11, color: '#9ca3af', maxWidth: 560, margin: '0 auto', lineHeight: 1.6 }}>{profil.avis}</p>
       </footer>
 
-      {ouverte && <Detail a={ouverte} gid={gid} demo={r.demo} cfg={cfg} police={police2} profil={profil} onClose={() => setOuverte(null)} />}
+      {ouverte && <Detail a={ouverte} gid={gid} demo={r.demo} cfg={cfgDetail} police={police2} profil={profil} onClose={() => setOuverte(null)} />}
     </div>
   );
 }
