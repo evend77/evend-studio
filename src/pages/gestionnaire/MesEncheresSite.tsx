@@ -117,7 +117,10 @@ export default function MesEncheresSite({ gestionnaireId, templateId }: Props) {
           <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: '#111827' }}>🔨 Mes enchères</h2>
           <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>{enCours.length} lot{enCours.length !== 1 ? 's' : ''} en cours{aPayer.length ? ` · ${aPayer.length} à encaisser` : ''}</p>
         </div>
-        {onglet === 'lots' && <button style={btn()} onClick={ouvrirNouveau}>＋ Ajouter un lot</button>}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <a href="https://e-vendstudio.ca/documents/template-encheres" target="_blank" rel="noopener noreferrer" style={{ ...btn('#4f46e5', false), textDecoration: 'none', display: 'inline-block' }}>📖 Guide des enchères ↗</a>
+          {onglet === 'lots' && <button style={btn()} onClick={ouvrirNouveau}>＋ Ajouter un lot</button>}
+        </div>
       </div>
 
       {msg && <div style={{ background: msg.ok ? '#dcfce7' : '#fee2e2', color: msg.ok ? '#166534' : '#991b1b', padding: '10px 14px', borderRadius: 10, fontSize: 14, marginBottom: 12 }}>{msg.t}</div>}

@@ -1,4 +1,4 @@
-// src/pages/vendeur/ConfigTemplate.tsx
+// src/pages/gestionnaire/ConfigTemplate.tsx
 // e-Vend Studio — Page "Modifier mon site" (router de config templates)
 // Extrait de AppVendeurStudio.tsx pour alléger le fichier principal
 
@@ -14,9 +14,7 @@ import ConfigTemplateVitrineProMariage  from '../studio/ConfigTemplateVitrinePro
 import ConfigTemplateVitrineProBeaute   from '../studio/ConfigTemplateVitrineProBeaute';
 import ConfigTemplateVitrineProTech     from '../studio/ConfigTemplateVitrineProTech';
 import ConfigTemplateVitrineProEntrepreneur from '../studio/ConfigTemplateVitrineProEntrepreneur';
-import ConfigTemplateEnchereFlash       from '../studio/ConfigTemplateEnchereFlash';
-import ConfigTemplateEnchereGalerie     from '../studio/ConfigTemplateEnchereGalerie';
-import ConfigTemplateEnchereLive        from '../studio/ConfigTemplateEnchereLive';
+import MesEncheresSite                 from './MesEncheresSite';
 import ConfigTemplateSalon              from '../studio/ConfigTemplateSalon';
 import ConfigTemplatePaysager           from '../studio/ConfigTemplatePaysager';
 import ConfigTemplateAvocat             from '../studio/ConfigTemplateAvocat';
@@ -114,7 +112,7 @@ export default function ConfigTemplate({ vendeurId, templateId, ...resetProps }:
   const groupeCagnotte    = ['cagnotte-personnel','cagnotte-projet','cagnotte-communaute','cagnotte-environnement','cagnotte-urgence'];
   const groupeReservation = ['reservation-restaurant','reservation-location','reservation-service','reservation-spectacle'];
   const groupeBoutique    = ['boutique-simple','boutique-complete','agricole'];
-  const groupeEnchere     = ['enchere-flash','enchere-galerie','enchere-live'];
+  const groupeEnchere     = ['enchere-galerie','enchere-live'];
 
   // ── Agricole ──
   if (templateId === 'agricole') {
@@ -173,12 +171,8 @@ export default function ConfigTemplate({ vendeurId, templateId, ...resetProps }:
 
   // ── Enchères ──
   if (groupeEnchere.includes(templateId)) {
-    if (templateId === 'enchere-flash')
-      return <ConfigTemplateEnchereFlash key={templateId} vendeurId={vendeurId.toString()} templateId={templateId} onSauvegarde={onSauvegarde} />;
-    if (templateId === 'enchere-galerie')
-      return <ConfigTemplateEnchereGalerie key={templateId} vendeurId={vendeurId.toString()} templateId={templateId} onSauvegarde={onSauvegarde} />;
-    if (templateId === 'enchere-live')
-      return <ConfigTemplateEnchereLive key={templateId} vendeurId={vendeurId.toString()} templateId={templateId} onSauvegarde={onSauvegarde} />;
+    // Lots, apparence et réglages : page « Mes enchères » (les lots sont dans la base, plus dans la config du site)
+    return <MesEncheresSite key={templateId} gestionnaireId={vendeurId} templateId={templateId} />;
   }
 
   // ── Cagnotte ──

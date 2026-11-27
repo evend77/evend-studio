@@ -844,12 +844,12 @@ function CarteTemplate({ t, onCommencer, prixAffiche }: { t: Template; onCommenc
         transform: survol && t.disponible ? 'translateY(-6px)' : 'none',
         boxShadow: survol && t.disponible ? `0 20px 48px rgba(0,0,0,0.4), 0 0 0 1px ${t.couleur}20` : 'none',
         opacity: t.disponible ? 1 : 0.55,
-        display: 'flex', flexDirection: 'column',
+        display: 'flex', flexDirection: 'column', minWidth: 0,
       }}>
       {/* Bandeau-titre en couleur du modèle : nom + prix (même style que « Choisir un template ») */}
       <div className="template-card-band" style={{ padding: '13px 18px', background: `linear-gradient(100deg, ${t.couleur}, ${t.couleur}bb)`, display: 'flex', alignItems: 'center', gap: 12, minHeight: 58 }}>
-        <span style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(0,0,0,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>{t.icone || '📄'}</span>
-        <h3 className="template-card-title" style={{ flex: 1, minWidth: 0, fontSize: 19, fontWeight: 800, letterSpacing: '0.01em', lineHeight: 1.15, margin: 0, color: claire(t.couleur) ? '#14141c' : '#fff', textShadow: claire(t.couleur) ? 'none' : '0 1px 6px rgba(0,0,0,0.45)', overflowWrap: 'anywhere' }}>{t.nom}</h3>
+        <span className="template-card-icon" style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(0,0,0,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 19, flexShrink: 0 }}>{t.icone || '📄'}</span>
+        <h3 className="template-card-title" style={{ flex: 1, minWidth: 0, fontSize: 19, fontWeight: 800, letterSpacing: '0.01em', lineHeight: 1.15, margin: 0, color: claire(t.couleur) ? '#14141c' : '#fff', textShadow: claire(t.couleur) ? 'none' : '0 1px 6px rgba(0,0,0,0.45)', overflowWrap: 'break-word', wordBreak: 'normal' }}>{t.nom}</h3>
         <span className="template-card-price" style={{ flexShrink: 0, background: 'rgba(0,0,0,0.38)', color: !t.disponible ? '#fff' : estGratuit ? '#fff' : '#fbbf24', padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}>
           {!t.disponible ? 'Bientôt' : prixFinal}
         </span>
@@ -1084,13 +1084,15 @@ export default function PageTemplates() {
             text-align: center !important;
           }
           .templates-mobile-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
             gap: 10px !important;
           }
+          .templates-mobile-grid > * { min-width: 0 !important; }
           .template-card-content { padding: 10px 10px 12px !important; }
-          .template-card-band { padding: 8px 10px !important; min-height: 44px !important; gap: 8px !important; }
-          .template-card-title { font-size: 13px !important; }
-          .template-card-price { font-size: 9px !important; padding: 2px 7px !important; margin-left: 4px !important; }
+          .template-card-band { flex-direction: column !important; align-items: flex-start !important; justify-content: center !important; padding: 9px 10px !important; min-height: 0 !important; gap: 5px !important; }
+          .template-card-icon { display: none !important; }
+          .template-card-title { font-size: 14px !important; width: 100% !important; flex: none !important; }
+          .template-card-price { font-size: 10px !important; padding: 2px 8px !important; margin-left: 0 !important; max-width: 100% !important; white-space: normal !important; }
           .template-card-desc { display: none !important; }
           .template-card-features { display: none !important; }
           .template-card-buttons { flex-direction: column !important; gap: 6px !important; }
@@ -1103,6 +1105,7 @@ export default function PageTemplates() {
             padding: 8px !important;
             font-size: 11px !important;
           }
+          .template-card-buttons button, .template-card-content button { max-width: 100% !important; box-sizing: border-box !important; }
         }
       `}</style>
 
