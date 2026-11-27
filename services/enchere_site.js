@@ -5,6 +5,7 @@
 
 const crypto = require('crypto');
 const pool = require('../db');
+const { nettoyerTexte } = require('../utils/sanitize'); // nettoyage standard e-Vend Studio (sanitize-html)
 
 // ───────────────────────── Schéma ─────────────────────────
 const DDL = [
@@ -212,8 +213,8 @@ const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 
 async function demanderCode(gid, emailBrut, prenomBrut) {
   await pret();
-  const email = String(emailBrut || '').trim().toLowerCase();
-  const prenom = String(prenomBrut || '').trim().slice(0, 40);
+  const email = nettoyerTexte(emailBrut, 200).toLowerCase();
+  const prenom = nettoyerTexte(prenomBrut, 40);
   if (!EMAIL_RE.test(email)) throw new ErreurEnchere('Courriel invalide.');
   if (prenom.length < 2) throw new ErreurEnchere('Indiquez votre prénom.');
   const rg = await reglages(gid);
@@ -241,7 +242,7 @@ async function demanderCode(gid, emailBrut, prenomBrut) {
 
 async function verifierCode(gid, emailBrut, codeBrut) {
   await pret();
-  const email = String(emailBrut || '').trim().toLowerCase();
+  const email = nettoyerTexte(emailBrut, 200).toLowerCase();
   const code = String(codeBrut || '').replace(/\D/g, '');
   const r = await pool.query('SELECT * FROM ens_encherisseurs WHERE gestionnaire_id=$1 AND email=$2', [gid, email]);
   const e = r.rows[0];
@@ -459,7 +460,7 @@ function demarrerEncheres() {
 // ───────────────────────── Gestionnaire ─────────────────────────
 function nettoyerLot(b, existant) {
   const out = {};
-  const txt = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+  const txt = (v, n) => nettoyerTexte(v, n);
   const num = (v) => (v === '' || v == null ? null : r2(v));
   out.titre = txt(b.titre, 140);
   if (!out.titre) throw new ErreurEnchere('Le titre est requis.');

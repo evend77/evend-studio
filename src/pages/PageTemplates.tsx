@@ -96,6 +96,7 @@ export const PHOTOS: Record<string, string> = {
   'annonces-classique':   'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-auto-classique': 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-immo-classique': 'https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'annonces-auto-showroom': 'https://images.pexels.com/photos/358070/pexels-photo-358070.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
 
 // ─── DONNÉES VRAIS TEMPLATES ──────────────────────────────────────────────────
@@ -734,6 +735,14 @@ export const TEMPLATES: Template[] = [
     description: "Annonces de véhicules (voitures, VUS, motos, VR, bateaux) : filtres marque, année, kilométrage, carburant, transmission. Affichage seulement, aucun paiement.",
     fonctionnalites: ['Filtres marque / année / km', 'Carburant & transmission', 'Fiche détaillée', 'Formulaire de contact'],
     disponible: true, nouveau: true, couleur: '#1e40af',
+  },
+  {
+    id: 'annonces-auto-showroom',
+    nom: 'Auto Showroom',
+    groupe: 'annonces',
+    description: "Site vitrine complet pour concessionnaire ou revendeur : bannière, étapes, véhicules avec filtres, forfaits, témoignages, promo et FAQ. Couleurs, photos, textes et sections entièrement configurables. Affichage seulement.",
+    fonctionnalites: ['Sections réordonnables', 'Couleurs & photos configurables', 'Véhicules + filtres', 'Compte à rebours promo'],
+    disponible: true, nouveau: true, couleur: '#f15a22',
   },
   {
     id: 'annonces-immo-classique',

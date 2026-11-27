@@ -44,7 +44,7 @@ function Carte({ a, couleur, police, profil, onClick }: { a: AnnoncePub; couleur
   );
 }
 
-function Detail({ a, gid, demo: estDemo, cfg, police, profil, onClose }: { a: AnnoncePub; gid: number; demo: boolean; cfg: ConfigAnnoncesClassique; police: string; profil: ProfilAnnonces; onClose: () => void }) {
+export function Detail({ a, gid, demo: estDemo, cfg, police, profil, onClose }: { a: AnnoncePub; gid: number; demo: boolean; cfg: ConfigAnnoncesClassique; police: string; profil: ProfilAnnonces; onClose: () => void }) {
   const [photo, setPhoto] = useState(0);
   const cp = cfg.couleurPrincipale;
   const det = Object.entries(a.details || {});

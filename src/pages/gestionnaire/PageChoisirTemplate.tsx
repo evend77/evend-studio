@@ -1459,6 +1459,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           titre: '🚗 Auto',
           templates: [
             { id: 'annonces-auto-classique', titre: 'Auto Classique', desc: 'Voitures, VUS, motos, VR, bateaux : filtres par marque, année, kilométrage, carburant et transmission, fiche détaillée et contact par formulaire. Aucun paiement.', icone: '🚗', couleur: '#1e40af', disponible: true },
+            { id: 'annonces-auto-showroom', titre: 'Auto Showroom ⭐', desc: 'Site vitrine complet pour concessionnaire : bannière, étapes, à propos, véhicules avec filtres, avantages, forfaits, témoignages, promo avec compte à rebours et FAQ. Tout est configurable : couleurs, photos, textes, sections à retirer ou réordonner. Aucun paiement.', icone: '🏁', couleur: '#f15a22', disponible: true },
           ]
         },
         {

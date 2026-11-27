@@ -5,6 +5,7 @@
 'use strict';
 
 const pool = require('../db');
+const { nettoyerTexte } = require('../utils/sanitize'); // nettoyage standard e-Vend Studio (sanitize-html)
 
 const DDL = [
   `CREATE TABLE IF NOT EXISTS ann_reglages (
@@ -61,7 +62,7 @@ class ErreurAnnonce extends Error {
 }
 
 const r2 = (n) => Math.round(Number(n) * 100) / 100;
-const txt = (v, n) => String(v == null ? '' : v).trim().slice(0, n);
+const txt = (v, n) => nettoyerTexte(v, n);
 const EMAIL_RE = /^[^\s@]{1,64}@[^\s@]{1,190}\.[^\s@]{2,}$/;
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -278,4 +279,26 @@ async function supprimerMessage(gid, id) {
   await pool.query('DELETE FROM ann_messages WHERE id=$1 AND gestionnaire_id=$2', [id, gid]);
 }
 
-module.exports = { ErreurAnnonce, pret, reglages, sauverReglages, listerPublic, detailPublic, envoyerMessage, listerGestionnaire, creer, modifier, changerStatut, renouveler, supprimer, messages, marquerLu, supprimerMessage };
+// ── Config du site (apparence) : TOUTES les chaînes passent par nettoyerTexte (utils/sanitize.js) avant d'être enregistrées ──
+const CLES_INTERDITES = new Set(['__proto__', 'constructor', 'prototype']);
+function nettoyerConfig(v, prof = 0) {
+  if (v === null || v === undefined) return v;
+  if (typeof v === 'string') return nettoyerTexte(v, 2000);
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (typeof v === 'boolean') return v;
+  if (prof >= 8) return null;
+  if (Array.isArray(v)) return v.slice(0, 100).map((x) => nettoyerConfig(x, prof + 1));
+  if (typeof v === 'object') {
+    const o = {};
+    for (const [k, val] of Object.entries(v).slice(0, 100)) {
+      const kk = nettoyerTexte(k, 60);
+      if (!kk || CLES_INTERDITES.has(kk)) continue;
+      o[kk] = nettoyerConfig(val, prof + 1);
+    }
+    return o;
+  }
+  return null;
+}
+
+module.exports = {
+  nettoyerConfig, ErreurAnnonce, pret, reglages, sauverReglages, listerPublic, detailPublic, envoyerMessage, listerGestionnaire, creer, modifier, changerStatut, renouveler, supprimer, messages, marquerLu, supprimerMessage };

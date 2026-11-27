@@ -3,6 +3,8 @@
 // Annonces (créer, modifier, renouveler, marquer vendue, archiver), messages reçus, apparence (sites.config.annonces) et réglages.
 
 import { useState, useEffect, useCallback } from 'react';
+import ApparenceAutoShowroom from './ApparenceAutoShowroom';
+import ChampPhotos from './ChampPhotos';
 
 interface Props { gestionnaireId: number; templateId?: string; }
 
@@ -23,8 +25,8 @@ async function appel(url: string, init?: RequestInit) {
   return d;
 }
 const argent = (n: number | null) => (n == null ? '' : new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD' }).format(n));
-const quand = (iso: string) => new Date(iso).toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' });
-const jour = (iso: string) => new Date(iso).toLocaleDateString('fr-CA', { dateStyle: 'medium' });
+const quand = (iso: string) => new Date(iso).toLocaleString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const jour = (iso: string) => new Date(iso).toLocaleDateString('fr-CA', { day: 'numeric', month: 'short', year: 'numeric' });
 
 const carte: React.CSSProperties = { background: '#fff', border: '1px solid #e5e7eb', borderRadius: 14, padding: 18 };
 const champ: React.CSSProperties = { width: '100%', padding: '9px 11px', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', fontFamily: 'inherit', background: '#fff', color: '#111827' };
@@ -52,6 +54,18 @@ const PROFILS: Record<string, ProfilGestion> = {
     ],
     couleur: '#1e40af', fond: '#f4f6fa', nomDefaut: 'Auto Annonces', sloganDefaut: 'Trouvez votre prochain véhicule',
   },
+  'annonces-auto-showroom': {
+    categories: ['Voiture', 'VUS / Camionnette', 'Moto', 'VR / Roulotte', 'Bateau', 'Autre'],
+    champs: [
+      { cle: 'Marque', label: 'Marque', placeholder: 'Honda' }, { cle: 'Modèle', label: 'Modèle', placeholder: 'Civic Sport' },
+      { cle: 'Année', label: 'Année', type: 'number', placeholder: '2019' }, { cle: 'Kilométrage', label: 'Kilométrage', type: 'number', unite: 'km', placeholder: '85000' },
+      { cle: 'Transmission', label: 'Transmission', type: 'select', options: ['Automatique', 'Manuelle'] },
+      { cle: 'Carburant', label: 'Carburant', type: 'select', options: ['Essence', 'Diesel', 'Hybride', 'Hybride rechargeable', 'Électrique'] },
+      { cle: 'Carrosserie', label: 'Carrosserie', type: 'select', options: ['Berline', 'Coupé', 'Hatchback', 'Familiale', 'VUS', 'Camionnette', 'Fourgonnette', 'Décapotable'] },
+      { cle: 'Couleur', label: 'Couleur' },
+    ],
+    couleur: '#f15a22', fond: '#f5f5f5', nomDefaut: 'Auto Showroom', sloganDefaut: '',
+  },
   'annonces-immo-classique': {
     categories: ['Maison', 'Condo', 'Appartement', 'Chalet', 'Terrain', 'Commercial'],
     champs: [
@@ -65,7 +79,7 @@ const PROFILS: Record<string, ProfilGestion> = {
 const nbDe = (v: string | undefined) => { const n = String(v || '').replace(/[^0-9]/g, ''); return n; };
 const formater = (c: ChampSpec, v: string) => { if (!v) return ''; if (c.type !== 'number') return v.trim(); if (c.unite) { const n = nbDe(v); return n ? `${Number(n).toLocaleString('fr-CA')} ${c.unite}` : ''; } return nbDe(v); };
 
-const VIDE = { titre: '', description: '', prix: '', prixTexte: '', categorie: '', lieu: '', photos: '', details: '', vedette: false, dureeJours: '', champs: {} as Record<string, string> };
+const VIDE = { titre: '', description: '', prix: '', prixTexte: '', categorie: '', lieu: '', photos: [] as string[], details: '', vedette: false, dureeJours: '', champs: {} as Record<string, string> };
 const detailsVersTexte = (d: Record<string, string>) => Object.entries(d || {}).map(([k, v]) => `${k} : ${v}`).join('\n');
 const detailsSansChamps = (d: Record<string, string>, cles: string[]) => Object.fromEntries(Object.entries(d || {}).filter(([k]) => !cles.includes(k)));
 const texteVersDetails = (t: string) => { const o: Record<string, string> = {}; t.split('\n').forEach((l) => { const i = l.indexOf(':'); if (i > 0) { const k = l.slice(0, i).trim(), v = l.slice(i + 1).trim(); if (k && v) o[k] = v; } }); return o; };
@@ -109,7 +123,7 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
   const nonLus = messages.filter((m) => !m.lu).length;
 
   const nouveau = () => { setEdition(null); setForm({ ...VIDE, dureeJours: String(rg.duree_defaut_jours), champs: {} }); };
-  const modifier = (a: AnnonceG) => { setEdition(a); setForm({ titre: a.titre, description: a.description, prix: a.prix != null ? String(a.prix) : '', prixTexte: a.prixTexte, categorie: a.categorie, lieu: a.lieu, photos: a.photos.join('\n'), details: detailsVersTexte(detailsSansChamps(a.details, clesChamps)), vedette: a.vedette, dureeJours: '', champs: Object.fromEntries(profil.champs.map((c) => [c.cle, c.type === 'number' ? nbDe(a.details[c.cle]) : (a.details[c.cle] || '')])) }); };
+  const modifier = (a: AnnonceG) => { setEdition(a); setForm({ titre: a.titre, description: a.description, prix: a.prix != null ? String(a.prix) : '', prixTexte: a.prixTexte, categorie: a.categorie, lieu: a.lieu, photos: [...a.photos], details: detailsVersTexte(detailsSansChamps(a.details, clesChamps)), vedette: a.vedette, dureeJours: '', champs: Object.fromEntries(profil.champs.map((c) => [c.cle, c.type === 'number' ? nbDe(a.details[c.cle]) : (a.details[c.cle] || '')])) }); };
 
   const structures = (fm: typeof VIDE) => {
     const o: Record<string, string> = {};
@@ -122,7 +136,7 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
     setOccupe(true);
     try {
       const corps: any = { titre: form.titre, description: form.description, prix: form.prix, prixTexte: form.prixTexte, categorie: form.categorie, lieu: form.lieu, vedette: form.vedette,
-        photos: form.photos.split('\n').map((s) => s.trim()).filter(Boolean), details: { ...texteVersDetails(form.details), ...structures(form) } };
+        photos: form.photos, details: { ...texteVersDetails(form.details), ...structures(form) } };
       if (edition) await appel(`${API}/annonces/${edition.id}`, { method: 'PUT', body: JSON.stringify(corps) });
       else { corps.dureeJours = form.dureeJours; await appel(`${API}/annonces`, { method: 'POST', body: JSON.stringify(corps) }); }
       setForm(null); setEdition(null); flash(true, edition ? 'Annonce modifiée.' : 'Annonce publiée. Elle est en ligne sur votre site.'); charger();
@@ -236,7 +250,9 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
         )
       )}
 
-      {onglet === 'apparence' && (
+      {onglet === 'apparence' && templateId === 'annonces-auto-showroom' && <ApparenceAutoShowroom gestionnaireId={gestionnaireId} templateId={templateId} />}
+
+      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && (
         <div style={carte}>
           <p style={{ fontSize: 13, color: '#6b7280', marginTop: 0 }}>Personnalisez l'allure de votre site. Les annonces se gèrent dans l'onglet « Annonces ».</p>
           <Champ label="Nom du site" valeur={c('nomSite')} onChange={sc('nomSite')} placeholder={profil.nomDefaut} />
@@ -281,7 +297,7 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
             <h3 style={{ margin: '0 0 14px', fontSize: 18 }}>{edition ? "Modifier l'annonce" : 'Nouvelle annonce'}</h3>
             <Champ label="Titre *" valeur={form.titre} onChange={(v) => setForm({ ...form, titre: v })} />
             <div style={{ marginBottom: 12 }}><label style={lbl}>Description</label><textarea style={{ ...champ, minHeight: 100 }} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-            <div style={{ marginBottom: 12 }}><label style={lbl}>Photos (une adresse https:// par ligne, max 12)</label><textarea style={{ ...champ, minHeight: 70 }} value={form.photos} onChange={(e) => setForm({ ...form, photos: e.target.value })} placeholder="https://…/photo1.jpg" /></div>
+            <div style={{ marginBottom: 12 }}><ChampPhotos gestionnaireId={gestionnaireId} etiquette="Photos" valeur={form.photos} onChange={(v) => setForm({ ...form, photos: v })} max={12} /></div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
               <Champ label="Prix ($)" type="number" valeur={form.prix} onChange={(v) => setForm({ ...form, prix: v })} aide={profil.aidePrix || 'Laissez vide pour « à discuter ».'} />
               <Champ label="Texte à la place du prix" valeur={form.prixTexte} onChange={(v) => setForm({ ...form, prixTexte: v })} placeholder="À discuter, Gratuit…" aide="Affiché si le prix est vide." />

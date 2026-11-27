@@ -322,6 +322,11 @@ app.get('/api/studio/public/:slug', async (req, res) => {
 app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (req, res) => {
   const { config, sous_type, template_id, slug, domaine_custom, publie } = req.body;
 
+  // 🔒 Apparence des sites annonces / enchères : tous les textes passent par utils/sanitize.js (nettoyerTexte) avant d'être enregistrés
+  for (const ns of ['annonces', 'enchere']) {
+    if (config && config[ns] && typeof config[ns] === 'object') config[ns] = require('./services/annonces_site').nettoyerConfig(config[ns]);
+  }
+
   if (req.user.role !== 'admin' && req.user.id !== parseInt(req.params.gestionnaireId)) {
     return res.status(403).json({ message: 'Accès non autorisé.' });
   }
