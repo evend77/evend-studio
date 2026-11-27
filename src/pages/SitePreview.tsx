@@ -65,6 +65,7 @@ import TemplateAnnoncesAutoLease      from '../templates/TemplateAnnoncesAutoLea
 import TemplateAnnoncesVolt           from '../templates/TemplateAnnoncesVolt';
 import TemplateAnnoncesNeon           from '../templates/TemplateAnnoncesNeon';
 import TemplateAnnoncesImmeuble       from '../templates/TemplateAnnoncesImmeuble';
+import TemplateAnnoncesAllegro        from '../templates/TemplateAnnoncesAllegro';
 import TemplateEnchereLive            from '../templates/TemplateEnchereLive';
 import TemplateSalon                  from '../templates/TemplateSalon';
 import TemplatePaysager               from '../templates/TemplatePaysager';
@@ -2083,6 +2084,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     if (templateId === 'annonces-auto-lease')      return <TemplateAnnoncesAutoLease config={{ ...(config as any), ...(((config as any).annonces && typeof (config as any).annonces === 'object') ? (config as any).annonces : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'annonces-volt')           return <TemplateAnnoncesVolt config={{ ...(config as any), ...(((config as any).annonces && typeof (config as any).annonces === 'object') ? (config as any).annonces : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'annonces-neon')           return <TemplateAnnoncesNeon config={{ ...(config as any), ...(((config as any).annonces && typeof (config as any).annonces === 'object') ? (config as any).annonces : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
+    if (templateId === 'annonces-allegro')           return <TemplateAnnoncesAllegro config={{ ...(config as any), ...(((config as any).annonces && typeof (config as any).annonces === 'object') ? (config as any).annonces : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'annonces-immeuble')           return <TemplateAnnoncesImmeuble config={{ ...(config as any), ...(((config as any).annonces && typeof (config as any).annonces === 'object') ? (config as any).annonces : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'annonces-immo-classique')   return <TemplateAnnoncesImmoClassique config={{ ...(config as any), ...(((config as any).annonces && typeof (config as any).annonces === 'object') ? (config as any).annonces : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'enchere-live')             return <TemplateEnchereLive config={{ ...(config as any), ...(((config as any).enchere && typeof (config as any).enchere === 'object') ? (config as any).enchere : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;

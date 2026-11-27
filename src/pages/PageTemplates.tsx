@@ -100,6 +100,7 @@ export const PHOTOS: Record<string, string> = {
   'annonces-auto-lease': 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-volt': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-neon': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'annonces-allegro': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-immeuble': 'https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
 
@@ -771,6 +772,14 @@ export const TEMPLATES: Template[] = [
     description: "Petites annonces généralistes sur fond noir avec accent néon et halo dégradé : grande bannière centrée, étiquette inclinée, avantages, catégories en pastilles, annonces à la une, bandeau d'offre avec compte à rebours, catalogue complet, FAQ et contact. Couleurs, polices, photos, textes et sections entièrement configurables. Affichage seulement.",
     fonctionnalites: ['Noir & néon avec halo', 'Étiquette inclinée', 'Offre avec compte à rebours', 'Sections réordonnables'],
     disponible: true, nouveau: true, couleur: '#00d84a',
+  },
+  {
+    id: 'annonces-allegro',
+    nom: 'Allegro',
+    groupe: 'annonces',
+    description: "Petites annonces généralistes au look vivant : en-tête rouge avec recherche, barre bleue, titres à dégradé, tuiles de catégories colorées, carrousel d'annonces, bannières en mosaïque, section sombre d'actualités. Couleurs, polices, photos, textes et sections entièrement configurables. Affichage seulement.",
+    fonctionnalites: ['Recherche dans l\'en-tête', 'Titres à dégradé', 'Bannières en mosaïque', 'Sections réordonnables'],
+    disponible: true, nouveau: true, couleur: '#d90f2e',
   },
   {
     id: 'annonces-immeuble',
