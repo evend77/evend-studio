@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import ApparenceAutoShowroom from './ApparenceAutoShowroom';
 import ApparenceClassique from './ApparenceClassique';
+import ApparenceLease from './ApparenceLease';
 import { PROFIL_GENERAL } from '../../templates/TemplateAnnoncesClassique';
 import { PROFIL_AUTO } from '../../templates/TemplateAnnoncesAutoClassique';
 import { PROFIL_IMMO } from '../../templates/TemplateAnnoncesImmoClassique';
@@ -69,6 +70,18 @@ const PROFILS: Record<string, ProfilGestion> = {
       { cle: 'Couleur', label: 'Couleur' },
     ],
     couleur: '#f15a22', fond: '#f5f5f5', nomDefaut: 'Auto Showroom', sloganDefaut: '',
+  },
+  'annonces-auto-lease': {
+    categories: ['Voiture', 'VUS / Camionnette', 'Fourgonnette', 'Moto', 'Autre'],
+    champs: [
+      { cle: 'Marque', label: 'Marque', placeholder: 'Honda' }, { cle: 'Modèle', label: 'Modèle', placeholder: 'Accord Sport' },
+      { cle: 'Année', label: 'Année', type: 'number', placeholder: '2022' }, { cle: 'Kilométrage', label: 'Kilométrage', type: 'number', unite: 'km', placeholder: '30000' },
+      { cle: 'Transmission', label: 'Transmission', type: 'select', options: ['Automatique', 'Manuelle'] },
+      { cle: 'Carburant', label: 'Carburant', type: 'select', options: ['Essence', 'Diesel', 'Hybride', 'Hybride rechargeable', 'Électrique'] },
+      { cle: 'Carrosserie', label: 'Carrosserie', type: 'select', options: ['Berline', 'Coupé', 'Hatchback', 'Familiale', 'VUS', 'Camionnette', 'Fourgonnette', 'Décapotable'] },
+      { cle: 'Durée du contrat', label: 'Durée du contrat', type: 'select', options: ['12 mois', '24 mois', '36 mois', '48 mois', '60 mois'] },
+    ],
+    couleur: '#e8173c', fond: '#1b1b1d', nomDefaut: 'FUTURELEASE', sloganDefaut: '', aidePrix: 'Entrez le loyer mensuel : « / mois » s\'affiche à côté du prix (modifiable dans Apparence → Véhicules disponibles).',
   },
   'annonces-immo-classique': {
     categories: ['Maison', 'Condo', 'Appartement', 'Chalet', 'Terrain', 'Commercial'],
@@ -246,8 +259,9 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId, ongletInit
       )}
 
       {onglet === 'apparence' && templateId === 'annonces-auto-showroom' && <ApparenceAutoShowroom gestionnaireId={gestionnaireId} templateId={templateId} />}
+      {onglet === 'apparence' && templateId === 'annonces-auto-lease' && <ApparenceLease gestionnaireId={gestionnaireId} templateId={templateId} />}
 
-      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && <ApparenceClassique gestionnaireId={gestionnaireId} templateId={templateId || 'annonces-classique'} defaut={DEFAUTS_CLASSIQUE[templateId || 'annonces-classique'] || PROFIL_GENERAL.defaut} />}
+      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && templateId !== 'annonces-auto-lease' && <ApparenceClassique gestionnaireId={gestionnaireId} templateId={templateId || 'annonces-classique'} defaut={DEFAUTS_CLASSIQUE[templateId || 'annonces-classique'] || PROFIL_GENERAL.defaut} />}
 
       {onglet === 'reglages' && (
         <div style={carte}>
