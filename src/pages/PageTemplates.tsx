@@ -99,6 +99,7 @@ export const PHOTOS: Record<string, string> = {
   'annonces-auto-showroom': 'https://images.pexels.com/photos/358070/pexels-photo-358070.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-auto-lease': 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-volt': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'annonces-neon': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
 
 // ─── DONNÉES VRAIS TEMPLATES ──────────────────────────────────────────────────
@@ -761,6 +762,14 @@ export const TEMPLATES: Template[] = [
     description: "Petites annonces généralistes au look sombre à accent jaune : bandeau à compte à rebours, bannière arrondie, catégories, Top 10 numéroté, avant/après, annonces à la une, nouveautés par onglets, catalogue complet et grand nom défilant. Couleurs, polices, photos, textes et sections entièrement configurables. Affichage seulement.",
     fonctionnalites: ['Thème sombre & jaune', 'Top 10 et à la une', 'Curseur avant / après', 'Sections réordonnables'],
     disponible: true, nouveau: true, couleur: '#ffd60a',
+  },
+  {
+    id: 'annonces-neon',
+    nom: 'Néon',
+    groupe: 'annonces',
+    description: "Petites annonces généralistes sur fond noir avec accent néon et halo dégradé : grande bannière centrée, étiquette inclinée, avantages, catégories en pastilles, annonces à la une, bandeau d'offre avec compte à rebours, catalogue complet, FAQ et contact. Couleurs, polices, photos, textes et sections entièrement configurables. Affichage seulement.",
+    fonctionnalites: ['Noir & néon avec halo', 'Étiquette inclinée', 'Offre avec compte à rebours', 'Sections réordonnables'],
+    disponible: true, nouveau: true, couleur: '#00d84a',
   },
   {
     id: 'annonces-immo-classique',
