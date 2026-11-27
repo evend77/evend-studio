@@ -15,6 +15,7 @@ import ConfigTemplateVitrineProBeaute   from '../studio/ConfigTemplateVitrinePro
 import ConfigTemplateVitrineProTech     from '../studio/ConfigTemplateVitrineProTech';
 import ConfigTemplateVitrineProEntrepreneur from '../studio/ConfigTemplateVitrineProEntrepreneur';
 import MesEncheresSite                 from './MesEncheresSite';
+import MesAnnoncesSite                 from './MesAnnoncesSite';
 import ConfigTemplateSalon              from '../studio/ConfigTemplateSalon';
 import ConfigTemplatePaysager           from '../studio/ConfigTemplatePaysager';
 import ConfigTemplateAvocat             from '../studio/ConfigTemplateAvocat';
@@ -170,6 +171,10 @@ export default function ConfigTemplate({ vendeurId, templateId, ...resetProps }:
   }
 
   // ── Enchères ──
+  if (templateId.startsWith('annonces-')) {
+    return <MesAnnoncesSite key={templateId} gestionnaireId={vendeurId} templateId={templateId} />;
+  }
+
   if (groupeEnchere.includes(templateId)) {
     // Lots, apparence et réglages : page « Mes enchères » (les lots sont dans la base, plus dans la config du site)
     return <MesEncheresSite key={templateId} gestionnaireId={vendeurId} templateId={templateId} />;

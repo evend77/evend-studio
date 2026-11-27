@@ -1448,8 +1448,26 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
       titre: '📋 Petites annonces',
       desc: 'Publier une annonce et se faire contacter — sans panier ni vendeur structuré. Immobilier, véhicules, emploi.',
       couleurGroupe: '#14b8a6',
-      aVenir: true,
-      sousGroupes: []
+      sousGroupes: [
+        {
+          titre: '🛍 Généraliste',
+          templates: [
+            { id: 'annonces-classique', titre: 'Annonces Classique', desc: 'Petites annonces généralistes : recherche, catégories, filtre de prix, photos, fiche détaillée et formulaire de contact. Vous affichez, le visiteur vous écrit — aucun paiement.', icone: '📋', couleur: '#0f766e', disponible: true },
+          ]
+        },
+        {
+          titre: '🚗 Auto',
+          templates: [
+            { id: 'annonces-auto-bientot', titre: 'Annonces Auto', desc: 'Voitures, motos, VUS, bateaux, VR : marque, année, kilométrage. Bientôt disponible.', icone: '🚗', couleur: '#475569', disponible: false },
+          ]
+        },
+        {
+          titre: '🏡 Immobilier',
+          templates: [
+            { id: 'annonces-immo-bientot', titre: 'Annonces Immobilier', desc: 'Maisons, condos, terrains, locaux : chambres, superficie, adresse. Bientôt disponible.', icone: '🏡', couleur: '#b45309', disponible: false },
+          ]
+        },
+      ]
     },
     {
       id: 'abonnements' as const,

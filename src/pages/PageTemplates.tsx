@@ -92,6 +92,8 @@ export const PHOTOS: Record<string, string> = {
   // Enchères
   'enchere-galerie':      'https://images.pexels.com/photos/1021876/pexels-photo-1021876.jpeg?auto=compress&cs=tinysrgb&w=800',
   'enchere-live':         'https://images.pexels.com/photos/6693661/pexels-photo-6693661.jpeg?auto=compress&cs=tinysrgb&w=800',
+  // Petites annonces
+  'annonces-classique':   'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
 
 // ─── DONNÉES VRAIS TEMPLATES ──────────────────────────────────────────────────
@@ -108,7 +110,8 @@ export type Groupe =
   | 'profession'
   | 'reservation'
   | 'cagnotte'
-  | 'enchere';
+  | 'enchere'
+  | 'annonces';
 
 export interface Template {
   id: string;
@@ -712,6 +715,16 @@ export const TEMPLATES: Template[] = [
     fonctionnalites: ['Ticker temps réel', 'Multi-lots sidebar', 'Proxy bidding', 'Layout bourse'],
     disponible: true, nouveau: true, couleur: '#6366f1',
   },
+
+  // ── PETITES ANNONCES ──
+  {
+    id: 'annonces-classique',
+    nom: 'Annonces Classique',
+    groupe: 'annonces',
+    description: "Petites annonces généralistes : recherche, catégories, filtre de prix, photos, fiche détaillée et contact par formulaire. Affichage seulement, aucun paiement.",
+    fonctionnalites: ['Recherche + filtres', 'Catégories', 'Fiche détaillée', 'Formulaire de contact'],
+    disponible: true, nouveau: true, couleur: '#0f766e',
+  },
 ];
 
 export const GROUPES: { id: Groupe; label: string; icone: string; couleur: string; desc: string }[] = [
@@ -726,6 +739,7 @@ export const GROUPES: { id: Groupe; label: string; icone: string; couleur: strin
   { id: 'reservation',        label: 'Formulaires & Réservations',         icone: '📅', couleur: '#6366f1', desc: 'Système de réservation intégré — sans paiement en ligne' },
   { id: 'cagnotte',           label: 'Cagnottes',                          icone: '💝', couleur: '#ec4899', desc: 'Collecte de fonds en ligne — dons sur votre propre Stripe / PayPal, prix fixe par campagne, aucune commission' },
   { id: 'enchere',            label: 'Enchères en ligne',                  icone: '🔨', couleur: '#dc2626', desc: "Sites d'enchères en temps réel — du mono-produit au méga site multi-lots" },
+  { id: 'annonces',           label: 'Petites annonces',                   icone: '📋', couleur: '#14b8a6', desc: "Annonces affichées par vous, contact direct par formulaire — sans paiement" },
 ];
 
 // ─── CATÉGORIES PUBLIQUES (SEO) ────────────────────────────────────────────────
@@ -777,6 +791,11 @@ export const CATEGORIES: Categorie[] = [
     id: 'encheres', titre: 'Enchères en ligne', icone: '🔨', couleur: '#dc2626',
     seoDesc: "Organisez des enchères en temps réel — d'un seul produit vedette jusqu'à un site complet multi-lots avec mises automatiques et suivi en direct. Idéal pour les encans, ventes de succession, levées de fonds par enchère ou maisons de ventes spécialisées.",
     groupes: ['enchere'],
+  },
+  {
+    id: 'annonces', titre: 'Petites annonces', icone: '📋', couleur: '#14b8a6',
+    seoDesc: "Créez un site de petites annonces : affichez vos articles, véhicules ou propriétés avec photos, recherche et filtres, et recevez les messages des visiteurs directement par courriel. Aucun paiement en ligne, aucune commission.",
+    groupes: ['annonces'],
   },
 ];
 

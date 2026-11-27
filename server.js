@@ -202,6 +202,8 @@ app.use('/api/dons', require('./routes/cagnotte_dons'));
 app.use('/api/cagnotte/prix', require('./routes/cagnotte_prix_public'));
 app.use('/api/encheres-studio', require('./routes/enchere_site'));                    // Enchères (sites Galerie/Live) — PUBLIC
 app.use('/api/studio/encheres-site', require('./routes/enchere_site_admin'));           // Enchères (sites Galerie/Live) — GESTIONNAIRE
+app.use('/api/annonces-studio', require('./routes/annonces_site'));                    // Petites annonces — PUBLIC
+app.use('/api/studio/annonces-site', require('./routes/annonces_site_admin'));          // Petites annonces — GESTIONNAIRE
 app.use('/api/cagnotte/campagne', require('./routes/cagnotte_campagne'));
 app.use('/api/gestionnaire/cagnotte-paiement', require('./routes/cagnotte_paiement_config'));
 app.use('/api/admin/cagnotte', require('./routes/cagnotte_admin'));

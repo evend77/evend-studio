@@ -16,6 +16,7 @@ const API_BASE = '/api';
 // ── e-Vend Studio ──
 import MaCagnotte                   from './pages/gestionnaire/MaCagnotte';
 import MesEncheresSite from './pages/gestionnaire/MesEncheresSite';
+import MesAnnoncesSite from './pages/gestionnaire/MesAnnoncesSite';
 import ConfigMesPagesCagnotte         from './pages/gestionnaire/ConfigMesPagesCagnotte';
 import ModelesCourrielStudio from './pages/gestionnaire/ModelesCourrielStudio';
 import GestionReservations   from './pages/studio/GestionReservations';
@@ -866,6 +867,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const estBoutiqueOrbite    = templateActif === 'boutique-orbite';
   const estBoutique      = estBoutiqueSimple || estBoutiqueComplete;
   const estEnchere       = ['enchere-galerie', 'enchere-live'].includes(templateActif);
+  const estAnnonces      = templateActif.startsWith('annonces-');
   const estVitrinePro    = ['vitrine-pro-entrepreneur', 'vitrine-pro-tech', 'vitrine-pro-beaute', 'vitrine-pro-mariage', 'vitrine-pro-sante', 'vitrine-paysager', 'vitrine-avocat', 'vitrine-resto', 'vitrine-bistro', 'cours-piano', 'cours-langues', 'cours-web', 'cours-cuisine', 'cours-yoga', 'cours-equitation','cours-peinture','cours-danse','vitrine-foodtruck','vitrine-boulangerie','cours-coach'].includes(templateActif);
   const estSalon         = templateActif === 'salon-coiffure';
   const estSimplisse     = templateActif.startsWith('boutique-simplisse') && !templateActif.startsWith('boutique-simplisse-mode');
@@ -1389,6 +1391,34 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       menuProfil,
       menuMessagerie,
     ];
+  } else if (estAnnonces) {
+    // Petites annonces : pas de collaborateurs, badges, blogs, FAQ, chat, branding, analytique, effets, add-ons
+    menuItems = [
+      { id: 'dashboard', label: 'TABLEAU DE BORD', icon: '📊' },
+      {
+        id: 'commandes', label: 'MES ANNONCES', icon: '📋',
+        sousMenu: [
+          { id: 'annonces-site', label: 'Mes annonces', icon: '📋' },
+        ]
+      },
+      menuStudio,
+      {
+        id: 'config', label: 'CONFIGURATION', icon: '⚙️',
+        sousMenu: [
+          itemConfigGenerale,
+          itemConfigPaiements,
+          { id: 'config-modeles-courriel', label: 'Modèles de courriel',    icon: '📧' },
+          itemPage404, itemMaintenance,
+          itemPolitiques,
+          itemPages,
+          itemSeo,
+          itemCookies,
+          itemPhotos, itemFormulaireContact, ...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
+        ]
+      },
+      menuProfil,
+      menuMessagerie,
+    ];
   } else if (estSimplisse || estBoutiqueSimple || estBoutiqueComplete || estBoutiqueCatalogue || estBoutiqueAgricole || estBoutiqueArtisan || estBoutiqueAuto || estBoutiqueJouets || estBoutiqueGothique || estBoutiqueBD || estBoutiqueFuturiste || estBoutiqueTech || estBoutiqueRose || estBoutiqueBonbon || estBoutiqueSoleil || estBoutiqueSentier || estBoutiqueChantier || estBoutiqueCafe || estBoutiqueSakura || estBoutiqueSport || estBoutiqueJoyau || estBoutiqueEcume || estBoutiqueAudace || estBoutiqueCarnaval || estBoutiquePatchwork || estBoutiqueVigie || estBoutiqueAurore || estBoutiqueGalerie || estBoutiqueRallye || estBoutiquePaon || estBoutiquePop || estBoutiqueNocturne || estBoutiqueOrbite || estSimplisseMode) {
     menuItems = [
       { id:'dashboard',label:'TABLEAU DE BORD',icon:'📊' },
@@ -1781,6 +1811,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mes-effets-visuels') return <ConfigStoreEffects gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'encheres-site') return <MesEncheresSite gestionnaireId={gestionnaire.id} templateId={templateActif} />;
+    if (pageActive === 'annonces-site') return <MesAnnoncesSite gestionnaireId={gestionnaire.id} templateId={templateActif} />;
     if (pageActive === 'cagnotte-config') return <ConfigMesPagesCagnotte gestionnaireId={gestionnaire.id} naviguer={setPageActive} templateId={templateActif} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
     if (pageActive === 'acheteurs-liste') return <MesAcheteurs vendeurId={gestionnaire.id} />;
@@ -1934,6 +1965,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           setPageActive('mv-premium-plan');
         } else if (['enchere-galerie', 'enchere-live'].includes(templateId)) {
           setPageActive('encheres-site');
+        } else if (templateId.startsWith('annonces-')) {
+          setPageActive('annonces-site');
         } else {
           setPageActive('studio-config-template');
         }
