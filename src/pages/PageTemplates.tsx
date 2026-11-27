@@ -98,6 +98,7 @@ export const PHOTOS: Record<string, string> = {
   'annonces-immo-classique': 'https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-auto-showroom': 'https://images.pexels.com/photos/358070/pexels-photo-358070.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-auto-lease': 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'annonces-volt': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
 
 // ─── DONNÉES VRAIS TEMPLATES ──────────────────────────────────────────────────
@@ -752,6 +753,14 @@ export const TEMPLATES: Template[] = [
     description: "Site sombre à accent rouge pour la location ou la vente de véhicules : bannière à 2 boutons, atouts, types de contrat, véhicules en carrousel avec prix mensuel, meilleures offres, à propos, avis clients, nouvelles et contact. Couleurs, polices, photos, textes et sections entièrement configurables. Affichage seulement.",
     fonctionnalites: ['Sections réordonnables', 'Prix mensuel / mois', 'Carrousels de véhicules et d\'avis', 'Couleurs & polices configurables'],
     disponible: true, nouveau: true, couleur: '#e8173c',
+  },
+  {
+    id: 'annonces-volt',
+    nom: 'Volt',
+    groupe: 'annonces',
+    description: "Petites annonces généralistes au look sombre à accent jaune : bandeau à compte à rebours, bannière arrondie, catégories, Top 10 numéroté, avant/après, annonces à la une, nouveautés par onglets, catalogue complet et grand nom défilant. Couleurs, polices, photos, textes et sections entièrement configurables. Affichage seulement.",
+    fonctionnalites: ['Thème sombre & jaune', 'Top 10 et à la une', 'Curseur avant / après', 'Sections réordonnables'],
+    disponible: true, nouveau: true, couleur: '#ffd60a',
   },
   {
     id: 'annonces-immo-classique',

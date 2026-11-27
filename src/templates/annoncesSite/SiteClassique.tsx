@@ -2,7 +2,7 @@
 // e-Vend Studio — Gabarit « Classique » partagé par les petites annonces spécialisées (Auto, Immobilier).
 // Même apparence que « Annonces Classique », avec filtres par détails (marque, année, chambres…) et puces de fiche.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { normaliserConfig, RESEAUX, type SectionId } from './classiqueConfig';
 import { telHref } from './autoShowroomConfig';
 import { usePolitiques, PagePolitique, Pied } from './pied';
@@ -48,11 +48,26 @@ function Carte({ a, couleur, police, profil, onClick }: { a: AnnoncePub; couleur
   );
 }
 
+const flecheStyle = (cote: 'g' | 'd'): React.CSSProperties => ({ position: 'absolute', top: '50%', [cote === 'g' ? 'left' : 'right']: 8, transform: 'translateY(-50%)', width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(0,0,0,.55)', color: '#fff', fontSize: 24, lineHeight: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 });
+
 export function Detail({ a, gid, demo: estDemo, cfg, police, profil, onClose }: { a: AnnoncePub; gid: number; demo: boolean; cfg: ConfigAnnoncesClassique; police: string; profil: ProfilAnnonces; onClose: () => void }) {
   const [photo, setPhoto] = useState(0);
+  const [plein, setPlein] = useState(false);   // agrandissement plein écran
+  const toucheX = useRef<number | null>(null);
   const cp = cfg.couleurPrincipale;
+  const nb = a.photos.length;
+  const aller = (d: number) => setPhoto((i) => (nb ? (i + d + nb) % nb : 0));
+  const debutTouche = (e: React.TouchEvent) => { toucheX.current = e.touches[0].clientX; };
+  const finTouche = (e: React.TouchEvent) => { const x0 = toucheX.current; toucheX.current = null; if (x0 == null || nb < 2) return; const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) aller(dx < 0 ? 1 : -1); };
   const det = Object.entries(a.details || {});
-  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, [onClose]);
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { if (plein) setPlein(false); else onClose(); }
+      else if (e.key === 'ArrowRight') setPhoto((i) => (nb ? (i + 1) % nb : 0));
+      else if (e.key === 'ArrowLeft') setPhoto((i) => (nb ? (i - 1 + nb) % nb : 0));
+    };
+    window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k);
+  }, [onClose, plein, nb]);
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.6)', zIndex: 200, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '24px 12px', overflowY: 'auto' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: cfg.couleurFond, borderRadius: 18, width: '100%', maxWidth: 960, fontFamily: police, overflow: 'hidden' }}>
@@ -62,8 +77,13 @@ export function Detail({ a, gid, demo: estDemo, cfg, police, profil, onClose }: 
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 24, padding: 20 }}>
           <div style={{ minWidth: 0 }}>
-            <div style={{ borderRadius: 12, overflow: 'hidden', background: '#efe9dc', aspectRatio: '4/3', marginBottom: 8 }}>
-              {a.photos[photo] ? <img src={a.photos[photo]} alt={a.titre} style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#efe9dc', display: 'block' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 46 }}>📷</div>}
+            <div onTouchStart={debutTouche} onTouchEnd={finTouche} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', background: '#efe9dc', aspectRatio: '4/3', marginBottom: 8 }}>
+              {a.photos[photo] ? <img src={a.photos[photo]} alt={a.titre} onClick={() => setPlein(true)} style={{ width: '100%', height: '100%', objectFit: 'contain', background: '#efe9dc', display: 'block', cursor: 'zoom-in' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 46 }}>📷</div>}
+              {nb > 1 && <>
+                <button aria-label="Photo précédente" onClick={() => aller(-1)} style={flecheStyle('g')}>‹</button>
+                <button aria-label="Photo suivante" onClick={() => aller(1)} style={flecheStyle('d')}>›</button>
+                <span style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,.6)', color: '#fff', fontSize: 12, fontWeight: 700, padding: '3px 9px', borderRadius: 12 }}>{photo + 1} / {nb}</span>
+              </>}
             </div>
             {a.photos.length > 1 && <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>{a.photos.map((p, i) => <div key={i} onClick={() => setPhoto(i)} style={{ width: 60, height: 46, borderRadius: 6, overflow: 'hidden', cursor: 'pointer', border: `2px solid ${i === photo ? cp : 'transparent'}` }}><img src={p} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /></div>)}</div>}
             <h2 style={{ fontSize: 22, fontWeight: 800, color: '#1f2937', margin: '18px 0 4px', lineHeight: 1.25 }}>{a.titre}</h2>
@@ -81,6 +101,17 @@ export function Detail({ a, gid, demo: estDemo, cfg, police, profil, onClose }: 
           </div>
         </div>
       </div>
+      {plein && a.photos[photo] && (
+        <div onClick={(e) => { e.stopPropagation(); setPlein(false); }} onTouchStart={debutTouche} onTouchEnd={finTouche} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.92)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <img src={a.photos[photo]} alt={a.titre} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '94vw', maxHeight: '90vh', objectFit: 'contain' }} />
+          <button aria-label="Fermer l'agrandissement" onClick={(e) => { e.stopPropagation(); setPlein(false); }} style={{ position: 'absolute', top: 14, right: 14, width: 40, height: 40, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,.18)', color: '#fff', fontSize: 20, cursor: 'pointer' }}>✕</button>
+          {nb > 1 && <>
+            <button aria-label="Photo précédente" onClick={(e) => { e.stopPropagation(); aller(-1); }} style={{ ...flecheStyle('g'), width: 48, height: 48, fontSize: 32 }}>‹</button>
+            <button aria-label="Photo suivante" onClick={(e) => { e.stopPropagation(); aller(1); }} style={{ ...flecheStyle('d'), width: 48, height: 48, fontSize: 32 }}>›</button>
+            <span style={{ position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)', color: '#fff', fontSize: 14, fontWeight: 700 }}>{photo + 1} / {nb}</span>
+          </>}
+        </div>
+      )}
     </div>
   );
 }

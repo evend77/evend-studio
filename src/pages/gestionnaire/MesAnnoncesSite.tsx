@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import ApparenceAutoShowroom from './ApparenceAutoShowroom';
 import ApparenceClassique from './ApparenceClassique';
 import ApparenceLease from './ApparenceLease';
+import ApparenceVolt from './ApparenceVolt';
 import { PROFIL_GENERAL } from '../../templates/TemplateAnnoncesClassique';
 import { PROFIL_AUTO } from '../../templates/TemplateAnnoncesAutoClassique';
 import { PROFIL_IMMO } from '../../templates/TemplateAnnoncesImmoClassique';
@@ -71,6 +72,7 @@ const PROFILS: Record<string, ProfilGestion> = {
     ],
     couleur: '#f15a22', fond: '#f5f5f5', nomDefaut: 'Auto Showroom', sloganDefaut: '',
   },
+  'annonces-volt': { categories: [], champs: [], couleur: '#ffd60a', fond: '#121212', nomDefaut: 'VOLT', sloganDefaut: '' },
   'annonces-auto-lease': {
     categories: ['Voiture', 'VUS / Camionnette', 'Fourgonnette', 'Moto', 'Autre'],
     champs: [
@@ -260,8 +262,9 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId, ongletInit
 
       {onglet === 'apparence' && templateId === 'annonces-auto-showroom' && <ApparenceAutoShowroom gestionnaireId={gestionnaireId} templateId={templateId} />}
       {onglet === 'apparence' && templateId === 'annonces-auto-lease' && <ApparenceLease gestionnaireId={gestionnaireId} templateId={templateId} />}
+      {onglet === 'apparence' && templateId === 'annonces-volt' && <ApparenceVolt gestionnaireId={gestionnaireId} templateId={templateId} />}
 
-      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && templateId !== 'annonces-auto-lease' && <ApparenceClassique gestionnaireId={gestionnaireId} templateId={templateId || 'annonces-classique'} defaut={DEFAUTS_CLASSIQUE[templateId || 'annonces-classique'] || PROFIL_GENERAL.defaut} />}
+      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && templateId !== 'annonces-auto-lease' && templateId !== 'annonces-volt' && <ApparenceClassique gestionnaireId={gestionnaireId} templateId={templateId || 'annonces-classique'} defaut={DEFAUTS_CLASSIQUE[templateId || 'annonces-classique'] || PROFIL_GENERAL.defaut} />}
 
       {onglet === 'reglages' && (
         <div style={carte}>
