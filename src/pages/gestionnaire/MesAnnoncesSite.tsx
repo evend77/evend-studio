@@ -82,9 +82,8 @@ const PROFILS: Record<string, ProfilGestion> = {
   'annonces-services-neo': {
     categories: ['Rénovation et construction', 'Services à domicile', 'Entretien et paysagement', 'Transport et livraison', 'Cours et tutorat', 'Beauté et bien-être', 'Informatique et web', 'Événements', 'Restauration', 'Emploi — Offres', 'Autre'],
     champs: [
-      { cle: 'Nature', label: 'Nature de l\'annonce', type: 'select', options: ['Service offert', 'Offre d\'emploi', 'Recherche d\'emploi', 'Demande de service'] },
+      { cle: 'Nature', label: 'Nature de l\'annonce', type: 'select', options: ['Service offert', 'Offre d\'emploi'] },
       { cle: 'Contrat', label: 'Type de contrat (emplois)', type: 'select', options: ['Temps plein', 'Temps partiel', 'Contrat', 'Saisonnier', 'Stage', 'Pigiste'] },
-      { cle: 'Entreprise', label: 'Entreprise ou nom de l\'annonceur', placeholder: 'Rénovations Bélanger' },
       { cle: 'Rémunération', label: 'Rémunération ou tarif', placeholder: '25 $ / h' },
       { cle: 'Zone desservie', label: 'Zone desservie ou lieu de travail', placeholder: 'Québec et Lévis' },
       { cle: 'Disponibilité', label: 'Disponibilité ou horaire', placeholder: 'Lundi au vendredi' },

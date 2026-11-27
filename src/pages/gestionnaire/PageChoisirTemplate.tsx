@@ -1507,7 +1507,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         {
           titre: '💼 Emplois et services',
           templates: [
-            { id: 'annonces-services-neo', titre: 'Néo Services ⚡', desc: 'Emplois et services : offres d\'emploi, services offerts et demandes, sur fond noir avec bleu néon. Bannière avec formulaire de demande, bande bleue de 3 cartes, chiffres clés, catégories, filtres par nature, contrat et lieu, étapes, forfaits, témoignages, FAQ et contact. Tout est configurable. Aucun paiement.', icone: '💼', couleur: '#2f3bff', disponible: true },
+            { id: 'annonces-services-neo', titre: 'Néo Services ⚡', desc: 'Emplois et services pour une entreprise : vos services et vos offres d\'emploi, sur fond noir avec bleu néon. Bannière avec formulaire de demande, bande bleue de 3 cartes, chiffres clés, catégories, filtres par nature, contrat et lieu, étapes, forfaits, témoignages, FAQ et contact. Tout est configurable. Aucun paiement.', icone: '💼', couleur: '#2f3bff', disponible: true },
           ]
         },
         {

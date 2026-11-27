@@ -22,14 +22,14 @@ const v = (id: number, titre: string, description: string, prix: number | null, 
   id, titre, description, prix, prixTexte, categorie, lieu, photos: [], details, vedette, statut: 'active', datePublication: il(jours), dateExpiration: null,
 });
 const DEMO: AnnoncePub[] = [
-  v(1, 'Rénovation de salles de bain — soumission gratuite', 'Équipe d\'expérience, travaux propres et dans les délais. Plomberie, céramique, meuble-lavabo. Estimation gratuite sur place.', null, 'Soumission gratuite', 'Rénovation et construction', 'Québec', 1, { Nature: 'Service offert', Entreprise: 'Rénovations Bélanger', 'Zone desservie': 'Québec et Lévis', Disponibilité: 'Dès la semaine prochaine', Certification: 'Licence RBQ' }, true),
-  v(2, 'Électricien de métier — temps plein', 'Nous recherchons un électricien pour chantiers résidentiels. Véhicule fourni, assurances collectives, horaires de jour.', null, '32 $ à 42 $ / h', 'Emploi — Offres', 'Lévis', 2, { Nature: 'Offre d\'emploi', Contrat: 'Temps plein', Entreprise: 'Électro Services Lévis', Expérience: '3 ans et plus', Échéance: 'Fin du mois' }, true),
-  v(3, 'Entretien de pelouse et déneigement', 'Forfaits saisonniers pour résidences et petits commerces. Service fiable, tarifs clairs.', 49, 'À partir de 49 $', 'Entretien et paysagement', 'Sherbrooke', 3, { Nature: 'Service offert', Entreprise: 'Vert Hiver Entretien', 'Zone desservie': 'Sherbrooke et environs', Disponibilité: 'Toute l\'année' }),
-  v(4, 'Aide-cuisinier — temps partiel', 'Restaurant familial cherche aide-cuisinier, soirs et fins de semaine. Formation sur place.', null, '18 $ / h', 'Emploi — Offres', 'Montréal', 4, { Nature: 'Offre d\'emploi', Contrat: 'Temps partiel', Entreprise: 'Bistro du Coin', Expérience: 'Débutant accepté' }),
+  v(1, 'Rénovation de salles de bain — soumission gratuite', 'Notre équipe réalise vos travaux proprement et dans les délais : plomberie, céramique, meuble-lavabo. Estimation gratuite sur place.', null, 'Soumission gratuite', 'Rénovation et construction', 'Québec', 1, { Nature: 'Service offert', 'Zone desservie': 'Québec et Lévis', Disponibilité: 'Dès la semaine prochaine', Certification: 'Licence RBQ' }, true),
+  v(2, 'Électricien de métier — temps plein', 'Nous recrutons un électricien pour nos chantiers résidentiels. Véhicule fourni, assurances collectives, horaires de jour.', null, '32 $ à 42 $ / h', 'Emploi — Offres', 'Lévis', 2, { Nature: 'Offre d\'emploi', Contrat: 'Temps plein', Expérience: '3 ans et plus', Échéance: 'Fin du mois' }, true),
+  v(3, 'Entretien de pelouse et déneigement', 'Forfaits saisonniers pour résidences et petits commerces. Service fiable, tarifs clairs.', 49, 'À partir de 49 $', 'Entretien et paysagement', 'Sherbrooke', 3, { Nature: 'Service offert', 'Zone desservie': 'Sherbrooke et environs', Disponibilité: 'Toute l\'année' }),
+  v(4, 'Aide-cuisinier — temps partiel', 'Nous cherchons un aide-cuisinier pour les soirs et les fins de semaine. Formation sur place.', null, '18 $ / h', 'Emploi — Offres', 'Montréal', 4, { Nature: 'Offre d\'emploi', Contrat: 'Temps partiel', Expérience: 'Débutant accepté' }),
   v(5, 'Tutorat en mathématiques — secondaire et cégep', 'Séances individuelles en personne ou en ligne. Préparation aux examens, suivi des progrès.', 45, '45 $ / h', 'Cours et tutorat', 'Trois-Rivières', 6, { Nature: 'Service offert', 'Zone desservie': 'En ligne et Trois-Rivières', Disponibilité: 'Soirs et fins de semaine' }),
-  v(6, 'Déménagement local et livraison', 'Camion avec deux déménageurs, emballage disponible. Assurance responsabilité incluse.', 120, 'À partir de 120 $ / h', 'Transport et livraison', 'Montréal', 8, { Nature: 'Service offert', Entreprise: 'Déménagement Express', 'Zone desservie': 'Grand Montréal', Disponibilité: '7 jours sur 7' }),
-  v(7, 'Recherche travail de jardinage — été', 'Étudiant fiable cherche contrats de jardinage et entretien extérieur pour la saison.', null, 'Selon tarif horaire', 'Entretien et paysagement', 'Québec', 9, { Nature: 'Recherche d\'emploi', Contrat: 'Saisonnier', Disponibilité: 'Mai à septembre' }),
-  v(8, 'Conception de site web pour petite entreprise', 'Site clair, rapide et adapté au mobile. Textes, photos et formation inclus.', 899, 'À partir de 899 $', 'Informatique et web', 'À distance', 11, { Nature: 'Service offert', Entreprise: 'Studio Pixel', 'Zone desservie': 'Partout au Québec', Disponibilité: 'Délai de 3 semaines' }),
+  v(6, 'Déménagement local et livraison', 'Camion avec deux déménageurs, emballage disponible. Assurance responsabilité incluse.', 120, 'À partir de 120 $ / h', 'Transport et livraison', 'Montréal', 8, { Nature: 'Service offert', 'Zone desservie': 'Grand Montréal', Disponibilité: '7 jours sur 7' }),
+  v(7, 'Aide-jardinier — emploi saisonnier', 'Rejoignez notre équipe d\'entretien extérieur pour la saison. Travail en équipe, véhicule fourni.', null, '20 $ / h', 'Emploi — Offres', 'Québec', 9, { Nature: 'Offre d\'emploi', Contrat: 'Saisonnier', Disponibilité: 'Mai à septembre' }),
+  v(8, 'Conception de site web pour petite entreprise', 'Site clair, rapide et adapté au mobile. Textes, photos et formation inclus.', 899, 'À partir de 899 $', 'Informatique et web', 'À distance', 11, { Nature: 'Service offert', 'Zone desservie': 'Partout au Québec', Disponibilité: 'Délai de 3 semaines' }),
 ];
 const EMOJI_CAT: [RegExp, string][] = [[/emploi/i, '💼'], [/r[ée]novation|construction/i, '🔨'], [/entretien|paysag/i, '🌿'], [/transport|livraison/i, '🚚'], [/cours|tutorat/i, '🎓'], [/beaut|bien-?[eê]tre/i, '💆'], [/informatique|web/i, '💻'], [/[ée]v[ée]nement/i, '🎉'], [/restaur/i, '🍽️'], [/domicile/i, '🏠']];
 const emojiDe = (cat: string) => (EMOJI_CAT.find(([r]) => r.test(cat)) || [null, '✨'])[1];
@@ -38,14 +38,14 @@ export const PROFIL_SERVICES: ProfilAnnonces = {
   icone: '💼',
   recherche: 'Service, métier, emploi…',
   lieuPlaceholder: 'Ville ou région',
-  defaut: { nomSite: 'Néo Services', slogan: 'Services et emplois près de chez vous', logoUrl: '', couleurPrincipale: '#2f3bff', couleurFond: '#05050a', police: 'moderne', apropos: '', email: '', telephone: '' },
+  defaut: { nomSite: 'Néo Services', slogan: 'Nos services et nos offres d\'emploi', logoUrl: '', couleurPrincipale: '#2f3bff', couleurFond: '#05050a', police: 'moderne', apropos: '', email: '', telephone: '' },
   demo: DEMO,
   selects: [{ cle: 'Nature', label: 'Nature de l\'annonce' }, { cle: 'Contrat', label: 'Type de contrat' }],
   plages: [],
   puces: (a) => [a.details['Nature'], a.details['Contrat'], a.details['Zone desservie']].filter(Boolean) as string[],
   avis: "Les annonces sont affichées à titre informatif. Aucune transaction n'est effectuée sur ce site : les ententes et les paiements se font directement avec l'annonceur. Vérifiez les licences, références et conditions avant de vous engager.",
   groupes: [
-    { titre: 'Résumé', cles: ['Nature', 'Entreprise', 'Contrat', 'Rémunération'] },
+    { titre: 'Résumé', cles: ['Nature', 'Contrat', 'Rémunération'] },
     { titre: 'Détails', cles: ['Zone desservie', 'Disponibilité', 'Expérience', 'Certification', 'Échéance'] },
   ],
 };
@@ -91,7 +91,6 @@ function Carte({ a, t, onOuvrir }: { a: AnnoncePub; t: Th; onOuvrir: (a: Annonce
       <div style={{ padding: '14px 18px 18px', display: 'flex', flexDirection: 'column', flex: 1 }}>
         <p style={{ fontSize: 12, color: t.doux, margin: '0 0 4px' }}>{[a.categorie, a.lieu].filter(Boolean).join(' · ')}</p>
         <h3 style={{ fontFamily: t.titre, fontSize: 18, fontWeight: t.poids, letterSpacing: t.il, color: t.tx, margin: '0 0 10px', lineHeight: 1.25, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{a.titre}</h3>
-        {a.details['Entreprise'] && <p style={{ fontSize: 13, color: t.doux, margin: '0 0 8px' }}>{a.details['Entreprise']}</p>}
         <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 800, fontSize: 15, color: t.tx }}>{prix}</span>
           <span style={{ fontSize: 13, fontWeight: 700, color: t.ne }}>Voir l'annonce →</span>

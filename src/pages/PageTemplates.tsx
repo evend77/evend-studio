@@ -786,7 +786,7 @@ export const TEMPLATES: Template[] = [
     id: 'annonces-services-neo',
     nom: 'Néo Services',
     groupe: 'annonces',
-    description: "Emplois et services : annonces d'offres d'emploi, de services offerts et de demandes, sur fond noir avec bleu néon. Bannière avec formulaire de demande, bande bleue de 3 cartes, chiffres clés, catégories, filtres par nature, contrat et lieu, étapes, forfaits, témoignages, FAQ et contact. Tout est configurable. Affichage seulement.",
+    description: "Emplois et services pour une entreprise : vos services et vos offres d'emploi, sur fond noir avec bleu néon. Bannière avec formulaire de demande, bande bleue de 3 cartes, chiffres clés, catégories, filtres par nature, contrat et lieu, étapes, forfaits, témoignages, FAQ et contact. Tout est configurable. Affichage seulement.",
     fonctionnalites: ['Emplois et services', 'Formulaire dans la bannière', 'Filtres nature / contrat / lieu', 'Sections réordonnables'],
     disponible: true, nouveau: true, couleur: '#2f3bff',
   },

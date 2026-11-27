@@ -81,21 +81,21 @@ export const SCHEMA: Record<SectionId, Champ[]> = {
 // ─── Valeurs par défaut ────────────────────────────────────────────────────────────
 export const CONTENU_DEFAUT: Record<SectionId, Record<string, any>> = {
   entete: { texte: 'Réponse rapide à toutes vos demandes.' },
-  hero: { titre: 'Le bon pro,', titreAccent: 'au bon moment.', texte: 'Trouvez un service de confiance ou un emploi près de chez vous. Parcourez les annonces et écrivez directement à l\'annonceur.', puces: ['Annonces vérifiées et à jour', 'Contact direct, sans intermédiaire', 'Services et emplois de votre région', 'Aucun paiement en ligne'], btnTexte: 'Voir les annonces', btnLien: '#annonces', btn2Texte: 'Nous écrire', btn2Lien: '#contact', formTitre: 'Demande rapide — réponse gratuite', image: '' },
-  piliers: { titre: 'Des services fiables, des emplois à saisir', sousTitre: 'Tout au même endroit', texte: 'Du dépannage à l\'emploi à temps plein, retrouvez les annonces de professionnels et d\'entreprises de votre région.', items: [
-    { icone: '🛠️', titre: 'Services à domicile', texte: 'Rénovation, entretien, réparation : des pros prêts à intervenir chez vous.' },
-    { icone: '💼', titre: 'Offres d\'emploi', texte: 'Postes à temps plein, partiel, contrats et saisonniers.' },
-    { icone: '🤝', titre: 'Contact direct', texte: 'Un formulaire simple pour joindre l\'annonceur, sans intermédiaire.' },
+  hero: { titre: 'Le bon service,', titreAccent: 'au bon moment.', texte: 'Découvrez nos services et nos offres d\'emploi. Parcourez les annonces et écrivez-nous directement.', puces: ['Équipe qualifiée et expérimentée', 'Soumission gratuite et sans engagement', 'Réponse rapide à vos demandes', 'Nouveaux postes affichés régulièrement'], btnTexte: 'Voir les annonces', btnLien: '#annonces', btn2Texte: 'Nous écrire', btn2Lien: '#contact', formTitre: 'Demande rapide — réponse gratuite', image: '' },
+  piliers: { titre: 'Nos services, nos emplois', sousTitre: 'Une seule équipe, plusieurs façons de vous aider', texte: 'Du dépannage à l\'emploi à temps plein : découvrez ce que nous offrons et rejoignez notre équipe.', items: [
+    { icone: '🛠️', titre: 'Nos services', texte: 'Rénovation, entretien, réparation : notre équipe intervient chez vous.' },
+    { icone: '💼', titre: 'Offres d\'emploi', texte: 'Postes à temps plein, à temps partiel, contrats et saisonniers.' },
+    { icone: '🤝', titre: 'Contact direct', texte: 'Un formulaire simple pour nous joindre : nous répondons rapidement.' },
   ] },
-  chiffres: { items: [{ valeur: '24 h', label: 'Délai de réponse moyen' }, { valeur: '100 %', label: 'Contact direct' }, { valeur: '0 $', label: 'Frais pour les visiteurs' }, { valeur: '7/7', label: 'Annonces consultables' }] },
+  chiffres: { items: [{ valeur: '24 h', label: 'Délai de réponse moyen' }, { valeur: '100 %', label: 'Contact direct' }, { valeur: '0 $', label: 'Frais de soumission' }, { valeur: '7/7', label: 'Annonces consultables' }] },
   categories: { surtitre: '', titre: 'Explorez par catégorie' },
   vedettes: { surtitre: '', titre: 'Annonces à la une', nombre: '6' },
-  annonces: { surtitre: '', titre: 'Toutes les annonces', texte: 'Filtrez par nature d\'annonce, type de contrat et lieu.', vide: 'Aucune annonce ne correspond.' },
-  histoire: { titre: 'Notre histoire', texte: 'Nous mettons en relation des gens qui cherchent et des gens qui offrent : un service, un coup de main, un emploi.\n\nPourquoi nous choisir :\n1. Des annonces claires et complètes\n2. Un contact direct avec l\'annonceur\n3. Des services et emplois de votre région\n4. Un site simple, rapide, sans frais pour les visiteurs', image: '', btnTexte: 'Nous contacter', btnLien: '#contact' },
-  etapes: { titre: 'Comment ça fonctionne', texte: 'Trois étapes simples pour trouver ce qu\'il vous faut.', image: '', items: [
-    { titre: 'Parcourez les annonces', texte: 'Filtrez par catégorie, nature, contrat et lieu.' },
+  annonces: { surtitre: '', titre: 'Toutes les annonces', texte: 'Filtrez par nature, type de contrat et lieu.', vide: 'Aucune annonce ne correspond.' },
+  histoire: { titre: 'Notre histoire', texte: 'Nous sommes une équipe d\'ici : nous offrons des services de qualité et nous recrutons des talents pour grandir avec vous.\n\nPourquoi nous choisir :\n1. Une équipe qualifiée et expérimentée\n2. Des tarifs clairs, sans surprise\n3. Une réponse rapide à toutes vos demandes\n4. Des postes ouverts régulièrement', image: '', btnTexte: 'Nous contacter', btnLien: '#contact' },
+  etapes: { titre: 'Comment ça fonctionne', texte: 'Trois étapes simples pour obtenir un service ou postuler.', image: '', items: [
+    { titre: 'Parcourez nos annonces', texte: 'Filtrez par catégorie, nature, contrat et lieu.' },
     { titre: 'Ouvrez la fiche', texte: 'Consultez les détails, les photos et les conditions.' },
-    { titre: 'Écrivez à l\'annonceur', texte: 'Un formulaire rapide : il vous répond par courriel.' },
+    { titre: 'Écrivez-nous', texte: 'Un formulaire rapide : nous vous répondons par courriel.' },
   ] },
   forfaits: { surtitre: '', titre: 'Forfaits et tarifs', texte: 'Des formules claires pour vos besoins.', items: [
     { icone: '🙂', titre: 'Essentiel', texte: 'Pour un besoin ponctuel.', prix: 'À partir de 99 $', btnTexte: 'Demander', lien: '#contact' },
@@ -105,9 +105,9 @@ export const CONTENU_DEFAUT: Record<SectionId, Record<string, any>> = {
   temoignages: { surtitre: '', titre: 'Ils nous font confiance', items: [{ texte: 'Réponse rapide et service impeccable. Je recommande sans hésiter.', auteur: 'Un client satisfait' }] },
   galerie: { items: [] },
   faq: { surtitre: 'FAQ', titre: 'Vos questions', items: [
-    { q: 'Comment contacter l\'annonceur ?', r: 'Ouvrez l\'annonce et remplissez le formulaire : votre message lui est transmis directement par courriel.' },
-    { q: 'Y a-t-il des frais pour les visiteurs ?', r: 'Non. Parcourir les annonces et écrire aux annonceurs est gratuit.' },
-    { q: 'Y a-t-il un paiement sur ce site ?', r: 'Non. Les annonces sont affichées à titre informatif : les ententes et les paiements se font directement avec l\'annonceur.' },
+    { q: 'Comment demander un service ou postuler ?', r: 'Ouvrez l\'annonce et remplissez le formulaire : votre message nous est transmis directement par courriel.' },
+    { q: 'Y a-t-il des frais pour demander une soumission ?', r: 'Non. Parcourir les annonces et nous écrire est gratuit.' },
+    { q: 'Y a-t-il un paiement sur ce site ?', r: 'Non. Les annonces sont affichées à titre informatif : les ententes et les paiements se font directement avec nous.' },
   ] },
   contact: { surtitre: '', titre: 'Une question ? Écrivez-nous', texte: 'Notre équipe vous répond rapidement.' },
 };
