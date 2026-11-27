@@ -9,6 +9,7 @@ import ApparenceLease from './ApparenceLease';
 import ApparenceVolt from './ApparenceVolt';
 import ApparenceNeon from './ApparenceNeon';
 import ApparenceAllegro from './ApparenceAllegro';
+import ApparenceServices from './ApparenceServices';
 import { PROFIL_GENERAL } from '../../templates/TemplateAnnoncesClassique';
 import { PROFIL_AUTO } from '../../templates/TemplateAnnoncesAutoClassique';
 import { PROFIL_IMMO } from '../../templates/TemplateAnnoncesImmoClassique';
@@ -78,6 +79,21 @@ const PROFILS: Record<string, ProfilGestion> = {
   'annonces-volt': { categories: [], champs: [], couleur: '#ffd60a', fond: '#121212', nomDefaut: 'VOLT', sloganDefaut: '' },
   'annonces-neon': { categories: [], champs: [], couleur: '#00d84a', fond: '#000000', nomDefaut: 'Néon', sloganDefaut: '' },
   'annonces-allegro': { categories: [], champs: [], couleur: '#d90f2e', fond: '#f8f8fb', nomDefaut: 'Allegro', sloganDefaut: '' },
+  'annonces-services-neo': {
+    categories: ['Rénovation et construction', 'Services à domicile', 'Entretien et paysagement', 'Transport et livraison', 'Cours et tutorat', 'Beauté et bien-être', 'Informatique et web', 'Événements', 'Restauration', 'Emploi — Offres', 'Autre'],
+    champs: [
+      { cle: 'Nature', label: 'Nature de l\'annonce', type: 'select', options: ['Service offert', 'Offre d\'emploi', 'Recherche d\'emploi', 'Demande de service'] },
+      { cle: 'Contrat', label: 'Type de contrat (emplois)', type: 'select', options: ['Temps plein', 'Temps partiel', 'Contrat', 'Saisonnier', 'Stage', 'Pigiste'] },
+      { cle: 'Entreprise', label: 'Entreprise ou nom de l\'annonceur', placeholder: 'Rénovations Bélanger' },
+      { cle: 'Rémunération', label: 'Rémunération ou tarif', placeholder: '25 $ / h' },
+      { cle: 'Zone desservie', label: 'Zone desservie ou lieu de travail', placeholder: 'Québec et Lévis' },
+      { cle: 'Disponibilité', label: 'Disponibilité ou horaire', placeholder: 'Lundi au vendredi' },
+      { cle: 'Expérience', label: 'Expérience requise', placeholder: '3 ans et plus' },
+      { cle: 'Certification', label: 'Licence ou certification', placeholder: 'Licence RBQ' },
+      { cle: 'Échéance', label: 'Date limite', placeholder: '15 décembre' },
+    ],
+    couleur: '#2f3bff', fond: '#05050a', nomDefaut: 'Néo Services', sloganDefaut: '', aidePrix: 'Prix de départ du service (facultatif). Pour un emploi, laissez vide et indiquez la rémunération dans le champ prévu, ou écrivez par exemple « 25 $ / h » dans le texte de prix.',
+  },
   'annonces-immeuble': {
     categories: ['Duplex', 'Triplex', 'Quadruplex', 'Multiplex (5 logements et +)', 'Immeuble commercial', 'Immeuble mixte', 'Autre'],
     champs: [
@@ -296,8 +312,9 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId, ongletInit
       {onglet === 'apparence' && templateId === 'annonces-volt' && <ApparenceVolt gestionnaireId={gestionnaireId} templateId={templateId} />}
       {onglet === 'apparence' && templateId === 'annonces-neon' && <ApparenceNeon gestionnaireId={gestionnaireId} templateId={templateId} />}
       {onglet === 'apparence' && templateId === 'annonces-allegro' && <ApparenceAllegro gestionnaireId={gestionnaireId} templateId={templateId} />}
+      {onglet === 'apparence' && templateId === 'annonces-services-neo' && <ApparenceServices gestionnaireId={gestionnaireId} templateId={templateId} />}
 
-      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && templateId !== 'annonces-auto-lease' && templateId !== 'annonces-volt' && templateId !== 'annonces-neon' && templateId !== 'annonces-allegro' && <ApparenceClassique gestionnaireId={gestionnaireId} templateId={templateId || 'annonces-classique'} defaut={DEFAUTS_CLASSIQUE[templateId || 'annonces-classique'] || PROFIL_GENERAL.defaut} />}
+      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && templateId !== 'annonces-auto-lease' && templateId !== 'annonces-volt' && templateId !== 'annonces-neon' && templateId !== 'annonces-allegro' && templateId !== 'annonces-services-neo' && <ApparenceClassique gestionnaireId={gestionnaireId} templateId={templateId || 'annonces-classique'} defaut={DEFAUTS_CLASSIQUE[templateId || 'annonces-classique'] || PROFIL_GENERAL.defaut} />}
 
       {onglet === 'reglages' && (
         <div style={carte}>

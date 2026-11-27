@@ -101,6 +101,7 @@ export const PHOTOS: Record<string, string> = {
   'annonces-volt': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-neon': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-allegro': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'annonces-services-neo': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-immeuble': 'https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
 
@@ -780,6 +781,14 @@ export const TEMPLATES: Template[] = [
     description: "Petites annonces généralistes au look vivant : en-tête rouge avec recherche, barre bleue, titres à dégradé, tuiles de catégories colorées, carrousel d'annonces, bannières en mosaïque, section sombre d'actualités. Couleurs, polices, photos, textes et sections entièrement configurables. Affichage seulement.",
     fonctionnalites: ['Recherche dans l\'en-tête', 'Titres à dégradé', 'Bannières en mosaïque', 'Sections réordonnables'],
     disponible: true, nouveau: true, couleur: '#d90f2e',
+  },
+  {
+    id: 'annonces-services-neo',
+    nom: 'Néo Services',
+    groupe: 'annonces',
+    description: "Emplois et services : annonces d'offres d'emploi, de services offerts et de demandes, sur fond noir avec bleu néon. Bannière avec formulaire de demande, bande bleue de 3 cartes, chiffres clés, catégories, filtres par nature, contrat et lieu, étapes, forfaits, témoignages, FAQ et contact. Tout est configurable. Affichage seulement.",
+    fonctionnalites: ['Emplois et services', 'Formulaire dans la bannière', 'Filtres nature / contrat / lieu', 'Sections réordonnables'],
+    disponible: true, nouveau: true, couleur: '#2f3bff',
   },
   {
     id: 'annonces-immeuble',
