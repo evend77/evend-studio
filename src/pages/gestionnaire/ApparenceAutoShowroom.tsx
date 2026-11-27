@@ -113,6 +113,7 @@ export default function ApparenceAutoShowroom({ gestionnaireId, templateId }: Pr
               <div><label style={lbl}>Adresse</label><input style={champ} maxLength={160} value={cfg.adresse} onChange={(e) => maj({ adresse: e.target.value })} /></div>
               <div><label style={lbl}>Texte du bas de page</label><input style={champ} maxLength={200} value={cfg.piedTexte} onChange={(e) => maj({ piedTexte: e.target.value })} /></div>
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><input type="checkbox" checked={cfg.afficherPropulse} onChange={(e) => maj({ afficherPropulse: e.target.checked })} />Afficher « Propulsé par e-Vend Studio » dans le pied de page</label>
             <p style={{ fontSize: 11, color: '#6b7280', margin: '6px 0 0' }}>Les messages des visiteurs arrivent à votre courriel de compte, même si vous laissez « Courriel affiché » vide.</p>
             <label style={{ ...lbl, marginTop: 14 }}>Réseaux sociaux (adresses https://…, laissez vide pour masquer)</label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 10 }}>

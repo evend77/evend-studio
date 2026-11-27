@@ -1399,6 +1399,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         id: 'commandes', label: 'MES ANNONCES', icon: '📋',
         sousMenu: [
           { id: 'annonces-site', label: 'Mes annonces', icon: '📋' },
+        ]
+      },
+      {
+        id: 'config-mes-pages', label: 'CONFIG MES PAGES', icon: '🎨',
+        sousMenu: [
+          { id: 'annonces-config', label: 'Configurer mes pages', icon: '✏️' },
           { id: 'annonces-plan', label: 'Mon plan & limites', icon: '📊' },
         ]
       },
@@ -1812,7 +1818,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mes-effets-visuels') return <ConfigStoreEffects gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'encheres-site') return <MesEncheresSite gestionnaireId={gestionnaire.id} templateId={templateActif} />;
-    if (pageActive === 'annonces-site') return <MesAnnoncesSite gestionnaireId={gestionnaire.id} templateId={templateActif} />;
+    if (pageActive === 'annonces-site') return <MesAnnoncesSite key="annonces-liste" gestionnaireId={gestionnaire.id} templateId={templateActif} />;
+    if (pageActive === 'annonces-config') return <MesAnnoncesSite key="annonces-config" gestionnaireId={gestionnaire.id} templateId={templateActif} ongletInitial="apparence" />;
     if (pageActive === 'annonces-plan') return <BoutiquePlan gestionnaireId={gestionnaire.id} accent="#0f766e" naviguerVers={setPageActive} base="/api/studio/annonces-site" sansAddons pageListe="annonces-site" />;
     if (pageActive === 'cagnotte-config') return <ConfigMesPagesCagnotte gestionnaireId={gestionnaire.id} naviguer={setPageActive} templateId={templateActif} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;

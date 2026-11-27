@@ -138,6 +138,7 @@ export interface ConfigShowroom {
   telephone: string; courriel: string; adresse: string;
   reseaux: Record<'facebook' | 'instagram' | 'youtube' | 'twitter' | 'tiktok' | 'linkedin', string>;
   piedTexte: string;
+  afficherPropulse: boolean;   // « Propulsé par e-Vend Studio » dans le pied de page
   sections: SectionConf[];
   contenu: Record<SectionId, Record<string, any>>;
 }
@@ -194,7 +195,7 @@ export function normaliserConfig(brut: any): ConfigShowroom {
     logoUrl: urlHttps(c.logoUrl),
     couleurPrincipale: couleur(c.couleurPrincipale, d.couleurPrincipale), couleurAccent: couleur(c.couleurAccent, d.couleurAccent),
     couleurSombre: couleur(c.couleurSombre, d.couleurSombre), couleurFond: couleur(c.couleurFond, d.couleurFond),
-    police, telephone: telephone(c.telephone), courriel: courriel(c.courriel), adresse: texte(c.adresse, 160), piedTexte: texte(c.piedTexte, 200),
+    police, telephone: telephone(c.telephone), courriel: courriel(c.courriel), adresse: texte(c.adresse, 160), piedTexte: texte(c.piedTexte, 200), afficherPropulse: c.afficherPropulse !== false,
     reseaux, sections, contenu,
   };
 }

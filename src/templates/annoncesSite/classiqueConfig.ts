@@ -54,7 +54,8 @@ export const SCHEMA: Record<SectionId, Champ[]> = {
 export interface SectionConf { id: SectionId; visible: boolean; }
 export interface ConfigClassique {
   nomSite: string; logoUrl: string;
-  couleurPrincipale: string; couleurFond: string; couleurTexte: string; couleurEntete: string;
+  couleurPrincipale: string; couleurFond: string; couleurTexte: string; couleurEntete: string; couleurPied: string;
+  afficherPropulse: boolean;   // « Propulsé par e-Vend Studio » dans le pied de page
   police: 'classique' | 'moderne';
   telephone: string; courriel: string; adresse: string;
   reseaux: Record<typeof RESEAUX[number], string>;
@@ -123,7 +124,8 @@ export function normaliserConfig(brut: any, d: DefautClassique): ConfigClassique
     nomSite: texte(c.nomSite ?? d.nomSite, 60) || d.nomSite,
     logoUrl: urlHttps(c.logoUrl),
     couleurPrincipale: couleur(c.couleurPrincipale, d.couleurPrincipale), couleurFond: couleur(c.couleurFond, d.couleurFond),
-    couleurTexte: couleur(c.couleurTexte, '#1f2937'), couleurEntete: couleur(c.couleurEntete, '#ffffff'),
+    couleurTexte: couleur(c.couleurTexte, '#1f2937'), couleurEntete: couleur(c.couleurEntete, '#ffffff'), couleurPied: couleur(c.couleurPied, '#111827'),
+    afficherPropulse: c.afficherPropulse !== false,
     police,
     telephone: telephone(c.telephone), courriel: courriel(c.courriel ?? c.email), adresse: texte(c.adresse, 160),
     reseaux, sections, contenu,

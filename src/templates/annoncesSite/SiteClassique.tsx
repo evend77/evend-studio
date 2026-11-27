@@ -5,6 +5,8 @@
 import { useState, useEffect } from 'react';
 import { normaliserConfig, RESEAUX, type SectionId } from './classiqueConfig';
 import { telHref } from './autoShowroomConfig';
+import { usePolitiques, PagePolitique, Pied } from './pied';
+import { FormulaireSite } from './contactSite';
 import { useAnnonces, FormulaireContact, fmtPrix, ilYa, FILTRES_VIDES, filtresActifs, type AnnoncePub, type Filtres } from './moteur';
 
 export interface ConfigAnnoncesClassique {
@@ -105,6 +107,7 @@ export default function SiteClassique({ profil, config: configProp, vendeurId }:
   // Forme attendue par la fiche détaillée (Detail)
   const cfgDetail: ConfigAnnoncesClassique = { nomSite: cfg.nomSite, slogan: '', logoUrl: cfg.logoUrl, couleurPrincipale: cp, couleurFond: cfg.couleurFond, police: cfg.police, apropos: '', email: cfg.courriel, telephone: cfg.telephone };
 
+  const pol = usePolitiques(gid);
   const [f, setF] = useState<Filtres>(FILTRES_VIDES);
   const [saisie, setSaisie] = useState('');
   const [lieuSaisie, setLieuSaisie] = useState('');
@@ -270,9 +273,9 @@ export default function SiteClassique({ profil, config: configProp, vendeurId }:
         </div>
       </section>
     ) : null,
-    contact: (C.contact.texte || cfg.telephone || cfg.courriel || cfg.adresse || RESEAUX.some((k) => cfg.reseaux[k])) ? (
+    contact: (
       <section style={{ padding: '34px 18px', borderTop: '1px solid #e7e2d8', background: '#fff', textAlign: 'center' }}>
-        <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        <div style={{ maxWidth: 560, margin: '0 auto' }}>
           {C.contact.titre && <h2 style={titreSec}>{C.contact.titre}</h2>}
           {C.contact.texte && <p style={texteSec}>{C.contact.texte}</p>}
           <p style={{ fontSize: 14, color: '#4b5563', margin: '0 0 8px', lineHeight: 1.9 }}>
@@ -282,10 +285,11 @@ export default function SiteClassique({ profil, config: configProp, vendeurId }:
             {(cfg.telephone || cfg.courriel) && cfg.adresse ? ' · ' : ''}
             {cfg.adresse && <span>📍 {cfg.adresse}</span>}
           </p>
+          <div style={{ margin: '22px 0' }}><FormulaireSite gid={gid} couleur={cp} police={police2} /></div>
           {RESEAUX.some((k) => cfg.reseaux[k]) && <p style={{ fontSize: 13, margin: 0 }}>{RESEAUX.filter((k) => cfg.reseaux[k]).map((k) => <a key={k} href={cfg.reseaux[k]} target="_blank" rel="noopener noreferrer" style={{ color: cp, fontWeight: 700, margin: '0 8px', textTransform: 'capitalize' }}>{k}</a>)}</p>}
         </div>
       </section>
-    ) : null,
+    ),
   };
 
   return (
@@ -301,11 +305,9 @@ export default function SiteClassique({ profil, config: configProp, vendeurId }:
         </div>
       </header>
 
-      {visibles.map((id) => <div key={id} id={id}>{sections[id]}</div>)}
+      {pol.statut !== 'ferme' ? <PagePolitique pol={pol} couleur={cp} police={police2} /> : visibles.map((id) => <div key={id} id={id}>{sections[id]}</div>)}
 
-      <footer style={{ borderTop: '1px solid #e7e2d8', background: '#fff', padding: '20px 18px', textAlign: 'center' }}>
-        <p style={{ fontSize: 11, color: '#9ca3af', maxWidth: 560, margin: '0 auto', lineHeight: 1.6 }}>{profil.avis}</p>
-      </footer>
+      <Pied nom={cfg.nomSite} fond={cfg.couleurPied} avis={profil.avis} reseaux={cfg.reseaux} telephone={cfg.telephone} courriel={cfg.courriel} adresse={cfg.adresse} afficherPropulse={cfg.afficherPropulse} pol={pol} />
 
       {ouverte && <Detail a={ouverte} gid={gid} demo={r.demo} cfg={cfgDetail} police={police2} profil={profil} onClose={() => setOuverte(null)} />}
     </div>

@@ -6,6 +6,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useAnnonces, fmtPrix, nbDe, FILTRES_VIDES, filtresActifs, type AnnoncePub, type Filtres } from './annoncesSite/moteur';
 import { Detail } from './annoncesSite/SiteClassique';
+import { usePolitiques, PagePolitique, Pied } from './annoncesSite/pied';
+import { FormulaireSite } from './annoncesSite/contactSite';
 import { PROFIL_AUTO } from './TemplateAnnoncesAutoClassique';
 import { normaliserConfig, SECTIONS_INFO, SECTION_IDS, lien as lienOk, telHref, type ConfigShowroom, type SectionId } from './annoncesSite/autoShowroomConfig';
 
@@ -20,10 +22,10 @@ const POLICES = {
 function Lien({ v, style, children, className }: { v: string; style: React.CSSProperties; children: React.ReactNode; className?: string }) {
   const l = lienOk(v, [...SECTION_IDS]);
   if (!l) return null;
-  if (l.type === 'ancre') return <button className={className} style={{ ...style, border: style.border || 'none', cursor: 'pointer', fontFamily: 'inherit' }} onClick={() => allerA(l.valeur)}>{children}</button>;
+  if (l.type === 'ancre') return <button className={className} style={{ ...style, border: style.border || 'none', cursor: 'pointer', fontFamily: 'inherit' }} onClick={() => allerAModule(l.valeur)}>{children}</button>;
   return <a className={className} style={{ ...style, textDecoration: 'none', display: 'inline-block' }} href={l.valeur} {...(l.type === 'externe' ? { target: '_blank', rel: 'noopener noreferrer nofollow' } : {})}>{children}</a>;
 }
-function allerA(id: string) { const el = document.getElementById(`sec-${id}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+function allerAModule(id: string) { const el = document.getElementById(`sec-${id}`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 
 function EnTete({ c, s, centre = true, clair = false }: { c: Record<string, any>; s: { cp: string; sombre: string; titre: string }; centre?: boolean; clair?: boolean }) {
   return (
@@ -138,6 +140,9 @@ export default function TemplateAnnoncesAutoShowroom({ config, vendeurId }: Prop
   const cfg = useMemo(() => normaliserConfig(config), [config]);
   const gid = Number(vendeurId || 0);
   const pol = POLICES[cfg.police];
+  const politiques = usePolitiques(gid);
+  // Depuis une page de politique, les liens du menu ramènent d'abord au site puis défilent vers la section
+  const allerA = (id: string) => { if (politiques.statut !== 'ferme') { politiques.fermer(); setTimeout(() => allerAModule(id), 120); } else allerAModule(id); };
   const s = { cp: cfg.couleurPrincipale, ca: cfg.couleurAccent, sombre: cfg.couleurSombre, fond: cfg.couleurFond, titre: pol.titre, corps: pol.corps };
   const [menu, setMenu] = useState(false);
   const [avis, setAvis] = useState(0);
@@ -292,6 +297,7 @@ export default function TemplateAnnoncesAutoShowroom({ config, vendeurId }: Prop
             {cfg.courriel && <a href={`mailto:${cfg.courriel}`} style={{ ...bouton(false), textDecoration: 'none' }}>✉️ {cfg.courriel}</a>}
           </div>
           {cfg.adresse && <p style={{ fontSize: 15, color: '#5f6670', marginTop: 18 }}>📍 {cfg.adresse}</p>}
+          <div style={{ maxWidth: 560, margin: '30px auto 0' }}><FormulaireSite gid={gid} couleur={s.cp} police={s.corps} /></div>
         </div></section>
       );
     }
@@ -328,13 +334,9 @@ export default function TemplateAnnoncesAutoShowroom({ config, vendeurId }: Prop
         {menu && <div className="asr-burger" style={{ borderTop: '1px solid #eceff3', padding: '8px 20px 14px', background: '#fff' }}>{nav.map((x) => <button key={x.id} onClick={() => { setMenu(false); allerA(x.id); }} style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', fontSize: 16, fontWeight: 700, color: s.sombre, padding: '12px 0', borderBottom: '1px solid #f1f3f5', cursor: 'pointer', fontFamily: 'inherit' }}>{x.label || SECTIONS_INFO[x.id].navDefaut}</button>)}</div>}
       </header>
 
-      {visibles.map((x) => { const el = rendre(x.id); return el ? <div key={x.id} id={`sec-${x.id}`} style={{ scrollMarginTop: 80 }}>{el}</div> : null; })}
+      {politiques.statut !== 'ferme' ? <PagePolitique pol={politiques} couleur={s.cp} /> : visibles.map((x) => { const el = rendre(x.id); return el ? <div key={x.id} id={`sec-${x.id}`} style={{ scrollMarginTop: 80 }}>{el}</div> : null; })}
 
-      <footer style={{ background: s.sombre, color: 'rgba(255,255,255,.75)', padding: '26px 20px', textAlign: 'center', fontSize: 13 }}>
-        <p style={{ margin: '0 0 6px', fontWeight: 700, color: '#fff' }}>{cfg.nomSite}</p>
-        {cfg.piedTexte && <p style={{ margin: '0 0 6px' }}>{cfg.piedTexte}</p>}
-        <p style={{ margin: '0 auto', maxWidth: 620, fontSize: 11, opacity: .7, lineHeight: 1.6 }}>Les annonces sont affichées à titre informatif. Aucune transaction n'est effectuée sur ce site : les échanges se font directement avec l'annonceur. Vérifiez le véhicule (historique, inspection) avant tout paiement.</p>
-      </footer>
+      <Pied nom={cfg.nomSite} fond={s.sombre} texteLibre={cfg.piedTexte} avis="Les annonces sont affichées à titre informatif. Aucune transaction n'est effectuée sur ce site : les échanges se font directement avec l'annonceur." reseaux={cfg.reseaux} telephone={cfg.telephone} courriel={cfg.courriel} adresse={cfg.adresse} afficherPropulse={cfg.afficherPropulse} pol={politiques} />
     </div>
   );
 }

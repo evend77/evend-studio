@@ -10,7 +10,7 @@ import { PROFIL_AUTO } from '../../templates/TemplateAnnoncesAutoClassique';
 import { PROFIL_IMMO } from '../../templates/TemplateAnnoncesImmoClassique';
 import ChampPhotos from './ChampPhotos';
 
-interface Props { gestionnaireId: number; templateId?: string; }
+interface Props { gestionnaireId: number; templateId?: string; ongletInitial?: 'annonces' | 'messages' | 'apparence' | 'reglages'; }
 
 interface AnnonceG {
   id: number; titre: string; description: string; prix: number | null; prixTexte: string; categorie: string; lieu: string; photos: string[];
@@ -92,10 +92,10 @@ function Champ({ label, valeur, onChange, type = 'text', aide, placeholder }: { 
   return (<div style={{ marginBottom: 12 }}><label style={lbl}>{label}</label><input type={type} style={champ} value={valeur} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />{aide && <p style={{ fontSize: 11, color: '#6b7280', marginTop: 3 }}>{aide}</p>}</div>);
 }
 
-export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
+export default function MesAnnoncesSite({ gestionnaireId, templateId, ongletInitial }: Props) {
   const profil = PROFILS[templateId || 'annonces-classique'] || PROFILS['annonces-classique'];
   const clesChamps = [...profil.champs.map((c) => c.cle), ...(profil.typeBienDepuisCategorie ? ['Type de bien'] : [])];
-  const [onglet, setOnglet] = useState<'annonces' | 'messages' | 'apparence' | 'reglages'>('annonces');
+  const [onglet, setOnglet] = useState<'annonces' | 'messages' | 'apparence' | 'reglages'>(ongletInitial || 'annonces');
   const [liste, setListe] = useState<AnnonceG[]>([]);
   const [messages, setMessages] = useState<MessageG[]>([]);
   const [chargement, setChargement] = useState(true);

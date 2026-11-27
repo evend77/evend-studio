@@ -57,7 +57,7 @@ export default function ApparenceClassique({ gestionnaireId, templateId, defaut 
               <div><ChampPhotos gestionnaireId={gestionnaireId} etiquette="Logo" valeur={cfg.logoUrl ? [cfg.logoUrl] : []} onChange={(a) => maj({ logoUrl: a[0] || '' })} max={1} /></div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 12, margin: '12px 0' }}>
-              {([['couleurPrincipale', 'Couleur principale'], ['couleurFond', 'Fond de la page'], ['couleurTexte', 'Couleur du texte'], ['couleurEntete', 'Fond de l\'en-tête']] as const).map(([k, l]) => (
+              {([['couleurPrincipale', 'Couleur principale'], ['couleurFond', 'Fond de la page'], ['couleurTexte', 'Couleur du texte'], ['couleurEntete', 'Fond de l\'en-tête'], ['couleurPied', 'Fond du pied de page']] as const).map(([k, l]) => (
                 <div key={k}><label style={lbl}>{l}</label><input type="color" style={{ ...champ, padding: 3, height: 40 }} value={cfg[k]} onChange={(e) => maj({ [k]: e.target.value } as any)} /></div>
               ))}
             </div>
@@ -67,6 +67,7 @@ export default function ApparenceClassique({ gestionnaireId, templateId, defaut 
               <div><label style={lbl}>Courriel affiché</label><input style={champ} type="email" maxLength={200} value={cfg.courriel} onChange={(e) => maj({ courriel: e.target.value })} /></div>
               <div><label style={lbl}>Adresse</label><input style={champ} maxLength={160} value={cfg.adresse} onChange={(e) => maj({ adresse: e.target.value })} /></div>
             </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}><input type="checkbox" checked={cfg.afficherPropulse} onChange={(e) => maj({ afficherPropulse: e.target.checked })} />Afficher « Propulsé par e-Vend Studio » dans le pied de page</label>
             <p style={{ fontSize: 11, color: '#6b7280', margin: '6px 0 0' }}>Les messages des visiteurs arrivent à votre courriel de compte, même si vous laissez « Courriel affiché » vide.</p>
             <label style={{ ...lbl, marginTop: 14 }}>Réseaux sociaux (adresses https://…, laissez vide pour masquer)</label>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 10 }}>
