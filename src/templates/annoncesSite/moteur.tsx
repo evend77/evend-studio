@@ -20,8 +20,19 @@ export interface AnnoncePub {
   datePublication: string;
   dateExpiration: string | null;
 }
-export interface Filtres { q: string; categorie: string; lieu: string; prixMin: string; prixMax: string; tri: 'recent' | 'prix_asc' | 'prix_desc'; page: number; }
-export const FILTRES_VIDES: Filtres = { q: '', categorie: '', lieu: '', prixMin: '', prixMax: '', tri: 'recent', page: 1 };
+export interface Filtres {
+  q: string; categorie: string; lieu: string; prixMin: string; prixMax: string; tri: 'recent' | 'prix_asc' | 'prix_desc'; page: number;
+  d?: Record<string, string>;      // égalité sur un détail (ex. Marque = Toyota)
+  dmin?: Record<string, string>;   // minimum numérique sur un détail (ex. Année ≥ 2018)
+  dmax?: Record<string, string>;   // maximum numérique sur un détail (ex. Kilométrage ≤ 100000)
+}
+export const FILTRES_VIDES: Filtres = { q: '', categorie: '', lieu: '', prixMin: '', prixMax: '', tri: 'recent', page: 1, d: {}, dmin: {}, dmax: {} };
+export type Facettes = Record<string, { nom: string; n: number }[]>;
+
+// Nombre contenu dans un détail (« 85 000 km » → 85000)
+export const nbDe = (v: string | undefined) => { const n = String(v || '').replace(/[^0-9]/g, ''); return n ? Number(n) : NaN; };
+export const sansVide = (o?: Record<string, string>) => Object.fromEntries(Object.entries(o || {}).filter(([, v]) => v !== '' && v != null));
+export const filtresActifs = (f: Filtres) => !!(f.q || f.lieu || f.categorie || f.prixMin || f.prixMax || Object.keys(sansVide(f.d)).length || Object.keys(sansVide(f.dmin)).length || Object.keys(sansVide(f.dmax)).length);
 
 export const fmtPrix = (a: Pick<AnnoncePub, 'prix' | 'prixTexte'>) =>
   a.prix != null ? new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: a.prix % 1 === 0 ? 0 : 2 }).format(a.prix) : (a.prixTexte || 'Prix à discuter');
@@ -40,17 +51,21 @@ function filtrerDemo(tous: AnnoncePub[], f: Filtres) {
     && (!f.q || (a.titre + ' ' + a.description).toLowerCase().includes(f.q.toLowerCase()))
     && (!f.lieu || a.lieu.toLowerCase().includes(f.lieu.toLowerCase()))
     && (!f.prixMin || (a.prix != null && a.prix >= Number(f.prixMin)))
-    && (!f.prixMax || (a.prix != null && a.prix <= Number(f.prixMax))));
+    && (!f.prixMax || (a.prix != null && a.prix <= Number(f.prixMax)))
+    && Object.entries(sansVide(f.d)).every(([k, v]) => (a.details[k] || '').toLowerCase() === v.toLowerCase())
+    && Object.entries(sansVide(f.dmin)).every(([k, v]) => nbDe(a.details[k]) >= Number(v))
+    && Object.entries(sansVide(f.dmax)).every(([k, v]) => nbDe(a.details[k]) <= Number(v)));
   if (f.tri === 'prix_asc') r = [...r].sort((a, b) => (a.prix ?? 1e12) - (b.prix ?? 1e12));
   else if (f.tri === 'prix_desc') r = [...r].sort((a, b) => (b.prix ?? -1) - (a.prix ?? -1));
   else r = [...r].sort((a, b) => Number(b.vedette) - Number(a.vedette) || new Date(b.datePublication).getTime() - new Date(a.datePublication).getTime());
   return r;
 }
 
-export function useAnnonces(gid: number, demoListe: AnnoncePub[], f: Filtres) {
+export function useAnnonces(gid: number, demoListe: AnnoncePub[], f: Filtres, facettesCles: string[] = []) {
   const reel = gid > 0;
   const [annonces, setAnnonces] = useState<AnnoncePub[]>([]);
   const [categories, setCategories] = useState<{ nom: string; n: number }[]>([]);
+  const [facettes, setFacettes] = useState<Facettes>({});
   const [total, setTotal] = useState(0);
   const [pages, setPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -65,17 +80,21 @@ export function useAnnonces(gid: number, demoListe: AnnoncePub[], f: Filtres) {
       if (!reel) {
         const r = filtrerDemo(demoListe, f);
         const cats: Record<string, number> = {}; demoListe.forEach((a) => { if (a.categorie) cats[a.categorie] = (cats[a.categorie] || 0) + 1; });
-        setAnnonces(r); setTotal(r.length); setPages(1); setCategories(Object.entries(cats).map(([nom, n]) => ({ nom, n }))); setDemo(true); setLoading(false); return;
+        setAnnonces(r); setTotal(r.length); setPages(1); setCategories(Object.entries(cats).map(([nom, n]) => ({ nom, n })));
+        const fa: Facettes = {}; facettesCles.forEach((k) => { const m: Record<string, number> = {}; demoListe.forEach((a) => { const v = a.details[k]; if (v) m[v] = (m[v] || 0) + 1; }); fa[k] = Object.entries(m).sort((x, y) => y[1] - x[1]).map(([nom, n]) => ({ nom, n })); }); setFacettes(fa);
+        setDemo(true); setLoading(false); return;
       }
       try {
         const p = new URLSearchParams();
         (['q', 'categorie', 'lieu', 'prixMin', 'prixMax'] as const).forEach((k) => { if (f[k]) p.set(k, f[k]); });
         p.set('tri', f.tri); p.set('page', String(f.page));
+        (['d', 'dmin', 'dmax'] as const).forEach((g) => Object.entries(sansVide(f[g])).forEach(([k, v]) => p.set(`${g}[${k}]`, v)));
+        if (facettesCles.length) p.set('facettes', facettesCles.join(','));
         const r = await fetch(`${API}/${gid}/annonces?${p.toString()}`);
         if (n !== numReq.current) return;
         if (!r.ok) throw new Error('x');
         const d = await r.json();
-        setAnnonces(d.annonces || []); setTotal(d.total || 0); setPages(d.pages || 1); setCategories(d.categories || []); setDemo(false); setErreur(false);
+        setAnnonces(d.annonces || []); setTotal(d.total || 0); setPages(d.pages || 1); setCategories(d.categories || []); setFacettes(d.facettes || {}); setDemo(false); setErreur(false);
       } catch { if (n === numReq.current) { setErreur(true); setAnnonces(demoListe); setDemo(true); setTotal(demoListe.length); } }
       finally { if (n === numReq.current) setLoading(false); }
     }, f.q ? 250 : 0);
@@ -83,7 +102,7 @@ export function useAnnonces(gid: number, demoListe: AnnoncePub[], f: Filtres) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cle, gid]);
 
-  return { annonces, categories, total, pages, loading, demo, erreur };
+  return { annonces, categories, facettes, total, pages, loading, demo, erreur };
 }
 
 // ─── Formulaire de contact (message transmis par courriel au gestionnaire) ────

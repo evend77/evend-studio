@@ -142,13 +142,34 @@ async function listerPublic(gid, q) {
   if (q.q) { p.push(`%${txt(q.q, 80).replace(/[%_]/g, '')}%`); w.push(`(a.titre ILIKE $${p.length} OR a.description ILIKE $${p.length})`); }
   if (q.prixMin !== undefined && q.prixMin !== '' && Number.isFinite(Number(q.prixMin))) { p.push(Number(q.prixMin)); w.push(`a.prix >= $${p.length}`); }
   if (q.prixMax !== undefined && q.prixMax !== '' && Number.isFinite(Number(q.prixMax))) { p.push(Number(q.prixMax)); w.push(`a.prix <= $${p.length}`); }
+  // Filtres sur les détails (ex. Marque, Année, Chambres) : d = {Clé: valeur}, dmin / dmax = {Clé: nombre}
+  const cleOk = (k) => { const kk = txt(k, 40); return kk && !/[\u0000-\u001f]/.test(kk) ? kk : ''; };
+  const nbDetail = (idx) => `NULLIF(regexp_replace(a.details->>$${idx}, '[^0-9]', '', 'g'), '')::numeric`;
+  const objSur = (x) => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
+  let nf = 0;
+  for (const [k, v] of Object.entries(objSur(q.d))) {
+    if (nf++ >= 4) break; const kk = cleOk(k), vv = typeof v === 'string' ? txt(v, 80) : ''; if (!kk || !vv) continue;
+    p.push(kk); const ik = p.length; p.push(vv); w.push(`LOWER(a.details->>$${ik}) = LOWER($${p.length})`);
+  }
+  for (const [mode, src] of [['>=', q.dmin], ['<=', q.dmax]]) {
+    for (const [k, v] of Object.entries(objSur(src))) {
+      if (nf++ >= 8) break; const kk = cleOk(k); if (!kk || v === '' || !Number.isFinite(Number(v))) continue;
+      p.push(kk); const ik = p.length; p.push(Number(v)); w.push(`${nbDetail(ik)} ${mode} $${p.length}`);
+    }
+  }
   const tri = { recent: 'a.vedette DESC, a.created_at DESC', prix_asc: 'a.prix ASC NULLS LAST, a.created_at DESC', prix_desc: 'a.prix DESC NULLS LAST, a.created_at DESC' }[q.tri] || 'a.vedette DESC, a.created_at DESC';
   const page = Math.max(1, parseInt(q.page, 10) || 1); const taille = 24;
   const total = Number((await pool.query(`SELECT COUNT(*) AS n FROM ann_annonces a WHERE ${w.join(' AND ')}`, p)).rows[0].n);
   p.push(taille, (page - 1) * taille);
   const r = await pool.query(`SELECT a.* FROM ann_annonces a WHERE ${w.join(' AND ')} ORDER BY ${tri} LIMIT $${p.length - 1} OFFSET $${p.length}`, p);
   const cats = (await pool.query(`SELECT a.categorie, COUNT(*) AS n FROM ann_annonces a WHERE a.gestionnaire_id=$1 AND ${ACTIVE_SQL} AND a.categorie <> '' GROUP BY a.categorie ORDER BY n DESC, a.categorie`, [gid])).rows;
-  return { annonces: r.rows.map((a) => vue(a, false)), total, page, pages: Math.max(1, Math.ceil(total / taille)), categories: cats.map((c) => ({ nom: c.categorie, n: Number(c.n) })) };
+  // Facettes : valeurs distinctes (avec compte) pour les clés demandées (ex. Marque, Carrosserie)
+  const facettes = {};
+  for (const k of String(q.facettes || '').split(',').map(cleOk).filter(Boolean).slice(0, 5)) {
+    const f = await pool.query(`SELECT a.details->>$2 AS v, COUNT(*) AS n FROM ann_annonces a WHERE a.gestionnaire_id=$1 AND ${ACTIVE_SQL} AND COALESCE(a.details->>$2,'') <> '' GROUP BY 1 ORDER BY n DESC, 1 LIMIT 40`, [gid, k]);
+    facettes[k] = f.rows.map((x) => ({ nom: x.v, n: Number(x.n) }));
+  }
+  return { annonces: r.rows.map((a) => vue(a, false)), total, page, pages: Math.max(1, Math.ceil(total / taille)), categories: cats.map((c) => ({ nom: c.categorie, n: Number(c.n) })), facettes };
 }
 
 async function detailPublic(gid, id, compterVue) {

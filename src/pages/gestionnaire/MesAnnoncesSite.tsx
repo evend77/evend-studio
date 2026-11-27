@@ -35,8 +35,39 @@ const STATUTS: Record<string, { t: string; c: string }> = {
   active: { t: 'En ligne', c: '#16a34a' }, expiree: { t: 'Expirée', c: '#d97706' }, vendue: { t: 'Vendue / terminée', c: '#2563eb' }, archivee: { t: 'Masquée', c: '#6b7280' },
 };
 
-const VIDE = { titre: '', description: '', prix: '', prixTexte: '', categorie: '', lieu: '', photos: '', details: '', vedette: false, dureeJours: '' };
+// ─── Profils par template : catégories proposées + champs structurés (stockés dans les « détails » de l'annonce) ───
+interface ChampSpec { cle: string; label: string; type?: 'text' | 'number' | 'select'; options?: string[]; unite?: string; placeholder?: string; }
+interface ProfilGestion { categories: string[]; champs: ChampSpec[]; couleur: string; fond: string; nomDefaut: string; sloganDefaut: string; aidePrix?: string; typeBienDepuisCategorie?: boolean; }
+const PROFILS: Record<string, ProfilGestion> = {
+  'annonces-classique': { categories: [], champs: [], couleur: '#0f766e', fond: '#faf7f2', nomDefaut: 'Petites annonces', sloganDefaut: 'Trouvez de bonnes affaires près de chez vous' },
+  'annonces-auto-classique': {
+    categories: ['Voiture', 'VUS / Camionnette', 'Moto', 'VR / Roulotte', 'Bateau', 'Autre'],
+    champs: [
+      { cle: 'Marque', label: 'Marque', placeholder: 'Honda' }, { cle: 'Modèle', label: 'Modèle', placeholder: 'Civic Sport' },
+      { cle: 'Année', label: 'Année', type: 'number', placeholder: '2019' }, { cle: 'Kilométrage', label: 'Kilométrage', type: 'number', unite: 'km', placeholder: '85000' },
+      { cle: 'Transmission', label: 'Transmission', type: 'select', options: ['Automatique', 'Manuelle'] },
+      { cle: 'Carburant', label: 'Carburant', type: 'select', options: ['Essence', 'Diesel', 'Hybride', 'Hybride rechargeable', 'Électrique'] },
+      { cle: 'Carrosserie', label: 'Carrosserie', type: 'select', options: ['Berline', 'Coupé', 'Hatchback', 'Familiale', 'VUS', 'Camionnette', 'Fourgonnette', 'Décapotable'] },
+      { cle: 'Couleur', label: 'Couleur' },
+    ],
+    couleur: '#1e40af', fond: '#f4f6fa', nomDefaut: 'Auto Annonces', sloganDefaut: 'Trouvez votre prochain véhicule',
+  },
+  'annonces-immo-classique': {
+    categories: ['Maison', 'Condo', 'Appartement', 'Chalet', 'Terrain', 'Commercial'],
+    champs: [
+      { cle: 'Transaction', label: 'Transaction', type: 'select', options: ['À vendre', 'À louer'] },
+      { cle: 'Chambres', label: 'Chambres', type: 'number', placeholder: '3' }, { cle: 'Salles de bain', label: 'Salles de bain', type: 'number', placeholder: '2' },
+      { cle: 'Superficie', label: 'Superficie', type: 'number', unite: 'pi²', placeholder: '1650' }, { cle: 'Année de construction', label: 'Année de construction', type: 'number', placeholder: '1998' },
+    ],
+    couleur: '#92400e', fond: '#fbf8f3', nomDefaut: 'Immo Annonces', sloganDefaut: 'Trouvez la propriété qui vous ressemble', aidePrix: 'Pour une location, entrez le loyer mensuel ; « / mois » s\'affiche automatiquement.', typeBienDepuisCategorie: true,
+  },
+};
+const nbDe = (v: string | undefined) => { const n = String(v || '').replace(/[^0-9]/g, ''); return n; };
+const formater = (c: ChampSpec, v: string) => { if (!v) return ''; if (c.type !== 'number') return v.trim(); if (c.unite) { const n = nbDe(v); return n ? `${Number(n).toLocaleString('fr-CA')} ${c.unite}` : ''; } return nbDe(v); };
+
+const VIDE = { titre: '', description: '', prix: '', prixTexte: '', categorie: '', lieu: '', photos: '', details: '', vedette: false, dureeJours: '', champs: {} as Record<string, string> };
 const detailsVersTexte = (d: Record<string, string>) => Object.entries(d || {}).map(([k, v]) => `${k} : ${v}`).join('\n');
+const detailsSansChamps = (d: Record<string, string>, cles: string[]) => Object.fromEntries(Object.entries(d || {}).filter(([k]) => !cles.includes(k)));
 const texteVersDetails = (t: string) => { const o: Record<string, string> = {}; t.split('\n').forEach((l) => { const i = l.indexOf(':'); if (i > 0) { const k = l.slice(0, i).trim(), v = l.slice(i + 1).trim(); if (k && v) o[k] = v; } }); return o; };
 
 function Champ({ label, valeur, onChange, type = 'text', aide, placeholder }: { label: string; valeur: string; onChange: (v: string) => void; type?: string; aide?: string; placeholder?: string }) {
@@ -44,6 +75,8 @@ function Champ({ label, valeur, onChange, type = 'text', aide, placeholder }: { 
 }
 
 export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
+  const profil = PROFILS[templateId || 'annonces-classique'] || PROFILS['annonces-classique'];
+  const clesChamps = [...profil.champs.map((c) => c.cle), ...(profil.typeBienDepuisCategorie ? ['Type de bien'] : [])];
   const [onglet, setOnglet] = useState<'annonces' | 'messages' | 'apparence' | 'reglages'>('annonces');
   const [liste, setListe] = useState<AnnonceG[]>([]);
   const [messages, setMessages] = useState<MessageG[]>([]);
@@ -72,18 +105,24 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
       .then((d) => { const c = d && d.config && d.config.annonces; if (c && typeof c === 'object') setCfg(c); }).catch(() => {});
   }, [charger, gestionnaireId]);
 
-  const categoriesConnues = Array.from(new Set(liste.map((a) => a.categorie).filter(Boolean)));
+  const categoriesConnues = Array.from(new Set([...profil.categories, ...liste.map((a) => a.categorie).filter(Boolean)]));
   const nonLus = messages.filter((m) => !m.lu).length;
 
-  const nouveau = () => { setEdition(null); setForm({ ...VIDE, dureeJours: String(rg.duree_defaut_jours) }); };
-  const modifier = (a: AnnonceG) => { setEdition(a); setForm({ titre: a.titre, description: a.description, prix: a.prix != null ? String(a.prix) : '', prixTexte: a.prixTexte, categorie: a.categorie, lieu: a.lieu, photos: a.photos.join('\n'), details: detailsVersTexte(a.details), vedette: a.vedette, dureeJours: '' }); };
+  const nouveau = () => { setEdition(null); setForm({ ...VIDE, dureeJours: String(rg.duree_defaut_jours), champs: {} }); };
+  const modifier = (a: AnnonceG) => { setEdition(a); setForm({ titre: a.titre, description: a.description, prix: a.prix != null ? String(a.prix) : '', prixTexte: a.prixTexte, categorie: a.categorie, lieu: a.lieu, photos: a.photos.join('\n'), details: detailsVersTexte(detailsSansChamps(a.details, clesChamps)), vedette: a.vedette, dureeJours: '', champs: Object.fromEntries(profil.champs.map((c) => [c.cle, c.type === 'number' ? nbDe(a.details[c.cle]) : (a.details[c.cle] || '')])) }); };
 
+  const structures = (fm: typeof VIDE) => {
+    const o: Record<string, string> = {};
+    profil.champs.forEach((c) => { const v = formater(c, fm.champs[c.cle] || ''); if (v) o[c.cle] = v; });
+    if (profil.typeBienDepuisCategorie && fm.categorie) o['Type de bien'] = fm.categorie;
+    return o;
+  };
   const enregistrer = async () => {
     if (!form) return;
     setOccupe(true);
     try {
       const corps: any = { titre: form.titre, description: form.description, prix: form.prix, prixTexte: form.prixTexte, categorie: form.categorie, lieu: form.lieu, vedette: form.vedette,
-        photos: form.photos.split('\n').map((s) => s.trim()).filter(Boolean), details: texteVersDetails(form.details) };
+        photos: form.photos.split('\n').map((s) => s.trim()).filter(Boolean), details: { ...texteVersDetails(form.details), ...structures(form) } };
       if (edition) await appel(`${API}/annonces/${edition.id}`, { method: 'PUT', body: JSON.stringify(corps) });
       else { corps.dureeJours = form.dureeJours; await appel(`${API}/annonces`, { method: 'POST', body: JSON.stringify(corps) }); }
       setForm(null); setEdition(null); flash(true, edition ? 'Annonce modifiée.' : 'Annonce publiée. Elle est en ligne sur votre site.'); charger();
@@ -200,12 +239,12 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
       {onglet === 'apparence' && (
         <div style={carte}>
           <p style={{ fontSize: 13, color: '#6b7280', marginTop: 0 }}>Personnalisez l'allure de votre site. Les annonces se gèrent dans l'onglet « Annonces ».</p>
-          <Champ label="Nom du site" valeur={c('nomSite')} onChange={sc('nomSite')} placeholder="Petites annonces" />
-          <Champ label="Slogan (titre de la page d'accueil)" valeur={c('slogan')} onChange={sc('slogan')} placeholder="Trouvez de bonnes affaires près de chez vous" />
+          <Champ label="Nom du site" valeur={c('nomSite')} onChange={sc('nomSite')} placeholder={profil.nomDefaut} />
+          <Champ label="Slogan (titre de la page d'accueil)" valeur={c('slogan')} onChange={sc('slogan')} placeholder={profil.sloganDefaut} />
           <Champ label="Logo (adresse https://…)" valeur={c('logoUrl')} onChange={sc('logoUrl')} />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12, marginBottom: 12 }}>
-            <div><label style={lbl}>Couleur principale</label><input type="color" style={{ ...champ, padding: 3, height: 40 }} value={/^#[0-9a-fA-F]{6}$/.test(c('couleurPrincipale')) ? c('couleurPrincipale') : '#0f766e'} onChange={(e) => sc('couleurPrincipale')(e.target.value)} /></div>
-            <div><label style={lbl}>Couleur de fond</label><input type="color" style={{ ...champ, padding: 3, height: 40 }} value={/^#[0-9a-fA-F]{6}$/.test(c('couleurFond')) ? c('couleurFond') : '#faf7f2'} onChange={(e) => sc('couleurFond')(e.target.value)} /></div>
+            <div><label style={lbl}>Couleur principale</label><input type="color" style={{ ...champ, padding: 3, height: 40 }} value={/^#[0-9a-fA-F]{6}$/.test(c('couleurPrincipale')) ? c('couleurPrincipale') : profil.couleur} onChange={(e) => sc('couleurPrincipale')(e.target.value)} /></div>
+            <div><label style={lbl}>Couleur de fond</label><input type="color" style={{ ...champ, padding: 3, height: 40 }} value={/^#[0-9a-fA-F]{6}$/.test(c('couleurFond')) ? c('couleurFond') : profil.fond} onChange={(e) => sc('couleurFond')(e.target.value)} /></div>
           </div>
           <div style={{ marginBottom: 12 }}><label style={lbl}>Police</label><select style={champ} value={c('police') || 'classique'} onChange={(e) => sc('police')(e.target.value)}><option value="classique">Classique (avec empattements)</option><option value="moderne">Moderne</option></select></div>
           <div style={{ marginBottom: 12 }}><label style={lbl}>À propos (affiché en bas de page)</label><textarea style={{ ...champ, minHeight: 70 }} value={c('apropos')} onChange={(e) => sc('apropos')(e.target.value)} /></div>
@@ -244,14 +283,29 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId }: Props) {
             <div style={{ marginBottom: 12 }}><label style={lbl}>Description</label><textarea style={{ ...champ, minHeight: 100 }} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
             <div style={{ marginBottom: 12 }}><label style={lbl}>Photos (une adresse https:// par ligne, max 12)</label><textarea style={{ ...champ, minHeight: 70 }} value={form.photos} onChange={(e) => setForm({ ...form, photos: e.target.value })} placeholder="https://…/photo1.jpg" /></div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
-              <Champ label="Prix ($)" type="number" valeur={form.prix} onChange={(v) => setForm({ ...form, prix: v })} aide="Laissez vide pour « à discuter »." />
+              <Champ label="Prix ($)" type="number" valeur={form.prix} onChange={(v) => setForm({ ...form, prix: v })} aide={profil.aidePrix || 'Laissez vide pour « à discuter ».'} />
               <Champ label="Texte à la place du prix" valeur={form.prixTexte} onChange={(v) => setForm({ ...form, prixTexte: v })} placeholder="À discuter, Gratuit…" aide="Affiché si le prix est vide." />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 12 }}>
-              <div style={{ marginBottom: 12 }}><label style={lbl}>Catégorie</label><input list="cats-annonces" style={champ} value={form.categorie} onChange={(e) => setForm({ ...form, categorie: e.target.value })} placeholder="Maison, Véhicules…" /><datalist id="cats-annonces">{categoriesConnues.map((x) => <option key={x} value={x} />)}</datalist></div>
+              <div style={{ marginBottom: 12 }}><label style={lbl}>Catégorie</label><input list="cats-annonces" style={champ} value={form.categorie} onChange={(e) => setForm({ ...form, categorie: e.target.value })} placeholder={profil.categories[0] || 'Maison, Véhicules…'} /><datalist id="cats-annonces">{categoriesConnues.map((x) => <option key={x} value={x} />)}</datalist></div>
               <Champ label="Lieu" valeur={form.lieu} onChange={(v) => setForm({ ...form, lieu: v })} placeholder="Québec, Lévis…" />
             </div>
-            <div style={{ marginBottom: 12 }}><label style={lbl}>Détails (un par ligne : Nom : valeur)</label><textarea style={{ ...champ, minHeight: 70 }} value={form.details} onChange={(e) => setForm({ ...form, details: e.target.value })} placeholder={'Marque : Trek\nAnnée : 2021'} /></div>
+            {profil.champs.length > 0 && (
+              <div style={{ background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                <p style={{ fontSize: 12, fontWeight: 800, color: '#374151', margin: '0 0 8px' }}>Fiche détaillée (utilisée par les filtres du site)</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(140px,1fr))', gap: 10 }}>
+                  {profil.champs.map((c) => (
+                    <div key={c.cle}>
+                      <label style={lbl}>{c.label}{c.unite ? ` (${c.unite})` : ''}</label>
+                      {c.type === 'select'
+                        ? <select style={champ} value={form.champs[c.cle] || ''} onChange={(e) => setForm({ ...form, champs: { ...form.champs, [c.cle]: e.target.value } })}><option value="">—</option>{(c.options || []).map((o) => <option key={o} value={o}>{o}</option>)}</select>
+                        : <input style={champ} type={c.type === 'number' ? 'number' : 'text'} min={0} placeholder={c.placeholder} value={form.champs[c.cle] || ''} onChange={(e) => setForm({ ...form, champs: { ...form.champs, [c.cle]: e.target.value } })} />}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{ marginBottom: 12 }}><label style={lbl}>{profil.champs.length ? 'Autres détails' : 'Détails'} (un par ligne : Nom : valeur)</label><textarea style={{ ...champ, minHeight: 70 }} value={form.details} onChange={(e) => setForm({ ...form, details: e.target.value })} placeholder={'Marque : Trek\nAnnée : 2021'} /></div>
             {!edition && <Champ label="Durée d'affichage (jours)" type="number" valeur={form.dureeJours} onChange={(v) => setForm({ ...form, dureeJours: v })} aide="0 = sans expiration." />}
             <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, marginBottom: 16, cursor: 'pointer' }}><input type="checkbox" checked={form.vedette} onChange={(e) => setForm({ ...form, vedette: e.target.checked })} /> ⭐ Mettre en vedette (en haut de la liste)</label>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>

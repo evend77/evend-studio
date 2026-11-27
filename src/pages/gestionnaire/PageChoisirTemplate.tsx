@@ -1458,13 +1458,13 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         {
           titre: '🚗 Auto',
           templates: [
-            { id: 'annonces-auto-bientot', titre: 'Annonces Auto', desc: 'Voitures, motos, VUS, bateaux, VR : marque, année, kilométrage. Bientôt disponible.', icone: '🚗', couleur: '#475569', disponible: false },
+            { id: 'annonces-auto-classique', titre: 'Auto Classique', desc: 'Voitures, VUS, motos, VR, bateaux : filtres par marque, année, kilométrage, carburant et transmission, fiche détaillée et contact par formulaire. Aucun paiement.', icone: '🚗', couleur: '#1e40af', disponible: true },
           ]
         },
         {
           titre: '🏡 Immobilier',
           templates: [
-            { id: 'annonces-immo-bientot', titre: 'Annonces Immobilier', desc: 'Maisons, condos, terrains, locaux : chambres, superficie, adresse. Bientôt disponible.', icone: '🏡', couleur: '#b45309', disponible: false },
+            { id: 'annonces-immo-classique', titre: 'Immobilier Classique', desc: 'Maisons, condos, appartements, terrains : à vendre ou à louer, filtres par chambres, salles de bain et superficie, fiche détaillée et contact par formulaire. Aucun paiement.', icone: '🏡', couleur: '#92400e', disponible: true },
           ]
         },
       ]

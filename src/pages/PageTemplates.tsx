@@ -94,6 +94,8 @@ export const PHOTOS: Record<string, string> = {
   'enchere-live':         'https://images.pexels.com/photos/6693661/pexels-photo-6693661.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Petites annonces
   'annonces-classique':   'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'annonces-auto-classique': 'https://images.pexels.com/photos/170811/pexels-photo-170811.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'annonces-immo-classique': 'https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
 
 // ─── DONNÉES VRAIS TEMPLATES ──────────────────────────────────────────────────
@@ -724,6 +726,22 @@ export const TEMPLATES: Template[] = [
     description: "Petites annonces généralistes : recherche, catégories, filtre de prix, photos, fiche détaillée et contact par formulaire. Affichage seulement, aucun paiement.",
     fonctionnalites: ['Recherche + filtres', 'Catégories', 'Fiche détaillée', 'Formulaire de contact'],
     disponible: true, nouveau: true, couleur: '#0f766e',
+  },
+  {
+    id: 'annonces-auto-classique',
+    nom: 'Auto Classique',
+    groupe: 'annonces',
+    description: "Annonces de véhicules (voitures, VUS, motos, VR, bateaux) : filtres marque, année, kilométrage, carburant, transmission. Affichage seulement, aucun paiement.",
+    fonctionnalites: ['Filtres marque / année / km', 'Carburant & transmission', 'Fiche détaillée', 'Formulaire de contact'],
+    disponible: true, nouveau: true, couleur: '#1e40af',
+  },
+  {
+    id: 'annonces-immo-classique',
+    nom: 'Immobilier Classique',
+    groupe: 'annonces',
+    description: "Annonces immobilières à vendre ou à louer : filtres chambres, salles de bain, superficie. Affichage seulement, aucun paiement.",
+    fonctionnalites: ['À vendre / À louer', 'Chambres, sdb, superficie', 'Fiche détaillée', 'Formulaire de contact'],
+    disponible: true, nouveau: true, couleur: '#92400e',
   },
 ];
 
