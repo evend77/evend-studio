@@ -150,6 +150,8 @@ import BoutiqueTaxes               from './pages/gestionnaire/BoutiqueTaxes';
 import BoutiqueExpedition          from './pages/gestionnaire/BoutiqueExpedition';
 // ── Sites VITRINE : menu « VITRINE » (système parallèle au MV et aux boutiques) ──
 import VitrinePlan                 from './pages/gestionnaire/VitrinePlan';
+import VitrineFavicon              from './pages/gestionnaire/VitrineFavicon';
+import VitrinePwa                  from './pages/gestionnaire/VitrinePwa';
 import { TEMPLATES, CATEGORIES, templatesDeCategorie } from './pages/PageTemplates';
 
 // =====================================================================
@@ -1671,6 +1673,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         ...(options?.pub_sponsor ? [{ id: 'mes-sponsors', label: 'Mes sponsors', icon: '⭐' }] : []),
         ...(options?.analytique ? [{ id: 'mes-analytique', label: 'Analytique', icon: '📈' }] : []),
         ...(options?.chatbot ? [{ id: 'mes-chatbot', label: 'Chat bot', icon: '💬' }] : []),
+        ...(options?.favicon_vitrine ? [{ id: 'vitrine-favicon', label: 'Favicon', icon: '🖼️' }] : []),
+        ...(options?.pwa_vitrine ? [{ id: 'vitrine-pwa', label: 'App installable', icon: '📲' }] : []),
       ],
     };
     const anciens = ['mes-reservations', 'abonnements-clients', 'mes-sponsors', 'mes-analytique', 'mes-chatbot', 'branding-options'];
@@ -2089,6 +2093,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mv-premium-config-pages') return <ConfigMultiVendeurPremium  gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-premium-plan')        return <MVPremiumPlan              gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'vitrine-plan' && IDS_SITES_VITRINE.has(templateActif)) return <VitrinePlan gestionnaireId={gestionnaire.id} templateId={templateActif} onOptionsUpdated={rechargerOptions} />;
+    if (pageActive === 'vitrine-favicon' && IDS_SITES_VITRINE.has(templateActif)) return <VitrineFavicon />;
+    if (pageActive === 'vitrine-pwa' && IDS_SITES_VITRINE.has(templateActif)) return <VitrinePwa />;
     if (pageActive === 'mv-premium-branding')    return <AddOn />;
     if (pageActive === 'mv-contact')             return <StudioContactMessages gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'beaute-branding')        return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;

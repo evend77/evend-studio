@@ -22,6 +22,8 @@ const COLONNES = {
   pub_sponsor: 'pub_sponsor',
   analytique: 'analytique',
   chatbot: 'chatbot',
+  favicon_vitrine: 'favicon_vitrine',
+  pwa_vitrine: 'pwa_vitrine',
 };
 
 // Valeurs de départ (reprises de BrandingEtOptions.tsx), insérées UNE seule fois. Ensuite la BD fait foi.
@@ -35,6 +37,8 @@ const DEPART = [
   ['pub_sponsor', 'Espace Sponsors', "Affichez des publicités de commanditaires e-Vend sur votre site et touchez une part des revenus générés — vous gardez le contrôle : bloquez n'importe quelle pub ou sponsor en un clic.", '⭐', 'Publicité & Revenus', 0, true, 'https://www.e-vendstudio.ca/documents/guide-add-on-espace-sponsors', 6],
   ['analytique', 'Analytique', 'Suivez le trafic de votre site — visites, pages consultées, provenance géographique, appareils et sources de trafic. Respecte le consentement cookie de vos visiteurs (conforme Loi 25).', '📈', 'Statistiques', 5, false, 'https://www.e-vendstudio.ca/documents/guide-add-on-analytique', 7],
   ['chatbot', 'Chat bot', 'Un assistant virtuel sur votre site qui répond automatiquement aux questions de vos visiteurs — à partir de vos pages, produits et articles de blogue, ou de réponses que vous configurez vous-même. Sans intelligence artificielle : aucune donnée envoyée à un tiers.', '💬', 'Support & Communication', 5, false, 'https://www.e-vendstudio.ca/documents/guide-add-on-chat-bot', 8],
+  ['favicon_vitrine', 'Favicon personnalisé', "La petite icône de votre site dans l'onglet du navigateur, avec une animation d'onglet pour faire revenir vos visiteurs.", '🖼️', 'Branding', 3, false, '', 9],
+  ['pwa_vitrine', 'App installable (PWA)', 'Vos visiteurs installent votre site sur leur téléphone comme une vraie app : votre nom, vos couleurs et votre icône.', '📲', 'Branding', 10, false, '', 10],
 ];
 
 let _pret = null;
@@ -54,6 +58,10 @@ function pret() {
         actif BOOLEAN NOT NULL DEFAULT true,
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )`);
+      // Colonnes d'activation propres aux vitrines (les autres existent déjà)
+      await pool.query(`ALTER TABLE options_gestionnaire
+        ADD COLUMN IF NOT EXISTS favicon_vitrine BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS pwa_vitrine BOOLEAN NOT NULL DEFAULT false`);
       for (const a of DEPART) {
         await pool.query(
           `INSERT INTO vitrines_addons (code, nom, description, emoji, categorie, prix_ht, revenu_partage, guide_url, ordre)
@@ -86,10 +94,8 @@ async function catalogue() {
 
 /** Add-ons vus par un gestionnaire. Un add-on retiré par l'admin reste visible pour ceux qui l'ont (pour pouvoir le désactiver). */
 async function etat(gid) {
-  const [cat, o] = await Promise.all([
-    catalogue(),
-    pool.query('SELECT * FROM options_gestionnaire WHERE gestionnaire_id = $1 LIMIT 1', [gid]),
-  ]);
+  const cat = await catalogue();   // d'abord : garantit que les colonnes existent
+  const o = await pool.query('SELECT * FROM options_gestionnaire WHERE gestionnaire_id = $1 LIMIT 1', [gid]);
   const row = o.rows[0] || {};
   const addons = cat
     .map((a) => ({ ...a, achete: row[COLONNES[a.code]] === true }))
@@ -138,4 +144,12 @@ async function modifier(code, b) {
   await pool.query('UPDATE vitrines_addons SET prix_ht = $2, actif = $3, updated_at = NOW() WHERE code = $1', [code, prix, actif]);
 }
 
-module.exports = { ErreurAddon, COLONNES, pret, catalogue, etat, activer, desactiver, modifier };
+/** true si le gestionnaire a activé l'add-on `code`. */
+async function actif(gid, code) {
+  verifierCode(code);
+  await pret();
+  const r = await pool.query(`SELECT ${COLONNES[code]} AS v FROM options_gestionnaire WHERE gestionnaire_id = $1 LIMIT 1`, [gid]);
+  return !!r.rows[0] && r.rows[0].v === true;
+}
+
+module.exports = { actif, ErreurAddon, COLONNES, pret, catalogue, etat, activer, desactiver, modifier };

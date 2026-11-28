@@ -249,6 +249,9 @@ app.use('/api/studio-forfaits', studioForfaitsRoutes);
 // Add-ons des sites VITRINE (système parallèle) — gestionnaire + admin (prix)
 app.use('/api/vitrines-addons', require('./routes/vitrines_addons_gestionnaire'));
 app.use('/api/admin/vitrines-addons', require('./routes/vitrines_addons_admin'));
+// Add-ons vitrine « Favicon » et « App installable » (public + gestionnaire)
+app.use('/api/vitrines-favicon', require('./routes/vitrines_favicon_routes'));
+app.use('/api/vitrines-pwa', require('./routes/vitrines_pwa_routes'));
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
 app.use('/api/cron-verification-email', cronVerificationEmailModule);
 // ✅ Config Stripe Connect du gestionnaire (template multivendeur)
@@ -1189,11 +1192,15 @@ if (process.env.NODE_ENV === 'production') {
       // 🖼️ Add-on « Favicon personnalisé » : seulement sur l'adresse d'une boutique (jamais e-vendstudio.ca). Avant la PWA.
       // 🖼️ Add-on « Favicon » des templates boutique (solo) : injecte d'abord et pose le repère <!--bq-favicon-->
       try { html = await require('./services/boutique_favicon').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ Favicon boutique (solo) :', e.message); }
+      // 🖼️ Add-on « Favicon » des sites VITRINE : pose le même repère, le MV est alors sauté
+      if (!html.includes('<!--bq-favicon-->')) try { html = await require('./services/vitrines_favicon').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ Favicon vitrine :', e.message); }
       // 🖼️ Add-on « Favicon personnalisé » du multivendeur : pas pour une boutique solo (repère déjà posé)
       if (!html.includes('<!--bq-favicon-->')) try { html = await require('./services/studio_favicon_boutique').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ Favicon boutique :', e.message); }
       // 📲 Add-on « App installable » : si ce domaine est une boutique avec la PWA active, on ajoute manifest + icône + script
       // 📲 Add-on « App installable » des templates boutique (solo) : injecte d'abord et pose le repère <!--bq-pwa-->
       try { html = await require('./services/boutique_pwa').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ PWA boutique (solo) :', e.message); }
+      // 📲 Add-on « App installable » des sites VITRINE : pose le même repère, le MV est alors sauté
+      if (!html.includes('<!--bq-pwa-->')) try { html = await require('./services/vitrines_pwa').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ PWA vitrine :', e.message); }
       // 📲 Add-on « App installable » du multivendeur : pas pour une boutique solo (repère déjà posé)
       if (!html.includes('<!--bq-pwa-->')) try { html = await require('./services/studio_pwa_boutique').injecter(html, req.hostname); } catch (e) { console.warn('⚠️ PWA boutique :', e.message); }
       // 🛡️ Dissuade la copie des guides et politiques (e-vendstudio.ca seulement)

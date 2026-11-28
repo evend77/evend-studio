@@ -13,6 +13,7 @@ import ChatbotWidget                  from '../components/ChatbotWidget';
 import BoutiqueChatbotWidget           from '../components/BoutiqueChatbotWidget';
 import BoutiquePopupAnnonce            from '../components/BoutiquePopupAnnonce';
 import VerificateurAge                from '../components/VerificateurAge';
+import VitrineBoutonInstallerApp       from '../components/VitrineBoutonInstallerApp';
 import TemplateVitrine                from '../templates/TemplateVitrine';
 import TemplateReservation            from '../templates/TemplateReservation';
 import TemplateLocationAstro          from '../templates/TemplateLocationAstro';
@@ -2351,6 +2352,8 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
       {/* Contenu */}
       <div style={{ paddingBottom: 44 }}>
         {renderTemplate()}
+        {/* Sites vitrine : bouton « Installer l'app » (n'apparaît que si le serveur a ajouté la PWA vitrine, sur mobile) */}
+        {!isDemo && <VitrineBoutonInstallerApp />}
       </div>
     </>
   );
