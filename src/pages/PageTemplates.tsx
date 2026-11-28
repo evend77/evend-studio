@@ -103,7 +103,7 @@ export const PHOTOS: Record<string, string> = {
   'annonces-neon': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-allegro': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-services-neo': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
-  'annonces-chalet': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'annonces-chalet': '/apercus/annonces-chalet.jpg',
   'annonces-immeuble': 'https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
 
@@ -1112,6 +1112,14 @@ export default function PageTemplates() {
   const [recherche, setRecherche] = useState('');
   const [prixParTemplate, setPrixParTemplate] = useState<Record<string, string>>({});
   const [prixCagnotte, setPrixCagnotte] = useState<PrixCagnotte | null>(null);
+  // Petites annonces : grille de prix UNIQUE réglée dans l'admin (Templates → Annonces (tarifs)) ; vide = chaque template garde son « Prix Template »
+  const [prixAnnonces, setPrixAnnonces] = useState('');
+  useEffect(() => {
+    fetch('/api/annonces/prix')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && d.success && d.actif && d.a_partir_de) setPrixAnnonces(String(d.a_partir_de).slice(0, 60)); })
+      .catch(() => { /* silencieux */ });
+  }, []);
   useEffect(() => {
     fetch('/api/cagnotte/prix')
       .then(r => (r.ok ? r.json() : null))
@@ -1124,6 +1132,7 @@ export default function PageTemplates() {
       const min = Math.min(...prixCagnotte.paliers.map(p => p.prix));
       return `À partir de ${formaterArgent(min, prixCagnotte.devise)} / campagne`;
     }
+    if (t.groupe === 'annonces' && prixAnnonces) return prixAnnonces;
     return prixParTemplate[t.id];
   };
 

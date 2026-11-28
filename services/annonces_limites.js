@@ -10,8 +10,15 @@
 
 const pool = require('../db');
 const BL = require('./boutique_limites');
+const PRIX = require('./annonces_prix');   // grille de prix unique des annonces (page admin Templates → Annonces (tarifs))
 
 const estAnnonces = (templateId) => String(templateId || '').startsWith('annonces-');
+
+// Paliers d'un template annonces : la grille unique de l'admin quand elle contient au moins un palier, sinon les « Prix Template » du template (comme avant)
+async function paliersDe(templateId, db) {
+  const g = await PRIX.paliersPourLimites(db);
+  return g.length ? g : BL.paliersDuTemplate(templateId, db);
+}
 
 // Chargé à l'appel (annonces_site.js charge ce fichier au démarrage : évite le cycle)
 function erreur(message, statut, code) {
@@ -34,7 +41,7 @@ async function etat(gid, db) {
   const templateId = (s.rows[0] && s.rows[0].template_id) || '';
   const g = await c.query('SELECT plan FROM gestionnaires WHERE id = $1', [gid]);
   const plan = (g.rows[0] && g.rows[0].plan) || '';
-  const paliers = estAnnonces(templateId) ? await BL.paliersDuTemplate(templateId, c) : [];
+  const paliers = estAnnonces(templateId) ? await paliersDe(templateId, c) : [];
   const palier = paliers.length ? (paliers.find((p) => BL.planId(templateId, p.limite) === plan) || paliers[0]) : null;
   return { templateId, plan, paliers, palier, limite: palier ? palier.limite : null };
 }
@@ -69,7 +76,7 @@ async function changerPalier(gid, limite, templateId) {
   let tid = templateId;
   if (!tid) tid = (await etat(gid)).templateId;
   if (!estAnnonces(tid)) throw erreur("Votre template actuel n'est pas un template de petites annonces.", 400);
-  const paliers = await BL.paliersDuTemplate(tid);
+  const paliers = await paliersDe(tid);
   if (!paliers.length) throw erreur("Ce template n'a pas de paliers.", 400);
   const p = paliers.find((x) => x.limite === limite);
   if (!p) throw erreur('Palier inconnu pour ce template.', 400);
@@ -90,7 +97,7 @@ async function appliquerChangementTemplate(gid, nouveauTemplateId) {
   if (!estAnnonces(nouveauTemplateId)) return { ok: true };
   const s = (await pool.query('SELECT template_id FROM sites WHERE gestionnaire_id = $1', [gid])).rows[0];
   if (s && s.template_id === nouveauTemplateId) return { ok: true };
-  const paliers = await BL.paliersDuTemplate(nouveauTemplateId);
+  const paliers = await paliersDe(nouveauTemplateId);
   if (!paliers.length) return { ok: true };
   const nb = await compter(gid);
   const plan = ((await pool.query('SELECT plan FROM gestionnaires WHERE id = $1', [gid])).rows[0] || {}).plan || '';

@@ -207,6 +207,9 @@ app.use('/api/studio/annonces-site', require('./routes/annonces_site_admin'));  
 app.use('/api/cagnotte/campagne', require('./routes/cagnotte_campagne'));
 app.use('/api/gestionnaire/cagnotte-paiement', require('./routes/cagnotte_paiement_config'));
 app.use('/api/admin/cagnotte', require('./routes/cagnotte_admin'));
+// Petites annonces : grille de prix unique (page admin Templates → Annonces (tarifs)) + lecture publique pour les pages template
+app.use('/api/annonces/prix', require('./routes/annonces_prix_public'));
+app.use('/api/admin/annonces-prix', require('./routes/annonces_prix_admin'));
 
 // =====================================================================
 // 🎭 SIÈGES SPECTACLE
@@ -322,11 +325,6 @@ app.get('/api/studio/public/:slug', async (req, res) => {
 app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (req, res) => {
   const { config, sous_type, template_id, slug, domaine_custom, publie } = req.body;
 
-  // 🔒 Apparence des sites annonces / enchères : tous les textes passent par utils/sanitize.js (nettoyerTexte) avant d'être enregistrés
-  for (const ns of ['annonces', 'enchere']) {
-    if (config && config[ns] && typeof config[ns] === 'object') config[ns] = require('./services/annonces_site').nettoyerConfig(config[ns]);
-  }
-
   if (req.user.role !== 'admin' && req.user.id !== parseInt(req.params.gestionnaireId)) {
     return res.status(403).json({ message: 'Accès non autorisé.' });
   }
@@ -359,17 +357,6 @@ app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (re
       if (!rl.ok) return res.status(409).json({ message: rl.message, code: rl.code });
     } catch (err) {
       console.error('boutique_limites.appliquerChangementTemplate', err);
-      return res.status(500).json({ message: 'Erreur serveur.' });
-    }
-  }
-
-  // 📋 Templates petites annonces (annonces-*) : même règle de palier, selon les annonces actives. Sans effet pour les autres templates.
-  if (template_id && req.user.role !== 'admin') {
-    try {
-      const ra = await require('./services/annonces_limites').appliquerChangementTemplate(parseInt(req.params.gestionnaireId, 10), template_id);
-      if (!ra.ok) return res.status(409).json({ message: ra.message, code: ra.code });
-    } catch (err) {
-      console.error('annonces_limites.appliquerChangementTemplate', err);
       return res.status(500).json({ message: 'Erreur serveur.' });
     }
   }

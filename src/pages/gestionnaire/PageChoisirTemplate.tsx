@@ -536,7 +536,19 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
       })
       .catch(() => { /* silencieux */ });
   }, []);
-  const prixDe = (t: any): string => (String(t.id).startsWith('cagnotte-') && prixCagnotteTexte ? prixCagnotteTexte : (prixParTemplate[t.id] || t.prix || ''));
+  // Petites annonces : grille de prix UNIQUE réglée dans l'admin (Templates → Annonces (tarifs)). Vide = chaque template garde ses « Prix Template ».
+  const [grilleAnnonces, setGrilleAnnonces] = useState<{ actif: boolean; paliers: { limite: number; prix: string; label: string }[]; a_partir_de: string } | null>(null);
+  useEffect(() => {
+    fetch('/api/annonces/prix')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d || !d.success || !d.actif || !Array.isArray(d.paliers)) return;
+        const pal = d.paliers.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix);
+        if (pal.length) setGrilleAnnonces({ actif: true, paliers: pal, a_partir_de: String(d.a_partir_de || '').slice(0, 60) });
+      })
+      .catch(() => { /* silencieux : les prix de « Prix Template » restent affichés */ });
+  }, []);
+  const prixDe = (t: any): string => (String(t.id).startsWith('cagnotte-') && prixCagnotteTexte ? prixCagnotteTexte : (String(t.id).startsWith('annonces-') && grilleAnnonces && grilleAnnonces.a_partir_de ? grilleAnnonces.a_partir_de : (prixParTemplate[t.id] || t.prix || '')));
   // Paliers réels (Prix Template, dashboard admin) : prix de départ et nombre maximal de produits affichés sur les cartes Simplisse / Premium
   const [infoPaliers, setInfoPaliers] = useState<Record<string, { prixMin: string; limiteMax: number }>>({});
   const [paliersComplete, setPaliersComplete] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de la Boutique Complète (Prix Template) ; vide = aucune limite, pas de fenêtre
@@ -678,7 +690,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
 
   // Petites annonces : même principe que les boutiques (fenêtre de palier seulement si des paliers sont configurés dans Prix Template).
   // Le palier est enregistré AVANT d'appliquer le template ; le serveur le conserve (et refuse si les annonces actives dépassent le palier).
-  const handleChoisirAnnonces = (templateId: string) => { if ((paliersAnnonces[templateId] || []).length > 0) setModalAnnoncesId(templateId); else onChoisir(templateId); };
+  const paliersAnnoncesDe = (templateId: string) => (grilleAnnonces ? grilleAnnonces.paliers : (paliersAnnonces[templateId] || []));
+  const handleChoisirAnnonces = (templateId: string) => { if (paliersAnnoncesDe(templateId).length > 0) setModalAnnoncesId(templateId); else onChoisir(templateId); };
   const handleConfirmerPalierAnnonces = async (limite: number) => {
     const templateId = modalAnnoncesId;
     if (!templateId) return;
@@ -1621,11 +1634,11 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           onAnnuler={() => setModalModeOuvert(false)}
         />
       )}
-      {modalAnnoncesId && (paliersAnnonces[modalAnnoncesId] || []).length > 0 && (() => {
+      {modalAnnoncesId && paliersAnnoncesDe(modalAnnoncesId).length > 0 && (() => {
         const tpl = CATALOGUE_TEMPLATES.find(x => x.id === modalAnnoncesId);
         return (
           <ModalPalierComplete
-            paliers={paliersAnnonces[modalAnnoncesId] || []}
+            paliers={paliersAnnoncesDe(modalAnnoncesId)}
             nom={tpl ? tpl.nom : 'Petites annonces'} icone={(tpl && tpl.icone) || '📋'} couleur={(tpl && tpl.couleur) || '#0f766e'}
             onConfirmer={handleConfirmerPalierAnnonces}
             onAnnuler={() => setModalAnnoncesId(null)}
