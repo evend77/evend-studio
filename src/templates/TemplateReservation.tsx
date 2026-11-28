@@ -123,6 +123,34 @@ export const CONFIG_RESA_DEFAUT: ConfigReservation = {
   ],
 };
 
+// Défauts propres à chaque type (aperçu démo et site pas encore configuré). Le restaurant garde CONFIG_RESA_DEFAUT.
+const DEFAUTS_PAR_TYPE: Partial<Record<SousTypeReservation, Partial<ConfigReservation>>> = {
+  location: {
+    nomEntreprise: 'Location Fête Plus',
+    slogan: 'La location facile et abordable',
+    description: 'Louez nos équipements de qualité pour vos événements et activités. Livraison et ramassage inclus dans un rayon de 30 km.',
+    photoHeroUrl: 'https://images.pexels.com/photos/1170882/pexels-photo-1170882.jpeg?auto=compress&cs=tinysrgb&w=1600',
+    titreSection: 'Réserver un équipement',
+    descriptionResa: 'Choisissez votre équipement et votre date. Confirmation immédiate par courriel.',
+    adresse: '123 rue Principale', ville: 'Québec, QC  G1A 1A1', telephone: '(418) 555-0123', email: 'info@locationfeteplus.ca', instagram: '',
+    restaurant_horaires: [],
+    galerie: [
+      { url: 'https://images.pexels.com/photos/1170882/pexels-photo-1170882.jpeg?auto=compress&cs=tinysrgb&w=600', titre: 'Nos équipements' },
+      { url: 'https://images.pexels.com/photos/4481259/pexels-photo-4481259.jpeg?auto=compress&cs=tinysrgb&w=600', titre: 'Livraison incluse' },
+      { url: 'https://images.pexels.com/photos/1190298/pexels-photo-1190298.jpeg?auto=compress&cs=tinysrgb&w=600', titre: 'Vos événements' },
+    ],
+  },
+  service: {
+    nomEntreprise: 'Mon Studio / Salon',
+    slogan: 'Des services professionnels à votre portée',
+    description: 'Prenez rendez-vous en ligne facilement. Notre équipe vous accueille avec plaisir.',
+    photoHeroUrl: 'https://images.pexels.com/photos/3993449/pexels-photo-3993449.jpeg?auto=compress&cs=tinysrgb&w=1600',
+    titreSection: 'Prendre un rendez-vous',
+    descriptionResa: 'Choisissez votre service et votre horaire. Confirmation par courriel.',
+    restaurant_horaires: [],
+  },
+};
+
 // ─── UTILITAIRES ─────────────────────────────────────────────────────────────
 
 function getPoliceCSS(police: string): string {
@@ -343,7 +371,8 @@ interface Props {
 }
 
 export default function TemplateReservation({ config: configPartiel, isPreviewMobile = false, siteId }: Props) {
-  const config: ConfigReservation = { ...CONFIG_RESA_DEFAUT, ...configPartiel };
+  const sousTypeVoulu = (configPartiel && configPartiel.sousType) || CONFIG_RESA_DEFAUT.sousType;
+  const config: ConfigReservation = { ...CONFIG_RESA_DEFAUT, ...(DEFAUTS_PAR_TYPE[sousTypeVoulu] || {}), ...configPartiel } as ConfigReservation;
   const isMobile = isPreviewMobile || (typeof window !== 'undefined' && window.innerWidth <= 768);
   const police   = getPoliceCSS(config.police);
   const heroRef  = useRef<HTMLDivElement>(null);
