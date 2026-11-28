@@ -547,7 +547,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
       })
       .catch(() => { /* silencieux : les prix de « Prix Template » restent affichés */ });
   }, []);
-  const prixDe = (t: any): string => (t.id === 'reservation-location' && grilleLocations && grilleLocations.a_partir_de ? grilleLocations.a_partir_de : (String(t.id).startsWith('multi-vendeur-') && forfaitsMV.length ? `À partir de ${new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(Math.min(...forfaitsMV.map(p => p.prix)))} / mois` : (String(t.id).startsWith('cagnotte-') && prixCagnotteTexte ? prixCagnotteTexte : (String(t.id).startsWith('annonces-') && grilleAnnonces && grilleAnnonces.a_partir_de ? grilleAnnonces.a_partir_de : (String(t.id).startsWith('enchere-') && grilleEncheres && grilleEncheres.a_partir_de ? grilleEncheres.a_partir_de : (prixParTemplate[t.id] || t.prix || ''))))));
+  const prixDe = (t: any): string => ((t.id === 'reservation-location' || t.id === 'reservation-location-astro') && grilleLocations && grilleLocations.a_partir_de ? grilleLocations.a_partir_de : (String(t.id).startsWith('multi-vendeur-') && forfaitsMV.length ? `À partir de ${new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(Math.min(...forfaitsMV.map(p => p.prix)))} / mois` : (String(t.id).startsWith('cagnotte-') && prixCagnotteTexte ? prixCagnotteTexte : (String(t.id).startsWith('annonces-') && grilleAnnonces && grilleAnnonces.a_partir_de ? grilleAnnonces.a_partir_de : (String(t.id).startsWith('enchere-') && grilleEncheres && grilleEncheres.a_partir_de ? grilleEncheres.a_partir_de : (prixParTemplate[t.id] || t.prix || ''))))));
   // Paliers réels (Prix Template, dashboard admin) : prix de départ et nombre maximal de produits affichés sur les cartes Simplisse / Premium
   // Locations : grille de paliers (nombre d'annonces de location permises) réglée dans l'admin (Templates → Locations (tarifs))
   const [grilleLocations, setGrilleLocations] = useState<{ paliers: { limite: number; prix: string; label: string }[]; a_partir_de: string } | null>(null);
@@ -1445,6 +1445,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         {
           templates: [
             { id: 'reservation-location', titre: "Location d'objet", desc: 'Location de matériel, jeux gonflables, véhicules. Calendrier + dispo.', icone: '📦', couleur: '#84cc16', disponible: true },
+            { id: 'reservation-location-astro', titre: "Location d'astronomie 🔭", desc: 'Télescopes, jumelles, accessoires. Fiche technique, dispo par appareil.', icone: '🔭', couleur: '#8e54d9', disponible: true },
           ]
         },
       ]

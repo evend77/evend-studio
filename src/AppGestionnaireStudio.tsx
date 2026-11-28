@@ -1235,11 +1235,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           { id: 'commandes-documents',    label: 'Documents',                icon: '📄' },
         ]
       },
-      menuSousVendeurs,
-      menuBadges,
-      menuBlogsSV,
-      menuFaqsSV,
-      menuChatSV,
+      // Réservations : les menus Collaborateurs / Badges / Blogs / FAQ / Chat acheteur-collab ne s'appliquent pas à cette catégorie
       menuStudio,
       {
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',

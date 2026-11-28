@@ -5,6 +5,7 @@
 import React from 'react';
 import ConfigTemplateVitrine            from '../studio/ConfigTemplateVitrine';
 import ConfigTemplateReservation        from '../studio/ConfigTemplateReservation';
+import ConfigTemplateLocationAstro      from './ConfigTemplateLocationAstro';
 import ConfigTemplateSpectacle          from '../studio/ConfigTemplateSpectacle';
 import ConfigTemplateCagnottePro        from '../studio/ConfigTemplateCagnottePro';
 import ConfigTemplateBoutiqueSimple     from '../studio/ConfigTemplateBoutiqueSimple';
@@ -183,6 +184,11 @@ export default function ConfigTemplate({ vendeurId, templateId, ...resetProps }:
   // ── Cagnotte ──
   if (groupeCagnotte.includes(templateId)) {
     return <ConfigTemplateCagnottePro key={templateId} vendeurId={vendeurId.toString()} onSauvegarde={onSauvegarde} />;
+  }
+
+  // ── Location d'astronomie (avant le groupe Réservation) ──
+  if (templateId === 'reservation-location-astro') {
+    return <ConfigTemplateLocationAstro key={templateId} vendeurId={vendeurId.toString()} templateId={templateId} onSauvegarde={onSauvegarde} />;
   }
 
   // ── Réservation ──

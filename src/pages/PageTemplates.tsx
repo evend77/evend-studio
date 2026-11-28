@@ -59,6 +59,7 @@ export const PHOTOS: Record<string, string> = {
   // Réservation
   'reservation-restaurant':'https://images.pexels.com/photos/941861/pexels-photo-941861.jpeg?auto=compress&cs=tinysrgb&w=800',
   'reservation-location': 'https://images.pexels.com/photos/4481259/pexels-photo-4481259.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'reservation-location-astro': 'https://images.pexels.com/photos/2106759/pexels-photo-2106759.jpeg?auto=compress&cs=tinysrgb&w=800',
   'reservation-service':  'https://images.pexels.com/photos/3993212/pexels-photo-3993212.jpeg?auto=compress&cs=tinysrgb&w=800',
   'reservation-spectacle':'https://images.pexels.com/photos/1763075/pexels-photo-1763075.jpeg?auto=compress&cs=tinysrgb&w=800',
   // Cagnotte
@@ -668,6 +669,14 @@ export const TEMPLATES: Template[] = [
     disponible: true, nouveau: false, couleur: '#6366f1',
   },
   {
+    id: 'reservation-location-astro',
+    nom: "Location d'astronomie",
+    groupe: 'reservation',
+    description: 'Télescopes, jumelles et accessoires : fiche technique en fenêtre, disponibilité par appareil et réservation par dates. Thème violet spatial.',
+    fonctionnalites: ['Fiche technique par appareil', 'Stock et dispo par appareil', 'Calcul du total', 'Ciel étoilé animé'],
+    disponible: true, nouveau: true, couleur: '#8e54d9',
+  },
+  {
     id: 'reservation-service',
     nom: 'Service & RDV',
     groupe: 'reservation',
@@ -855,7 +864,7 @@ export const CATEGORIES: Categorie[] = [
     id: 'vitrines', titre: 'Sites Vitrine', icone: '🖼', couleur: '#c9a96e',
     seoDesc: "Créez un site vitrine professionnel pour présenter votre entreprise, vos services ou votre portfolio en ligne, sans vendre de produits. Idéal pour les restaurants, bureaux d'avocats, salons de coiffure, coachs, artistes, écoles de danse, de cuisine ou de musique, et tout professionnel indépendant qui veut une présence web soignée. Formulaire de contact, prise de rendez-vous, galerie photo, avis clients et référencement Google inclus dans chaque template.",
     groupes: ['vitrine', 'vitrine-contact', 'cours', 'resto', 'profession', 'reservation'],
-    excludeIds: ['reservation-location'],
+    excludeIds: ['reservation-location', 'reservation-location-astro'],
   },
   {
     id: 'boutiques', titre: 'Boutiques en ligne', icone: '🛍', couleur: '#2563eb',
@@ -871,7 +880,7 @@ export const CATEGORIES: Categorie[] = [
     id: 'locations', titre: 'Location de biens', icone: '🏠', couleur: '#84cc16',
     seoDesc: "Offrez la location de matériel, d'équipement, de jeux gonflables ou de véhicules directement en ligne, avec un calendrier de disponibilité intégré et une prise de réservation simplifiée. Parfait pour les entreprises de location d'outils, d'équipements événementiels ou de véhicules récréatifs.",
     groupes: [],
-    templateIds: ['reservation-location'],
+    templateIds: ['reservation-location', 'reservation-location-astro'],
   },
   {
     id: 'cagnottes', titre: 'Cagnottes & Collecte de fonds', icone: '💝', couleur: '#ec4899',
@@ -1357,7 +1366,7 @@ export default function PageTemplates() {
     }
     if (t.groupe === 'annonces' && prixAnnonces) return prixAnnonces;
     if (t.groupe === 'enchere' && prixEncheres) return prixEncheres;
-    if (t.id === 'reservation-location' && prixLocations) return prixLocations;   // location de biens : grille de paliers
+    if ((t.id === 'reservation-location' || t.id === 'reservation-location-astro') && prixLocations) return prixLocations;   // location de biens : grille de paliers
     if (prixVitrines[t.groupe]) return prixVitrines[t.groupe];   // vitrines : prix de la sous-catégorie
     if (t.groupe === 'multi-vendeur' && forfaitsMV.length) return `À partir de ${formaterArgent(Math.min(...forfaitsMV.map(p => p.prix)), 'CAD')} / mois`;
     // Boutiques solo : la grille unique remplace le prix par template (sauf Mono-produit)

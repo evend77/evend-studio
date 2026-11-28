@@ -212,7 +212,7 @@ router.get('/disponibilites/:siteId', async (req, res) => {
         [siteId, debut || null, fin || null]
       ),
       pool.query(
-        `SELECT date_debut, date_fin, nb_personnes, statut
+        `SELECT date_debut, date_fin, nb_personnes, statut, objet_reserve
          FROM reservations
          WHERE site_id = $1 AND statut != 'annulee'
          AND date_debut >= COALESCE($2::timestamp, NOW())
@@ -248,13 +248,41 @@ router.post('/', async (req, res) => {
     // 🟢 Un créneau à capacité (ex: cours de danse) existe-t-il exactement pour ce moment?
     // Si oui : on compte les places au lieu de bloquer au premier chevauchement.
     // Si non : comportement EXACTEMENT identique à avant (réservation exclusive).
-    const dispoResult = await pool.query(
+    // 🔭 Location d'un appareil précis (catalogue config.location_objets, ex. template « Location d'astronomie ») :
+    // la disponibilité se calcule appareil par appareil, selon sa quantité en stock.
+    // Si l'appareil est introuvable dans le catalogue du site, on garde le comportement d'origine ci-dessous.
+    let objetGere = false;
+    if (type_reservation === 'location' && objet_reserve) {
+      const siteCfg = await pool.query(`SELECT config FROM sites WHERE id = $1`, [site_id]);
+      const catalogue = Array.isArray(siteCfg.rows[0]?.config?.location_objets) ? siteCfg.rows[0].config.location_objets : [];
+      const objet = catalogue.find(o => o && o.nom === objet_reserve);
+      if (objet) {
+        objetGere = true;
+        if (objet.disponible === false) {
+          return res.status(409).json({ message: "Cet appareil n'est pas disponible à la location pour le moment." });
+        }
+        const stock = Math.max(1, parseInt(objet.quantite, 10) || 1);
+        const pris = await pool.query(
+          `SELECT COUNT(*) AS n FROM reservations
+           WHERE site_id = $1 AND objet_reserve = $2 AND statut != 'annulee'
+           AND tsrange(date_debut, date_fin) && tsrange($3::timestamp, $4::timestamp)`,
+          [site_id, objet_reserve, date_debut, date_fin || date_debut]
+        );
+        if (parseInt(pris.rows[0].n, 10) >= stock) {
+          return res.status(409).json({ message: "Cet appareil n'est pas disponible aux dates choisies. Veuillez choisir d'autres dates." });
+        }
+      }
+    }
+
+    const dispoResult = objetGere ? { rows: [] } : await pool.query(
       `SELECT id, capacite_max FROM disponibilites
        WHERE site_id = $1 AND date_debut = $2::timestamp AND actif = true`,
       [site_id, date_debut]
     );
 
-    if (dispoResult.rows.length > 0) {
+    if (objetGere) {
+      // Disponibilité déjà vérifiée appareil par appareil — pas de blocage exclusif du site.
+    } else if (dispoResult.rows.length > 0) {
       const dispo = dispoResult.rows[0];
       const compteResult = await pool.query(
         `SELECT COALESCE(SUM(nb_personnes), 0) AS total

@@ -76,7 +76,7 @@ const DEFAUTS_PAR_TYPE: Partial<Record<SousTypeReservation, Partial<ConfigReserv
     nomEntreprise: 'Ma Boutique Location',
     slogan: 'La location facile et abordable',
     description: 'Louez nos équipements de qualité pour vos événements et activités.',
-    photoHeroUrl: 'https://images.pexels.com/photos/1170882/pexels-photo-1170882.jpeg?auto=compress&cs=tinysrgb&w=1600',
+    photoHeroUrl: 'https://images.pexels.com/photos/4481259/pexels-photo-4481259.jpeg?auto=compress&cs=tinysrgb&w=1600',
     titreSection: 'Réserver un équipement',
     descriptionResa: 'Choisissez votre équipement et votre date. Confirmation immédiate.',
     restaurant_horaires: [],

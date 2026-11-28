@@ -361,7 +361,7 @@ app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (re
   }
 
   // 🏠 Location de biens : le catalogue ne peut pas dépasser le nombre d'annonces du palier choisi (grille de l'admin). Sans effet pour l'admin et les autres templates.
-  if (req.user.role !== 'admin' && config && (template_id === 'reservation-location' || (!template_id && config.sousType === 'location'))) {
+  if (req.user.role !== 'admin' && config && (template_id === 'reservation-location' || template_id === 'reservation-location-astro' || (!template_id && config.sousType === 'location'))) {
     try {
       await require('./services/locations_limites').verifierConfig(parseInt(req.params.gestionnaireId, 10), config);
     } catch (err) {

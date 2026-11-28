@@ -15,6 +15,7 @@ import BoutiquePopupAnnonce            from '../components/BoutiquePopupAnnonce'
 import VerificateurAge                from '../components/VerificateurAge';
 import TemplateVitrine                from '../templates/TemplateVitrine';
 import TemplateReservation            from '../templates/TemplateReservation';
+import TemplateLocationAstro          from '../templates/TemplateLocationAstro';
 import TemplateSpectacle              from '../templates/TemplateSpectacle';
 import TemplateCagnotteClassique      from '../templates/TemplateCagnotteClassique';
 import TemplateCagnotteCause          from '../templates/TemplateCagnotteCause';
@@ -2292,6 +2293,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
     if (templateId === 'cagnotte-cause')           return <TemplateCagnotteCause config={{ ...(config as any), ...(((config as any).cagnotte && typeof (config as any).cagnotte === 'object') ? (config as any).cagnotte : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId.startsWith('cagnotte-'))        return <TemplateCagnotteClassique config={{ ...(config as any), ...(((config as any).cagnotte && typeof (config as any).cagnotte === 'object') ? (config as any).cagnotte : {}) }} siteId={siteId} vendeurId={Number(vendeurId || 0)} />;
     if (templateId === 'reservation-spectacle')    return <TemplateSpectacle config={config} siteId={siteId} />;
+    if (templateId === 'reservation-location-astro') return <TemplateLocationAstro config={config as any} siteId={siteId} />;
     if (templateId.startsWith('reservation-'))     return <TemplateReservation config={{ ...config, sousType: templateId.replace('reservation-', '') as any }} siteId={siteId} />;
     return <TemplateVitrine config={config} />;
   };
