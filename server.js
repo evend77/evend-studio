@@ -210,6 +210,8 @@ app.use('/api/admin/cagnotte', require('./routes/cagnotte_admin'));
 // Petites annonces : grille de prix unique (page admin Templates → Annonces (tarifs)) + lecture publique pour les pages template
 app.use('/api/annonces/prix', require('./routes/annonces_prix_public'));
 app.use('/api/admin/annonces-prix', require('./routes/annonces_prix_admin'));
+app.use('/api/encheres/prix', require('./routes/encheres_prix_public'));      // Enchères — prix publics (grille unique)
+app.use('/api/admin/encheres-prix', require('./routes/encheres_prix_admin'));    // Enchères — grille de prix (ADMIN)
 
 // =====================================================================
 // 🎭 SIÈGES SPECTACLE
@@ -357,6 +359,17 @@ app.put('/api/studio/sites/:gestionnaireId/config', authenticateToken, async (re
       if (!rl.ok) return res.status(409).json({ message: rl.message, code: rl.code });
     } catch (err) {
       console.error('boutique_limites.appliquerChangementTemplate', err);
+      return res.status(500).json({ message: 'Erreur serveur.' });
+    }
+  }
+
+  // 🔨 Sites d'enchères (enchere-*) : refus (409) si le gestionnaire a plus de lots actifs que le palier le plus grand ne le permet. Sans effet pour l'admin et les autres templates.
+  if (template_id && req.user.role !== 'admin') {
+    try {
+      const re = await require('./services/encheres_limites').appliquerChangementTemplate(parseInt(req.params.gestionnaireId, 10), template_id);
+      if (!re.ok) return res.status(409).json({ message: re.message, code: re.code });
+    } catch (err) {
+      console.error('encheres_limites.appliquerChangementTemplate', err);
       return res.status(500).json({ message: 'Erreur serveur.' });
     }
   }

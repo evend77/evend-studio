@@ -58,6 +58,7 @@ import AddonsActives from './pages/admin/AddonsActives';
 import PageAdminTemplatesPrix from './pages/admin/PageAdminTemplatesPrix';
 import PageAdminCagnotte from './pages/admin/PageAdminCagnotte';
 import PageAdminAnnoncesPrix from './pages/admin/PageAdminAnnoncesPrix';
+import PageAdminEncheresPrix from './pages/admin/PageAdminEncheresPrix';
 import StatistiquesSignalements from './pages/admin/StatistiquesSignalements';
 import MonForfaitPlateforme from './pages/admin/MonForfaitPlateforme';
 import ChampsPersonnalises from './pages/admin/ChampsPersonnalises';
@@ -250,6 +251,7 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'templates-prix', label: 'Prix Template', icon: '💰' },
       { id: 'templates-cagnotte', label: 'Cagnotte (tarifs)', icon: '💝' },
       { id: 'templates-annonces', label: 'Annonces (tarifs)', icon: '📋' },
+      { id: 'templates-encheres', label: 'Enchères (tarifs)', icon: '🔨' },
     ],
   },
   {
@@ -827,6 +829,8 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
 
       case 'templates-annonces':
         return <PageAdminAnnoncesPrix />;
+      case 'templates-encheres':
+        return <PageAdminEncheresPrix />;
 
       case 'parametres':
       case 'parametres-menu':

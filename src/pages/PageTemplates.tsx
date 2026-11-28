@@ -1106,6 +1106,56 @@ function EncadrePrixCagnotte({ prix }: { prix: PrixCagnotte }) {
   );
 }
 
+// ─── Encadré « Combien coûtent les petites annonces ? » : même présentation que celui des cagnottes, lu dans la grille de l'admin ───
+function EncadrePrixAnnonces({ paliers }: { paliers: { limite: number; prix: string; label: string }[] }) {
+  const tries = [...paliers].sort((a, b) => a.limite - b.limite);
+  return (
+    <div style={{ margin: '0 0 28px', borderRadius: 16, border: '1px solid rgba(20,184,166,0.45)', background: 'linear-gradient(135deg, rgba(20,184,166,0.10), rgba(255,255,255,0.03))', padding: '18px 20px', maxWidth: 900 }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800, color: '#fff' }}>📋 Combien coûtent les petites annonces ?</h3>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)' }}>
+        Un <b style={{ color: '#fff' }}>prix fixe selon le nombre d'annonces actives</b> que vous publiez en même temps. <b style={{ color: '#fff' }}>Aucune commission</b> : vous affichez vos annonces, les acheteurs vous contactent directement. Taxes en sus.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+        {tries.map((p, i) => (
+          <div key={i} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.25)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#5eead4', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{p.label || `${p.limite} annonces`}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: '2px 0' }}>{p.prix}</div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)' }}>Jusqu'à {p.limite} annonce{p.limite > 1 ? 's' : ''} active{p.limite > 1 ? 's' : ''}</div>
+          </div>
+        ))}
+      </div>
+      <p style={{ margin: '12px 0 0', fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
+        Les annonces expirées, vendues ou archivées ne comptent pas dans la limite.
+      </p>
+    </div>
+  );
+}
+
+// ─── Encadré « Combien coûtent les enchères ? » : même présentation que celui des cagnottes, lu dans la grille de l'admin ───
+function EncadrePrixEncheres({ paliers }: { paliers: { limite: number; prix: string; label: string }[] }) {
+  const tries = [...paliers].sort((a, b) => a.limite - b.limite);
+  return (
+    <div style={{ margin: '0 0 28px', borderRadius: 16, border: '1px solid rgba(220,38,38,0.45)', background: 'linear-gradient(135deg, rgba(220,38,38,0.10), rgba(255,255,255,0.03))', padding: '18px 20px', maxWidth: 900 }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800, color: '#fff' }}>🔨 Combien coûtent les enchères ?</h3>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)' }}>
+        Un <b style={{ color: '#fff' }}>prix fixe selon le nombre de lots actifs</b> que vous mettez aux enchères en même temps. <b style={{ color: '#fff' }}>Aucune commission</b> sur les ventes : le paiement se règle directement entre vous et le gagnant. Taxes en sus.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+        {tries.map((p, i) => (
+          <div key={i} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.25)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#fca5a5', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{p.label || `${p.limite} lots`}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: '2px 0' }}>{p.prix}</div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)' }}>Jusqu'à {p.limite} lot{p.limite > 1 ? 's' : ''} actif{p.limite > 1 ? 's' : ''}</div>
+          </div>
+        ))}
+      </div>
+      <p style={{ margin: '12px 0 0', fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
+        Les lots terminés ou annulés ne comptent pas dans la limite.
+      </p>
+    </div>
+  );
+}
+
 export default function PageTemplates() {
   const navigate = useNavigate();
   const [filtreCategorie, setFiltreCategorie] = useState<string>('tous');
@@ -1114,10 +1164,30 @@ export default function PageTemplates() {
   const [prixCagnotte, setPrixCagnotte] = useState<PrixCagnotte | null>(null);
   // Petites annonces : grille de prix UNIQUE réglée dans l'admin (Templates → Annonces (tarifs)) ; vide = chaque template garde son « Prix Template »
   const [prixAnnonces, setPrixAnnonces] = useState('');
+  const [paliersAnnonces, setPaliersAnnonces] = useState<{ limite: number; prix: string; label: string }[]>([]);
+  // Enchères : grille de prix UNIQUE réglée dans l'admin (Templates → Enchères (tarifs)) ; vide = chaque template garde son « Prix Template »
+  const [prixEncheres, setPrixEncheres] = useState('');
+  const [paliersEncheres, setPaliersEncheres] = useState<{ limite: number; prix: string; label: string }[]>([]);
+  useEffect(() => {
+    fetch('/api/encheres/prix')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d || !d.success || !d.actif || !d.a_partir_de) return;
+        setPrixEncheres(String(d.a_partir_de).slice(0, 60));
+        const pal = (Array.isArray(d.paliers) ? d.paliers : []).map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix);
+        setPaliersEncheres(pal);
+      })
+      .catch(() => { /* silencieux */ });
+  }, []);
   useEffect(() => {
     fetch('/api/annonces/prix')
       .then(r => (r.ok ? r.json() : null))
-      .then(d => { if (d && d.success && d.actif && d.a_partir_de) setPrixAnnonces(String(d.a_partir_de).slice(0, 60)); })
+      .then(d => {
+        if (!d || !d.success || !d.actif || !d.a_partir_de) return;
+        setPrixAnnonces(String(d.a_partir_de).slice(0, 60));
+        const pal = (Array.isArray(d.paliers) ? d.paliers : []).map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix);
+        setPaliersAnnonces(pal);
+      })
       .catch(() => { /* silencieux */ });
   }, []);
   useEffect(() => {
@@ -1133,6 +1203,7 @@ export default function PageTemplates() {
       return `À partir de ${formaterArgent(min, prixCagnotte.devise)} / campagne`;
     }
     if (t.groupe === 'annonces' && prixAnnonces) return prixAnnonces;
+    if (t.groupe === 'enchere' && prixEncheres) return prixEncheres;
     return prixParTemplate[t.id];
   };
 
@@ -1339,6 +1410,8 @@ export default function PageTemplates() {
                   </div>
 
                   {categorie.id === 'cagnottes' && prixCagnotte && <EncadrePrixCagnotte prix={prixCagnotte} />}
+                  {categorie.id === 'annonces' && paliersAnnonces.length > 0 && <EncadrePrixAnnonces paliers={paliersAnnonces} />}
+                  {categorie.id === 'encheres' && paliersEncheres.length > 0 && <EncadrePrixEncheres paliers={paliersEncheres} />}
 
                   {/* Sous-groupes internes (si plusieurs) sinon grille directe */}
                   {sousGroupeIds.length > 1 ? (

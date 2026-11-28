@@ -511,6 +511,7 @@ async function listerGestionnaire(gid) {
 async function creerLot(gid, b) {
   await pret();
   const c = nettoyerLot(b, null);
+  await require('./encheres_limites').verifierActivation(gid, 1);   // palier : nombre de lots actifs permis (sans effet si aucun palier)
   const r = await pool.query(
     `INSERT INTO ens_lots (gestionnaire_id, titre, description, photos, categorie, condition_lot, tags, vedette, prix_depart, prix_reserve, increment, date_debut, date_fin)
      VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7::jsonb,$8,$9,$10,$11,$12,$13) RETURNING id`,
