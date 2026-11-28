@@ -1181,6 +1181,57 @@ function EncadrePrixEncheres({ paliers }: { paliers: { limite: number; prix: str
   );
 }
 
+// ─── Encadré « Combien coûte une marketplace multivendeur ? » : lu dans les forfaits MV de l'admin (⭐ Forfaits & Plans MV) ───
+interface ForfaitMVPublic { plan_id: string; nom: string; prix: number; vendeurs_max: number | null; stockage_go: number | null; }
+function EncadrePrixMV({ plans }: { plans: ForfaitMVPublic[] }) {
+  const argent = (n: number) => new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: n % 1 === 0 ? 0 : 2 }).format(n);
+  return (
+    <div style={{ margin: '0 0 28px', borderRadius: 16, border: '1px solid rgba(251,191,36,0.45)', background: 'linear-gradient(135deg, rgba(251,191,36,0.10), rgba(255,255,255,0.03))', padding: '18px 20px', maxWidth: 900 }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800, color: '#fff' }}>🏪 Combien coûte une marketplace multivendeur ?</h3>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.72)' }}>
+        Un <b style={{ color: '#fff' }}>forfait mensuel</b> selon le nombre de vendeurs actifs sur votre marketplace. Taxes en sus.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+        {plans.map(p => (
+          <div key={p.plan_id} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.22)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{p.nom}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: '2px 0' }}>{argent(p.prix)}<span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.6)' }}> / mois</span></div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)' }}>{p.vendeurs_max == null ? 'Vendeurs illimités' : `Jusqu'à ${p.vendeurs_max} vendeur${p.vendeurs_max > 1 ? 's' : ''} actif${p.vendeurs_max > 1 ? 's' : ''}`}</div>
+            {p.stockage_go != null && <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)' }}>{String(p.stockage_go).replace('.', ',')} Go de stockage</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Encadrés « Combien coûte … ? » des Vitrines (un prix par sous-catégorie) et des Locations : même présentation que celui des cagnottes ───
+const SOUS_CATEGORIES_VITRINES: { id: string; icone: string; label: string }[] = [
+  { id: 'vitrine', icone: '🖼', label: 'Sites vitrine (sans formulaire)' },
+  { id: 'vitrine-contact', icone: '✉️', label: 'Sites vitrine (avec formulaire)' },
+  { id: 'cours', icone: '🎹', label: 'Cours & Formation' },
+  { id: 'resto', icone: '🍔', label: 'Restaurant & Fast Food' },
+  { id: 'profession', icone: '💼', label: 'Profession' },
+  { id: 'reservation', icone: '📅', label: 'Formulaires & Réservations' },
+];
+function EncadrePrixListe({ icone, titre, texte, lignes }: { icone: string; titre: string; texte: React.ReactNode; lignes: { icone?: string; label: string; prix: string }[] }) {
+  if (!lignes.length) return null;
+  return (
+    <div style={{ margin: '0 0 28px', borderRadius: 16, border: '1px solid rgba(251,191,36,0.45)', background: 'linear-gradient(135deg, rgba(251,191,36,0.10), rgba(255,255,255,0.03))', padding: '18px 20px', maxWidth: 900 }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800, color: '#fff' }}>{icone} {titre}</h3>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.72)' }}>{texte}</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+        {lignes.map((l, i) => (
+          <div key={i} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.22)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{l.icone ? l.icone + ' ' : ''}{l.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', margin: '4px 0 0' }}>{l.prix}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function PageTemplates() {
   const navigate = useNavigate();
   const [filtreCategorie, setFiltreCategorie] = useState<string>('tous');
@@ -1196,6 +1247,17 @@ export default function PageTemplates() {
   // Boutiques : grille de prix UNIQUE réglée dans l'admin (Templates → Boutiques (tarifs)) ; vide = chaque template garde son « Prix Template »
   const [prixBoutiques, setPrixBoutiques] = useState('');
   const [paliersBoutiques, setPaliersBoutiques] = useState<{ limite: number; prix: string; label: string }[]>([]);
+  // Multivendeur : forfaits réglés dans l'admin (⭐ Forfaits & Plans MV) — aucune grille séparée
+  const [forfaitsMV, setForfaitsMV] = useState<ForfaitMVPublic[]>([]);
+  useEffect(() => {
+    fetch('/api/mv/prix')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d || !d.success || !d.actif || !Array.isArray(d.plans)) return;
+        setForfaitsMV(d.plans.map((x: any) => ({ plan_id: String(x?.plan_id || ''), nom: String(x?.nom || '').slice(0, 40), prix: Number(x?.prix), vendeurs_max: x?.vendeurs_max == null ? null : parseInt(x.vendeurs_max, 10), stockage_go: x?.stockage_go == null ? null : Number(x.stockage_go) })).filter((x: ForfaitMVPublic) => x.plan_id && Number.isFinite(x.prix)));
+      })
+      .catch(() => { /* silencieux */ });
+  }, []);
   // Vitrines : un prix par sous-catégorie (groupe), réglé dans l'admin (Templates → Vitrines (tarifs)) ; groupe sans prix = prix d'avant
   const [prixVitrines, setPrixVitrines] = useState<Record<string, string>>({});
   useEffect(() => {
@@ -1257,6 +1319,7 @@ export default function PageTemplates() {
     if (t.groupe === 'annonces' && prixAnnonces) return prixAnnonces;
     if (t.groupe === 'enchere' && prixEncheres) return prixEncheres;
     if (prixVitrines[t.groupe]) return prixVitrines[t.groupe];   // vitrines : prix de la sous-catégorie
+    if (t.groupe === 'multi-vendeur' && forfaitsMV.length) return `À partir de ${formaterArgent(Math.min(...forfaitsMV.map(p => p.prix)), 'CAD')} / mois`;
     // Boutiques solo : la grille unique remplace le prix par template (sauf Mono-produit)
     if ((t.groupe === 'boutique-generique' || t.groupe === 'boutique-industrie') && prixBoutiques && t.id !== 'boutique-simple') return prixBoutiques;
     return prixParTemplate[t.id];
@@ -1468,6 +1531,11 @@ export default function PageTemplates() {
                   {categorie.id === 'annonces' && paliersAnnonces.length > 0 && <EncadrePrixAnnonces paliers={paliersAnnonces} />}
                   {categorie.id === 'encheres' && paliersEncheres.length > 0 && <EncadrePrixEncheres paliers={paliersEncheres} />}
                   {categorie.id === 'boutiques' && paliersBoutiques.length > 0 && <EncadrePrixBoutiques paliers={paliersBoutiques} />}
+                  {categorie.id === 'multivendeur' && forfaitsMV.length > 0 && <EncadrePrixMV plans={forfaitsMV} />}
+                  {categorie.id === 'vitrines' && <EncadrePrixListe icone="🖼" titre="Combien coûte un site vitrine ?" texte={<>Un <b style={{ color: '#fff' }}>prix fixe par type de site</b> : tous les templates d'une même sous-catégorie ont le même prix. Les taxes s'ajoutent au prix.</>}
+                    lignes={SOUS_CATEGORIES_VITRINES.map(g => { const t = TEMPLATES.find(x => x.groupe === g.id); const p = t ? prixAfficheDe(t) : undefined; return { icone: g.icone, label: g.label, prix: p || '' }; }).filter(l => l.prix)} />}
+                  {categorie.id === 'locations' && <EncadrePrixListe icone="🏠" titre="Combien coûte la location de biens ?" texte={<>Le prix du template de location de biens (calendrier de disponibilité et dépôt inclus). Les taxes s'ajoutent au prix.</>}
+                    lignes={tempsCategorie.map(t => ({ label: t.nom, prix: prixAfficheDe(t) || '' })).filter(l => l.prix)} />}
 
                   {/* Sous-groupes internes (si plusieurs) sinon grille directe */}
                   {sousGroupeIds.length > 1 ? (

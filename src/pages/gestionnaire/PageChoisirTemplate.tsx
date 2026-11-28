@@ -403,6 +403,60 @@ function EncadrePrixBoutiques({ grille }: { grille: { paliers: { limite: number;
   );
 }
 
+// ─── Encadré « Combien coûte une marketplace multivendeur ? » : lu dans les forfaits MV de l'admin (⭐ Forfaits & Plans MV) ───
+interface ForfaitMVPublic { plan_id: string; nom: string; prix: number; vendeurs_max: number | null; stockage_go: number | null; }
+function EncadrePrixMV({ plans }: { plans: ForfaitMVPublic[] }) {
+  const argent = (n: number) => new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: n % 1 === 0 ? 0 : 2 }).format(n);
+  return (
+    <div style={{ marginBottom: 24, borderRadius: 16, border: '1px solid rgba(251,191,36,0.45)', background: 'linear-gradient(135deg, rgba(251,191,36,0.10), rgba(255,255,255,0.03))', padding: '18px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 22 }}>🏪</span>
+        <h3 style={{ margin: 0, fontFamily: "'Sora', sans-serif", fontSize: 17, fontWeight: 800, color: '#fff' }}>Combien coûte une marketplace multivendeur ?</h3>
+      </div>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.72)' }}>
+        Un <b style={{ color: '#fff' }}>forfait mensuel</b> selon le nombre de vendeurs actifs sur votre marketplace. Taxes en sus.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+        {plans.map(p => (
+          <div key={p.plan_id} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.22)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{p.nom}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: '2px 0' }}>{argent(p.prix)}<span style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.6)' }}> / mois</span></div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)' }}>{p.vendeurs_max == null ? 'Vendeurs illimités' : `Jusqu'à ${p.vendeurs_max} vendeur${p.vendeurs_max > 1 ? 's' : ''} actif${p.vendeurs_max > 1 ? 's' : ''}`}</div>
+            {p.stockage_go != null && <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.55)' }}>{String(p.stockage_go).replace('.', ',')} Go de stockage</div>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Encadrés « Combien coûte … ? » des Vitrines (un prix par sous-catégorie) et des Locations : même présentation que celui des cagnottes ───
+const SOUS_CATEGORIES_VITRINES: { id: string; icone: string; label: string }[] = [
+  { id: 'vitrine', icone: '🖼', label: 'Sites vitrine (sans formulaire)' },
+  { id: 'vitrine-contact', icone: '✉️', label: 'Sites vitrine (avec formulaire)' },
+  { id: 'cours', icone: '🎹', label: 'Cours & Formation' },
+  { id: 'resto', icone: '🍔', label: 'Restaurant & Fast Food' },
+  { id: 'profession', icone: '💼', label: 'Profession' },
+  { id: 'reservation', icone: '📅', label: 'Formulaires & Réservations' },
+];
+function EncadrePrixListe({ icone, titre, texte, lignes }: { icone: string; titre: string; texte: React.ReactNode; lignes: { icone?: string; label: string; prix: string }[] }) {
+  if (!lignes.length) return null;
+  return (
+    <div style={{ marginBottom: 24, borderRadius: 16, border: '1px solid rgba(251,191,36,0.45)', background: 'linear-gradient(135deg, rgba(251,191,36,0.10), rgba(255,255,255,0.03))', padding: '18px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}><span style={{ fontSize: 22 }}>{icone}</span><h3 style={{ margin: 0, fontFamily: "'Sora', sans-serif", fontSize: 17, fontWeight: 800, color: '#fff' }}>{titre}</h3></div>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.72)' }}>{texte}</p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+        {lignes.map((l, i) => (
+          <div key={i} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.22)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{l.icone ? l.icone + ' ' : ''}{l.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', margin: '4px 0 0' }}>{l.prix}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props) {
   const [ongletCategorie, setOngletCategorie] = useState<'vitrines'|'boutiques'|'multivendeur'|'cagnottes'|'encheres'|'annonces'|'locations'>('vitrines');
   const [descOuverte, setDescOuverte] = useState(false);
@@ -423,6 +477,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   const [enregistrementPlan, setEnregistrementPlan] = useState(false);
   const [modalResetOuvert, setModalResetOuvert] = useState(false);
   const [prixParTemplate, setPrixParTemplate] = useState<Record<string, string>>({});
+  const [prixGroupesVitrines, setPrixGroupesVitrines] = useState<Record<string, string>>({});   // prix affiché par sous-catégorie de vitrines (encadré)
   // Prix des cagnottes : « À partir de X » lu en direct dans les réglages de l'admin
   const [prixCagnotteTexte, setPrixCagnotteTexte] = useState('');
   useEffect(() => {
@@ -462,8 +517,19 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
       })
       .catch(() => { /* silencieux : les prix de « Prix Template » restent affichés */ });
   }, []);
-  const prixDe = (t: any): string => (String(t.id).startsWith('cagnotte-') && prixCagnotteTexte ? prixCagnotteTexte : (String(t.id).startsWith('annonces-') && grilleAnnonces && grilleAnnonces.a_partir_de ? grilleAnnonces.a_partir_de : (String(t.id).startsWith('enchere-') && grilleEncheres && grilleEncheres.a_partir_de ? grilleEncheres.a_partir_de : (prixParTemplate[t.id] || t.prix || ''))));
+  const prixDe = (t: any): string => (String(t.id).startsWith('multi-vendeur-') && forfaitsMV.length ? `À partir de ${new Intl.NumberFormat('fr-CA', { style: 'currency', currency: 'CAD', maximumFractionDigits: 0 }).format(Math.min(...forfaitsMV.map(p => p.prix)))} / mois` : (String(t.id).startsWith('cagnotte-') && prixCagnotteTexte ? prixCagnotteTexte : (String(t.id).startsWith('annonces-') && grilleAnnonces && grilleAnnonces.a_partir_de ? grilleAnnonces.a_partir_de : (String(t.id).startsWith('enchere-') && grilleEncheres && grilleEncheres.a_partir_de ? grilleEncheres.a_partir_de : (prixParTemplate[t.id] || t.prix || '')))));
   // Paliers réels (Prix Template, dashboard admin) : prix de départ et nombre maximal de produits affichés sur les cartes Simplisse / Premium
+  // Multivendeur : forfaits réglés dans l'admin (⭐ Forfaits & Plans MV) — les cartes et l'encadré affichent ces forfaits
+  const [forfaitsMV, setForfaitsMV] = useState<ForfaitMVPublic[]>([]);
+  useEffect(() => {
+    fetch('/api/mv/prix')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d || !d.success || !d.actif || !Array.isArray(d.plans)) return;
+        setForfaitsMV(d.plans.map((x: any) => ({ plan_id: String(x?.plan_id || ''), nom: String(x?.nom || '').slice(0, 40), prix: Number(x?.prix), vendeurs_max: x?.vendeurs_max == null ? null : parseInt(x.vendeurs_max, 10), stockage_go: x?.stockage_go == null ? null : Number(x.stockage_go) })).filter((x: ForfaitMVPublic) => x.plan_id && Number.isFinite(x.prix)));
+      })
+      .catch(() => { /* silencieux : les prix de « Prix Template » restent affichés */ });
+  }, []);
   // Boutiques : grille de prix UNIQUE de l'admin (Templates → Boutiques (tarifs)). Quand elle existe, elle remplace les « Prix Template » de tous les templates boutique qui la suivent.
   const [grilleBoutiques, setGrilleBoutiques] = useState<{ label: string; limite: number; prix: string }[] | null>(null);
   const [infoPaliers, setInfoPaliers] = useState<Record<string, { prixMin: string; limiteMax: number }>>({});
@@ -567,6 +633,13 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           if (pv && pv.prix_texte) map[t.id] = String(pv.prix_texte).slice(0, 60);
         }
         setPrixParTemplate(map);
+        const pg: Record<string, string> = {};
+        for (const g of SOUS_CATEGORIES_VITRINES) {
+          const v = vitrines && vitrines.success && vitrines.actif && vitrines.groupes && vitrines.groupes[g.id] && vitrines.groupes[g.id].prix_texte;
+          const t = v || (data.groupes[g.id] && data.groupes[g.id].prix_texte);
+          if (t) pg[g.id] = String(t).slice(0, 60);
+        }
+        setPrixGroupesVitrines(pg);
         const info: Record<string, { prixMin: string; limiteMax: number }> = {};
         for (const id of ['boutique-simplisse', 'boutique-simplisse-mode', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique', 'boutique-bd', 'boutique-futuriste', 'boutique-tech', 'boutique-rose', 'boutique-bonbon', 'boutique-soleil', 'boutique-sentier', 'boutique-chantier', 'boutique-cafe', 'boutique-sakura', 'boutique-sport', 'boutique-joyau', 'boutique-ecume', 'boutique-carnaval', 'boutique-patchwork', 'boutique-vigie', 'boutique-aurore', 'boutique-galerie', 'boutique-rallye', 'boutique-paon', 'boutique-pop', 'boutique-nocturne', 'boutique-orbite']) {
           let pal: any = data.templates[id]?.prix_paliers;
@@ -1901,6 +1974,11 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
             {categorie.id === 'annonces' && <EncadrePrixAnnonces grille={grilleAnnonces} />}
             {categorie.id === 'encheres' && <EncadrePrixEncheres grille={grilleEncheres} />}
             {categorie.id === 'boutiques' && <EncadrePrixBoutiques grille={grilleBoutiques ? { paliers: grilleBoutiques } : null} />}
+            {categorie.id === 'multivendeur' && forfaitsMV.length > 0 && <EncadrePrixMV plans={forfaitsMV} />}
+            {categorie.id === 'vitrines' && <EncadrePrixListe icone="🖼" titre="Combien coûte un site vitrine ?" texte={<>Un <b style={{ color: '#fff' }}>prix fixe par type de site</b> : tous les templates d'une même sous-catégorie ont le même prix. Les taxes s'ajoutent au prix.</>}
+              lignes={SOUS_CATEGORIES_VITRINES.map(g => ({ icone: g.icone, label: g.label, prix: prixGroupesVitrines[g.id] || '' })).filter(l => l.prix)} />}
+            {categorie.id === 'locations' && <EncadrePrixListe icone="🏠" titre="Combien coûte la location de biens ?" texte={<>Le prix du template de location de biens (calendrier de disponibilité et dépôt inclus). Les taxes s'ajoutent au prix.</>}
+              lignes={(categorie.sousGroupes || []).reduce((acc: any[], sg: any) => acc.concat(sg.templates || []), []).map((t: any) => ({ label: String(t.titre), prix: prixParTemplate[t.id] || '' })).filter((l: any) => l.prix)} />}
             {/* Description améliorée avec toggle */}
             <div style={{ marginBottom: 28 }}>
               <button

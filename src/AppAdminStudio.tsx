@@ -55,7 +55,6 @@ import AdminAddons from './pages/admin/AdminAddons';
 import GuidesAddons from './pages/admin/GuidesAddons';
 import ReferencementSEO from './pages/admin/ReferencementSEO';
 import AddonsActives from './pages/admin/AddonsActives';
-import PageAdminTemplatesPrix from './pages/admin/PageAdminTemplatesPrix';
 import PageAdminCagnotte from './pages/admin/PageAdminCagnotte';
 import PageAdminAnnoncesPrix from './pages/admin/PageAdminAnnoncesPrix';
 import PageAdminEncheresPrix from './pages/admin/PageAdminEncheresPrix';
@@ -250,7 +249,6 @@ const NAV_ITEMS: NavItem[] = [
   {
     id: 'templates', label: 'Templates', icon: '🎨',
     sousSections: [
-      { id: 'templates-prix', label: 'Prix Template', icon: '💰' },
       { id: 'templates-cagnotte', label: 'Cagnotte (tarifs)', icon: '💝' },
       { id: 'templates-annonces', label: 'Annonces (tarifs)', icon: '📋' },
       { id: 'templates-encheres', label: 'Enchères (tarifs)', icon: '🔨' },
@@ -824,10 +822,7 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
       case 'addons-actives':
         return <AddonsActives naviguerVers={naviguerVers} />;
 
-      case 'templates':
-      case 'templates-prix':
-        return <PageAdminTemplatesPrix />;
-
+      case 'templates':   // clic sur « Templates » : première page de la section
       case 'templates-cagnotte':
         return <PageAdminCagnotte />;
 
