@@ -10,6 +10,7 @@ import ApparenceVolt from './ApparenceVolt';
 import ApparenceNeon from './ApparenceNeon';
 import ApparenceAllegro from './ApparenceAllegro';
 import ApparenceServices from './ApparenceServices';
+import ApparenceChalet from './ApparenceChalet';
 import { PROFIL_GENERAL } from '../../templates/TemplateAnnoncesClassique';
 import { PROFIL_AUTO } from '../../templates/TemplateAnnoncesAutoClassique';
 import { PROFIL_IMMO } from '../../templates/TemplateAnnoncesImmoClassique';
@@ -92,6 +93,29 @@ const PROFILS: Record<string, ProfilGestion> = {
       { cle: 'Échéance', label: 'Date limite', placeholder: '15 décembre' },
     ],
     couleur: '#2f3bff', fond: '#05050a', nomDefaut: 'Néo Services', sloganDefaut: '', aidePrix: 'Prix de départ du service (facultatif). Pour un emploi, laissez vide et indiquez la rémunération dans le champ prévu, ou écrivez par exemple « 25 $ / h » dans le texte de prix.',
+  },
+  'annonces-chalet': {
+    categories: ['Charlevoix', 'Laurentides', 'Lanaudière', 'Outaouais', 'Cantons-de-l\'Est', 'Mauricie', 'Québec', 'Bas-Saint-Laurent', 'Gaspésie', 'Saguenay–Lac-Saint-Jean', 'Côte-Nord', 'Abitibi', 'Autre'],
+    champs: [
+      { cle: 'Type', label: 'Type d\'hébergement', type: 'select', options: ['Chalet', 'Chalet de luxe', 'Chalet nordique', 'Cabane', 'Maison de campagne', 'Condo', 'Roulotte ou VR', 'Autre'] },
+      { cle: 'Voyageurs', label: 'Voyageurs (nombre maximum)', placeholder: '8' },
+      { cle: 'Chambres', label: 'Chambres', placeholder: '4' },
+      { cle: 'Lits', label: 'Lits', placeholder: '5' },
+      { cle: 'Salles de bain', label: 'Salles de bain', placeholder: '2' },
+      { cle: 'Superficie', label: 'Superficie', placeholder: '1 800 pi²' },
+      { cle: 'Spa', label: 'Spa', type: 'select', options: ['Oui', 'Non'] },
+      { cle: 'Foyer', label: 'Foyer ou poêle', type: 'select', options: ['Oui', 'Non'] },
+      { cle: 'Animaux', label: 'Animaux acceptés', type: 'select', options: ['Oui', 'Non'] },
+      { cle: 'Wifi', label: 'Wifi', type: 'select', options: ['Oui', 'Non'] },
+      { cle: 'Stationnement', label: 'Stationnement', placeholder: '4 places' },
+      { cle: 'Lac ou rivière', label: 'Accès à l\'eau', placeholder: 'Lac privé' },
+      { cle: 'Séjour minimum', label: 'Séjour minimum', placeholder: '2 nuits' },
+      { cle: 'Arrivée', label: 'Arrivée', placeholder: '16 h' },
+      { cle: 'Départ', label: 'Départ', placeholder: '11 h' },
+      { cle: 'Saison', label: 'Saison', placeholder: 'Toute l\'année' },
+      { cle: 'Secteur', label: 'Secteur ou ville (pour la carte)', placeholder: 'Baie-Saint-Paul, Québec' },
+    ],
+    couleur: '#7dffd5', fond: '#1b2130', nomDefaut: 'Chalet Boréal', sloganDefaut: '', aidePrix: 'Prix par nuit en dollars (le site affiche « / nuit »).',
   },
   'annonces-immeuble': {
     categories: ['Duplex', 'Triplex', 'Quadruplex', 'Multiplex (5 logements et +)', 'Immeuble commercial', 'Immeuble mixte', 'Autre'],
@@ -313,8 +337,9 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId, ongletInit
       {onglet === 'apparence' && templateId === 'annonces-neon' && <ApparenceNeon gestionnaireId={gestionnaireId} templateId={templateId} />}
       {onglet === 'apparence' && templateId === 'annonces-allegro' && <ApparenceAllegro gestionnaireId={gestionnaireId} templateId={templateId} />}
       {onglet === 'apparence' && templateId === 'annonces-services-neo' && <ApparenceServices gestionnaireId={gestionnaireId} templateId={templateId} />}
+      {onglet === 'apparence' && templateId === 'annonces-chalet' && <ApparenceChalet gestionnaireId={gestionnaireId} templateId={templateId} />}
 
-      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && templateId !== 'annonces-auto-lease' && templateId !== 'annonces-volt' && templateId !== 'annonces-neon' && templateId !== 'annonces-allegro' && templateId !== 'annonces-services-neo' && <ApparenceClassique gestionnaireId={gestionnaireId} templateId={templateId || 'annonces-classique'} defaut={DEFAUTS_CLASSIQUE[templateId || 'annonces-classique'] || PROFIL_GENERAL.defaut} />}
+      {onglet === 'apparence' && templateId !== 'annonces-auto-showroom' && templateId !== 'annonces-auto-lease' && templateId !== 'annonces-volt' && templateId !== 'annonces-neon' && templateId !== 'annonces-allegro' && templateId !== 'annonces-services-neo' && templateId !== 'annonces-chalet' && <ApparenceClassique gestionnaireId={gestionnaireId} templateId={templateId || 'annonces-classique'} defaut={DEFAUTS_CLASSIQUE[templateId || 'annonces-classique'] || PROFIL_GENERAL.defaut} />}
 
       {onglet === 'reglages' && (
         <div style={carte}>

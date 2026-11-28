@@ -1518,6 +1518,12 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
             { id: 'annonces-immo-classique', titre: 'Immobilier Classique', desc: 'Maisons, condos, appartements, terrains : à vendre ou à louer, filtres par chambres, salles de bain et superficie, fiche détaillée et contact par formulaire. Aucun paiement.', icone: '🏡', couleur: '#92400e', disponible: true },
           ]
         },
+        {
+          titre: '🏕 Vacances et chalets',
+          templates: [
+            { id: 'annonces-chalet', titre: 'Chalet Boréal 🏔️', desc: 'Location de vacances et chalets pour un propriétaire : bannière photo avec recherche de séjour (région, voyageurs), carrousel de chalets avec prix par nuit, régions, filtres (voyageurs, chambres, spa, animaux, prix), fiche détaillée avec équipements et carte du secteur, avis, activités, FAQ et demande de séjour. Tout est configurable. Aucune réservation ni paiement.', icone: '🏕️', couleur: '#7dffd5', disponible: true },
+          ]
+        },
       ]
     },
     {

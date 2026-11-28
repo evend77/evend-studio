@@ -1402,6 +1402,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           { id: 'annonces-site', label: 'Mes annonces', icon: '📋' },
         ]
       },
+      menuStudio,
       {
         id: 'config-mes-pages', label: 'CONFIG MES PAGES', icon: '🎨',
         sousMenu: [
@@ -1409,7 +1410,6 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
           { id: 'annonces-plan', label: 'Mon plan & limites', icon: '📊' },
         ]
       },
-      menuStudio,
       {
         id: 'config', label: 'CONFIGURATION', icon: '⚙️',
         sousMenu: [

@@ -103,6 +103,7 @@ export const PHOTOS: Record<string, string> = {
   'annonces-neon': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-allegro': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-services-neo': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
+  'annonces-chalet': 'https://images.pexels.com/photos/3962285/pexels-photo-3962285.jpeg?auto=compress&cs=tinysrgb&w=800',
   'annonces-immeuble': 'https://images.pexels.com/photos/106399/pexels-photo-106399.jpeg?auto=compress&cs=tinysrgb&w=800',
 };
 
@@ -790,6 +791,14 @@ export const TEMPLATES: Template[] = [
     description: "Emplois et services pour une entreprise : vos services et vos offres d'emploi, sur fond noir avec bleu néon. Bannière avec formulaire de demande, bande bleue de 3 cartes, chiffres clés, catégories, filtres par nature, contrat et lieu, étapes, forfaits, témoignages, FAQ et contact. Tout est configurable. Affichage seulement.",
     fonctionnalites: ['Emplois et services', 'Formulaire dans la bannière', 'Filtres nature / contrat / lieu', 'Sections réordonnables'],
     disponible: true, nouveau: true, couleur: '#2f3bff',
+  },
+  {
+    id: 'annonces-chalet',
+    nom: 'Chalet Boréal',
+    groupe: 'annonces',
+    description: "Location de vacances et chalets pour un propriétaire : bannière photo avec recherche de séjour (région, voyageurs), carrousel de chalets avec prix par nuit, régions, filtres (voyageurs, chambres, spa, animaux, prix), fiche détaillée avec équipements et carte du secteur, avis, activités, FAQ et demande de séjour. Tout est configurable. Aucune réservation ni paiement en ligne.",
+    fonctionnalites: ['Recherche de séjour', 'Prix par nuit', 'Filtres spa / animaux / chambres', 'Sections réordonnables'],
+    disponible: true, nouveau: true, couleur: '#7dffd5',
   },
   {
     id: 'annonces-immeuble',
