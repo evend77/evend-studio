@@ -1,6 +1,7 @@
 // CHEMIN : src/pages/gestionnaire/PageChoisirTemplate.tsx
 // e-Vend Studio — Choix de template au premier login ou depuis le menu
 
+import { ouvrirApercu as ouvrirApercuPwa } from '../../utils/apercu';
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { TEMPLATES as CATALOGUE_TEMPLATES } from '../PageTemplates';
@@ -175,7 +176,7 @@ const DEMO_CONFIGS: Record<string, any> = {
 
 function ouvrirApercu(templateId: string) {
   const url = `/site-preview?forceTemplate=${templateId}&demo=true`;
-  window.open(url, '_blank', 'noopener,noreferrer');
+  ouvrirApercuPwa(url);
 }
 
 

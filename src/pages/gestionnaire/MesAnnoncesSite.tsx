@@ -16,7 +16,7 @@ import { PROFIL_IMMO } from '../../templates/TemplateAnnoncesImmoClassique';
 import { PROFIL_IMMEUBLE } from '../../templates/TemplateAnnoncesImmeuble';
 import ChampPhotos from './ChampPhotos';
 
-interface Props { gestionnaireId: number; templateId?: string; ongletInitial?: 'annonces' | 'messages' | 'apparence' | 'reglages'; }
+interface Props { gestionnaireId: number; templateId?: string; ongletInitial?: 'annonces' | 'messages' | 'apparence' | 'reglages'; mode?: 'liste' | 'config'; }
 
 interface AnnonceG {
   id: number; titre: string; description: string; prix: number | null; prixTexte: string; categorie: string; lieu: string; photos: string[];
@@ -153,10 +153,11 @@ function Champ({ label, valeur, onChange, type = 'text', aide, placeholder }: { 
   return (<div style={{ marginBottom: 12 }}><label style={lbl}>{label}</label><input type={type} style={champ} value={valeur} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />{aide && <p style={{ fontSize: 11, color: '#6b7280', marginTop: 3 }}>{aide}</p>}</div>);
 }
 
-export default function MesAnnoncesSite({ gestionnaireId, templateId, ongletInitial }: Props) {
+export default function MesAnnoncesSite({ gestionnaireId, templateId, ongletInitial, mode }: Props) {
+  const modeConfig = mode === 'config';
   const profil = PROFILS[templateId || 'annonces-classique'] || PROFILS['annonces-classique'];
   const clesChamps = [...profil.champs.map((c) => c.cle), ...(profil.typeBienDepuisCategorie ? ['Type de bien'] : [])];
-  const [onglet, setOnglet] = useState<'annonces' | 'messages' | 'apparence' | 'reglages'>(ongletInitial || 'annonces');
+  const [onglet, setOnglet] = useState<'annonces' | 'messages' | 'apparence' | 'reglages'>(ongletInitial || (modeConfig ? 'apparence' : 'annonces'));
   const [liste, setListe] = useState<AnnonceG[]>([]);
   const [messages, setMessages] = useState<MessageG[]>([]);
   const [chargement, setChargement] = useState(true);
@@ -222,16 +223,16 @@ export default function MesAnnoncesSite({ gestionnaireId, templateId, ongletInit
     <div style={{ maxWidth: 980, margin: '0 auto', padding: '8px 4px 60px', fontFamily: 'inherit' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: '#111827' }}>📋 Mes annonces</h2>
+          <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: '#111827' }}>{modeConfig ? '🎨 Configurer mes pages' : '📋 Mes annonces'}</h2>
           <p style={{ fontSize: 13, color: '#6b7280', margin: '4px 0 0' }}>{nbActives} en ligne{nbExpirees ? ` · ${nbExpirees} expirée${nbExpirees > 1 ? 's' : ''}` : ''}{nonLus ? ` · ${nonLus} message${nonLus > 1 ? 's' : ''} non lu${nonLus > 1 ? 's' : ''}` : ''}</p>
         </div>
-        {onglet === 'annonces' && <button style={btn()} onClick={nouveau}>＋ Nouvelle annonce</button>}
+        {!modeConfig && onglet === 'annonces' && <button style={btn()} onClick={nouveau}>＋ Nouvelle annonce</button>}
       </div>
 
       {msg && <div style={{ background: msg.ok ? '#dcfce7' : '#fee2e2', color: msg.ok ? '#166534' : '#991b1b', padding: '10px 14px', borderRadius: 10, fontSize: 14, marginBottom: 12 }}>{msg.t}</div>}
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-        {([['annonces', '📋 Annonces'], ['messages', `✉️ Messages${nonLus ? ` (${nonLus})` : ''}`], ['apparence', '🎨 Apparence'], ['reglages', '⚙️ Réglages']] as const).map(([id, l]) => (
+        {([['annonces', '📋 Annonces'], ['messages', `✉️ Messages${nonLus ? ` (${nonLus})` : ''}`], ['apparence', '🎨 Apparence'], ['reglages', '⚙️ Réglages']] as const).filter(([id]) => modeConfig ? (id === 'apparence' || id === 'reglages') : (id === 'annonces' || id === 'messages')).map(([id, l]) => (
           <button key={id} onClick={() => setOnglet(id)} style={{ padding: '8px 16px', borderRadius: 20, border: '1px solid ' + (onglet === id ? '#0f766e' : '#d1d5db'), background: onglet === id ? '#0f766e' : '#fff', color: onglet === id ? '#fff' : '#374151', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>{l}</button>
         ))}
       </div>

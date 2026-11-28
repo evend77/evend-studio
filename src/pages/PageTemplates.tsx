@@ -1,6 +1,7 @@
 // CHEMIN : src/pages/PageTemplates.tsx
 // e-Vend Studio — Galerie publique des templates disponibles
 
+import { ouvrirApercu as ouvrirApercuPwa } from '../utils/apercu';
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import MenuPublic from '../components/MenuPublic';
@@ -922,7 +923,7 @@ function surCouleur(hex: string): string {
 // ─── APERÇU (ouvre la démo dans un nouvel onglet) ─────────────────────────────
 function ouvrirApercu(templateId: string) {
   const url = `/site-preview?forceTemplate=${templateId}&demo=true`;
-  window.open(url, '_blank', 'noopener,noreferrer');
+  ouvrirApercuPwa(url);
 }
 
 // ─── COMPOSANT CARTE TEMPLATE ─────────────────────────────────────────────────

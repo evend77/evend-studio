@@ -3,6 +3,7 @@
 // Accessible via /site-preview?vendeurId=X
 // Mode démo : /site-preview?forceTemplate=xxx&demo=true — 100% hardcodé, zéro API
 
+import { fermerApercu } from '../utils/apercu';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import Page404Public                  from './Page404Public';
@@ -2303,7 +2304,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
             <span style={{ fontSize: 12, fontWeight: 700, color: '#1a1a1a' }}>MODE DÉMO — Aperçu du template</span>
             <span style={{ fontSize: 11, color: '#444' }}>Aucune donnée n'est sauvegardée. Les produits et contenus sont fictifs.</span>
           </div>
-          <button onClick={() => window.close()} style={{ background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+          <button onClick={() => fermerApercu()} style={{ background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
             ✕ Fermer
           </button>
         </div>
@@ -2317,7 +2318,7 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
             <span style={{ color: '#444', fontSize: 11 }}>›</span>
             <span style={{ fontSize: 11, color: '#666' }}>Mode aperçu — {templateId}</span>
           </div>
-          <button onClick={() => window.close()} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', padding: '4px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}>
+          <button onClick={() => fermerApercu()} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', padding: '4px 12px', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}>
             ✕ Fermer
           </button>
         </div>

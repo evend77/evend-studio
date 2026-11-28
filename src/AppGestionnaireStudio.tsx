@@ -17,6 +17,7 @@ const API_BASE = '/api';
 import MaCagnotte                   from './pages/gestionnaire/MaCagnotte';
 import MesEncheresSite from './pages/gestionnaire/MesEncheresSite';
 import MesAnnoncesSite from './pages/gestionnaire/MesAnnoncesSite';
+import { ouvrirApercu } from './utils/apercu';
 import ConfigMesPagesCagnotte         from './pages/gestionnaire/ConfigMesPagesCagnotte';
 import ModelesCourrielStudio from './pages/gestionnaire/ModelesCourrielStudio';
 import GestionReservations   from './pages/studio/GestionReservations';
@@ -800,10 +801,10 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       } else if (data?.sous_domaine) {
         window.open(`https://${data.sous_domaine}.e-vendstudio.ca`, '_blank', 'noopener,noreferrer');
       } else {
-        window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer');
+        ouvrirApercu(`/site-preview?vendeurId=${gestionnaire.id}`);
       }
     } catch {
-      window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer');
+      ouvrirApercu(`/site-preview?vendeurId=${gestionnaire.id}`);
     }
   };
 
@@ -942,7 +943,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuStudio: MenuItem = {
     id: 'studio', label: 'MON SITE STUDIO', icon: '🎨',
     sousMenu: [
-      { id: 'studio-apercu',            label: 'Aperçu de mon site',          icon: '👁',  onClick: () => window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer') },
+      { id: 'studio-apercu',            label: 'Aperçu de mon site',          icon: '👁',  onClick: () => ouvrirApercu(`/site-preview?vendeurId=${gestionnaire.id}`) },
       { id: 'studio-choisir-template',  label: 'Choisir un template',         icon: '🗂️' },
       { id: 'studio-config-template',   label: 'Modifier mon site',           icon: '✏️' },
       { id: 'studio-domaine',           label: 'Mon domaine',                 icon: '🌐' },
@@ -1118,7 +1119,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     id: 'branding-options', label: 'Branding & options', icon: '⚙️',
   };
 
-  const menuStudioSimplisse: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuStudioSimplisse: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>ouvrirApercu(`/site-preview?vendeurId=${gestionnaire.id}`) },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuVosAnnoncesSimplisse: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-encheres',label:'Mes enchères',icon:'🔨',cleAcces:'modeEncheres' },{ id:'annonces-make-offer',label:'Mes offres reçues',icon:'💬' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-types',label:'Types produits',icon:'📑' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   // Mono-produit : UN produit. « Produit vendu » = choix de l'annonce affichée ; pas de tags, types, collections ni enchères (sans objet pour un seul produit)
   const menuVosAnnoncesMono: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'mono-produit',label:'Produit vendu',icon:'🎯' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
@@ -1156,18 +1157,18 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   const menuConfigComplete: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🏪',sousMenu:[{ id:'complete-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'complete-plan',label:'Mon plan & limites',icon:'📊' }] };
   const menuConfigMesPages: MenuItem = { id:'config-mes-pages',label:'CONFIG MES PAGES',icon:'🎨',sousMenu:[{ id:'simplisse-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'simplisse-plan',label:'Mon plan & limites',icon:'📊' }] };
 
-  const menuStudioPremium: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuStudioPremium: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>ouvrirApercu(`/site-preview?vendeurId=${gestionnaire.id}`) },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuVosAnnoncesPremium: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'📦',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-encheres',label:'Mes enchères',icon:'🔨',cleAcces:'modeEncheres' },{ id:'annonces-make-offer',label:'Mes offres reçues',icon:'💬' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-types',label:'Types produits',icon:'📑' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigPremium: MenuItem = { id:'config-premium',label:'CONFIG MES PAGES',icon:'💎',sousMenu:[{ id:'premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'premium-plan',label:'Mon plan & limites',icon:'📊' }] };
 
-  const menuStudioMode: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuStudioMode: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>ouvrirApercu(`/site-preview?vendeurId=${gestionnaire.id}`) },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuVosAnnoncesMode: MenuItem = { id:'annonces',label:'VOS ANNONCES',icon:'👗',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-tags',label:'Tags produits',icon:'🏷️' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigMode: MenuItem = { id:'config-mode',label:'CONFIG MES PAGES',icon:'👗',sousMenu:[{ id:'mode-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'mode-plan',label:'Mon plan & limites',icon:'📊' }] };
 
-  const menuStudioBeaute: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuStudioBeaute: MenuItem = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>ouvrirApercu(`/site-preview?vendeurId=${gestionnaire.id}`) },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuVosAnnoncesBeaute: MenuItem = { id:'annonces',label:'VOS PRODUITS',icon:'💄',sousMenu:[{ id:'annonces-liste',label:'Liste des produits',icon:'📋' },{ id:'annonces-categories',label:'Collections',icon:'🗂️',cleAcces:'collections' },{ id:'annonces-promos',label:'Réductions & codes',icon:'🏷️',cleAcces:'codesPromo' },{ id:'annonces-creer',label:'Ajouter un produit',icon:'➕' }] };
   const menuConfigBeaute: MenuItem = { id:'config-beaute',label:'CONFIG MES PAGES',icon:'💄',sousMenu:[{ id:'beaute-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'beaute-plan',label:'Mon plan & limites',icon:'📊' }] };
-  const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>window.open(`/site-preview?vendeurId=${gestionnaire.id}`,'_blank','noopener,noreferrer') },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
+  const menuStudioMV: MenuItem     = { id:'studio',label:'MON SITE STUDIO',icon:'🎨',sousMenu:[{ id:'studio-apercu',label:'Aperçu de mon site',icon:'👁',onClick:()=>ouvrirApercu(`/site-preview?vendeurId=${gestionnaire.id}`) },{ id:'studio-choisir-template',label:'Choisir un template',icon:'🗂️' },{ id:'studio-domaine',label:'Mon domaine',icon:'🌐' }] };
   const menuConfigMV: MenuItem     = { id:'config-mv',label:'MULTI-VENDEUR',icon:'🏪',sousMenu:[{ id:'mv-contact',label:'Contact',icon:'✉️',badge: contactNonLus > 0 ? contactNonLus : undefined },{ id:'mv-premium-plan',label:'Mon plan & limites',icon:'📊' },{ id:'mv-premium-config-pages',label:'Configurer mes pages',icon:'✏️' },{ id:'config-multivendeur',label:'Config multi',icon:'⚙️' },{ id:'mv-produits',label:'Produits',icon:'📦' },{ id:'annonces-studio-categories',label:'Catégories',icon:'🗂️' },{ id:'mv-commandes',label:'Commandes',icon:'🛒' },{ id:'mv-avis',label:'Avis',icon:'⭐',badge: avisAttente > 0 ? avisAttente : undefined },...(addonsMV.questions_produit ? [{ id:'mv-questions',label:'Questions produits',icon:'💬',badge: questionsSignalees > 0 ? questionsSignalees : undefined }] : []),...(addonsMV.offres_du_jour ? [{ id:'mv-offres',label:'Offres du jour',icon:'🔥' }] : []),...(addonsMV.faire_une_offre ? [{ id:'mv-negociations',label:'Faire une offre',icon:'🤝' }] : []),...(addonsMV.plans_collab ? [{ id:'mv-plans-collab',label:'Plans collaborateurs',icon:'🧾' }] : []),...(addonsMV.encheres_visibles ? [{ id:'mv-encheres',label:'Enchères',icon:'🔨' }] : []),...(options?.verificateur_age ? [itemVerificateurAge] : []), ...(options?.popup_annonce ? [itemPopupAnnonce] : []), ...(addonsMV.parution_future ? [itemParutionFutur] : []), ...(addonsMV.favoris ? [itemFavoris] : []), ...(addonsMV.chatbot ? [{ id:'mes-chatbot', label:'Chatbot 💬', icon:'💬' }] : []),...(addonsMV.analytique ? [{ id:'mes-analytique', label:'Analytique 📈', icon:'📈' }] : []),...(addonsMV.connecteur_ebay ? [{ id:'mv-ebay', label:'Connecteur eBay', icon:'🏷️' }] : []),...(addonsMV.connecteur_etsy ? [{ id:'mv-etsy', label:'Connecteur Etsy', icon:'🧶' }] : []),...(addonsMV.pwa_boutique ? [{ id:'mv-pwa', label:'App installable', icon:'📲' }] : []),...(addonsMV.favicon_boutique ? [{ id:'mv-favicon', label:'Favicon', icon:'🖼️' }] : []),...(addonsMV.effets_boutique ? [{ id:'mv-effets', label:'Effets de boutique', icon:'🎃' }] : [])], badge: (contactNonLus + avisAttente + questionsSignalees) > 0 ? (contactNonLus + avisAttente + questionsSignalees) : undefined };
 
   // ── Construction du menu selon le template ────────────────────────────────
@@ -1818,8 +1819,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'mes-effets-visuels') return <ConfigStoreEffects gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'config-paiements') return <ConfigurationPaiements gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'encheres-site') return <MesEncheresSite gestionnaireId={gestionnaire.id} templateId={templateActif} />;
-    if (pageActive === 'annonces-site') return <MesAnnoncesSite key="annonces-liste" gestionnaireId={gestionnaire.id} templateId={templateActif} />;
-    if (pageActive === 'annonces-config') return <MesAnnoncesSite key="annonces-config" gestionnaireId={gestionnaire.id} templateId={templateActif} ongletInitial="apparence" />;
+    if (pageActive === 'annonces-site') return <MesAnnoncesSite key="annonces-liste" mode="liste" gestionnaireId={gestionnaire.id} templateId={templateActif} />;
+    if (pageActive === 'annonces-config') return <MesAnnoncesSite key="annonces-config" mode="config" gestionnaireId={gestionnaire.id} templateId={templateActif} />;
     if (pageActive === 'annonces-plan') return <BoutiquePlan gestionnaireId={gestionnaire.id} accent="#0f766e" naviguerVers={setPageActive} base="/api/studio/annonces-site" sansAddons pageListe="annonces-site" />;
     if (pageActive === 'cagnotte-config') return <ConfigMesPagesCagnotte gestionnaireId={gestionnaire.id} naviguer={setPageActive} templateId={templateActif} />;
     if (pageActive === 'commandes-cagnotte') return <MaCagnotte vendeurId={gestionnaire.id} />;
@@ -2150,7 +2151,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
             </span>
           )}
         </button>
-        <button onClick={() => window.open(`/site-preview?vendeurId=${gestionnaire.id}`, '_blank', 'noopener,noreferrer')} title="Voir mon site"
+        <button onClick={() => ouvrirApercu(`/site-preview?vendeurId=${gestionnaire.id}`)} title="Voir mon site"
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22 }}>
           👁️
         </button>
