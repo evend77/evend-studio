@@ -1232,6 +1232,31 @@ function EncadrePrixListe({ icone, titre, texte, lignes }: { icone: string; titr
   );
 }
 
+// ─── Encadré « Combien coûte la location de biens ? » : même présentation que celui des cagnottes, lu dans la grille de l'admin ───
+function EncadrePrixLocations({ paliers }: { paliers: { limite: number; prix: string; label: string }[] }) {
+  const tries = [...paliers].sort((a, b) => a.limite - b.limite);
+  return (
+    <div style={{ margin: '0 0 28px', borderRadius: 16, border: '1px solid rgba(132,204,22,0.45)', background: 'linear-gradient(135deg, rgba(132,204,22,0.10), rgba(255,255,255,0.03))', padding: '18px 20px', maxWidth: 900 }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800, color: '#fff' }}>🏠 Combien coûte la location de biens ?</h3>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)' }}>
+        Un <b style={{ color: '#fff' }}>prix fixe selon le nombre d'annonces de location</b> que vous publiez. Taxes en sus.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+        {tries.map((p, i) => (
+          <div key={i} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.25)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#bef264', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{p.label || `${p.limite} annonces`}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: '2px 0' }}>{p.prix}</div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)' }}>Jusqu'à {p.limite} annonce{p.limite > 1 ? 's' : ''}</div>
+          </div>
+        ))}
+      </div>
+      <p style={{ margin: '12px 0 0', fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
+        Un prix fixe par palier, selon le nombre d'annonces de location permises.
+      </p>
+    </div>
+  );
+}
+
 export default function PageTemplates() {
   const navigate = useNavigate();
   const [filtreCategorie, setFiltreCategorie] = useState<string>('tous');
@@ -1247,6 +1272,20 @@ export default function PageTemplates() {
   // Boutiques : grille de prix UNIQUE réglée dans l'admin (Templates → Boutiques (tarifs)) ; vide = chaque template garde son « Prix Template »
   const [prixBoutiques, setPrixBoutiques] = useState('');
   const [paliersBoutiques, setPaliersBoutiques] = useState<{ limite: number; prix: string; label: string }[]>([]);
+  // Locations : grille de paliers (nombre d'annonces de location permises) réglée dans l'admin (Templates → Locations (tarifs))
+  const [prixLocations, setPrixLocations] = useState('');
+  const [paliersLocations, setPaliersLocations] = useState<{ limite: number; prix: string; label: string }[]>([]);
+  useEffect(() => {
+    fetch('/api/locations/prix')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d || !d.success || !d.actif || !d.a_partir_de) return;
+        setPrixLocations(String(d.a_partir_de).slice(0, 60));
+        const pal = (Array.isArray(d.paliers) ? d.paliers : []).map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix);
+        setPaliersLocations(pal);
+      })
+      .catch(() => { /* silencieux */ });
+  }, []);
   // Multivendeur : forfaits réglés dans l'admin (⭐ Forfaits & Plans MV) — aucune grille séparée
   const [forfaitsMV, setForfaitsMV] = useState<ForfaitMVPublic[]>([]);
   useEffect(() => {
@@ -1318,6 +1357,7 @@ export default function PageTemplates() {
     }
     if (t.groupe === 'annonces' && prixAnnonces) return prixAnnonces;
     if (t.groupe === 'enchere' && prixEncheres) return prixEncheres;
+    if (t.id === 'reservation-location' && prixLocations) return prixLocations;   // location de biens : grille de paliers
     if (prixVitrines[t.groupe]) return prixVitrines[t.groupe];   // vitrines : prix de la sous-catégorie
     if (t.groupe === 'multi-vendeur' && forfaitsMV.length) return `À partir de ${formaterArgent(Math.min(...forfaitsMV.map(p => p.prix)), 'CAD')} / mois`;
     // Boutiques solo : la grille unique remplace le prix par template (sauf Mono-produit)
@@ -1534,7 +1574,8 @@ export default function PageTemplates() {
                   {categorie.id === 'multivendeur' && forfaitsMV.length > 0 && <EncadrePrixMV plans={forfaitsMV} />}
                   {categorie.id === 'vitrines' && <EncadrePrixListe icone="🖼" titre="Combien coûte un site vitrine ?" texte={<>Un <b style={{ color: '#fff' }}>prix fixe par type de site</b> : tous les templates d'une même sous-catégorie ont le même prix. Les taxes s'ajoutent au prix.</>}
                     lignes={SOUS_CATEGORIES_VITRINES.map(g => { const t = TEMPLATES.find(x => x.groupe === g.id); const p = t ? prixAfficheDe(t) : undefined; return { icone: g.icone, label: g.label, prix: p || '' }; }).filter(l => l.prix)} />}
-                  {categorie.id === 'locations' && <EncadrePrixListe icone="🏠" titre="Combien coûte la location de biens ?" texte={<>Le prix du template de location de biens (calendrier de disponibilité et dépôt inclus). Les taxes s'ajoutent au prix.</>}
+                  {categorie.id === 'locations' && paliersLocations.length > 0 && <EncadrePrixLocations paliers={paliersLocations} />}
+                  {categorie.id === 'locations' && paliersLocations.length === 0 && <EncadrePrixListe icone="🏠" titre="Combien coûte la location de biens ?" texte={<>Le prix du template de location de biens (calendrier de disponibilité et dépôt inclus). Les taxes s'ajoutent au prix.</>}
                     lignes={tempsCategorie.map(t => ({ label: t.nom, prix: prixAfficheDe(t) || '' })).filter(l => l.prix)} />}
 
                   {/* Sous-groupes internes (si plusieurs) sinon grille directe */}

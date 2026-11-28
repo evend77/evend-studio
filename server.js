@@ -216,6 +216,8 @@ app.use('/api/boutiques/prix', require('./routes/boutiques_prix_public'));      
 app.use('/api/boutiques/plan', require('./routes/boutiques_plan'));              // Boutiques — choix du palier (GESTIONNAIRE)
 app.use('/api/vitrines/prix', require('./routes/vitrines_prix_public'));      // Vitrines — prix par sous-catégorie (public)
 app.use('/api/mv/prix', require('./routes/mv_prix_public'));                    // Multivendeur — prix des forfaits (public, lecture des forfaits MV)
+app.use('/api/locations/prix', require('./routes/locations_prix_public'));    // Locations — prix publics (grille)
+app.use('/api/admin/locations-prix', require('./routes/locations_prix_admin'));  // Locations — grille de prix (ADMIN)
 app.use('/api/admin/vitrines-prix', require('./routes/vitrines_prix_admin'));    // Vitrines — prix par sous-catégorie (ADMIN)
 app.use('/api/admin/boutiques-prix', require('./routes/boutiques_prix_admin'));    // Boutiques — grille de prix (ADMIN)
 

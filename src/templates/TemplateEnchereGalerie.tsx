@@ -5,6 +5,9 @@
 import { useState, useEffect } from 'react';
 import { useEncheres, useTimer, BoiteMise, PastilleReserve, HistoriqueMises, fmt, pad, prixAffiche, type LotPub } from './enchereSite/moteur';
 
+// Alias : d'autres pages importent « Lot » depuis ce fichier.
+export type Lot = LotPub;
+
 export interface ConfigEnchereGalerie {
   nomBoutique:       string;
   sloganBoutique:    string;
