@@ -1214,20 +1214,20 @@ const SOUS_CATEGORIES_VITRINES: { id: string; icone: string; label: string }[] =
   { id: 'profession', icone: '💼', label: 'Profession' },
   { id: 'reservation', icone: '📅', label: 'Formulaires & Réservations' },
 ];
-function EncadrePrixListe({ icone, titre, texte, lignes }: { icone: string; titre: string; texte: React.ReactNode; lignes: { icone?: string; label: string; prix: string }[] }) {
-  if (!lignes.length) return null;
+function EncadrePrixListe({ icone, titre, texte, lignes, toujours }: { icone: string; titre: string; texte: React.ReactNode; toujours?: boolean; lignes: { icone?: string; label: string; prix: string }[] }) {
+  if (!lignes.length && !toujours) return null;
   return (
     <div style={{ margin: '0 0 28px', borderRadius: 16, border: '1px solid rgba(251,191,36,0.45)', background: 'linear-gradient(135deg, rgba(251,191,36,0.10), rgba(255,255,255,0.03))', padding: '18px 20px', maxWidth: 900 }}>
       <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800, color: '#fff' }}>{icone} {titre}</h3>
       <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.72)' }}>{texte}</p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
+      {lignes.length > 0 && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 10 }}>
         {lignes.map((l, i) => (
           <div key={i} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.22)' }}>
             <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{l.icone ? l.icone + ' ' : ''}{l.label}</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: '#fff', margin: '4px 0 0' }}>{l.prix}</div>
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }
@@ -1571,6 +1571,7 @@ export default function PageTemplates() {
                   {categorie.id === 'annonces' && paliersAnnonces.length > 0 && <EncadrePrixAnnonces paliers={paliersAnnonces} />}
                   {categorie.id === 'encheres' && paliersEncheres.length > 0 && <EncadrePrixEncheres paliers={paliersEncheres} />}
                   {categorie.id === 'boutiques' && paliersBoutiques.length > 0 && <EncadrePrixBoutiques paliers={paliersBoutiques} />}
+                  {categorie.id === 'boutiques' && paliersBoutiques.length === 0 && <EncadrePrixListe icone="🛍" titre="Combien coûtent les boutiques ?" texte={<>Le prix d'une boutique dépend du <b style={{ color: '#fff' }}>nombre de produits</b> dont vous avez besoin (paliers). Le prix de chaque palier s'affiche ici dès qu'il est réglé. Les taxes s'ajoutent au prix.</>} lignes={[]} toujours />}
                   {categorie.id === 'multivendeur' && forfaitsMV.length > 0 && <EncadrePrixMV plans={forfaitsMV} />}
                   {categorie.id === 'vitrines' && <EncadrePrixListe icone="🖼" titre="Combien coûte un site vitrine ?" texte={<>Un <b style={{ color: '#fff' }}>prix fixe par type de site</b> : tous les templates d'une même sous-catégorie ont le même prix. Les taxes s'ajoutent au prix.</>}
                     lignes={SOUS_CATEGORIES_VITRINES.map(g => { const t = TEMPLATES.find(x => x.groupe === g.id); const p = t ? prixAfficheDe(t) : undefined; return { icone: g.icone, label: g.label, prix: p || '' }; }).filter(l => l.prix)} />}
