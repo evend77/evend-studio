@@ -5,8 +5,35 @@
 import { useState, useEffect } from 'react';
 import { useEncheres, useTimer, BoiteMise, PastilleReserve, HistoriqueMises, fmt, pad, prixAffiche, type LotPub } from './enchereSite/moteur';
 
-// Alias : d'autres pages importent « Lot » depuis ce fichier.
-export type Lot = LotPub;
+// Ancien format de lot, gardé pour l'éditeur de configuration (src/pages/studio/ConfigTemplateEnchereGalerie.tsx).
+// Les vrais lots viennent de « Mes enchères » (LotPub) ; ces champs ne servent plus à l'affichage du site.
+export interface Lot {
+  id:          string;
+  titre:       string;
+  description: string;
+  photos:      string[];
+  condition:   string;
+  categorie:   string;
+  prixBase:    number;
+  prixReserve?: number;
+  dateFin:     string;
+  dateDebut:   string;
+  vedette:     boolean;
+}
+
+export const LOT_DEFAUT: Lot = {
+  id: 'l1',
+  titre: 'Montre Tissot Le Locle — Édition limitée',
+  description: 'Montre automatique suisse en parfait état, boîte et papiers d\'origine.',
+  photos: ['https://images.pexels.com/photos/190819/pexels-photo-190819.jpeg?auto=compress&cs=tinysrgb&w=800'],
+  condition: 'Excellent',
+  categorie: 'Montres',
+  prixBase: 350,
+  prixReserve: 500,
+  dateFin: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+  dateDebut: new Date().toISOString(),
+  vedette: true,
+};
 
 export interface ConfigEnchereGalerie {
   nomBoutique:       string;
@@ -19,6 +46,8 @@ export interface ConfigEnchereGalerie {
   police:            'moderne' | 'classique';
   nomVente:          string;
   descriptionVente:  string;
+  incrementMin:      number;
+  lots:              Lot[];
   nomVendeur:        string;
   email:             string;
   telephone?:        string;
@@ -35,6 +64,8 @@ export const CONFIG_ENCHERE_GALERIE_DEFAUT: ConfigEnchereGalerie = {
   police:            'classique',
   nomVente:          'Vente de prestige',
   descriptionVente:  'Une sélection rare d\'objets de collection, montres, art et antiquités. Tous les articles sont authentifiés.',
+  incrementMin:      10,
+  lots:              [],
   nomVendeur:        'Maison Duchêne',
   email:             'ventes@maisonduchene.ca',
   telephone:         '',
