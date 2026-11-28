@@ -5,6 +5,23 @@
 import { useState, useEffect } from 'react';
 import { useEncheres, useTimer, BoiteMise, PastilleReserve, HistoriqueMises, fmt, pad, prixAffiche, type LotPub, type MiseTicker } from './enchereSite/moteur';
 
+// Ancien format de lot, gardé pour l'éditeur de configuration (src/pages/studio/ConfigTemplateEnchereLive.tsx).
+// Les vrais lots viennent de « Mes enchères » (LotPub) ; ces champs ne servent plus à l'affichage du site.
+export interface LotLive {
+  id:          string;
+  titre:       string;
+  description: string;
+  photos:      string[];
+  categorie:   string;
+  condition:   string;
+  prixBase:    number;
+  prixReserve?: number;
+  dateFin:     string;
+  dateDebut:   string;
+  vedette:     boolean;
+  tags:        string[];
+}
+
 export interface ConfigEnchereLive {
   nomBoutique:       string;
   slogan:            string;
@@ -15,6 +32,9 @@ export interface ConfigEnchereLive {
   couleurAccent:     string;
   nomVente:          string;
   descriptionVente:  string;
+  incrementMin:      number;
+  maxMisesSansCompte: number;
+  lots:              LotLive[];
   email:             string;
   telephone?:        string;
   nomOrganisateur:   string;
@@ -30,6 +50,9 @@ export const CONFIG_ENCHERE_LIVE_DEFAUT: ConfigEnchereLive = {
   couleurAccent:    '#f472b6',
   nomVente:         'Vente Live',
   descriptionVente: 'Électronique, sport, mode, luxe — des lots mis aux enchères en direct.',
+  incrementMin:     5,
+  maxMisesSansCompte: 3,
+  lots:             [],
   email:            '',
   nomOrganisateur:  '',
 };
