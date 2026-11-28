@@ -1196,6 +1196,19 @@ export default function PageTemplates() {
   // Boutiques : grille de prix UNIQUE réglée dans l'admin (Templates → Boutiques (tarifs)) ; vide = chaque template garde son « Prix Template »
   const [prixBoutiques, setPrixBoutiques] = useState('');
   const [paliersBoutiques, setPaliersBoutiques] = useState<{ limite: number; prix: string; label: string }[]>([]);
+  // Vitrines : un prix par sous-catégorie (groupe), réglé dans l'admin (Templates → Vitrines (tarifs)) ; groupe sans prix = prix d'avant
+  const [prixVitrines, setPrixVitrines] = useState<Record<string, string>>({});
+  useEffect(() => {
+    fetch('/api/vitrines/prix')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d || !d.success || !d.actif || !d.groupes) return;
+        const m: Record<string, string> = {};
+        for (const g of Object.keys(d.groupes)) { const t = d.groupes[g] && d.groupes[g].prix_texte; if (t) m[g] = String(t).slice(0, 60); }
+        setPrixVitrines(m);
+      })
+      .catch(() => { /* silencieux */ });
+  }, []);
   useEffect(() => {
     fetch('/api/boutiques/prix')
       .then(r => (r.ok ? r.json() : null))
@@ -1243,6 +1256,7 @@ export default function PageTemplates() {
     }
     if (t.groupe === 'annonces' && prixAnnonces) return prixAnnonces;
     if (t.groupe === 'enchere' && prixEncheres) return prixEncheres;
+    if (prixVitrines[t.groupe]) return prixVitrines[t.groupe];   // vitrines : prix de la sous-catégorie
     // Boutiques solo : la grille unique remplace le prix par template (sauf Mono-produit)
     if ((t.groupe === 'boutique-generique' || t.groupe === 'boutique-industrie') && prixBoutiques && t.id !== 'boutique-simple') return prixBoutiques;
     return prixParTemplate[t.id];

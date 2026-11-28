@@ -540,8 +540,9 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     Promise.all([
       fetch('/api/templates/prix').then(res => res.json()),
       fetch('/api/boutiques/prix').then(r => (r.ok ? r.json() : null)).catch(() => null),
+      fetch('/api/vitrines/prix').then(r => (r.ok ? r.json() : null)).catch(() => null),
     ])
-      .then(([data, grille]) => {
+      .then(([data, grille, vitrines]) => {
         if (!data.success) return;
         // Grille unique des boutiques : remplace les paliers par template (hors Mono-produit, Simplisse, Simplisse Mode et Premium)
         let suffixeGrille = '';
@@ -561,6 +562,9 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           const surcharge = data.templates[t.id]?.prix_texte;
           const defautCategorie = data.groupes[t.groupe]?.prix_texte;
           map[t.id] = surcharge || defautCategorie || 'Gratuit';
+          // Vitrines : le prix de la sous-catégorie (page admin Templates → Vitrines (tarifs)) remplace le prix par template
+          const pv = vitrines && vitrines.success && vitrines.actif && vitrines.groupes && vitrines.groupes[t.groupe];
+          if (pv && pv.prix_texte) map[t.id] = String(pv.prix_texte).slice(0, 60);
         }
         setPrixParTemplate(map);
         const info: Record<string, { prixMin: string; limiteMax: number }> = {};
