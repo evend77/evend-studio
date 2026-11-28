@@ -1662,7 +1662,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
 
   // ── Sites VITRINE : un menu « VITRINE » avec un sous-menu par add-on activé. Ces entrées sont retirées
   //    de leur ancienne place (menus du haut et CONFIGURATION) pour éviter les doublons.
-  //    Les menus Collaborateurs / Badges / Blogs / FAQ / Chat acheteur-collab et « Config multivendeur » sont aussi cachés. ──
+  //    Les menus Collaborateurs / Badges / Blogs / FAQ / Chat acheteur-collab et « Config multivendeur » sont aussi cachés,
+  //    ainsi que le menu ADD-ONS (remplacé par VITRINE → Mon plan & add-ons). ──
   if (IDS_SITES_VITRINE.has(templateActif)) {
     const menuVitrine: MenuItem = {
       id: 'vitrine-menu', label: 'VITRINE', icon: '🖼️',
@@ -1681,7 +1682,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
       ],
     };
     const anciens = ['mes-reservations', 'abonnements-clients', 'mes-sponsors', 'mes-analytique', 'mes-chatbot', 'branding-options', menuMesEffetsVisuels.id,
-      menuSousVendeurs.id, menuBadges.id, menuBlogsSV.id, menuFaqsSV.id, menuChatSV.id];
+      menuSousVendeurs.id, menuBadges.id, menuBlogsSV.id, menuFaqsSV.id, menuChatSV.id, menuAddOn.id];
     const anciensSousMenus = [itemVerificateurAge.id, itemPopupAnnonce.id, menuMesEffetsVisuels.id, itemConfigMV.id];
     menuItems = menuItems
       .filter(m => !anciens.includes(m.id))
