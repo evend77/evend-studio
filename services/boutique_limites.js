@@ -27,8 +27,15 @@ function nettoyerPaliers(brut) {
     .sort((a, b) => a.limite - b.limite);
 }
 
+// Grille de prix UNIQUE des boutiques (page admin Templates → « Boutiques (tarifs) ») : quand elle contient au moins un palier,
+// elle remplace les « Prix Template » de tous les templates boutique éligibles (voir services/boutiques_prix.js).
 async function paliersDuTemplate(templateId, db) {
   if (!templateId) return [];
+  const PRIX = require('./boutiques_prix');
+  if (PRIX.suitLaGrille(templateId)) {
+    const g = await PRIX.paliersPourLimites(db);
+    if (g.length) return g;
+  }
   const r = await (db || pool).query('SELECT prix_type, prix_paliers FROM templates_prix WHERE template_id = $1', [templateId]);
   const row = r.rows[0];
   if (!row || row.prix_type !== 'paliers') return [];
@@ -49,7 +56,15 @@ async function etat(gid, db) {
   const g = await c.query('SELECT plan FROM gestionnaires WHERE id = $1', [gid]);
   const plan = (g.rows[0] && g.rows[0].plan) || '';
   const paliers = await paliersDuTemplate(templateId, c);
-  const palier = paliers.length ? (paliers.find((p) => planId(templateId, p.limite) === plan) || paliers[0]) : null;
+  let palier = paliers.length ? (paliers.find((p) => planId(templateId, p.limite) === plan) || null) : null;
+  if (!palier && paliers.length) {
+    // Palier choisi qui n'existe plus dans la grille : le plus petit palier qui contient ses produits actifs (jamais en dessous de ce qu'il a déjà)
+    const choisi = plan && plan.indexOf(famille(templateId) + '-') === 0;
+    if (choisi) {
+      const nb = await compter(gid, c);
+      palier = paliers.find((p) => p.limite >= nb) || paliers[paliers.length - 1];
+    } else palier = paliers[0];
+  }
   return { templateId, plan, paliers, palier, limite: palier ? palier.limite : null };
 }
 
@@ -73,11 +88,14 @@ async function verifierActivation(gid, ajout, db) {
   return e;
 }
 
-// Changer de palier dans le template actuel. Refusé si le gestionnaire a trop d'annonces actives.
-async function changerPalier(gid, limite) {
+// Changer de palier. Sans templateId : dans le template actuel. Avec templateId : pour ce template (choix fait dans la fenêtre de palier
+// AVANT d'appliquer le template ; le palier est ensuite conservé par appliquerChangementTemplate). Refusé si trop d'annonces actives.
+async function changerPalier(gid, limite, templateId) {
   const e = await etat(gid);
-  if (!e.templateId || !e.paliers.length) throw new ErreurBoutique("Votre template actuel n'a pas de paliers.", 400);
-  const p = e.paliers.find((x) => x.limite === limite);
+  const tid = templateId || e.templateId;
+  const paliers = templateId ? await paliersDuTemplate(templateId) : e.paliers;
+  if (!tid || !paliers.length) throw new ErreurBoutique("Votre template actuel n'a pas de paliers.", 400);
+  const p = paliers.find((x) => x.limite === limite);
   if (!p) throw new ErreurBoutique('Palier inconnu pour ce template.', 400);
   const nb = await compter(gid);
   if (nb > p.limite) {
@@ -85,7 +103,7 @@ async function changerPalier(gid, limite) {
       `Ce palier permet ${p.limite} annonce${p.limite > 1 ? 's' : ''} et vous en avez ${nb} d'actives. Désactivez ou supprimez ${nb - p.limite} annonce${nb - p.limite > 1 ? 's' : ''} d'abord.`,
       409, { code: 'LIMITE_ANNONCES', nb_actifs: nb, limite: p.limite });
   }
-  const plan = planId(e.templateId, p.limite);
+  const plan = planId(tid, p.limite);
   await pool.query('UPDATE gestionnaires SET plan = $1, updated_at = NOW() WHERE id = $2', [plan, gid]);
   return { plan, limite: p.limite };
 }

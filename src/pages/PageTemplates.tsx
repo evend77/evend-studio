@@ -1131,6 +1131,31 @@ function EncadrePrixAnnonces({ paliers }: { paliers: { limite: number; prix: str
   );
 }
 
+// ─── Encadré « Combien coûtent les boutiques ? » : même présentation que celui des cagnottes, lu dans la grille de l'admin ───
+function EncadrePrixBoutiques({ paliers }: { paliers: { limite: number; prix: string; label: string }[] }) {
+  const tries = [...paliers].sort((a, b) => a.limite - b.limite);
+  return (
+    <div style={{ margin: '0 0 28px', borderRadius: 16, border: '1px solid rgba(37,99,235,0.45)', background: 'linear-gradient(135deg, rgba(37,99,235,0.10), rgba(255,255,255,0.03))', padding: '18px 20px', maxWidth: 900 }}>
+      <h3 style={{ margin: '0 0 6px', fontSize: 17, fontWeight: 800, color: '#fff' }}>🛍 Combien coûtent les boutiques ?</h3>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.7)' }}>
+        Un <b style={{ color: '#fff' }}>prix fixe selon le nombre de produits actifs</b> que vous vendez en même temps. Taxes en sus.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+        {tries.map((p, i) => (
+          <div key={i} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.25)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{p.label || `${p.limite} produits`}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: '2px 0' }}>{p.prix}</div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.65)' }}>Jusqu'à {p.limite} produit{p.limite > 1 ? 's' : ''} actif{p.limite > 1 ? 's' : ''}</div>
+          </div>
+        ))}
+      </div>
+      <p style={{ margin: '12px 0 0', fontSize: 12.5, color: 'rgba(255,255,255,0.6)', lineHeight: 1.6 }}>
+        Les produits en brouillon ou désactivés ne comptent pas dans la limite.
+      </p>
+    </div>
+  );
+}
+
 // ─── Encadré « Combien coûtent les enchères ? » : même présentation que celui des cagnottes, lu dans la grille de l'admin ───
 function EncadrePrixEncheres({ paliers }: { paliers: { limite: number; prix: string; label: string }[] }) {
   const tries = [...paliers].sort((a, b) => a.limite - b.limite);
@@ -1168,6 +1193,20 @@ export default function PageTemplates() {
   // Enchères : grille de prix UNIQUE réglée dans l'admin (Templates → Enchères (tarifs)) ; vide = chaque template garde son « Prix Template »
   const [prixEncheres, setPrixEncheres] = useState('');
   const [paliersEncheres, setPaliersEncheres] = useState<{ limite: number; prix: string; label: string }[]>([]);
+  // Boutiques : grille de prix UNIQUE réglée dans l'admin (Templates → Boutiques (tarifs)) ; vide = chaque template garde son « Prix Template »
+  const [prixBoutiques, setPrixBoutiques] = useState('');
+  const [paliersBoutiques, setPaliersBoutiques] = useState<{ limite: number; prix: string; label: string }[]>([]);
+  useEffect(() => {
+    fetch('/api/boutiques/prix')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => {
+        if (!d || !d.success || !d.actif || !d.a_partir_de) return;
+        setPrixBoutiques(String(d.a_partir_de).slice(0, 60));
+        const pal = (Array.isArray(d.paliers) ? d.paliers : []).map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix);
+        setPaliersBoutiques(pal);
+      })
+      .catch(() => { /* silencieux */ });
+  }, []);
   useEffect(() => {
     fetch('/api/encheres/prix')
       .then(r => (r.ok ? r.json() : null))
@@ -1204,6 +1243,8 @@ export default function PageTemplates() {
     }
     if (t.groupe === 'annonces' && prixAnnonces) return prixAnnonces;
     if (t.groupe === 'enchere' && prixEncheres) return prixEncheres;
+    // Boutiques solo : la grille unique remplace le prix par template (sauf Mono-produit)
+    if ((t.groupe === 'boutique-generique' || t.groupe === 'boutique-industrie') && prixBoutiques && t.id !== 'boutique-simple') return prixBoutiques;
     return prixParTemplate[t.id];
   };
 
@@ -1412,6 +1453,7 @@ export default function PageTemplates() {
                   {categorie.id === 'cagnottes' && prixCagnotte && <EncadrePrixCagnotte prix={prixCagnotte} />}
                   {categorie.id === 'annonces' && paliersAnnonces.length > 0 && <EncadrePrixAnnonces paliers={paliersAnnonces} />}
                   {categorie.id === 'encheres' && paliersEncheres.length > 0 && <EncadrePrixEncheres paliers={paliersEncheres} />}
+                  {categorie.id === 'boutiques' && paliersBoutiques.length > 0 && <EncadrePrixBoutiques paliers={paliersBoutiques} />}
 
                   {/* Sous-groupes internes (si plusieurs) sinon grille directe */}
                   {sousGroupeIds.length > 1 ? (

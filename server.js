@@ -212,6 +212,9 @@ app.use('/api/annonces/prix', require('./routes/annonces_prix_public'));
 app.use('/api/admin/annonces-prix', require('./routes/annonces_prix_admin'));
 app.use('/api/encheres/prix', require('./routes/encheres_prix_public'));      // Enchères — prix publics (grille unique)
 app.use('/api/admin/encheres-prix', require('./routes/encheres_prix_admin'));    // Enchères — grille de prix (ADMIN)
+app.use('/api/boutiques/prix', require('./routes/boutiques_prix_public'));      // Boutiques — prix publics (grille unique)
+app.use('/api/boutiques/plan', require('./routes/boutiques_plan'));              // Boutiques — choix du palier (GESTIONNAIRE)
+app.use('/api/admin/boutiques-prix', require('./routes/boutiques_prix_admin'));    // Boutiques — grille de prix (ADMIN)
 
 // =====================================================================
 // 🎭 SIÈGES SPECTACLE

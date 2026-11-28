@@ -13,103 +13,6 @@ interface Props {
   gestionnaireId?: number;
 }
 
-// ─── Modal choix palier Simplisse ────────────────────────────────────────────
-function ModalPalierSimplisse({ onConfirmer, onAnnuler }: { onConfirmer: (plan: string) => void; onAnnuler: () => void }) {
-  const [planChoisi, setPlanChoisi] = useState('simplisse-25');
-  const [loading, setLoading] = useState(false);
-  const [erreur, setErreur] = useState('');
-
-  const paliers = [
-    { id: 'simplisse-25',  limite: 25,  prix: '15,99$', label: 'Débutant',      desc: 'Parfait pour commencer',         couleur: '#2563eb' },
-    { id: 'simplisse-50',  limite: 50,  prix: '18,99$', label: 'Croissance',    desc: 'Pour une boutique en expansion', couleur: '#7c3aed' },
-    { id: 'simplisse-100', limite: 100, prix: '20,99$', label: 'Pro',           desc: 'Large catalogue de produits',    couleur: '#db2777' },
-    { id: 'simplisse-200', limite: 200, prix: '23,99$', label: 'Entreprise',    desc: 'Maximum pour Simplisse',         couleur: '#dc2626' },
-  ];
-
-  const handleConfirmer = async () => {
-    setLoading(true);
-    setErreur('');
-    try {
-      onConfirmer(planChoisi);
-    } catch {
-      setErreur('Erreur lors de la sélection du plan.');
-      setLoading(false);
-    }
-  };
-
-  const palierActif = paliers.find(p => p.id === planChoisi)!;
-
-  return (
-    <div onClick={onAnnuler} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 580, boxShadow: '0 24px 64px rgba(0,0,0,0.25)', overflow: 'hidden', fontFamily: "'Inter', sans-serif" }}>
-
-        {/* En-tête */}
-        <div style={{ background: 'linear-gradient(135deg, #1e40af, #2563eb)', padding: '24px 28px' }}>
-          <div style={{ fontSize: 28, marginBottom: 8 }}>🛍</div>
-          <h2 style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: '0 0 6px' }}>Choisir votre palier Simplisse</h2>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', margin: 0 }}>Vous pourrez changer de palier en tout temps depuis votre tableau de bord.</p>
-        </div>
-
-        {/* Paliers */}
-        <div style={{ padding: '24px 28px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 20 }}>
-            {paliers.map(p => (
-              <div key={p.id} onClick={() => setPlanChoisi(p.id)}
-                style={{
-                  border: `2px solid ${planChoisi === p.id ? p.couleur : '#e5e7eb'}`,
-                  borderRadius: 10,
-                  padding: '14px 16px',
-                  cursor: 'pointer',
-                  background: planChoisi === p.id ? `${p.couleur}08` : '#fafafa',
-                  transition: 'all 0.15s ease',
-                  position: 'relative',
-                }}>
-                {planChoisi === p.id && (
-                  <div style={{ position: 'absolute', top: 8, right: 8, width: 18, height: 18, borderRadius: '50%', background: p.couleur, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <span style={{ color: '#fff', fontSize: 10, fontWeight: 800 }}>✓</span>
-                  </div>
-                )}
-                <div style={{ fontSize: 11, fontWeight: 700, color: p.couleur, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{p.label}</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#1a1a1a', marginBottom: 2 }}>{p.prix}<span style={{ fontSize: 11, fontWeight: 500, color: '#888' }}>/mois + tx</span></div>
-                <div style={{ fontSize: 12, fontWeight: 700, color: '#333', marginBottom: 3 }}>Jusqu'à <strong style={{ color: p.couleur }}>{p.limite} produits</strong></div>
-                <div style={{ fontSize: 11, color: '#888' }}>{p.desc}</div>
-              </div>
-            ))}
-          </div>
-
-          {/* Récap sélection */}
-          <div style={{ background: `${palierActif.couleur}08`, border: `1px solid ${palierActif.couleur}30`, borderRadius: 8, padding: '12px 16px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#333' }}>Palier choisi : </span>
-              <span style={{ fontSize: 13, fontWeight: 800, color: palierActif.couleur }}>{palierActif.label} — {palierActif.limite} produits</span>
-            </div>
-            <span style={{ fontSize: 15, fontWeight: 800, color: palierActif.couleur }}>{palierActif.prix}/mois</span>
-          </div>
-
-          <div style={{ background: '#f8fafc', borderRadius: 8, padding: '10px 14px', marginBottom: 20, fontSize: 12, color: '#555', lineHeight: 1.6 }}>
-            ℹ️ Le plan sera associé à votre compte. La facturation débutera lors de l'activation de votre boutique via Stripe.
-          </div>
-
-          {erreur && <p style={{ color: '#ef4444', fontSize: 13, marginBottom: 12 }}>❌ {erreur}</p>}
-
-          {/* Boutons */}
-          <div style={{ display: 'flex', gap: 10 }}>
-            <button onClick={onAnnuler} disabled={loading}
-              style={{ flex: 1, padding: '11px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#fff', fontSize: 14, cursor: 'pointer', fontFamily: 'inherit', color: '#555' }}>
-              Annuler
-            </button>
-            <button onClick={handleConfirmer} disabled={loading}
-              style={{ flex: 2, padding: '11px', border: 'none', borderRadius: 8, background: palierActif.couleur, color: '#fff', fontSize: 14, fontWeight: 700, cursor: loading ? 'wait' : 'pointer', fontFamily: 'inherit' }}>
-              {loading ? '⏳ Enregistrement...' : `✅ Confirmer — ${palierActif.prix}/mois`}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
 // ─── Configs démo hardcodées pour chaque template ────────────────────────────
 const DEMO_CONFIGS: Record<string, any> = {
   'boutique-premium': {
@@ -180,102 +83,6 @@ function ouvrirApercu(templateId: string) {
 }
 
 
-
-// ─── Modal palier Simplisse Mode ─────────────────────────────────────────────
-function ModalPalierSimplisseMode({ onConfirmer, onAnnuler }: { onConfirmer: (plan: string) => void; onAnnuler: () => void }) {
-  const [saving, setSaving] = useState(false);
-  const CP = '#722f37';
-  return (
-    <div onClick={onAnnuler} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.6)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'blur(4px)' }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:'#faf8f5',borderRadius:16,width:'100%',maxWidth:480,boxShadow:'0 24px 60px rgba(0,0,0,0.2)',overflow:'hidden',fontFamily:"'Inter',sans-serif",border:'1px solid #e2ddd8' }}>
-        <div style={{ background:`linear-gradient(135deg,${CP},#a0435a)`,padding:'28px 32px' }}>
-          <div style={{ fontSize:28,marginBottom:8 }}>👗</div>
-          <h2 style={{ fontSize:20,fontWeight:900,color:'#fff',margin:'0 0 6px',fontFamily:'Georgia,serif' }}>Simplisse Mode</h2>
-          <p style={{ fontSize:13,color:'rgba(255,255,255,0.75)',margin:0 }}>Tarif unique — max 100 produits · Changeable en tout temps</p>
-        </div>
-        <div style={{ padding:'28px 32px' }}>
-          <div style={{ background:'#fff',border:`2px solid ${CP}`,borderRadius:12,padding:'20px 24px',marginBottom:20,textAlign:'center' }}>
-            <div style={{ fontSize:11,fontWeight:700,color:CP,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:8 }}>Tarif mensuel</div>
-            <div style={{ fontSize:42,fontWeight:900,color:'#0f0f0f',fontFamily:'Georgia,serif',marginBottom:4 }}>25,99$<span style={{ fontSize:14,fontWeight:400,color:'#888' }}>/mois + tx</span></div>
-            <div style={{ fontSize:13,color:'#555' }}>Jusqu'à <strong style={{ color:CP }}>100 produits</strong> actifs</div>
-          </div>
-          <div style={{ marginBottom:20 }}>
-            {['👗 Lookbook & galerie lifestyle','🎨 Filtres couleur & taille visuels','📏 Guide des tailles intégré','🔍 Zoom image sur fiche produit','❤️ Wishlist & compte acheteur','📢 Popup promo & notifications vente','🔒 Paiement sécurisé Stripe'].map((f,i)=>(
-              <div key={i} style={{ display:'flex',alignItems:'center',gap:10,padding:'6px 0',borderBottom:'1px solid #f2ede6',fontSize:13,color:'#333' }}><span style={{ color:CP,fontWeight:700 }}>✓</span>{f}</div>
-            ))}
-          </div>
-          <div style={{ background:'#fef9ec',border:'1px solid #fcd34d',borderRadius:8,padding:'10px 14px',marginBottom:20,fontSize:12,color:'#92400e' }}>
-            ℹ️ Option "Cacher le branding e-Vend Studio" disponible pour +2,00$/mois depuis Branding & options.
-          </div>
-          <div style={{ display:'flex',gap:10 }}>
-            <button onClick={onAnnuler} style={{ flex:1,padding:'12px',border:'1px solid #e2ddd8',borderRadius:8,background:'#fff',fontSize:14,cursor:'pointer',fontFamily:'inherit',color:'#888' }}>Annuler</button>
-            <button onClick={async()=>{ setSaving(true); await onConfirmer('simplisse-mode-100'); setSaving(false); }} disabled={saving}
-              style={{ flex:2,padding:'12px',border:'none',borderRadius:8,background:`linear-gradient(135deg,${CP},#a0435a)`,color:'#fff',fontSize:14,fontWeight:800,cursor:saving?'wait':'pointer',fontFamily:'inherit' }}>
-              {saving?'⏳ Enregistrement...':'✅ Créer ma boutique Mode →'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Modal palier Premium ──────────────────────────────────────────────────────
-function ModalPalierPremium({ onConfirmer, onAnnuler }: { onConfirmer: (plan: string) => void; onAnnuler: () => void }) {
-  const [planChoisi, setPlanChoisi] = useState('premium-25');
-  const [saving, setSaving] = useState(false);
-  const OR = '#c9a96e';
-
-  const paliers = [
-    { id:'premium-25',  limite:25,  prix:'18,99$', prixNum:18.99, label:'Essentiel',   desc:'Parfait pour démarrer',           couleur:'#c9a96e' },
-    { id:'premium-50',  limite:50,  prix:'20,99$', prixNum:20.99, label:'Croissance',  desc:'Boutique en expansion',           couleur:'#a78bfa' },
-    { id:'premium-100', limite:100, prix:'25,99$', prixNum:25.99, label:'Pro',         desc:'Large catalogue de luxe',         couleur:'#f472b6' },
-    { id:'premium-200', limite:200, prix:'29,99$', prixNum:29.99, label:'Business',    desc:'Volume et performance',           couleur:'#fb923c' },
-    { id:'premium-500', limite:500, prix:'39,99$', prixNum:39.99, label:'Entreprise',  desc:'Maximum — aucune limite pratique',couleur:'#ef4444' },
-  ];
-
-  const palierActif = paliers.find(p => p.id === planChoisi)!;
-
-  return (
-    <div onClick={onAnnuler} style={{ position:'fixed',inset:0,background:'rgba(0,0,0,0.75)',zIndex:1000,display:'flex',alignItems:'center',justifyContent:'center',padding:20,backdropFilter:'blur(6px)' }}>
-      <div onClick={e=>e.stopPropagation()} style={{ background:'#111',borderRadius:20,width:'100%',maxWidth:620,boxShadow:'0 32px 80px rgba(0,0,0,0.6)',border:'1px solid rgba(201,169,110,0.2)',overflow:'hidden',fontFamily:"'Inter',sans-serif" }}>
-        <div style={{ background:'linear-gradient(135deg,#0a0a0a,#1a1a1a)',padding:'28px 32px',borderBottom:'1px solid rgba(201,169,110,0.15)' }}>
-          <div style={{ fontSize:28,marginBottom:8 }}>💎</div>
-          <h2 style={{ fontSize:20,fontWeight:900,color:'#fff',margin:'0 0 6px' }}>Choisir votre palier Premium</h2>
-          <p style={{ fontSize:13,color:'#666',margin:0 }}>Changeable en tout temps depuis votre tableau de bord.</p>
-        </div>
-        <div style={{ padding:'24px 32px' }}>
-          <div style={{ display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(175px,1fr))',gap:10,marginBottom:20 }}>
-            {paliers.map(p => (
-              <div key={p.id} onClick={()=>setPlanChoisi(p.id)}
-                style={{ border:`2px solid ${planChoisi===p.id?p.couleur:'#333'}`,borderRadius:10,padding:'14px 16px',cursor:'pointer',background:planChoisi===p.id?`${p.couleur}12`:'#1a1a1a',transition:'all 0.15s',position:'relative' }}>
-                {planChoisi===p.id&&<div style={{ position:'absolute',top:8,right:8,width:18,height:18,borderRadius:'50%',background:p.couleur,display:'flex',alignItems:'center',justifyContent:'center' }}><span style={{ color:'#000',fontSize:10,fontWeight:800 }}>✓</span></div>}
-                <div style={{ fontSize:11,fontWeight:700,color:p.couleur,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:4 }}>{p.label}</div>
-                <div style={{ fontSize:20,fontWeight:900,color:'#fff',marginBottom:2 }}>{p.prix}<span style={{ fontSize:10,fontWeight:500,color:'#555' }}>/mois</span></div>
-                <div style={{ fontSize:12,color:'#666',fontWeight:600 }}>{p.limite} produits</div>
-                <div style={{ fontSize:10,color:'#555',marginTop:4 }}>{p.desc}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ background:`${palierActif.couleur}10`,border:`1px solid ${palierActif.couleur}30`,borderRadius:8,padding:'12px 16px',marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center' }}>
-            <span style={{ fontSize:13,color:'#ccc' }}>Palier choisi : <strong style={{ color:palierActif.couleur }}>{palierActif.label} — {palierActif.limite} produits</strong></span>
-            <span style={{ fontSize:16,fontWeight:900,color:palierActif.couleur }}>{palierActif.prix}/mois</span>
-          </div>
-          <div style={{ background:'rgba(201,169,110,0.05)',border:'1px solid rgba(201,169,110,0.1)',borderRadius:8,padding:'10px 14px',marginBottom:20,fontSize:12,color:'#666',lineHeight:1.6 }}>
-            ℹ️ Option "Cacher le branding e-Vend Studio" disponible pour +2,00$/mois supplémentaires depuis Branding & options.
-          </div>
-          <div style={{ display:'flex',gap:10 }}>
-            <button onClick={onAnnuler} style={{ flex:1,padding:'12px',border:'1px solid #333',borderRadius:8,background:'transparent',fontSize:14,cursor:'pointer',fontFamily:'inherit',color:'#888' }}>Annuler</button>
-            <button onClick={async()=>{ setSaving(true); await onConfirmer(planChoisi); setSaving(false); }} disabled={saving}
-              style={{ flex:2,padding:'12px',border:'none',borderRadius:8,background:`linear-gradient(135deg,${palierActif.couleur},#e8c87a)`,color:'#000',fontSize:14,fontWeight:800,cursor:saving?'wait':'pointer',fontFamily:'inherit' }}>
-              {saving?'⏳ Enregistrement...':'✅ Confirmer — '+palierActif.prix+'/mois'}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Modal réinitialisation template ─────────────────────────────────────────
 function ModalReinitialisationTemplate({ gestionnaireId, onConfirme, onAnnuler }: {
@@ -566,8 +373,38 @@ function EncadrePrixEncheres({ grille }: { grille: { paliers: { limite: number; 
   );
 }
 
+// ─── Encadré « Combien coûtent les boutiques ? » : même présentation que l'encadré des cagnottes, lu dans la grille de l'admin ───
+function EncadrePrixBoutiques({ grille }: { grille: { paliers: { limite: number; prix: string; label: string }[] } | null }) {
+  if (!grille || !grille.paliers.length) return null;
+  const tries = [...grille.paliers].sort((a, b) => a.limite - b.limite);
+  return (
+    <div style={{ marginBottom: 24, borderRadius: 16, border: '1px solid rgba(251,191,36,0.45)', background: 'linear-gradient(135deg, rgba(251,191,36,0.10), rgba(255,255,255,0.03))', padding: '18px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 22 }}>🛍</span>
+        <h3 style={{ margin: 0, fontFamily: "'Sora', sans-serif", fontSize: 17, fontWeight: 800, color: '#fff' }}>Combien coûtent les boutiques ?</h3>
+      </div>
+      <p style={{ margin: '0 0 14px', fontSize: 13, lineHeight: 1.6, color: 'rgba(255,255,255,0.72)' }}>
+        Un <b style={{ color: '#fff' }}>prix fixe selon le nombre de produits actifs</b> que vous souhaitez vendre en même temps. Les taxes s'ajoutent au prix.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
+        {tries.map((p, i) => (
+          <div key={i} style={{ borderRadius: 12, padding: '12px 14px', border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.22)' }}>
+            <div style={{ fontSize: 12, fontWeight: 800, color: '#fbbf24', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{p.label || `${p.limite} produits`}</div>
+            <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', margin: '2px 0' }}>{p.prix}</div>
+            <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)' }}>Jusqu'à {p.limite} produit{p.limite > 1 ? 's' : ''} actif{p.limite > 1 ? 's' : ''}</div>
+          </div>
+        ))}
+      </div>
+      <ul style={{ margin: '14px 0 0', padding: '0 0 0 18px', fontSize: 12.5, lineHeight: 1.7, color: 'rgba(255,255,255,0.7)' }}>
+        <li>Les produits <b style={{ color: '#fff' }}>en brouillon ou désactivés</b> ne comptent pas dans la limite.</li>
+        <li>Le palier se choisit en sélectionnant un template de boutiques, et se change en tout temps.</li>
+      </ul>
+    </div>
+  );
+}
+
 export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props) {
-  const [ongletCategorie, setOngletCategorie] = useState<'vitrines'|'boutiques'|'multivendeur'|'cagnottes'|'encheres'|'annonces'|'abonnements'|'locations'>('vitrines');
+  const [ongletCategorie, setOngletCategorie] = useState<'vitrines'|'boutiques'|'multivendeur'|'cagnottes'|'encheres'|'annonces'|'locations'>('vitrines');
   const [descOuverte, setDescOuverte] = useState(false);
   // Fenêtre « Détails » d'une carte de template (id du template ouvert, ou null)
   const [detailsOuvert, setDetailsOuvert] = useState<string | null>(null);
@@ -580,6 +417,9 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     return () => { window.removeEventListener('keydown', surTouche); document.body.style.overflow = ancien; };
   }, [detailsOuvert]);
   const [modalSimplisseOuvert, setModalSimplisseOuvert] = useState(false);
+  const [paliersSimplisse, setPaliersSimplisse] = useState<{ limite: number; prix: string; label: string }[]>([]);   // grille admin (ou Prix Template) ; vide = aucune limite, pas de fenêtre
+  const [paliersPremium, setPaliersPremium] = useState<{ limite: number; prix: string; label: string }[]>([]);
+  const [paliersMode, setPaliersMode] = useState<{ limite: number; prix: string; label: string }[]>([]);
   const [enregistrementPlan, setEnregistrementPlan] = useState(false);
   const [modalResetOuvert, setModalResetOuvert] = useState(false);
   const [prixParTemplate, setPrixParTemplate] = useState<Record<string, string>>({});
@@ -624,6 +464,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   }, []);
   const prixDe = (t: any): string => (String(t.id).startsWith('cagnotte-') && prixCagnotteTexte ? prixCagnotteTexte : (String(t.id).startsWith('annonces-') && grilleAnnonces && grilleAnnonces.a_partir_de ? grilleAnnonces.a_partir_de : (String(t.id).startsWith('enchere-') && grilleEncheres && grilleEncheres.a_partir_de ? grilleEncheres.a_partir_de : (prixParTemplate[t.id] || t.prix || ''))));
   // Paliers réels (Prix Template, dashboard admin) : prix de départ et nombre maximal de produits affichés sur les cartes Simplisse / Premium
+  // Boutiques : grille de prix UNIQUE de l'admin (Templates → Boutiques (tarifs)). Quand elle existe, elle remplace les « Prix Template » de tous les templates boutique qui la suivent.
+  const [grilleBoutiques, setGrilleBoutiques] = useState<{ label: string; limite: number; prix: string }[] | null>(null);
   const [infoPaliers, setInfoPaliers] = useState<Record<string, { prixMin: string; limiteMax: number }>>({});
   const [paliersComplete, setPaliersComplete] = useState<{ limite: number; prix: string; label: string }[]>([]);   // paliers de la Boutique Complète (Prix Template) ; vide = aucune limite, pas de fenêtre
   const [modalCompleteOuvert, setModalCompleteOuvert] = useState(false);
@@ -695,10 +537,25 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
   // simplement sur le prix codé en dur (ou "Gratuit") comme avant.
   // Résolution : surcharge du template > défaut de sa catégorie > "Gratuit".
   useEffect(() => {
-    fetch('/api/templates/prix')
-      .then(res => res.json())
-      .then(data => {
+    Promise.all([
+      fetch('/api/templates/prix').then(res => res.json()),
+      fetch('/api/boutiques/prix').then(r => (r.ok ? r.json() : null)).catch(() => null),
+    ])
+      .then(([data, grille]) => {
         if (!data.success) return;
+        // Grille unique des boutiques : remplace les paliers par template (hors Mono-produit, Simplisse, Simplisse Mode et Premium)
+        let suffixeGrille = '';
+        if (grille && grille.success && grille.actif && Array.isArray(grille.paliers) && grille.paliers.length) {
+          const paliersGrille = grille.paliers.map((x: any) => ({ label: String(x?.label || '').slice(0, 40), limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix);
+          if (paliersGrille.length) {
+            suffixeGrille = String(grille.suffixe || '');
+            setGrilleBoutiques(paliersGrille);
+            for (const t of CATALOGUE_TEMPLATES) {
+              if (!t.id.startsWith('boutique-') || t.id === 'boutique-simple') continue;
+              data.templates[t.id] = { ...(data.templates[t.id] || {}), prix_type: 'paliers', prix_paliers: paliersGrille };
+            }
+          }
+        }
         const map: Record<string, string> = {};
         for (const t of CATALOGUE_TEMPLATES) {
           const surcharge = data.templates[t.id]?.prix_texte;
@@ -707,7 +564,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
         }
         setPrixParTemplate(map);
         const info: Record<string, { prixMin: string; limiteMax: number }> = {};
-        for (const id of ['boutique-simplisse', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique', 'boutique-bd', 'boutique-futuriste', 'boutique-tech', 'boutique-rose', 'boutique-bonbon', 'boutique-soleil', 'boutique-sentier', 'boutique-chantier', 'boutique-cafe', 'boutique-sakura', 'boutique-sport', 'boutique-joyau', 'boutique-ecume', 'boutique-carnaval', 'boutique-patchwork', 'boutique-vigie', 'boutique-aurore', 'boutique-galerie', 'boutique-rallye', 'boutique-paon', 'boutique-pop', 'boutique-nocturne', 'boutique-orbite']) {
+        for (const id of ['boutique-simplisse', 'boutique-simplisse-mode', 'boutique-premium', 'boutique-complete', 'boutique-catalogue', 'boutique-agricole', 'boutique-artisan', 'boutique-auto', 'boutique-jouets', 'boutique-gothique', 'boutique-bd', 'boutique-futuriste', 'boutique-tech', 'boutique-rose', 'boutique-bonbon', 'boutique-soleil', 'boutique-sentier', 'boutique-chantier', 'boutique-cafe', 'boutique-sakura', 'boutique-sport', 'boutique-joyau', 'boutique-ecume', 'boutique-carnaval', 'boutique-patchwork', 'boutique-vigie', 'boutique-aurore', 'boutique-galerie', 'boutique-rallye', 'boutique-paon', 'boutique-pop', 'boutique-nocturne', 'boutique-orbite']) {
           let pal: any = data.templates[id]?.prix_paliers;
           if (typeof pal === 'string') { try { pal = JSON.parse(pal); } catch { pal = null; } }
           if (!Array.isArray(pal) || pal.length === 0) continue;
@@ -715,6 +572,10 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           if (!ok.length) continue;
           const min = ok.reduce((a: any, b: any) => (b.n < a.n ? b : a));
           info[id] = { prixMin: min.prix, limiteMax: Math.max(...ok.map((x: any) => x.limite)) };
+          const palNet = pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite);
+          if (id === 'boutique-simplisse') setPaliersSimplisse(palNet);
+          if (id === 'boutique-premium') setPaliersPremium(palNet);
+          if (id === 'boutique-simplisse-mode') setPaliersMode(palNet);
           if (id === 'boutique-complete') setPaliersComplete(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-artisan') setPaliersArtisan(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
           if (id === 'boutique-auto') setPaliersAuto(pal.map((x: any) => ({ limite: parseInt(x?.limite, 10), prix: String(x?.prix || '').slice(0, 40), label: String(x?.label || '').slice(0, 40) })).filter((x: any) => Number.isInteger(x.limite) && x.limite > 0 && x.prix).sort((a: any, b: any) => a.limite - b.limite));
@@ -767,6 +628,8 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           if (l.length) pe[t.id] = l;
         }
         setPaliersEncheres(pe);
+        // La carte ajoute elle-même « /mois » après « Dès » : on retire le texte après le prix de la grille pour ne pas le doubler
+        if (suffixeGrille) for (const k of Object.keys(info)) { const m = info[k].prixMin; if (m.endsWith(suffixeGrille)) info[k] = { ...info[k], prixMin: m.slice(0, m.length - suffixeGrille.length).trim() }; }
         setInfoPaliers(info);
       })
       .catch(() => { /* silencieux — fallback sur les prix codés en dur */ });
@@ -823,433 +686,239 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
     setModalEncheresId(null);
     onChoisir(templateId);
   };
+  // Palier choisi dans la fenêtre d'un template boutique : enregistré AVANT d'appliquer le template (le serveur refuse si les produits actifs dépassent le palier).
+  const choisirPalierBoutique = async (templateId: string, limite: number): Promise<boolean> => {
+    if (!(Number.isInteger(limite) && limite > 0)) return true;
+    const token = localStorage.getItem('token');
+    try {
+      const r = await fetch(`${API_BASE}/boutiques/plan`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        credentials: 'include', body: JSON.stringify({ limite, template_id: templateId }),
+      });
+      if (!r.ok) {
+        let m = 'Impossible de choisir ce palier.';
+        try { const d = await r.json(); if (d && d.message) m = d.message; } catch { /* réponse non JSON */ }
+        window.alert(m);
+        return false;
+      }
+    } catch { window.alert('Erreur réseau. Vérifiez votre connexion.'); return false; }
+    return true;
+  };
   // Boutique Complète : fenêtre de palier seulement si des paliers sont configurés dans Prix Template ; sinon aucune limite → choix direct
   const handleChoisirComplete = () => { if (paliersComplete.length > 0) setModalCompleteOuvert(true); else onChoisir('boutique-complete'); };
   const handleConfirmerPalierComplete = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `complete-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-complete', limite))) return;
     setModalCompleteOuvert(false);
     onChoisir('boutique-complete');
   };
   // Catalogue Avancé : même principe (fenêtre de palier seulement si des paliers sont configurés dans Prix Template)
   const handleChoisirCatalogue = () => { if (paliersCatalogue.length > 0) setModalCatalogueOuvert(true); else onChoisir('boutique-catalogue'); };
   const handleConfirmerPalierCatalogue = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `catalogue-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-catalogue', limite))) return;
     setModalCatalogueOuvert(false);
     onChoisir('boutique-catalogue');
   };
   // Boutique Agricole : même principe
   const handleChoisirAgricole = () => { if (paliersAgricole.length > 0) setModalAgricoleOuvert(true); else onChoisir('boutique-agricole'); };
   const handleConfirmerPalierAgricole = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `agricole-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-agricole', limite))) return;
     setModalAgricoleOuvert(false);
     onChoisir('boutique-agricole');
   };
   // Simplisse Artisan : même principe
   const handleChoisirArtisan = () => { if (paliersArtisan.length > 0) setModalArtisanOuvert(true); else onChoisir('boutique-artisan'); };
   const handleConfirmerPalierArtisan = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `artisan-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-artisan', limite))) return;
     setModalArtisanOuvert(false);
     onChoisir('boutique-artisan');
   };
   // Simplisse Auto : même principe
   const handleChoisirAuto = () => { if (paliersAuto.length > 0) setModalAutoOuvert(true); else onChoisir('boutique-auto'); };
   const handleConfirmerPalierAuto = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `auto-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-auto', limite))) return;
     setModalAutoOuvert(false);
     onChoisir('boutique-auto');
   };
   // Simplisse Jouets : même principe
   const handleChoisirJouets = () => { if (paliersJouets.length > 0) setModalJouetsOuvert(true); else onChoisir('boutique-jouets'); };
   const handleConfirmerPalierJouets = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `jouets-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-jouets', limite))) return;
     setModalJouetsOuvert(false);
     onChoisir('boutique-jouets');
   };
   // Simplisse Gothique : même principe
   const handleChoisirGothique = () => { if (paliersGothique.length > 0) setModalGothiqueOuvert(true); else onChoisir('boutique-gothique'); };
   const handleConfirmerPalierGothique = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `gothique-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-gothique', limite))) return;
     setModalGothiqueOuvert(false);
     onChoisir('boutique-gothique');
   };
   // Simplisse BD : même principe
   const handleChoisirBD = () => { if (paliersBD.length > 0) setModalBDOuvert(true); else onChoisir('boutique-bd'); };
   const handleConfirmerPalierBD = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `bd-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-bd', limite))) return;
     setModalBDOuvert(false);
     onChoisir('boutique-bd');
   };
   const handleChoisirFuturiste = () => { if (paliersFuturiste.length > 0) setModalFuturisteOuvert(true); else onChoisir('boutique-futuriste'); };
   const handleConfirmerPalierFuturiste = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `futuriste-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-futuriste', limite))) return;
     setModalFuturisteOuvert(false);
     onChoisir('boutique-futuriste');
   };
   const handleChoisirTech = () => { if (paliersTech.length > 0) setModalTechOuvert(true); else onChoisir('boutique-tech'); };
   const handleConfirmerPalierTech = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `tech-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-tech', limite))) return;
     setModalTechOuvert(false);
     onChoisir('boutique-tech');
   };
   const handleChoisirRose = () => { if (paliersRose.length > 0) setModalRoseOuvert(true); else onChoisir('boutique-rose'); };
   const handleConfirmerPalierRose = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `rose-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-rose', limite))) return;
     setModalRoseOuvert(false);
     onChoisir('boutique-rose');
   };
   const handleChoisirBonbon = () => { if (paliersBonbon.length > 0) setModalBonbonOuvert(true); else onChoisir('boutique-bonbon'); };
   const handleConfirmerPalierBonbon = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `bonbon-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-bonbon', limite))) return;
     setModalBonbonOuvert(false);
     onChoisir('boutique-bonbon');
   };
   const handleChoisirSoleil = () => { if (paliersSoleil.length > 0) setModalSoleilOuvert(true); else onChoisir('boutique-soleil'); };
   const handleConfirmerPalierSoleil = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `soleil-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-soleil', limite))) return;
     setModalSoleilOuvert(false);
     onChoisir('boutique-soleil');
   };
   const handleChoisirSentier = () => { if (paliersSentier.length > 0) setModalSentierOuvert(true); else onChoisir('boutique-sentier'); };
   const handleConfirmerPalierSentier = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `sentier-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-sentier', limite))) return;
     setModalSentierOuvert(false);
     onChoisir('boutique-sentier');
   };
   const handleChoisirChantier = () => { if (paliersChantier.length > 0) setModalChantierOuvert(true); else onChoisir('boutique-chantier'); };
   const handleConfirmerPalierChantier = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `chantier-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-chantier', limite))) return;
     setModalChantierOuvert(false);
     onChoisir('boutique-chantier');
   };
   const handleChoisirCafe = () => { if (paliersCafe.length > 0) setModalCafeOuvert(true); else onChoisir('boutique-cafe'); };
   const handleConfirmerPalierCafe = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `cafe-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-cafe', limite))) return;
     setModalCafeOuvert(false);
     onChoisir('boutique-cafe');
   };
   const handleChoisirSakura = () => { if (paliersSakura.length > 0) setModalSakuraOuvert(true); else onChoisir('boutique-sakura'); };
   const handleConfirmerPalierSakura = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `sakura-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-sakura', limite))) return;
     setModalSakuraOuvert(false);
     onChoisir('boutique-sakura');
   };
   const handleChoisirSport = () => { if (paliersSport.length > 0) setModalSportOuvert(true); else onChoisir('boutique-sport'); };
   const handleConfirmerPalierSport = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `sport-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-sport', limite))) return;
     setModalSportOuvert(false);
     onChoisir('boutique-sport');
   };
   const handleChoisirJoyau = () => { if (paliersJoyau.length > 0) setModalJoyauOuvert(true); else onChoisir('boutique-joyau'); };
   const handleConfirmerPalierJoyau = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `joyau-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-joyau', limite))) return;
     setModalJoyauOuvert(false);
     onChoisir('boutique-joyau');
   };
   const handleChoisirEcume = () => { if (paliersEcume.length > 0) setModalEcumeOuvert(true); else onChoisir('boutique-ecume'); };
   const handleConfirmerPalierEcume = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `ecume-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-ecume', limite))) return;
     setModalEcumeOuvert(false);
     onChoisir('boutique-ecume');
   };
   const handleChoisirAudace = () => { if (paliersAudace.length > 0) setModalAudaceOuvert(true); else onChoisir('boutique-audace'); };
   const handleConfirmerPalierAudace = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `audace-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-audace', limite))) return;
     setModalAudaceOuvert(false);
     onChoisir('boutique-audace');
   };
   const handleChoisirCarnaval = () => { if (paliersCarnaval.length > 0) setModalCarnavalOuvert(true); else onChoisir('boutique-carnaval'); };
   const handleConfirmerPalierCarnaval = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `carnaval-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-carnaval', limite))) return;
     setModalCarnavalOuvert(false);
     onChoisir('boutique-carnaval');
   };
   const handleChoisirPatchwork = () => { if (paliersPatchwork.length > 0) setModalPatchworkOuvert(true); else onChoisir('boutique-patchwork'); };
   const handleConfirmerPalierPatchwork = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `patchwork-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-patchwork', limite))) return;
     setModalPatchworkOuvert(false);
     onChoisir('boutique-patchwork');
   };
   const handleChoisirVigie = () => { if (paliersVigie.length > 0) setModalVigieOuvert(true); else onChoisir('boutique-vigie'); };
   const handleConfirmerPalierVigie = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `vigie-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-vigie', limite))) return;
     setModalVigieOuvert(false);
     onChoisir('boutique-vigie');
   };
   const handleChoisirAurore = () => { if (paliersAurore.length > 0) setModalAuroreOuvert(true); else onChoisir('boutique-aurore'); };
   const handleConfirmerPalierAurore = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `aurore-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-aurore', limite))) return;
     setModalAuroreOuvert(false);
     onChoisir('boutique-aurore');
   };
   const handleChoisirGalerie = () => { if (paliersGalerie.length > 0) setModalGalerieOuvert(true); else onChoisir('boutique-galerie'); };
   const handleConfirmerPalierGalerie = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `galerie-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-galerie', limite))) return;
     setModalGalerieOuvert(false);
     onChoisir('boutique-galerie');
   };
   const handleChoisirRallye = () => { if (paliersRallye.length > 0) setModalRallyeOuvert(true); else onChoisir('boutique-rallye'); };
   const handleConfirmerPalierRallye = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `rallye-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-rallye', limite))) return;
     setModalRallyeOuvert(false);
     onChoisir('boutique-rallye');
   };
   const handleChoisirPaon = () => { if (paliersPaon.length > 0) setModalPaonOuvert(true); else onChoisir('boutique-paon'); };
   const handleConfirmerPalierPaon = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `paon-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-paon', limite))) return;
     setModalPaonOuvert(false);
     onChoisir('boutique-paon');
   };
   const handleChoisirPop = () => { if (paliersPop.length > 0) setModalPopOuvert(true); else onChoisir('boutique-pop'); };
   const handleConfirmerPalierPop = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `pop-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-pop', limite))) return;
     setModalPopOuvert(false);
     onChoisir('boutique-pop');
   };
   const handleChoisirNocturne = () => { if (paliersNocturne.length > 0) setModalNocturneOuvert(true); else onChoisir('boutique-nocturne'); };
   const handleConfirmerPalierNocturne = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `nocturne-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-nocturne', limite))) return;
     setModalNocturneOuvert(false);
     onChoisir('boutique-nocturne');
   };
   const handleChoisirOrbite = () => { if (paliersOrbite.length > 0) setModalOrbiteOuvert(true); else onChoisir('boutique-orbite'); };
   const handleConfirmerPalierOrbite = async (limite: number) => {
-    if (gestionnaireId && Number.isInteger(limite) && limite > 0) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan: `orbite-${limite}` }),
-      }).catch(() => {});
-    }
+    if (!(await choisirPalierBoutique('boutique-orbite', limite))) return;
     setModalOrbiteOuvert(false);
     onChoisir('boutique-orbite');
   };
-  const handleChoisirSimplisse = () => setModalSimplisseOuvert(true);
+  const handleChoisirSimplisse = () => { if (paliersSimplisse.length > 0) setModalSimplisseOuvert(true); else onChoisir('boutique-simplisse'); };
   const [modalPremiumOuvert, setModalPremiumOuvert] = useState(false);
-  const handleChoisirPremium = () => setModalPremiumOuvert(true);
-  const handleConfirmerPalierPremium = async (plan: string) => {
-    if (gestionnaireId) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan }),
-      }).catch(() => {});
-    }
+  const handleChoisirPremium = () => { if (paliersPremium.length > 0) setModalPremiumOuvert(true); else onChoisir('boutique-premium'); };
+  const handleConfirmerPalierPremium = async (limite: number) => {
+    if (!(await choisirPalierBoutique('boutique-premium', limite))) return;
     setModalPremiumOuvert(false);
     onChoisir('boutique-premium');
   };
   const [modalModeOuvert, setModalModeOuvert] = useState(false);
-  const handleChoisirSimplisseMode = () => setModalModeOuvert(true);
-  const handleConfirmerPalierMode = async (plan: string) => {
-    if (gestionnaireId) {
-      const token = localStorage.getItem('token');
-      await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        credentials: 'include', body: JSON.stringify({ plan }),
-      }).catch(() => {});
-    }
+  const handleChoisirSimplisseMode = () => { if (paliersMode.length > 0) setModalModeOuvert(true); else onChoisir('boutique-simplisse-mode'); };
+  const handleConfirmerPalierMode = async (limite: number) => {
+    if (!(await choisirPalierBoutique('boutique-simplisse-mode', limite))) return;
     setModalModeOuvert(false);
     onChoisir('boutique-simplisse-mode');
   };
-
-  const handleConfirmerPalier = async (plan: string) => {
+  const handleConfirmerPalier = async (limite: number) => {
     setEnregistrementPlan(true);
-    try {
-      // 1. Mettre à jour le plan dans gestionnaires
-      if (gestionnaireId) {
-        const token = localStorage.getItem('token');
-        await fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/plan`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          credentials: 'include',
-          body: JSON.stringify({ plan }),
-        });
-      }
-    } catch (e) {
-      console.warn('Erreur mise à jour plan:', e);
-    }
-    setModalSimplisseOuvert(false);
+    const ok = await choisirPalierBoutique('boutique-simplisse', limite);
     setEnregistrementPlan(false);
-    // 2. Choisir le template (déclenche la navigation vers simplisse-config-pages)
+    if (!ok) return;
+    setModalSimplisseOuvert(false);
     onChoisir('boutique-simplisse');
   };
 
@@ -1649,14 +1318,6 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
       ]
     },
     {
-      id: 'abonnements' as const,
-      titre: '🔄 Abonnements',
-      desc: "Accès récurrent à du contenu ou une communauté — association, club, contenu premium mensuel.",
-      couleurGroupe: '#8b5cf6',
-      aVenir: true,
-      sousGroupes: []
-    },
-    {
       id: 'locations' as const,
       titre: '🏠 Locations',
       desc: 'Location de biens avec calendrier de disponibilité et dépôt — équipement, chalets, véhicules.',
@@ -1737,8 +1398,10 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
       `}</style>
 
       {/* Modal palier Simplisse */}
-      {modalModeOuvert && (
-        <ModalPalierSimplisseMode
+      {modalModeOuvert && paliersMode.length > 0 && (
+        <ModalPalierComplete
+          paliers={paliersMode}
+          nom="Simplisse Mode" icone="👗" couleur="#db2777"
           onConfirmer={handleConfirmerPalierMode}
           onAnnuler={() => setModalModeOuvert(false)}
         />
@@ -2012,14 +1675,18 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
           onAnnuler={() => setModalAgricoleOuvert(false)}
         />
       )}
-      {modalPremiumOuvert && (
-        <ModalPalierPremium
+      {modalPremiumOuvert && paliersPremium.length > 0 && (
+        <ModalPalierComplete
+          paliers={paliersPremium}
+          nom="Premium" icone="💎" couleur="#c9a96e"
           onConfirmer={handleConfirmerPalierPremium}
           onAnnuler={() => setModalPremiumOuvert(false)}
         />
       )}
-      {modalSimplisseOuvert && (
-        <ModalPalierSimplisse
+      {modalSimplisseOuvert && paliersSimplisse.length > 0 && (
+        <ModalPalierComplete
+          paliers={paliersSimplisse}
+          nom="Simplisse" icone="🛍" couleur="#2563eb"
           onConfirmer={handleConfirmerPalier}
           onAnnuler={() => setModalSimplisseOuvert(false)}
         />
@@ -2229,6 +1896,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
             {categorie.id === 'cagnottes' && <EncadrePrixCagnotte />}
             {categorie.id === 'annonces' && <EncadrePrixAnnonces grille={grilleAnnonces} />}
             {categorie.id === 'encheres' && <EncadrePrixEncheres grille={grilleEncheres} />}
+            {categorie.id === 'boutiques' && <EncadrePrixBoutiques grille={grilleBoutiques ? { paliers: grilleBoutiques } : null} />}
             {/* Description améliorée avec toggle */}
             <div style={{ marginBottom: 28 }}>
               <button
@@ -2286,8 +1954,7 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                    categorie.id === 'multivendeur' ? '🏪' :
                    categorie.id === 'cagnottes' ? '💝' :
                    categorie.id === 'encheres' ? '🔨' :
-                   categorie.id === 'annonces' ? '📋' :
-                   categorie.id === 'abonnements' ? '🔄' : '🏠'}
+                   categorie.id === 'annonces' ? '📋' : '🏠'}
                 </span>
                 <div style={{ flex: 1 }}>
                   <h3 style={{ 
@@ -2725,18 +2392,17 @@ export default function PageChoisirTemplate({ onChoisir, gestionnaireId }: Props
                         )}
 
                         {(estSimplisse || estPremium) && (() => {
-                          // Valeurs de départ = paliers affichés dans la fenêtre de choix (repli si le dashboard admin ne répond pas)
-                          const rep = estPremium ? { prixMin: '18,99$', limiteMax: 500 } : { prixMin: '15,99$', limiteMax: 200 };
-                          const inf = infoPaliers[t.id] || rep;
+                          // Prix et limite lus dans la grille de l'admin (ou « Prix Template ») : rien d'écrit en dur ici
+                          const inf = infoPaliers[t.id];
                           const lignes = estPremium
-                            ? ['✅ Géré depuis le tableau de bord — sans code', `✅ Jusqu'à ${inf.limiteMax} produits · Catégories · Variantes · Promos`, '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Footer configurable · Ticker défilant · Zoom image · Blog · FAQ · À propos', '🧩 Add-ons au choix : enchères, offres du jour, avis, favoris, infolettre…']
-                            : ['✅ Géré depuis le tableau de bord — sans code', `✅ Jusqu'à ${inf.limiteMax} produits · Catégories · Variantes · Promos`, '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Footer configurable · Bannière promo · Blog · FAQ', '🧩 Add-ons au choix : enchères, offres du jour, avis, favoris, infolettre…'];
+                            ? ['✅ Géré depuis le tableau de bord — sans code', (inf ? `✅ Jusqu'à ${inf.limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos'), '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Footer configurable · Ticker défilant · Zoom image · Blog · FAQ · À propos', '🧩 Add-ons au choix : enchères, offres du jour, avis, favoris, infolettre…']
+                            : ['✅ Géré depuis le tableau de bord — sans code', (inf ? `✅ Jusqu'à ${inf.limiteMax} produits · Catégories · Variantes · Promos` : '✅ Catégories · Variantes · Promos'), '✅ Panier & paiement Stripe ou PayPal intégré', '✅ Footer configurable · Bannière promo · Blog · FAQ', '🧩 Add-ons au choix : enchères, offres du jour, avis, favoris, infolettre…'];
                           const coul = estPremium ? t.couleur : COULEUR_MP;
                           return (
                             <div style={bx(coul)}>
                               <p style={pst}>
                                 {lignesAff(lignes)}
-                                💰 Dès <strong style={{ color: C.text }}>{inf.prixMin}/mois</strong> + taxes
+                                {inf && <>💰 Dès <strong style={{ color: C.text }}>{inf.prixMin}/mois</strong> + taxes</>}
                               </p>
                             </div>
                           );
