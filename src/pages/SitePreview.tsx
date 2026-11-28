@@ -14,6 +14,7 @@ import BoutiqueChatbotWidget           from '../components/BoutiqueChatbotWidget
 import BoutiquePopupAnnonce            from '../components/BoutiquePopupAnnonce';
 import VerificateurAge                from '../components/VerificateurAge';
 import VitrineBoutonInstallerApp       from '../components/VitrineBoutonInstallerApp';
+import EffetsVitrine                   from '../components/EffetsVitrine';   // add-on vitrine « Effets de boutique »
 import TemplateVitrine                from '../templates/TemplateVitrine';
 import TemplateReservation            from '../templates/TemplateReservation';
 import TemplateLocationAstro          from '../templates/TemplateLocationAstro';
@@ -2348,6 +2349,9 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
 
       {/* Effets de boutique — templates boutique (solo) : suit l'add-on « Effets de boutique », jamais en mode démo */}
       {!isDemo && vendeurId && estBoutiqueSolo(String(forceTemplate || siteData?.template_id || '')) && !!addonsBoutique?.effets_boutique && <EffetsBoutiqueSolo gestionnaireId={Number(vendeurId)} />}
+
+      {/* Effets de boutique — sites vitrine (add-on effets_vitrine ; le serveur vérifie que le site est bien une vitrine), jamais en mode démo */}
+      {!isDemo && vendeurId && !!options?.effets_vitrine && <EffetsVitrine gestionnaireId={Number(vendeurId)} />}
 
       {/* Contenu */}
       <div style={{ paddingBottom: 44 }}>

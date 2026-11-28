@@ -252,6 +252,8 @@ app.use('/api/admin/vitrines-addons', require('./routes/vitrines_addons_admin'))
 // Add-ons vitrine « Favicon » et « App installable » (public + gestionnaire)
 app.use('/api/vitrines-favicon', require('./routes/vitrines_favicon_routes'));
 app.use('/api/vitrines-pwa', require('./routes/vitrines_pwa_routes'));
+// Add-on vitrine « Effets de boutique » (public + gestionnaire)
+app.use('/api/vitrines-effets', require('./routes/vitrines_effets_routes'));
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
 app.use('/api/cron-verification-email', cronVerificationEmailModule);
 // ✅ Config Stripe Connect du gestionnaire (template multivendeur)

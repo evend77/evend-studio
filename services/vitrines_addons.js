@@ -24,6 +24,7 @@ const COLONNES = {
   chatbot: 'chatbot',
   favicon_vitrine: 'favicon_vitrine',
   pwa_vitrine: 'pwa_vitrine',
+  effets_vitrine: 'effets_vitrine',
 };
 
 // Valeurs de départ (reprises de BrandingEtOptions.tsx), insérées UNE seule fois. Ensuite la BD fait foi.
@@ -39,6 +40,7 @@ const DEPART = [
   ['chatbot', 'Chat bot', 'Un assistant virtuel sur votre site qui répond automatiquement aux questions de vos visiteurs — à partir de vos pages, produits et articles de blogue, ou de réponses que vous configurez vous-même. Sans intelligence artificielle : aucune donnée envoyée à un tiers.', '💬', 'Support & Communication', 5, false, 'https://www.e-vendstudio.ca/documents/guide-add-on-chat-bot', 8],
   ['favicon_vitrine', 'Favicon personnalisé', "La petite icône de votre site dans l'onglet du navigateur, avec une animation d'onglet pour faire revenir vos visiteurs.", '🖼️', 'Branding', 3, false, '', 9],
   ['pwa_vitrine', 'App installable (PWA)', 'Vos visiteurs installent votre site sur leur téléphone comme une vraie app : votre nom, vos couleurs et votre icône.', '📲', 'Branding', 10, false, '', 10],
+  ['effets_vitrine', 'Effets de boutique', 'Décorations de saison (neige, traîneau, Halloween…), effets de vente (Vendredi noir, rubans, drapeaux…) et musique de fond sur votre site.', '🎃', 'Marketing & Promotions', 10, false, '', 11],
 ];
 
 let _pret = null;
@@ -61,7 +63,8 @@ function pret() {
       // Colonnes d'activation propres aux vitrines (les autres existent déjà)
       await pool.query(`ALTER TABLE options_gestionnaire
         ADD COLUMN IF NOT EXISTS favicon_vitrine BOOLEAN NOT NULL DEFAULT false,
-        ADD COLUMN IF NOT EXISTS pwa_vitrine BOOLEAN NOT NULL DEFAULT false`);
+        ADD COLUMN IF NOT EXISTS pwa_vitrine BOOLEAN NOT NULL DEFAULT false,
+        ADD COLUMN IF NOT EXISTS effets_vitrine BOOLEAN NOT NULL DEFAULT false`);
       for (const a of DEPART) {
         await pool.query(
           `INSERT INTO vitrines_addons (code, nom, description, emoji, categorie, prix_ht, revenu_partage, guide_url, ordre)

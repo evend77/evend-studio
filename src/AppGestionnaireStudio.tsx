@@ -152,6 +152,7 @@ import BoutiqueExpedition          from './pages/gestionnaire/BoutiqueExpedition
 import VitrinePlan                 from './pages/gestionnaire/VitrinePlan';
 import VitrineFavicon              from './pages/gestionnaire/VitrineFavicon';
 import VitrinePwa                  from './pages/gestionnaire/VitrinePwa';
+import VitrineEffets             from './pages/gestionnaire/VitrineEffets';
 import { TEMPLATES, CATEGORIES, templatesDeCategorie } from './pages/PageTemplates';
 
 // =====================================================================
@@ -1660,7 +1661,8 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
   }
 
   // ── Sites VITRINE : un menu « VITRINE » avec un sous-menu par add-on activé. Ces entrées sont retirées
-  //    de leur ancienne place (menus du haut et CONFIGURATION) pour éviter les doublons. ──
+  //    de leur ancienne place (menus du haut et CONFIGURATION) pour éviter les doublons.
+  //    Les menus Collaborateurs / Badges / Blogs / FAQ / Chat acheteur-collab et « Config multivendeur » sont aussi cachés. ──
   if (IDS_SITES_VITRINE.has(templateActif)) {
     const menuVitrine: MenuItem = {
       id: 'vitrine-menu', label: 'VITRINE', icon: '🖼️',
@@ -1675,10 +1677,12 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
         ...(options?.chatbot ? [{ id: 'mes-chatbot', label: 'Chat bot', icon: '💬' }] : []),
         ...(options?.favicon_vitrine ? [{ id: 'vitrine-favicon', label: 'Favicon', icon: '🖼️' }] : []),
         ...(options?.pwa_vitrine ? [{ id: 'vitrine-pwa', label: 'App installable', icon: '📲' }] : []),
+        ...(options?.effets_vitrine ? [{ id: 'vitrine-effets', label: 'Effets de boutique', icon: '🎃' }] : []),
       ],
     };
-    const anciens = ['mes-reservations', 'abonnements-clients', 'mes-sponsors', 'mes-analytique', 'mes-chatbot', 'branding-options'];
-    const anciensSousMenus = [itemVerificateurAge.id, itemPopupAnnonce.id];
+    const anciens = ['mes-reservations', 'abonnements-clients', 'mes-sponsors', 'mes-analytique', 'mes-chatbot', 'branding-options', menuMesEffetsVisuels.id,
+      menuSousVendeurs.id, menuBadges.id, menuBlogsSV.id, menuFaqsSV.id, menuChatSV.id];
+    const anciensSousMenus = [itemVerificateurAge.id, itemPopupAnnonce.id, menuMesEffetsVisuels.id, itemConfigMV.id];
     menuItems = menuItems
       .filter(m => !anciens.includes(m.id))
       .map(m => m.sousMenu ? { ...m, sousMenu: m.sousMenu.filter(x => !anciensSousMenus.includes(x.id)) } : m);
@@ -2095,6 +2099,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'vitrine-plan' && IDS_SITES_VITRINE.has(templateActif)) return <VitrinePlan gestionnaireId={gestionnaire.id} templateId={templateActif} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'vitrine-favicon' && IDS_SITES_VITRINE.has(templateActif)) return <VitrineFavicon />;
     if (pageActive === 'vitrine-pwa' && IDS_SITES_VITRINE.has(templateActif)) return <VitrinePwa />;
+    if (pageActive === 'vitrine-effets' && IDS_SITES_VITRINE.has(templateActif)) return <VitrineEffets />;
     if (pageActive === 'mv-premium-branding')    return <AddOn />;
     if (pageActive === 'mv-contact')             return <StudioContactMessages gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'beaute-branding')        return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
