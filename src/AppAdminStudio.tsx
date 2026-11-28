@@ -60,6 +60,7 @@ import PageAdminAnnoncesPrix from './pages/admin/PageAdminAnnoncesPrix';
 import PageAdminEncheresPrix from './pages/admin/PageAdminEncheresPrix';
 import PageAdminBoutiquesPrix from './pages/admin/PageAdminBoutiquesPrix';
 import PageAdminVitrinesPrix from './pages/admin/PageAdminVitrinesPrix';
+import PageAdminVitrinesAddons from './pages/admin/PageAdminVitrinesAddons';
 import PageAdminLocationsPrix from './pages/admin/PageAdminLocationsPrix';
 import StatistiquesSignalements from './pages/admin/StatistiquesSignalements';
 import MonForfaitPlateforme from './pages/admin/MonForfaitPlateforme';
@@ -255,6 +256,7 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'templates-encheres', label: 'Enchères (tarifs)', icon: '🔨' },
       { id: 'templates-boutiques', label: 'Boutiques (tarifs)', icon: '🛍' },
       { id: 'templates-vitrines', label: 'Vitrines (tarifs)', icon: '🖼' },
+      { id: 'templates-vitrines-addons', label: 'Vitrines (add-ons)', icon: '🧩' },
       { id: 'templates-locations', label: 'Locations (tarifs)', icon: '🏠' },
     ],
   },
@@ -836,6 +838,8 @@ function AppAdminContent({ onLogout, onImpersonate, onImpersonateAcheteur, onImp
         return <PageAdminBoutiquesPrix />;
       case 'templates-vitrines':
         return <PageAdminVitrinesPrix />;
+      case 'templates-vitrines-addons':
+        return <PageAdminVitrinesAddons />;
       case 'templates-locations':
         return <PageAdminLocationsPrix />;
 

@@ -246,6 +246,9 @@ app.use('/api/cron-domaine',       cronDomaineModule);
 app.use('/api/abonnements-studio', abonnementsStudioRoutes);
 // Forfaits multi-vendeur + add-ons (inclus / achetés) — gestionnaire + admin
 app.use('/api/studio-forfaits', studioForfaitsRoutes);
+// Add-ons des sites VITRINE (système parallèle) — gestionnaire + admin (prix)
+app.use('/api/vitrines-addons', require('./routes/vitrines_addons_gestionnaire'));
+app.use('/api/admin/vitrines-addons', require('./routes/vitrines_addons_admin'));
 app.use('/api/cron-abonnements',   cronAbonnementsModule);
 app.use('/api/cron-verification-email', cronVerificationEmailModule);
 // ✅ Config Stripe Connect du gestionnaire (template multivendeur)

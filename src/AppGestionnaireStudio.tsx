@@ -148,6 +148,9 @@ import BoutiqueRetours            from './pages/gestionnaire/BoutiqueRetours';
 import BoutiqueModale              from './pages/gestionnaire/BoutiqueModale';
 import BoutiqueTaxes               from './pages/gestionnaire/BoutiqueTaxes';
 import BoutiqueExpedition          from './pages/gestionnaire/BoutiqueExpedition';
+// ── Sites VITRINE : menu « VITRINE » (système parallèle au MV et aux boutiques) ──
+import VitrinePlan                 from './pages/gestionnaire/VitrinePlan';
+import { TEMPLATES, CATEGORIES, templatesDeCategorie } from './pages/PageTemplates';
 
 // =====================================================================
 // 🚧 PAGES EN CONSTRUCTION — placeholders compilables
@@ -422,6 +425,11 @@ function SessionIndicator({ statut, isMobile }: { statut?: string; isMobile?: bo
     </div>
   );
 }
+
+// Tous les templates de la catégorie « Sites Vitrine » (même liste que la page publique des templates)
+const IDS_SITES_VITRINE = new Set(
+  templatesDeCategorie(CATEGORIES.find(c => c.id === 'vitrines')!, TEMPLATES).map(t => t.id)
+);
 
 // =====================================================================
 // APP GESTIONNAIRE PRINCIPALE
@@ -1649,6 +1657,30 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     ];
   }
 
+  // ── Sites VITRINE : un menu « VITRINE » avec un sous-menu par add-on activé. Ces entrées sont retirées
+  //    de leur ancienne place (menus du haut et CONFIGURATION) pour éviter les doublons. ──
+  if (IDS_SITES_VITRINE.has(templateActif)) {
+    const menuVitrine: MenuItem = {
+      id: 'vitrine-menu', label: 'VITRINE', icon: '🖼️',
+      sousMenu: [
+        { id: 'vitrine-plan', label: 'Mon plan & add-ons', icon: '📊' },
+        ...(options?.verificateur_age ? [itemVerificateurAge] : []),
+        ...(options?.popup_annonce ? [itemPopupAnnonce] : []),
+        ...(options?.reservation_ecole ? [{ id: 'mes-reservations', label: 'Réservations écoles', icon: '📅' }] : []),
+        ...(options?.abonnement_ecole ? [{ id: 'abonnements-clients', label: 'Abonnements clients', icon: '💳' }] : []),
+        ...(options?.pub_sponsor ? [{ id: 'mes-sponsors', label: 'Mes sponsors', icon: '⭐' }] : []),
+        ...(options?.analytique ? [{ id: 'mes-analytique', label: 'Analytique', icon: '📈' }] : []),
+        ...(options?.chatbot ? [{ id: 'mes-chatbot', label: 'Chat bot', icon: '💬' }] : []),
+      ],
+    };
+    const anciens = ['mes-reservations', 'abonnements-clients', 'mes-sponsors', 'mes-analytique', 'mes-chatbot', 'branding-options'];
+    const anciensSousMenus = [itemVerificateurAge.id, itemPopupAnnonce.id];
+    menuItems = menuItems
+      .filter(m => !anciens.includes(m.id))
+      .map(m => m.sousMenu ? { ...m, sousMenu: m.sousMenu.filter(x => !anciensSousMenus.includes(x.id)) } : m);
+    menuItems.splice(1, 0, menuVitrine);   // juste sous « Tableau de bord »
+  }
+
   // ... le reste du fichier (menuStyle, mainContentStyle, topBarFixedStyle, footerFixedStyle, renderPage, topBarContent, return)
   // ⚠️ Je continue avec la suite du fichier...
 
@@ -2056,6 +2088,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
     if (pageActive === 'beaute-plan')            return <BeautePlan                 gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-premium-config-pages') return <ConfigMultiVendeurPremium  gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'mv-premium-plan')        return <MVPremiumPlan              gestionnaireId={gestionnaire.id} />;
+    if (pageActive === 'vitrine-plan' && IDS_SITES_VITRINE.has(templateActif)) return <VitrinePlan gestionnaireId={gestionnaire.id} templateId={templateActif} onOptionsUpdated={rechargerOptions} />;
     if (pageActive === 'mv-premium-branding')    return <AddOn />;
     if (pageActive === 'mv-contact')             return <StudioContactMessages gestionnaireId={gestionnaire.id} />;
     if (pageActive === 'beaute-branding')        return <BrandingEtOptions          gestionnaireId={gestionnaire.id} onOptionsUpdated={rechargerOptions} />;
@@ -2481,7 +2514,7 @@ function AppGestionnaire({ onLogout, gestionnaireUser, isAdminImpersonation = fa
             offsetTop={56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0)}
             onHauteur={setHauteurBandeauEssai}
           />
-          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0) + hauteurBandeauEssai}px`, backgroundColor: pageActive === 'studio-choisir-template' ? '#0d0d12' : ((pageActive === 'mv-premium-plan' || (estSolo && (pageActive === 'premium-plan' || pageActive === 'simplisse-plan' || pageActive === 'mode-plan' || pageActive === 'beaute-plan')) || (pageActive === 'dashboard' && !aucunTemplate)) ? '#0c1328' : undefined) }}>
+          <div className="scrollable-area" style={{ paddingTop: `${56 + (banniereVendeurActive && banniereVendeurMessage ? Number(banniereVendeurHauteur) : 0) + (gestionnaire.premiere_verification_faite === true && gestionnaire.email_verifie === false ? HAUTEUR_BANNIERE_EMAIL : 0) + hauteurBandeauEssai}px`, backgroundColor: pageActive === 'studio-choisir-template' ? '#0d0d12' : ((pageActive === 'mv-premium-plan' || pageActive === 'vitrine-plan' || (estSolo && (pageActive === 'premium-plan' || pageActive === 'simplisse-plan' || pageActive === 'mode-plan' || pageActive === 'beaute-plan')) || (pageActive === 'dashboard' && !aucunTemplate)) ? '#0c1328' : undefined) }}>
             {renderPage()}
           </div>
           <div className="footer-fixed" style={footerFixedStyle}>{footerText}</div>
