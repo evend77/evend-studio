@@ -118,6 +118,59 @@ export default function ConfigTemplateReservation({ vendeurId, templateId, confi
   const [device, setDevice]           = useState<'desktop' | 'mobile'>('desktop');
   const [sauvegarde, setSauvegarde]   = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
+  // Location de biens : palier choisi (limite d'annonces = objets du catalogue), réglé par l'admin dans « Locations (tarifs) »
+  type PalierLoc = { label: string; limite: number; prix: string; plan_id: string };
+  type PlanLoc = { limite: number | null; nb_objets: number; palier_actuel: string | null; paliers: PalierLoc[] };
+  const [planLoc, setPlanLoc]     = useState<PlanLoc | null>(null);
+  const [messageLoc, setMessageLoc] = useState('');
+
+  const chargerPlanLoc = useCallback(async () => {
+    if (sousTypeInitial !== 'location') return;
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/locations/plan', { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) setPlanLoc(await res.json());
+    } catch { /* sans palier chargé, le serveur applique quand même la limite à la sauvegarde */ }
+  }, [sousTypeInitial]);
+  useEffect(() => { chargerPlanLoc(); }, [chargerPlanLoc]);
+
+  const choisirPalierLoc = async (limite: number) => {
+    setMessageLoc('');
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch('/api/locations/plan', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ limite }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { setMessageLoc(data.message || 'Impossible de changer de palier.'); return; }
+      setPlanLoc(data);
+    } catch { setMessageLoc('Impossible de joindre le serveur.'); }
+  };
+
+  const limiteLoc: number | null = planLoc ? planLoc.limite : null;
+  const nbObjetsLoc = config.location_objets.length;
+  const limiteAtteinte = limiteLoc !== null && nbObjetsLoc >= limiteLoc;
+
+  // Recharge la configuration déjà sauvegardée (sinon l'éditeur repart toujours des valeurs par défaut)
+  useEffect(() => {
+    let annule = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/studio/sites/${vendeurId}`);
+        if (!res.ok) return;
+        const site = await res.json();
+        const sauvegarde = site && typeof site.config === 'object' ? site.config : null;
+        if (!annule && sauvegarde && Object.keys(sauvegarde).length > 0 && (!site.template_id || site.template_id === templateId)) {
+          setConfig(prev => ({ ...prev, ...sauvegarde, sousType: sousTypeInitial }));
+        }
+      } catch { /* on garde les valeurs par défaut */ }
+    })();
+    return () => { annule = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendeurId, templateId]);
+
   // Persist onglet au refresh
   useEffect(() => {
     const s = sessionStorage.getItem('studio_resa_onglet') as Onglet | null;
@@ -135,6 +188,12 @@ export default function ConfigTemplateReservation({ vendeurId, templateId, confi
   }, []);
 
   const handleSauvegarder = async () => {
+    if (config.sousType === 'location' && limiteLoc !== null && config.location_objets.length > limiteLoc) {
+      setMessageLoc(`Votre palier permet ${limiteLoc} annonce${limiteLoc > 1 ? 's' : ''} de location et votre catalogue en contient ${config.location_objets.length}. Retirez des objets ou choisissez un palier plus grand.`);
+      setSauvegarde('error');
+      return;
+    }
+    setMessageLoc('');
     setSauvegarde('saving');
     try {
       if (onSauvegarde) {
@@ -149,6 +208,7 @@ export default function ConfigTemplateReservation({ vendeurId, templateId, confi
         if (!res.ok) throw new Error();
       }
       setSauvegarde('saved');
+      chargerPlanLoc();
       setTimeout(() => setSauvegarde('idle'), 3000);
     } catch {
       setSauvegarde('error');
@@ -338,6 +398,18 @@ export default function ConfigTemplateReservation({ vendeurId, templateId, confi
                   {config.sousType === 'location' && (
                     <>
                       <Sec titre="Catalogue d'objets">
+                        {planLoc && planLoc.paliers.length > 0 && (
+                          <div style={{ background: '#f0f4ff', border: '1.5px solid #c7d2fe', borderRadius: 8, padding: 12, marginBottom: 14 }}>
+                            <p style={{ fontSize: 12, fontWeight: 700, color: '#4338ca', margin: '0 0 6px' }}>
+                              Annonces de location : {nbObjetsLoc} / {limiteLoc}
+                            </p>
+                            <select value={planLoc.palier_actuel || ''} onChange={e => { const p = planLoc.paliers.find(x => x.plan_id === e.target.value); if (p) choisirPalierLoc(p.limite); }}
+                              style={{ width: '100%', padding: '8px 10px', border: '1.5px solid #c7d2fe', borderRadius: 6, fontSize: 13, background: '#fff' }}>
+                              {planLoc.paliers.map(p => <option key={p.plan_id} value={p.plan_id}>{p.label} — jusqu'à {p.limite} annonces — {p.prix}</option>)}
+                            </select>
+                          </div>
+                        )}
+                        {messageLoc && <p style={{ fontSize: 12, color: '#b91c1c', background: '#fee2e2', borderRadius: 6, padding: '8px 10px', margin: '0 0 12px' }}>{messageLoc}</p>}
                         {config.location_objets.map((o, i) => (
                           <div key={o.id} style={{ background: '#f7f7f5', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                             <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
@@ -356,7 +428,7 @@ export default function ConfigTemplateReservation({ vendeurId, templateId, confi
                             </div>
                           </div>
                         ))}
-                        <button onClick={() => maj('location_objets', [...config.location_objets, { id: Date.now().toString(), nom:'', description:'', prix:'', imageUrl:'', disponible: true }])} style={{ width:'100%',padding:'8px',border:'1.5px dashed #d0c9bb',borderRadius:6,background:'transparent',color:'#888',cursor:'pointer',fontSize:13 }}>+ Ajouter un objet</button>
+                        <button disabled={limiteAtteinte} onClick={() => maj('location_objets', [...config.location_objets, { id: Date.now().toString(), nom:'', description:'', prix:'', imageUrl:'', disponible: true }])} style={{ width:'100%',padding:'8px',border:'1.5px dashed #d0c9bb',borderRadius:6,background:'transparent',color:'#888',cursor: limiteAtteinte ? 'not-allowed' : 'pointer',fontSize:13,opacity: limiteAtteinte ? 0.5 : 1 }}>{limiteAtteinte ? `Limite de votre palier atteinte (${limiteLoc})` : '+ Ajouter un objet'}</button>
                       </Sec>
                       <Sec titre="Conditions de location">
                         <Champ label="Dépôt requis"><Input value={config.location_depot} onChange={v => maj('location_depot', v)} placeholder="200$" /></Champ>

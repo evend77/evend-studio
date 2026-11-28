@@ -3,7 +3,7 @@
 // Templates → « Locations (tarifs) ». Même principe que la cagnotte : une seule source, lue par les 2 pages template.
 //   • Une ligne unique dans locations_prix_reglages : paliers [{ nom, limite, prix }], devise, suffixe (ex. « / mois »).
 //   • Tant que la grille est VIDE, le template garde le prix de sa sous-catégorie « Formulaires & Réservations ».
-//   • Dès qu'elle contient au moins un palier, elle donne le prix affiché du template de location (la limite d'annonces sera appliquée plus tard côté serveur).
+//   • Dès qu'elle contient au moins un palier, elle donne le prix affiché du template de location (la limite d'annonces est appliquée par services/locations_limites.js).
 // Aucun prix n'est écrit dans le code.
 
 'use strict';
