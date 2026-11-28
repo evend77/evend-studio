@@ -36,11 +36,87 @@ interface Formation {
   prix_hebdomadaire: number | null;
   prix_mensuel: number | null;
   prix_annuel: number | null;
+  icone?: string | null;
+  avantages?: string[] | null;
+  etiquette?: string | null;
+  texte_bouton?: string | null;
 }
 
 const LABEL_FREQUENCE: Record<string, string> = { hebdomadaire: '/ semaine', mensuel: '/ mois', annuel: '/ an' };
 
-interface ChoixAbonnement { formation: Formation; frequence: 'hebdomadaire' | 'mensuel' | 'annuel'; prix: number; }
+const NOM_FREQUENCE: Record<string, string> = { hebdomadaire: 'Semaine', mensuel: 'Mois', annuel: 'An' };
+
+type Frequence = 'hebdomadaire' | 'mensuel' | 'annuel';
+interface ChoixAbonnement { formation: Formation; frequence: Frequence; prix: number; }
+
+const montant = (n: number) => n.toLocaleString('fr-CA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const estHex = (c: string) => /^#[0-9a-fA-F]{6}$/.test(c);
+// Couleur du thème avec transparence (si ce n'est pas un code #rrggbb, la couleur est gardée telle quelle)
+const voile = (c: string, alpha: string) => (estHex(c) ? c + alpha : c);
+// Texte lisible sur un fond de la couleur du thème : noir si la couleur est pâle
+const texteSur = (c: string) => {
+  if (!estHex(c)) return '#fff';
+  const n = parseInt(c.slice(1), 16);
+  return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 160 ? '#111' : '#fff';
+};
+
+// ─── Carte verticale d'un forfait ──────────────────────────────────────────────
+function CarteForfait({ theme, formation: f, prix, onChoisir }: { theme:AddonAbonnementTheme; formation:Formation; prix:{ frequence:Frequence; prix:number }[]; onChoisir:(c:ChoixAbonnement)=>void }) {
+  const [frequence, setFrequence] = useState<Frequence | null>(null);
+  const choisi = prix.find(p => p.frequence === frequence) || prix.find(p => p.frequence === 'mensuel') || prix[0];
+  const enVedette = !!f.etiquette;
+  const avantages = Array.isArray(f.avantages) ? f.avantages : [];
+
+  return (
+    <div style={{ position:'relative', background:theme.cardBg, border:`${enVedette ? 2 : 1}px solid ${enVedette ? theme.primary : theme.border}`, borderRadius:18, boxShadow: enVedette ? `0 12px 40px ${voile(theme.primary, '33')}` : 'none', display:'flex', flexDirection:'column', textAlign:'center', overflow:'hidden' }}>
+      {f.etiquette && (
+        <span style={{ position:'absolute', top:14, right:14, background:theme.primary, color:texteSur(theme.primary), fontFamily:theme.fontTexte, fontSize:11, fontWeight:700, padding:'4px 12px', borderRadius:20 }}>{f.etiquette}</span>
+      )}
+      <div style={{ padding:`${f.etiquette ? 52 : 32}px 24px 24px`, background:voile(theme.primary, '14'), borderBottom:`1px solid ${theme.border}` }}>
+        {f.icone && <div style={{ fontSize:42, lineHeight:1, marginBottom:12 }}>{f.icone}</div>}
+        <p style={{ fontFamily:theme.fontTitre, fontSize:24, fontWeight:700, color:theme.text, margin:0, overflowWrap:'anywhere' }}>{f.titre}</p>
+        {f.description && <p style={{ fontFamily:theme.fontTexte, fontSize:13, color:theme.textDim, margin:'8px 0 0', lineHeight:1.5 }}>{f.description}</p>}
+        {choisi && (
+          <p style={{ margin:'20px 0 0', color:theme.text, fontFamily:theme.fontTexte }}>
+            <span style={{ fontSize:36, fontWeight:800 }}>{montant(choisi.prix)} $</span>
+            <span style={{ fontSize:13, color:theme.textDim }}> {LABEL_FREQUENCE[choisi.frequence]}</span>
+          </p>
+        )}
+        {prix.length > 1 && (
+          <div style={{ display:'flex', justifyContent:'center', gap:6, marginTop:14, flexWrap:'wrap' }}>
+            {prix.map(p => {
+              const actif = p.frequence === choisi.frequence;
+              return (
+                <button key={p.frequence} type="button" aria-pressed={actif} onClick={() => setFrequence(p.frequence)}
+                  style={{ padding:'6px 14px', borderRadius:20, border:`1px solid ${actif ? theme.primary : theme.border}`, background: actif ? voile(theme.primary, '33') : 'transparent', color: actif ? theme.text : theme.textDim, fontFamily:theme.fontTexte, fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  {NOM_FREQUENCE[p.frequence]}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+      <div style={{ padding:'22px 24px 24px', display:'flex', flexDirection:'column', flex:1 }}>
+        {avantages.length > 0 && (
+          <ul style={{ listStyle:'none', margin:'0 0 22px', padding:0, textAlign:'left' }}>
+            {avantages.map((a, i) => (
+              <li key={i} style={{ display:'flex', gap:10, marginBottom:10, fontFamily:theme.fontTexte, fontSize:13, color:theme.text, lineHeight:1.5 }}>
+                <span aria-hidden="true" style={{ color:theme.primary, fontWeight:800 }}>✓</span>
+                <span style={{ overflowWrap:'anywhere' }}>{a}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        {choisi && (
+          <button type="button" onClick={() => onChoisir({ formation:f, frequence:choisi.frequence, prix:choisi.prix })}
+            style={{ marginTop:'auto', width:'100%', padding:'13px 16px', borderRadius:12, border:'none', background:theme.primary, color:texteSur(theme.primary), fontFamily:theme.fontTexte, fontSize:14, fontWeight:700, cursor:'pointer' }}>
+            {f.texte_bouton || "S'abonner"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─── Popup d'inscription à un forfait ──────────────────────────────────────────
 function PopupInscriptionAbonnement({ theme, choix, siteId, onFermer }: { theme:AddonAbonnementTheme; choix:ChoixAbonnement; siteId?:number|string; onFermer:()=>void }) {
@@ -84,7 +160,7 @@ function PopupInscriptionAbonnement({ theme, choix, siteId, onFermer }: { theme:
 
   return (
     <div onClick={onFermer} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.7)', zIndex:9998, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background:'#14141f', border:`1px solid ${theme.primary}40`, borderRadius:14, padding:'28px 26px', maxWidth:420, width:'100%', position:'relative' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background:theme.bg, border:`1px solid ${theme.primary}40`, borderRadius:14, padding:'28px 26px', maxWidth:420, width:'100%', position:'relative' }}>
         <button onClick={onFermer} style={{ position:'absolute', top:14, right:16, background:'none', border:'none', color:theme.textDim, fontSize:18, cursor:'pointer' }}>✕</button>
         {succes ? (
           <div style={{ textAlign:'center', padding:'20px 0' }}>
@@ -96,7 +172,7 @@ function PopupInscriptionAbonnement({ theme, choix, siteId, onFermer }: { theme:
           <>
             <p style={{ fontFamily:theme.fontTexte, fontSize:10, fontWeight:700, color:theme.primary, letterSpacing:'0.15em', textTransform:'uppercase', marginBottom:6 }}>S'abonner</p>
             <p style={{ fontFamily:theme.fontTitre, fontSize:24, fontWeight:700, color:theme.text, marginBottom:4 }}>{choix.formation.titre}</p>
-            <p style={{ fontFamily:theme.fontTexte, fontSize:12, color:theme.textDim, marginBottom:20 }}>{choix.prix.toFixed(2)} $ {LABEL_FREQUENCE[choix.frequence]}</p>
+            <p style={{ fontFamily:theme.fontTexte, fontSize:12, color:theme.textDim, marginBottom:20 }}>{montant(choix.prix)} $ {LABEL_FREQUENCE[choix.frequence]}</p>
             {erreur && <p style={{ fontFamily:theme.fontTexte, fontSize:12, color:'#ff6b6b', marginBottom:14, background:'rgba(255,107,107,.1)', padding:'8px 12px', borderRadius:6 }}>⚠️ {erreur}</p>}
             {[
               { v: nom, set: setNom, ph: 'Nom complet', type: 'text' },
@@ -107,7 +183,7 @@ function PopupInscriptionAbonnement({ theme, choix, siteId, onFermer }: { theme:
                 style={{ width:'100%', boxSizing:'border-box', padding:'11px 14px', marginBottom:10, borderRadius:8, border:`1px solid ${theme.border}`, background:theme.bg, color:theme.text, fontFamily:theme.fontTexte, fontSize:13, outline:'none' }} />
             ))}
             <button onClick={soumettre} disabled={envoi}
-              style={{ width:'100%', marginTop:8, padding:'12px 0', borderRadius:8, border:'none', background:theme.primary, color:'#fff', fontFamily:theme.fontTexte, fontSize:13, fontWeight:700, cursor:'pointer', opacity:envoi?.6:1 }}>
+              style={{ width:'100%', marginTop:8, padding:'12px 0', borderRadius:8, border:'none', background:theme.primary, color:texteSur(theme.primary), fontFamily:theme.fontTexte, fontSize:13, fontWeight:700, cursor:'pointer', opacity:envoi?.6:1 }}>
               {envoi ? 'Envoi...' : "Confirmer l'abonnement"}
             </button>
             <p style={{ fontFamily:theme.fontTexte, fontSize:10, color:theme.textDim, marginTop:10, textAlign:'center' }}>Vous pourrez annuler en tout temps.</p>
@@ -146,7 +222,7 @@ export default function AddonAbonnementEcole({ theme, data }: { theme:AddonAbonn
   };
 
   return (
-    <section style={{ background:theme.bg, padding:'100px 48px' }}>
+    <section style={{ background:theme.bg, padding:'clamp(56px,8vw,100px) clamp(16px,4vw,48px)' }}>
       <div style={{ maxWidth:1100, margin:'0 auto' }}>
         <div style={{ textAlign:'center', marginBottom:48 }}>
           <p style={{ fontFamily:theme.fontTexte, fontSize:11, fontWeight:600, color:theme.accentSecondaire || theme.primary, letterSpacing:'0.25em', textTransform:'uppercase', marginBottom:12 }}>{data.titreLabel}</p>
@@ -160,25 +236,8 @@ export default function AddonAbonnementEcole({ theme, data }: { theme:AddonAbonn
         ) : formations.length === 0 ? (
           <p style={{ textAlign:'center', fontFamily:theme.fontTexte, fontSize:13, color:theme.textDim }}>Aucun forfait disponible pour le moment.</p>
         ) : (
-          <div style={{ display:'grid', gridTemplateColumns:`repeat(auto-fit, minmax(260px, 1fr))`, gap:24 }}>
-            {formations.map(f => {
-              const prix = prixDisponibles(f);
-              return (
-                <div key={f.id} style={{ background:theme.cardBg, border:`1px solid ${theme.border}`, borderRadius:16, padding:'32px 28px', display:'flex', flexDirection:'column' }}>
-                  <p style={{ fontFamily:theme.fontTitre, fontSize:22, fontWeight:700, color:theme.text, marginBottom:8 }}>{f.titre}</p>
-                  {f.description && <p style={{ fontFamily:theme.fontTexte, fontSize:13, color:theme.textDim, marginBottom:20, lineHeight:1.5, flex:1 }}>{f.description}</p>}
-                  <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop: f.description ? 0 : 20 }}>
-                    {prix.map(p => (
-                      <button key={p.frequence} onClick={() => setChoix({ formation: f, frequence: p.frequence, prix: p.prix })}
-                        style={{ display:'flex', justifyContent:'space-between', alignItems:'center', width:'100%', padding:'12px 16px', borderRadius:10, border:`1.5px solid ${theme.primary}`, background:'transparent', cursor:'pointer', fontFamily:theme.fontTexte }}>
-                        <span style={{ fontSize:13, fontWeight:700, color:theme.text }}>{p.prix.toFixed(2)} $ <span style={{ color:theme.textDim, fontWeight:400 }}>{LABEL_FREQUENCE[p.frequence]}</span></span>
-                        <span style={{ fontSize:11, fontWeight:700, color:theme.primary, textTransform:'uppercase', letterSpacing:'0.05em' }}>S'abonner →</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(min(260px, 100%), 320px))', justifyContent:'center', alignItems:'stretch', gap:24 }}>
+            {formations.map(f => <CarteForfait key={f.id} theme={theme} formation={f} prix={prixDisponibles(f)} onChoisir={setChoix} />)}
           </div>
         )}
       </div>

@@ -231,7 +231,7 @@ app.use('/api/sieges', require('./routes/sieges'));
 // 📅 RÉSERVATIONS STUDIO
 // =====================================================================
 app.use('/api/reservations', require('./routes/reservations'));
-app.use('/api/abonnements', require('./routes/abonnements'));
+app.use('/api/abonnements', require('./routes/abonnements_clients'));
 
 // =====================================================================
 // 🌐 DYNADOT (ACHAT DE DOMAINES)

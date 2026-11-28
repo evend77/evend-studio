@@ -47,6 +47,10 @@ interface Formation {
   prix_mensuel: number | null;
   prix_annuel: number | null;
   actif: boolean;
+  icone?: string | null;
+  avantages?: string[] | null;
+  etiquette?: string | null;
+  texte_bouton?: string | null;
 }
 
 interface Abonne {
@@ -81,7 +85,8 @@ const Champ = ({ label, children }: any) => (
   </div>
 );
 
-const FORM_VIDE = { titre: '', description: '', prix_hebdomadaire: '', prix_mensuel: '', prix_annuel: '' };
+const FORM_VIDE = { titre: '', description: '', prix_hebdomadaire: '', prix_mensuel: '', prix_annuel: '', icone: '', avantages: '', etiquette: '', texte_bouton: '' };
+const ICONES = ['💃', '🩰', '🎨', '🎹', '🧘', '🍳', '🐎', '💻', '🗣️', '💪', '⭐', '🏆', '🎓', '🔥'];
 
 const LABEL_FREQUENCE: Record<string, string> = { hebdomadaire: '/ semaine', mensuel: '/ mois', annuel: '/ an' };
 
@@ -171,6 +176,10 @@ export default function MesAbonnementsEcole({ gestionnaireId }: Props) {
       prix_hebdomadaire: f.prix_hebdomadaire != null ? String(f.prix_hebdomadaire) : '',
       prix_mensuel: f.prix_mensuel != null ? String(f.prix_mensuel) : '',
       prix_annuel: f.prix_annuel != null ? String(f.prix_annuel) : '',
+      icone: f.icone || '',
+      avantages: (f.avantages || []).join('\n'),
+      etiquette: f.etiquette || '',
+      texte_bouton: f.texte_bouton || '',
     });
     setErreurForm('');
     setAjoutOuvert(true);
@@ -202,6 +211,10 @@ export default function MesAbonnementsEcole({ gestionnaireId }: Props) {
           prix_hebdomadaire: formulaire.prix_hebdomadaire ? parseFloat(formulaire.prix_hebdomadaire) : null,
           prix_mensuel: formulaire.prix_mensuel ? parseFloat(formulaire.prix_mensuel) : null,
           prix_annuel: formulaire.prix_annuel ? parseFloat(formulaire.prix_annuel) : null,
+          icone: formulaire.icone,
+          avantages: formulaire.avantages.split('\n').map(l => l.trim()).filter(Boolean),
+          etiquette: formulaire.etiquette,
+          texte_bouton: formulaire.texte_bouton,
         }),
       });
       const data = await res.json();
@@ -441,6 +454,34 @@ export default function MesAbonnementsEcole({ gestionnaireId }: Props) {
                     </Champ>
                   </div>
 
+                  <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: C.textDim, margin: '16px 0 10px' }}>
+                    Contenu de la carte sur votre site (facultatif)
+                  </p>
+                  <Champ label="Icône">
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {ICONES.map(ic => (
+                        <button key={ic} type="button" onClick={() => setFormulaire(p => ({ ...p, icone: p.icone === ic ? '' : ic }))}
+                          style={{ width: 38, height: 38, borderRadius: 8, border: `1.5px solid ${formulaire.icone === ic ? '#a855f7' : C.border}`, background: formulaire.icone === ic ? 'rgba(168,85,247,0.15)' : 'transparent', fontSize: 18, cursor: 'pointer' }}>
+                          {ic}
+                        </button>
+                      ))}
+                      <Inp value={formulaire.icone} onChange={(e: any) => setFormulaire(p => ({ ...p, icone: e.target.value }))} placeholder="Autre" maxLength={8} style={{ width: 90 }} />
+                    </div>
+                  </Champ>
+                  <Champ label="Avantages — un par ligne (12 maximum)">
+                    <textarea value={formulaire.avantages} onChange={e => setFormulaire(p => ({ ...p, avantages: e.target.value }))} rows={5}
+                      placeholder={'6 cours par mois\nVestiaires inclus\nPremier cours gratuit'}
+                      style={{ width: '100%', padding: '10px 13px', border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 13, outline: 'none', background: C.inputBg, color: C.text, boxSizing: 'border-box', fontFamily: 'inherit', resize: 'vertical' }} />
+                  </Champ>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: 14 }}>
+                    <Champ label="Étiquette (met la carte en évidence)">
+                      <Inp value={formulaire.etiquette} onChange={(e: any) => setFormulaire(p => ({ ...p, etiquette: e.target.value }))} placeholder="Populaire" maxLength={30} />
+                    </Champ>
+                    <Champ label="Texte du bouton">
+                      <Inp value={formulaire.texte_bouton} onChange={(e: any) => setFormulaire(p => ({ ...p, texte_bouton: e.target.value }))} placeholder="S'abonner" maxLength={30} />
+                    </Champ>
+                  </div>
+
                   <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                     <button onClick={soumettreFormulaire} disabled={creation}
                       style={{ flex: 1, padding: 11, border: 'none', borderRadius: 10, background: 'linear-gradient(135deg,#7c3aed,#a855f7)', color: '#fff', fontSize: 13, fontWeight: 800, cursor: creation ? 'wait' : 'pointer' }}>
@@ -471,7 +512,10 @@ export default function MesAbonnementsEcole({ gestionnaireId }: Props) {
                     <div key={f.id} className="mae-card" style={{ border: `1.5px solid ${f.actif ? C.border : 'rgba(255,255,255,0.04)'}`, borderRadius: 10, padding: '14px 16px', opacity: f.actif ? 1 : 0.55 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
                         <div style={{ flex: 1, minWidth: 220 }}>
-                          <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>{f.titre}</p>
+                          <p style={{ fontSize: 14, fontWeight: 700, color: C.text, margin: '0 0 4px' }}>
+                            {f.icone ? `${f.icone} ` : ''}{f.titre}
+                            {f.etiquette && <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, background: 'rgba(168,85,247,0.2)', color: '#c084fc', padding: '2px 8px', borderRadius: 20 }}>{f.etiquette}</span>}
+                          </p>
                           {f.description && <p style={{ fontSize: 12, color: C.textLight, margin: '0 0 6px' }}>{f.description}</p>}
                           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                             {f.prix_hebdomadaire != null && <span style={{ fontSize: 12, fontWeight: 700, color: '#c084fc' }}>{Number(f.prix_hebdomadaire).toFixed(2)}$ / sem</span>}

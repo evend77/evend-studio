@@ -61,7 +61,7 @@ async function relancerAbonnements() {
       [DELAI_MINUTES]
     );
 
-    const { envoyerCourrielAbonnement } = require('./abonnements');
+    const { envoyerCourrielAbonnement } = require('./abonnements_clients');
 
     for (const abonnement of result.rows) {
       const configSite = { ...(abonnement.config || {}), gestionnaireEmail: abonnement.gestionnaire_email };

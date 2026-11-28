@@ -117,7 +117,7 @@ async function handleCheckoutCompleted(session, stripe, stripeAccountId) {
     );
     const siteData = siteResult.rows[0];
     const configSite = { ...(siteData?.config || {}), gestionnaireEmail: siteData?.gestionnaire_email };
-    const { envoyerCourrielAbonnement } = require('./abonnements');
+    const { envoyerCourrielAbonnement } = require('./abonnements_clients');
     await envoyerCourrielAbonnement('confirmation', abonnement, configSite, formationResult.rows[0]);
 
     console.log(`   ✅ Abonnement ${abonnementId} activé`);
@@ -152,7 +152,7 @@ async function handlePaiementReussi(invoice, stripe, stripeAccountId) {
   );
   const siteData = siteResult.rows[0];
   const configSite = { ...(siteData?.config || {}), gestionnaireEmail: siteData?.gestionnaire_email };
-  const { envoyerCourrielAbonnement } = require('./abonnements');
+  const { envoyerCourrielAbonnement } = require('./abonnements_clients');
   await envoyerCourrielAbonnement('recu_paiement', abonnement, configSite, formationResult.rows[0]);
 
   console.log(`   ✅ Prélèvement réussi — abonnement ${abonnement.id}`);

@@ -1,4 +1,4 @@
-// routes/abonnements.js
+// routes/abonnements_clients.js
 // e-Vend Studio — Add-on Abonnement École/Cours
 // Gère les forfaits récurrents (formations) et les clients abonnés.
 // Même structure/conventions que routes/reservations.js.
@@ -167,6 +167,37 @@ async function envoyerCourrielAbonnement(type, abonnement, configSite, formation
   }
 }
 
+// ── Contenu des cartes de forfait ─────────────────────────────────────────────
+// Colonnes ajoutées au premier appel (sans effet si elles existent déjà).
+let _colonnes = null;
+function colonnesPretes() {
+  if (!_colonnes) {
+    _colonnes = pool.query(`ALTER TABLE formations
+      ADD COLUMN IF NOT EXISTS icone TEXT,
+      ADD COLUMN IF NOT EXISTS avantages JSONB NOT NULL DEFAULT '[]'::jsonb,
+      ADD COLUMN IF NOT EXISTS etiquette TEXT,
+      ADD COLUMN IF NOT EXISTS texte_bouton TEXT`).catch((e) => { _colonnes = null; throw e; });
+  }
+  return _colonnes;
+}
+
+const court = (v, max) => (typeof v === 'string' && v.trim() ? Array.from(v.trim()).slice(0, max).join('') : null);
+const listeAvantages = (v) => (Array.isArray(v) ? v.map((x) => court(x, 120)).filter(Boolean).slice(0, 12) : []);
+
+// Valeur à enregistrer pour chaque champ modifiable (liste FERMÉE : seule source des noms de colonnes insérés en SQL)
+const CHAMPS = {
+  titre:             (v) => v,
+  description:       (v) => v || null,
+  prix_hebdomadaire: (v) => (v === '' || v === undefined ? null : v),
+  prix_mensuel:      (v) => (v === '' || v === undefined ? null : v),
+  prix_annuel:       (v) => (v === '' || v === undefined ? null : v),
+  actif:             (v) => !!v,
+  icone:             (v) => court(v, 8),
+  avantages:         (v) => JSON.stringify(listeAvantages(v)),
+  etiquette:         (v) => court(v, 30),
+  texte_bouton:      (v) => court(v, 30),
+};
+
 // ═══════════════════════════════════════════════════════════════
 // ROUTES PUBLIQUES
 // ═══════════════════════════════════════════════════════════════
@@ -174,8 +205,9 @@ async function envoyerCourrielAbonnement(type, abonnement, configSite, formation
 // GET /api/abonnements/formations/:siteId — forfaits actifs, pour le site public
 router.get('/formations/:siteId', async (req, res) => {
   try {
+    await colonnesPretes();
     const result = await pool.query(
-      `SELECT id, titre, description, prix_hebdomadaire, prix_mensuel, prix_annuel
+      `SELECT id, titre, description, prix_hebdomadaire, prix_mensuel, prix_annuel, icone, avantages, etiquette, texte_bouton
        FROM formations WHERE site_id = $1 AND actif = true ORDER BY id ASC`,
       [req.params.siteId]
     );
@@ -242,6 +274,7 @@ router.post('/', async (req, res) => {
 // GET /mes-formations — tous les forfaits du gestionnaire (actifs + inactifs)
 router.get('/mes-formations', authenticateToken, async (req, res) => {
   try {
+    await colonnesPretes();
     const siteResult = await pool.query('SELECT id FROM sites WHERE gestionnaire_id = $1', [req.user.id]);
     if (!siteResult.rows.length) return res.json({ formations: [] });
     const result = await pool.query(`SELECT * FROM formations WHERE site_id = $1 ORDER BY created_at DESC`, [siteResult.rows[0].id]);
@@ -253,15 +286,17 @@ router.get('/mes-formations', authenticateToken, async (req, res) => {
 
 // POST /formations — créer un forfait
 router.post('/formations', authenticateToken, async (req, res) => {
-  const { titre, description, prix_hebdomadaire, prix_mensuel, prix_annuel } = req.body;
+  const { titre, description, prix_hebdomadaire, prix_mensuel, prix_annuel, icone, avantages, etiquette, texte_bouton } = req.body;
   if (!titre) return res.status(400).json({ message: 'Titre requis.' });
   try {
+    await colonnesPretes();
     const siteResult = await pool.query('SELECT id FROM sites WHERE gestionnaire_id = $1', [req.user.id]);
     if (!siteResult.rows.length) return res.status(404).json({ message: 'Site non trouvé.' });
     const result = await pool.query(
-      `INSERT INTO formations (site_id, titre, description, prix_hebdomadaire, prix_mensuel, prix_annuel)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [siteResult.rows[0].id, titre, description || null, prix_hebdomadaire || null, prix_mensuel || null, prix_annuel || null]
+      `INSERT INTO formations (site_id, titre, description, prix_hebdomadaire, prix_mensuel, prix_annuel, icone, avantages, etiquette, texte_bouton)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10) RETURNING *`,
+      [siteResult.rows[0].id, titre, description || null, prix_hebdomadaire || null, prix_mensuel || null, prix_annuel || null,
+       CHAMPS.icone(icone), CHAMPS.avantages(avantages), CHAMPS.etiquette(etiquette), CHAMPS.texte_bouton(texte_bouton)]
     );
     res.status(201).json({ success: true, formation: result.rows[0] });
   } catch (err) {
@@ -270,18 +305,21 @@ router.post('/formations', authenticateToken, async (req, res) => {
 });
 
 // PUT /formations/:id — modifier un forfait
+// Seuls les champs ENVOYÉS sont modifiés ; un champ envoyé vide est effacé (description, prix, contenu de la carte).
 router.put('/formations/:id', authenticateToken, async (req, res) => {
-  const { titre, description, prix_hebdomadaire, prix_mensuel, prix_annuel, actif } = req.body;
+  const corps = req.body || {};
+  const cles = Object.keys(CHAMPS).filter((c) => Object.prototype.hasOwnProperty.call(corps, c));
+  if (cles.includes('titre') && !String(corps.titre || '').trim()) return res.status(400).json({ message: 'Titre requis.' });
   try {
+    await colonnesPretes();
     const siteResult = await pool.query('SELECT id FROM sites WHERE gestionnaire_id = $1', [req.user.id]);
     if (!siteResult.rows.length) return res.status(404).json({ message: 'Site non trouvé.' });
+    const sets = cles.map((c, n) => `${c} = $${n + 1}${c === 'avantages' ? '::jsonb' : ''}`);
+    const valeurs = cles.map((c) => CHAMPS[c](corps[c]));
     const result = await pool.query(
-      `UPDATE formations SET
-         titre = COALESCE($1, titre), description = COALESCE($2, description),
-         prix_hebdomadaire = COALESCE($3, prix_hebdomadaire), prix_mensuel = COALESCE($4, prix_mensuel),
-         prix_annuel = COALESCE($5, prix_annuel), actif = COALESCE($6, actif), updated_at = NOW()
-       WHERE id = $7 AND site_id = $8 RETURNING *`,
-      [titre, description, prix_hebdomadaire, prix_mensuel, prix_annuel, actif, req.params.id, siteResult.rows[0].id]
+      `UPDATE formations SET ${[...sets, 'updated_at = NOW()'].join(', ')}
+       WHERE id = $${cles.length + 1} AND site_id = $${cles.length + 2} RETURNING *`,
+      [...valeurs, req.params.id, siteResult.rows[0].id]
     );
     if (!result.rows.length) return res.status(404).json({ message: 'Forfait introuvable.' });
     res.json({ success: true, formation: result.rows[0] });
