@@ -15,6 +15,8 @@ import BoutiquePopupAnnonce            from '../components/BoutiquePopupAnnonce'
 import VerificateurAge                from '../components/VerificateurAge';
 import VitrineBoutonInstallerApp       from '../components/VitrineBoutonInstallerApp';
 import EffetsVitrine                   from '../components/EffetsVitrine';   // add-on vitrine « Effets de boutique »
+import PopupAnnonce                    from '../components/PopupAnnonce';   // add-on « Popup Annonce » des sites vitrine
+import { TEMPLATES, CATEGORIES, templatesDeCategorie } from './PageTemplates';
 import TemplateVitrine                from '../templates/TemplateVitrine';
 import TemplateReservation            from '../templates/TemplateReservation';
 import TemplateLocationAstro          from '../templates/TemplateLocationAstro';
@@ -1981,6 +1983,11 @@ const DEMO_CONFIG_GENERIQUE = {
   description: 'Ceci est un aperçu démo du template.',
 };
 
+// Templates de la catégorie « Sites Vitrine » (même liste que le menu VITRINE du tableau de bord)
+const IDS_SITES_VITRINE = new Set(
+  templatesDeCategorie(CATEGORIES.find(c => c.id === 'vitrines')!, TEMPLATES).map(t => t.id)
+);
+
 export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePreviewProps = {}) {
   const [params]  = useSearchParams();
   const vendeurId = vendeurIdProp != null ? String(vendeurIdProp) : params.get('vendeurId');
@@ -2352,6 +2359,9 @@ export default function SitePreview({ vendeurIdProp, hidePreviewBar }: SitePrevi
 
       {/* Effets de boutique — sites vitrine (add-on effets_vitrine ; le serveur vérifie que le site est bien une vitrine), jamais en mode démo */}
       {!isDemo && vendeurId && !!options?.effets_vitrine && <EffetsVitrine gestionnaireId={Number(vendeurId)} />}
+
+      {/* Popup Annonce — sites vitrine (add-on popup_annonce), jamais en mode démo. Les autres catégories gardent leur propre affichage. */}
+      {!isDemo && vendeurId && IDS_SITES_VITRINE.has(templateId) && !!options?.popup_annonce && <PopupAnnonce vendeurId={Number(vendeurId)} />}
 
       {/* Contenu */}
       <div style={{ paddingBottom: 44 }}>

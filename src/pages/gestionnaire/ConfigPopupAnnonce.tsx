@@ -9,6 +9,19 @@ const BLEU  = '#2563eb';
 
 interface Props { gestionnaireId: number; }
 
+// La base conserve un instant précis (avec fuseau) ; le champ date-heure du navigateur veut l'heure locale « AAAA-MM-JJTHH:MM ».
+const versChamp = (v: any): string => {
+  const d = v ? new Date(v) : null;
+  if (!d || isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+// Heure locale saisie → instant avec fuseau (ISO), pour que la base ne l'interprète pas selon son propre réglage.
+const versBase = (v: any): string => {
+  const d = v ? new Date(v) : null;
+  return d && !isNaN(d.getTime()) ? d.toISOString() : '';
+};
+
 const TYPES = [
   { id: 'popup',        label: 'Popup centré',      desc: 'Fenêtre au centre de l\'écran avec fond flouté', icone: '🪟' },
   { id: 'banniere_haut',label: 'Bannière en haut',  desc: 'Barre fixe en haut du site',                    icone: '⬆️' },
@@ -104,7 +117,7 @@ export default function ConfigPopupAnnonce({ gestionnaireId }: Props) {
     fetch(`${API_BASE}/gestionnaires/${gestionnaireId}/popup-annonce`, {
       headers: { Authorization: `Bearer ${token}` }, credentials: 'include',
     }).then(r => r.ok ? r.json() : {}).then(data => {
-      if (data && Object.keys(data).length > 0) setCfg((p: any) => ({ ...p, ...data }));
+      if (data && Object.keys(data).length > 0) setCfg((p: any) => ({ ...p, ...data, date_debut: versChamp((data as any).date_debut), date_fin: versChamp((data as any).date_fin) }));
     }).catch(()=>{});
   }, [gestionnaireId]);
 
@@ -118,7 +131,7 @@ export default function ConfigPopupAnnonce({ gestionnaireId }: Props) {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         credentials: 'include',
-        body: JSON.stringify(cfg),
+        body: JSON.stringify({ ...cfg, date_debut: versBase(cfg.date_debut), date_fin: versBase(cfg.date_fin) }),
       });
       if (!res.ok) throw new Error();
       setStatut('ok');
@@ -145,7 +158,7 @@ export default function ConfigPopupAnnonce({ gestionnaireId }: Props) {
           <p style={{ fontSize:13, color:'#888', margin:0 }}>Affichez une annonce, promo ou événement sur votre boutique</p>
         </div>
         <div style={{ marginLeft:'auto', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:8, padding:'6px 14px', fontSize:12, fontWeight:700, color:'#e63946' }}>
-          Add-On actif · 5,00 $/mois
+          Add-On actif
         </div>
       </div>
 

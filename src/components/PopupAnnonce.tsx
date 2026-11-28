@@ -112,6 +112,9 @@ export default function PopupAnnonce({ vendeurId, configOverride }: Props) {
 
   if (!visible || !cfg) return null;
 
+  // Bouton sans URL : il ferme simplement l'annonce
+  const clicBouton = (e: { preventDefault: () => void }) => { if (!cfg.bouton_url) { e.preventDefault(); fermer(); } };
+
   const { couleur_fond, couleur_texte, couleur_bouton } = cfg;
 
   // ── Bannière haut ──────────────────────────────────────────────────────────
@@ -125,7 +128,7 @@ export default function PopupAnnonce({ vendeurId, configOverride }: Props) {
           {cfg.titre && <strong style={{ fontSize: 14, fontWeight: 800 }}>{cfg.titre}</strong>}
           <span style={{ fontSize: 13, opacity: 0.9 }}>{cfg.message}</span>
           {cfg.bouton_actif && cfg.bouton_label && (
-            <a href={cfg.bouton_url || '#'} target={cfg.bouton_url ? '_blank' : undefined} rel="noopener noreferrer"
+            <a href={cfg.bouton_url || '#'} target={cfg.bouton_url ? '_blank' : undefined} rel="noopener noreferrer" onClick={clicBouton}
               style={{ background: couleur_bouton, color: '#fff', padding: '6px 16px', borderRadius: 20, fontSize: 12, fontWeight: 700, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}>
               {cfg.bouton_label}
             </a>
@@ -155,7 +158,7 @@ export default function PopupAnnonce({ vendeurId, configOverride }: Props) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {cfg.bouton_actif && cfg.bouton_label && (
-              <a href={cfg.bouton_url || '#'} target={cfg.bouton_url ? '_blank' : undefined} rel="noopener noreferrer"
+              <a href={cfg.bouton_url || '#'} target={cfg.bouton_url ? '_blank' : undefined} rel="noopener noreferrer" onClick={clicBouton}
                 style={{ display: 'block', background: couleur_bouton, color: '#fff', padding: '14px 24px', borderRadius: 12, fontSize: 15, fontWeight: 800, textDecoration: 'none', transition: 'opacity 0.2s' }}
                 onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
                 onMouseLeave={e => (e.currentTarget.style.opacity = '1')}>
